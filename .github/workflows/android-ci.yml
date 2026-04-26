@@ -13,6 +13,7 @@ permissions:
 
 jobs:
   ci:
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,6 +28,27 @@ jobs:
 
       - name: Grant execute permission
         run: chmod +x ./gradlew
+
+      - name: Load signing env by gh + GH_TOKEN_class_viewer
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN_class_viewer }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "缺少 secret: GH_TOKEN_class_viewer" >&2
+            exit 1
+          fi
+          KEYSTORE_B64="$(gh variable get CLASS_VIEWER_KEYSTORE_BASE64 --repo "${{ github.repository }}")"
+          KEYSTORE_PASSWORD="$(gh variable get CLASS_VIEWER_KEYSTORE_PASSWORD --repo "${{ github.repository }}")"
+          KEY_ALIAS="$(gh variable get CLASS_VIEWER_KEY_ALIAS --repo "${{ github.repository }}")"
+          KEY_PASSWORD="$(gh variable get CLASS_VIEWER_KEY_PASSWORD --repo "${{ github.repository }}")"
+          KEYSTORE_PATH="$RUNNER_TEMP/class-viewer.jks"
+          echo "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          {
+            echo "CLASS_VIEWER_KEYSTORE_FILE=$KEYSTORE_PATH"
+            echo "CLASS_VIEWER_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "CLASS_VIEWER_KEY_ALIAS=$KEY_ALIAS"
+            echo "CLASS_VIEWER_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: Unit tests
         run: ./gradlew :core-kernel:testDebugUnitTest
@@ -34,10 +56,9 @@ jobs:
       - name: Build debug
         run: ./gradlew assembleDebug
 
-  release-apk:
-    if: github.event_name == 'push'
+  cd:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: ci
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,6 +72,27 @@ jobs:
 
       - name: Grant execute permission
         run: chmod +x ./gradlew
+
+      - name: Load signing env by gh + GH_TOKEN_class_viewer
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN_class_viewer }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "缺少 secret: GH_TOKEN_class_viewer" >&2
+            exit 1
+          fi
+          KEYSTORE_B64="$(gh variable get CLASS_VIEWER_KEYSTORE_BASE64 --repo "${{ github.repository }}")"
+          KEYSTORE_PASSWORD="$(gh variable get CLASS_VIEWER_KEYSTORE_PASSWORD --repo "${{ github.repository }}")"
+          KEY_ALIAS="$(gh variable get CLASS_VIEWER_KEY_ALIAS --repo "${{ github.repository }}")"
+          KEY_PASSWORD="$(gh variable get CLASS_VIEWER_KEY_PASSWORD --repo "${{ github.repository }}")"
+          KEYSTORE_PATH="$RUNNER_TEMP/class-viewer.jks"
+          echo "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          {
+            echo "CLASS_VIEWER_KEYSTORE_FILE=$KEYSTORE_PATH"
+            echo "CLASS_VIEWER_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "CLASS_VIEWER_KEY_ALIAS=$KEY_ALIAS"
+            echo "CLASS_VIEWER_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: Build release (v7a/v8a/universal)
         run: ./gradlew assembleRelease
@@ -63,9 +105,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/release/*.apk
           generate_release_notes: true
-

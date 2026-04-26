@@ -24,14 +24,36 @@
 
 - JDK 17
 - Android SDK（含 `platforms;android-36`）
+- GitHub CLI（`gh`）
 
-### 2) 构建 Debug
+### 2) 加载统一签名环境（本地）
+
+先在本地会话设置：
+
+- `GH_TOKEN_class_viewer`（用于 `gh` 读取仓库 Variables）
+
+然后执行：
+
+```pwsh
+. ./scripts/load-signing-env.ps1
+```
+
+该脚本会从仓库 Variables 读取并写入以下环境变量：
+
+- `CLASS_VIEWER_KEYSTORE_FILE`
+- `CLASS_VIEWER_KEYSTORE_PASSWORD`
+- `CLASS_VIEWER_KEY_ALIAS`
+- `CLASS_VIEWER_KEY_PASSWORD`
+
+> 所有本地构建（Debug/Release）都强制使用这套签名。
+
+### 3) 构建 Debug
 
 ```bash
 ./gradlew assembleDebug
 ```
 
-### 3) 构建 Release（含 v7a/v8a/universal）
+### 4) 构建 Release（含 v7a/v8a/universal）
 
 ```bash
 ./gradlew assembleRelease
@@ -86,7 +108,16 @@
 
 工作流文件：`.github/workflows/android-ci.yml`
 
-- PR：执行单测 + `assembleDebug`
-- Push 到 `main`：执行 `assembleRelease` 并上传 APK artifacts
-- Tag（如 `v1.0.0`）：自动创建 GitHub Release 并附加 APK
+- CI（PR / push `main`）：执行单测 + `assembleDebug`
+- CD（仅 tag，如 `v1.0.0`）：执行 `assembleRelease`、上传 APK、发布 GitHub Release
+- 工作流内通过 `GH_TOKEN_class_viewer` + `gh variable get` 写入签名环境变量后再构建
 
+### CI/CD 需预置的仓库配置
+
+- Secret：
+  - `GH_TOKEN_class_viewer`
+- Variables：
+  - `CLASS_VIEWER_KEYSTORE_BASE64`
+  - `CLASS_VIEWER_KEYSTORE_PASSWORD`
+  - `CLASS_VIEWER_KEY_ALIAS`
+  - `CLASS_VIEWER_KEY_PASSWORD`
