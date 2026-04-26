@@ -1,8 +1,22 @@
+import org.gradle.api.GradleException
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
+
+fun requireSigningEnv(name: String): String {
+    return providers.environmentVariable(name).orNull
+        ?: throw GradleException(
+            "缺少环境变量 `$name`。请先使用 GH_TOKEN_class_viewer 加载签名环境（见 README）。",
+        )
+}
+
+val classViewerKeystoreFile = requireSigningEnv("CLASS_VIEWER_KEYSTORE_FILE")
+val classViewerKeystorePassword = requireSigningEnv("CLASS_VIEWER_KEYSTORE_PASSWORD")
+val classViewerKeyAlias = requireSigningEnv("CLASS_VIEWER_KEY_ALIAS")
+val classViewerKeyPassword = requireSigningEnv("CLASS_VIEWER_KEY_PASSWORD")
 
 android {
     namespace = "com.kebiao.viewer"
@@ -17,8 +31,23 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("classViewer") {
+            storeFile = file(classViewerKeystoreFile)
+            storePassword = classViewerKeystorePassword
+            keyAlias = classViewerKeyAlias
+            keyPassword = classViewerKeyPassword
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("classViewer")
+        }
         release {
+            signingConfig = signingConfigs.getByName("classViewer")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -84,4 +113,3 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
-
