@@ -24,13 +24,26 @@
 
 - JDK 17
 - Android SDK（含 `platforms;android-36`）
-- GitHub CLI（`gh`）
 
-### 2) 加载统一签名环境（本地）
+### 2) 配置统一签名（本地）
 
-先在本地会话设置：
+本地推荐使用根目录 `keystore.properties`（已加入 `.gitignore`，不要提交）：
 
-- `GH_TOKEN_class_viewer`（用于 `gh` 读取仓库 Variables）
+```properties
+CLASS_VIEWER_KEYSTORE_FILE=/absolute/path/to/class-viewer.jks
+CLASS_VIEWER_KEYSTORE_PASSWORD=replace-with-store-password
+CLASS_VIEWER_KEY_ALIAS=replace-with-key-alias
+CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
+```
+
+可参考 `keystore.example.properties`。也可以直接设置同名环境变量。
+
+若本地只有 base64 形式的 keystore，可先设置：
+
+- `CLASS_VIEWER_KEYSTORE_BASE64`
+- `CLASS_VIEWER_KEYSTORE_PASSWORD`
+- `CLASS_VIEWER_KEY_ALIAS`
+- `CLASS_VIEWER_KEY_PASSWORD`
 
 然后执行：
 
@@ -38,14 +51,10 @@
 . ./scripts/load-signing-env.ps1
 ```
 
-该脚本会从仓库 Variables 读取并写入以下环境变量：
-
-- `CLASS_VIEWER_KEYSTORE_FILE`
-- `CLASS_VIEWER_KEYSTORE_PASSWORD`
-- `CLASS_VIEWER_KEY_ALIAS`
-- `CLASS_VIEWER_KEY_PASSWORD`
+脚本只会从当前环境变量解码 keystore，不会调用 `gh` 或访问 GitHub。
 
 > 所有本地构建（Debug/Release）都强制使用这套签名。
+> `.signing/` 已加入 `.gitignore`，不要提交本地生成的 keystore。
 
 ### 3) 构建 Debug
 
@@ -110,13 +119,11 @@
 
 - CI（PR / push `main`）：执行单测 + `assembleDebug`
 - CD（仅 tag，如 `v1.0.0`）：执行 `assembleRelease`、上传 APK、发布 GitHub Release
-- 工作流内通过 `GH_TOKEN_class_viewer` + `gh variable get` 写入签名环境变量后再构建
+- 工作流通过 GitHub Actions Secrets 直接注入签名材料，随后用 `scripts/load-signing-env.ps1` 解码到 runner 临时目录
 
 ### CI/CD 需预置的仓库配置
 
-- Secret：
-  - `GH_TOKEN_class_viewer`
-- Variables：
+- Secrets：
   - `CLASS_VIEWER_KEYSTORE_BASE64`
   - `CLASS_VIEWER_KEYSTORE_PASSWORD`
   - `CLASS_VIEWER_KEY_ALIAS`

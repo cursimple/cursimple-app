@@ -1,4 +1,5 @@
 import org.gradle.api.GradleException
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -6,17 +7,25 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-fun requireSigningEnv(name: String): String {
+val localSigningProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.isFile) {
+        file.inputStream().use(::load)
+    }
+}
+
+fun requireSigningValue(name: String): String {
     return providers.environmentVariable(name).orNull
+        ?: localSigningProperties.getProperty(name)
         ?: throw GradleException(
-            "缺少环境变量 `$name`。请先使用 GH_TOKEN_class_viewer 加载签名环境（见 README）。",
+            "缺少签名配置 `$name`。请使用环境变量或根目录 keystore.properties 配置签名（见 README）。",
         )
 }
 
-val classViewerKeystoreFile = requireSigningEnv("CLASS_VIEWER_KEYSTORE_FILE")
-val classViewerKeystorePassword = requireSigningEnv("CLASS_VIEWER_KEYSTORE_PASSWORD")
-val classViewerKeyAlias = requireSigningEnv("CLASS_VIEWER_KEY_ALIAS")
-val classViewerKeyPassword = requireSigningEnv("CLASS_VIEWER_KEY_PASSWORD")
+val classViewerKeystoreFile = requireSigningValue("CLASS_VIEWER_KEYSTORE_FILE")
+val classViewerKeystorePassword = requireSigningValue("CLASS_VIEWER_KEYSTORE_PASSWORD")
+val classViewerKeyAlias = requireSigningValue("CLASS_VIEWER_KEY_ALIAS")
+val classViewerKeyPassword = requireSigningValue("CLASS_VIEWER_KEY_PASSWORD")
 
 android {
     namespace = "com.kebiao.viewer"
@@ -33,7 +42,7 @@ android {
 
     signingConfigs {
         create("classViewer") {
-            storeFile = file(classViewerKeystoreFile)
+            storeFile = rootProject.file(classViewerKeystoreFile)
             storePassword = classViewerKeystorePassword
             keyAlias = classViewerKeyAlias
             keyPassword = classViewerKeyPassword
