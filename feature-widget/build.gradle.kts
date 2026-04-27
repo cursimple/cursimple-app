@@ -29,6 +29,7 @@ android {
 dependencies {
     implementation(project(":core-kernel"))
     implementation(project(":core-data"))
+    implementation(project(":core-reminder"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
@@ -36,4 +37,3 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     implementation(libs.androidx.work.runtime.ktx)
 }
-

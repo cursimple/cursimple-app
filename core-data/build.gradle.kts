@@ -24,6 +24,8 @@ android {
 
 dependencies {
     implementation(project(":core-kernel"))
+    implementation(project(":core-plugin"))
+    implementation(project(":core-reminder"))
 
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
@@ -32,4 +34,3 @@ dependencies {
 
     testImplementation(libs.junit4)
 }
-

@@ -1,0 +1,40 @@
+{
+  "termId": "{{termId}}",
+  "updatedAt": "{{nowIso}}",
+  "dailySchedules": [
+    {
+      "dayOfWeek": 2,
+      "courses": [
+        {
+          "id": "web-course-1",
+          "title": "Web 登录实践",
+          "teacher": "刘老师",
+          "location": "网络实验室",
+          "weeks": [1, 2, 3, 4, 5, 6],
+          "time": {
+            "dayOfWeek": 2,
+            "startNode": 1,
+            "endNode": 2
+          }
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 4,
+      "courses": [
+        {
+          "id": "web-course-2",
+          "title": "页面交互设计",
+          "teacher": "赵老师",
+          "location": "F302",
+          "weeks": [1, 2, 3, 4, 5, 6],
+          "time": {
+            "dayOfWeek": 4,
+            "startNode": 3,
+            "endNode": 4
+          }
+        }
+      ]
+    }
+  ]
+}

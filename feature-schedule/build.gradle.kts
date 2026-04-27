@@ -29,8 +29,12 @@ android {
 dependencies {
     implementation(project(":core-kernel"))
     implementation(project(":core-data"))
+    implementation(project(":core-plugin"))
+    implementation(project(":core-reminder"))
+    implementation(project(":feature-plugin"))
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

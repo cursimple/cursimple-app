@@ -100,7 +100,10 @@ dependencies {
     implementation(project(":core-kernel"))
     implementation(project(":core-js"))
     implementation(project(":core-data"))
+    implementation(project(":core-plugin"))
+    implementation(project(":core-reminder"))
     implementation(project(":feature-schedule"))
+    implementation(project(":feature-plugin"))
     implementation(project(":feature-widget"))
 
     implementation(libs.androidx.core.ktx)

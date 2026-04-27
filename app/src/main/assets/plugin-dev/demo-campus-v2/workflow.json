@@ -1,0 +1,27 @@
+{
+  "workflowId": "sync-schedule",
+  "steps": [
+    {
+      "id": "ui",
+      "type": "ui_emit",
+      "uiAsset": "ui/schedule.json"
+    },
+    {
+      "id": "message",
+      "type": "message",
+      "message": "已载入演示插件 V2，当前课表由宿主工作流引擎产出。"
+    },
+    {
+      "id": "alarm",
+      "type": "alarm_plan_emit",
+      "message": "理论课建议默认提前 20 分钟提醒。",
+      "recommendedAdvanceMinutes": 20
+    },
+    {
+      "id": "schedule",
+      "type": "schedule_emit_static",
+      "scheduleAsset": "datapack/schedule.json",
+      "updatedAtNow": true
+    }
+  ]
+}

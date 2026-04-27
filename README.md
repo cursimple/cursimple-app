@@ -76,6 +76,10 @@ Debug/CI 包的 `applicationId` 是 `com.kebiao.viewer.ci`，可与 Release 包 
 
 ## JS 插件协议
 
+更详细的面向维护者说明见：
+
+- [docs/plugin-system.md](docs/plugin-system.md)
+
 每个插件必须导出 3 个函数：
 
 - `login(ctx, input)`：登录并返回会话对象
