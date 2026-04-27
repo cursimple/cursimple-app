@@ -1,0 +1,18 @@
+{
+  "pluginId": "demo-campus-v2",
+  "name": "演示课表插件 V2",
+  "publisher": "Class Schedule Viewer",
+  "version": "2.0.0",
+  "versionCode": 2000,
+  "description": "内置演示插件，展示 V2 工作流、UI 扩展和提醒建议。",
+  "entryWorkflow": "sync-schedule",
+  "declaredPermissions": [
+    "schedule_write",
+    "ui_contribution",
+    "alarm_manage"
+  ],
+  "allowedHosts": [
+    "demo-campus.example"
+  ],
+  "dataPackVersion": "1"
+}

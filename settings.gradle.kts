@@ -21,7 +21,9 @@ include(
     ":core-kernel",
     ":core-js",
     ":core-data",
+    ":core-plugin",
+    ":core-reminder",
     ":feature-schedule",
+    ":feature-plugin",
     ":feature-widget",
 )
-

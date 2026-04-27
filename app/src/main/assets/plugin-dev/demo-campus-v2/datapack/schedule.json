@@ -1,0 +1,69 @@
+{
+  "termId": "{{termId}}",
+  "updatedAt": "{{nowIso}}",
+  "dailySchedules": [
+    {
+      "dayOfWeek": 1,
+      "courses": [
+        {
+          "id": "math-1",
+          "title": "高等数学",
+          "teacher": "张老师",
+          "location": "A101",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8],
+          "time": {
+            "dayOfWeek": 1,
+            "startNode": 1,
+            "endNode": 2
+          }
+        },
+        {
+          "id": "ds-1",
+          "title": "数据结构",
+          "teacher": "李老师",
+          "location": "B203",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8],
+          "time": {
+            "dayOfWeek": 1,
+            "startNode": 3,
+            "endNode": 4
+          }
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 3,
+      "courses": [
+        {
+          "id": "os-1",
+          "title": "操作系统",
+          "teacher": "王老师",
+          "location": "C305",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8],
+          "time": {
+            "dayOfWeek": 3,
+            "startNode": 5,
+            "endNode": 6
+          }
+        }
+      ]
+    },
+    {
+      "dayOfWeek": 5,
+      "courses": [
+        {
+          "id": "eng-1",
+          "title": "大学英语",
+          "teacher": "陈老师",
+          "location": "D110",
+          "weeks": [1, 2, 3, 4, 5, 6, 7, 8],
+          "time": {
+            "dayOfWeek": 5,
+            "startNode": 7,
+            "endNode": 8
+          }
+        }
+      ]
+    }
+  ]
+}

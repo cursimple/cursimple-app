@@ -1,0 +1,10 @@
+{
+  "termStartDate": "2026-02-23",
+  "timezone": "Asia/Shanghai",
+  "slotTimes": [
+    { "startNode": 1, "endNode": 2, "startTime": "08:00", "endTime": "09:35", "label": "上午一" },
+    { "startNode": 3, "endNode": 4, "startTime": "10:00", "endTime": "11:35", "label": "上午二" },
+    { "startNode": 5, "endNode": 6, "startTime": "14:00", "endTime": "15:35", "label": "下午一" },
+    { "startNode": 7, "endNode": 8, "startTime": "16:00", "endTime": "17:35", "label": "下午二" }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "banners": [
+    {
+      "id": "web-demo-banner",
+      "title": "受限 Web 插件",
+      "message": "把 baseUrl 改成 https://www.example.com/ 后点击同步，可体验插件 Web 数据包回传流程。"
+    }
+  ],
+  "actionButtons": [
+    {
+      "id": "sync-web",
+      "label": "开始 Web 同步",
+      "actionType": "sync"
+    }
+  ],
+  "courseBadges": [
+    {
+      "id": "web-demo-badge",
+      "label": "Web 数据包",
+      "titleContains": "英"
+    }
+  ]
+}

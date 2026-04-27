@@ -1,15 +1,21 @@
 package com.kebiao.viewer.feature.widget
 
 import android.content.Context
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import androidx.glance.Button
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Column
+import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.height
@@ -18,17 +24,29 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
+import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
+import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
+import com.kebiao.viewer.core.data.widget.WidgetDay
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
+import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import kotlinx.coroutines.flow.first
 import java.util.Calendar
 
 class ScheduleGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val repository = DataStoreScheduleRepository(context.applicationContext)
-        val schedule = repository.scheduleFlow.first()
-        val todayCourses = schedule
-            ?.coursesOfDay(todayDayOfWeek())
+        val scheduleRepository = DataStoreScheduleRepository(context.applicationContext)
+        val reminderRepository = DataStoreReminderRepository(context.applicationContext)
+        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(context.applicationContext)
+        val schedule = scheduleRepository.scheduleFlow.first()
+        val widgetDay = widgetPreferencesRepository.widgetDayFlow.first()
+        val reminderRules = reminderRepository.reminderRulesFlow.first()
+        val dayOfWeek = when (widgetDay) {
+            WidgetDay.Today -> todayDayOfWeek()
+            WidgetDay.Tomorrow -> tomorrowDayOfWeek()
+        }
+        val courses = schedule
+            ?.coursesOfDay(dayOfWeek)
             .orEmpty()
             .sortedBy { it.time.startNode }
 
@@ -41,22 +59,43 @@ class ScheduleGlanceWidget : GlanceAppWidget() {
                         .padding(12.dp),
                 ) {
                     Text(
-                        text = "课表查看",
+                        text = if (widgetDay == WidgetDay.Today) "今天课程" else "明天课程",
                         style = TextStyle(
                             color = GlanceTheme.colors.onBackground,
                             fontWeight = FontWeight.Bold,
                         ),
                     )
                     Spacer(modifier = GlanceModifier.height(6.dp))
-                    if (todayCourses.isEmpty()) {
+                    Row {
+                        Button(
+                            text = if (widgetDay == WidgetDay.Today) "切换到明天" else "切换到今天",
+                            onClick = actionRunCallback<ToggleWidgetDayAction>(),
+                        )
+                    }
+                    Spacer(modifier = GlanceModifier.height(6.dp))
+                    if (courses.isEmpty()) {
                         Text(
-                            text = "今日无课程",
+                            text = if (widgetDay == WidgetDay.Today) "今天无课程" else "明天无课程",
                             style = TextStyle(color = GlanceTheme.colors.onBackground),
                         )
                     } else {
-                        todayCourses.take(4).forEach { course ->
+                        courses.take(4).forEach { course ->
                             Text(
-                                text = "${course.time.startNode}-${course.time.endNode} ${course.title} @ ${course.location.ifBlank { "待定" }}",
+                                text = buildCourseLine(
+                                    title = course.title,
+                                    startNode = course.time.startNode,
+                                    endNode = course.time.endNode,
+                                    location = course.location.ifBlank { "待定" },
+                                    hasReminder = reminderRules.any { rule ->
+                                        when (rule.scopeType) {
+                                            ReminderScopeType.SingleCourse -> rule.courseId == course.id
+                                            ReminderScopeType.TimeSlot -> {
+                                                rule.startNode == course.time.startNode &&
+                                                    rule.endNode == course.time.endNode
+                                            }
+                                        }
+                                    },
+                                ),
                                 style = TextStyle(color = GlanceTheme.colors.onBackground),
                             )
                         }
@@ -76,5 +115,27 @@ class ScheduleGlanceWidget : GlanceAppWidget() {
             Calendar.SUNDAY -> 7
             else -> calendarDay - 1
         }
+    }
+
+    private fun tomorrowDayOfWeek(): Int {
+        return (todayDayOfWeek() % 7) + 1
+    }
+
+    private fun buildCourseLine(
+        title: String,
+        startNode: Int,
+        endNode: Int,
+        location: String,
+        hasReminder: Boolean,
+    ): String {
+        val reminderMarker = if (hasReminder) " [提醒]" else ""
+        return "$startNode-$endNode $title @ $location$reminderMarker"
+    }
+}
+
+class ToggleWidgetDayAction : ActionCallback {
+    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
+        DataStoreWidgetPreferencesRepository(context.applicationContext).toggleWidgetDay()
+        ScheduleGlanceWidget().refreshAll(context.applicationContext)
     }
 }
