@@ -30,13 +30,13 @@
 本地推荐使用根目录 `keystore.properties`（已加入 `.gitignore`，不要提交）：
 
 ```properties
-CLASS_VIEWER_KEYSTORE_FILE=/absolute/path/to/class-viewer.jks
+CLASS_VIEWER_KEYSTORE_FILE=.signing/class-viewer.jks
 CLASS_VIEWER_KEYSTORE_PASSWORD=replace-with-store-password
 CLASS_VIEWER_KEY_ALIAS=replace-with-key-alias
 CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
 ```
 
-可参考 `keystore.example.properties`。也可以直接设置同名环境变量。
+可参考 `keystore.example.properties`。也可以直接设置同名环境变量。Windows 绝对路径请使用 `/`，例如 `E:/keys/class-viewer.jks`，不要在 properties 文件里直接写未转义的 `\`。
 
 若本地只有 base64 形式的 keystore，可先设置：
 
@@ -54,13 +54,15 @@ CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
 脚本只会从当前环境变量解码 keystore，不会调用 `gh` 或访问 GitHub。
 
 > 所有本地构建（Debug/Release）都强制使用这套签名。
-> `.signing/` 已加入 `.gitignore`，不要提交本地生成的 keystore。
+> `.signing/`、`keystore.properties`、`*.jks`、`*.keystore`、`*.p12` 已加入 `.gitignore`，不要提交本地生成的 keystore。
 
 ### 3) 构建 Debug
 
 ```bash
 ./gradlew assembleDebug
 ```
+
+Debug/CI 包的 `applicationId` 是 `com.kebiao.viewer.ci`，可与 Release 包 `com.kebiao.viewer` 共存安装；两者仍使用同一套签名材料。
 
 ### 4) 构建 Release（含 v7a/v8a/universal）
 
@@ -115,10 +117,14 @@ CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
 
 ## GitHub Actions
 
-工作流文件：`.github/workflows/android-ci.yml`
+工作流文件：
 
-- CI（PR / push `main`）：执行单测 + `assembleDebug`
-- CD（仅 tag，如 `v1.0.0`）：执行 `assembleRelease`、上传 APK、发布 GitHub Release
+- `.github/workflows/android-ci.yml`
+- `.github/workflows/android-release.yml`
+
+- CI（PR / push `main`）：加载同一套签名材料，执行单测 + `assembleDebug`，上传可共存安装的 CI APK artifact
+- Release（仅 push tag，如 `v1.0.0`）：加载同一套签名材料，执行 `assembleRelease`、上传 APK、发布 GitHub Release
+- push `v*` tag 只触发 Release workflow，不触发 CI workflow
 - 工作流通过 GitHub Actions Secrets 直接注入签名材料，随后用 `scripts/load-signing-env.ps1` 解码到 runner 临时目录
 
 ### CI/CD 需预置的仓库配置
@@ -128,3 +134,31 @@ CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
   - `CLASS_VIEWER_KEYSTORE_PASSWORD`
   - `CLASS_VIEWER_KEY_ALIAS`
   - `CLASS_VIEWER_KEY_PASSWORD`
+
+GitHub Secrets 中的 keystore 必须和本地 `keystore.properties` 指向的 keystore 是同一份。可在本地用 `pwsh` 从 `keystore.properties` 同步：
+
+```pwsh
+$env:GH_TOKEN = $env:GH_TOKEN_class_viewer
+$props = @{}
+foreach ($line in Get-Content -LiteralPath .\keystore.properties) {
+    if ($line -match '^\s*(?<key>[^#][^=]*)=(?<value>.*)$') {
+        $props[$Matches.key.Trim()] = $Matches.value.Trim()
+    }
+}
+
+function Set-GhSecretValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    gh secret set $Name --repo x500x/ClassScheduleViewer --body $Value
+}
+
+Set-GhSecretValue -Name 'CLASS_VIEWER_KEYSTORE_BASE64' -Value ([Convert]::ToBase64String([IO.File]::ReadAllBytes($props.CLASS_VIEWER_KEYSTORE_FILE)))
+Set-GhSecretValue -Name 'CLASS_VIEWER_KEYSTORE_PASSWORD' -Value $props.CLASS_VIEWER_KEYSTORE_PASSWORD
+Set-GhSecretValue -Name 'CLASS_VIEWER_KEY_ALIAS' -Value $props.CLASS_VIEWER_KEY_ALIAS
+Set-GhSecretValue -Name 'CLASS_VIEWER_KEY_PASSWORD' -Value $props.CLASS_VIEWER_KEY_PASSWORD
+```

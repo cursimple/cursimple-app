@@ -1,0 +1,52 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Grant execute permission
+        run: chmod +x ./gradlew
+
+      - name: Load signing env
+        shell: pwsh
+        env:
+          CLASS_VIEWER_KEYSTORE_BASE64: ${{ secrets.CLASS_VIEWER_KEYSTORE_BASE64 }}
+          CLASS_VIEWER_KEYSTORE_PASSWORD: ${{ secrets.CLASS_VIEWER_KEYSTORE_PASSWORD }}
+          CLASS_VIEWER_KEY_ALIAS: ${{ secrets.CLASS_VIEWER_KEY_ALIAS }}
+          CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
+        run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
+
+      - name: Build release (v7a/v8a/universal)
+        run: ./gradlew assembleRelease
+
+      - name: Upload APK artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-${{ github.sha }}
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true

@@ -6,6 +6,9 @@
 **/build/
 .signing/
 keystore.properties
+*.jks
+*.keystore
+*.p12
 captures/
 .DS_Store
 
