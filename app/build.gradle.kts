@@ -53,6 +53,8 @@ android {
 
     buildTypes {
         debug {
+            applicationIdSuffix = ".ci"
+            versionNameSuffix = "-ci"
             signingConfig = signingConfigs.getByName("classViewer")
         }
         release {

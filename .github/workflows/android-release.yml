@@ -1,16 +1,16 @@
-name: Android CI
+name: Android Release
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  ci:
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,15 +35,18 @@ jobs:
           CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
         run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
 
-      - name: Unit tests
-        run: ./gradlew :core-kernel:testDebugUnitTest
+      - name: Build release (v7a/v8a/universal)
+        run: ./gradlew assembleRelease
 
-      - name: Build CI debug package
-        run: ./gradlew assembleDebug
-
-      - name: Upload CI APK artifacts
+      - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ci-apk-${{ github.sha }}
-          path: app/build/outputs/apk/debug/*.apk
+          name: release-apk-${{ github.sha }}
+          path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
