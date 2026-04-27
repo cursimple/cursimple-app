@@ -29,26 +29,14 @@ jobs:
       - name: Grant execute permission
         run: chmod +x ./gradlew
 
-      - name: Load signing env by gh + GH_TOKEN_class_viewer
+      - name: Load signing env
+        shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN_class_viewer }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "缺少 secret: GH_TOKEN_class_viewer" >&2
-            exit 1
-          fi
-          KEYSTORE_B64="$(gh variable get CLASS_VIEWER_KEYSTORE_BASE64 --repo "${{ github.repository }}")"
-          KEYSTORE_PASSWORD="$(gh variable get CLASS_VIEWER_KEYSTORE_PASSWORD --repo "${{ github.repository }}")"
-          KEY_ALIAS="$(gh variable get CLASS_VIEWER_KEY_ALIAS --repo "${{ github.repository }}")"
-          KEY_PASSWORD="$(gh variable get CLASS_VIEWER_KEY_PASSWORD --repo "${{ github.repository }}")"
-          KEYSTORE_PATH="$RUNNER_TEMP/class-viewer.jks"
-          echo "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
-          {
-            echo "CLASS_VIEWER_KEYSTORE_FILE=$KEYSTORE_PATH"
-            echo "CLASS_VIEWER_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
-            echo "CLASS_VIEWER_KEY_ALIAS=$KEY_ALIAS"
-            echo "CLASS_VIEWER_KEY_PASSWORD=$KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
+          CLASS_VIEWER_KEYSTORE_BASE64: ${{ secrets.CLASS_VIEWER_KEYSTORE_BASE64 }}
+          CLASS_VIEWER_KEYSTORE_PASSWORD: ${{ secrets.CLASS_VIEWER_KEYSTORE_PASSWORD }}
+          CLASS_VIEWER_KEY_ALIAS: ${{ secrets.CLASS_VIEWER_KEY_ALIAS }}
+          CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
+        run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
 
       - name: Unit tests
         run: ./gradlew :core-kernel:testDebugUnitTest
@@ -73,26 +61,14 @@ jobs:
       - name: Grant execute permission
         run: chmod +x ./gradlew
 
-      - name: Load signing env by gh + GH_TOKEN_class_viewer
+      - name: Load signing env
+        shell: pwsh
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN_class_viewer }}
-        run: |
-          if [ -z "$GH_TOKEN" ]; then
-            echo "缺少 secret: GH_TOKEN_class_viewer" >&2
-            exit 1
-          fi
-          KEYSTORE_B64="$(gh variable get CLASS_VIEWER_KEYSTORE_BASE64 --repo "${{ github.repository }}")"
-          KEYSTORE_PASSWORD="$(gh variable get CLASS_VIEWER_KEYSTORE_PASSWORD --repo "${{ github.repository }}")"
-          KEY_ALIAS="$(gh variable get CLASS_VIEWER_KEY_ALIAS --repo "${{ github.repository }}")"
-          KEY_PASSWORD="$(gh variable get CLASS_VIEWER_KEY_PASSWORD --repo "${{ github.repository }}")"
-          KEYSTORE_PATH="$RUNNER_TEMP/class-viewer.jks"
-          echo "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
-          {
-            echo "CLASS_VIEWER_KEYSTORE_FILE=$KEYSTORE_PATH"
-            echo "CLASS_VIEWER_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
-            echo "CLASS_VIEWER_KEY_ALIAS=$KEY_ALIAS"
-            echo "CLASS_VIEWER_KEY_PASSWORD=$KEY_PASSWORD"
-          } >> "$GITHUB_ENV"
+          CLASS_VIEWER_KEYSTORE_BASE64: ${{ secrets.CLASS_VIEWER_KEYSTORE_BASE64 }}
+          CLASS_VIEWER_KEYSTORE_PASSWORD: ${{ secrets.CLASS_VIEWER_KEYSTORE_PASSWORD }}
+          CLASS_VIEWER_KEY_ALIAS: ${{ secrets.CLASS_VIEWER_KEY_ALIAS }}
+          CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
+        run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
 
       - name: Build release (v7a/v8a/universal)
         run: ./gradlew assembleRelease

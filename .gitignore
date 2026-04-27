@@ -4,6 +4,8 @@
 /.idea/
 /build/
 **/build/
+.signing/
+keystore.properties
 captures/
 .DS_Store
 
