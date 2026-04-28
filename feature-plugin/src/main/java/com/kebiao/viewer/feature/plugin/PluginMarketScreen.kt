@@ -3,6 +3,7 @@ package com.kebiao.viewer.feature.plugin
 import android.webkit.URLUtil
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -21,8 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -69,82 +73,147 @@ fun PluginMarketScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            Text("插件市场", style = MaterialTheme.typography.headlineSmall)
-        }
-        item {
-            OutlinedTextField(
-                value = state.remoteIndexUrl,
-                onValueChange = onRemoteIndexUrlChange,
-                label = { Text("远程市场索引 URL") },
-                singleLine = true,
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
-                Button(
-                    onClick = onLoadRemoteMarket,
-                    enabled = !state.isLoading && URLUtil.isValidUrl(state.remoteIndexUrl),
+                Column(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text("加载远程市场")
-                }
-                Button(
-                    onClick = { localPackageLauncher.launch(arrayOf("*/*")) },
-                    enabled = !state.isLoading,
-                ) {
-                    Text("导入本地插件")
+                    Text(
+                        text = "插件",
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = "管理学校插件、远程市场和本地导入包。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
+
         item {
-            Text(state.statusMessage.orEmpty(), style = MaterialTheme.typography.bodyMedium)
-        }
-        item {
-            Text("已安装插件", style = MaterialTheme.typography.titleMedium)
-        }
-        items(state.installedPlugins, key = { it.pluginId }) { plugin ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             ) {
                 Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    Text("${plugin.name} (${plugin.version})", style = MaterialTheme.typography.titleSmall)
-                    Text("发布者：${plugin.publisher}")
-                    Text("来源：${plugin.source.name}")
-                    Text("权限：${plugin.declaredPermissions.joinToString { it.name }}")
-                    TextButton(onClick = { onRemovePlugin(plugin.pluginId) }) {
-                        Text("移除")
+                    Text("远程市场", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = state.remoteIndexUrl,
+                        onValueChange = onRemoteIndexUrlChange,
+                        label = { Text("远程市场索引 URL") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Button(
+                            onClick = onLoadRemoteMarket,
+                            enabled = !state.isLoading && URLUtil.isValidUrl(state.remoteIndexUrl),
+                        ) {
+                            Text("加载市场")
+                        }
+                        Button(
+                            onClick = { localPackageLauncher.launch(arrayOf("*/*")) },
+                            enabled = !state.isLoading,
+                        ) {
+                            Text("导入本地插件")
+                        }
+                    }
+                    if (!state.statusMessage.isNullOrBlank()) {
+                        Text(
+                            text = state.statusMessage.orEmpty(),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
         }
+
         item {
-            Text("远程市场插件", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "已安装插件",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
-        items(state.marketPlugins, key = { it.pluginId }) { plugin ->
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
+
+        if (state.installedPlugins.isEmpty()) {
+            item {
+                EmptyStateCard("当前没有已安装插件", "可以从远程市场预检安装，或者直接导入本地插件包。")
+            }
+        } else {
+            items(state.installedPlugins, key = { it.pluginId }) { plugin ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
-                    Text("${plugin.name} (${plugin.version})", style = MaterialTheme.typography.titleSmall)
-                    Text(plugin.description)
-                    Text("发布者：${plugin.publisher}")
-                    TextButton(onClick = { onPreviewRemotePackage(plugin) }) {
-                        Text("下载并预检")
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("${plugin.name} (${plugin.version})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("发布者：${plugin.publisher}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("来源：${plugin.source.name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "权限：${plugin.declaredPermissions.joinToString { it.name }}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        TextButton(onClick = { onRemovePlugin(plugin.pluginId) }) {
+                            Text("移除插件")
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                text = "远程市场插件",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+
+        if (state.marketPlugins.isEmpty()) {
+            item {
+                EmptyStateCard("还没有加载到市场条目", "填写一个有效的市场索引地址后，就能在这里看到可安装插件。")
+            }
+        } else {
+            items(state.marketPlugins, key = { it.pluginId }) { plugin ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("${plugin.name} (${plugin.version})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(plugin.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("发布者：${plugin.publisher}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Button(onClick = { onPreviewRemotePackage(plugin) }) {
+                            Text("下载并预检")
+                        }
                     }
                 }
             }
@@ -183,5 +252,26 @@ fun PluginMarketScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun EmptyStateCard(
+    title: String,
+    subtitle: String,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.Start,
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
