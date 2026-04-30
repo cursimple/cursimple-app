@@ -3,6 +3,7 @@ package com.kebiao.viewer.feature.schedule
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kebiao.viewer.core.data.ManualCourseRepository
 import com.kebiao.viewer.core.data.ScheduleRepository
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
@@ -49,12 +50,14 @@ data class ScheduleUiState(
     val selectionState: ScheduleSelectionState? = null,
     val timingProfile: TermTimingProfile? = null,
     val messages: List<String> = emptyList(),
+    val manualCourses: List<CourseItem> = emptyList(),
 )
 
 class ScheduleViewModel(
     private val scheduleRepository: ScheduleRepository,
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
+    private val manualCourseRepository: ManualCourseRepository,
     private val onSyncCompleted: suspend () -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -62,6 +65,11 @@ class ScheduleViewModel(
     val uiState: StateFlow<ScheduleUiState> = _uiState
 
     init {
+        viewModelScope.launch {
+            manualCourseRepository.manualCoursesFlow.collect { courses ->
+                _uiState.update { it.copy(manualCourses = courses) }
+            }
+        }
         viewModelScope.launch {
             combine(
                 scheduleRepository.scheduleFlow,
@@ -248,6 +256,66 @@ class ScheduleViewModel(
         }
     }
 
+    fun addManualCourse(course: CourseItem) {
+        viewModelScope.launch {
+            manualCourseRepository.addCourse(course)
+            _uiState.update { it.copy(statusMessage = "已添加课程：${course.title}") }
+        }
+    }
+
+    fun removeManualCourse(courseId: String) {
+        viewModelScope.launch {
+            manualCourseRepository.removeCourse(courseId)
+        }
+    }
+
+    fun createReminderForCourses(
+        courseIds: Set<String>,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+    ) {
+        if (courseIds.isEmpty()) return
+        val state = _uiState.value
+        viewModelScope.launch {
+            courseIds.forEach { id ->
+                reminderCoordinator.createRule(
+                    pluginId = state.pluginId,
+                    courseId = id,
+                    dayOfWeek = null,
+                    startNode = null,
+                    endNode = null,
+                    scopeType = ReminderScopeType.SingleCourse,
+                    advanceMinutes = advanceMinutes,
+                    ringtoneUri = ringtoneUri,
+                )
+            }
+            val schedule = state.schedule
+            if (schedule != null) {
+                reminderCoordinator.syncRulesForSchedule(
+                    pluginId = state.pluginId,
+                    schedule = schedule,
+                    timingProfile = state.timingProfile,
+                    preferSystemClock = true,
+                )
+            }
+            _uiState.update { it.copy(statusMessage = "已为 ${courseIds.size} 门课程创建提醒") }
+        }
+    }
+
+    fun loadSampleCourses() {
+        viewModelScope.launch {
+            manualCourseRepository.replaceAll(sampleManualCourses())
+            _uiState.update { it.copy(statusMessage = "已加载示例课表") }
+        }
+    }
+
+    fun clearManualCourses() {
+        viewModelScope.launch {
+            manualCourseRepository.replaceAll(emptyList())
+            _uiState.update { it.copy(statusMessage = "已清空手动课表") }
+        }
+    }
+
     fun removeReminderRule(ruleId: String) {
         viewModelScope.launch {
             reminderCoordinator.deleteRule(ruleId)
@@ -340,6 +408,7 @@ class ScheduleViewModelFactory(
     private val scheduleRepository: ScheduleRepository,
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
+    private val manualCourseRepository: ManualCourseRepository,
     private val onSyncCompleted: suspend () -> Unit = {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -349,6 +418,7 @@ class ScheduleViewModelFactory(
                 scheduleRepository = scheduleRepository,
                 pluginManager = pluginManager,
                 reminderCoordinator = reminderCoordinator,
+                manualCourseRepository = manualCourseRepository,
                 onSyncCompleted = onSyncCompleted,
             ) as T
         }

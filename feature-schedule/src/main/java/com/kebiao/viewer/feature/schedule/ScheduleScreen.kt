@@ -5,9 +5,11 @@ import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +28,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -75,11 +82,15 @@ import kotlin.math.max
 fun ScheduleRoute(
     viewModel: ScheduleViewModel,
     onOpenPluginMarket: () -> Unit,
+    weekOffset: Int,
     modifier: Modifier = Modifier,
+    overrideTermStart: LocalDate? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleScreen(
         state = state,
+        weekOffset = weekOffset,
+        overrideTermStart = overrideTermStart,
         onUsernameChange = viewModel::onUsernameChange,
         onPasswordChange = viewModel::onPasswordChange,
         onPluginIdChange = viewModel::onPluginIdChange,
@@ -91,6 +102,8 @@ fun ScheduleRoute(
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
         onRemoveReminderRule = viewModel::removeReminderRule,
+        onRemoveManualCourse = viewModel::removeManualCourse,
+        onCreateBulkReminder = viewModel::createReminderForCourses,
         onOpenPluginMarket = onOpenPluginMarket,
         onCompleteWebSession = viewModel::completeWebSession,
         onCancelWebSession = viewModel::cancelWebSession,
@@ -112,16 +125,25 @@ fun ScheduleScreen(
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
+    onRemoveManualCourse: (String) -> Unit,
+    onCreateBulkReminder: (Set<String>, Int, String?) -> Unit,
     onOpenPluginMarket: () -> Unit,
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
+    weekOffset: Int = 0,
+    overrideTermStart: LocalDate? = null,
 ) {
     var showSyncSettings by rememberSaveable { mutableStateOf(state.schedule == null) }
-    var weekOffset by rememberSaveable { mutableIntStateOf(0) }
     var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
     var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
-    val displayedWeek = remember(state.timingProfile, weekOffset) { buildWeekModel(state.timingProfile, weekOffset) }
+    var detailCourses by remember { mutableStateOf<List<CourseItem>>(emptyList()) }
+    var multiSelectMode by rememberSaveable { mutableStateOf(false) }
+    var selectedIds by remember { mutableStateOf(setOf<String>()) }
+    var showBulkReminder by rememberSaveable { mutableStateOf(false) }
+    val displayedWeek = remember(state.timingProfile, weekOffset, overrideTermStart) {
+        buildWeekModel(state.timingProfile, weekOffset, overrideTermStart)
+    }
     val visibleWeekNumber = displayedWeek.weekIndex
     val horizontalScrollState = rememberScrollState()
     val scrollState = rememberScrollState()
@@ -143,22 +165,12 @@ fun ScheduleScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            ScheduleHeroSection(
-                week = displayedWeek,
-                schedule = state.schedule,
-                hasPlugins = state.installedPlugins.isNotEmpty(),
-                selectedCourseTitle = selectedCourse?.title,
-                statusMessage = state.statusMessage,
-                onPreviousWeek = { weekOffset -= 1 },
-                onNextWeek = { weekOffset += 1 },
-                onResetWeek = { weekOffset = 0 },
-            )
-
             WeeklyScheduleSection(
                 schedule = state.schedule,
+                manualCourses = state.manualCourses,
                 timingProfile = state.timingProfile,
                 uiSchema = state.uiSchema,
                 reminderRules = state.reminderRules,
@@ -166,7 +178,67 @@ fun ScheduleScreen(
                 visibleWeekNumber = visibleWeekNumber,
                 horizontalScrollState = horizontalScrollState,
                 selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
-                onSelectCourse = onSelectCourse,
+                multiSelectMode = multiSelectMode,
+                multiSelectedIds = selectedIds,
+                onCellClick = { coursesAtCell ->
+                    if (multiSelectMode) {
+                        // 多选模式下点击 cell：把主课程（第一个）切换选中
+                        val id = coursesAtCell.firstOrNull()?.id ?: return@WeeklyScheduleSection
+                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                        if (selectedIds.isEmpty()) multiSelectMode = false
+                    } else {
+                        detailCourses = coursesAtCell
+                    }
+                },
+                onCourseLongClick = { id ->
+                    multiSelectMode = true
+                    selectedIds = selectedIds + id
+                },
+            )
+        }
+
+        if (multiSelectMode) {
+            MultiSelectActionBar(
+                selectedCount = selectedIds.size,
+                onSetReminder = { showBulkReminder = true },
+                onClear = {
+                    multiSelectMode = false
+                    selectedIds = emptySet()
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp),
+            )
+        }
+
+        if (showBulkReminder) {
+            BulkReminderDialog(
+                selectedCount = selectedIds.size,
+                onDismiss = { showBulkReminder = false },
+                onConfirm = { advance, ringtone ->
+                    onCreateBulkReminder(selectedIds, advance, ringtone)
+                    showBulkReminder = false
+                    multiSelectMode = false
+                    selectedIds = emptySet()
+                },
+            )
+        }
+
+        if (detailCourses.isNotEmpty()) {
+            CourseDetailDialog(
+                courses = detailCourses,
+                timingProfile = state.timingProfile,
+                visibleWeekNumber = visibleWeekNumber,
+                isManual = { c -> state.manualCourses.any { it.id == c.id } },
+                onDismiss = { detailCourses = emptyList() },
+                onSetReminder = { c ->
+                    onSelectCourse(c.id)
+                    detailCourses = emptyList()
+                },
+                onDelete = { c ->
+                    onRemoveManualCourse(c.id)
+                    detailCourses = detailCourses.filterNot { it.id == c.id }
+                },
             )
         }
 
@@ -174,7 +246,7 @@ fun ScheduleScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xD9000000))
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
                     .padding(12.dp),
             ) {
                 Card(
@@ -564,6 +636,7 @@ internal fun MessageCard(
 @Composable
 private fun WeeklyScheduleSection(
     schedule: TermSchedule?,
+    manualCourses: List<CourseItem>,
     timingProfile: TermTimingProfile?,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
@@ -571,44 +644,59 @@ private fun WeeklyScheduleSection(
     visibleWeekNumber: Int,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
     selectedCourseId: String?,
-    onSelectCourse: (String) -> Unit,
+    multiSelectMode: Boolean,
+    multiSelectedIds: Set<String>,
+    onCellClick: (List<CourseItem>) -> Unit,
+    onCourseLongClick: (String) -> Unit,
 ) {
-    val slots = remember(schedule, timingProfile) { displaySlots(schedule, timingProfile) }
-    val courses = remember(schedule, visibleWeekNumber) {
-        schedule
-            ?.dailySchedules
-            .orEmpty()
-            .flatMap { it.courses }
+    val slots = remember(schedule, timingProfile, manualCourses) {
+        displaySlots(schedule, timingProfile, manualCourses)
+    }
+    val allCourses = remember(schedule, manualCourses) {
+        schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+    }
+    val activeEntries = remember(allCourses, visibleWeekNumber, slots) {
+        allCourses
             .filter { it.weeks.isEmpty() || it.weeks.contains(visibleWeekNumber) }
+            .mapNotNull { course ->
+                val placement = coursePlacement(course, slots) ?: return@mapNotNull null
+                CourseRenderEntry(course = course, placement = placement, inactive = false)
+            }
+    }
+    val inactiveEntries = remember(allCourses, visibleWeekNumber, slots) {
+        allCourses
+            .filter { it.weeks.isNotEmpty() && !it.weeks.contains(visibleWeekNumber) }
+            .mapNotNull { course ->
+                val placement = coursePlacement(course, slots) ?: return@mapNotNull null
+                CourseRenderEntry(course = course, placement = placement, inactive = true)
+            }
     }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE7ECF8)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                text = "课表",
-                style = MaterialTheme.typography.headlineSmall,
-                color = Color(0xFF171A23),
-                fontWeight = FontWeight.Bold,
-            )
-            if (slots.isEmpty() || courses.isEmpty()) {
+            if (slots.isEmpty() || (activeEntries.isEmpty() && inactiveEntries.isEmpty())) {
                 EmptyWeekState(schedule = schedule)
             } else {
                 ScheduleGrid(
                     week = week,
                     slots = slots,
-                    courses = courses,
+                    activeEntries = activeEntries,
+                    inactiveEntries = inactiveEntries,
                     uiSchema = uiSchema,
                     reminderRules = reminderRules,
                     horizontalScrollState = horizontalScrollState,
                     selectedCourseId = selectedCourseId,
-                    onSelectCourse = onSelectCourse,
+                    multiSelectMode = multiSelectMode,
+                    multiSelectedIds = multiSelectedIds,
+                    onCellClick = onCellClick,
+                    onCourseLongClick = onCourseLongClick,
                 )
             }
         }
@@ -627,13 +715,13 @@ private fun EmptyWeekState(schedule: TermSchedule?) {
         Text(
             text = if (schedule == null) "还没有同步到课表" else "这一周没有课程安排",
             style = MaterialTheme.typography.titleLarge,
-            color = Color(0xFF171A23),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
             text = if (schedule == null) "去插件页同步课表，或去设置页管理提醒。" else "可以切换其他周，或者继续在插件页同步最新数据。",
             style = MaterialTheme.typography.bodyMedium,
-            color = Color(0xFF5E6475),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -642,18 +730,35 @@ private fun EmptyWeekState(schedule: TermSchedule?) {
 private fun ScheduleGrid(
     week: WeekModel,
     slots: List<DisplaySlot>,
-    courses: List<CourseItem>,
+    activeEntries: List<CourseRenderEntry>,
+    inactiveEntries: List<CourseRenderEntry>,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
     selectedCourseId: String?,
-    onSelectCourse: (String) -> Unit,
+    multiSelectMode: Boolean,
+    multiSelectedIds: Set<String>,
+    onCellClick: (List<CourseItem>) -> Unit,
+    onCourseLongClick: (String) -> Unit,
 ) {
-    val timeColumnWidth = 70.dp
-    val dayColumnWidth = 102.dp
-    val slotHeight = 126.dp
+    val cellGroups = remember(activeEntries, inactiveEntries) {
+        (activeEntries + inactiveEntries)
+            .groupBy { it.placement.dayIndex to it.placement.rowIndex }
+            .map { (_, list) ->
+                val main = list.firstOrNull { !it.inactive } ?: list.first()
+                val sorted = (
+                    list.filterNot { it.inactive }.map { it.course } +
+                        list.filter { it.inactive }.map { it.course }
+                    ).distinctBy { it.id }
+                Triple(main, sorted, list.size)
+            }
+    }
+    val timeColumnWidth = 56.dp
+    val dayColumnWidth = 96.dp
+    val slotHeight = 116.dp
     val gridWidth = dayColumnWidth * 7
     val gridHeight = slotHeight * slots.size
+    val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row {
@@ -684,8 +789,8 @@ private fun ScheduleGrid(
             Box(
                 modifier = Modifier
                     .horizontalScroll(horizontalScrollState)
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xFFDDE5F6)),
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(accents.gridBackground),
             ) {
                 Box(
                     modifier = Modifier
@@ -701,7 +806,7 @@ private fun ScheduleGrid(
                                             .width(dayColumnWidth)
                                             .height(slotHeight)
                                             .border(
-                                                BorderStroke(1.dp, Color(0xFFC9D4EA)),
+                                                BorderStroke(0.5.dp, accents.gridLine),
                                                 RoundedCornerShape(0.dp),
                                             ),
                                     )
@@ -710,18 +815,25 @@ private fun ScheduleGrid(
                         }
                     }
 
-                    courses.forEach { course ->
-                        val placement = remember(course, slots) { coursePlacement(course, slots) } ?: return@forEach
+                    cellGroups.forEach { (mainEntry, sortedCourses, count) ->
+                        val placement = mainEntry.placement
+                        val course = mainEntry.course
+                        val isMultiSelected = course.id in multiSelectedIds
                         CourseBlock(
                             course = course,
                             badges = badgesForCourse(course, uiSchema.courseBadges),
                             hasReminder = hasReminderForCourse(course, reminderRules),
                             selected = course.id == selectedCourseId,
-                            width = dayColumnWidth - 10.dp,
-                            height = max(slotHeight.value.toInt() * placement.rowSpan - 10, 68).dp,
-                            offsetX = dayColumnWidth * placement.dayIndex + 5.dp,
-                            offsetY = slotHeight * placement.rowIndex + 5.dp,
-                            onClick = { onSelectCourse(course.id) },
+                            inactive = mainEntry.inactive,
+                            cellCount = count,
+                            multiSelectMode = multiSelectMode,
+                            multiSelected = isMultiSelected,
+                            width = dayColumnWidth - 6.dp,
+                            height = max(slotHeight.value.toInt() * placement.rowSpan - 6, 64).dp,
+                            offsetX = dayColumnWidth * placement.dayIndex + 3.dp,
+                            offsetY = slotHeight * placement.rowIndex + 3.dp,
+                            onClick = { onCellClick(sortedCourses) },
+                            onLongClick = { onCourseLongClick(course.id) },
                         )
                     }
                 }
@@ -735,30 +847,44 @@ private fun DayHeader(
     day: DayHeaderModel,
     width: androidx.compose.ui.unit.Dp,
 ) {
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
     Column(
         modifier = Modifier
             .width(width)
             .padding(vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = day.monthLabel,
-            style = MaterialTheme.typography.labelMedium,
-            color = Color(0xFF767D92),
-        )
         Text(
             text = day.weekdayLabel,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium,
-            color = if (day.isToday) Color(0xFF111318) else Color(0xFF656C7E),
+            fontWeight = FontWeight.SemiBold,
+            color = muted,
         )
-        Text(
-            text = day.dateLabel,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Normal,
-            color = if (day.isToday) Color(0xFF111318) else Color(0xFF8A91A4),
-        )
+        if (day.isToday) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(accents.todayContainer)
+                    .padding(horizontal = 10.dp, vertical = 2.dp),
+            ) {
+                Text(
+                    text = day.dateLabel,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = accents.todayOnContainer,
+                )
+            }
+        } else {
+            Text(
+                text = day.dateLabel,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = muted.copy(alpha = 0.85f),
+                modifier = Modifier.padding(vertical = 2.dp),
+            )
+        }
     }
 }
 
@@ -770,92 +896,180 @@ private fun TimeCell(
     Column(
         modifier = Modifier
             .height(height)
-            .padding(top = 4.dp, end = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(top = 6.dp, end = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
             text = slot.indexLabel,
             style = MaterialTheme.typography.titleLarge,
-            color = Color(0xFF151821),
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold,
         )
         Text(
             text = slot.startTime,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF646C7E),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
         Text(
             text = slot.endTime,
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF646C7E),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun CourseBlock(
     course: CourseItem,
     badges: List<String>,
     hasReminder: Boolean,
     selected: Boolean,
+    inactive: Boolean,
+    cellCount: Int,
+    multiSelectMode: Boolean,
+    multiSelected: Boolean,
     width: androidx.compose.ui.unit.Dp,
     height: androidx.compose.ui.unit.Dp,
     offsetX: androidx.compose.ui.unit.Dp,
     offsetY: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
 ) {
-    val containerColor = remember(course.title) { courseColor(course.title) }
-    val borderColor = if (selected) Color(0xFFFFF2A6) else Color.White.copy(alpha = 0.55f)
-    val borderWidth = if (selected) 3.dp else 2.dp
+    val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
+    val palette = remember(course.title, accents) { courseColor(course.title, accents.coursePalette) }
+    val containerColor = if (inactive) accents.inactiveContainer else palette.container
+    val onColor = if (inactive) accents.inactiveOnContainer else palette.onContainer
+    val highlight = multiSelected || selected
+    val borderColor = when {
+        multiSelected -> MaterialTheme.colorScheme.primary
+        selected -> MaterialTheme.colorScheme.primary
+        else -> androidx.compose.ui.graphics.Color.Transparent
+    }
+    val borderWidth = if (highlight) 2.dp else 0.dp
+
     Box(
         modifier = Modifier
-            .width(width)
-            .height(height)
-            .padding(0.dp)
             .offset(offsetX, offsetY)
-            .clip(RoundedCornerShape(16.dp))
-            .background(containerColor)
-            .border(BorderStroke(borderWidth, borderColor), RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(10.dp),
+            .width(width)
+            .height(height),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                text = course.title,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = course.location.ifBlank { "待定教室" },
-                color = Color.White.copy(alpha = 0.95f),
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = when {
-                    selected -> "已选中，去设置页处理"
-                    hasReminder -> "已设提醒"
-                    else -> course.teacher.ifBlank { "点按后去设置页提醒" }
-                },
-                color = Color.White.copy(alpha = 0.92f),
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (badges.isNotEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(10.dp))
+                .background(containerColor)
+                .border(BorderStroke(borderWidth, borderColor), RoundedCornerShape(10.dp))
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick,
+                )
+                .padding(horizontal = 6.dp, vertical = 6.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (inactive) {
+                    Text(
+                        text = "非本周",
+                        color = onColor,
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                    )
+                }
                 Text(
-                    text = badges.joinToString(" · "),
-                    color = Color.White.copy(alpha = 0.82f),
-                    style = MaterialTheme.typography.labelSmall,
-                    maxLines = 1,
+                    text = course.title,
+                    color = onColor,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = androidx.compose.ui.unit.TextUnit.Unspecified,
+                    maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
+                )
+                if (course.location.isNotBlank()) {
+                    Text(
+                        text = "@${course.location}",
+                        color = onColor.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (course.teacher.isNotBlank() && !inactive) {
+                    Text(
+                        text = course.teacher,
+                        color = onColor.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (badges.isNotEmpty() && !inactive) {
+                    Text(
+                        text = badges.joinToString(" · "),
+                        color = onColor.copy(alpha = 0.75f),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+
+        // 左下角响铃标识
+        if (hasReminder && !inactive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(18.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(onColor.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Notifications,
+                    contentDescription = null,
+                    tint = onColor,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        }
+
+        // 多选选中标识：右上角
+        if (multiSelectMode && multiSelected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(20.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(12.dp),
+                )
+            }
+        } else if (cellCount > 1) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp)
+                    .size(20.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.secondary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = cellCount.toString(),
+                    color = MaterialTheme.colorScheme.onSecondary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
                 )
             }
         }
@@ -999,13 +1213,65 @@ private data class CoursePlacement(
     val rowSpan: Int,
 )
 
+private data class CourseRenderEntry(
+    val course: CourseItem,
+    val placement: CoursePlacement,
+    val inactive: Boolean,
+)
+
+@Composable
+private fun MultiSelectActionBar(
+    selectedCount: Int,
+    onSetReminder: () -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp,
+        shadowElevation = 8.dp,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "已选 $selectedCount",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Button(
+                onClick = onSetReminder,
+                enabled = selectedCount > 0,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.NotificationsActive,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("设提醒")
+            }
+            TextButton(onClick = onClear) {
+                Text("取消")
+            }
+        }
+    }
+}
+
 private fun buildWeekModel(
     timingProfile: TermTimingProfile?,
     weekOffset: Int,
+    overrideTermStart: LocalDate? = null,
 ): WeekModel {
     val today = LocalDate.now()
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
-    val termStart = timingProfile?.termStartLocalDate()
+    val termStart = overrideTermStart ?: timingProfile?.termStartLocalDate()
     val termStartWeek = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val weekIndex = if (termStartWeek != null) {
         max(1, ChronoUnit.WEEKS.between(termStartWeek, weekStart).toInt() + 1)
@@ -1031,13 +1297,14 @@ private fun buildWeekModel(
 private fun displaySlots(
     schedule: TermSchedule?,
     timingProfile: TermTimingProfile?,
+    manualCourses: List<CourseItem> = emptyList(),
 ): List<DisplaySlot> {
     val profileSlots = timingProfile?.slotTimes.orEmpty().sortedBy { it.startNode }
     if (profileSlots.isNotEmpty()) {
         return profileSlots.map { it.toDisplaySlot() }
     }
-    val derived = schedule?.dailySchedules.orEmpty()
-        .flatMap { it.courses }
+    val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+    val derived = allCourses
         .map { it.time.startNode to it.time.endNode }
         .distinct()
         .sortedBy { it.first }
@@ -1082,16 +1349,16 @@ private fun coursePlacement(
     )
 }
 
-private fun courseColor(seed: String): Color {
-    val palette = listOf(
-        Color(0xFFF07CA4),
-        Color(0xFF74D8D0),
-        Color(0xFFA88CFF),
-        Color(0xFF6FA7E8),
-        Color(0xFFF0B36C),
-        Color(0xFFEF8D83),
-        Color(0xFF77C57D),
-    )
+internal fun courseColor(
+    seed: String,
+    palette: List<com.kebiao.viewer.feature.schedule.theme.CoursePaletteEntry>,
+): com.kebiao.viewer.feature.schedule.theme.CoursePaletteEntry {
+    if (palette.isEmpty()) {
+        return com.kebiao.viewer.feature.schedule.theme.CoursePaletteEntry(
+            container = Color(0xFFE2EEE3),
+            onContainer = Color(0xFF1F2A24),
+        )
+    }
     return palette[seed.hashCode().mod(palette.size)]
 }
 

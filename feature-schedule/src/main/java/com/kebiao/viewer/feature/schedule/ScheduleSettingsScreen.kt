@@ -159,7 +159,7 @@ fun ScheduleSettingsScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(androidx.compose.ui.graphics.Color(0xD9000000))
+                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
                     .padding(12.dp),
             ) {
                 Card(
