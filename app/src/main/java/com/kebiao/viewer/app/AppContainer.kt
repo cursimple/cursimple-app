@@ -31,6 +31,7 @@ class AppContainer(
         runBlocking {
             pluginManager.ensureBundledPlugin("plugin-dev/demo-campus-v2")
             pluginManager.ensureBundledPlugin("plugin-dev/demo-web-campus-v2")
+            pluginManager.ensureBundledPlugin("plugin-dev/yangtzeu-eams-v2")
         }
     }
 

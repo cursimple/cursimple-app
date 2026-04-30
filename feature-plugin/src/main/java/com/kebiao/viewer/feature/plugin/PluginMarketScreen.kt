@@ -33,17 +33,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun PluginMarketRoute(
     viewModel: PluginMarketViewModel,
+    activePluginId: String,
+    onSelectInstalledPlugin: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     PluginMarketScreen(
         state = state,
+        activePluginId = activePluginId,
         onRemoteIndexUrlChange = viewModel::onRemoteIndexUrlChange,
         onLoadRemoteMarket = viewModel::loadRemoteMarket,
         onPreviewRemotePackage = viewModel::previewRemotePackage,
         onPreviewLocalPackage = viewModel::previewLocalPackage,
         onConfirmInstall = viewModel::confirmInstall,
         onDismissInstallPreview = viewModel::dismissInstallPreview,
+        onSelectInstalledPlugin = onSelectInstalledPlugin,
         onRemovePlugin = viewModel::removePlugin,
         modifier = modifier,
     )
@@ -52,12 +56,14 @@ fun PluginMarketRoute(
 @Composable
 fun PluginMarketScreen(
     state: PluginMarketUiState,
+    activePluginId: String,
     onRemoteIndexUrlChange: (String) -> Unit,
     onLoadRemoteMarket: () -> Unit,
     onPreviewRemotePackage: (com.kebiao.viewer.core.plugin.market.MarketPluginEntry) -> Unit,
     onPreviewLocalPackage: (ByteArray) -> Unit,
     onConfirmInstall: () -> Unit,
     onDismissInstallPreview: () -> Unit,
+    onSelectInstalledPlugin: (String) -> Unit,
     onRemovePlugin: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -177,8 +183,26 @@ fun PluginMarketScreen(
                             "权限：${plugin.declaredPermissions.joinToString { it.name }}",
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        TextButton(onClick = { onRemovePlugin(plugin.pluginId) }) {
-                            Text("移除插件")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (plugin.pluginId == activePluginId) {
+                                Text(
+                                    "当前使用中",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            } else {
+                                Button(onClick = { onSelectInstalledPlugin(plugin.pluginId) }) {
+                                    Text("设为当前插件")
+                                }
+                            }
+                            TextButton(onClick = { onRemovePlugin(plugin.pluginId) }) {
+                                Text("移除插件")
+                            }
                         }
                     }
                 }
