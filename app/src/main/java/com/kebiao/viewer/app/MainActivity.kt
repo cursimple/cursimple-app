@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kebiao.viewer.feature.plugin.PluginMarketRoute
 import com.kebiao.viewer.feature.plugin.PluginMarketViewModel
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
                     val pluginMarketViewModel: PluginMarketViewModel = viewModel(
                         factory = PluginMarketViewModelFactory(container.pluginManager),
                     )
+                    val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()
 
                     Scaffold(
                         modifier = Modifier
@@ -98,10 +100,16 @@ class MainActivity : ComponentActivity() {
 
                                 AppScreen.Plugins -> PluginMarketRoute(
                                     viewModel = pluginMarketViewModel,
+                                    activePluginId = scheduleState.pluginId,
+                                    onSelectInstalledPlugin = scheduleViewModel::onPluginIdChange,
                                     modifier = Modifier.fillMaxSize(),
                                 )
 
-                                AppScreen.Settings -> SettingsScreen(modifier = Modifier.fillMaxSize())
+                                AppScreen.Settings -> SettingsRoute(
+                                    viewModel = scheduleViewModel,
+                                    onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
                             }
                         }
                     }

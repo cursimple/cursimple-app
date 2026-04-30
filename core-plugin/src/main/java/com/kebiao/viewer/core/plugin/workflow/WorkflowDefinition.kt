@@ -25,11 +25,17 @@ data class WorkflowStepDefinition(
     @SerialName("extractSessionStorage") val extractSessionStorage: Boolean = true,
     @SerialName("extractHtmlDigest") val extractHtmlDigest: Boolean = true,
     @SerialName("httpMethod") val httpMethod: String? = null,
+    @SerialName("httpContentType") val httpContentType: String? = null,
     @SerialName("httpHeaders") val httpHeaders: Map<String, String> = emptyMap(),
     @SerialName("httpBodyTemplate") val httpBodyTemplate: String? = null,
+    @SerialName("cookieSessionId") val cookieSessionId: String? = null,
+    @SerialName("sourceContextKey") val sourceContextKey: String? = null,
     @SerialName("responseKey") val responseKey: String? = null,
     @SerialName("scheduleAsset") val scheduleAsset: String? = null,
     @SerialName("scheduleContextKey") val scheduleContextKey: String? = null,
+    @SerialName("metaContextKey") val metaContextKey: String? = null,
+    @SerialName("detailContextKey") val detailContextKey: String? = null,
+    @SerialName("termIdTemplate") val termIdTemplate: String? = null,
     @SerialName("updatedAtNow") val updatedAtNow: Boolean = false,
     @SerialName("recommendedAdvanceMinutes") val recommendedAdvanceMinutes: Int? = null,
 )
@@ -48,8 +54,14 @@ enum class WorkflowStepType {
     @SerialName("http_request")
     HttpRequest,
 
+    @SerialName("eams_extract_meta")
+    EamsExtractMeta,
+
     @SerialName("schedule_emit_static")
     ScheduleEmitStatic,
+
+    @SerialName("schedule_emit_eams")
+    ScheduleEmitEams,
 
     @SerialName("alarm_plan_emit")
     AlarmPlanEmit,

@@ -149,63 +149,13 @@ fun ScheduleScreen(
             ScheduleHeroSection(
                 week = displayedWeek,
                 schedule = state.schedule,
+                hasPlugins = state.installedPlugins.isNotEmpty(),
+                selectedCourseTitle = selectedCourse?.title,
                 statusMessage = state.statusMessage,
                 onPreviousWeek = { weekOffset -= 1 },
                 onNextWeek = { weekOffset += 1 },
                 onResetWeek = { weekOffset = 0 },
             )
-
-            if (state.installedPlugins.isEmpty()) {
-                EmptyPluginCard(onOpenPluginMarket = onOpenPluginMarket)
-            } else {
-                PluginSelectorCard(
-                    plugins = state.installedPlugins,
-                    selectedPluginId = state.pluginId,
-                    onPluginIdChange = onPluginIdChange,
-                    onOpenPluginMarket = onOpenPluginMarket,
-                )
-            }
-
-            SyncEntryCard(
-                showSyncSettings = showSyncSettings,
-                username = state.username,
-                termId = state.termId,
-                pluginId = state.pluginId,
-                isSyncing = state.isSyncing,
-                onToggle = { showSyncSettings = !showSyncSettings },
-            )
-
-            if (showSyncSettings) {
-                SyncSettingsCard(
-                    baseUrl = state.baseUrl,
-                    termId = state.termId,
-                    username = state.username,
-                    password = state.password,
-                    isSyncing = state.isSyncing,
-                    onBaseUrlChange = onBaseUrlChange,
-                    onTermIdChange = onTermIdChange,
-                    onUsernameChange = onUsernameChange,
-                    onPasswordChange = onPasswordChange,
-                    onSyncClick = onSyncClick,
-                    onOpenPluginMarket = onOpenPluginMarket,
-                )
-            }
-
-            PluginBannerSection(state.uiSchema)
-
-            if (state.messages.isNotEmpty()) {
-                MessageCard(
-                    title = "插件消息",
-                    lines = state.messages,
-                )
-            }
-
-            if (state.alarmRecommendations.isNotEmpty()) {
-                MessageCard(
-                    title = "提醒建议",
-                    lines = state.alarmRecommendations.map { "建议提前 ${it.advanceMinutes} 分钟：${it.note}" },
-                )
-            }
 
             WeeklyScheduleSection(
                 schedule = state.schedule,
@@ -215,44 +165,9 @@ fun ScheduleScreen(
                 week = displayedWeek,
                 visibleWeekNumber = visibleWeekNumber,
                 horizontalScrollState = horizontalScrollState,
+                selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                 onSelectCourse = onSelectCourse,
             )
-
-            if (state.selectionState != null) {
-                ReminderComposerCard(
-                    selectedCourse = selectedCourse,
-                    selectionState = state.selectionState,
-                    advanceMinutesText = advanceMinutesText,
-                    ringtoneUri = ringtoneUri,
-                    onAdvanceMinutesChange = { advanceMinutesText = it.filter(Char::isDigit) },
-                    onPickRingtone = {
-                        ringtoneLauncher.launch(
-                            Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                                putExtra(
-                                    RingtoneManager.EXTRA_RINGTONE_TYPE,
-                                    RingtoneManager.TYPE_ALARM,
-                                )
-                            },
-                        )
-                    },
-                    onCreateReminder = {
-                        onCreateReminder(advanceMinutesText.toIntOrNull() ?: 20, ringtoneUri)
-                    },
-                    onSelectSameSlot = {
-                        selectedCourse?.let { course ->
-                            onSelectTimeSlot(course.time.startNode, course.time.endNode)
-                        }
-                    },
-                    onClearSelection = onClearSelection,
-                )
-            }
-
-            if (state.reminderRules.isNotEmpty()) {
-                ReminderRulesSection(
-                    reminderRules = state.reminderRules,
-                    onRemoveReminderRule = onRemoveReminderRule,
-                )
-            }
         }
 
         state.pendingWebSession?.let { request ->
@@ -283,6 +198,8 @@ fun ScheduleScreen(
 private fun ScheduleHeroSection(
     week: WeekModel,
     schedule: TermSchedule?,
+    hasPlugins: Boolean,
+    selectedCourseTitle: String?,
     statusMessage: String?,
     onPreviousWeek: () -> Unit,
     onNextWeek: () -> Unit,
@@ -326,7 +243,12 @@ private fun ScheduleHeroSection(
             }
 
             Text(
-                text = statusMessage ?: if (schedule == null) "还没有课表数据，先连接插件同步一次。" else "已切换到周视图，点课程块可直接创建提醒。",
+                text = statusMessage ?: when {
+                    !selectedCourseTitle.isNullOrBlank() -> "已选中 $selectedCourseTitle，去设置页创建提醒。"
+                    schedule == null && !hasPlugins -> "还没有课表数据，先去插件页安装学校插件。"
+                    schedule == null -> "还没有课表数据，去设置页完成同步后这里会显示周视图。"
+                    else -> "这里现在只保留课表内容，点课程块后可去设置页创建提醒。"
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -514,7 +436,7 @@ private fun SyncEntryCard(
 }
 
 @Composable
-private fun SyncSettingsCard(
+internal fun SyncSettingsCard(
     baseUrl: String,
     termId: String,
     username: String,
@@ -581,7 +503,7 @@ private fun SyncSettingsCard(
 }
 
 @Composable
-private fun PluginBannerSection(uiSchema: PluginUiSchema) {
+internal fun PluginBannerSection(uiSchema: PluginUiSchema) {
     if (uiSchema.banners.isEmpty()) {
         return
     }
@@ -614,7 +536,7 @@ private fun BannerCard(banner: BannerContribution) {
 }
 
 @Composable
-private fun MessageCard(
+internal fun MessageCard(
     title: String,
     lines: List<String>,
 ) {
@@ -648,6 +570,7 @@ private fun WeeklyScheduleSection(
     week: WeekModel,
     visibleWeekNumber: Int,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
+    selectedCourseId: String?,
     onSelectCourse: (String) -> Unit,
 ) {
     val slots = remember(schedule, timingProfile) { displaySlots(schedule, timingProfile) }
@@ -684,6 +607,7 @@ private fun WeeklyScheduleSection(
                     uiSchema = uiSchema,
                     reminderRules = reminderRules,
                     horizontalScrollState = horizontalScrollState,
+                    selectedCourseId = selectedCourseId,
                     onSelectCourse = onSelectCourse,
                 )
             }
@@ -707,7 +631,7 @@ private fun EmptyWeekState(schedule: TermSchedule?) {
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = if (schedule == null) "展开上方同步设置，连接插件后就能看到周视图。" else "可以切换其他周，或者继续同步最新学期数据。",
+            text = if (schedule == null) "去设置页同步课表，或去插件页切换学校插件。" else "可以切换其他周，或者继续同步最新学期数据。",
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFF5E6475),
         )
@@ -722,6 +646,7 @@ private fun ScheduleGrid(
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
+    selectedCourseId: String?,
     onSelectCourse: (String) -> Unit,
 ) {
     val timeColumnWidth = 70.dp
@@ -791,6 +716,7 @@ private fun ScheduleGrid(
                             course = course,
                             badges = badgesForCourse(course, uiSchema.courseBadges),
                             hasReminder = hasReminderForCourse(course, reminderRules),
+                            selected = course.id == selectedCourseId,
                             width = dayColumnWidth - 10.dp,
                             height = max(slotHeight.value.toInt() * placement.rowSpan - 10, 68).dp,
                             offsetX = dayColumnWidth * placement.dayIndex + 5.dp,
@@ -874,6 +800,7 @@ private fun CourseBlock(
     course: CourseItem,
     badges: List<String>,
     hasReminder: Boolean,
+    selected: Boolean,
     width: androidx.compose.ui.unit.Dp,
     height: androidx.compose.ui.unit.Dp,
     offsetX: androidx.compose.ui.unit.Dp,
@@ -881,6 +808,8 @@ private fun CourseBlock(
     onClick: () -> Unit,
 ) {
     val containerColor = remember(course.title) { courseColor(course.title) }
+    val borderColor = if (selected) Color(0xFFFFF2A6) else Color.White.copy(alpha = 0.55f)
+    val borderWidth = if (selected) 3.dp else 2.dp
     Box(
         modifier = Modifier
             .width(width)
@@ -889,7 +818,7 @@ private fun CourseBlock(
             .offset(offsetX, offsetY)
             .clip(RoundedCornerShape(16.dp))
             .background(containerColor)
-            .border(BorderStroke(2.dp, Color.White.copy(alpha = 0.55f)), RoundedCornerShape(16.dp))
+            .border(BorderStroke(borderWidth, borderColor), RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
             .padding(10.dp),
     ) {
@@ -910,7 +839,11 @@ private fun CourseBlock(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = if (hasReminder) "已设提醒" else course.teacher.ifBlank { "点击设置提醒" },
+                text = when {
+                    selected -> "已选中，去设置页处理"
+                    hasReminder -> "已设提醒"
+                    else -> course.teacher.ifBlank { "点按后去设置页提醒" }
+                },
                 color = Color.White.copy(alpha = 0.92f),
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
@@ -930,7 +863,7 @@ private fun CourseBlock(
 }
 
 @Composable
-private fun ReminderComposerCard(
+internal fun ReminderComposerCard(
     selectedCourse: CourseItem?,
     selectionState: ScheduleSelectionState,
     advanceMinutesText: String,
@@ -998,7 +931,7 @@ private fun ReminderComposerCard(
 }
 
 @Composable
-private fun ReminderRulesSection(
+internal fun ReminderRulesSection(
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     onRemoveReminderRule: (String) -> Unit,
 ) {
@@ -1186,7 +1119,7 @@ private fun hasReminderForCourse(
     }
 }
 
-private fun selectedCourseFromState(
+internal fun selectedCourseFromState(
     selectionState: ScheduleSelectionState?,
     schedule: TermSchedule?,
 ): CourseItem? {
