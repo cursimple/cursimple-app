@@ -140,21 +140,25 @@ class ScheduleViewModel(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isSyncing = true, statusMessage = "正在打开登录取数流程...") }
-            val result = withContext(ioDispatcher) {
-                scheduleRepository.saveLastInput(
-                    pluginId = snapshot.pluginId,
-                    username = snapshot.username,
-                    termId = snapshot.termId,
-                )
-                pluginManager.startSync(
-                    PluginSyncInput(
+            val result = runCatching {
+                withContext(ioDispatcher) {
+                    scheduleRepository.saveLastInput(
                         pluginId = snapshot.pluginId,
                         username = snapshot.username,
-                        password = snapshot.password,
                         termId = snapshot.termId,
-                        baseUrl = snapshot.baseUrl,
-                    ),
-                )
+                    )
+                    pluginManager.startSync(
+                        PluginSyncInput(
+                            pluginId = snapshot.pluginId,
+                            username = snapshot.username,
+                            password = snapshot.password,
+                            termId = snapshot.termId,
+                            baseUrl = snapshot.baseUrl,
+                        ),
+                    )
+                }
+            }.getOrElse { error ->
+                WorkflowExecutionResult.Failure(error.message ?: "启动插件同步流程失败")
             }
             handleExecutionResult(result)
         }
@@ -164,12 +168,16 @@ class ScheduleViewModel(
         val request = _uiState.value.pendingWebSession ?: return
         viewModelScope.launch {
             _uiState.update { it.copy(isSyncing = true, statusMessage = "正在继续执行插件工作流...") }
-            val result = withContext(ioDispatcher) {
-                pluginManager.resumeSync(
-                    pluginId = request.pluginId,
-                    token = request.token,
-                    packet = packet,
-                )
+            val result = runCatching {
+                withContext(ioDispatcher) {
+                    pluginManager.resumeSync(
+                        pluginId = request.pluginId,
+                        token = request.token,
+                        packet = packet,
+                    )
+                }
+            }.getOrElse { error ->
+                WorkflowExecutionResult.Failure(error.message ?: "恢复插件同步流程失败")
             }
             handleExecutionResult(result)
         }
