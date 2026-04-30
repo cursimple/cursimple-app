@@ -1,0 +1,80 @@
+{
+  "workflowId": "sync-schedule",
+  "steps": [
+    {
+      "id": "ui",
+      "type": "ui_emit",
+      "uiAsset": "ui/schedule.json"
+    },
+    {
+      "id": "message",
+      "type": "message",
+      "message": "长江大学插件已加载，登录完成后会自动请求 EAMS 课表接口并解析结果。"
+    },
+    {
+      "id": "web-login",
+      "type": "web_session",
+      "sessionId": "login",
+      "title": "长江大学统一认证登录",
+      "urlTemplate": "https://cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn/authserver/login?service=https%3A%2F%2Fatrust.yangtzeu.edu.cn%3A4443%2Fpassport%2Fv1%2Fauth%2Fcas%3FsfDomain%3DCAS",
+      "captureSelectors": [
+        "title"
+      ],
+      "extractCookies": true,
+      "extractLocalStorage": true,
+      "extractSessionStorage": true,
+      "extractHtmlDigest": true
+    },
+    {
+      "id": "course-home",
+      "type": "http_request",
+      "responseKey": "courseHome",
+      "cookieSessionId": "login",
+      "httpMethod": "GET",
+      "urlTemplate": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action?_={{nowMillis}}&sf_request_type=ajax",
+      "httpHeaders": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "User-Agent": "ClassScheduleViewer/2.0"
+      }
+    },
+    {
+      "id": "course-meta",
+      "type": "eams_extract_meta",
+      "sourceContextKey": "courseHome",
+      "responseKey": "courseMeta"
+    },
+    {
+      "id": "course-detail",
+      "type": "http_request",
+      "responseKey": "courseDetail",
+      "cookieSessionId": "login",
+      "httpMethod": "POST",
+      "httpContentType": "application/x-www-form-urlencoded; charset=UTF-8",
+      "urlTemplate": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action?sf_request_type=ajax",
+      "httpHeaders": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Origin": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+        "Referer": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "User-Agent": "ClassScheduleViewer/2.0"
+      },
+      "httpBodyTemplate": "ignoreHead=1&setting.kind=std&startWeek={{context.courseMeta.maxWeek}}&project.id={{context.courseMeta.projectId}}&semester.id={{context.courseMeta.semesterId}}&ids={{context.courseMeta.ids}}"
+    },
+    {
+      "id": "schedule",
+      "type": "schedule_emit_eams",
+      "metaContextKey": "courseMeta",
+      "detailContextKey": "courseDetail",
+      "termIdTemplate": "{{termId}}",
+      "updatedAtNow": true
+    },
+    {
+      "id": "alarm",
+      "type": "alarm_plan_emit",
+      "message": "长江大学课表建议默认提前 20 分钟提醒。",
+      "recommendedAdvanceMinutes": 20
+    }
+  ]
+}

@@ -12,6 +12,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -32,6 +36,7 @@ class DefaultWorkflowEngine(
 ) : WorkflowEngine {
     private val pendingExecutions = linkedMapOf<String, PendingWorkflowExecution>()
     private val mutex = Mutex()
+    private val eamsScheduleParser = EamsScheduleParser()
 
     override suspend fun start(
         bundle: InstalledPluginBundle,
@@ -131,6 +136,16 @@ class DefaultWorkflowEngine(
                     execution = execution.copy(contextData = execution.contextData + (key to response))
                 }
 
+                WorkflowStepType.EamsExtractMeta -> {
+                    val source = step.sourceContextKey?.let(execution.contextData::get)
+                        ?: throw IllegalStateException("未找到 EAMS 元数据源: ${step.sourceContextKey}")
+                    val meta = eamsScheduleParser.extractMetadata(source)
+                    val key = step.responseKey ?: step.id
+                    execution = execution.copy(
+                        contextData = execution.contextData + (key to json.encodeToString(EamsCourseTableMeta.serializer(), meta)),
+                    )
+                }
+
                 WorkflowStepType.ScheduleEmitStatic -> {
                     val raw = when {
                         !step.scheduleContextKey.isNullOrBlank() -> execution.contextData[step.scheduleContextKey]
@@ -147,6 +162,25 @@ class DefaultWorkflowEngine(
                     } else {
                         parsed
                     }
+                }
+
+                WorkflowStepType.ScheduleEmitEams -> {
+                    val metaRaw = step.metaContextKey?.let(execution.contextData::get)
+                        ?: throw IllegalStateException("未找到 EAMS 元数据上下文: ${step.metaContextKey}")
+                    val detailRaw = step.detailContextKey?.let(execution.contextData::get)
+                        ?: throw IllegalStateException("未找到 EAMS 课表明细上下文: ${step.detailContextKey}")
+                    val meta = json.decodeFromString(EamsCourseTableMeta.serializer(), metaRaw)
+                    val updatedAt = if (step.updatedAtNow) {
+                        OffsetDateTime.now().toString()
+                    } else {
+                        execution.contextData["updatedAt"] ?: OffsetDateTime.now().toString()
+                    }
+                    schedule = eamsScheduleParser.buildSchedule(
+                        meta = meta,
+                        detailHtml = detailRaw,
+                        termId = renderTemplate(step.termIdTemplate.orEmpty().ifBlank { "{{termId}}" }, execution),
+                        updatedAt = updatedAt,
+                    )
                 }
             }
         }
@@ -168,6 +202,13 @@ class DefaultWorkflowEngine(
         val url = renderTemplate(step.urlTemplate.orEmpty(), execution)
         require(isHostAllowed(url, execution.bundle.record.allowedHosts)) { "目标域名不在插件白名单中: $url" }
         val builder = Request.Builder().url(url)
+        step.cookieSessionId
+            ?.let(execution.webPackets::get)
+            ?.cookies
+            ?.takeIf(Map<String, String>::isNotEmpty)
+            ?.entries
+            ?.joinToString("; ") { (key, value) -> "$key=$value" }
+            ?.let { builder.header("Cookie", it) }
         step.httpHeaders.forEach { (key, value) ->
             builder.addHeader(key, renderTemplate(value, execution))
         }
@@ -176,7 +217,8 @@ class DefaultWorkflowEngine(
             builder.method(method, null)
         } else {
             val body = renderTemplate(step.httpBodyTemplate.orEmpty(), execution)
-            builder.method(method, body.toRequestBody("application/json; charset=utf-8".toMediaType()))
+            val contentType = step.httpContentType?.ifBlank { null } ?: "application/json; charset=utf-8"
+            builder.method(method, body.toRequestBody(contentType.toMediaType()))
         }
         client.newCall(builder.build()).execute().use { response ->
             val responseBody = response.body.string()
@@ -216,14 +258,41 @@ class DefaultWorkflowEngine(
             expression == "termId" -> execution.input.termId
             expression == "baseUrl" -> execution.input.baseUrl
             expression == "nowIso" -> OffsetDateTime.now().toString()
+            expression == "nowMillis" -> System.currentTimeMillis().toString()
             expression.startsWith("input.") -> execution.input.extraInputs[expression.removePrefix("input.")]
-            expression.startsWith("context.") -> execution.contextData[expression.removePrefix("context.")]
+            expression.startsWith("context.") -> resolveContextExpression(expression.removePrefix("context."), execution)
             expression.startsWith("web.") -> resolveWebExpression(expression.removePrefix("web."), execution)
             else -> {
                 Log.w("WorkflowEngine", "未知模板变量: $expression")
                 null
             }
         }
+    }
+
+    private fun resolveContextExpression(expression: String, execution: PendingWorkflowExecution): String? {
+        val segments = expression.split(".")
+        val rootKey = segments.firstOrNull().orEmpty()
+        val raw = execution.contextData[rootKey] ?: return null
+        if (segments.size == 1) {
+            return raw
+        }
+        val element = runCatching { json.parseToJsonElement(raw) }.getOrNull() ?: return null
+        return resolveJsonPath(element, segments.drop(1))
+    }
+
+    private fun resolveJsonPath(element: JsonElement, path: List<String>): String? {
+        if (path.isEmpty()) {
+            return when (element) {
+                is JsonPrimitive -> element.content
+                is JsonObject, is JsonArray -> element.toString()
+            }
+        }
+        val next = when (element) {
+            is JsonObject -> element[path.first()]
+            is JsonArray -> path.first().toIntOrNull()?.let { index -> element.getOrNull(index) }
+            is JsonPrimitive -> null
+        } ?: return null
+        return resolveJsonPath(next, path.drop(1))
     }
 
     private fun resolveWebExpression(expression: String, execution: PendingWorkflowExecution): String? {
