@@ -244,7 +244,7 @@ class DefaultWorkflowEngine(
     }
 
     private fun renderTemplate(template: String, execution: PendingWorkflowExecution): String {
-        val regex = Regex("\\{\\{([^}]+)}}")
+        val regex = Regex("\\{\\{([^}]+)\\}\\}")
         return regex.replace(template) { match ->
             resolvePlaceholder(match.groupValues[1].trim(), execution) ?: ""
         }
