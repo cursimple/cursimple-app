@@ -17,6 +17,7 @@
       "sessionId": "login",
       "title": "长江大学统一认证登录",
       "urlTemplate": "https://cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn/authserver/login?service=https%3A%2F%2Fatrust.yangtzeu.edu.cn%3A4443%2Fpassport%2Fv1%2Fauth%2Fcas%3FsfDomain%3DCAS",
+      "completionUrlContains": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
       "captureSelectors": [
         "title"
       ],
@@ -67,7 +68,7 @@
       "type": "schedule_emit_eams",
       "metaContextKey": "courseMeta",
       "detailContextKey": "courseDetail",
-      "termIdTemplate": "{{termId}}",
+      "termIdTemplate": "{{context.courseMeta.semesterId}}",
       "updatedAtNow": true
     },
     {

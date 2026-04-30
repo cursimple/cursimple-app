@@ -63,8 +63,7 @@ class DataStoreScheduleRepository(
         val KEY_PLUGIN_ID = stringPreferencesKey("plugin_id")
         val KEY_USERNAME = stringPreferencesKey("username")
         val KEY_TERM_ID = stringPreferencesKey("term_id")
-        const val DEFAULT_PLUGIN_ID = "demo-campus"
-        const val DEFAULT_TERM_ID = "2026-spring"
+        const val DEFAULT_PLUGIN_ID = "yangtzeu-eams-v2"
+        const val DEFAULT_TERM_ID = ""
     }
 }
-

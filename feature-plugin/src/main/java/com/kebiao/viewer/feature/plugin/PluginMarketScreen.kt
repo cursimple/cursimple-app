@@ -1,281 +1,199 @@
 package com.kebiao.viewer.feature.plugin
 
-import android.webkit.URLUtil
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kebiao.viewer.core.plugin.install.InstalledPluginRecord
+import com.kebiao.viewer.core.plugin.web.WebSessionPacket
+import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 
 @Composable
 fun PluginMarketRoute(
-    viewModel: PluginMarketViewModel,
+    installedPlugins: List<InstalledPluginRecord>,
     activePluginId: String,
+    syncStatusMessage: String?,
+    isSyncing: Boolean,
+    pendingWebSession: WebSessionRequest?,
     onSelectInstalledPlugin: (String) -> Unit,
+    onSyncInstalledPlugin: () -> Unit,
+    onCompleteWebSession: (WebSessionPacket) -> Unit,
+    onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
     PluginMarketScreen(
-        state = state,
+        installedPlugins = installedPlugins,
         activePluginId = activePluginId,
-        onRemoteIndexUrlChange = viewModel::onRemoteIndexUrlChange,
-        onLoadRemoteMarket = viewModel::loadRemoteMarket,
-        onPreviewRemotePackage = viewModel::previewRemotePackage,
-        onPreviewLocalPackage = viewModel::previewLocalPackage,
-        onConfirmInstall = viewModel::confirmInstall,
-        onDismissInstallPreview = viewModel::dismissInstallPreview,
+        syncStatusMessage = syncStatusMessage,
+        isSyncing = isSyncing,
+        pendingWebSession = pendingWebSession,
         onSelectInstalledPlugin = onSelectInstalledPlugin,
-        onRemovePlugin = viewModel::removePlugin,
+        onSyncInstalledPlugin = onSyncInstalledPlugin,
+        onCompleteWebSession = onCompleteWebSession,
+        onCancelWebSession = onCancelWebSession,
         modifier = modifier,
     )
 }
 
 @Composable
 fun PluginMarketScreen(
-    state: PluginMarketUiState,
+    installedPlugins: List<InstalledPluginRecord>,
     activePluginId: String,
-    onRemoteIndexUrlChange: (String) -> Unit,
-    onLoadRemoteMarket: () -> Unit,
-    onPreviewRemotePackage: (com.kebiao.viewer.core.plugin.market.MarketPluginEntry) -> Unit,
-    onPreviewLocalPackage: (ByteArray) -> Unit,
-    onConfirmInstall: () -> Unit,
-    onDismissInstallPreview: () -> Unit,
+    syncStatusMessage: String?,
+    isSyncing: Boolean,
+    pendingWebSession: WebSessionRequest?,
     onSelectInstalledPlugin: (String) -> Unit,
-    onRemovePlugin: (String) -> Unit,
+    onSyncInstalledPlugin: () -> Unit,
+    onCompleteWebSession: (WebSessionPacket) -> Unit,
+    onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val localPackageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                onPreviewLocalPackage(input.readBytes())
-            }
-        }
-    }
-
-    LazyColumn(
+    Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(30.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(30.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
-                    Text(
-                        text = "插件",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = "管理学校插件、远程市场和本地导入包。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            ) {
-                Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text("远程市场", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(
-                        value = state.remoteIndexUrl,
-                        onValueChange = onRemoteIndexUrlChange,
-                        label = { Text("远程市场索引 URL") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    Column(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        Button(
-                            onClick = onLoadRemoteMarket,
-                            enabled = !state.isLoading && URLUtil.isValidUrl(state.remoteIndexUrl),
-                        ) {
-                            Text("加载市场")
-                        }
-                        Button(
-                            onClick = { localPackageLauncher.launch(arrayOf("*/*")) },
-                            enabled = !state.isLoading,
-                        ) {
-                            Text("导入本地插件")
-                        }
-                    }
-                    if (!state.statusMessage.isNullOrBlank()) {
                         Text(
-                            text = state.statusMessage.orEmpty(),
+                            text = "插件",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = syncStatusMessage ?: "这里只保留长江大学插件。点击当前插件卡片里的“同步课表”后，会直接进入统一认证登录取数流程。",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
-        }
 
-        item {
-            Text(
-                text = "已安装插件",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
-        if (state.installedPlugins.isEmpty()) {
             item {
-                EmptyStateCard("当前没有已安装插件", "可以从远程市场预检安装，或者直接导入本地插件包。")
+                Text(
+                    text = "当前可用插件",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
-        } else {
-            items(state.installedPlugins, key = { it.pluginId }) { plugin ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("${plugin.name} (${plugin.version})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("发布者：${plugin.publisher}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("来源：${plugin.source.name}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(
-                            "权限：${plugin.declaredPermissions.joinToString { it.name }}",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (plugin.pluginId == activePluginId) {
-                                Text(
-                                    "当前使用中",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            } else {
-                                Button(onClick = { onSelectInstalledPlugin(plugin.pluginId) }) {
-                                    Text("设为当前插件")
-                                }
-                            }
-                            TextButton(onClick = { onRemovePlugin(plugin.pluginId) }) {
-                                Text("移除插件")
-                            }
-                        }
-                    }
+
+            if (installedPlugins.isEmpty()) {
+                item {
+                    EmptyStateCard("当前没有可用插件", "应用启动时会自动装入长江大学教务插件；如果这里还是空的，说明内置安装过程出了问题。")
+                }
+            } else {
+                items(installedPlugins, key = { it.pluginId }) { plugin ->
+                    PluginCard(
+                        plugin = plugin,
+                        isActive = plugin.pluginId == activePluginId,
+                        isSyncing = isSyncing && plugin.pluginId == activePluginId,
+                        onSelectInstalledPlugin = onSelectInstalledPlugin,
+                        onSyncInstalledPlugin = onSyncInstalledPlugin,
+                    )
                 }
             }
         }
 
-        item {
-            Text(
-                text = "远程市场插件",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-
-        if (state.marketPlugins.isEmpty()) {
-            item {
-                EmptyStateCard("还没有加载到市场条目", "填写一个有效的市场索引地址后，就能在这里看到可安装插件。")
-            }
-        } else {
-            items(state.marketPlugins, key = { it.pluginId }) { plugin ->
+        pendingWebSession?.let { request ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Color(0xD9000000))
+                    .padding(12.dp),
+            ) {
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text("${plugin.name} (${plugin.version})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(plugin.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("发布者：${plugin.publisher}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Button(onClick = { onPreviewRemotePackage(plugin) }) {
-                            Text("下载并预检")
-                        }
-                    }
+                    PluginWebSessionScreen(
+                        request = request,
+                        onFinish = onCompleteWebSession,
+                        onCancel = onCancelWebSession,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
             }
         }
     }
+}
 
-    state.installPreview?.let { preview ->
-        AlertDialog(
-            onDismissRequest = onDismissInstallPreview,
-            confirmButton = {
+@Composable
+private fun PluginCard(
+    plugin: InstalledPluginRecord,
+    isActive: Boolean,
+    isSyncing: Boolean,
+    onSelectInstalledPlugin: (String) -> Unit,
+    onSyncInstalledPlugin: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text("${plugin.name} (${plugin.version})", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("发布者：${plugin.publisher}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("类型：${if (plugin.isBundled) "内置插件" else "外部插件"}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "权限：${plugin.declaredPermissions.joinToString { it.name }}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "站点白名单：${plugin.allowedHosts.joinToString()}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (isActive) {
+                Text(
+                    "当前插件",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
                 Button(
-                    onClick = onConfirmInstall,
-                    enabled = preview.checksumVerified && preview.signatureVerified,
+                    onClick = onSyncInstalledPlugin,
+                    enabled = !isSyncing,
                 ) {
-                    Text("确认安装")
+                    Text(if (isSyncing) "同步中..." else "同步课表")
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = onDismissInstallPreview) {
-                    Text("取消")
+            } else {
+                TextButton(onClick = { onSelectInstalledPlugin(plugin.pluginId) }) {
+                    Text("设为当前插件")
                 }
-            },
-            title = {
-                Text("安装插件：${preview.manifest.name}")
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("插件 ID：${preview.manifest.pluginId}")
-                    Text("发布者：${preview.manifest.publisher}")
-                    Text("版本：${preview.manifest.version}")
-                    Text("来源：${preview.source.name}")
-                    Text("权限：${preview.manifest.declaredPermissions.joinToString { it.name }}")
-                    Text("站点白名单：${preview.manifest.allowedHosts.joinToString()}")
-                    Text("摘要校验：${if (preview.checksumVerified) "通过" else "失败"}")
-                    Text("签名校验：${if (preview.signatureVerified) "通过" else "失败"}")
-                }
-            },
-        )
+            }
+        }
     }
 }
 
@@ -292,7 +210,6 @@ private fun EmptyStateCard(
         Column(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
-            horizontalAlignment = Alignment.Start,
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

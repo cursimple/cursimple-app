@@ -246,7 +246,7 @@ private fun ScheduleHeroSection(
                 text = statusMessage ?: when {
                     !selectedCourseTitle.isNullOrBlank() -> "已选中 $selectedCourseTitle，去设置页创建提醒。"
                     schedule == null && !hasPlugins -> "还没有课表数据，先去插件页安装学校插件。"
-                    schedule == null -> "还没有课表数据，去设置页完成同步后这里会显示周视图。"
+                    schedule == null -> "还没有课表数据，去插件页的当前插件卡片里同步课表。"
                     else -> "这里现在只保留课表内容，点课程块后可去设置页创建提醒。"
                 },
                 style = MaterialTheme.typography.bodyMedium,
@@ -631,7 +631,7 @@ private fun EmptyWeekState(schedule: TermSchedule?) {
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = if (schedule == null) "去设置页同步课表，或去插件页切换学校插件。" else "可以切换其他周，或者继续同步最新学期数据。",
+            text = if (schedule == null) "去插件页同步课表，或去设置页管理提醒。" else "可以切换其他周，或者继续在插件页同步最新数据。",
             style = MaterialTheme.typography.bodyMedium,
             color = Color(0xFF5E6475),
         )

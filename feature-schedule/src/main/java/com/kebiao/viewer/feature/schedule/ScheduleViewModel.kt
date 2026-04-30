@@ -36,8 +36,8 @@ data class ScheduleUiState(
     val username: String = "",
     val password: String = "",
     val pluginId: String = "",
-    val termId: String = "2026-spring",
-    val baseUrl: String = "https://www.example.com/",
+    val termId: String = "",
+    val baseUrl: String = "",
     val isSyncing: Boolean = false,
     val statusMessage: String? = null,
     val schedule: TermSchedule? = null,
@@ -138,12 +138,8 @@ class ScheduleViewModel(
             _uiState.update { it.copy(statusMessage = "请先安装并选择插件") }
             return
         }
-        if (snapshot.username.isBlank() || snapshot.password.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请输入账号和密码") }
-            return
-        }
         viewModelScope.launch {
-            _uiState.update { it.copy(isSyncing = true, statusMessage = "正在同步课表...") }
+            _uiState.update { it.copy(isSyncing = true, statusMessage = "正在打开登录取数流程...") }
             val result = withContext(ioDispatcher) {
                 scheduleRepository.saveLastInput(
                     pluginId = snapshot.pluginId,
@@ -286,7 +282,7 @@ class ScheduleViewModel(
                         timingProfile = result.timingProfile,
                         alarmRecommendations = result.recommendations,
                         messages = result.messages,
-                        statusMessage = "同步完成：${result.schedule.termId}",
+                        statusMessage = "同步完成，已更新课表",
                     )
                 }
             }
@@ -298,7 +294,7 @@ class ScheduleViewModel(
                         pendingWebSession = result.request,
                         uiSchema = result.uiSchema,
                         messages = result.messages,
-                        statusMessage = "请完成插件网页登录流程",
+                        statusMessage = "请在当前插件页完成登录",
                     )
                 }
             }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -40,11 +41,6 @@ fun ScheduleSettingsRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleSettingsScreen(
         state = state,
-        onUsernameChange = viewModel::onUsernameChange,
-        onPasswordChange = viewModel::onPasswordChange,
-        onTermIdChange = viewModel::onTermIdChange,
-        onBaseUrlChange = viewModel::onBaseUrlChange,
-        onSyncClick = viewModel::syncSchedule,
         onSelectTimeSlot = viewModel::selectTimeSlot,
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
@@ -59,11 +55,6 @@ fun ScheduleSettingsRoute(
 @Composable
 fun ScheduleSettingsScreen(
     state: ScheduleUiState,
-    onUsernameChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onTermIdChange: (String) -> Unit,
-    onBaseUrlChange: (String) -> Unit,
-    onSyncClick: () -> Unit,
     onSelectTimeSlot: (Int, Int) -> Unit,
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
@@ -103,28 +94,20 @@ fun ScheduleSettingsScreen(
             SettingsHeaderCard(
                 pluginName = selectedPlugin?.name,
                 pluginVersion = selectedPlugin?.version,
-            )
-
-            SyncSettingsCard(
-                baseUrl = state.baseUrl,
-                termId = state.termId,
-                username = state.username,
-                password = state.password,
-                isSyncing = state.isSyncing,
-                onBaseUrlChange = onBaseUrlChange,
-                onTermIdChange = onTermIdChange,
-                onUsernameChange = onUsernameChange,
-                onPasswordChange = onPasswordChange,
-                onSyncClick = onSyncClick,
+                statusMessage = state.statusMessage,
                 onOpenPluginMarket = onOpenPluginMarket,
             )
 
             PluginBannerSection(state.uiSchema)
 
-            if (state.messages.isNotEmpty()) {
+            val statusLines = buildList {
+                state.statusMessage?.takeIf(String::isNotBlank)?.let(::add)
+                addAll(state.messages)
+            }
+            if (statusLines.isNotEmpty()) {
                 MessageCard(
-                    title = "插件消息",
-                    lines = state.messages,
+                    title = "插件状态",
+                    lines = statusLines,
                 )
             }
 
@@ -200,6 +183,8 @@ fun ScheduleSettingsScreen(
 private fun SettingsHeaderCard(
     pluginName: String?,
     pluginVersion: String?,
+    statusMessage: String?,
+    onOpenPluginMarket: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -217,13 +202,23 @@ private fun SettingsHeaderCard(
             )
             Text(
                 text = when {
-                    pluginName.isNullOrBlank() -> "先去插件页安装并选择学校插件，再在这里填写同步信息。"
-                    pluginVersion.isNullOrBlank() -> "当前插件：$pluginName"
-                    else -> "当前插件：$pluginName $pluginVersion"
+                    pluginName.isNullOrBlank() -> "先去插件页查看长江大学插件，课表同步入口已经移动到插件卡片里。"
+                    pluginVersion.isNullOrBlank() -> "当前插件：$pluginName。课表同步入口已移动到插件页。"
+                    else -> "当前插件：$pluginName $pluginVersion。课表同步入口已移动到插件页。"
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (!statusMessage.isNullOrBlank()) {
+                Text(
+                    text = statusMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Button(onClick = onOpenPluginMarket) {
+                Text("打开插件页")
+            }
         }
     }
 }

@@ -29,13 +29,18 @@ class AppContainer(
 
     init {
         runBlocking {
-            pluginManager.ensureBundledPlugin("plugin-dev/demo-campus-v2")
-            pluginManager.ensureBundledPlugin("plugin-dev/demo-web-campus-v2")
             pluginManager.ensureBundledPlugin("plugin-dev/yangtzeu-eams-v2")
+            pluginManager.getInstalledPlugins()
+                .filterNot { it.pluginId == YANGTZEU_PLUGIN_ID }
+                .forEach { pluginManager.removePlugin(it.pluginId) }
         }
     }
 
     suspend fun refreshWidgets() {
         ScheduleWidgetUpdater.refreshAll(app)
+    }
+
+    private companion object {
+        const val YANGTZEU_PLUGIN_ID = "yangtzeu-eams-v2"
     }
 }
