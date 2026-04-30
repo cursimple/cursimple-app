@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 将课表页收敛为纯课表视图，并为 V2 插件引擎补充可复用的 EAMS 课表解析能力，内置长江大学课表插件。
+**Goal:** 将课表页收敛为纯课表视图，把同步入口移动到长江大学插件卡片，并为 V2 插件引擎补充可复用的 EAMS 课表解析能力。
 
-**Architecture:** 保持现有底栏与数据仓储不变，把宿主同步配置和提醒管理迁移到设置页；在 `core-plugin` 中新增一个结构化 EAMS 解析步骤，插件通过 `web_session + http_request + 解析步骤` 输出标准课表。
+**Architecture:** 保持现有底栏与数据仓储不变，把宿主提醒管理留在设置页、把课表同步入口移动到插件页；在 `core-plugin` 中新增一个结构化 EAMS 解析步骤，插件通过 `web_session + http_request + 解析步骤` 输出标准课表。
 
 **Tech Stack:** Kotlin、Jetpack Compose、kotlinx.serialization、OkHttp、Android WebView、DataStore
 

@@ -41,8 +41,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kebiao.viewer.feature.plugin.PluginMarketRoute
-import com.kebiao.viewer.feature.plugin.PluginMarketViewModel
-import com.kebiao.viewer.feature.plugin.PluginMarketViewModelFactory
 import com.kebiao.viewer.feature.schedule.ScheduleRoute
 import com.kebiao.viewer.feature.schedule.ScheduleViewModel
 import com.kebiao.viewer.feature.schedule.ScheduleViewModelFactory
@@ -68,9 +66,6 @@ class MainActivity : ComponentActivity() {
                             reminderCoordinator = container.reminderCoordinator,
                             onSyncCompleted = { container.refreshWidgets() },
                         ),
-                    )
-                    val pluginMarketViewModel: PluginMarketViewModel = viewModel(
-                        factory = PluginMarketViewModelFactory(container.pluginManager),
                     )
                     val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()
 
@@ -99,9 +94,15 @@ class MainActivity : ComponentActivity() {
                                 )
 
                                 AppScreen.Plugins -> PluginMarketRoute(
-                                    viewModel = pluginMarketViewModel,
+                                    installedPlugins = scheduleState.installedPlugins,
                                     activePluginId = scheduleState.pluginId,
+                                    syncStatusMessage = scheduleState.statusMessage,
+                                    isSyncing = scheduleState.isSyncing,
+                                    pendingWebSession = scheduleState.pendingWebSession,
                                     onSelectInstalledPlugin = scheduleViewModel::onPluginIdChange,
+                                    onSyncInstalledPlugin = scheduleViewModel::syncSchedule,
+                                    onCompleteWebSession = scheduleViewModel::completeWebSession,
+                                    onCancelWebSession = scheduleViewModel::cancelWebSession,
                                     modifier = Modifier.fillMaxSize(),
                                 )
 
