@@ -1,8 +1,12 @@
 package com.kebiao.viewer.app
 
 import android.app.Application
+import com.kebiao.viewer.core.data.DataStoreManualCourseRepository
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
+import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
+import com.kebiao.viewer.core.data.ManualCourseRepository
 import com.kebiao.viewer.core.data.ScheduleRepository
+import com.kebiao.viewer.core.data.UserPreferencesRepository
 import com.kebiao.viewer.core.data.plugin.DataStorePluginRegistryRepository
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
@@ -18,6 +22,8 @@ class AppContainer(
     val pluginRegistryRepository = DataStorePluginRegistryRepository(app)
     val reminderRepository = DataStoreReminderRepository(app)
     val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(app)
+    val userPreferencesRepository: UserPreferencesRepository = DataStoreUserPreferencesRepository(app)
+    val manualCourseRepository: ManualCourseRepository = DataStoreManualCourseRepository(app)
     val pluginManager = PluginManager(
         context = app,
         registryRepository = pluginRegistryRepository,

@@ -1,0 +1,63 @@
+package com.kebiao.viewer.app.util
+
+import android.content.Context
+import android.content.Intent
+import android.os.Process
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+object LogExporter {
+
+    /**
+     * 抓取当前进程的 logcat 写入 cache/logs/ 下，返回该文件的 content:// URI 的分享 Intent。
+     * 失败返回 null。
+     */
+    suspend fun exportRecentLogs(context: Context, maxLines: Int = 2000): Intent? = withContext(Dispatchers.IO) {
+        val file = collectLogs(context, maxLines) ?: return@withContext null
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file,
+        )
+        Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            putExtra(Intent.EXTRA_SUBJECT, "ClassScheduleViewer 日志 ${file.name}")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    private fun collectLogs(context: Context, maxLines: Int): File? = runCatching {
+        val dir = File(context.cacheDir, "logs").apply { mkdirs() }
+        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
+        val target = File(dir, "app-log-$timestamp.txt")
+
+        val pid = Process.myPid().toString()
+        val process = ProcessBuilder(
+            "logcat",
+            "-d",
+            "-t", maxLines.toString(),
+            "--pid=$pid",
+            "-v", "time",
+        ).redirectErrorStream(true).start()
+
+        target.bufferedWriter().use { writer ->
+            writer.appendLine("# ClassScheduleViewer log dump")
+            writer.appendLine("# pid=$pid time=$timestamp")
+            writer.appendLine("# device=${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
+            writer.appendLine("# android=${android.os.Build.VERSION.RELEASE} (sdk=${android.os.Build.VERSION.SDK_INT})")
+            writer.appendLine("# ----")
+            process.inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { writer.appendLine(it) }
+            }
+        }
+        process.waitFor()
+        target
+    }.getOrNull()
+}
