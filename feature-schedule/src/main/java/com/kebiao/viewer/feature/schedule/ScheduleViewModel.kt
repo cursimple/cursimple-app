@@ -10,6 +10,7 @@ import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.plugin.PluginManager
 import com.kebiao.viewer.core.plugin.install.InstalledPluginRecord
+import com.kebiao.viewer.core.plugin.logging.PluginLogger
 import com.kebiao.viewer.core.plugin.runtime.AlarmRecommendation
 import com.kebiao.viewer.core.plugin.runtime.PluginSyncInput
 import com.kebiao.viewer.core.plugin.runtime.WorkflowExecutionResult
@@ -144,10 +145,21 @@ class ScheduleViewModel(
     fun syncSchedule() {
         val snapshot = _uiState.value
         if (snapshot.pluginId.isBlank()) {
+            PluginLogger.warn("plugin.schedule.sync.rejected", mapOf("reason" to "missing_plugin"))
             _uiState.update { it.copy(statusMessage = "请先安装并选择插件") }
             return
         }
         viewModelScope.launch {
+            val startedAt = System.currentTimeMillis()
+            PluginLogger.info(
+                "plugin.schedule.sync.request",
+                mapOf(
+                    "pluginId" to snapshot.pluginId,
+                    "usernamePresent" to snapshot.username.isNotBlank(),
+                    "termIdPresent" to snapshot.termId.isNotBlank(),
+                    "baseUrl" to PluginLogger.sanitizeUrl(snapshot.baseUrl),
+                ),
+            )
             _uiState.update { it.copy(isSyncing = true, statusMessage = "正在打开登录取数流程...") }
             val result = runCatching {
                 withContext(ioDispatcher) {
@@ -167,15 +179,34 @@ class ScheduleViewModel(
                     )
                 }
             }.getOrElse { error ->
+                PluginLogger.error(
+                    "plugin.schedule.sync.request.failure",
+                    mapOf("pluginId" to snapshot.pluginId, "elapsedMs" to (System.currentTimeMillis() - startedAt)),
+                    error,
+                )
                 WorkflowExecutionResult.Failure(error.message ?: "启动插件同步流程失败")
             }
-            handleExecutionResult(result)
+            handleExecutionResult(result, startedAt)
         }
     }
 
     fun completeWebSession(packet: WebSessionPacket) {
         val request = _uiState.value.pendingWebSession ?: return
         viewModelScope.launch {
+            val startedAt = System.currentTimeMillis()
+            PluginLogger.info(
+                "plugin.schedule.web_session.complete",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "finalUrl" to PluginLogger.sanitizeUrl(packet.finalUrl),
+                    "cookieCount" to packet.cookies.size,
+                    "localStorageCount" to packet.localStorageSnapshot.size,
+                    "sessionStorageCount" to packet.sessionStorageSnapshot.size,
+                    "capturedFieldCount" to packet.capturedFields.size,
+                    "htmlDigest" to packet.htmlDigest,
+                ),
+            )
             _uiState.update { it.copy(isSyncing = true, statusMessage = "正在继续执行插件工作流...") }
             val result = runCatching {
                 withContext(ioDispatcher) {
@@ -186,13 +217,32 @@ class ScheduleViewModel(
                     )
                 }
             }.getOrElse { error ->
+                PluginLogger.error(
+                    "plugin.schedule.web_session.resume.failure",
+                    mapOf(
+                        "pluginId" to request.pluginId,
+                        "sessionId" to request.sessionId,
+                        "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                    ),
+                    error,
+                )
                 WorkflowExecutionResult.Failure(error.message ?: "恢复插件同步流程失败")
             }
-            handleExecutionResult(result)
+            handleExecutionResult(result, startedAt)
         }
     }
 
     fun cancelWebSession() {
+        _uiState.value.pendingWebSession?.let { request ->
+            PluginLogger.warn(
+                "plugin.schedule.web_session.cancel",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "startUrl" to PluginLogger.sanitizeUrl(request.startUrl),
+                ),
+            )
+        }
         _uiState.update {
             it.copy(
                 pendingWebSession = null,
@@ -337,7 +387,7 @@ class ScheduleViewModel(
         }
     }
 
-    private suspend fun handleExecutionResult(result: WorkflowExecutionResult) {
+    private suspend fun handleExecutionResult(result: WorkflowExecutionResult, startedAt: Long = System.currentTimeMillis()) {
         when (result) {
             is WorkflowExecutionResult.Success -> {
                 val schedule = try {
@@ -345,6 +395,16 @@ class ScheduleViewModel(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
+                    PluginLogger.error(
+                        "plugin.schedule.result.validation_failure",
+                        mapOf(
+                            "pluginId" to _uiState.value.pluginId,
+                            "dailyScheduleCount" to result.schedule.dailySchedules.size,
+                            "courseCount" to result.schedule.dailySchedules.sumOf { it.courses.size },
+                            "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                        ),
+                        error,
+                    )
                     _uiState.update {
                         it.copy(
                             isSyncing = false,
@@ -368,6 +428,16 @@ class ScheduleViewModel(
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
+                    PluginLogger.error(
+                        "plugin.schedule.result.persistence_failure",
+                        mapOf(
+                            "pluginId" to _uiState.value.pluginId,
+                            "dailyScheduleCount" to schedule.dailySchedules.size,
+                            "courseCount" to schedule.dailySchedules.sumOf { it.courses.size },
+                            "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                        ),
+                        error,
+                    )
                     _uiState.update {
                         it.copy(
                             isSyncing = false,
@@ -377,6 +447,18 @@ class ScheduleViewModel(
                     }
                     return
                 }
+                PluginLogger.info(
+                    "plugin.schedule.result.success",
+                    mapOf(
+                        "pluginId" to _uiState.value.pluginId,
+                        "dailyScheduleCount" to schedule.dailySchedules.size,
+                        "courseCount" to schedule.dailySchedules.sumOf { it.courses.size },
+                        "messageCount" to result.messages.size,
+                        "recommendationCount" to result.recommendations.size,
+                        "hasTimingProfile" to (result.timingProfile != null),
+                        "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                    ),
+                )
                 _uiState.update {
                     it.copy(
                         isSyncing = false,
@@ -392,6 +474,17 @@ class ScheduleViewModel(
             }
 
             is WorkflowExecutionResult.AwaitingWebSession -> {
+                PluginLogger.info(
+                    "plugin.schedule.result.awaiting_web_session",
+                    mapOf(
+                        "pluginId" to result.request.pluginId,
+                        "sessionId" to result.request.sessionId,
+                        "startUrl" to PluginLogger.sanitizeUrl(result.request.startUrl),
+                        "allowedHostCount" to result.request.allowedHosts.size,
+                        "messageCount" to result.messages.size,
+                        "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                    ),
+                )
                 _uiState.update {
                     it.copy(
                         isSyncing = false,
@@ -404,6 +497,14 @@ class ScheduleViewModel(
             }
 
             is WorkflowExecutionResult.Failure -> {
+                PluginLogger.warn(
+                    "plugin.schedule.result.failure",
+                    mapOf(
+                        "pluginId" to _uiState.value.pluginId,
+                        "failureMessage" to result.message,
+                        "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                    ),
+                )
                 _uiState.update {
                     it.copy(
                         isSyncing = false,
