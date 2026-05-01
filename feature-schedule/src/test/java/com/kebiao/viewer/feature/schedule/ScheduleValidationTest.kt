@@ -1,0 +1,76 @@
+package com.kebiao.viewer.feature.schedule
+
+import com.kebiao.viewer.core.kernel.model.CourseItem
+import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
+import com.kebiao.viewer.core.kernel.model.DailySchedule
+import com.kebiao.viewer.core.kernel.model.TermSchedule
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertThrows
+import org.junit.Test
+
+class ScheduleValidationTest {
+    @Test
+    fun `valid plugin schedule passes through unchanged`() {
+        val schedule = TermSchedule(
+            termId = "2026-spring",
+            updatedAt = "2026-05-01T00:00:00+08:00",
+            dailySchedules = listOf(
+                DailySchedule(
+                    dayOfWeek = 1,
+                    courses = listOf(
+                        CourseItem(
+                            id = "course-1",
+                            title = "高等数学",
+                            weeks = listOf(1, 2, 3),
+                            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertSame(schedule, validatePluginSchedule(schedule))
+    }
+
+    @Test
+    fun `invalid plugin schedule is rejected before it reaches app state`() {
+        val schedule = TermSchedule(
+            termId = "bad",
+            updatedAt = "2026-05-01T00:00:00+08:00",
+            dailySchedules = listOf(
+                DailySchedule(
+                    dayOfWeek = 8,
+                    courses = emptyList(),
+                ),
+            ),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            validatePluginSchedule(schedule)
+        }
+    }
+
+    @Test
+    fun `course with impossible node range is rejected`() {
+        val schedule = TermSchedule(
+            termId = "bad",
+            updatedAt = "2026-05-01T00:00:00+08:00",
+            dailySchedules = listOf(
+                DailySchedule(
+                    dayOfWeek = 2,
+                    courses = listOf(
+                        CourseItem(
+                            id = "bad-course",
+                            title = "异常课程",
+                            time = CourseTimeSlot(dayOfWeek = 2, startNode = 5, endNode = 4),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            validatePluginSchedule(schedule)
+        }
+    }
+}

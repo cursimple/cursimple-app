@@ -37,4 +37,10 @@ class PluginWebSessionScreenTest {
 
         assertEquals("{\"html\":\"<main>ok</main>\"}", payload)
     }
+
+    @Test
+    fun `console error filter ignores known eams beangle noise`() {
+        assertFalse(shouldSurfaceConsoleError("Uncaught ReferenceError: beangle is not defined"))
+        assertTrue(shouldSurfaceConsoleError("Uncaught TypeError: cannot read properties of null"))
+    }
 }
