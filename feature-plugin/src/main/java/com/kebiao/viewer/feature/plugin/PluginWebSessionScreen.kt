@@ -1,10 +1,15 @@
 package com.kebiao.viewer.feature.plugin
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
+import android.os.Message
 import android.view.View
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -19,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -44,12 +50,71 @@ fun PluginWebSessionScreen(
     val isFinishing = remember { mutableStateOf(false) }
     val blockedUrl = remember { mutableStateOf<String?>(null) }
     val pageError = remember { mutableStateOf<String?>(null) }
-    val statusText = remember(currentUrl.value, blockedUrl.value, pageError.value) {
+    val pageTitle = remember { mutableStateOf("") }
+    val loadProgress = remember { mutableStateOf(0) }
+    val popupUrl = remember { mutableStateOf<String?>(null) }
+    val consoleError = remember { mutableStateOf<String?>(null) }
+    val statusText = remember(
+        currentUrl.value,
+        blockedUrl.value,
+        pageError.value,
+        pageTitle.value,
+        loadProgress.value,
+        popupUrl.value,
+        consoleError.value,
+    ) {
         when {
             pageError.value != null -> "页面加载失败：${pageError.value}"
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
+            popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
+            consoleError.value != null -> "页面脚本提示：${consoleError.value}"
+            loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%：${currentUrl.value}"
+            pageTitle.value.isNotBlank() -> "页面标题：${pageTitle.value}"
             currentUrl.value.isNotBlank() -> "当前页面：${currentUrl.value}"
             else -> "当前页面：等待加载"
+        }
+    }
+
+    fun handleNavigation(target: String): Boolean {
+        if (target.isBlank() || isInternalWebViewUrl(target)) {
+            return false
+        }
+        if (!isAllowedHost(target, request.allowedHosts)) {
+            currentUrl.value = target
+            blockedUrl.value = target
+            popupUrl.value = null
+            return true
+        }
+        currentUrl.value = target
+        blockedUrl.value = null
+        popupUrl.value = null
+        pageError.value = null
+        consoleError.value = null
+        return false
+    }
+
+    fun completeIfNeeded(view: WebView?, target: String) {
+        if (
+            !isFinishing.value &&
+            shouldAutoComplete(target, request.completionUrlContains)
+        ) {
+            val webView = view ?: return
+            isFinishing.value = true
+            captureWebSessionPacket(
+                webView = webView,
+                request = request,
+                currentUrl = target,
+            ) { packet ->
+                isFinishing.value = false
+                onFinish(packet)
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            webViewState.value?.destroy()
+            webViewState.value = null
         }
     }
 
@@ -119,20 +184,82 @@ fun PluginWebSessionScreen(
             AndroidView(
                 factory = { context ->
                     WebView(context).apply {
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.useWideViewPort = true
-                        settings.loadWithOverviewMode = true
-                        settings.builtInZoomControls = true
-                        settings.displayZoomControls = false
-                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                        request.userAgent?.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
-                        isVerticalScrollBarEnabled = true
-                        isHorizontalScrollBarEnabled = true
-                        scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
-                        overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-                        CookieManager.getInstance().setAcceptCookie(true)
-                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                        applyPluginBrowserSettings(request)
+                        val mainWebView = this
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                loadProgress.value = newProgress
+                            }
+
+                            override fun onReceivedTitle(view: WebView?, title: String?) {
+                                pageTitle.value = title.orEmpty()
+                            }
+
+                            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                if (consoleMessage?.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
+                                    consoleError.value = consoleMessage.message().orEmpty()
+                                }
+                                return false
+                            }
+
+                            override fun onCreateWindow(
+                                view: WebView?,
+                                isDialog: Boolean,
+                                isUserGesture: Boolean,
+                                resultMsg: Message?,
+                            ): Boolean {
+                                val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+                                lateinit var popupWebView: WebView
+                                var popupHandled = false
+
+                                fun routePopup(target: String): Boolean {
+                                    if (target.isBlank() || isInternalWebViewUrl(target)) {
+                                        return false
+                                    }
+                                    if (popupHandled) {
+                                        return true
+                                    }
+                                    popupHandled = true
+                                    popupUrl.value = target
+                                    popupWebView.stopLoading()
+                                    if (!handleNavigation(target)) {
+                                        mainWebView.loadUrl(target)
+                                    }
+                                    popupWebView.destroy()
+                                    return true
+                                }
+
+                                popupWebView = WebView(mainWebView.context).apply {
+                                    applyPluginBrowserSettings(request)
+                                    webViewClient = object : WebViewClient() {
+                                        @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+                                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                                            return routePopup(url.orEmpty())
+                                        }
+
+                                        override fun shouldOverrideUrlLoading(
+                                            view: WebView?,
+                                            webRequest: WebResourceRequest?,
+                                        ): Boolean {
+                                            return routePopup(webRequest?.url?.toString().orEmpty())
+                                        }
+
+                                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                            routePopup(url.orEmpty())
+                                        }
+                                    }
+                                }
+                                transport.webView = popupWebView
+                                resultMsg.sendToTarget()
+                                return true
+                            }
+
+                            override fun onCloseWindow(window: WebView?) {
+                                if (window !== mainWebView) {
+                                    window?.destroy()
+                                }
+                            }
+                        }
                         webViewClient = object : WebViewClient() {
                             @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
                             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
@@ -146,6 +273,15 @@ fun PluginWebSessionScreen(
                                 return handleNavigation(webRequest?.url?.toString().orEmpty())
                             }
 
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                val target = url.orEmpty()
+                                currentUrl.value = target
+                                loadProgress.value = 0
+                                pageError.value = null
+                                consoleError.value = null
+                                view?.scrollTo(0, 0)
+                            }
+
                             override fun onReceivedError(
                                 view: WebView?,
                                 webRequest: WebResourceRequest?,
@@ -157,40 +293,23 @@ fun PluginWebSessionScreen(
                                 }
                             }
 
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                val target = url.orEmpty()
-                                currentUrl.value = target
-                                pageError.value = null
-                                if (
-                                    !isFinishing.value &&
-                                    shouldAutoComplete(target, request.completionUrlContains)
-                                ) {
-                                    val webView = view ?: return
-                                    isFinishing.value = true
-                                    captureWebSessionPacket(
-                                        webView = webView,
-                                        request = request,
-                                        currentUrl = target,
-                                    ) { packet ->
-                                        isFinishing.value = false
-                                        onFinish(packet)
-                                    }
+                            override fun onReceivedHttpError(
+                                view: WebView?,
+                                webRequest: WebResourceRequest?,
+                                errorResponse: WebResourceResponse?,
+                            ) {
+                                if (webRequest?.isForMainFrame == true) {
+                                    currentUrl.value = webRequest.url?.toString().orEmpty()
+                                    pageError.value = "HTTP ${errorResponse?.statusCode ?: 0}: ${errorResponse?.reasonPhrase.orEmpty()}"
                                 }
                             }
 
-                            private fun handleNavigation(target: String): Boolean {
-                                if (target.isBlank() || isInternalWebViewUrl(target)) {
-                                    return false
-                                }
-                                if (!isAllowedHost(target, request.allowedHosts)) {
-                                    currentUrl.value = target
-                                    blockedUrl.value = target
-                                    return true
-                                }
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                val target = url.orEmpty()
                                 currentUrl.value = target
-                                blockedUrl.value = null
-                                pageError.value = null
-                                return false
+                                view?.scrollTo(0, 0)
+                                loadProgress.value = 100
+                                completeIfNeeded(view, target)
                             }
                         }
                         loadUrl(request.startUrl)
@@ -204,6 +323,32 @@ fun PluginWebSessionScreen(
             )
         }
     }
+}
+
+private fun WebView.applyPluginBrowserSettings(request: WebSessionRequest) {
+    settings.javaScriptEnabled = true
+    settings.javaScriptCanOpenWindowsAutomatically = true
+    settings.domStorageEnabled = true
+    settings.useWideViewPort = true
+    settings.loadWithOverviewMode = true
+    settings.setSupportZoom(true)
+    settings.builtInZoomControls = true
+    settings.displayZoomControls = false
+    settings.setSupportMultipleWindows(true)
+    settings.loadsImagesAutomatically = true
+    settings.blockNetworkImage = false
+    settings.cacheMode = WebSettings.LOAD_DEFAULT
+    settings.defaultTextEncodingName = "UTF-8"
+    settings.textZoom = 100
+    settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+    request.userAgent?.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
+    isVerticalScrollBarEnabled = true
+    isHorizontalScrollBarEnabled = true
+    scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+    overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+    CookieManager.getInstance().setAcceptCookie(true)
+    CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 }
 
 private fun captureWebSessionPacket(
@@ -346,17 +491,16 @@ private fun sha256(value: String): String {
 }
 
 internal fun decodeJavascriptPayload(raw: String?): JSONObject {
+    return runCatching { JSONObject(normalizeJavascriptPayload(raw)) }
+        .getOrDefault(JSONObject())
+}
+
+internal fun normalizeJavascriptPayload(raw: String?): String {
     val candidate = raw.orEmpty().trim()
     if (candidate.isBlank() || candidate == "null") {
-        return JSONObject()
+        return "{}"
     }
-    val normalized = runCatching {
-        when (val payload = JSONObject("""{"payload":$candidate}""").opt("payload")) {
-            is JSONObject -> payload.toString()
-            is String -> payload
-            else -> ""
-        }
-    }.getOrElse {
+    val normalized = if (candidate.startsWith("\"") && candidate.endsWith("\"")) {
         candidate
             .removePrefix("\"")
             .removeSuffix("\"")
@@ -364,9 +508,12 @@ internal fun decodeJavascriptPayload(raw: String?): JSONObject {
             .replace("\\\"", "\"")
             .replace("\\n", "\n")
             .replace("\\r", "\r")
+    } else {
+        candidate
     }
-    return runCatching { JSONObject(normalized.ifBlank { "{}" }) }
-        .getOrDefault(JSONObject())
+    return normalized.trim()
+        .takeIf { it.startsWith("{") && it.endsWith("}") }
+        ?: "{}"
 }
 
 private fun JSONObject?.toStringMap(): Map<String, String> {
