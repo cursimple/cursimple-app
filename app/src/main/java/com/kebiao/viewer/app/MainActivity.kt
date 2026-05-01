@@ -80,6 +80,7 @@ import com.kebiao.viewer.feature.plugin.PluginMarketRoute
 import com.kebiao.viewer.feature.schedule.AddCourseDialog
 import com.kebiao.viewer.feature.schedule.ManageScheduleSheet
 import com.kebiao.viewer.feature.schedule.ScheduleRoute
+import com.kebiao.viewer.feature.schedule.ScheduleViewMode
 import com.kebiao.viewer.feature.schedule.ScheduleViewModel
 import com.kebiao.viewer.feature.schedule.ScheduleViewModelFactory
 import kotlinx.coroutines.launch
@@ -129,6 +130,8 @@ class MainActivity : ComponentActivity() {
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
                     var showManageSheet by rememberSaveable { mutableStateOf(false) }
                     var weekOffset by rememberSaveable { mutableIntStateOf(0) }
+                    var dayOffset by rememberSaveable { mutableIntStateOf(0) }
+                    var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.Week) }
                     var showWeekMenu by remember { mutableStateOf(false) }
 
                     val effectiveTermStart = prefs.termStartDate
@@ -142,6 +145,7 @@ class MainActivity : ComponentActivity() {
 
                     ModalNavigationDrawer(
                         drawerState = drawerState,
+                        gesturesEnabled = scheduleState.pendingWebSession == null,
                         drawerContent = {
                             AppDrawer(
                                 currentScreen = currentScreen,
@@ -164,23 +168,44 @@ class MainActivity : ComponentActivity() {
                                 .background(MaterialTheme.colorScheme.background),
                             containerColor = MaterialTheme.colorScheme.background,
                             topBar = {
-                                val displayedWeekIndex = (currentWeekIndex + weekOffset).coerceAtLeast(1)
+                                val dayWeekIndex = effectiveTermStart?.let { start ->
+                                    val termStartMonday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                                    val targetMonday = today.plusDays(dayOffset.toLong())
+                                        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                                    max(1, ChronoUnit.WEEKS.between(termStartMonday, targetMonday).toInt() + 1)
+                                } ?: 1
+                                val displayedWeekIndex = when (scheduleViewMode) {
+                                    ScheduleViewMode.Week -> (currentWeekIndex + weekOffset).coerceAtLeast(1)
+                                    ScheduleViewMode.Day -> dayWeekIndex
+                                }
                                 CenterAlignedTopAppBar(
                                     title = {
                                         if (currentScreen == AppScreen.Schedule) {
-                                            Row(
+                                            Column(
                                                 modifier = Modifier.clickable { showWeekMenu = true },
-                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
-                                                Text(
-                                                    text = "第 $displayedWeekIndex 周",
-                                                    style = MaterialTheme.typography.titleMedium,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                )
-                                                Icon(
-                                                    imageVector = Icons.Rounded.ArrowDropDown,
-                                                    contentDescription = "切换周次",
-                                                )
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = "第 $displayedWeekIndex 周",
+                                                        style = MaterialTheme.typography.titleMedium,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                    )
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.ArrowDropDown,
+                                                        contentDescription = "切换周次",
+                                                    )
+                                                }
+                                                val termLabel = remember(effectiveTermStart) {
+                                                    formatTermLabel(effectiveTermStart)
+                                                }
+                                                if (termLabel.isNotBlank()) {
+                                                    Text(
+                                                        text = termLabel,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
                                             }
                                         } else {
                                             Text(
@@ -200,6 +225,31 @@ class MainActivity : ComponentActivity() {
                                     },
                                     actions = {
                                         if (currentScreen == AppScreen.Schedule) {
+                                            IconButton(
+                                                onClick = {
+                                                    scheduleViewMode = if (scheduleViewMode == ScheduleViewMode.Week) {
+                                                        dayOffset = 0
+                                                        ScheduleViewMode.Day
+                                                    } else {
+                                                        ScheduleViewMode.Week
+                                                    }
+                                                },
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                                    modifier = Modifier.size(32.dp),
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Text(
+                                                            text = if (scheduleViewMode == ScheduleViewMode.Week) "日" else "周",
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        )
+                                                    }
+                                                }
+                                            }
                                             IconButton(onClick = { showManageSheet = true }) {
                                                 Icon(
                                                     imageVector = Icons.Rounded.Add,
@@ -224,6 +274,13 @@ class MainActivity : ComponentActivity() {
                                         viewModel = scheduleViewModel,
                                         overrideTermStart = prefs.termStartDate,
                                         weekOffset = weekOffset,
+                                        onPrevWeek = { weekOffset -= 1 },
+                                        onNextWeek = { weekOffset += 1 },
+                                        viewMode = scheduleViewMode,
+                                        dayOffset = dayOffset,
+                                        onPrevDay = { dayOffset -= 1 },
+                                        onNextDay = { dayOffset += 1 },
+                                        onResetDay = { dayOffset = 0 },
                                         onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
                                         modifier = Modifier.fillMaxSize(),
                                     )
@@ -563,4 +620,15 @@ private fun ThemeModeDialog(
             TextButton(onClick = onDismiss) { Text("关闭") }
         },
     )
+}
+
+private fun formatTermLabel(termStart: LocalDate?): String {
+    if (termStart == null) return ""
+    val month = termStart.monthValue
+    val year = termStart.year
+    return if (month >= 7) {
+        "$year-${year + 1} 第1学期"
+    } else {
+        "${year - 1}-$year 第2学期"
+    }
 }
