@@ -1,9 +1,14 @@
 package com.kebiao.viewer.feature.plugin
 
 import android.annotation.SuppressLint
+import android.view.View
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
@@ -36,6 +42,8 @@ fun PluginWebSessionScreen(
     val currentUrl = remember { mutableStateOf(request.startUrl) }
     val webViewState = remember { mutableStateOf<WebView?>(null) }
     val isFinishing = remember { mutableStateOf(false) }
+    val blockedUrl = remember { mutableStateOf<String?>(null) }
+    val pageError = remember { mutableStateOf<String?>(null) }
 
     Box(
         modifier = modifier
@@ -49,6 +57,7 @@ fun PluginWebSessionScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(onClick = onCancel) {
                     Text("取消")
@@ -81,26 +90,75 @@ fun PluginWebSessionScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Text(
+                text = "当前页面：${currentUrl.value.ifBlank { "等待加载" }}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            blockedUrl.value?.let { url ->
+                Text(
+                    text = "已拦截非白名单跳转：$url",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            pageError.value?.let { error ->
+                Text(
+                    text = "页面加载失败：$error",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             AndroidView(
                 factory = { context ->
                     WebView(context).apply {
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
+                        settings.useWideViewPort = true
+                        settings.loadWithOverviewMode = true
+                        settings.builtInZoomControls = true
+                        settings.displayZoomControls = false
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        isVerticalScrollBarEnabled = true
+                        isHorizontalScrollBarEnabled = true
+                        scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
+                        overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                         CookieManager.getInstance().setAcceptCookie(true)
+                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                         webViewClient = object : WebViewClient() {
-                            @Suppress("DEPRECATION")
+                            @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
                             override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                                val target = url.orEmpty()
-                                if (!isAllowedHost(target, request.allowedHosts)) {
-                                    return true
+                                return handleNavigation(url.orEmpty())
+                            }
+
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                webRequest: WebResourceRequest?,
+                            ): Boolean {
+                                return handleNavigation(webRequest?.url?.toString().orEmpty())
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView?,
+                                webRequest: WebResourceRequest?,
+                                error: WebResourceError?,
+                            ) {
+                                if (webRequest?.isForMainFrame == true) {
+                                    currentUrl.value = webRequest.url?.toString().orEmpty()
+                                    pageError.value = "${error?.errorCode ?: 0}: ${error?.description?.toString().orEmpty()}"
                                 }
-                                currentUrl.value = target
-                                return false
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 val target = url.orEmpty()
                                 currentUrl.value = target
+                                pageError.value = null
                                 if (
                                     !isFinishing.value &&
                                     shouldAutoComplete(target, request.completionUrlContains)
@@ -117,12 +175,29 @@ fun PluginWebSessionScreen(
                                     }
                                 }
                             }
+
+                            private fun handleNavigation(target: String): Boolean {
+                                if (target.isBlank() || isInternalWebViewUrl(target)) {
+                                    return false
+                                }
+                                if (!isAllowedHost(target, request.allowedHosts)) {
+                                    currentUrl.value = target
+                                    blockedUrl.value = target
+                                    return true
+                                }
+                                currentUrl.value = target
+                                blockedUrl.value = null
+                                pageError.value = null
+                                return false
+                            }
                         }
                         loadUrl(request.startUrl)
                         webViewState.value = this
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
             )
         }
     }
@@ -140,26 +215,40 @@ private fun captureWebSessionPacket(
     webView.evaluateJavascript(
         """
         (() => {
-            const local = {};
-            const session = {};
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              local[key] = localStorage.getItem(key) || "";
-            }
-            for (let i = 0; i < sessionStorage.length; i++) {
-              const key = sessionStorage.key(i);
-              session[key] = sessionStorage.getItem(key) || "";
-            }
+            const readStorage = (name) => {
+              const snapshot = {};
+              try {
+                const storage = window[name];
+                for (let i = 0; i < storage.length; i++) {
+                  const key = storage.key(i);
+                  if (key) {
+                    snapshot[key] = storage.getItem(key) || "";
+                  }
+                }
+              } catch (error) {}
+              return snapshot;
+            };
             const fields = {};
-            ${request.captureSelectors.joinToString("\n") { selector ->
-                """const node_${selector.hashCode().toString().replace("-", "_")} = document.querySelector(${selector.quoteJs()}); if (node_${selector.hashCode().toString().replace("-", "_")} ) { fields[${selector.quoteJs()}] = (node_${selector.hashCode().toString().replace("-", "_")}.value || node_${selector.hashCode().toString().replace("-", "_")}.textContent || "").trim(); }"""
-            }}
-            return JSON.stringify({
-              html: document.documentElement.outerHTML,
-              localStorageSnapshot: local,
-              sessionStorageSnapshot: session,
-              capturedFields: fields
-            });
+            try {
+              ${request.captureSelectors.joinToString("\n") { selector ->
+                  val nodeName = "node_${selector.hashCode().toString().replace("-", "_")}"
+                  """try { const $nodeName = document.querySelector(${selector.quoteJs()}); if ($nodeName) { fields[${selector.quoteJs()}] = (($nodeName.value || $nodeName.textContent || "") + "").trim(); } } catch (error) {}"""
+              }}
+            } catch (error) {}
+            let html = "";
+            try {
+              html = document.documentElement ? (document.documentElement.outerHTML || "") : "";
+            } catch (error) {}
+            try {
+              return JSON.stringify({
+                html,
+                localStorageSnapshot: readStorage("localStorage"),
+                sessionStorageSnapshot: readStorage("sessionStorage"),
+                capturedFields: fields
+              });
+            } catch (error) {
+              return "{}";
+            }
         })();
         """.trimIndent(),
     ) { raw ->
@@ -218,12 +307,19 @@ private fun shouldAutoComplete(
         ?: false
 }
 
-private fun isAllowedHost(url: String, allowedHosts: List<String>): Boolean {
+internal fun isAllowedHost(url: String, allowedHosts: List<String>): Boolean {
     return runCatching { java.net.URL(url).host.lowercase() }.getOrNull()?.let { host ->
         allowedHosts.any { allowed ->
             host == allowed.lowercase() || host.endsWith(".${allowed.lowercase()}")
         }
     } ?: false
+}
+
+private fun isInternalWebViewUrl(url: String): Boolean {
+    return url.startsWith("about:", ignoreCase = true) ||
+        url.startsWith("javascript:", ignoreCase = true) ||
+        url.startsWith("data:", ignoreCase = true) ||
+        url.startsWith("blob:", ignoreCase = true)
 }
 
 private fun String.quoteJs(): String = buildString {
@@ -246,15 +342,28 @@ private fun sha256(value: String): String {
         .joinToString("") { "%02x".format(it) }
 }
 
-private fun decodeJavascriptPayload(raw: String?): JSONObject {
-    val normalized = raw.orEmpty()
-        .removePrefix("\"")
-        .removeSuffix("\"")
-        .replace("\\\\", "\\")
-        .replace("\\\"", "\"")
-        .replace("\\n", "\n")
-        .replace("\\r", "\r")
-    return JSONObject(normalized.ifBlank { "{}" })
+internal fun decodeJavascriptPayload(raw: String?): JSONObject {
+    val candidate = raw.orEmpty().trim()
+    if (candidate.isBlank() || candidate == "null") {
+        return JSONObject()
+    }
+    val normalized = runCatching {
+        when (val payload = JSONObject("""{"payload":$candidate}""").opt("payload")) {
+            is JSONObject -> payload.toString()
+            is String -> payload
+            else -> ""
+        }
+    }.getOrElse {
+        candidate
+            .removePrefix("\"")
+            .removeSuffix("\"")
+            .replace("\\\\", "\\")
+            .replace("\\\"", "\"")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+    }
+    return runCatching { JSONObject(normalized.ifBlank { "{}" }) }
+        .getOrDefault(JSONObject())
 }
 
 private fun JSONObject?.toStringMap(): Map<String, String> {

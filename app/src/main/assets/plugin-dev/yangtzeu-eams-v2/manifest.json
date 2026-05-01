@@ -15,8 +15,13 @@
   ],
   "allowedHosts": [
     "cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn",
+    "authserver.yangtzeu.edu.cn",
+    "cas.yangtzeu.edu.cn",
+    "ids.yangtzeu.edu.cn",
     "atrust.yangtzeu.edu.cn",
-    "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn"
+    "vpn.yangtzeu.edu.cn",
+    "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+    "jwc3.yangtzeu.edu.cn"
   ],
   "dataPackVersion": "1"
 }
