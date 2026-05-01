@@ -7,6 +7,7 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.Writer
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,6 +34,10 @@ object LogExporter {
         }
     }
 
+    suspend fun clearLogs(context: Context): Boolean = withContext(Dispatchers.IO) {
+        clearLogFiles(context.cacheDir)
+    }
+
     private fun collectLogs(context: Context, maxLines: Int): File? = runCatching {
         val dir = File(context.cacheDir, "logs").apply { mkdirs() }
         val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
@@ -54,11 +59,34 @@ object LogExporter {
             writer.appendLine("# android=${android.os.Build.VERSION.RELEASE} (sdk=${android.os.Build.VERSION.SDK_INT})")
             writer.appendLine("# includes plugin diagnostics with sensitive values redacted")
             writer.appendLine("# ----")
+            writer.appendLine("# Logcat")
             process.inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { writer.appendLine(it) }
             }
+            appendPluginDiagnostics(writer, PluginFileLogSink.pluginDiagnosticsFile(context))
         }
         process.waitFor()
         target
     }.getOrNull()
+
+    internal fun appendPluginDiagnostics(writer: Writer, pluginLogFile: File) {
+        writer.appendLine()
+        writer.appendLine("# ----")
+        writer.appendLine("# Plugin diagnostics")
+        if (!pluginLogFile.isFile || pluginLogFile.length() == 0L) {
+            writer.appendLine("# No app-owned plugin diagnostics log is available.")
+            return
+        }
+        pluginLogFile.bufferedReader().useLines { lines ->
+            lines.forEach { writer.appendLine(it) }
+        }
+    }
+
+    internal fun clearLogFiles(cacheDir: File): Boolean = runCatching {
+        val exportedLogsDir = File(cacheDir, "logs")
+        val pluginLogsDir = File(cacheDir, PluginFileLogSink.LOG_DIR_NAME)
+        val exportedLogsCleared = !exportedLogsDir.exists() || exportedLogsDir.deleteRecursively()
+        val pluginLogsCleared = !pluginLogsDir.exists() || pluginLogsDir.deleteRecursively()
+        exportedLogsCleared && pluginLogsCleared
+    }.getOrDefault(false)
 }

@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Link
@@ -129,6 +130,15 @@ fun AboutScreen(
                                 }
                             } else {
                                 Toast.makeText(context, "导出日志失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    onClearLogs = {
+                        scope.launch {
+                            if (LogExporter.clearLogs(context)) {
+                                Toast.makeText(context, "已清空日志", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "清空日志失败，请稍后重试", Toast.LENGTH_SHORT).show()
                             }
                         }
                     },
@@ -334,6 +344,7 @@ private fun TechStackCard() {
 @Composable
 private fun DeveloperCard(
     onExportLogs: () -> Unit,
+    onClearLogs: () -> Unit,
     onDisable: () -> Unit,
 ) {
     Card(
@@ -360,17 +371,31 @@ private fun DeveloperCard(
                 )
             }
             Text(
-                text = "导出当前进程最近 2000 行 logcat 日志，用于排查同步异常或插件问题。",
+                text = "导出当前进程最近 2000 行 logcat，并附加 App 缓存的插件诊断日志。清空日志只清理 App 自己维护的缓存。",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onTertiaryContainer,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = onExportLogs) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onExportLogs,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("导出日志")
                 }
-                TextButton(onClick = onDisable) {
+                TextButton(
+                    onClick = onClearLogs,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("清空日志")
+                }
+                TextButton(
+                    onClick = onDisable,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Icon(Icons.Rounded.BugReport, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("关闭开发者模式")
