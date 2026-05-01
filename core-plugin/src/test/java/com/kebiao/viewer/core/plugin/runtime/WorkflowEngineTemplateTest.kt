@@ -42,6 +42,7 @@ class WorkflowEngineTemplateTest {
                         type = WorkflowStepType.WebSession,
                         title = "登录",
                         urlTemplate = "https://example.com/login?user={{username}}",
+                        userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
                     ),
                 ),
             ),
@@ -65,5 +66,9 @@ class WorkflowEngineTemplateTest {
         val awaiting = result as WorkflowExecutionResult.AwaitingWebSession
         assertEquals("正在为 yangtzeu-eams-v2 打开 20260001 的登录页", awaiting.messages.single())
         assertEquals("https://example.com/login?user=20260001", awaiting.request.startUrl)
+        assertEquals(
+            "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+            awaiting.request.userAgent,
+        )
     }
 }

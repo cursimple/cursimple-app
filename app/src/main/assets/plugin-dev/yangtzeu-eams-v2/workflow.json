@@ -18,6 +18,7 @@
       "title": "长江大学统一认证登录",
       "urlTemplate": "https://cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn/authserver/login?service=https%3A%2F%2Fatrust.yangtzeu.edu.cn%3A4443%2Fpassport%2Fv1%2Fauth%2Fcas%3FsfDomain%3DCAS",
       "completionUrlContains": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+      "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
       "captureSelectors": [
         "title"
       ],

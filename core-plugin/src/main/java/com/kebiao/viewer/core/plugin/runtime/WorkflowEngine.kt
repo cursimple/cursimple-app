@@ -115,6 +115,7 @@ class DefaultWorkflowEngine(
                         startUrl = renderTemplate(step.urlTemplate.orEmpty(), execution),
                         allowedHosts = execution.bundle.record.allowedHosts,
                         completionUrlContains = step.completionUrlContains?.let { renderTemplate(it, execution) },
+                        userAgent = renderTemplate(step.userAgent.orEmpty(), execution).takeIf(String::isNotBlank),
                         captureSelectors = step.captureSelectors,
                         extractCookies = step.extractCookies,
                         extractLocalStorage = step.extractLocalStorage,
