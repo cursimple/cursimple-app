@@ -63,4 +63,67 @@ class PluginLoggerTest {
         assertFalse(rendered.contains("secret-token"))
         assertFalse(rendered.contains("hunter2"))
     }
+
+    @Test
+    fun `sink receives rendered log message`() {
+        val entries = mutableListOf<SinkEntry>()
+        PluginLogger.setSink(CollectingSink(entries))
+
+        try {
+            PluginLogger.info("plugin.test.event", mapOf("pluginId" to "demo", "password" to "secret"))
+        } finally {
+            PluginLogger.setSink(null)
+        }
+
+        assertEquals(1, entries.size)
+        assertEquals("PluginDiagnostics", entries.single().tag)
+        assertTrue(entries.single().message.contains("plugin.test.event"))
+        assertTrue(entries.single().message.contains("pluginId=demo"))
+        assertTrue(entries.single().message.contains("password=***"))
+        assertFalse(entries.single().message.contains("secret"))
+    }
+
+    @Test
+    fun `sink receives throwable text`() {
+        val entries = mutableListOf<SinkEntry>()
+        PluginLogger.setSink(CollectingSink(entries))
+
+        try {
+            PluginLogger.error("plugin.test.failure", error = IllegalStateException("failed with token=abc"))
+        } finally {
+            PluginLogger.setSink(null)
+        }
+
+        assertEquals(1, entries.size)
+        assertTrue(entries.single().message.contains("errorType=IllegalStateException"))
+        assertTrue(entries.single().message.contains("token=***"))
+        assertFalse(entries.single().message.contains("token=abc"))
+        assertTrue(entries.single().throwableText.orEmpty().contains("IllegalStateException"))
+    }
+
+    @Test
+    fun `clearing sink stops delivery`() {
+        val entries = mutableListOf<SinkEntry>()
+        PluginLogger.setSink(CollectingSink(entries))
+        PluginLogger.setSink(null)
+
+        PluginLogger.info("plugin.test.event")
+
+        assertTrue(entries.isEmpty())
+    }
+
+    private data class SinkEntry(
+        val priority: Int,
+        val tag: String,
+        val message: String,
+        val throwableText: String?,
+    )
+
+    private class CollectingSink(
+        private val entries: MutableList<SinkEntry>,
+    ) : PluginLogSink {
+        override fun write(priority: Int, tag: String, message: String, throwableText: String?) {
+            entries += SinkEntry(priority, tag, message, throwableText)
+        }
+    }
 }
