@@ -1,12 +1,21 @@
 package com.kebiao.viewer.core.plugin.logging
 
 import android.util.Log
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.net.URI
 import java.security.MessageDigest
+
+interface PluginLogSink {
+    fun write(priority: Int, tag: String, message: String, throwableText: String?)
+}
 
 object PluginLogger {
     private const val TAG = "PluginDiagnostics"
     private const val MAX_VALUE_LENGTH = 240
+    @Volatile
+    private var sink: PluginLogSink? = null
+
     private val sensitiveKeys = setOf(
         "authorization",
         "auth",
@@ -24,6 +33,10 @@ object PluginLogger {
         "ticket",
         "token",
     )
+
+    fun setSink(sink: PluginLogSink?) {
+        this.sink = sink
+    }
 
     fun info(event: String, fields: Map<String, Any?> = emptyMap()) {
         log(Log.INFO, event, fields, null)
@@ -78,20 +91,26 @@ object PluginLogger {
     internal fun renderFieldsForTest(fields: Map<String, Any?>): String = renderFields(fields)
 
     private fun log(priority: Int, event: String, fields: Map<String, Any?>, error: Throwable?) {
-        runCatching {
-            val renderedFields = renderFields(fields + errorFields(error))
-            val message = buildString {
-                append(event)
-                if (renderedFields.isNotBlank()) {
-                    append(' ')
-                    append(renderedFields)
-                }
+        val renderedFields = runCatching { renderFields(fields + errorFields(error)) }.getOrDefault("")
+        val message = buildString {
+            append(event)
+            if (renderedFields.isNotBlank()) {
+                append(' ')
+                append(renderedFields)
             }
+        }
+        val throwableText = error?.toStackTraceText()
+        runCatching {
             if (error != null) {
                 Log.println(priority, TAG, message)
-                Log.println(priority, TAG, Log.getStackTraceString(error))
+                Log.println(priority, TAG, throwableText.orEmpty())
             } else {
                 Log.println(priority, TAG, message)
+            }
+        }
+        sink?.let { currentSink ->
+            runCatching {
+                currentSink.write(priority, TAG, message, throwableText)
             }
         }
     }
@@ -162,5 +181,11 @@ object PluginLogger {
             java.net.URLDecoder.decode(key, Charsets.UTF_8.name())
         }.getOrDefault(key).lowercase()
         return sensitiveKeys.any { sensitive -> normalized == sensitive || normalized.contains(sensitive) }
+    }
+
+    private fun Throwable.toStackTraceText(): String {
+        val writer = StringWriter()
+        printStackTrace(PrintWriter(writer))
+        return redactInlineSensitiveValues(writer.toString())
     }
 }
