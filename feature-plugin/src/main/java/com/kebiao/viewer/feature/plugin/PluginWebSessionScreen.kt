@@ -53,6 +53,7 @@ fun PluginWebSessionScreen(
     val pageTitle = remember { mutableStateOf("") }
     val loadProgress = remember { mutableStateOf(0) }
     val popupUrl = remember { mutableStateOf<String?>(null) }
+    val popupWebViewState = remember { mutableStateOf<WebView?>(null) }
     val consoleError = remember { mutableStateOf<String?>(null) }
     val statusText = remember(
         currentUrl.value,
@@ -75,8 +76,20 @@ fun PluginWebSessionScreen(
         }
     }
 
-    fun handleNavigation(target: String): Boolean {
+    fun isForegroundWebView(view: WebView?): Boolean {
+        val popupWebView = popupWebViewState.value
+        return if (popupWebView != null) {
+            view === popupWebView
+        } else {
+            view === webViewState.value
+        }
+    }
+
+    fun handleNavigation(view: WebView?, target: String): Boolean {
         if (target.isBlank() || isInternalWebViewUrl(target)) {
+            return false
+        }
+        if (!isForegroundWebView(view)) {
             return false
         }
         if (!isAllowedHost(target, request.allowedHosts)) {
@@ -181,146 +194,205 @@ fun PluginWebSessionScreen(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            AndroidView(
-                factory = { context ->
-                    WebView(context).apply {
-                        applyPluginBrowserSettings(request)
-                        val mainWebView = this
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                loadProgress.value = newProgress
-                            }
-
-                            override fun onReceivedTitle(view: WebView?, title: String?) {
-                                pageTitle.value = title.orEmpty()
-                            }
-
-                            override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                                if (consoleMessage?.messageLevel() == ConsoleMessage.MessageLevel.ERROR) {
-                                    consoleError.value = consoleMessage.message().orEmpty()
-                                }
-                                return false
-                            }
-
-                            override fun onCreateWindow(
-                                view: WebView?,
-                                isDialog: Boolean,
-                                isUserGesture: Boolean,
-                                resultMsg: Message?,
-                            ): Boolean {
-                                val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
-                                lateinit var popupWebView: WebView
-                                var popupHandled = false
-
-                                fun routePopup(target: String): Boolean {
-                                    if (target.isBlank() || isInternalWebViewUrl(target)) {
-                                        return false
-                                    }
-                                    if (popupHandled) {
-                                        return true
-                                    }
-                                    popupHandled = true
-                                    popupUrl.value = target
-                                    popupWebView.stopLoading()
-                                    if (!handleNavigation(target)) {
-                                        mainWebView.loadUrl(target)
-                                    }
-                                    popupWebView.destroy()
-                                    return true
-                                }
-
-                                popupWebView = WebView(mainWebView.context).apply {
-                                    applyPluginBrowserSettings(request)
-                                    webViewClient = object : WebViewClient() {
-                                        @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-                                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                                            return routePopup(url.orEmpty())
-                                        }
-
-                                        override fun shouldOverrideUrlLoading(
-                                            view: WebView?,
-                                            webRequest: WebResourceRequest?,
-                                        ): Boolean {
-                                            return routePopup(webRequest?.url?.toString().orEmpty())
-                                        }
-
-                                        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                            routePopup(url.orEmpty())
-                                        }
-                                    }
-                                }
-                                transport.webView = popupWebView
-                                resultMsg.sendToTarget()
-                                return true
-                            }
-
-                            override fun onCloseWindow(window: WebView?) {
-                                if (window !== mainWebView) {
-                                    window?.destroy()
-                                }
-                            }
-                        }
-                        webViewClient = object : WebViewClient() {
-                            @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-                            override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
-                                return handleNavigation(url.orEmpty())
-                            }
-
-                            override fun shouldOverrideUrlLoading(
-                                view: WebView?,
-                                webRequest: WebResourceRequest?,
-                            ): Boolean {
-                                return handleNavigation(webRequest?.url?.toString().orEmpty())
-                            }
-
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                val target = url.orEmpty()
-                                currentUrl.value = target
-                                loadProgress.value = 0
-                                pageError.value = null
-                                consoleError.value = null
-                                view?.scrollTo(0, 0)
-                            }
-
-                            override fun onReceivedError(
-                                view: WebView?,
-                                webRequest: WebResourceRequest?,
-                                error: WebResourceError?,
-                            ) {
-                                if (webRequest?.isForMainFrame == true) {
-                                    currentUrl.value = webRequest.url?.toString().orEmpty()
-                                    pageError.value = "${error?.errorCode ?: 0}: ${error?.description?.toString().orEmpty()}"
-                                }
-                            }
-
-                            override fun onReceivedHttpError(
-                                view: WebView?,
-                                webRequest: WebResourceRequest?,
-                                errorResponse: WebResourceResponse?,
-                            ) {
-                                if (webRequest?.isForMainFrame == true) {
-                                    currentUrl.value = webRequest.url?.toString().orEmpty()
-                                    pageError.value = "HTTP ${errorResponse?.statusCode ?: 0}: ${errorResponse?.reasonPhrase.orEmpty()}"
-                                }
-                            }
-
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                val target = url.orEmpty()
-                                currentUrl.value = target
-                                view?.scrollTo(0, 0)
-                                loadProgress.value = 100
-                                completeIfNeeded(view, target)
-                            }
-                        }
-                        loadUrl(request.startUrl)
-                        webViewState.value = this
-                    }
-                },
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
                     .padding(top = 2.dp),
-            )
+            ) {
+                AndroidView(
+                    factory = { context ->
+                        WebView(context).apply {
+                            configurePluginWebView(
+                                request = request,
+                                isForegroundWebView = ::isForegroundWebView,
+                                popupWebViewState = popupWebViewState,
+                                currentUrl = currentUrl,
+                                blockedUrl = blockedUrl,
+                                pageError = pageError,
+                                pageTitle = pageTitle,
+                                loadProgress = loadProgress,
+                                popupUrl = popupUrl,
+                                consoleError = consoleError,
+                                onPopupWebViewCreated = { popupWebView ->
+                                    popupWebViewState.value = popupWebView
+                                },
+                                onPopupWebViewClosed = { popupWebView ->
+                                    if (popupWebViewState.value === popupWebView) {
+                                        popupWebViewState.value = null
+                                        popupUrl.value = null
+                                        currentUrl.value = webViewState.value?.url?.toString().orEmpty()
+                                        blockedUrl.value = null
+                                        pageTitle.value = ""
+                                        loadProgress.value = 0
+                                        pageError.value = null
+                                        consoleError.value = null
+                                    }
+                                },
+                                completeIfNeeded = ::completeIfNeeded,
+                                handleNavigation = ::handleNavigation,
+                            )
+                            webViewState.value = this
+                            loadUrl(request.startUrl)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                popupWebViewState.value?.let { popupWebView ->
+                    DisposableEffect(popupWebView) {
+                        onDispose {
+                            popupWebView.destroy()
+                        }
+                    }
+                    AndroidView(
+                        factory = { popupWebView },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun WebView.configurePluginWebView(
+    request: WebSessionRequest,
+    isForegroundWebView: (WebView?) -> Boolean,
+    popupWebViewState: androidx.compose.runtime.MutableState<WebView?>,
+    currentUrl: androidx.compose.runtime.MutableState<String>,
+    blockedUrl: androidx.compose.runtime.MutableState<String?>,
+    pageError: androidx.compose.runtime.MutableState<String?>,
+    pageTitle: androidx.compose.runtime.MutableState<String>,
+    loadProgress: androidx.compose.runtime.MutableState<Int>,
+    popupUrl: androidx.compose.runtime.MutableState<String?>,
+    consoleError: androidx.compose.runtime.MutableState<String?>,
+    onPopupWebViewCreated: (WebView) -> Unit,
+    onPopupWebViewClosed: (WebView) -> Unit,
+    completeIfNeeded: (WebView?, String) -> Unit,
+    handleNavigation: (WebView?, String) -> Boolean,
+) {
+    applyPluginBrowserSettings(request)
+    val hostWebView = this
+    webChromeClient = object : WebChromeClient() {
+        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+            if (isForegroundWebView(view)) {
+                loadProgress.value = newProgress
+            }
+        }
+
+        override fun onReceivedTitle(view: WebView?, title: String?) {
+            if (isForegroundWebView(view)) {
+                pageTitle.value = title.orEmpty()
+            }
+        }
+
+        override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+            if (
+                isForegroundWebView(hostWebView) &&
+                consoleMessage?.messageLevel() == ConsoleMessage.MessageLevel.ERROR
+            ) {
+                consoleError.value = consoleMessage.message().orEmpty()
+            }
+            return false
+        }
+
+        override fun onCreateWindow(
+            view: WebView?,
+            isDialog: Boolean,
+            isUserGesture: Boolean,
+            resultMsg: Message?,
+        ): Boolean {
+            val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+            val popupWebView = WebView(hostWebView.context).apply {
+                configurePluginWebView(
+                    request = request,
+                    isForegroundWebView = isForegroundWebView,
+                    popupWebViewState = popupWebViewState,
+                    currentUrl = currentUrl,
+                    blockedUrl = blockedUrl,
+                    pageError = pageError,
+                    pageTitle = pageTitle,
+                    loadProgress = loadProgress,
+                    popupUrl = popupUrl,
+                    consoleError = consoleError,
+                    onPopupWebViewCreated = onPopupWebViewCreated,
+                    onPopupWebViewClosed = onPopupWebViewClosed,
+                    completeIfNeeded = completeIfNeeded,
+                    handleNavigation = handleNavigation,
+                )
+            }
+            popupUrl.value = "已打开新窗口"
+            onPopupWebViewCreated(popupWebView)
+            transport.webView = popupWebView
+            resultMsg.sendToTarget()
+            return true
+        }
+
+        override fun onCloseWindow(window: WebView?) {
+            if (window != null && window === popupWebViewState.value) {
+                onPopupWebViewClosed(window)
+            }
+        }
+    }
+    webViewClient = object : WebViewClient() {
+        @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+            return handleNavigation(view, url.orEmpty())
+        }
+
+        override fun shouldOverrideUrlLoading(
+            view: WebView?,
+            webRequest: WebResourceRequest?,
+        ): Boolean {
+            return handleNavigation(view, webRequest?.url?.toString().orEmpty())
+        }
+
+        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            if (!isForegroundWebView(view)) {
+                return
+            }
+            val target = url.orEmpty()
+            currentUrl.value = target
+            popupUrl.value = null
+            loadProgress.value = 0
+            pageError.value = null
+            consoleError.value = null
+            view?.scrollTo(0, 0)
+        }
+
+        override fun onReceivedError(
+            view: WebView?,
+            webRequest: WebResourceRequest?,
+            error: WebResourceError?,
+        ) {
+            if (!isForegroundWebView(view) || webRequest?.isForMainFrame != true) {
+                return
+            }
+            currentUrl.value = webRequest.url?.toString().orEmpty()
+            pageError.value = "${error?.errorCode ?: 0}: ${error?.description?.toString().orEmpty()}"
+        }
+
+        override fun onReceivedHttpError(
+            view: WebView?,
+            webRequest: WebResourceRequest?,
+            errorResponse: WebResourceResponse?,
+        ) {
+            if (!isForegroundWebView(view) || webRequest?.isForMainFrame != true) {
+                return
+            }
+            currentUrl.value = webRequest.url?.toString().orEmpty()
+            pageError.value = "HTTP ${errorResponse?.statusCode ?: 0}: ${errorResponse?.reasonPhrase.orEmpty()}"
+        }
+
+        override fun onPageFinished(view: WebView?, url: String?) {
+            if (!isForegroundWebView(view)) {
+                return
+            }
+            val target = url.orEmpty()
+            currentUrl.value = target
+            view?.scrollTo(0, 0)
+            loadProgress.value = 100
+            completeIfNeeded(view, target)
         }
     }
 }
@@ -455,7 +527,7 @@ private fun shouldAutoComplete(
         ?: false
 }
 
-internal fun isAllowedHost(url: String, allowedHosts: List<String>): Boolean {
+fun isAllowedHost(url: String, allowedHosts: List<String>): Boolean {
     return runCatching { java.net.URL(url).host.lowercase() }.getOrNull()?.let { host ->
         allowedHosts.any { allowed ->
             host == allowed.lowercase() || host.endsWith(".${allowed.lowercase()}")
@@ -490,12 +562,12 @@ private fun sha256(value: String): String {
         .joinToString("") { "%02x".format(it) }
 }
 
-internal fun decodeJavascriptPayload(raw: String?): JSONObject {
+fun decodeJavascriptPayload(raw: String?): JSONObject {
     return runCatching { JSONObject(normalizeJavascriptPayload(raw)) }
         .getOrDefault(JSONObject())
 }
 
-internal fun normalizeJavascriptPayload(raw: String?): String {
+fun normalizeJavascriptPayload(raw: String?): String {
     val candidate = raw.orEmpty().trim()
     if (candidate.isBlank() || candidate == "null") {
         return "{}"
