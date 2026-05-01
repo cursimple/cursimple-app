@@ -52,6 +52,7 @@ object LogExporter {
             writer.appendLine("# pid=$pid time=$timestamp")
             writer.appendLine("# device=${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
             writer.appendLine("# android=${android.os.Build.VERSION.RELEASE} (sdk=${android.os.Build.VERSION.SDK_INT})")
+            writer.appendLine("# includes plugin diagnostics with sensitive values redacted")
             writer.appendLine("# ----")
             process.inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { writer.appendLine(it) }

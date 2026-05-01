@@ -1,6 +1,7 @@
 package com.kebiao.viewer.core.plugin.install
 
 import com.kebiao.viewer.core.plugin.manifest.PluginManifest
+import com.kebiao.viewer.core.plugin.logging.PluginLogger
 import com.kebiao.viewer.core.plugin.packageformat.PluginPackageLayout
 import com.kebiao.viewer.core.plugin.packageformat.PluginPackageReader
 import com.kebiao.viewer.core.plugin.security.PluginChecksumVerifier
@@ -18,19 +19,52 @@ class PluginInstaller(
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
 ) {
     fun previewPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallPreview {
-        val layout = packageReader.read(bytes)
-        val manifest = layout.decodeManifest(json)
-        val checksums = layout.decodeChecksums(json)
-        val signatureInfo = layout.decodeSignatureInfo(json)
-        return PluginInstallPreview(
-            manifest = manifest,
-            checksumVerified = checksumVerifier.verify(layout, checksums),
-            signatureVerified = signatureVerifier.verify(layout, signatureInfo),
-            source = source,
+        val startedAt = System.currentTimeMillis()
+        PluginLogger.info(
+            "plugin.install.preview.start",
+            mapOf("source" to source, "bytes" to bytes.size),
         )
+        return try {
+            val layout = packageReader.read(bytes)
+            val manifest = layout.decodeManifest(json)
+            val checksums = layout.decodeChecksums(json)
+            val signatureInfo = layout.decodeSignatureInfo(json)
+            val preview = PluginInstallPreview(
+                manifest = manifest,
+                checksumVerified = checksumVerifier.verify(layout, checksums),
+                signatureVerified = signatureVerifier.verify(layout, signatureInfo),
+                source = source,
+            )
+            PluginLogger.info(
+                "plugin.install.preview.success",
+                mapOf(
+                    "source" to source,
+                    "bytes" to bytes.size,
+                    "pluginId" to manifest.pluginId,
+                    "version" to manifest.version,
+                    "versionCode" to manifest.versionCode,
+                    "checksumVerified" to preview.checksumVerified,
+                    "signatureVerified" to preview.signatureVerified,
+                    "elapsedMs" to elapsedSince(startedAt),
+                ),
+            )
+            preview
+        } catch (error: Throwable) {
+            PluginLogger.error(
+                "plugin.install.preview.failure",
+                mapOf("source" to source, "bytes" to bytes.size, "elapsedMs" to elapsedSince(startedAt)),
+                error,
+            )
+            throw error
+        }
     }
 
     suspend fun installPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallResult {
+        val startedAt = System.currentTimeMillis()
+        PluginLogger.info(
+            "plugin.install.start",
+            mapOf("source" to source, "bytes" to bytes.size),
+        )
         return runCatching {
             val layout = packageReader.read(bytes)
             val preview = verifyLayout(layout, source)
@@ -41,22 +75,66 @@ class PluginInstaller(
                 bundled = false,
             )
             registryRepository.saveInstalledPlugin(record)
+            PluginLogger.info(
+                "plugin.install.success",
+                mapOf(
+                    "source" to source,
+                    "bytes" to bytes.size,
+                    "pluginId" to record.pluginId,
+                    "version" to record.version,
+                    "versionCode" to record.versionCode,
+                    "checksumVerified" to preview.checksumVerified,
+                    "signatureVerified" to preview.signatureVerified,
+                    "storagePathPresent" to record.storagePath.isNotBlank(),
+                    "elapsedMs" to elapsedSince(startedAt),
+                ),
+            )
             PluginInstallResult.Success(record)
         }.getOrElse {
+            PluginLogger.error(
+                "plugin.install.failure",
+                mapOf("source" to source, "bytes" to bytes.size, "elapsedMs" to elapsedSince(startedAt)),
+                it,
+            )
             PluginInstallResult.Failure(it.message ?: "安装插件失败")
         }
     }
 
     suspend fun installBundledAssetDirectory(assetRoot: String): InstalledPluginRecord {
-        val targetDir = fileStore.copyBundledAssetDirectory(assetRoot)
-        val manifest = json.decodeFromString<PluginManifest>(fileStore.loadAssetText("$assetRoot/manifest.json"))
-        val record = manifest.toInstalledRecord(
-            source = PluginInstallSource.Bundled,
-            storagePath = targetDir.absolutePath,
-            bundled = true,
+        val startedAt = System.currentTimeMillis()
+        PluginLogger.info(
+            "plugin.install.bundled.start",
+            mapOf("assetRoot" to assetRoot),
         )
-        registryRepository.saveInstalledPlugin(record)
-        return record
+        return try {
+            val targetDir = fileStore.copyBundledAssetDirectory(assetRoot)
+            val manifest = json.decodeFromString<PluginManifest>(fileStore.loadAssetText("$assetRoot/manifest.json"))
+            val record = manifest.toInstalledRecord(
+                source = PluginInstallSource.Bundled,
+                storagePath = targetDir.absolutePath,
+                bundled = true,
+            )
+            registryRepository.saveInstalledPlugin(record)
+            PluginLogger.info(
+                "plugin.install.bundled.success",
+                mapOf(
+                    "assetRoot" to assetRoot,
+                    "pluginId" to record.pluginId,
+                    "version" to record.version,
+                    "versionCode" to record.versionCode,
+                    "storagePathPresent" to record.storagePath.isNotBlank(),
+                    "elapsedMs" to elapsedSince(startedAt),
+                ),
+            )
+            record
+        } catch (error: Throwable) {
+            PluginLogger.error(
+                "plugin.install.bundled.failure",
+                mapOf("assetRoot" to assetRoot, "elapsedMs" to elapsedSince(startedAt)),
+                error,
+            )
+            throw error
+        }
     }
 
     private fun verifyLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
@@ -96,5 +174,9 @@ class PluginInstaller(
             allowedHosts = allowedHosts,
             isBundled = bundled,
         )
+    }
+
+    private fun elapsedSince(startedAt: Long): Long {
+        return System.currentTimeMillis() - startedAt
     }
 }

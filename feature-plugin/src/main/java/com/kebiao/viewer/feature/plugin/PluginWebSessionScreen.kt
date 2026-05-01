@@ -31,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
+import com.kebiao.viewer.core.plugin.logging.PluginLogger
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 import org.json.JSONObject
@@ -96,6 +97,15 @@ fun PluginWebSessionScreen(
             currentUrl.value = target
             blockedUrl.value = target
             popupUrl.value = null
+            PluginLogger.warn(
+                "plugin.web_session.navigation.blocked",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "url" to PluginLogger.sanitizeUrl(target),
+                    "allowedHostCount" to request.allowedHosts.size,
+                ),
+            )
             return true
         }
         currentUrl.value = target
@@ -113,6 +123,14 @@ fun PluginWebSessionScreen(
         ) {
             val webView = view ?: return
             isFinishing.value = true
+            PluginLogger.info(
+                "plugin.web_session.auto_complete.start",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "finalUrl" to PluginLogger.sanitizeUrl(target),
+                ),
+            )
             captureWebSessionPacket(
                 webView = webView,
                 request = request,
@@ -164,6 +182,14 @@ fun PluginWebSessionScreen(
                             return@Button
                         }
                         isFinishing.value = true
+                        PluginLogger.info(
+                            "plugin.web_session.manual_complete.start",
+                            mapOf(
+                                "pluginId" to request.pluginId,
+                                "sessionId" to request.sessionId,
+                                "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
+                            ),
+                        )
                         captureWebSessionPacket(
                             webView = webView,
                             request = request,
@@ -294,6 +320,15 @@ private fun WebView.configurePluginWebView(
                 shouldSurfaceConsoleError(message)
             ) {
                 consoleError.value = message
+                PluginLogger.warn(
+                    "plugin.web_session.console_error",
+                    mapOf(
+                        "pluginId" to request.pluginId,
+                        "sessionId" to request.sessionId,
+                        "messageLength" to message.length,
+                        "messageHash" to PluginLogger.sha256(message),
+                    ),
+                )
             }
             return false
         }
@@ -324,6 +359,14 @@ private fun WebView.configurePluginWebView(
                 )
             }
             popupUrl.value = "已打开新窗口"
+            PluginLogger.info(
+                "plugin.web_session.popup.opened",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "currentUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
+                ),
+            )
             onPopupWebViewCreated(popupWebView)
             transport.webView = popupWebView
             resultMsg.sendToTarget()
@@ -333,6 +376,14 @@ private fun WebView.configurePluginWebView(
         override fun onCloseWindow(window: WebView?) {
             if (window != null && window === popupWebViewState.value) {
                 onPopupWebViewClosed(window)
+                PluginLogger.info(
+                    "plugin.web_session.popup.closed",
+                    mapOf(
+                        "pluginId" to request.pluginId,
+                        "sessionId" to request.sessionId,
+                        "currentUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
+                    ),
+                )
             }
         }
     }
@@ -360,6 +411,14 @@ private fun WebView.configurePluginWebView(
             pageError.value = null
             consoleError.value = null
             view?.scrollTo(0, 0)
+            PluginLogger.info(
+                "plugin.web_session.page_started",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "url" to PluginLogger.sanitizeUrl(target),
+                ),
+            )
         }
 
         override fun onReceivedError(
@@ -372,6 +431,16 @@ private fun WebView.configurePluginWebView(
             }
             currentUrl.value = webRequest.url?.toString().orEmpty()
             pageError.value = "${error?.errorCode ?: 0}: ${error?.description?.toString().orEmpty()}"
+            PluginLogger.error(
+                "plugin.web_session.page_error",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "url" to PluginLogger.sanitizeUrl(currentUrl.value),
+                    "errorCode" to (error?.errorCode ?: 0),
+                    "errorDescription" to error?.description?.toString().orEmpty(),
+                ),
+            )
         }
 
         override fun onReceivedHttpError(
@@ -384,6 +453,16 @@ private fun WebView.configurePluginWebView(
             }
             currentUrl.value = webRequest.url?.toString().orEmpty()
             pageError.value = "HTTP ${errorResponse?.statusCode ?: 0}: ${errorResponse?.reasonPhrase.orEmpty()}"
+            PluginLogger.error(
+                "plugin.web_session.http_error",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "url" to PluginLogger.sanitizeUrl(currentUrl.value),
+                    "statusCode" to (errorResponse?.statusCode ?: 0),
+                    "reasonPhrase" to errorResponse?.reasonPhrase.orEmpty(),
+                ),
+            )
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
@@ -394,6 +473,14 @@ private fun WebView.configurePluginWebView(
             currentUrl.value = target
             view?.scrollTo(0, 0)
             loadProgress.value = 100
+            PluginLogger.info(
+                "plugin.web_session.page_finished",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "url" to PluginLogger.sanitizeUrl(target),
+                ),
+            )
             completeIfNeeded(view, target)
         }
     }
@@ -432,6 +519,16 @@ private fun captureWebSessionPacket(
     onCaptured: (WebSessionPacket) -> Unit,
 ) {
     val fallbackPacket = emptyWebSessionPacket(request, currentUrl)
+    val startedAt = System.currentTimeMillis()
+    PluginLogger.info(
+        "plugin.web_session.capture.start",
+        mapOf(
+            "pluginId" to request.pluginId,
+            "sessionId" to request.sessionId,
+            "url" to PluginLogger.sanitizeUrl(currentUrl),
+            "captureSelectorCount" to request.captureSelectors.size,
+        ),
+    )
     val cookies = runCatching {
         val cookieManager = CookieManager.getInstance()
         cookieManager.flush()
@@ -489,9 +586,33 @@ private fun captureWebSessionPacket(
                     timestamp = OffsetDateTime.now().toString(),
                 )
             }.getOrDefault(fallbackPacket)
+            PluginLogger.info(
+                if (packet == fallbackPacket) "plugin.web_session.capture.fallback" else "plugin.web_session.capture.success",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "finalUrl" to PluginLogger.sanitizeUrl(packet.finalUrl),
+                    "cookieCount" to packet.cookies.size,
+                    "localStorageCount" to packet.localStorageSnapshot.size,
+                    "sessionStorageCount" to packet.sessionStorageSnapshot.size,
+                    "capturedFieldCount" to packet.capturedFields.size,
+                    "htmlDigest" to packet.htmlDigest,
+                    "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                ),
+            )
             runCatching { onCaptured(packet) }
         }
     }.onFailure {
+        PluginLogger.error(
+            "plugin.web_session.capture.failure",
+            mapOf(
+                "pluginId" to request.pluginId,
+                "sessionId" to request.sessionId,
+                "finalUrl" to PluginLogger.sanitizeUrl(currentUrl),
+                "elapsedMs" to (System.currentTimeMillis() - startedAt),
+            ),
+            it,
+        )
         runCatching { onCaptured(fallbackPacket) }
     }
 }
