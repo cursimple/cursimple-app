@@ -23,9 +23,7 @@ class DataStorePluginRegistryRepository(
     private val store = context.applicationContext.pluginRegistryStore
 
     override val installedPluginsFlow: Flow<List<InstalledPluginRecord>> = store.data.map { preferences ->
-        preferences[KEY_INSTALLED_PLUGINS]?.let {
-            json.decodeFromString(ListSerializer(InstalledPluginRecord.serializer()), it)
-        }.orEmpty()
+        preferences.decodeInstalledPlugins()
     }
 
     override suspend fun getInstalledPlugins(): List<InstalledPluginRecord> {
@@ -65,8 +63,10 @@ class DataStorePluginRegistryRepository(
     }
 
     private fun Preferences.decodeInstalledPlugins(): List<InstalledPluginRecord> {
-        return this[KEY_INSTALLED_PLUGINS]?.let {
-            json.decodeFromString(ListSerializer(InstalledPluginRecord.serializer()), it)
+        return this[KEY_INSTALLED_PLUGINS]?.let { raw ->
+            runCatching {
+                json.decodeFromString(ListSerializer(InstalledPluginRecord.serializer()), raw)
+            }.getOrDefault(emptyList())
         }.orEmpty()
     }
 }

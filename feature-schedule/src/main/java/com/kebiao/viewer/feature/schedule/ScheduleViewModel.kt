@@ -20,6 +20,7 @@ import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -339,21 +340,48 @@ class ScheduleViewModel(
     private suspend fun handleExecutionResult(result: WorkflowExecutionResult) {
         when (result) {
             is WorkflowExecutionResult.Success -> {
-                withContext(ioDispatcher) {
-                    scheduleRepository.saveSchedule(result.schedule)
+                val schedule = try {
+                    validatePluginSchedule(result.schedule)
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    _uiState.update {
+                        it.copy(
+                            isSyncing = false,
+                            pendingWebSession = null,
+                            statusMessage = "同步失败：${error.message ?: "插件返回的课表数据无效"}",
+                        )
+                    }
+                    return
                 }
-                reminderCoordinator.syncRulesForSchedule(
-                    pluginId = _uiState.value.pluginId,
-                    schedule = result.schedule,
-                    timingProfile = result.timingProfile,
-                    preferSystemClock = false,
-                )
-                runCatching { onSyncCompleted() }
+                try {
+                    withContext(ioDispatcher) {
+                        scheduleRepository.saveSchedule(schedule)
+                    }
+                    reminderCoordinator.syncRulesForSchedule(
+                        pluginId = _uiState.value.pluginId,
+                        schedule = schedule,
+                        timingProfile = result.timingProfile,
+                        preferSystemClock = false,
+                    )
+                    onSyncCompleted()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    _uiState.update {
+                        it.copy(
+                            isSyncing = false,
+                            pendingWebSession = null,
+                            statusMessage = "同步失败：${error.message ?: "插件结果后处理失败"}",
+                        )
+                    }
+                    return
+                }
                 _uiState.update {
                     it.copy(
                         isSyncing = false,
                         pendingWebSession = null,
-                        schedule = result.schedule,
+                        schedule = schedule,
                         uiSchema = result.uiSchema,
                         timingProfile = result.timingProfile,
                         alarmRecommendations = result.recommendations,
@@ -402,6 +430,23 @@ class ScheduleViewModel(
         val username: String,
         val termId: String,
     )
+}
+
+internal fun validatePluginSchedule(schedule: TermSchedule): TermSchedule {
+    val courses = schedule.dailySchedules.flatMap { daily ->
+        require(daily.dayOfWeek in 1..7) { "插件返回了无效星期: ${daily.dayOfWeek}" }
+        daily.courses.onEach { course ->
+            require(course.id.isNotBlank()) { "插件返回了空课程 ID" }
+            require(course.title.isNotBlank()) { "插件返回了空课程名称" }
+            require(course.time.dayOfWeek in 1..7) { "插件返回了无效课程星期: ${course.time.dayOfWeek}" }
+            require(course.time.dayOfWeek == daily.dayOfWeek) { "插件课程星期与日程分组不一致" }
+            require(course.time.startNode in 1..32) { "插件返回了无效开始节次: ${course.time.startNode}" }
+            require(course.time.endNode in course.time.startNode..32) { "插件返回了无效结束节次: ${course.time.endNode}" }
+            require(course.weeks.all { it in 1..60 }) { "插件返回了无效教学周" }
+        }
+    }
+    require(courses.size <= 1000) { "插件返回的课程数量过多" }
+    return schedule
 }
 
 class ScheduleViewModelFactory(

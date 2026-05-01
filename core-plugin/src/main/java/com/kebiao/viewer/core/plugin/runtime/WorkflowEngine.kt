@@ -7,6 +7,7 @@ import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 import com.kebiao.viewer.core.plugin.workflow.WorkflowStepDefinition
 import com.kebiao.viewer.core.plugin.workflow.WorkflowStepType
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -53,7 +54,9 @@ class DefaultWorkflowEngine(
             recommendations = emptyList(),
             messages = emptyList(),
         )
-        runSteps(execution, assetReader = { assetReader(it) }, bundleReader = null)
+        runWorkflowSafely {
+            runSteps(execution, assetReader = { assetReader(it) }, bundleReader = null)
+        }
     }
 
     override suspend fun resume(
@@ -69,7 +72,21 @@ class DefaultWorkflowEngine(
         val resumed = execution.copy(
             webPackets = execution.webPackets + (sessionId to packet),
         )
-        runSteps(resumed, assetReader = null, bundleReader = assetReader)
+        runWorkflowSafely {
+            runSteps(resumed, assetReader = null, bundleReader = assetReader)
+        }
+    }
+
+    private suspend fun runWorkflowSafely(
+        block: suspend () -> WorkflowExecutionResult,
+    ): WorkflowExecutionResult {
+        return try {
+            block()
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            WorkflowExecutionResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "插件工作流执行失败")
+        }
     }
 
     private suspend fun runSteps(

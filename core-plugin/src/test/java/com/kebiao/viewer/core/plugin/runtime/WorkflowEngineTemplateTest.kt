@@ -8,6 +8,11 @@ import com.kebiao.viewer.core.plugin.workflow.WorkflowDefinition
 import com.kebiao.viewer.core.plugin.workflow.WorkflowStepDefinition
 import com.kebiao.viewer.core.plugin.workflow.WorkflowStepType
 import kotlinx.coroutines.runBlocking
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -70,5 +75,78 @@ class WorkflowEngineTemplateTest {
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
             awaiting.request.userAgent,
         )
+    }
+
+    @Test
+    fun `eams parser failure returns workflow failure instead of throwing`() = runBlocking {
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(
+                        """
+                        <html>
+                          <script>
+                            beangle.form.submit("searchForm");
+                          </script>
+                        </html>
+                        """.trimIndent().toResponseBody("text/html; charset=utf-8".toMediaType()),
+                    )
+                    .build()
+            }
+            .build()
+        val engine = DefaultWorkflowEngine(client = client)
+        val bundle = InstalledPluginBundle(
+            record = InstalledPluginRecord(
+                pluginId = "yangtzeu-eams-v2",
+                name = "长江大学教务插件",
+                publisher = "Class Schedule Viewer",
+                version = "2.0.0",
+                versionCode = 3001,
+                storagePath = "unused",
+                installedAt = "2026-04-30T00:00:00+08:00",
+                source = PluginInstallSource.Bundled,
+                declaredPermissions = listOf(PluginPermission.Network),
+                allowedHosts = listOf("jwc3.yangtzeu.edu.cn"),
+                isBundled = true,
+            ),
+            workflow = WorkflowDefinition(
+                steps = listOf(
+                    WorkflowStepDefinition(
+                        id = "course-home",
+                        type = WorkflowStepType.HttpRequest,
+                        responseKey = "courseHome",
+                        httpMethod = "GET",
+                        urlTemplate = "https://jwc3.yangtzeu.edu.cn/eams/courseTableForStd.action",
+                    ),
+                    WorkflowStepDefinition(
+                        id = "course-meta",
+                        type = WorkflowStepType.EamsExtractMeta,
+                        sourceContextKey = "courseHome",
+                        responseKey = "courseMeta",
+                    ),
+                ),
+            ),
+            uiSchema = PluginUiSchema(),
+            timingProfile = null,
+        )
+
+        val result = engine.start(
+            bundle = bundle,
+            input = PluginSyncInput(
+                pluginId = "yangtzeu-eams-v2",
+                username = "",
+                password = "",
+                termId = "",
+                baseUrl = "",
+            ),
+            assetReader = { error("不应该读取资源文件: $it") },
+        )
+
+        assertTrue(result is WorkflowExecutionResult.Failure)
+        assertEquals("未找到教学周上限", (result as WorkflowExecutionResult.Failure).message)
     }
 }

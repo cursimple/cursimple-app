@@ -287,11 +287,13 @@ private fun WebView.configurePluginWebView(
         }
 
         override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+            val message = consoleMessage?.message().orEmpty()
             if (
                 isForegroundWebView(hostWebView) &&
-                consoleMessage?.messageLevel() == ConsoleMessage.MessageLevel.ERROR
+                consoleMessage?.messageLevel() == ConsoleMessage.MessageLevel.ERROR &&
+                shouldSurfaceConsoleError(message)
             ) {
-                consoleError.value = consoleMessage.message().orEmpty()
+                consoleError.value = message
             }
             return false
         }
@@ -429,11 +431,13 @@ private fun captureWebSessionPacket(
     currentUrl: String,
     onCaptured: (WebSessionPacket) -> Unit,
 ) {
-    val cookieManager = CookieManager.getInstance()
-    cookieManager.flush()
-    val cookies = collectCookies(cookieManager, request.allowedHosts, currentUrl)
-    webView.evaluateJavascript(
-        """
+    val fallbackPacket = emptyWebSessionPacket(request, currentUrl)
+    val cookies = runCatching {
+        val cookieManager = CookieManager.getInstance()
+        cookieManager.flush()
+        collectCookies(cookieManager, request.allowedHosts, currentUrl)
+    }.getOrDefault(emptyMap())
+    val script = """
         (() => {
             const readStorage = (name) => {
               const snapshot = {};
@@ -470,21 +474,41 @@ private fun captureWebSessionPacket(
               return "{}";
             }
         })();
-        """.trimIndent(),
-    ) { raw ->
-        val payload = decodeJavascriptPayload(raw)
-        onCaptured(
-            WebSessionPacket(
-                finalUrl = currentUrl,
-                cookies = cookies,
-                localStorageSnapshot = payload.optJSONObject("localStorageSnapshot").toStringMap(),
-                sessionStorageSnapshot = payload.optJSONObject("sessionStorageSnapshot").toStringMap(),
-                htmlDigest = sha256(payload.optString("html", "")),
-                capturedFields = payload.optJSONObject("capturedFields").toStringMap(),
-                timestamp = OffsetDateTime.now().toString(),
-            ),
-        )
+    """.trimIndent()
+    runCatching {
+        webView.evaluateJavascript(script) { raw ->
+            val packet = runCatching {
+                val payload = decodeJavascriptPayload(raw)
+                WebSessionPacket(
+                    finalUrl = currentUrl,
+                    cookies = cookies,
+                    localStorageSnapshot = payload.optJSONObject("localStorageSnapshot").toStringMap(),
+                    sessionStorageSnapshot = payload.optJSONObject("sessionStorageSnapshot").toStringMap(),
+                    htmlDigest = sha256(payload.optString("html", "")),
+                    capturedFields = payload.optJSONObject("capturedFields").toStringMap(),
+                    timestamp = OffsetDateTime.now().toString(),
+                )
+            }.getOrDefault(fallbackPacket)
+            runCatching { onCaptured(packet) }
+        }
+    }.onFailure {
+        runCatching { onCaptured(fallbackPacket) }
     }
+}
+
+private fun emptyWebSessionPacket(
+    request: WebSessionRequest,
+    currentUrl: String,
+): WebSessionPacket {
+    return WebSessionPacket(
+        finalUrl = currentUrl,
+        cookies = emptyMap(),
+        localStorageSnapshot = emptyMap(),
+        sessionStorageSnapshot = emptyMap(),
+        htmlDigest = sha256(""),
+        capturedFields = request.captureSelectors.associateWith { "" },
+        timestamp = OffsetDateTime.now().toString(),
+    )
 }
 
 private fun collectCookies(
@@ -540,6 +564,14 @@ private fun isInternalWebViewUrl(url: String): Boolean {
         url.startsWith("javascript:", ignoreCase = true) ||
         url.startsWith("data:", ignoreCase = true) ||
         url.startsWith("blob:", ignoreCase = true)
+}
+
+fun shouldSurfaceConsoleError(message: String?): Boolean {
+    val normalized = message.orEmpty().trim()
+    if (normalized.isBlank()) {
+        return false
+    }
+    return !normalized.contains("beangle is not defined", ignoreCase = true)
 }
 
 private fun String.quoteJs(): String = buildString {
