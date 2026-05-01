@@ -44,20 +44,37 @@ fun PluginWebSessionScreen(
     val isFinishing = remember { mutableStateOf(false) }
     val blockedUrl = remember { mutableStateOf<String?>(null) }
     val pageError = remember { mutableStateOf<String?>(null) }
+    val statusText = remember(currentUrl.value, blockedUrl.value, pageError.value) {
+        when {
+            pageError.value != null -> "页面加载失败：${pageError.value}"
+            blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
+            currentUrl.value.isNotBlank() -> "当前页面：${currentUrl.value}"
+            else -> "当前页面：等待加载"
+        }
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(12.dp),
+            .padding(8.dp),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Text(request.title, style = MaterialTheme.typography.titleLarge)
-            Text("允许域名：${request.allowedHosts.joinToString()}", style = MaterialTheme.typography.bodySmall)
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(request.title, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "允许域名：${request.allowedHosts.joinToString()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    .padding(top = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Button(onClick = onCancel) {
                     Text("取消")
@@ -88,33 +105,17 @@ fun PluginWebSessionScreen(
                     text = "到达目标教务页面后会自动继续；如果没有自动继续，可以手动回传。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Text(
-                text = "当前页面：${currentUrl.value.ifBlank { "等待加载" }}",
+                text = statusText,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            blockedUrl.value?.let { url ->
-                Text(
-                    text = "已拦截非白名单跳转：$url",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            pageError.value?.let { error ->
-                Text(
-                    text = "页面加载失败：$error",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
             AndroidView(
                 factory = { context ->
                     WebView(context).apply {
@@ -125,6 +126,7 @@ fun PluginWebSessionScreen(
                         settings.builtInZoomControls = true
                         settings.displayZoomControls = false
                         settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                        request.userAgent?.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
                         isVerticalScrollBarEnabled = true
                         isHorizontalScrollBarEnabled = true
                         scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
@@ -196,8 +198,9 @@ fun PluginWebSessionScreen(
                     }
                 },
                 modifier = Modifier
+                    .fillMaxWidth()
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .padding(top = 2.dp),
             )
         }
     }

@@ -19,6 +19,7 @@ data class WorkflowStepDefinition(
     @SerialName("urlTemplate") val urlTemplate: String? = null,
     @SerialName("title") val title: String? = null,
     @SerialName("completionUrlContains") val completionUrlContains: String? = null,
+    @SerialName("userAgent") val userAgent: String? = null,
     @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
     @SerialName("extractCookies") val extractCookies: Boolean = true,
     @SerialName("extractLocalStorage") val extractLocalStorage: Boolean = true,

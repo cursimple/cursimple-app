@@ -12,6 +12,7 @@ data class WebSessionRequest(
     @SerialName("startUrl") val startUrl: String,
     @SerialName("allowedHosts") val allowedHosts: List<String>,
     @SerialName("completionUrlContains") val completionUrlContains: String? = null,
+    @SerialName("userAgent") val userAgent: String? = null,
     @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
     @SerialName("extractCookies") val extractCookies: Boolean = true,
     @SerialName("extractLocalStorage") val extractLocalStorage: Boolean = true,
