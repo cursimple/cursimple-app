@@ -52,7 +52,13 @@ class PluginManager(
         val manifest = json.decodeFromString<com.kebiao.viewer.core.plugin.manifest.PluginManifest>(
             fileStore.loadAssetText("$assetRoot/manifest.json"),
         )
-        if (registryRepository.find(manifest.pluginId) == null) {
+        val existing = registryRepository.find(manifest.pluginId)
+        if (existing == null) {
+            installer.installBundledAssetDirectory(assetRoot)
+            return
+        }
+        if (existing.version != manifest.version || existing.versionCode != manifest.versionCode || !existing.isBundled) {
+            removePlugin(manifest.pluginId)
             installer.installBundledAssetDirectory(assetRoot)
         }
     }
