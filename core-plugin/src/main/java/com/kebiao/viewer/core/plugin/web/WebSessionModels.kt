@@ -14,10 +14,40 @@ data class WebSessionRequest(
     @SerialName("completionUrlContains") val completionUrlContains: String? = null,
     @SerialName("userAgent") val userAgent: String? = null,
     @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
+    @SerialName("capturePackets") val capturePackets: List<WebSessionCaptureSpec> = emptyList(),
     @SerialName("extractCookies") val extractCookies: Boolean = true,
     @SerialName("extractLocalStorage") val extractLocalStorage: Boolean = true,
     @SerialName("extractSessionStorage") val extractSessionStorage: Boolean = true,
     @SerialName("extractHtmlDigest") val extractHtmlDigest: Boolean = true,
+)
+
+@Serializable
+data class WebSessionCaptureSpec(
+    @SerialName("id") val id: String,
+    @SerialName("required") val required: Boolean = true,
+    @SerialName("urlContains") val urlContains: String? = null,
+    @SerialName("urlHost") val urlHost: String? = null,
+    @SerialName("urlPathContains") val urlPathContains: String? = null,
+    @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
+    @SerialName("requiredSelectors") val requiredSelectors: List<String> = emptyList(),
+    @SerialName("requiredCookies") val requiredCookies: List<String> = emptyList(),
+    @SerialName("requiredLocalStorageKeys") val requiredLocalStorageKeys: List<String> = emptyList(),
+    @SerialName("requiredSessionStorageKeys") val requiredSessionStorageKeys: List<String> = emptyList(),
+    @SerialName("minCookieCount") val minCookieCount: Int = 0,
+    @SerialName("minLocalStorageCount") val minLocalStorageCount: Int = 0,
+    @SerialName("minSessionStorageCount") val minSessionStorageCount: Int = 0,
+)
+
+@Serializable
+data class WebCapturedPacket(
+    @SerialName("id") val id: String,
+    @SerialName("finalUrl") val finalUrl: String,
+    @SerialName("cookies") val cookies: Map<String, String> = emptyMap(),
+    @SerialName("localStorageSnapshot") val localStorageSnapshot: Map<String, String> = emptyMap(),
+    @SerialName("sessionStorageSnapshot") val sessionStorageSnapshot: Map<String, String> = emptyMap(),
+    @SerialName("htmlDigest") val htmlDigest: String = "",
+    @SerialName("capturedFields") val capturedFields: Map<String, String> = emptyMap(),
+    @SerialName("timestamp") val timestamp: String,
 )
 
 @Serializable
@@ -28,5 +58,6 @@ data class WebSessionPacket(
     @SerialName("sessionStorageSnapshot") val sessionStorageSnapshot: Map<String, String> = emptyMap(),
     @SerialName("htmlDigest") val htmlDigest: String = "",
     @SerialName("capturedFields") val capturedFields: Map<String, String> = emptyMap(),
+    @SerialName("capturedPackets") val capturedPackets: Map<String, WebCapturedPacket> = emptyMap(),
     @SerialName("timestamp") val timestamp: String,
 )

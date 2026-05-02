@@ -4,6 +4,7 @@ import com.kebiao.viewer.core.plugin.install.InstalledPluginRecord
 import com.kebiao.viewer.core.plugin.install.PluginInstallSource
 import com.kebiao.viewer.core.plugin.manifest.PluginPermission
 import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
+import com.kebiao.viewer.core.plugin.web.WebSessionCaptureSpec
 import com.kebiao.viewer.core.plugin.workflow.WorkflowDefinition
 import com.kebiao.viewer.core.plugin.workflow.WorkflowStepDefinition
 import com.kebiao.viewer.core.plugin.workflow.WorkflowStepType
@@ -48,6 +49,13 @@ class WorkflowEngineTemplateTest {
                         title = "登录",
                         urlTemplate = "https://example.com/login?user={{username}}",
                         userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+                        capturePackets = listOf(
+                            WebSessionCaptureSpec(
+                                id = "login-ready",
+                                urlHost = "example.com",
+                                captureSelectors = listOf("title"),
+                            ),
+                        ),
                     ),
                 ),
             ),
@@ -75,6 +83,7 @@ class WorkflowEngineTemplateTest {
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
             awaiting.request.userAgent,
         )
+        assertEquals("login-ready", awaiting.request.capturePackets.single().id)
     }
 
     @Test
