@@ -16,7 +16,7 @@
       "type": "web_session",
       "sessionId": "login",
       "title": "长江大学统一认证登录",
-      "urlTemplate": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+      "urlTemplate": "https://atrust.yangtzeu.edu.cn:4443/",
       "completionUrlContains": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
       "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
       "captureSelectors": [
