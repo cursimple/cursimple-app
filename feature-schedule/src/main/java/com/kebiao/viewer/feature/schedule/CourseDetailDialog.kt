@@ -301,10 +301,18 @@ private fun resolveClassTime(course: CourseItem, timingProfile: TermTimingProfil
     val slots: List<ClassSlotTime> = timingProfile?.slotTimes.orEmpty().sortedBy { it.startNode }
     val matchStart = slots.firstOrNull { course.time.startNode in it.startNode..it.endNode }
     val matchEnd = slots.firstOrNull { course.time.endNode in it.startNode..it.endNode }
-    return when {
-        matchStart != null && matchEnd != null ->
-            "${matchStart.startTime} - ${matchEnd.endTime}"
-        else -> "未在插件 timing profile 中找到对应节次时间"
+    if (matchStart != null && matchEnd != null) {
+        return "${matchStart.startTime} - ${matchEnd.endTime}"
+    }
+    // 超出 timing 配置的节次：按 profile 行数 + 顺次给"第 N 大节"
+    val baseCount = slots.size
+    val extraStart = course.time.startNode - (slots.lastOrNull()?.endNode ?: 0)
+    val extraEnd = course.time.endNode - (slots.lastOrNull()?.endNode ?: 0)
+    return if (extraStart >= 1 && extraEnd >= 1) {
+        if (extraStart == extraEnd) "第 ${baseCount + extraStart} 大节"
+        else "第 ${baseCount + extraStart}-${baseCount + extraEnd} 大节"
+    } else {
+        "第 ${course.time.startNode}-${course.time.endNode} 节"
     }
 }
 

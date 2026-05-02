@@ -23,6 +23,9 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
             themeMode = prefs[KEY_THEME_MODE]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.Light,
+            themeAccent = prefs[KEY_THEME_ACCENT]
+                ?.let { runCatching { ThemeAccent.valueOf(it) }.getOrNull() }
+                ?: ThemeAccent.Green,
             termStartDate = prefs[KEY_TERM_START_EPOCH_DAY]?.let(LocalDate::ofEpochDay),
             advancedToolsEnabled = prefs[KEY_ADVANCED_TOOLS] ?: false,
             timeZoneId = prefs[KEY_TIME_ZONE_ID] ?: UserPreferences.DEFAULT_TIME_ZONE_ID,
@@ -33,6 +36,10 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
 
     override suspend fun setThemeMode(mode: ThemeMode) {
         store.edit { prefs -> prefs[KEY_THEME_MODE] = mode.name }
+    }
+
+    override suspend fun setThemeAccent(accent: ThemeAccent) {
+        store.edit { prefs -> prefs[KEY_THEME_ACCENT] = accent.name }
     }
 
     override suspend fun setTermStartDate(date: LocalDate?) {
@@ -73,6 +80,7 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
 
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+        val KEY_THEME_ACCENT = stringPreferencesKey("theme_accent")
         val KEY_TERM_START_EPOCH_DAY = longPreferencesKey("term_start_epoch_day")
         val KEY_ADVANCED_TOOLS = booleanPreferencesKey("advanced_tools")
         val KEY_TIME_ZONE_ID = stringPreferencesKey("time_zone_id")

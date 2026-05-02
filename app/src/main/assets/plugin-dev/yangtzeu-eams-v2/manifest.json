@@ -2,8 +2,8 @@
   "pluginId": "yangtzeu-eams-v2",
   "name": "长江大学教务插件",
   "publisher": "Class Schedule Viewer",
-  "version": "1.0.4",
-  "versionCode": 3005,
+  "version": "1.0.7",
+  "versionCode": 3008,
   "description": "通过 ATrust + EAMS 抓取长江大学课表的内置插件。",
   "entryWorkflow": "sync-schedule",
   "declaredPermissions": [

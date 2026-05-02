@@ -838,12 +838,7 @@ private fun WeeklyScheduleSection(
                         buildWeekModel(timingProfile, pageOffset, overrideTermStart, zone)
                     }
                     val active = remember(allCourses, slots, pageWeek.weekIndex) {
-                        allCourses
-                            .filter { it.isActiveInWeek(pageWeek.weekIndex) }
-                            .mapNotNull { course ->
-                                val placement = coursePlacement(course, slots) ?: return@mapNotNull null
-                                CourseRenderEntry(course = course, placement = placement, inactive = false)
-                            }
+                        buildWeekRenderEntries(allCourses, slots, pageWeek.weekIndex)
                     }
                     if (active.isEmpty()) {
                         EmptyWeekState(schedule = schedule)
@@ -1174,15 +1169,6 @@ private fun DayRow(
                             color = onColor,
                             fontSize = 12.sp,
                         )
-                        if (course.teacher.isNotBlank()) {
-                            Text(
-                                text = course.teacher,
-                                color = onColor.copy(alpha = 0.85f),
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
                         if (hasReminderForCourse(course, reminderRules)) {
                             Icon(
                                 imageVector = Icons.Rounded.Notifications,
@@ -1659,7 +1645,7 @@ private fun CourseBlock(
                     fontSize = 12.sp,
                     lineHeight = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 5,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -1670,19 +1656,7 @@ private fun CourseBlock(
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (course.teacher.isNotBlank() && !inactive) {
-                    Text(
-                        text = course.teacher,
-                        color = onColor.copy(alpha = 0.8f),
-                        fontSize = 10.sp,
-                        lineHeight = 12.sp,
-                        maxLines = 1,
+                        maxLines = 8,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
@@ -1988,33 +1962,49 @@ private fun displaySlots(
     manualCourses: List<CourseItem> = emptyList(),
 ): List<DisplaySlot> {
     val profileSlots = timingProfile?.slotTimes.orEmpty().sortedBy { it.startNode }
+    val allCoursesForExtras = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
     if (profileSlots.isNotEmpty()) {
-        return profileSlots.map { it.toDisplaySlot() }
+        val coveredMax = profileSlots.maxOf { it.endNode }
+        // 课程节号超出 timing 配置范围时，按顺次补无时间的大节占位（避免课丢失）
+        val extraNodes = allCoursesForExtras
+            .flatMap { listOf(it.time.startNode, it.time.endNode) }
+            .filter { it > coveredMax }
+            .distinct()
+            .sorted()
+        val baseSlots = profileSlots.mapIndexed { index, slot ->
+            DisplaySlot(
+                startNode = slot.startNode,
+                endNode = slot.endNode,
+                indexLabel = "${index + 1}",
+                startTime = slot.startTime,
+                endTime = slot.endTime,
+            )
+        }
+        val extraSlots = extraNodes.mapIndexed { offset, node ->
+            DisplaySlot(
+                startNode = node,
+                endNode = node,
+                indexLabel = "${profileSlots.size + offset + 1}",
+                startTime = "",
+                endTime = "",
+            )
+        }
+        return baseSlots + extraSlots
     }
     val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
     val derived = allCourses
         .map { it.time.startNode to it.time.endNode }
         .distinct()
         .sortedBy { it.first }
-    return derived.map { (startNode, endNode) ->
+    return derived.mapIndexed { index, (startNode, endNode) ->
         DisplaySlot(
             startNode = startNode,
             endNode = endNode,
-            indexLabel = if (startNode == endNode) "$startNode" else "$startNode-$endNode",
+            indexLabel = "${index + 1}",
             startTime = "--:--",
             endTime = "--:--",
         )
     }
-}
-
-private fun ClassSlotTime.toDisplaySlot(): DisplaySlot {
-    return DisplaySlot(
-        startNode = startNode,
-        endNode = endNode,
-        indexLabel = if (startNode == endNode) "$startNode" else "$startNode-$endNode",
-        startTime = startTime,
-        endTime = endTime,
-    )
 }
 
 private fun coursePlacement(
@@ -2086,6 +2076,56 @@ internal fun selectedCourseFromState(
 
 internal fun CourseItem.isActiveInWeek(weekNumber: Int): Boolean {
     return weeks.isEmpty() || weekNumber in weeks
+}
+
+/**
+ * 周课表条目构建：
+ * - 本周激活的课全部加入，inactive=false
+ * - 同 (day, rowIndex) 格子若本周完全没有激活课，则从非本周课中挑一门"距离当前周最近"作为灰色占位
+ *   （距离按 weeks 中与当前周的最小绝对差衡量，相同距离时优先未来一周）
+ * - cellGroups 在外层会按 (dayIndex, rowIndex) 分组并按去重 course 数计角标，
+ *   因此返回的 entries 数量 = 该格里所有不同课程数（含 inactive 占位），刚好用作角标计数
+ */
+private fun buildWeekRenderEntries(
+    allCourses: List<CourseItem>,
+    slots: List<DisplaySlot>,
+    weekIndex: Int,
+): List<CourseRenderEntry> {
+    data class Resolved(val course: CourseItem, val placement: CoursePlacement, val active: Boolean)
+
+    val resolved = allCourses.mapNotNull { course ->
+        val placement = coursePlacement(course, slots) ?: return@mapNotNull null
+        Resolved(course, placement, course.isActiveInWeek(weekIndex))
+    }
+    val grouped = resolved.groupBy { it.placement.dayIndex to it.placement.rowIndex }
+    val entries = mutableListOf<CourseRenderEntry>()
+    for ((_, list) in grouped) {
+        val deduped = list.distinctBy { it.course.id }
+        val activeOnes = deduped.filter { it.active }
+        val inactiveOnes = deduped.filter { !it.active }
+        if (activeOnes.isNotEmpty()) {
+            // 本周激活课优先渲染（main 取列表第一项）；同格非本周课也加入 entries，
+            // 仅参与角标计数（cellGroups 按 placement 聚合并用 distinctBy id 数课）
+            activeOnes.forEach {
+                entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = false)
+            }
+            inactiveOnes.forEach {
+                entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = true)
+            }
+        } else if (inactiveOnes.isNotEmpty()) {
+            // 取距离当前周最近的一门作占位卡片，其余仅参与角标计数
+            val nearest = inactiveOnes.minByOrNull { res ->
+                val w = res.course.weeks
+                if (w.isEmpty()) 0
+                else w.minOf { week -> kotlin.math.abs(week - weekIndex) * 2 + if (week < weekIndex) 1 else 0 }
+            } ?: continue
+            entries += CourseRenderEntry(course = nearest.course, placement = nearest.placement, inactive = true)
+            inactiveOnes.filter { it.course.id != nearest.course.id }.forEach {
+                entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = true)
+            }
+        }
+    }
+    return entries
 }
 
 private fun chineseShortWeekday(dayOfWeek: DayOfWeek): String {

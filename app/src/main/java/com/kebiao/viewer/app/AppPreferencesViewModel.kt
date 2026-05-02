@@ -3,6 +3,7 @@ package com.kebiao.viewer.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.data.UserPreferences
 import com.kebiao.viewer.core.data.UserPreferencesRepository
@@ -21,6 +22,10 @@ class AppPreferencesViewModel(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { repository.setThemeMode(mode) }
+    }
+
+    fun setThemeAccent(accent: ThemeAccent) {
+        viewModelScope.launch { repository.setThemeAccent(accent) }
     }
 
     fun setTermStartDate(date: LocalDate?) {
