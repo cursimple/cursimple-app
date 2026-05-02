@@ -14,6 +14,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +23,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -82,15 +85,11 @@ fun PluginWebSessionScreen(
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
             popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
             consoleError.value != null -> "页面脚本提示：${consoleError.value}"
-            isCapturing.value -> "正在采集会话数据：${currentUrl.value}"
-            capturedPackets.value.isNotEmpty() -> {
-                if (requiredPacketCount > 0) {
-                    "已捕获数据包 ${capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }}/$requiredPacketCount"
-                } else {
-                    "正在等待可用会话数据"
-                }
+            requiredPacketCount > 0 -> {
+                val captured = capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }
+                "已捕获数据包 $captured/$requiredPacketCount"
             }
-            loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%：${currentUrl.value}"
+            capturedPackets.value.isNotEmpty() -> "正在等待可用会话数据"
             pageTitle.value.isNotBlank() -> "页面标题：${pageTitle.value}"
             currentUrl.value.isNotBlank() -> "当前页面：${currentUrl.value}"
             else -> "当前页面：等待加载"
@@ -259,36 +258,90 @@ fun PluginWebSessionScreen(
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
+        val toolbarScrollState = rememberScrollState()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .horizontalScroll(toolbarScrollState)
                 .padding(top = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Button(onClick = onCancel) {
                 Text("取消")
             }
-            Button(
+            OutlinedButton(
                 onClick = {
-                    val webView = foregroundWebView() ?: return@Button
-                    if (isFinishing.value || isCapturing.value) {
-                        return@Button
+                    val popup = popupWebViewState.value
+                    if (popup != null) {
+                        val list = popup.copyBackForwardList()
+                        val current = list.currentIndex
+                        var target = -1
+                        for (i in current - 1 downTo 0) {
+                            val url = list.getItemAtIndex(i)?.url.orEmpty()
+                            if (url.isNotBlank() && !isInternalWebViewUrl(url)) {
+                                target = i
+                                break
+                            }
+                        }
+                        if (target >= 0) {
+                            popup.goBackOrForward(target - current)
+                        } else {
+                            popupWebViewState.value = null
+                            popup.destroy()
+                        }
+                        return@OutlinedButton
                     }
-                    PluginLogger.info(
-                        "plugin.web_session.manual_complete.start",
-                        mapOf(
-                            "pluginId" to request.pluginId,
-                            "sessionId" to request.sessionId,
-                            "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
-                        ),
-                    )
-                    val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
-                    probeWebSession(webView, target, forceFinish = true)
+                    val webView = webViewState.value ?: return@OutlinedButton
+                    val list = webView.copyBackForwardList()
+                    val current = list.currentIndex
+                    var target = -1
+                    for (i in current - 1 downTo 0) {
+                        val url = list.getItemAtIndex(i)?.url.orEmpty()
+                        if (url.isNotBlank() && !isInternalWebViewUrl(url)) {
+                            target = i
+                            break
+                        }
+                    }
+                    if (target >= 0) {
+                        webView.goBackOrForward(target - current)
+                    } else {
+                        webView.loadUrl(request.startUrl)
+                    }
                 },
-                enabled = !isFinishing.value && !isCapturing.value,
             ) {
-                Text(if (isFinishing.value || isCapturing.value) "正在回传..." else "手动完成并回传")
+                Text("后退")
             }
+            OutlinedButton(
+                onClick = {
+                    foregroundWebView()?.reload()
+                },
+            ) {
+                Text("刷新")
+            }
+        }
+        Button(
+            onClick = {
+                val webView = foregroundWebView() ?: return@Button
+                if (isFinishing.value) {
+                    return@Button
+                }
+                PluginLogger.info(
+                    "plugin.web_session.manual_complete.start",
+                    mapOf(
+                        "pluginId" to request.pluginId,
+                        "sessionId" to request.sessionId,
+                        "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
+                    ),
+                )
+                val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
+                probeWebSession(webView, target, forceFinish = true)
+            },
+            enabled = !isFinishing.value,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        ) {
+            Text(if (isFinishing.value) "正在上传课表..." else "上传课表")
         }
         if (effectiveCaptureSpecs(request).isNotEmpty()) {
             Text(
@@ -1114,6 +1167,7 @@ fun shouldSurfaceConsoleError(message: String?): Boolean {
     val knownEamsNoise = listOf(
         "beangle is not defined",
         "jQuery is not defined",
+        "bg is not defined",
     )
     return knownEamsNoise.none { normalized.contains(it, ignoreCase = true) }
 }

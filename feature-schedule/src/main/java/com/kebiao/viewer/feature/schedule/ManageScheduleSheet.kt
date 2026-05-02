@@ -46,6 +46,7 @@ fun ManageScheduleSheet(
     onAddSingleCourse: () -> Unit,
     onLoadSample: () -> Unit,
     onClearAll: () -> Unit,
+    onClearEverything: () -> Unit,
     onRemoveCourse: (String) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -83,6 +84,14 @@ fun ManageScheduleSheet(
                 subtitle = "覆盖现有手动课程，含单/双周、连堂、短期等多种情况",
                 onClick = onLoadSample,
             )
+            ActionRow(
+                icon = Icons.Rounded.DeleteOutline,
+                title = "清空全部课表",
+                subtitle = "同时删除手动课程、插件同步的课表和所有提醒",
+                onClick = onClearEverything,
+                danger = true,
+            )
+
             if (manualCourses.isNotEmpty()) {
                 ActionRow(
                     icon = Icons.Rounded.DeleteOutline,

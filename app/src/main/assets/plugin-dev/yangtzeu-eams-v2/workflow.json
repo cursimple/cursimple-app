@@ -38,7 +38,7 @@
           "id": "eams-course-home",
           "required": true,
           "urlHost": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
-          "urlPathContains": "/eams/courseTableForStd.action",
+          "urlPathContains": "/eams/courseTableForStd",
           "captureSelectors": [
             "title"
           ],

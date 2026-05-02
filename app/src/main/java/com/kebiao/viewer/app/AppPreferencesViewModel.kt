@@ -30,6 +30,18 @@ class AppPreferencesViewModel(
     fun setAdvancedToolsEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setAdvancedToolsEnabled(enabled) }
     }
+
+    fun setTimeZoneId(timeZoneId: String) {
+        viewModelScope.launch { repository.setTimeZoneId(timeZoneId) }
+    }
+
+    fun setPluginEnabled(pluginId: String, enabled: Boolean) {
+        viewModelScope.launch { repository.setPluginEnabled(pluginId, enabled) }
+    }
+
+    fun seedEnabledPlugins(pluginIds: Set<String>) {
+        viewModelScope.launch { repository.seedEnabledPlugins(pluginIds) }
+    }
 }
 
 class AppPreferencesViewModelFactory(

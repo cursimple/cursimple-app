@@ -142,11 +142,12 @@ class ScheduleViewModel(
         _uiState.update { it.copy(baseUrl = value) }
     }
 
-    fun syncSchedule() {
+    fun syncSchedule(targetPluginId: String? = null) {
         val snapshot = _uiState.value
-        if (snapshot.pluginId.isBlank()) {
+        val pluginId = targetPluginId?.takeIf { it.isNotBlank() } ?: snapshot.pluginId
+        if (pluginId.isBlank()) {
             PluginLogger.warn("plugin.schedule.sync.rejected", mapOf("reason" to "missing_plugin"))
-            _uiState.update { it.copy(statusMessage = "请先安装并选择插件") }
+            _uiState.update { it.copy(statusMessage = "请先安装并启用至少一个插件") }
             return
         }
         viewModelScope.launch {
@@ -154,23 +155,29 @@ class ScheduleViewModel(
             PluginLogger.info(
                 "plugin.schedule.sync.request",
                 mapOf(
-                    "pluginId" to snapshot.pluginId,
+                    "pluginId" to pluginId,
                     "usernamePresent" to snapshot.username.isNotBlank(),
                     "termIdPresent" to snapshot.termId.isNotBlank(),
                     "baseUrl" to PluginLogger.sanitizeUrl(snapshot.baseUrl),
                 ),
             )
-            _uiState.update { it.copy(isSyncing = true, statusMessage = "正在打开登录取数流程...") }
+            _uiState.update {
+                it.copy(
+                    pluginId = pluginId,
+                    isSyncing = true,
+                    statusMessage = "正在打开登录取数流程...",
+                )
+            }
             val result = runCatching {
                 withContext(ioDispatcher) {
                     scheduleRepository.saveLastInput(
-                        pluginId = snapshot.pluginId,
+                        pluginId = pluginId,
                         username = snapshot.username,
                         termId = snapshot.termId,
                     )
                     pluginManager.startSync(
                         PluginSyncInput(
-                            pluginId = snapshot.pluginId,
+                            pluginId = pluginId,
                             username = snapshot.username,
                             password = snapshot.password,
                             termId = snapshot.termId,
@@ -181,7 +188,7 @@ class ScheduleViewModel(
             }.getOrElse { error ->
                 PluginLogger.error(
                     "plugin.schedule.sync.request.failure",
-                    mapOf("pluginId" to snapshot.pluginId, "elapsedMs" to (System.currentTimeMillis() - startedAt)),
+                    mapOf("pluginId" to pluginId, "elapsedMs" to (System.currentTimeMillis() - startedAt)),
                     error,
                 )
                 WorkflowExecutionResult.Failure(error.message ?: "启动插件同步流程失败")
@@ -365,6 +372,22 @@ class ScheduleViewModel(
         viewModelScope.launch {
             manualCourseRepository.replaceAll(emptyList())
             _uiState.update { it.copy(statusMessage = "已清空手动课表") }
+        }
+    }
+
+    fun clearAllSchedules() {
+        viewModelScope.launch {
+            val ruleIds = _uiState.value.reminderRules.map { it.ruleId }
+            ruleIds.forEach { reminderCoordinator.deleteRule(it) }
+            manualCourseRepository.replaceAll(emptyList())
+            scheduleRepository.clearSchedule()
+            _uiState.update {
+                it.copy(
+                    schedule = null,
+                    statusMessage = "已清空全部课表",
+                    selectionState = null,
+                )
+            }
         }
     }
 
