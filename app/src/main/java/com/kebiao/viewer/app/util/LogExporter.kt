@@ -1,5 +1,6 @@
 package com.kebiao.viewer.app.util
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.os.Process
@@ -29,6 +30,8 @@ object LogExporter {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, "ClassScheduleViewer 日志 ${file.name}")
+            // Make the content URI visible to Android's grant machinery, including the sharesheet.
+            clipData = ClipData.newUri(context.contentResolver, file.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }

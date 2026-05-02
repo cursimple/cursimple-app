@@ -124,7 +124,12 @@ fun AboutScreen(
                             val intent = LogExporter.exportRecentLogs(context)
                             if (intent != null) {
                                 runCatching {
-                                    context.startActivity(Intent.createChooser(intent, "导出日志"))
+                                    val chooser = Intent.createChooser(intent, "导出日志").apply {
+                                        clipData = intent.clipData
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(chooser)
                                 }.onFailure {
                                     Toast.makeText(context, "无法启动分享：${it.message}", Toast.LENGTH_SHORT).show()
                                 }
