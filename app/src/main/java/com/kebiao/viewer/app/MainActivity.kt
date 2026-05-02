@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
@@ -75,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kebiao.viewer.app.theme.ClassScheduleTheme
+import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.feature.plugin.PluginMarketRoute
@@ -108,7 +111,7 @@ class MainActivity : ComponentActivity() {
             )
             val prefs by prefsViewModel.state.collectAsStateWithLifecycle()
 
-            ClassScheduleTheme(themeMode = prefs.themeMode) {
+            ClassScheduleTheme(themeMode = prefs.themeMode, themeAccent = prefs.themeAccent) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -139,6 +142,7 @@ class MainActivity : ComponentActivity() {
                     val scope = rememberCoroutineScope()
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
+                    var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
                     var showManageSheet by rememberSaveable { mutableStateOf(false) }
                     var showTimeZoneDialog by rememberSaveable { mutableStateOf(false) }
@@ -189,6 +193,7 @@ class MainActivity : ComponentActivity() {
                             AppDrawer(
                                 currentScreen = currentScreen,
                                 themeMode = prefs.themeMode,
+                                themeAccent = prefs.themeAccent,
                                 termStartDate = prefs.termStartDate,
                                 timeZoneId = prefs.timeZoneId,
                                 currentWeekIndex = currentWeekIndex,
@@ -197,6 +202,7 @@ class MainActivity : ComponentActivity() {
                                     scope.launch { drawerState.close() }
                                 },
                                 onPickThemeMode = { showThemeSheet = true },
+                                onPickThemeAccent = { showThemeAccentDialog = true },
                                 onPickTermStartDate = { showDatePicker = true },
                                 onClearTermStartDate = { showClearTermStartConfirm = true },
                                 onPickTimeZone = { showTimeZoneDialog = true },
@@ -369,6 +375,17 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    if (showThemeAccentDialog) {
+                        ThemeAccentDialog(
+                            current = prefs.themeAccent,
+                            onDismiss = { showThemeAccentDialog = false },
+                            onSelect = {
+                                prefsViewModel.setThemeAccent(it)
+                                showThemeAccentDialog = false
+                            },
+                        )
+                    }
+
                     if (showTimeZoneDialog) {
                         TimeZoneDialog(
                             current = prefs.timeZoneId,
@@ -516,11 +533,13 @@ class MainActivity : ComponentActivity() {
 private fun AppDrawer(
     currentScreen: MainActivity.AppScreen,
     themeMode: ThemeMode,
+    themeAccent: ThemeAccent,
     termStartDate: LocalDate?,
     timeZoneId: String,
     currentWeekIndex: Int,
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
     onPickThemeMode: () -> Unit,
+    onPickThemeAccent: () -> Unit,
     onPickTermStartDate: () -> Unit,
     onClearTermStartDate: () -> Unit,
     onPickTimeZone: () -> Unit,
@@ -570,6 +589,13 @@ private fun AppDrawer(
                 text = "偏好",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            DrawerActionRow(
+                icon = Icons.Rounded.Palette,
+                title = "主题",
+                subtitle = themeAccentLabel(themeAccent),
+                onClick = onPickThemeAccent,
             )
 
             DrawerActionRow(
@@ -733,6 +759,62 @@ private fun ThemeModeDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+    )
+}
+
+private data class ThemeAccentOption(val accent: ThemeAccent, val label: String, val swatch: androidx.compose.ui.graphics.Color)
+
+private val themeAccentOptions = listOf(
+    ThemeAccentOption(ThemeAccent.Green, "薄荷绿", androidx.compose.ui.graphics.Color(0xFF3FA277)),
+    ThemeAccentOption(ThemeAccent.Blue, "海岸蓝", androidx.compose.ui.graphics.Color(0xFF3F6FB5)),
+    ThemeAccentOption(ThemeAccent.Purple, "暮霭紫", androidx.compose.ui.graphics.Color(0xFF7259B5)),
+    ThemeAccentOption(ThemeAccent.Orange, "暖陶橙", androidx.compose.ui.graphics.Color(0xFFD0763B)),
+    ThemeAccentOption(ThemeAccent.Pink, "樱花粉", androidx.compose.ui.graphics.Color(0xFFC25B7D)),
+)
+
+private fun themeAccentLabel(accent: ThemeAccent): String =
+    themeAccentOptions.firstOrNull { it.accent == accent }?.label ?: accent.name
+
+@Composable
+private fun ThemeAccentDialog(
+    current: ThemeAccent,
+    onDismiss: () -> Unit,
+    onSelect: (ThemeAccent) -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("主题") },
+        text = {
+            Column {
+                themeAccentOptions.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelect(option.accent) }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = option.accent == current,
+                            onClick = { onSelect(option.accent) },
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(20.dp)
+                                .clip(CircleShape)
+                                .background(option.swatch),
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(option.label, style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
