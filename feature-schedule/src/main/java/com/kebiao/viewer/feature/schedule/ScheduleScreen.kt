@@ -29,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -100,6 +102,8 @@ fun ScheduleRoute(
     viewModel: ScheduleViewModel,
     onOpenPluginMarket: () -> Unit,
     weekOffset: Int,
+    minWeekOffset: Int,
+    maxWeekOffset: Int,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onWeekOffsetChange: (Int) -> Unit,
@@ -115,6 +119,8 @@ fun ScheduleRoute(
     ScheduleScreen(
         state = state,
         weekOffset = weekOffset,
+        minWeekOffset = minWeekOffset,
+        maxWeekOffset = maxWeekOffset,
         overrideTermStart = overrideTermStart,
         viewMode = viewMode,
         dayOffset = dayOffset,
@@ -171,6 +177,8 @@ fun ScheduleScreen(
     onWeekOffsetChange: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     weekOffset: Int = 0,
+    minWeekOffset: Int = Int.MIN_VALUE / 2,
+    maxWeekOffset: Int = Int.MAX_VALUE / 2,
     overrideTermStart: LocalDate? = null,
     viewMode: ScheduleViewMode = ScheduleViewMode.Week,
     dayOffset: Int = 0,
@@ -208,6 +216,9 @@ fun ScheduleScreen(
                 .fillMaxSize()
                 .padding(horizontal = 4.dp, vertical = 4.dp),
         ) {
+            if (!state.initialized) {
+                ScheduleInitializingState(modifier = Modifier.fillMaxSize())
+            } else {
             val onCellClickHandler: (List<CourseItem>) -> Unit = { coursesAtCell ->
                 if (multiSelectMode) {
                     val id = coursesAtCell.firstOrNull()?.id
@@ -233,6 +244,8 @@ fun ScheduleScreen(
                     uiSchema = state.uiSchema,
                     reminderRules = state.reminderRules,
                     weekOffset = weekOffset,
+                    minWeekOffset = minWeekOffset,
+                    maxWeekOffset = maxWeekOffset,
                     overrideTermStart = overrideTermStart,
                     zone = zone,
                     horizontalScrollState = horizontalScrollState,
@@ -262,6 +275,7 @@ fun ScheduleScreen(
                     onPrevDay = onPrevDay,
                     onNextDay = onNextDay,
                 )
+            }
             }
         }
 
@@ -710,9 +724,6 @@ internal fun MessageCard(
     }
 }
 
-private const val WeekPagerInitialPage = 5000
-private const val WeekPagerPageCount = 10000
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WeeklyScheduleSection(
@@ -722,6 +733,8 @@ private fun WeeklyScheduleSection(
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     weekOffset: Int,
+    minWeekOffset: Int,
+    maxWeekOffset: Int,
     overrideTermStart: LocalDate?,
     zone: java.time.ZoneId,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
@@ -754,27 +767,58 @@ private fun WeeklyScheduleSection(
             if (slots.isEmpty() || allCourses.isEmpty()) {
                 EmptyWeekState(schedule = schedule)
             } else {
+                val safeMin = minWeekOffset.coerceAtMost(weekOffset)
+                val safeMax = maxWeekOffset.coerceAtLeast(weekOffset)
+                val pageCount = safeMax - safeMin + 1
+                val initialPage = (weekOffset - safeMin).coerceIn(0, pageCount - 1)
                 val pagerState = androidx.compose.foundation.pager.rememberPagerState(
-                    initialPage = WeekPagerInitialPage + weekOffset,
-                    pageCount = { WeekPagerPageCount },
+                    initialPage = initialPage,
+                    pageCount = { pageCount },
                 )
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val lastEdgeToastAt = androidx.compose.runtime.remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+                val edgeNestedScroll = androidx.compose.runtime.remember(pagerState, pageCount) {
+                    object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                        override fun onPostScroll(
+                            consumed: androidx.compose.ui.geometry.Offset,
+                            available: androidx.compose.ui.geometry.Offset,
+                            source: androidx.compose.ui.input.nestedscroll.NestedScrollSource,
+                        ): androidx.compose.ui.geometry.Offset {
+                            if (kotlin.math.abs(available.x) < 0.5f) return androidx.compose.ui.geometry.Offset.Zero
+                            val atStart = pagerState.currentPage == 0 && available.x > 0f
+                            val atEnd = pagerState.currentPage == pageCount - 1 && available.x < 0f
+                            if (atStart || atEnd) {
+                                val now = System.currentTimeMillis()
+                                if (now - lastEdgeToastAt.longValue > 1500L) {
+                                    lastEdgeToastAt.longValue = now
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (atStart) "已经是最早一周" else "已经是最后一周",
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                            return androidx.compose.ui.geometry.Offset.Zero
+                        }
+                    }
+                }
                 val pagerLatestRequest = androidx.compose.runtime.remember {
                     androidx.compose.runtime.mutableIntStateOf(weekOffset)
                 }
-                androidx.compose.runtime.LaunchedEffect(weekOffset) {
+                androidx.compose.runtime.LaunchedEffect(weekOffset, safeMin, pageCount) {
                     if (weekOffset == pagerLatestRequest.intValue) return@LaunchedEffect
                     pagerLatestRequest.intValue = weekOffset
-                    val target = WeekPagerInitialPage + weekOffset
+                    val target = (weekOffset - safeMin).coerceIn(0, pageCount - 1)
                     if (pagerState.currentPage != target) {
                         pagerState.animateScrollToPage(target)
                     }
                 }
-                androidx.compose.runtime.LaunchedEffect(pagerState) {
+                androidx.compose.runtime.LaunchedEffect(pagerState, safeMin) {
                     androidx.compose.runtime.snapshotFlow {
                         if (pagerState.isScrollInProgress) pagerState.targetPage
                         else pagerState.currentPage
                     }.collect { page ->
-                        val newOffset = page - WeekPagerInitialPage
+                        val newOffset = page + safeMin
                         if (newOffset != pagerLatestRequest.intValue) {
                             pagerLatestRequest.intValue = newOffset
                             onWeekOffsetChange(newOffset)
@@ -784,10 +828,12 @@ private fun WeeklyScheduleSection(
 
                 androidx.compose.foundation.pager.HorizontalPager(
                     state = pagerState,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(edgeNestedScroll),
                     beyondViewportPageCount = 1,
                 ) { page ->
-                    val pageOffset = page - WeekPagerInitialPage
+                    val pageOffset = page + safeMin
                     val pageWeek = remember(timingProfile, pageOffset, overrideTermStart, zone) {
                         buildWeekModel(timingProfile, pageOffset, overrideTermStart, zone)
                     }
@@ -1148,6 +1194,94 @@ private fun DayRow(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleInitializingState(modifier: Modifier = Modifier) {
+    val tips = remember {
+        listOf(
+            "马力全开中…",
+            "正在全力加载课表与提醒～",
+            "嘿，先喝口水，马上就好",
+            "悄悄告诉你：侧滑课表可以飞快翻周",
+            "长按课程能批量加提醒，超方便",
+            "侧边栏里有主题、时区、开学日期，去逛逛",
+            "再等等，正在把课塞进格子里…",
+        )
+    }
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "init-loader")
+    val tipIndex = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableIntStateOf(tips.indices.random())
+    }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(1600)
+            tipIndex.intValue = (tipIndex.intValue + 1) % tips.size
+        }
+    }
+
+    val cubeCount = 3
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            repeat(cubeCount) { index ->
+                val phase = index * 0.18f
+                val offset by infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 1f,
+                    animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+                        animation = androidx.compose.animation.core.tween(
+                            durationMillis = 800,
+                            delayMillis = (phase * 800).toInt(),
+                            easing = androidx.compose.animation.core.FastOutSlowInEasing,
+                        ),
+                        repeatMode = androidx.compose.animation.core.RepeatMode.Reverse,
+                    ),
+                    label = "cube-$index",
+                )
+                val translation = -16.dp * offset
+                Box(
+                    modifier = Modifier
+                        .offset(y = translation)
+                        .size(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.5f + 0.5f * offset)),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(28.dp))
+        androidx.compose.animation.AnimatedContent(
+            targetState = tipIndex.intValue,
+            transitionSpec = {
+                (androidx.compose.animation.fadeIn(
+                    animationSpec = androidx.compose.animation.core.tween(400),
+                ) + androidx.compose.animation.slideInVertically(
+                    animationSpec = androidx.compose.animation.core.tween(400),
+                ) { it / 4 }).togetherWith(
+                    androidx.compose.animation.fadeOut(
+                        animationSpec = androidx.compose.animation.core.tween(300),
+                    ) + androidx.compose.animation.slideOutVertically(
+                        animationSpec = androidx.compose.animation.core.tween(300),
+                    ) { -it / 4 },
+                )
+            },
+            label = "init-tip",
+        ) { idx ->
+            Text(
+                text = tips[idx],
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 32.dp),
+            )
         }
     }
 }

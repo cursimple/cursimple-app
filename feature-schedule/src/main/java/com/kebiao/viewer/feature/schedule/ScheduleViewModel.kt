@@ -41,6 +41,7 @@ data class ScheduleUiState(
     val pluginId: String = "",
     val termId: String = "",
     val baseUrl: String = "",
+    val initialized: Boolean = false,
     val isSyncing: Boolean = false,
     val statusMessage: String? = null,
     val schedule: TermSchedule? = null,
@@ -115,6 +116,7 @@ class ScheduleViewModel(
                 if (selectedPluginId.isNotBlank()) {
                     loadPluginPresentation(selectedPluginId)
                 }
+                _uiState.update { it.copy(initialized = true) }
             }
         }
     }
