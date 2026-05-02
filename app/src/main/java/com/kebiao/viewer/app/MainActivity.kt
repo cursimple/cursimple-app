@@ -142,6 +142,29 @@ class MainActivity : ComponentActivity() {
                         val todayMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                         max(1, ChronoUnit.WEEKS.between(termStartMonday, todayMonday).toInt() + 1)
                     } ?: 1
+                    val dayWeekIndex = effectiveTermStart?.let { start ->
+                        val termStartMonday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                        val targetMonday = today.plusDays(dayOffset.toLong())
+                            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+                        max(1, ChronoUnit.WEEKS.between(termStartMonday, targetMonday).toInt() + 1)
+                    } ?: 1
+                    val displayedWeekIndex = when (scheduleViewMode) {
+                        ScheduleViewMode.Week -> (currentWeekIndex + weekOffset).coerceAtLeast(1)
+                        ScheduleViewMode.Day -> dayWeekIndex
+                    }
+                    val weekPickerTotalWeeks = remember(
+                        scheduleState.schedule,
+                        scheduleState.manualCourses,
+                        currentWeekIndex,
+                        displayedWeekIndex,
+                    ) {
+                        resolveWeekPickerTotalWeeks(
+                            schedule = scheduleState.schedule,
+                            manualCourses = scheduleState.manualCourses,
+                            currentWeek = currentWeekIndex,
+                            selectedWeek = displayedWeekIndex,
+                        )
+                    }
 
                     ModalNavigationDrawer(
                         drawerState = drawerState,
@@ -168,16 +191,6 @@ class MainActivity : ComponentActivity() {
                                 .background(MaterialTheme.colorScheme.background),
                             containerColor = MaterialTheme.colorScheme.background,
                             topBar = {
-                                val dayWeekIndex = effectiveTermStart?.let { start ->
-                                    val termStartMonday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                                    val targetMonday = today.plusDays(dayOffset.toLong())
-                                        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                                    max(1, ChronoUnit.WEEKS.between(termStartMonday, targetMonday).toInt() + 1)
-                                } ?: 1
-                                val displayedWeekIndex = when (scheduleViewMode) {
-                                    ScheduleViewMode.Week -> (currentWeekIndex + weekOffset).coerceAtLeast(1)
-                                    ScheduleViewMode.Day -> dayWeekIndex
-                                }
                                 CenterAlignedTopAppBar(
                                     title = {
                                         if (currentScreen == AppScreen.Schedule) {
@@ -347,12 +360,22 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (showWeekMenu) {
-                        val displayedWeekIndex = (currentWeekIndex + weekOffset).coerceAtLeast(1)
                         WeekPickerSheet(
                             currentWeek = currentWeekIndex,
                             selectedWeek = displayedWeekIndex,
+                            totalWeeks = weekPickerTotalWeeks,
                             onSelectWeek = { week ->
-                                weekOffset = week - currentWeekIndex
+                                if (scheduleViewMode == ScheduleViewMode.Day) {
+                                    dayOffset = resolveDayOffsetForSelectedWeek(
+                                        today = today,
+                                        currentDayOffset = dayOffset,
+                                        selectedWeek = week,
+                                        termStart = effectiveTermStart,
+                                        currentWeek = currentWeekIndex,
+                                    )
+                                } else {
+                                    weekOffset = week - currentWeekIndex
+                                }
                                 showWeekMenu = false
                             },
                             onSetSelectedAsCurrent = {
@@ -631,4 +654,28 @@ private fun formatTermLabel(termStart: LocalDate?): String {
     } else {
         "${year - 1}-$year 第2学期"
     }
+}
+
+internal fun resolveDayOffsetForSelectedWeek(
+    today: LocalDate,
+    currentDayOffset: Int,
+    selectedWeek: Int,
+    termStart: LocalDate?,
+    currentWeek: Int,
+): Int {
+    val currentTargetDate = today.plusDays(currentDayOffset.toLong())
+    val currentTargetMonday = currentTargetDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    val targetWeek = selectedWeek.coerceAtLeast(1)
+    val targetMonday = if (termStart != null) {
+        termStart
+            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            .plusWeeks((targetWeek - 1).toLong())
+    } else {
+        today
+            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+            .plusWeeks((targetWeek - currentWeek).toLong())
+    }
+    val weekdayOffset = ChronoUnit.DAYS.between(currentTargetMonday, currentTargetDate)
+    val targetDate = targetMonday.plusDays(weekdayOffset)
+    return ChronoUnit.DAYS.between(today, targetDate).toInt()
 }

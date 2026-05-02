@@ -759,34 +759,31 @@ private fun WeeklyScheduleSection(
                 ) { animatedWeek ->
                     val animVwn = animatedWeek.weekIndex
                     val active = allCourses
-                        .filter { it.weeks.isEmpty() || it.weeks.contains(animVwn) }
+                        .filter { it.isActiveInWeek(animVwn) }
                         .mapNotNull { course ->
                             val placement = coursePlacement(course, slots) ?: return@mapNotNull null
                             CourseRenderEntry(course = course, placement = placement, inactive = false)
                         }
-                    val inactive = allCourses
-                        .filter { it.weeks.isNotEmpty() && !it.weeks.contains(animVwn) }
-                        .mapNotNull { course ->
-                            val placement = coursePlacement(course, slots) ?: return@mapNotNull null
-                            CourseRenderEntry(course = course, placement = placement, inactive = true)
-                        }
-                    ScheduleGrid(
-                        modifier = Modifier.fillMaxSize(),
-                        week = animatedWeek,
-                        slots = slots,
-                        activeEntries = active,
-                        inactiveEntries = inactive,
-                        uiSchema = uiSchema,
-                        reminderRules = reminderRules,
-                        horizontalScrollState = horizontalScrollState,
-                        selectedCourseId = selectedCourseId,
-                        multiSelectMode = multiSelectMode,
-                        multiSelectedIds = multiSelectedIds,
-                        onCellClick = onCellClick,
-                        onCourseLongClick = onCourseLongClick,
-                        onPrevWeek = onPrevWeek,
-                        onNextWeek = onNextWeek,
-                    )
+                    if (active.isEmpty()) {
+                        EmptyWeekState(schedule = schedule)
+                    } else {
+                        ScheduleGrid(
+                            modifier = Modifier.fillMaxSize(),
+                            week = animatedWeek,
+                            slots = slots,
+                            activeEntries = active,
+                            uiSchema = uiSchema,
+                            reminderRules = reminderRules,
+                            horizontalScrollState = horizontalScrollState,
+                            selectedCourseId = selectedCourseId,
+                            multiSelectMode = multiSelectMode,
+                            multiSelectedIds = multiSelectedIds,
+                            onCellClick = onCellClick,
+                            onCourseLongClick = onCourseLongClick,
+                            onPrevWeek = onPrevWeek,
+                            onNextWeek = onNextWeek,
+                        )
+                    }
                 }
             }
         }
@@ -855,7 +852,7 @@ private fun DailyScheduleSection(
             ) { _ ->
                 val active = allCourses
                     .filter { it.time.dayOfWeek == targetDayOfWeek }
-                    .filter { it.weeks.isEmpty() || it.weeks.contains(targetWeekNumber) }
+                    .filter { it.isActiveInWeek(targetWeekNumber) }
                     .sortedBy { it.time.startNode }
                 DayList(
                     slots = slots,
@@ -1190,7 +1187,6 @@ private fun ScheduleGrid(
     week: WeekModel,
     slots: List<DisplaySlot>,
     activeEntries: List<CourseRenderEntry>,
-    inactiveEntries: List<CourseRenderEntry>,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
@@ -1203,16 +1199,13 @@ private fun ScheduleGrid(
     onNextWeek: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val cellGroups = remember(activeEntries, inactiveEntries) {
-        (activeEntries + inactiveEntries)
+    val cellGroups = remember(activeEntries) {
+        activeEntries
             .groupBy { it.placement.dayIndex to it.placement.rowIndex }
             .map { (_, list) ->
-                val main = list.firstOrNull { !it.inactive } ?: list.first()
-                val sorted = (
-                    list.filterNot { it.inactive }.map { it.course } +
-                        list.filter { it.inactive }.map { it.course }
-                    ).distinctBy { it.id }
-                // 角标数字：以去重后的课程数为准（活动 + 非本周），点击可展开查看全部
+                val main = list.first()
+                val sorted = list.map { it.course }.distinctBy { it.id }
+                // 角标数字：以去重后的本周课程数为准，点击可展开查看同格课程
                 Triple(main, sorted, sorted.size)
             }
     }
@@ -1946,6 +1939,10 @@ internal fun selectedCourseFromState(
     return schedule?.dailySchedules.orEmpty()
         .flatMap { it.courses }
         .firstOrNull { it.id == singleCourseId }
+}
+
+internal fun CourseItem.isActiveInWeek(weekNumber: Int): Boolean {
+    return weeks.isEmpty() || weekNumber in weeks
 }
 
 private fun chineseShortWeekday(dayOfWeek: DayOfWeek): String {

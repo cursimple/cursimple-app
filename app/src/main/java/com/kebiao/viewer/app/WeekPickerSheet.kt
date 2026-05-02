@@ -24,13 +24,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kebiao.viewer.core.kernel.model.CourseItem
+import com.kebiao.viewer.core.kernel.model.TermSchedule
+
+private const val DefaultWeekPickerTotalWeeks = 25
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeekPickerSheet(
     currentWeek: Int,
     selectedWeek: Int,
-    totalWeeks: Int = 25,
+    totalWeeks: Int = DefaultWeekPickerTotalWeeks,
     onSelectWeek: (Int) -> Unit,
     onSetSelectedAsCurrent: () -> Unit,
     onDismiss: () -> Unit,
@@ -86,6 +90,20 @@ fun WeekPickerSheet(
             }
         }
     }
+}
+
+internal fun resolveWeekPickerTotalWeeks(
+    schedule: TermSchedule?,
+    manualCourses: List<CourseItem>,
+    currentWeek: Int,
+    selectedWeek: Int,
+    fallbackWeeks: Int = DefaultWeekPickerTotalWeeks,
+): Int {
+    val explicitMaxWeek = (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses)
+        .flatMap { it.weeks }
+        .maxOrNull()
+    val baseWeeks = explicitMaxWeek ?: fallbackWeeks
+    return maxOf(1, baseWeeks, currentWeek, selectedWeek)
 }
 
 @Composable
