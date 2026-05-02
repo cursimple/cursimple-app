@@ -5,6 +5,7 @@ import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import kotlinx.serialization.Serializable
+import java.security.MessageDigest
 
 internal class EamsScheduleParser {
     fun extractMetadata(pageHtml: String): EamsCourseTableMeta {
@@ -125,7 +126,16 @@ internal class EamsScheduleParser {
             val endNode = slotIndices.last() + 1
             val title = normalizeCourseTitle(rawCourseLabel)
             CourseItem(
-                id = "$sequence-$dayOfWeek-$startNode-$endNode",
+                id = stableCourseId(
+                    sequence = sequence,
+                    dayOfWeek = dayOfWeek,
+                    startNode = startNode,
+                    endNode = endNode,
+                    title = title,
+                    teacher = teacher,
+                    location = location,
+                    validWeeks = validWeeks,
+                ),
                 title = title,
                 teacher = teacher,
                 location = location,
@@ -136,7 +146,7 @@ internal class EamsScheduleParser {
                     endNode = endNode,
                 ),
             )
-        }.toList()
+        }.distinctBy { it.id }.toList()
     }
 
     private fun parseWeeks(validWeeks: String, maxWeek: Int): List<Int> {
@@ -164,6 +174,24 @@ internal class EamsScheduleParser {
             .replace("\\r", "\r")
             .replace("\\\\", "\\")
             .trim()
+    }
+
+    private fun stableCourseId(
+        sequence: String,
+        dayOfWeek: Int,
+        startNode: Int,
+        endNode: Int,
+        title: String,
+        teacher: String,
+        location: String,
+        validWeeks: String,
+    ): String {
+        val signature = listOf(title, teacher, location, validWeeks).joinToString("|")
+        val suffix = MessageDigest.getInstance("SHA-256")
+            .digest(signature.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+            .take(8)
+        return "$sequence-$dayOfWeek-$startNode-$endNode-$suffix"
     }
 }
 

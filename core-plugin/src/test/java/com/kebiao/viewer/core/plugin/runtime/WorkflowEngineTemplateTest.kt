@@ -14,6 +14,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -48,6 +49,8 @@ class WorkflowEngineTemplateTest {
                         type = WorkflowStepType.WebSession,
                         title = "登录",
                         urlTemplate = "https://example.com/login?user={{username}}",
+                        autoNavigateOnUrlContains = "/home.action",
+                        autoNavigateToUrl = "https://example.com/eams/courseTableForStd.action?user={{username}}",
                         userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
                         capturePackets = listOf(
                             WebSessionCaptureSpec(
@@ -79,11 +82,81 @@ class WorkflowEngineTemplateTest {
         val awaiting = result as WorkflowExecutionResult.AwaitingWebSession
         assertEquals("正在为 yangtzeu-eams-v2 打开 20260001 的登录页", awaiting.messages.single())
         assertEquals("https://example.com/login?user=20260001", awaiting.request.startUrl)
+        assertEquals("/home.action", awaiting.request.autoNavigateOnUrlContains)
+        assertEquals("https://example.com/eams/courseTableForStd.action?user=20260001", awaiting.request.autoNavigateToUrl)
         assertEquals(
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
             awaiting.request.userAgent,
         )
         assertEquals("login-ready", awaiting.request.capturePackets.single().id)
+    }
+
+    @Test
+    fun `http request can repeat over rendered numeric range`() = runBlocking {
+        val requestBodies = mutableListOf<String>()
+        val client = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val buffer = Buffer()
+                chain.request().body?.writeTo(buffer)
+                requestBodies += buffer.readUtf8()
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body("ok".toResponseBody("text/plain; charset=utf-8".toMediaType()))
+                    .build()
+            }
+            .build()
+        val engine = DefaultWorkflowEngine(client = client)
+        val bundle = InstalledPluginBundle(
+            record = InstalledPluginRecord(
+                pluginId = "yangtzeu-eams-v2",
+                name = "长江大学教务插件",
+                publisher = "Class Schedule Viewer",
+                version = "2.0.0",
+                versionCode = 3001,
+                storagePath = "unused",
+                installedAt = "2026-04-30T00:00:00+08:00",
+                source = PluginInstallSource.Bundled,
+                declaredPermissions = listOf(PluginPermission.Network),
+                allowedHosts = listOf("example.com"),
+                isBundled = true,
+            ),
+            workflow = WorkflowDefinition(
+                steps = listOf(
+                    WorkflowStepDefinition(
+                        id = "weeks",
+                        type = WorkflowStepType.HttpRequest,
+                        responseKey = "detail",
+                        httpMethod = "POST",
+                        httpContentType = "application/x-www-form-urlencoded; charset=UTF-8",
+                        urlTemplate = "https://example.com/eams/courseTableForStd!courseTable.action?sf_request_type=ajax",
+                        httpBodyTemplate = "startWeek={{context.week}}",
+                        httpRepeatStart = 1,
+                        httpRepeatEndTemplate = "3",
+                        httpRepeatVariable = "week",
+                    ),
+                ),
+            ),
+            uiSchema = PluginUiSchema(),
+            timingProfile = null,
+        )
+
+        val result = engine.start(
+            bundle = bundle,
+            input = PluginSyncInput(
+                pluginId = "yangtzeu-eams-v2",
+                username = "",
+                password = "",
+                termId = "",
+                baseUrl = "",
+            ),
+            assetReader = { error("不应该读取资源文件: $it") },
+        )
+
+        assertTrue(result is WorkflowExecutionResult.Failure)
+        assertEquals(listOf("startWeek=1", "startWeek=2", "startWeek=3"), requestBodies)
     }
 
     @Test

@@ -202,6 +202,8 @@ class DefaultWorkflowEngine(
                             startUrl = renderTemplate(step.urlTemplate.orEmpty(), execution),
                             allowedHosts = execution.bundle.record.allowedHosts,
                             completionUrlContains = step.completionUrlContains?.let { renderTemplate(it, execution) },
+                            autoNavigateOnUrlContains = step.autoNavigateOnUrlContains?.let { renderTemplate(it, execution) },
+                            autoNavigateToUrl = step.autoNavigateToUrl?.let { renderTemplate(it, execution) },
                             userAgent = renderTemplate(step.userAgent.orEmpty(), execution).takeIf(String::isNotBlank),
                             captureSelectors = step.captureSelectors,
                             capturePackets = step.capturePackets,
@@ -217,6 +219,8 @@ class DefaultWorkflowEngine(
                                 "titlePresent" to request.title.isNotBlank(),
                                 "startUrl" to PluginLogger.sanitizeUrl(request.startUrl),
                                 "completionUrlContainsPresent" to !request.completionUrlContains.isNullOrBlank(),
+                                "autoNavigateOnUrlContainsPresent" to !request.autoNavigateOnUrlContains.isNullOrBlank(),
+                                "autoNavigateToUrlPresent" to !request.autoNavigateToUrl.isNullOrBlank(),
                                 "allowedHostCount" to request.allowedHosts.size,
                                 "captureSelectorCount" to request.captureSelectors.size,
                                 "capturePacketCount" to request.capturePackets.size,
@@ -347,15 +351,44 @@ class DefaultWorkflowEngine(
         execution: PendingWorkflowExecution,
         stepIndex: Int,
     ): String = withContext(Dispatchers.IO) {
+        val repeat = resolveHttpRepeat(step, execution)
+        if (repeat == null) {
+            return@withContext executeHttpRequestOnce(step, execution, stepIndex)
+        }
+        val responses = repeat.values.mapIndexed { offset, value ->
+            val repeatedExecution = execution.copy(
+                contextData = execution.contextData + (repeat.variable to value.toString()),
+            )
+            executeHttpRequestOnce(
+                step = step,
+                execution = repeatedExecution,
+                stepIndex = stepIndex,
+                extraFields = mapOf(
+                    "repeatVariable" to repeat.variable,
+                    "repeatValue" to value,
+                    "repeatIndex" to offset,
+                    "repeatCount" to repeat.values.size,
+                ),
+            )
+        }
+        responses.joinToString("\n")
+    }
+
+    private fun executeHttpRequestOnce(
+        step: WorkflowStepDefinition,
+        execution: PendingWorkflowExecution,
+        stepIndex: Int,
+        extraFields: Map<String, Any?> = emptyMap(),
+    ): String {
         val startedAt = System.currentTimeMillis()
         val url = renderTemplate(step.urlTemplate.orEmpty(), execution)
         val method = step.httpMethod?.uppercase().orEmpty().ifBlank { "GET" }
-        val baseFields = stepFields(execution, step, stepIndex) + mapOf(
+        val baseFields = stepFields(execution, step, stepIndex) + extraFields + mapOf(
             "method" to method,
             "url" to PluginLogger.sanitizeUrl(url),
         )
         PluginLogger.info("plugin.workflow.http.start", baseFields)
-        try {
+        return try {
             require(isHostAllowed(url, execution.bundle.record.allowedHosts)) { "目标域名不在插件白名单中: ${PluginLogger.sanitizeUrl(url)}" }
             val builder = Request.Builder().url(url)
             step.cookieSessionId
@@ -404,6 +437,25 @@ class DefaultWorkflowEngine(
             throw error
         }
     }
+
+    private fun resolveHttpRepeat(
+        step: WorkflowStepDefinition,
+        execution: PendingWorkflowExecution,
+    ): HttpRepeat? {
+        val endTemplate = step.httpRepeatEndTemplate?.takeIf(String::isNotBlank) ?: return null
+        val start = step.httpRepeatStart ?: 1
+        val end = renderTemplate(endTemplate, execution).trim().toIntOrNull()
+            ?: error("HTTP 重复请求结束值无效: $endTemplate")
+        require(start >= 1) { "HTTP 重复请求起始值必须大于 0" }
+        require(end >= start) { "HTTP 重复请求结束值不能小于起始值" }
+        val variable = step.httpRepeatVariable?.trim().orEmpty().ifBlank { "repeat" }
+        return HttpRepeat(variable = variable, values = (start..end).toList())
+    }
+
+    private data class HttpRepeat(
+        val variable: String,
+        val values: List<Int>,
+    )
 
     private fun ensurePermission(execution: PendingWorkflowExecution, permission: PluginPermission) {
         require(permission in execution.bundle.record.declaredPermissions) {

@@ -72,6 +72,48 @@ class PluginWebSessionScreenTest {
     }
 
     @Test
+    fun `auto navigation targets configured allowed follow up once`() {
+        val target = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action"
+        val request = webRequest(
+            autoNavigateOnUrlContains = "/eams/home.action",
+            autoNavigateToUrl = target,
+        )
+
+        assertEquals(
+            target,
+            autoNavigateTargetForRequest(
+                request,
+                "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/home.action",
+                emptySet(),
+            ),
+        )
+        assertEquals(
+            null,
+            autoNavigateTargetForRequest(
+                request,
+                "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/home.action",
+                setOf(target),
+            ),
+        )
+        assertEquals(
+            null,
+            autoNavigateTargetForRequest(
+                request,
+                "https://atrust.yangtzeu.edu.cn/portal/shortcut.html?appUrl=https%3A%2F%2Fjwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn%2Feams%2Fhome.action",
+                emptySet(),
+            ),
+        )
+        assertEquals(
+            null,
+            autoNavigateTargetForRequest(
+                request,
+                "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+                emptySet(),
+            ),
+        )
+    }
+
+    @Test
     fun `capture selectors drop oversize values before script generation`() {
         val overlongSelector = "a".repeat(3000)
         val request = webRequest(
@@ -180,6 +222,8 @@ class PluginWebSessionScreenTest {
 
     private fun webRequest(
         capturePackets: List<WebSessionCaptureSpec> = emptyList(),
+        autoNavigateOnUrlContains: String? = null,
+        autoNavigateToUrl: String? = null,
     ): WebSessionRequest {
         return WebSessionRequest(
             token = "token",
@@ -189,6 +233,8 @@ class PluginWebSessionScreenTest {
             startUrl = "https://atrust.yangtzeu.edu.cn/portal",
             allowedHosts = listOf("atrust.yangtzeu.edu.cn", "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn"),
             capturePackets = capturePackets,
+            autoNavigateOnUrlContains = autoNavigateOnUrlContains,
+            autoNavigateToUrl = autoNavigateToUrl,
         )
     }
 

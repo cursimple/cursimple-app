@@ -12,6 +12,8 @@ data class WebSessionRequest(
     @SerialName("startUrl") val startUrl: String,
     @SerialName("allowedHosts") val allowedHosts: List<String>,
     @SerialName("completionUrlContains") val completionUrlContains: String? = null,
+    @SerialName("autoNavigateOnUrlContains") val autoNavigateOnUrlContains: String? = null,
+    @SerialName("autoNavigateToUrl") val autoNavigateToUrl: String? = null,
     @SerialName("userAgent") val userAgent: String? = null,
     @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
     @SerialName("capturePackets") val capturePackets: List<WebSessionCaptureSpec> = emptyList(),
