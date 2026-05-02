@@ -4,8 +4,10 @@ import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScheduleValidationTest {
@@ -72,5 +74,20 @@ class ScheduleValidationTest {
         assertThrows(IllegalArgumentException::class.java) {
             validatePluginSchedule(schedule)
         }
+    }
+
+    @Test
+    fun `course is active only when selected week matches`() {
+        val course = CourseItem(
+            id = "short-course",
+            title = "短期课程",
+            weeks = listOf(3, 4),
+            time = CourseTimeSlot(dayOfWeek = 2, startNode = 1, endNode = 2),
+        )
+        val allWeeksCourse = course.copy(id = "all-weeks", weeks = emptyList())
+
+        assertTrue(course.isActiveInWeek(3))
+        assertFalse(course.isActiveInWeek(5))
+        assertTrue(allWeeksCourse.isActiveInWeek(30))
     }
 }
