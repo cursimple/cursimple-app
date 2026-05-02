@@ -155,7 +155,6 @@ class PluginManager(
                 mapOf("pluginId" to pluginId, "elapsedMs" to elapsedSince(startedAt)),
                 error,
             )
-            throw error
         }
     }
 

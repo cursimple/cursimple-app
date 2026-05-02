@@ -385,6 +385,12 @@ class ScheduleViewModel(
                     timingProfile = timingProfile,
                 )
             }
+        }.onFailure { error ->
+            PluginLogger.error(
+                "plugin.presentation.load.failure",
+                mapOf("pluginId" to pluginId),
+                error,
+            )
         }
     }
 

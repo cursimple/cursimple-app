@@ -38,7 +38,7 @@ class AppContainer(
             pluginManager.ensureBundledPlugin("plugin-dev/yangtzeu-eams-v2")
             pluginManager.getInstalledPlugins()
                 .filterNot { it.pluginId == YANGTZEU_PLUGIN_ID }
-                .forEach { pluginManager.removePlugin(it.pluginId) }
+                .forEach { runCatching { pluginManager.removePlugin(it.pluginId) } }
         }
     }
 
