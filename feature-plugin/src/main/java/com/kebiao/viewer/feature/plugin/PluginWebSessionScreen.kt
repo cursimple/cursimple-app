@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -76,23 +77,50 @@ fun PluginWebSessionScreen(
     val popupWebViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val consoleError = remember(request.token) { mutableStateOf<String?>(null) }
     val capturedPackets = remember(request.token) { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
+    val pendingCompletion = remember(request.token) {
+        mutableStateOf<Pair<WebSessionPacket, Map<String, WebCapturedPacket>>?>(null)
+    }
     val autoNavigatedUrls = remember(request.token) { mutableStateOf<Set<String>>(emptySet()) }
     val webViewInitFailed = remember(request.token) { mutableStateOf(false) }
     val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
+    val sessionStartedAt = remember(request.token) { System.currentTimeMillis() }
+    val tickNow = remember(request.token) { mutableStateOf(System.currentTimeMillis()) }
+    androidx.compose.runtime.LaunchedEffect(request.token) {
+        while (true) {
+            kotlinx.coroutines.delay(1000)
+            tickNow.value = System.currentTimeMillis()
+        }
+    }
     val statusText = androidx.compose.runtime.derivedStateOf {
+        val elapsedSec = ((tickNow.value - sessionStartedAt) / 1000L).coerceAtLeast(0L)
+        val elapsedLabel = "${elapsedSec}s"
+        val packets = capturedPackets.value
+        val latestPacket = packets.values.maxByOrNull { it.timestamp }
+        val cookieCount = latestPacket?.cookies?.size ?: 0
+        val lsCount = latestPacket?.localStorageSnapshot?.size ?: 0
+        val ssCount = latestPacket?.sessionStorageSnapshot?.size ?: 0
         when {
             pageError.value != null -> "页面加载失败：${pageError.value}"
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
             popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
             consoleError.value != null -> "页面脚本提示：${consoleError.value}"
+            isFinishing.value -> "正在写入课表数据…（已用 $elapsedLabel）"
+            isCapturing.value -> "正在采集会话凭据…（已用 $elapsedLabel）"
             requiredPacketCount > 0 -> {
-                val captured = capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }
-                "已捕获数据包 $captured/$requiredPacketCount"
+                val captured = packets.count { it.value.id in requiredCapturePacketIds(request) }
+                buildString {
+                    append("数据包 $captured/$requiredPacketCount")
+                    if (cookieCount > 0) append(" · cookies $cookieCount")
+                    if (lsCount > 0) append(" · localStorage $lsCount")
+                    if (ssCount > 0) append(" · sessionStorage $ssCount")
+                    append(" · 已用 ").append(elapsedLabel)
+                }
             }
-            capturedPackets.value.isNotEmpty() -> "正在等待可用会话数据"
-            pageTitle.value.isNotBlank() -> "页面标题：${pageTitle.value}"
-            currentUrl.value.isNotBlank() -> "当前页面：${currentUrl.value}"
-            else -> "当前页面：等待加载"
+            packets.isNotEmpty() -> "等待可用会话数据…（已用 $elapsedLabel）"
+            loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%（已用 $elapsedLabel）"
+            pageTitle.value.isNotBlank() -> "已打开：${pageTitle.value}（已用 $elapsedLabel）"
+            currentUrl.value.isNotBlank() -> "正在访问：${currentUrl.value}"
+            else -> "等待页面加载…"
         }
     }
 
@@ -174,8 +202,12 @@ fun PluginWebSessionScreen(
                 ),
             )
         }
-        if (forceFinish || hasAllRequiredCapturePackets(request, updatedPackets)) {
+        if (forceFinish) {
             finishWithPacket(packet, updatedPackets)
+        } else if (hasAllRequiredCapturePackets(request, updatedPackets)) {
+            if (pendingCompletion.value == null && !isFinishing.value) {
+                pendingCompletion.value = packet to updatedPackets
+            }
         }
     }
 
@@ -352,6 +384,31 @@ fun PluginWebSessionScreen(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (requiredPacketCount > 0) {
+            val captured = capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }
+            val progress = (captured.toFloat() / requiredPacketCount).coerceIn(0f, 1f)
+            val animated by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = progress,
+                label = "capture-progress",
+            )
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { animated },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp),
+            )
+        } else if (loadProgress.value in 1..99) {
+            val animated by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = loadProgress.value / 100f,
+                label = "page-progress",
+            )
+            androidx.compose.material3.LinearProgressIndicator(
+                progress = { animated },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp),
+            )
+        }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -385,6 +442,25 @@ fun PluginWebSessionScreen(
                 .fillMaxWidth()
                 .weight(1f)
                 .padding(top = 2.dp),
+        )
+    }
+
+    pendingCompletion.value?.let { (packet, packets) ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingCompletion.value = null },
+            title = { Text("课表数据已就绪") },
+            text = { Text("已成功捕获本次同步所需数据，是否关闭插件页并写入课表？") },
+            confirmButton = {
+                Button(onClick = {
+                    pendingCompletion.value = null
+                    finishWithPacket(packet, packets)
+                }) { Text("关闭并写入") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingCompletion.value = null }) {
+                    Text("继续浏览")
+                }
+            },
         )
     }
 }

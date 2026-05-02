@@ -144,6 +144,7 @@ class MainActivity : ComponentActivity() {
                     var showTimeZoneDialog by rememberSaveable { mutableStateOf(false) }
                     var showClearTermStartConfirm by rememberSaveable { mutableStateOf(false) }
                     var showClearEverythingConfirm by rememberSaveable { mutableStateOf(false) }
+                    var showClearManualConfirm by rememberSaveable { mutableStateOf(false) }
                     var weekOffset by rememberSaveable { mutableIntStateOf(0) }
                     var dayOffset by rememberSaveable { mutableIntStateOf(0) }
                     var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.Week) }
@@ -304,6 +305,8 @@ class MainActivity : ComponentActivity() {
                                         viewModel = scheduleViewModel,
                                         overrideTermStart = prefs.termStartDate,
                                         weekOffset = weekOffset,
+                                        minWeekOffset = 1 - currentWeekIndex,
+                                        maxWeekOffset = weekPickerTotalWeeks - currentWeekIndex,
                                         onPrevWeek = { weekOffset -= 1 },
                                         onNextWeek = { weekOffset += 1 },
                                         onWeekOffsetChange = { weekOffset = it },
@@ -413,6 +416,25 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    if (showClearManualConfirm) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { showClearManualConfirm = false },
+                            title = { Text("清空手动课表") },
+                            text = {
+                                Text("将删除所有手动添加的课程，不影响插件同步的课表。此操作不可恢复，确定继续？")
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    scheduleViewModel.clearManualCourses()
+                                    showClearManualConfirm = false
+                                }) { Text("清空") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearManualConfirm = false }) { Text("取消") }
+                            },
+                        )
+                    }
+
                     if (showAddCourseDialog) {
                         AddCourseDialog(
                             onDismiss = { showAddCourseDialog = false },
@@ -463,8 +485,8 @@ class MainActivity : ComponentActivity() {
                                 showManageSheet = false
                             },
                             onClearAll = {
-                                scheduleViewModel.clearManualCourses()
                                 showManageSheet = false
+                                showClearManualConfirm = true
                             },
                             onClearEverything = {
                                 showManageSheet = false
