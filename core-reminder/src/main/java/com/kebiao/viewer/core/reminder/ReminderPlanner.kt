@@ -6,6 +6,7 @@ import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.findSlot
 import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
+import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
@@ -18,7 +19,7 @@ class ReminderPlanner {
         rule: ReminderRule,
         schedule: TermSchedule,
         timingProfile: TermTimingProfile,
-        fromDate: LocalDate = LocalDate.now(),
+        fromDate: LocalDate = BeijingTime.today(),
     ): List<ReminderPlan> {
         return schedule.dailySchedules
             .flatMap { it.courses }

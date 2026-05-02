@@ -83,8 +83,11 @@ import com.kebiao.viewer.core.plugin.ui.CourseBadgeRule
 import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.feature.plugin.PluginWebSessionScreen
+import com.kebiao.viewer.feature.schedule.time.LocalAppZone
+import com.kebiao.viewer.feature.schedule.time.today
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
@@ -99,6 +102,7 @@ fun ScheduleRoute(
     weekOffset: Int,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
+    onWeekOffsetChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
     overrideTermStart: LocalDate? = null,
     viewMode: ScheduleViewMode = ScheduleViewMode.Week,
@@ -129,6 +133,7 @@ fun ScheduleRoute(
         onCreateBulkReminder = viewModel::createReminderForCourses,
         onPrevWeek = onPrevWeek,
         onNextWeek = onNextWeek,
+        onWeekOffsetChange = onWeekOffsetChange,
         onPrevDay = onPrevDay,
         onNextDay = onNextDay,
         onResetDay = onResetDay,
@@ -163,6 +168,7 @@ fun ScheduleScreen(
     onOpenPluginMarket: () -> Unit,
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
+    onWeekOffsetChange: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     weekOffset: Int = 0,
     overrideTermStart: LocalDate? = null,
@@ -176,8 +182,9 @@ fun ScheduleScreen(
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
-    val displayedWeek = remember(state.timingProfile, weekOffset, overrideTermStart) {
-        buildWeekModel(state.timingProfile, weekOffset, overrideTermStart)
+    val zone = LocalAppZone.current
+    val displayedWeek = remember(state.timingProfile, weekOffset, overrideTermStart, zone) {
+        buildWeekModel(state.timingProfile, weekOffset, overrideTermStart, zone)
     }
     val visibleWeekNumber = displayedWeek.weekIndex
     val horizontalScrollState = rememberScrollState()
@@ -225,16 +232,16 @@ fun ScheduleScreen(
                     timingProfile = state.timingProfile,
                     uiSchema = state.uiSchema,
                     reminderRules = state.reminderRules,
-                    week = displayedWeek,
-                    visibleWeekNumber = visibleWeekNumber,
+                    weekOffset = weekOffset,
+                    overrideTermStart = overrideTermStart,
+                    zone = zone,
                     horizontalScrollState = horizontalScrollState,
                     selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                     multiSelectMode = multiSelectMode,
                     multiSelectedIds = selectedIds,
                     onCellClick = onCellClickHandler,
                     onCourseLongClick = onLongClickHandler,
-                    onPrevWeek = onPrevWeek,
-                    onNextWeek = onNextWeek,
+                    onWeekOffsetChange = onWeekOffsetChange,
                 )
 
                 ScheduleViewMode.Day -> DailyScheduleSection(
@@ -244,8 +251,8 @@ fun ScheduleScreen(
                     timingProfile = state.timingProfile,
                     uiSchema = state.uiSchema,
                     reminderRules = state.reminderRules,
-                    targetDate = LocalDate.now().plusDays(dayOffset.toLong()),
-                    targetWeekNumber = computeWeekNumber(state.timingProfile, overrideTermStart, dayOffset),
+                    targetDate = zone.today().plusDays(dayOffset.toLong()),
+                    targetWeekNumber = computeWeekNumber(state.timingProfile, overrideTermStart, dayOffset, zone),
                     selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                     multiSelectMode = multiSelectMode,
                     multiSelectedIds = selectedIds,
@@ -347,7 +354,7 @@ private fun ScheduleHeroSection(
     onNextWeek: () -> Unit,
     onResetWeek: () -> Unit,
 ) {
-    val today = LocalDate.now()
+    val today = LocalAppZone.current.today()
     val formatter = remember { DateTimeFormatter.ofPattern("yyyy/M/d") }
     val weekdayLabel = chineseWeekday(today.dayOfWeek)
 
@@ -703,6 +710,10 @@ internal fun MessageCard(
     }
 }
 
+private const val WeekPagerInitialPage = 5000
+private const val WeekPagerPageCount = 10000
+
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WeeklyScheduleSection(
     schedule: TermSchedule?,
@@ -710,16 +721,16 @@ private fun WeeklyScheduleSection(
     timingProfile: TermTimingProfile?,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
-    week: WeekModel,
-    visibleWeekNumber: Int,
+    weekOffset: Int,
+    overrideTermStart: LocalDate?,
+    zone: java.time.ZoneId,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>) -> Unit,
     onCourseLongClick: (String) -> Unit,
-    onPrevWeek: () -> Unit,
-    onNextWeek: () -> Unit,
+    onWeekOffsetChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(schedule, timingProfile, manualCourses) {
@@ -743,33 +754,57 @@ private fun WeeklyScheduleSection(
             if (slots.isEmpty() || allCourses.isEmpty()) {
                 EmptyWeekState(schedule = schedule)
             } else {
-                AnimatedContent(
-                    targetState = week,
-                    transitionSpec = {
-                        val direction = if (targetState.weekIndex > initialState.weekIndex) 1 else -1
-                        (slideInHorizontally(animationSpec = tween(280)) { full -> full * direction } +
-                            fadeIn(animationSpec = tween(280)))
-                            .togetherWith(
-                                slideOutHorizontally(animationSpec = tween(280)) { full -> -full * direction } +
-                                    fadeOut(animationSpec = tween(280))
-                            )
-                    },
-                    label = "week-grid",
-                    modifier = Modifier.fillMaxSize(),
-                ) { animatedWeek ->
-                    val animVwn = animatedWeek.weekIndex
-                    val active = allCourses
-                        .filter { it.isActiveInWeek(animVwn) }
-                        .mapNotNull { course ->
-                            val placement = coursePlacement(course, slots) ?: return@mapNotNull null
-                            CourseRenderEntry(course = course, placement = placement, inactive = false)
+                val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+                    initialPage = WeekPagerInitialPage + weekOffset,
+                    pageCount = { WeekPagerPageCount },
+                )
+                val pagerLatestRequest = androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableIntStateOf(weekOffset)
+                }
+                androidx.compose.runtime.LaunchedEffect(weekOffset) {
+                    if (weekOffset == pagerLatestRequest.intValue) return@LaunchedEffect
+                    pagerLatestRequest.intValue = weekOffset
+                    val target = WeekPagerInitialPage + weekOffset
+                    if (pagerState.currentPage != target) {
+                        pagerState.animateScrollToPage(target)
+                    }
+                }
+                androidx.compose.runtime.LaunchedEffect(pagerState) {
+                    androidx.compose.runtime.snapshotFlow {
+                        if (pagerState.isScrollInProgress) pagerState.targetPage
+                        else pagerState.currentPage
+                    }.collect { page ->
+                        val newOffset = page - WeekPagerInitialPage
+                        if (newOffset != pagerLatestRequest.intValue) {
+                            pagerLatestRequest.intValue = newOffset
+                            onWeekOffsetChange(newOffset)
                         }
+                    }
+                }
+
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 1,
+                ) { page ->
+                    val pageOffset = page - WeekPagerInitialPage
+                    val pageWeek = remember(timingProfile, pageOffset, overrideTermStart, zone) {
+                        buildWeekModel(timingProfile, pageOffset, overrideTermStart, zone)
+                    }
+                    val active = remember(allCourses, slots, pageWeek.weekIndex) {
+                        allCourses
+                            .filter { it.isActiveInWeek(pageWeek.weekIndex) }
+                            .mapNotNull { course ->
+                                val placement = coursePlacement(course, slots) ?: return@mapNotNull null
+                                CourseRenderEntry(course = course, placement = placement, inactive = false)
+                            }
+                    }
                     if (active.isEmpty()) {
                         EmptyWeekState(schedule = schedule)
                     } else {
                         ScheduleGrid(
                             modifier = Modifier.fillMaxSize(),
-                            week = animatedWeek,
+                            week = pageWeek,
                             slots = slots,
                             activeEntries = active,
                             uiSchema = uiSchema,
@@ -780,8 +815,6 @@ private fun WeeklyScheduleSection(
                             multiSelectedIds = multiSelectedIds,
                             onCellClick = onCellClick,
                             onCourseLongClick = onCourseLongClick,
-                            onPrevWeek = onPrevWeek,
-                            onNextWeek = onNextWeek,
                         )
                     }
                 }
@@ -815,7 +848,7 @@ private fun DailyScheduleSection(
     val allCourses = remember(schedule, manualCourses) {
         schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
     }
-    val today = LocalDate.now()
+    val today = LocalAppZone.current.today()
     val targetDayOfWeek = targetDate.dayOfWeek.value
 
     Card(
@@ -1147,8 +1180,9 @@ private fun computeWeekNumber(
     timingProfile: TermTimingProfile?,
     overrideTermStart: LocalDate?,
     dayOffset: Int,
+    zone: ZoneId,
 ): Int {
-    val target = LocalDate.now().plusDays(dayOffset.toLong())
+    val target = LocalDate.now(zone).plusDays(dayOffset.toLong())
     val termStart = overrideTermStart ?: timingProfile?.termStartLocalDate()
     val termStartMonday = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val targetMonday = target.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -1195,8 +1229,6 @@ private fun ScheduleGrid(
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>) -> Unit,
     onCourseLongClick: (String) -> Unit,
-    onPrevWeek: () -> Unit,
-    onNextWeek: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val cellGroups = remember(activeEntries) {
@@ -1211,27 +1243,8 @@ private fun ScheduleGrid(
     }
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
 
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val swipeThresholdPx = with(density) { 80.dp.toPx() }
-    var dragAccumulated by remember { mutableStateOf(0f) }
-    val swipeModifier = Modifier.pointerInput(Unit) {
-        detectHorizontalDragGestures(
-            onDragStart = { dragAccumulated = 0f },
-            onDragEnd = {
-                when {
-                    dragAccumulated > swipeThresholdPx -> onPrevWeek()
-                    dragAccumulated < -swipeThresholdPx -> onNextWeek()
-                }
-                dragAccumulated = 0f
-            },
-            onDragCancel = { dragAccumulated = 0f },
-        ) { _, delta -> dragAccumulated += delta }
-    }
-
     androidx.compose.foundation.layout.BoxWithConstraints(
-        modifier = modifier
-            .verticalScroll(rememberScrollState())
-            .then(swipeModifier),
+        modifier = modifier.verticalScroll(rememberScrollState()),
     ) {
         val timeColumnWidth = 32.dp
         val dayHeaderHeight = 52.dp
@@ -1327,48 +1340,43 @@ private fun DayHeader(
 ) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
+    val columnModifier = Modifier
+        .width(width)
+        .padding(horizontal = 2.dp)
+        .let {
+            if (day.isToday) {
+                it.clip(RoundedCornerShape(10.dp))
+                    .background(accents.todayContainer)
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+            } else {
+                it
+            }
+        }
     Column(
-        modifier = Modifier
-            .width(width)
-            .padding(horizontal = 1.dp, vertical = 2.dp),
+        modifier = columnModifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
             text = day.weekdayLabel,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            color = muted,
+            color = if (day.isToday) accents.todayOnContainer else muted,
             maxLines = 1,
             softWrap = false,
         )
-        if (day.isToday) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(accents.todayContainer)
-                    .padding(horizontal = 5.dp, vertical = 2.dp),
-            ) {
-                Text(
-                    text = day.dateLabel,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accents.todayOnContainer,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
-        } else {
-            Text(
-                text = day.dateLabel,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                modifier = Modifier.padding(vertical = 1.dp),
-                maxLines = 1,
-                softWrap = false,
-            )
-        }
+        Text(
+            text = day.dateLabel,
+            fontSize = 12.sp,
+            fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium,
+            color = if (day.isToday) {
+                accents.todayOnContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+            },
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
@@ -1813,8 +1821,9 @@ private fun buildWeekModel(
     timingProfile: TermTimingProfile?,
     weekOffset: Int,
     overrideTermStart: LocalDate? = null,
+    zone: ZoneId = ZoneId.of("Asia/Shanghai"),
 ): WeekModel {
-    val today = LocalDate.now()
+    val today = LocalDate.now(zone)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
     val termStart = overrideTermStart ?: timingProfile?.termStartLocalDate()
     val termStartWeek = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))

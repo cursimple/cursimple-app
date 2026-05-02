@@ -62,7 +62,7 @@ fun WeekPickerSheet(
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = onSetSelectedAsCurrent) {
-                    Text("修改当前周")
+                    Text("修改开学日期")
                 }
             }
 
