@@ -1055,7 +1055,11 @@ fun shouldSurfaceConsoleError(message: String?): Boolean {
     if (normalized.isBlank()) {
         return false
     }
-    return !normalized.contains("beangle is not defined", ignoreCase = true)
+    val knownEamsNoise = listOf(
+        "beangle is not defined",
+        "jQuery is not defined",
+    )
+    return knownEamsNoise.none { normalized.contains(it, ignoreCase = true) }
 }
 
 private fun rawCaptureSelectorsForRequest(request: WebSessionRequest): List<String> {
