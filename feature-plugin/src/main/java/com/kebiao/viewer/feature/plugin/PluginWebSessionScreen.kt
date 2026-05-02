@@ -13,6 +13,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
@@ -50,19 +52,21 @@ fun PluginWebSessionScreen(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val currentUrl = remember { mutableStateOf(request.startUrl) }
-    val webViewState = remember { mutableStateOf<WebView?>(null) }
-    val isFinishing = remember { mutableStateOf(false) }
-    val isCapturing = remember { mutableStateOf(false) }
-    val blockedUrl = remember { mutableStateOf<String?>(null) }
-    val pageError = remember { mutableStateOf<String?>(null) }
-    val pageTitle = remember { mutableStateOf("") }
-    val loadProgress = remember { mutableStateOf(0) }
-    val popupUrl = remember { mutableStateOf<String?>(null) }
-    val popupWebViewState = remember { mutableStateOf<WebView?>(null) }
-    val consoleError = remember { mutableStateOf<String?>(null) }
-    val latestPacket = remember { mutableStateOf<WebSessionPacket?>(null) }
-    val capturedPackets = remember { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
+    val currentUrl = remember(request.token) { mutableStateOf(request.startUrl) }
+    val webViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
+    val webViewHostState = remember(request.token) { mutableStateOf<FrameLayout?>(null) }
+    val isFinishing = remember(request.token) { mutableStateOf(false) }
+    val isCapturing = remember(request.token) { mutableStateOf(false) }
+    val blockedUrl = remember(request.token) { mutableStateOf<String?>(null) }
+    val pageError = remember(request.token) { mutableStateOf<String?>(null) }
+    val pageTitle = remember(request.token) { mutableStateOf("") }
+    val loadProgress = remember(request.token) { mutableStateOf(0) }
+    val popupUrl = remember(request.token) { mutableStateOf<String?>(null) }
+    val popupWebViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
+    val consoleError = remember(request.token) { mutableStateOf<String?>(null) }
+    val latestPacket = remember(request.token) { mutableStateOf<WebSessionPacket?>(null) }
+    val capturedPackets = remember(request.token) { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
+    val webViewInitFailed = remember(request.token) { mutableStateOf(false) }
     val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
     val captureSummary = remember(capturedPackets.value, requiredPacketCount) {
         if (requiredPacketCount > 0) {
@@ -218,11 +222,85 @@ fun PluginWebSessionScreen(
         }
     }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(request.token) {
         onDispose {
-            webViewState.value?.destroy()
+            val webView = webViewState.value
+            webViewHostState.value?.removeAllViews()
+            webView?.destroy()
             webViewState.value = null
+            webViewHostState.value = null
         }
+    }
+
+    LaunchedEffect(request.token, webViewHostState.value) {
+        val host = webViewHostState.value ?: return@LaunchedEffect
+        if (webViewState.value != null || webViewInitFailed.value) {
+            return@LaunchedEffect
+        }
+        delay(16)
+        if (webViewState.value != null || webViewInitFailed.value) {
+            return@LaunchedEffect
+        }
+        var createdWebView: WebView? = null
+        val webView = runCatching {
+            WebView(host.context).also { createdWebView = it }.apply {
+                configurePluginWebView(
+                    request = request,
+                    isForegroundWebView = ::isForegroundWebView,
+                    popupWebViewState = popupWebViewState,
+                    currentUrl = currentUrl,
+                    blockedUrl = blockedUrl,
+                    pageError = pageError,
+                    pageTitle = pageTitle,
+                    loadProgress = loadProgress,
+                    popupUrl = popupUrl,
+                    consoleError = consoleError,
+                    onPopupWebViewCreated = { popupWebView ->
+                        popupWebViewState.value = popupWebView
+                    },
+                    onPopupWebViewClosed = { popupWebView ->
+                        if (popupWebViewState.value === popupWebView) {
+                            popupWebViewState.value = null
+                            popupUrl.value = null
+                            currentUrl.value = webViewState.value?.url?.toString().orEmpty()
+                            blockedUrl.value = null
+                            pageTitle.value = ""
+                            loadProgress.value = 0
+                            pageError.value = null
+                            consoleError.value = null
+                        }
+                    },
+                    probeWebSession = { view, target -> probeWebSession(view, target) },
+                    handleNavigation = ::handleNavigation,
+                )
+            }
+        }.getOrElse { error ->
+            createdWebView?.destroy()
+            webViewInitFailed.value = true
+            pageError.value = "WebView 初始化失败，请稍后重试。"
+            PluginLogger.error(
+                "plugin.web_session.webview.init.failure",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "source" to "main",
+                    "errorClass" to error::class.java.name,
+                    "errorMessage" to error.message.orEmpty(),
+                ),
+                error,
+            )
+            return@LaunchedEffect
+        }
+        host.removeAllViews()
+        host.addView(
+            webView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        webViewState.value = webView
+        webView.loadUrl(request.startUrl)
     }
 
     Box(
@@ -297,42 +375,21 @@ fun PluginWebSessionScreen(
             ) {
                 AndroidView(
                     factory = { context ->
-                        WebView(context).apply {
-                            configurePluginWebView(
-                                request = request,
-                                isForegroundWebView = ::isForegroundWebView,
-                                popupWebViewState = popupWebViewState,
-                                currentUrl = currentUrl,
-                                blockedUrl = blockedUrl,
-                                pageError = pageError,
-                                pageTitle = pageTitle,
-                                loadProgress = loadProgress,
-                                popupUrl = popupUrl,
-                                consoleError = consoleError,
-                                onPopupWebViewCreated = { popupWebView ->
-                                    popupWebViewState.value = popupWebView
-                                },
-                                onPopupWebViewClosed = { popupWebView ->
-                                    if (popupWebViewState.value === popupWebView) {
-                                        popupWebViewState.value = null
-                                        popupUrl.value = null
-                                        currentUrl.value = webViewState.value?.url?.toString().orEmpty()
-                                        blockedUrl.value = null
-                                        pageTitle.value = ""
-                                        loadProgress.value = 0
-                                        pageError.value = null
-                                        consoleError.value = null
-                                    }
-                                },
-                                probeWebSession = { view, target -> probeWebSession(view, target) },
-                                handleNavigation = ::handleNavigation,
-                            )
-                            webViewState.value = this
-                            loadUrl(request.startUrl)
+                        FrameLayout(context).apply {
+                            webViewHostState.value = this
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
+
+                if (webViewState.value == null && !webViewInitFailed.value) {
+                    Text(
+                        text = "正在准备网页登录环境…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.Center),
+                    )
+                }
 
                 popupWebViewState.value?.let { popupWebView ->
                     DisposableEffect(popupWebView) {
@@ -409,23 +466,41 @@ private fun WebView.configurePluginWebView(
             resultMsg: Message?,
         ): Boolean {
             val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
-            val popupWebView = WebView(hostWebView.context).apply {
-                configurePluginWebView(
-                    request = request,
-                    isForegroundWebView = isForegroundWebView,
-                    popupWebViewState = popupWebViewState,
-                    currentUrl = currentUrl,
-                    blockedUrl = blockedUrl,
-                    pageError = pageError,
-                    pageTitle = pageTitle,
-                    loadProgress = loadProgress,
-                    popupUrl = popupUrl,
-                    consoleError = consoleError,
-                    onPopupWebViewCreated = onPopupWebViewCreated,
-                    onPopupWebViewClosed = onPopupWebViewClosed,
-                    probeWebSession = probeWebSession,
-                    handleNavigation = handleNavigation,
+            var createdWebView: WebView? = null
+            val popupWebView = runCatching {
+                WebView(hostWebView.context).also { createdWebView = it }.apply {
+                    configurePluginWebView(
+                        request = request,
+                        isForegroundWebView = isForegroundWebView,
+                        popupWebViewState = popupWebViewState,
+                        currentUrl = currentUrl,
+                        blockedUrl = blockedUrl,
+                        pageError = pageError,
+                        pageTitle = pageTitle,
+                        loadProgress = loadProgress,
+                        popupUrl = popupUrl,
+                        consoleError = consoleError,
+                        onPopupWebViewCreated = onPopupWebViewCreated,
+                        onPopupWebViewClosed = onPopupWebViewClosed,
+                        probeWebSession = probeWebSession,
+                        handleNavigation = handleNavigation,
+                    )
+                }
+            }.getOrElse { error ->
+                createdWebView?.destroy()
+                pageError.value = "浏览器弹窗初始化失败，请重试。"
+                PluginLogger.error(
+                    "plugin.web_session.webview.init.failure",
+                    mapOf(
+                        "pluginId" to request.pluginId,
+                        "sessionId" to request.sessionId,
+                        "source" to "popup",
+                        "errorClass" to error::class.java.name,
+                        "errorMessage" to error.message.orEmpty(),
+                    ),
+                    error,
                 )
+                return false
             }
             popupUrl.value = "已打开新窗口"
             PluginLogger.info(
