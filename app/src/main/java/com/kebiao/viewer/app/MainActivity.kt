@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -82,12 +83,13 @@ import com.kebiao.viewer.feature.schedule.ManageScheduleSheet
 import com.kebiao.viewer.feature.schedule.ScheduleRoute
 import com.kebiao.viewer.feature.schedule.ScheduleViewMode
 import com.kebiao.viewer.feature.schedule.ScheduleViewModel
+import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.feature.schedule.ScheduleViewModelFactory
+import com.kebiao.viewer.feature.schedule.time.LocalAppZone
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
@@ -111,6 +113,8 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
+                    val appZone = remember(prefs.timeZoneId) { BeijingTime.resolveZone(prefs.timeZoneId) }
+                    androidx.compose.runtime.CompositionLocalProvider(LocalAppZone provides appZone) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
@@ -123,12 +127,23 @@ class MainActivity : ComponentActivity() {
                     )
                     val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()
 
+                    androidx.compose.runtime.LaunchedEffect(scheduleState.installedPlugins, prefs.pluginsSeeded) {
+                        if (!prefs.pluginsSeeded && scheduleState.installedPlugins.isNotEmpty()) {
+                            prefsViewModel.seedEnabledPlugins(
+                                scheduleState.installedPlugins.map { it.pluginId }.toSet(),
+                            )
+                        }
+                    }
+
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
                     var showManageSheet by rememberSaveable { mutableStateOf(false) }
+                    var showTimeZoneDialog by rememberSaveable { mutableStateOf(false) }
+                    var showClearTermStartConfirm by rememberSaveable { mutableStateOf(false) }
+                    var showClearEverythingConfirm by rememberSaveable { mutableStateOf(false) }
                     var weekOffset by rememberSaveable { mutableIntStateOf(0) }
                     var dayOffset by rememberSaveable { mutableIntStateOf(0) }
                     var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.Week) }
@@ -136,7 +151,7 @@ class MainActivity : ComponentActivity() {
 
                     val effectiveTermStart = prefs.termStartDate
                         ?: scheduleState.timingProfile?.termStartLocalDate()
-                    val today = LocalDate.now()
+                    val today = LocalDate.now(appZone)
                     val currentWeekIndex = effectiveTermStart?.let { start ->
                         val termStartMonday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                         val todayMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -174,6 +189,7 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = currentScreen,
                                 themeMode = prefs.themeMode,
                                 termStartDate = prefs.termStartDate,
+                                timeZoneId = prefs.timeZoneId,
                                 currentWeekIndex = currentWeekIndex,
                                 onSelectScreen = {
                                     currentScreen = it
@@ -181,7 +197,8 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onPickThemeMode = { showThemeSheet = true },
                                 onPickTermStartDate = { showDatePicker = true },
-                                onClearTermStartDate = { prefsViewModel.setTermStartDate(null) },
+                                onClearTermStartDate = { showClearTermStartConfirm = true },
+                                onPickTimeZone = { showTimeZoneDialog = true },
                             )
                         },
                     ) {
@@ -289,6 +306,7 @@ class MainActivity : ComponentActivity() {
                                         weekOffset = weekOffset,
                                         onPrevWeek = { weekOffset -= 1 },
                                         onNextWeek = { weekOffset += 1 },
+                                        onWeekOffsetChange = { weekOffset = it },
                                         viewMode = scheduleViewMode,
                                         dayOffset = dayOffset,
                                         onPrevDay = { dayOffset -= 1 },
@@ -300,12 +318,12 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.Plugins -> PluginMarketRoute(
                                         installedPlugins = scheduleState.installedPlugins,
-                                        activePluginId = scheduleState.pluginId,
+                                        enabledPluginIds = prefs.enabledPluginIds,
+                                        syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
                                         syncStatusMessage = scheduleState.statusMessage,
-                                        isSyncing = scheduleState.isSyncing,
                                         pendingWebSession = scheduleState.pendingWebSession,
-                                        onSelectInstalledPlugin = scheduleViewModel::onPluginIdChange,
-                                        onSyncInstalledPlugin = scheduleViewModel::syncSchedule,
+                                        onSetPluginEnabled = prefsViewModel::setPluginEnabled,
+                                        onSyncPlugin = scheduleViewModel::syncSchedule,
                                         onCompleteWebSession = scheduleViewModel::completeWebSession,
                                         onCancelWebSession = scheduleViewModel::cancelWebSession,
                                         modifier = Modifier.fillMaxSize(),
@@ -313,7 +331,6 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.Reminders -> SettingsRoute(
                                         viewModel = scheduleViewModel,
-                                        onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -349,6 +366,53 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                    if (showTimeZoneDialog) {
+                        TimeZoneDialog(
+                            current = prefs.timeZoneId,
+                            onDismiss = { showTimeZoneDialog = false },
+                            onSelect = {
+                                prefsViewModel.setTimeZoneId(it)
+                                showTimeZoneDialog = false
+                            },
+                        )
+                    }
+
+                    if (showClearTermStartConfirm) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { showClearTermStartConfirm = false },
+                            title = { Text("清除开学日期") },
+                            text = { Text("清除后将无法计算当前周次，需要重新设置。确定继续？") },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    prefsViewModel.setTermStartDate(null)
+                                    showClearTermStartConfirm = false
+                                }) { Text("清除") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearTermStartConfirm = false }) { Text("取消") }
+                            },
+                        )
+                    }
+
+                    if (showClearEverythingConfirm) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { showClearEverythingConfirm = false },
+                            title = { Text("清空全部课表") },
+                            text = {
+                                Text("将删除手动添加的课程、插件同步的课表，以及全部提醒规则。此操作不可恢复，确定继续？")
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    scheduleViewModel.clearAllSchedules()
+                                    showClearEverythingConfirm = false
+                                }) { Text("清空") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showClearEverythingConfirm = false }) { Text("取消") }
+                            },
+                        )
+                    }
+
                     if (showAddCourseDialog) {
                         AddCourseDialog(
                             onDismiss = { showAddCourseDialog = false },
@@ -379,12 +443,8 @@ class MainActivity : ComponentActivity() {
                                 showWeekMenu = false
                             },
                             onSetSelectedAsCurrent = {
-                                val newTermStart = LocalDate.now()
-                                    .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                                    .minusWeeks((displayedWeekIndex - 1).toLong())
-                                prefsViewModel.setTermStartDate(newTermStart)
-                                weekOffset = 0
                                 showWeekMenu = false
+                                showDatePicker = true
                             },
                             onDismiss = { showWeekMenu = false },
                         )
@@ -406,8 +466,13 @@ class MainActivity : ComponentActivity() {
                                 scheduleViewModel.clearManualCourses()
                                 showManageSheet = false
                             },
+                            onClearEverything = {
+                                showManageSheet = false
+                                showClearEverythingConfirm = true
+                            },
                             onRemoveCourse = scheduleViewModel::removeManualCourse,
                         )
+                    }
                     }
                 }
             }
@@ -430,13 +495,16 @@ private fun AppDrawer(
     currentScreen: MainActivity.AppScreen,
     themeMode: ThemeMode,
     termStartDate: LocalDate?,
+    timeZoneId: String,
     currentWeekIndex: Int,
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
     onPickThemeMode: () -> Unit,
     onPickTermStartDate: () -> Unit,
     onClearTermStartDate: () -> Unit,
+    onPickTimeZone: () -> Unit,
 ) {
     ModalDrawerSheet(
+        modifier = Modifier.fillMaxWidth(0.72f),
         drawerContainerColor = MaterialTheme.colorScheme.surface,
     ) {
         Column(
@@ -511,6 +579,13 @@ private fun AppDrawer(
                 } else null,
             )
 
+            DrawerActionRow(
+                icon = Icons.Rounded.Public,
+                title = "时区",
+                subtitle = timeZoneLabel(timeZoneId),
+                onClick = onPickTimeZone,
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Spacer(modifier = Modifier.height(12.dp))
@@ -577,8 +652,9 @@ private fun TermStartDatePicker(
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
 ) {
-    val initialMillis = (initial ?: LocalDate.now())
-        .atStartOfDay(ZoneId.systemDefault())
+    val zone = LocalAppZone.current
+    val initialMillis = (initial ?: LocalDate.now(zone))
+        .atStartOfDay(zone)
         .toInstant()
         .toEpochMilli()
     val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
@@ -589,7 +665,7 @@ private fun TermStartDatePicker(
                 onClick = {
                     state.selectedDateMillis?.let { millis ->
                         val date = Instant.ofEpochMilli(millis)
-                            .atZone(ZoneId.systemDefault())
+                            .atZone(zone)
                             .toLocalDate()
                         onConfirm(date)
                     }
@@ -635,6 +711,71 @@ private fun ThemeModeDialog(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(label, style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+    )
+}
+
+private data class TimeZoneOption(val id: String, val label: String)
+
+private val timeZonePresets = listOf(
+    TimeZoneOption("Asia/Shanghai", "北京时间 (UTC+8)"),
+    TimeZoneOption("Asia/Tokyo", "东京 (UTC+9)"),
+    TimeZoneOption("Asia/Singapore", "新加坡 (UTC+8)"),
+    TimeZoneOption("Asia/Kolkata", "印度 (UTC+5:30)"),
+    TimeZoneOption("Europe/London", "伦敦 (UTC+0/+1)"),
+    TimeZoneOption("Europe/Paris", "巴黎 (UTC+1/+2)"),
+    TimeZoneOption("America/New_York", "纽约 (UTC-5/-4)"),
+    TimeZoneOption("America/Los_Angeles", "洛杉矶 (UTC-8/-7)"),
+)
+
+private fun timeZoneLabel(id: String): String =
+    timeZonePresets.firstOrNull { it.id == id }?.label ?: id
+
+@Composable
+private fun TimeZoneDialog(
+    current: String,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    val options = remember(current) {
+        if (timeZonePresets.any { it.id == current }) timeZonePresets
+        else timeZonePresets + TimeZoneOption(current, current)
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("时区") },
+        text = {
+            Column {
+                options.forEach { option ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelect(option.id) }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = option.id == current,
+                            onClick = { onSelect(option.id) },
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(option.label, style = MaterialTheme.typography.bodyLarge)
+                            if (option.label != option.id) {
+                                Text(
+                                    text = option.id,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
             }

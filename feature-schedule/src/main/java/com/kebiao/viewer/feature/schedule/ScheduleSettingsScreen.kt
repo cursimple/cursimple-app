@@ -14,11 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
@@ -35,7 +32,6 @@ import com.kebiao.viewer.feature.plugin.PluginWebSessionScreen
 @Composable
 fun ScheduleSettingsRoute(
     viewModel: ScheduleViewModel,
-    onOpenPluginMarket: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -45,7 +41,6 @@ fun ScheduleSettingsRoute(
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
         onRemoveReminderRule = viewModel::removeReminderRule,
-        onOpenPluginMarket = onOpenPluginMarket,
         onCompleteWebSession = viewModel::completeWebSession,
         onCancelWebSession = viewModel::cancelWebSession,
         modifier = modifier,
@@ -59,7 +54,6 @@ fun ScheduleSettingsScreen(
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
-    onOpenPluginMarket: () -> Unit,
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
@@ -70,9 +64,6 @@ fun ScheduleSettingsScreen(
         selectedCourseFromState(state.selectionState, state.schedule)
     }
     val scrollState = rememberScrollState()
-    val selectedPlugin = remember(state.installedPlugins, state.pluginId) {
-        state.installedPlugins.firstOrNull { it.pluginId == state.pluginId }
-    }
 
     val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
@@ -91,15 +82,6 @@ fun ScheduleSettingsScreen(
                 .padding(horizontal = 18.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            SettingsHeaderCard(
-                pluginName = selectedPlugin?.name,
-                pluginVersion = selectedPlugin?.version,
-                statusMessage = state.statusMessage,
-                onOpenPluginMarket = onOpenPluginMarket,
-            )
-
-            PluginBannerSection(state.uiSchema)
-
             val statusLines = buildList {
                 state.statusMessage?.takeIf(String::isNotBlank)?.let(::add)
                 addAll(state.messages)
@@ -179,46 +161,3 @@ fun ScheduleSettingsScreen(
     }
 }
 
-@Composable
-private fun SettingsHeaderCard(
-    pluginName: String?,
-    pluginVersion: String?,
-    statusMessage: String?,
-    onOpenPluginMarket: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(30.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = "设置",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = when {
-                    pluginName.isNullOrBlank() -> "先去插件页查看长江大学插件，课表同步入口已经移动到插件卡片里。"
-                    pluginVersion.isNullOrBlank() -> "当前插件：$pluginName。课表同步入口已移动到插件页。"
-                    else -> "当前插件：$pluginName $pluginVersion。课表同步入口已移动到插件页。"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (!statusMessage.isNullOrBlank()) {
-                Text(
-                    text = statusMessage,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Button(onClick = onOpenPluginMarket) {
-                Text("打开插件页")
-            }
-        }
-    }
-}

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -24,6 +25,9 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
                 ?: ThemeMode.Light,
             termStartDate = prefs[KEY_TERM_START_EPOCH_DAY]?.let(LocalDate::ofEpochDay),
             developerModeEnabled = prefs[KEY_DEVELOPER_MODE] ?: false,
+            timeZoneId = prefs[KEY_TIME_ZONE_ID] ?: UserPreferences.DEFAULT_TIME_ZONE_ID,
+            enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
+            pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
         )
     }
 
@@ -45,9 +49,34 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
         store.edit { prefs -> prefs[KEY_DEVELOPER_MODE] = enabled }
     }
 
+    override suspend fun setTimeZoneId(timeZoneId: String) {
+        store.edit { prefs -> prefs[KEY_TIME_ZONE_ID] = timeZoneId }
+    }
+
+    override suspend fun setPluginEnabled(pluginId: String, enabled: Boolean) {
+        store.edit { prefs ->
+            val current = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toMutableSet()
+            if (enabled) current += pluginId else current -= pluginId
+            prefs[KEY_ENABLED_PLUGIN_IDS] = current
+        }
+    }
+
+    override suspend fun seedEnabledPlugins(pluginIds: Set<String>) {
+        store.edit { prefs ->
+            if (prefs[KEY_PLUGINS_SEEDED] == true) return@edit
+            val current = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toMutableSet()
+            current += pluginIds
+            prefs[KEY_ENABLED_PLUGIN_IDS] = current
+            prefs[KEY_PLUGINS_SEEDED] = true
+        }
+    }
+
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_TERM_START_EPOCH_DAY = longPreferencesKey("term_start_epoch_day")
         val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val KEY_TIME_ZONE_ID = stringPreferencesKey("time_zone_id")
+        val KEY_ENABLED_PLUGIN_IDS = stringSetPreferencesKey("enabled_plugin_ids")
+        val KEY_PLUGINS_SEEDED = booleanPreferencesKey("plugins_seeded")
     }
 }

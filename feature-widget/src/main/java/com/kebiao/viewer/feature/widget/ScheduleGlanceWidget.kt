@@ -24,13 +24,16 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
+import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.data.widget.WidgetDay
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
+import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import kotlinx.coroutines.flow.first
-import java.util.Calendar
+import java.time.LocalDate
+import java.time.ZoneId
 
 class ScheduleGlanceWidget : GlanceAppWidget() {
 
@@ -38,12 +41,14 @@ class ScheduleGlanceWidget : GlanceAppWidget() {
         val scheduleRepository = DataStoreScheduleRepository(context.applicationContext)
         val reminderRepository = DataStoreReminderRepository(context.applicationContext)
         val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(context.applicationContext)
+        val userPreferencesRepository = DataStoreUserPreferencesRepository(context.applicationContext)
         val schedule = scheduleRepository.scheduleFlow.first()
         val widgetDay = widgetPreferencesRepository.widgetDayFlow.first()
         val reminderRules = reminderRepository.reminderRulesFlow.first()
+        val zone = BeijingTime.resolveZone(userPreferencesRepository.preferencesFlow.first().timeZoneId)
         val dayOfWeek = when (widgetDay) {
-            WidgetDay.Today -> todayDayOfWeek()
-            WidgetDay.Tomorrow -> tomorrowDayOfWeek()
+            WidgetDay.Today -> todayDayOfWeek(zone)
+            WidgetDay.Tomorrow -> tomorrowDayOfWeek(zone)
         }
         val courses = schedule
             ?.coursesOfDay(dayOfWeek)
@@ -109,17 +114,9 @@ class ScheduleGlanceWidget : GlanceAppWidget() {
         updateAll(context)
     }
 
-    private fun todayDayOfWeek(): Int {
-        val calendarDay = Calendar.getInstance().get(Calendar.DAY_OF_WEEK)
-        return when (calendarDay) {
-            Calendar.SUNDAY -> 7
-            else -> calendarDay - 1
-        }
-    }
+    private fun todayDayOfWeek(zone: ZoneId): Int = LocalDate.now(zone).dayOfWeek.value
 
-    private fun tomorrowDayOfWeek(): Int {
-        return (todayDayOfWeek() % 7) + 1
-    }
+    private fun tomorrowDayOfWeek(zone: ZoneId): Int = (todayDayOfWeek(zone) % 7) + 1
 
     private fun buildCourseLine(
         title: String,
