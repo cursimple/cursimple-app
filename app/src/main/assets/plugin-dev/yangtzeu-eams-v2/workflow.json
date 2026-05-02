@@ -22,6 +22,27 @@
       "captureSelectors": [
         "title"
       ],
+      "capturePackets": [
+        {
+          "id": "atrust-shortcut",
+          "required": false,
+          "urlHost": "atrust.yangtzeu.edu.cn",
+          "urlPathContains": "/portal/shortcut.html",
+          "captureSelectors": [
+            "title"
+          ]
+        },
+        {
+          "id": "eams-course-home",
+          "required": true,
+          "urlHost": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+          "urlPathContains": "/eams/courseTableForStd.action",
+          "captureSelectors": [
+            "title"
+          ],
+          "minCookieCount": 1
+        }
+      ],
       "extractCookies": true,
       "extractLocalStorage": true,
       "extractSessionStorage": true,

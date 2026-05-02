@@ -204,6 +204,7 @@ class DefaultWorkflowEngine(
                             completionUrlContains = step.completionUrlContains?.let { renderTemplate(it, execution) },
                             userAgent = renderTemplate(step.userAgent.orEmpty(), execution).takeIf(String::isNotBlank),
                             captureSelectors = step.captureSelectors,
+                            capturePackets = step.capturePackets,
                             extractCookies = step.extractCookies,
                             extractLocalStorage = step.extractLocalStorage,
                             extractSessionStorage = step.extractSessionStorage,
@@ -218,6 +219,7 @@ class DefaultWorkflowEngine(
                                 "completionUrlContainsPresent" to !request.completionUrlContains.isNullOrBlank(),
                                 "allowedHostCount" to request.allowedHosts.size,
                                 "captureSelectorCount" to request.captureSelectors.size,
+                                "capturePacketCount" to request.capturePackets.size,
                                 "extractCookies" to request.extractCookies,
                                 "extractLocalStorage" to request.extractLocalStorage,
                                 "extractSessionStorage" to request.extractSessionStorage,
@@ -488,6 +490,21 @@ class DefaultWorkflowEngine(
             "localStorage" -> packet.localStorageSnapshot[segments.getOrNull(2)]
             "sessionStorage" -> packet.sessionStorageSnapshot[segments.getOrNull(2)]
             "field" -> packet.capturedFields[segments.getOrNull(2)]
+            "packet" -> resolveCapturedPacketExpression(packet, segments.drop(2))
+            else -> null
+        }
+    }
+
+    private fun resolveCapturedPacketExpression(packet: WebSessionPacket, segments: List<String>): String? {
+        val packetId = segments.getOrNull(0) ?: return null
+        val captured = packet.capturedPackets[packetId] ?: return null
+        return when (segments.getOrNull(1)) {
+            "finalUrl" -> captured.finalUrl
+            "htmlDigest" -> captured.htmlDigest
+            "cookie" -> captured.cookies[segments.getOrNull(2)]
+            "localStorage" -> captured.localStorageSnapshot[segments.getOrNull(2)]
+            "sessionStorage" -> captured.sessionStorageSnapshot[segments.getOrNull(2)]
+            "field" -> captured.capturedFields[segments.getOrNull(2)]
             else -> null
         }
     }

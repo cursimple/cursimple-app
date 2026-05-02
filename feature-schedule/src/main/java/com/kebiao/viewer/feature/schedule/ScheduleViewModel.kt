@@ -204,6 +204,7 @@ class ScheduleViewModel(
                     "localStorageCount" to packet.localStorageSnapshot.size,
                     "sessionStorageCount" to packet.sessionStorageSnapshot.size,
                     "capturedFieldCount" to packet.capturedFields.size,
+                    "capturedPacketCount" to packet.capturedPackets.size,
                     "htmlDigest" to packet.htmlDigest,
                 ),
             )

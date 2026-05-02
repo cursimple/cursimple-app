@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -32,8 +33,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import com.kebiao.viewer.core.plugin.logging.PluginLogger
+import com.kebiao.viewer.core.plugin.web.WebCapturedPacket
+import com.kebiao.viewer.core.plugin.web.WebSessionCaptureSpec
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
+import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.security.MessageDigest
 import java.time.OffsetDateTime
@@ -49,6 +53,7 @@ fun PluginWebSessionScreen(
     val currentUrl = remember { mutableStateOf(request.startUrl) }
     val webViewState = remember { mutableStateOf<WebView?>(null) }
     val isFinishing = remember { mutableStateOf(false) }
+    val isCapturing = remember { mutableStateOf(false) }
     val blockedUrl = remember { mutableStateOf<String?>(null) }
     val pageError = remember { mutableStateOf<String?>(null) }
     val pageTitle = remember { mutableStateOf("") }
@@ -56,6 +61,16 @@ fun PluginWebSessionScreen(
     val popupUrl = remember { mutableStateOf<String?>(null) }
     val popupWebViewState = remember { mutableStateOf<WebView?>(null) }
     val consoleError = remember { mutableStateOf<String?>(null) }
+    val latestPacket = remember { mutableStateOf<WebSessionPacket?>(null) }
+    val capturedPackets = remember { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
+    val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
+    val captureSummary = remember(capturedPackets.value, requiredPacketCount) {
+        if (requiredPacketCount > 0) {
+            "已捕获数据包 ${capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }}/$requiredPacketCount"
+        } else {
+            "正在等待可用会话数据"
+        }
+    }
     val statusText = remember(
         currentUrl.value,
         blockedUrl.value,
@@ -64,12 +79,16 @@ fun PluginWebSessionScreen(
         loadProgress.value,
         popupUrl.value,
         consoleError.value,
+        captureSummary,
+        isCapturing.value,
     ) {
         when {
             pageError.value != null -> "页面加载失败：${pageError.value}"
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
             popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
             consoleError.value != null -> "页面脚本提示：${consoleError.value}"
+            isCapturing.value -> "正在采集会话数据：${currentUrl.value}"
+            capturedPackets.value.isNotEmpty() -> captureSummary
             loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%：${currentUrl.value}"
             pageTitle.value.isNotBlank() -> "页面标题：${pageTitle.value}"
             currentUrl.value.isNotBlank() -> "当前页面：${currentUrl.value}"
@@ -85,6 +104,8 @@ fun PluginWebSessionScreen(
             view === webViewState.value
         }
     }
+
+    fun foregroundWebView(): WebView? = popupWebViewState.value ?: webViewState.value
 
     fun handleNavigation(view: WebView?, target: String): Boolean {
         if (target.isBlank() || isInternalWebViewUrl(target)) {
@@ -116,29 +137,84 @@ fun PluginWebSessionScreen(
         return false
     }
 
-    fun completeIfNeeded(view: WebView?, target: String) {
-        if (
-            !isFinishing.value &&
-            shouldAutoComplete(target, request.completionUrlContains)
-        ) {
-            val webView = view ?: return
-            isFinishing.value = true
+    fun finishWithPacket(packet: WebSessionPacket, packets: Map<String, WebCapturedPacket>) {
+        if (isFinishing.value) {
+            return
+        }
+        isFinishing.value = true
+        val finalPacket = aggregateWebSessionPacket(request, packet, packets)
+        PluginLogger.info(
+            "plugin.web_session.capture.complete",
+            mapOf(
+                "pluginId" to request.pluginId,
+                "sessionId" to request.sessionId,
+                "finalUrl" to PluginLogger.sanitizeUrl(finalPacket.finalUrl),
+                "capturedPacketCount" to finalPacket.capturedPackets.size,
+                "requiredPacketCount" to requiredCapturePacketCount(request),
+            ),
+        )
+        onFinish(finalPacket)
+    }
+
+    fun handleCapturedSnapshot(packet: WebSessionPacket, forceFinish: Boolean) {
+        latestPacket.value = packet
+        val newPackets = readyCaptureSpecs(request, packet)
+            .filterNot { capturedPackets.value.containsKey(it.id) }
+            .associate { spec -> spec.id to packet.toCapturedPacket(spec.id) }
+        val updatedPackets = capturedPackets.value + newPackets
+        if (newPackets.isNotEmpty()) {
+            capturedPackets.value = updatedPackets
             PluginLogger.info(
-                "plugin.web_session.auto_complete.start",
+                "plugin.web_session.capture.packet_ready",
                 mapOf(
                     "pluginId" to request.pluginId,
                     "sessionId" to request.sessionId,
-                    "finalUrl" to PluginLogger.sanitizeUrl(target),
+                    "packetIds" to newPackets.keys.joinToString(","),
+                    "capturedPacketCount" to updatedPackets.size,
+                    "requiredPacketCount" to requiredCapturePacketCount(request),
                 ),
             )
-            captureWebSessionPacket(
-                webView = webView,
-                request = request,
-                currentUrl = target,
-            ) { packet ->
-                isFinishing.value = false
-                onFinish(packet)
-            }
+        }
+        if (forceFinish || hasAllRequiredCapturePackets(request, updatedPackets)) {
+            finishWithPacket(packet, updatedPackets)
+        }
+    }
+
+    fun probeWebSession(view: WebView?, target: String, forceFinish: Boolean = false) {
+        val webView = view ?: return
+        if (!forceFinish && effectiveCaptureSpecs(request).isEmpty()) {
+            return
+        }
+        if (isFinishing.value || isCapturing.value || !isForegroundWebView(webView)) {
+            return
+        }
+        isCapturing.value = true
+        PluginLogger.info(
+            "plugin.web_session.capture.probe",
+            mapOf(
+                "pluginId" to request.pluginId,
+                "sessionId" to request.sessionId,
+                "url" to PluginLogger.sanitizeUrl(target),
+                "capturedPacketCount" to capturedPackets.value.size,
+                "requiredPacketCount" to requiredCapturePacketCount(request),
+            ),
+        )
+        captureWebSessionPacket(
+            webView = webView,
+            request = request,
+            currentUrl = target,
+        ) { packet ->
+            isCapturing.value = false
+            handleCapturedSnapshot(packet, forceFinish)
+        }
+    }
+
+    LaunchedEffect(request.token) {
+        while (true) {
+            delay(800)
+            val webView = foregroundWebView() ?: continue
+            val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
+            probeWebSession(webView, target)
         }
     }
 
@@ -177,11 +253,10 @@ fun PluginWebSessionScreen(
                 }
                 Button(
                     onClick = {
-                        val webView = webViewState.value ?: return@Button
-                        if (isFinishing.value) {
+                        val webView = foregroundWebView() ?: return@Button
+                        if (isFinishing.value || isCapturing.value) {
                             return@Button
                         }
-                        isFinishing.value = true
                         PluginLogger.info(
                             "plugin.web_session.manual_complete.start",
                             mapOf(
@@ -190,23 +265,17 @@ fun PluginWebSessionScreen(
                                 "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
                             ),
                         )
-                        captureWebSessionPacket(
-                            webView = webView,
-                            request = request,
-                            currentUrl = currentUrl.value,
-                        ) { packet ->
-                            isFinishing.value = false
-                            onFinish(packet)
-                        }
+                        val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
+                        probeWebSession(webView, target, forceFinish = true)
                     },
-                    enabled = !isFinishing.value,
+                    enabled = !isFinishing.value && !isCapturing.value,
                 ) {
-                    Text(if (isFinishing.value) "正在回传..." else "手动完成并回传")
+                    Text(if (isFinishing.value || isCapturing.value) "正在回传..." else "手动完成并回传")
                 }
             }
-            if (!request.completionUrlContains.isNullOrBlank()) {
+            if (effectiveCaptureSpecs(request).isNotEmpty()) {
                 Text(
-                    text = "到达目标教务页面后会自动继续；如果没有自动继续，可以手动回传。",
+                    text = "正在等待插件声明的数据包，全部必需数据到齐后会自动继续。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -255,7 +324,7 @@ fun PluginWebSessionScreen(
                                         consoleError.value = null
                                     }
                                 },
-                                completeIfNeeded = ::completeIfNeeded,
+                                probeWebSession = { view, target -> probeWebSession(view, target) },
                                 handleNavigation = ::handleNavigation,
                             )
                             webViewState.value = this
@@ -294,7 +363,7 @@ private fun WebView.configurePluginWebView(
     consoleError: androidx.compose.runtime.MutableState<String?>,
     onPopupWebViewCreated: (WebView) -> Unit,
     onPopupWebViewClosed: (WebView) -> Unit,
-    completeIfNeeded: (WebView?, String) -> Unit,
+    probeWebSession: (WebView?, String) -> Unit,
     handleNavigation: (WebView?, String) -> Boolean,
 ) {
     applyPluginBrowserSettings(request)
@@ -354,7 +423,7 @@ private fun WebView.configurePluginWebView(
                     consoleError = consoleError,
                     onPopupWebViewCreated = onPopupWebViewCreated,
                     onPopupWebViewClosed = onPopupWebViewClosed,
-                    completeIfNeeded = completeIfNeeded,
+                    probeWebSession = probeWebSession,
                     handleNavigation = handleNavigation,
                 )
             }
@@ -481,7 +550,7 @@ private fun WebView.configurePluginWebView(
                     "url" to PluginLogger.sanitizeUrl(target),
                 ),
             )
-            completeIfNeeded(view, target)
+            probeWebSession(view, target)
         }
     }
 }
@@ -520,13 +589,15 @@ private fun captureWebSessionPacket(
 ) {
     val fallbackPacket = emptyWebSessionPacket(request, currentUrl)
     val startedAt = System.currentTimeMillis()
+    val captureSelectors = captureSelectorsForRequest(request)
     PluginLogger.info(
         "plugin.web_session.capture.start",
         mapOf(
             "pluginId" to request.pluginId,
             "sessionId" to request.sessionId,
             "url" to PluginLogger.sanitizeUrl(currentUrl),
-            "captureSelectorCount" to request.captureSelectors.size,
+            "captureSelectorCount" to captureSelectors.size,
+            "capturePacketCount" to effectiveCaptureSpecs(request).size,
         ),
     )
     val cookies = runCatching {
@@ -551,7 +622,7 @@ private fun captureWebSessionPacket(
             };
             const fields = {};
             try {
-              ${request.captureSelectors.joinToString("\n") { selector ->
+              ${captureSelectors.joinToString("\n") { selector ->
                   val nodeName = "node_${selector.hashCode().toString().replace("-", "_")}"
                   """try { const $nodeName = document.querySelector(${selector.quoteJs()}); if ($nodeName) { fields[${selector.quoteJs()}] = (($nodeName.value || $nodeName.textContent || "") + "").trim(); } } catch (error) {}"""
               }}
@@ -627,7 +698,8 @@ private fun emptyWebSessionPacket(
         localStorageSnapshot = emptyMap(),
         sessionStorageSnapshot = emptyMap(),
         htmlDigest = sha256(""),
-        capturedFields = request.captureSelectors.associateWith { "" },
+        capturedFields = captureSelectorsForRequest(request).associateWith { "" },
+        capturedPackets = emptyMap(),
         timestamp = OffsetDateTime.now().toString(),
     )
 }
@@ -662,14 +734,153 @@ private fun collectCookies(
     return cookies
 }
 
-private fun shouldAutoComplete(
-    url: String,
-    completionUrlContains: String?,
+fun effectiveCaptureSpecs(request: WebSessionRequest): List<WebSessionCaptureSpec> {
+    if (request.capturePackets.isNotEmpty()) {
+        return request.capturePackets
+    }
+    val legacyCompletion = request.completionUrlContains?.takeIf(String::isNotBlank)
+    if (legacyCompletion == null && request.captureSelectors.isEmpty()) {
+        return emptyList()
+    }
+    return listOf(
+        WebSessionCaptureSpec(
+            id = request.sessionId,
+            required = true,
+            urlContains = legacyCompletion,
+            captureSelectors = request.captureSelectors,
+        ),
+    )
+}
+
+fun captureSelectorsForRequest(request: WebSessionRequest): List<String> {
+    return (
+        request.captureSelectors +
+            effectiveCaptureSpecs(request).flatMap { spec -> spec.captureSelectors + spec.requiredSelectors }
+        )
+        .filter(String::isNotBlank)
+        .distinct()
+}
+
+fun requiredCapturePacketIds(request: WebSessionRequest): Set<String> {
+    return effectiveCaptureSpecs(request)
+        .filter(WebSessionCaptureSpec::required)
+        .map(WebSessionCaptureSpec::id)
+        .toSet()
+}
+
+fun requiredCapturePacketCount(request: WebSessionRequest): Int {
+    return requiredCapturePacketIds(request).size
+}
+
+fun readyCaptureSpecs(request: WebSessionRequest, packet: WebSessionPacket): List<WebSessionCaptureSpec> {
+    return effectiveCaptureSpecs(request).filter { spec -> isCaptureSpecReady(spec, packet) }
+}
+
+fun hasAllRequiredCapturePackets(
+    request: WebSessionRequest,
+    packets: Map<String, WebCapturedPacket>,
 ): Boolean {
-    return completionUrlContains
-        ?.takeIf(String::isNotBlank)
-        ?.let { expected -> url.contains(expected, ignoreCase = true) }
-        ?: false
+    val requiredIds = requiredCapturePacketIds(request)
+    return requiredIds.isNotEmpty() && packets.keys.containsAll(requiredIds)
+}
+
+fun isCaptureSpecReady(spec: WebSessionCaptureSpec, packet: WebSessionPacket): Boolean {
+    if (spec.id.isBlank()) {
+        return false
+    }
+    val urlContains = spec.urlContains
+    val urlHost = spec.urlHost
+    val urlPathContains = spec.urlPathContains
+    if (!urlContains.isNullOrBlank() && !packet.finalUrl.contains(urlContains, ignoreCase = true)) {
+        return false
+    }
+    if (!urlHost.isNullOrBlank() && !urlHostMatches(packet.finalUrl, urlHost)) {
+        return false
+    }
+    if (!urlPathContains.isNullOrBlank() && !urlPathContains(packet.finalUrl, urlPathContains)) {
+        return false
+    }
+    if (packet.cookies.size < spec.minCookieCount) {
+        return false
+    }
+    if (packet.localStorageSnapshot.size < spec.minLocalStorageCount) {
+        return false
+    }
+    if (packet.sessionStorageSnapshot.size < spec.minSessionStorageCount) {
+        return false
+    }
+    if (!spec.requiredCookies.all(packet.cookies::containsKey)) {
+        return false
+    }
+    if (!spec.requiredLocalStorageKeys.all(packet.localStorageSnapshot::containsKey)) {
+        return false
+    }
+    if (!spec.requiredSessionStorageKeys.all(packet.sessionStorageSnapshot::containsKey)) {
+        return false
+    }
+    val requiredSelectors = spec.requiredSelectors.ifEmpty { spec.captureSelectors }
+    return requiredSelectors.all { selector -> !packet.capturedFields[selector].isNullOrBlank() }
+}
+
+fun aggregateWebSessionPacket(
+    request: WebSessionRequest,
+    latestPacket: WebSessionPacket,
+    packets: Map<String, WebCapturedPacket>,
+): WebSessionPacket {
+    if (packets.isEmpty()) {
+        return latestPacket
+    }
+    val orderedPackets = effectiveCaptureSpecs(request)
+        .mapNotNull { spec -> packets[spec.id]?.let { spec.id to it } }
+        .toMap() + packets.filterKeys { id -> effectiveCaptureSpecs(request).none { it.id == id } }
+    val mergedCookies = linkedMapOf<String, String>()
+    val mergedLocalStorage = linkedMapOf<String, String>()
+    val mergedSessionStorage = linkedMapOf<String, String>()
+    val mergedFields = linkedMapOf<String, String>()
+    orderedPackets.values.forEach { packet ->
+        mergedCookies.putAll(packet.cookies)
+        mergedLocalStorage.putAll(packet.localStorageSnapshot)
+        mergedSessionStorage.putAll(packet.sessionStorageSnapshot)
+        packet.capturedFields.forEach { (key, value) ->
+            mergedFields[key] = value
+            mergedFields["${packet.id}.$key"] = value
+        }
+    }
+    mergedCookies.putAll(latestPacket.cookies)
+    mergedLocalStorage.putAll(latestPacket.localStorageSnapshot)
+    mergedSessionStorage.putAll(latestPacket.sessionStorageSnapshot)
+    latestPacket.capturedFields.forEach { (key, value) -> mergedFields[key] = value }
+    return latestPacket.copy(
+        cookies = mergedCookies,
+        localStorageSnapshot = mergedLocalStorage,
+        sessionStorageSnapshot = mergedSessionStorage,
+        capturedFields = mergedFields,
+        capturedPackets = orderedPackets,
+    )
+}
+
+fun WebSessionPacket.toCapturedPacket(packetId: String): WebCapturedPacket {
+    return WebCapturedPacket(
+        id = packetId,
+        finalUrl = finalUrl,
+        cookies = cookies,
+        localStorageSnapshot = localStorageSnapshot,
+        sessionStorageSnapshot = sessionStorageSnapshot,
+        htmlDigest = htmlDigest,
+        capturedFields = capturedFields,
+        timestamp = timestamp,
+    )
+}
+
+private fun urlHostMatches(url: String, expectedHost: String): Boolean {
+    val actualHost = runCatching { java.net.URL(url).host.lowercase() }.getOrNull() ?: return false
+    val expected = expectedHost.lowercase()
+    return actualHost == expected || actualHost.endsWith(".$expected")
+}
+
+private fun urlPathContains(url: String, expectedPathPart: String): Boolean {
+    val path = runCatching { java.net.URL(url).path }.getOrDefault("")
+    return path.contains(expectedPathPart, ignoreCase = true)
 }
 
 fun isAllowedHost(url: String, allowedHosts: List<String>): Boolean {

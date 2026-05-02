@@ -1,5 +1,6 @@
 package com.kebiao.viewer.core.plugin.workflow
 
+import com.kebiao.viewer.core.plugin.web.WebSessionCaptureSpec
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -21,6 +22,7 @@ data class WorkflowStepDefinition(
     @SerialName("completionUrlContains") val completionUrlContains: String? = null,
     @SerialName("userAgent") val userAgent: String? = null,
     @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
+    @SerialName("capturePackets") val capturePackets: List<WebSessionCaptureSpec> = emptyList(),
     @SerialName("extractCookies") val extractCookies: Boolean = true,
     @SerialName("extractLocalStorage") val extractLocalStorage: Boolean = true,
     @SerialName("extractSessionStorage") val extractSessionStorage: Boolean = true,
