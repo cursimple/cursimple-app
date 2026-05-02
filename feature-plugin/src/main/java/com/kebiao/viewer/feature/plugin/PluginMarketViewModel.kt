@@ -137,8 +137,14 @@ class PluginMarketViewModel(
 
     fun removePlugin(pluginId: String) {
         viewModelScope.launch {
-            pluginManager.removePlugin(pluginId)
-            _uiState.update { it.copy(statusMessage = "已移除插件：$pluginId") }
+            runCatching { pluginManager.removePlugin(pluginId) }
+                .onSuccess {
+                    _uiState.update { it.copy(statusMessage = "已移除插件：$pluginId") }
+                }
+                .onFailure { error ->
+                    val errorMessage = error.message ?: "移除插件失败"
+                    _uiState.update { it.copy(statusMessage = errorMessage) }
+                }
         }
     }
 
