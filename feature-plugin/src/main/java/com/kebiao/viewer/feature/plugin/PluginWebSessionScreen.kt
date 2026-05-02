@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -62,7 +63,6 @@ fun PluginWebSessionScreen(
 ) {
     val currentUrl = remember(request.token) { mutableStateOf(request.startUrl) }
     val webViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
-    val webViewHostState = remember(request.token) { mutableStateOf<FrameLayout?>(null) }
     val isFinishing = remember(request.token) { mutableStateOf(false) }
     val isCapturing = remember(request.token) { mutableStateOf(false) }
     val blockedUrl = remember(request.token) { mutableStateOf<String?>(null) }
@@ -72,35 +72,23 @@ fun PluginWebSessionScreen(
     val popupUrl = remember(request.token) { mutableStateOf<String?>(null) }
     val popupWebViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val consoleError = remember(request.token) { mutableStateOf<String?>(null) }
-    val latestPacket = remember(request.token) { mutableStateOf<WebSessionPacket?>(null) }
     val capturedPackets = remember(request.token) { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
     val webViewInitFailed = remember(request.token) { mutableStateOf(false) }
     val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
-    val captureSummary = remember(capturedPackets.value, requiredPacketCount) {
-        if (requiredPacketCount > 0) {
-            "已捕获数据包 ${capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }}/$requiredPacketCount"
-        } else {
-            "正在等待可用会话数据"
-        }
-    }
-    val statusText = remember(
-        currentUrl.value,
-        blockedUrl.value,
-        pageError.value,
-        pageTitle.value,
-        loadProgress.value,
-        popupUrl.value,
-        consoleError.value,
-        captureSummary,
-        isCapturing.value,
-    ) {
+    val statusText = androidx.compose.runtime.derivedStateOf {
         when {
             pageError.value != null -> "页面加载失败：${pageError.value}"
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
             popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
             consoleError.value != null -> "页面脚本提示：${consoleError.value}"
             isCapturing.value -> "正在采集会话数据：${currentUrl.value}"
-            capturedPackets.value.isNotEmpty() -> captureSummary
+            capturedPackets.value.isNotEmpty() -> {
+                if (requiredPacketCount > 0) {
+                    "已捕获数据包 ${capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }}/$requiredPacketCount"
+                } else {
+                    "正在等待可用会话数据"
+                }
+            }
             loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%：${currentUrl.value}"
             pageTitle.value.isNotBlank() -> "页面标题：${pageTitle.value}"
             currentUrl.value.isNotBlank() -> "当前页面：${currentUrl.value}"
@@ -169,7 +157,6 @@ fun PluginWebSessionScreen(
     }
 
     fun handleCapturedSnapshot(packet: WebSessionPacket, forceFinish: Boolean) {
-        latestPacket.value = packet
         val newPackets = readyCaptureSpecs(request, packet)
             .filterNot { capturedPackets.value.containsKey(it.id) }
             .associate { spec -> spec.id to packet.toCapturedPacket(spec.id) }
@@ -195,6 +182,9 @@ fun PluginWebSessionScreen(
     fun probeWebSession(view: WebView?, target: String, forceFinish: Boolean = false) {
         val webView = view ?: return
         if (!forceFinish && effectiveCaptureSpecs(request).isEmpty()) {
+            return
+        }
+        if (!forceFinish && hasAllRequiredCapturePackets(request, capturedPackets.value)) {
             return
         }
         if (isFinishing.value || isCapturing.value || !isForegroundWebView(webView)) {
@@ -232,13 +222,120 @@ fun PluginWebSessionScreen(
 
     DisposableEffect(request.token) {
         onDispose {
-            val webView = webViewState.value
-            webViewHostState.value?.removeAllViews()
-            webView?.destroy()
+            webViewState.value?.destroy()
             webViewState.value = null
-            webViewHostState.value = null
         }
     }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(request.title, style = MaterialTheme.typography.titleMedium)
+        Text(
+            text = "允许域名：${request.allowedHosts.joinToString()}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Button(onClick = onCancel) {
+                Text("取消")
+            }
+            Button(
+                onClick = {
+                    val webView = foregroundWebView() ?: return@Button
+                    if (isFinishing.value || isCapturing.value) {
+                        return@Button
+                    }
+                    PluginLogger.info(
+                        "plugin.web_session.manual_complete.start",
+                        mapOf(
+                            "pluginId" to request.pluginId,
+                            "sessionId" to request.sessionId,
+                            "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
+                        ),
+                    )
+                    val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
+                    probeWebSession(webView, target, forceFinish = true)
+                },
+                enabled = !isFinishing.value && !isCapturing.value,
+            ) {
+                Text(if (isFinishing.value || isCapturing.value) "正在回传..." else "手动完成并回传")
+            }
+        }
+        if (effectiveCaptureSpecs(request).isNotEmpty()) {
+            Text(
+                text = "正在等待插件声明的数据包，全部必需数据到齐后会自动继续。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(36.dp),
+        ) {
+            Text(
+                text = statusText.value,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        PluginWebViewHost(
+            request = request,
+            webViewState = webViewState,
+            popupWebViewState = popupWebViewState,
+            webViewInitFailed = webViewInitFailed,
+            currentUrl = currentUrl,
+            blockedUrl = blockedUrl,
+            pageError = pageError,
+            pageTitle = pageTitle,
+            loadProgress = loadProgress,
+            popupUrl = popupUrl,
+            consoleError = consoleError,
+            isForegroundWebView = ::isForegroundWebView,
+            handleNavigation = ::handleNavigation,
+            probeWebSession = { view, target -> probeWebSession(view, target) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(top = 2.dp),
+        )
+    }
+}
+
+@Composable
+private fun PluginWebViewHost(
+    request: WebSessionRequest,
+    webViewState: androidx.compose.runtime.MutableState<WebView?>,
+    popupWebViewState: androidx.compose.runtime.MutableState<WebView?>,
+    webViewInitFailed: androidx.compose.runtime.MutableState<Boolean>,
+    currentUrl: androidx.compose.runtime.MutableState<String>,
+    blockedUrl: androidx.compose.runtime.MutableState<String?>,
+    pageError: androidx.compose.runtime.MutableState<String?>,
+    pageTitle: androidx.compose.runtime.MutableState<String>,
+    loadProgress: androidx.compose.runtime.MutableState<Int>,
+    popupUrl: androidx.compose.runtime.MutableState<String?>,
+    consoleError: androidx.compose.runtime.MutableState<String?>,
+    isForegroundWebView: (WebView?) -> Boolean,
+    handleNavigation: (WebView?, String) -> Boolean,
+    probeWebSession: (WebView?, String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val webViewHostState = remember(request.token) { mutableStateOf<FrameLayout?>(null) }
 
     LaunchedEffect(request.token, webViewHostState.value) {
         val host = webViewHostState.value ?: return@LaunchedEffect
@@ -254,7 +351,7 @@ fun PluginWebSessionScreen(
             WebView(host.context).also { createdWebView = it }.apply {
                 configurePluginWebView(
                     request = request,
-                    isForegroundWebView = ::isForegroundWebView,
+                    isForegroundWebView = isForegroundWebView,
                     popupWebViewState = popupWebViewState,
                     currentUrl = currentUrl,
                     blockedUrl = blockedUrl,
@@ -278,8 +375,8 @@ fun PluginWebSessionScreen(
                             consoleError.value = null
                         }
                     },
-                    probeWebSession = { view, target -> probeWebSession(view, target) },
-                    handleNavigation = ::handleNavigation,
+                    probeWebSession = probeWebSession,
+                    handleNavigation = handleNavigation,
                 )
             }
         }.getOrElse { error ->
@@ -311,106 +408,39 @@ fun PluginWebSessionScreen(
         webView.loadUrl(request.startUrl)
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(8.dp),
-    ) {
-        Column(
+    DisposableEffect(request.token) {
+        onDispose {
+            val host = webViewHostState.value
+            host?.removeAllViews()
+            webViewHostState.value = null
+        }
+    }
+
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { context ->
+                FrameLayout(context).also { webViewHostState.value = it }
+            },
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(request.title, style = MaterialTheme.typography.titleMedium)
+        )
+
+        if (webViewState.value == null && !webViewInitFailed.value) {
             Text(
-                text = "允许域名：${request.allowedHosts.joinToString()}",
+                text = "正在准备网页登录环境…",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.align(Alignment.Center),
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 2.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Button(onClick = onCancel) {
-                    Text("取消")
-                }
-                Button(
-                    onClick = {
-                        val webView = foregroundWebView() ?: return@Button
-                        if (isFinishing.value || isCapturing.value) {
-                            return@Button
-                        }
-                        PluginLogger.info(
-                            "plugin.web_session.manual_complete.start",
-                            mapOf(
-                                "pluginId" to request.pluginId,
-                                "sessionId" to request.sessionId,
-                                "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
-                            ),
-                        )
-                        val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
-                        probeWebSession(webView, target, forceFinish = true)
-                    },
-                    enabled = !isFinishing.value && !isCapturing.value,
-                ) {
-                    Text(if (isFinishing.value || isCapturing.value) "正在回传..." else "手动完成并回传")
-                }
+        }
+
+        popupWebViewState.value?.let { popupWebView ->
+            DisposableEffect(popupWebView) {
+                onDispose { popupWebView.destroy() }
             }
-            if (effectiveCaptureSpecs(request).isNotEmpty()) {
-                Text(
-                    text = "正在等待插件声明的数据包，全部必需数据到齐后会自动继续。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+            AndroidView(
+                factory = { popupWebView },
+                modifier = Modifier.fillMaxSize(),
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .padding(top = 2.dp),
-            ) {
-                AndroidView(
-                    factory = { context ->
-                        FrameLayout(context).apply {
-                            webViewHostState.value = this
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
-
-                if (webViewState.value == null && !webViewInitFailed.value) {
-                    Text(
-                        text = "正在准备网页登录环境…",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.Center),
-                    )
-                }
-
-                popupWebViewState.value?.let { popupWebView ->
-                    DisposableEffect(popupWebView) {
-                        onDispose {
-                            popupWebView.destroy()
-                        }
-                    }
-                    AndroidView(
-                        factory = { popupWebView },
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
         }
     }
 }
