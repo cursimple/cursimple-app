@@ -73,6 +73,7 @@ fun PluginWebSessionScreen(
     val popupWebViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val consoleError = remember(request.token) { mutableStateOf<String?>(null) }
     val capturedPackets = remember(request.token) { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
+    val autoNavigatedUrls = remember(request.token) { mutableStateOf<Set<String>>(emptySet()) }
     val webViewInitFailed = remember(request.token) { mutableStateOf(false) }
     val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
     val statusText = androidx.compose.runtime.derivedStateOf {
@@ -211,6 +212,23 @@ fun PluginWebSessionScreen(
         }
     }
 
+    fun handleAutoNavigation(view: WebView?, target: String): Boolean {
+        val webView = view ?: return false
+        val nextUrl = autoNavigateTargetForRequest(request, target, autoNavigatedUrls.value) ?: return false
+        autoNavigatedUrls.value = autoNavigatedUrls.value + nextUrl
+        PluginLogger.info(
+            "plugin.web_session.auto_navigate",
+            mapOf(
+                "pluginId" to request.pluginId,
+                "sessionId" to request.sessionId,
+                "fromUrl" to PluginLogger.sanitizeUrl(target),
+                "toUrl" to PluginLogger.sanitizeUrl(nextUrl),
+            ),
+        )
+        webView.loadUrl(nextUrl)
+        return true
+    }
+
     LaunchedEffect(request.token) {
         while (true) {
             delay(800)
@@ -308,6 +326,7 @@ fun PluginWebSessionScreen(
             consoleError = consoleError,
             isForegroundWebView = ::isForegroundWebView,
             handleNavigation = ::handleNavigation,
+            handleAutoNavigation = ::handleAutoNavigation,
             probeWebSession = { view, target -> probeWebSession(view, target) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -332,6 +351,7 @@ private fun PluginWebViewHost(
     consoleError: androidx.compose.runtime.MutableState<String?>,
     isForegroundWebView: (WebView?) -> Boolean,
     handleNavigation: (WebView?, String) -> Boolean,
+    handleAutoNavigation: (WebView?, String) -> Boolean,
     probeWebSession: (WebView?, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -377,6 +397,7 @@ private fun PluginWebViewHost(
                     },
                     probeWebSession = probeWebSession,
                     handleNavigation = handleNavigation,
+                    handleAutoNavigation = handleAutoNavigation,
                 )
             }
         }.getOrElse { error ->
@@ -460,6 +481,7 @@ private fun WebView.configurePluginWebView(
     onPopupWebViewClosed: (WebView) -> Unit,
     probeWebSession: (WebView?, String) -> Unit,
     handleNavigation: (WebView?, String) -> Boolean,
+    handleAutoNavigation: (WebView?, String) -> Boolean,
 ) {
     applyPluginBrowserSettings(request)
     val hostWebView = this
@@ -522,6 +544,7 @@ private fun WebView.configurePluginWebView(
                         onPopupWebViewClosed = onPopupWebViewClosed,
                         probeWebSession = probeWebSession,
                         handleNavigation = handleNavigation,
+                        handleAutoNavigation = handleAutoNavigation,
                     )
                 }
             }.getOrElse { error ->
@@ -663,6 +686,9 @@ private fun WebView.configurePluginWebView(
                     "url" to PluginLogger.sanitizeUrl(target),
                 ),
             )
+            if (handleAutoNavigation(view, target)) {
+                return
+            }
             probeWebSession(view, target)
         }
     }
@@ -1041,6 +1067,36 @@ fun isAllowedHost(url: String, allowedHosts: List<String>): Boolean {
             host == allowed.lowercase() || host.endsWith(".${allowed.lowercase()}")
         }
     } ?: false
+}
+
+fun autoNavigateTargetForRequest(
+    request: WebSessionRequest,
+    currentUrl: String,
+    alreadyNavigatedUrls: Set<String>,
+): String? {
+    val trigger = request.autoNavigateOnUrlContains?.trim().orEmpty()
+    val target = request.autoNavigateToUrl?.trim().orEmpty()
+    if (trigger.isBlank() || target.isBlank()) {
+        return null
+    }
+    val matchesTrigger = if (trigger.startsWith("http", ignoreCase = true)) {
+        currentUrl.contains(trigger, ignoreCase = true)
+    } else {
+        urlPathContains(currentUrl, trigger)
+    }
+    if (!matchesTrigger) {
+        return null
+    }
+    if (currentUrl.equals(target, ignoreCase = true)) {
+        return null
+    }
+    if (alreadyNavigatedUrls.any { it.equals(target, ignoreCase = true) }) {
+        return null
+    }
+    if (!isAllowedHost(target, request.allowedHosts)) {
+        return null
+    }
+    return target
 }
 
 private fun isInternalWebViewUrl(url: String): Boolean {

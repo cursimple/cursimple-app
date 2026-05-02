@@ -100,4 +100,50 @@ class EamsScheduleParserTest {
         assertEquals(4, wednesdayCourse.time.endNode)
         assertTrue(wednesdayCourse.weeks.containsAll(listOf(1, 5)))
     }
+
+    @Test
+    fun `buildSchedule deduplicates repeated weekly fragments`() {
+        val repeatedActivity = """
+            <script>
+                var unitCount = 8;
+                var teachers = [{id:6816,name:"刘静S2",lab:false}];
+                var actTeacherId = [];
+                var actTeacherName = [];
+                var assistantName = "";
+                activity = new TaskActivity(actTeacherId.join(','),actTeacherName.join(','),"136129(780240)","综合英语（发展）2(780240)","457","西6-307c","0110",null,null,assistantName,"","");
+                index =1*unitCount+1;
+                table0.activities[index][table0.activities[index].length]=activity;
+            </script>
+        """.trimIndent()
+        val laterOnlyActivity = """
+            <script>
+                var unitCount = 8;
+                var teachers = [{id:8888,name:"李港",lab:false}];
+                var actTeacherId = [];
+                var actTeacherName = [];
+                var assistantName = "";
+                activity = new TaskActivity(actTeacherId.join(','),actTeacherName.join(','),"02082(776259)","心理健康教育(776259)","457","西6-308c","0010",null,null,assistantName,"","");
+                index =2*unitCount+3;
+                table0.activities[index][table0.activities[index].length]=activity;
+            </script>
+        """.trimIndent()
+        val meta = EamsCourseTableMeta(
+            semesterId = "389",
+            ids = "556449",
+            projectId = "1",
+            maxWeek = 3,
+        )
+
+        val schedule = parser.buildSchedule(
+            meta = meta,
+            detailHtml = "$repeatedActivity\n$repeatedActivity\n$laterOnlyActivity",
+            termId = "389",
+            updatedAt = "2026-04-30T00:00:00+08:00",
+        )
+
+        val courses = schedule.dailySchedules.flatMap { it.courses }
+        assertEquals(2, courses.size)
+        assertTrue(courses.any { it.title == "综合英语（发展）2" && it.weeks == listOf(1, 2) })
+        assertTrue(courses.any { it.title == "心理健康教育" && it.weeks == listOf(2) })
+    }
 }
