@@ -44,6 +44,14 @@ import org.json.JSONObject
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 
+private const val MAX_CAPTURE_SELECTOR_COUNT = 64
+private const val MAX_CAPTURE_SELECTOR_LENGTH = 2048
+private const val MAX_CAPTURE_SELECTOR_SCRIPT_LENGTH = 262144
+private const val MAX_CAPTURED_FIELD_LENGTH = 4096
+private const val MAX_STORAGE_ENTRY_COUNT = 256
+private const val MAX_STORAGE_VALUE_LENGTH = 8192
+private const val MAX_HTML_CAPTURE_CHARS = 524288
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PluginWebSessionScreen(
@@ -664,7 +672,8 @@ private fun captureWebSessionPacket(
 ) {
     val fallbackPacket = emptyWebSessionPacket(request, currentUrl)
     val startedAt = System.currentTimeMillis()
-    val captureSelectors = captureSelectorsForRequest(request)
+    val rawCaptureSelectors = rawCaptureSelectorsForRequest(request)
+    val captureSelectors = rawCaptureSelectors.boundedCaptureSelectors()
     PluginLogger.info(
         "plugin.web_session.capture.start",
         mapOf(
@@ -672,45 +681,70 @@ private fun captureWebSessionPacket(
             "sessionId" to request.sessionId,
             "url" to PluginLogger.sanitizeUrl(currentUrl),
             "captureSelectorCount" to captureSelectors.size,
+            "captureSelectorDroppedCount" to (rawCaptureSelectors.size - captureSelectors.size),
             "capturePacketCount" to effectiveCaptureSpecs(request).size,
         ),
     )
-    val cookies = runCatching {
-        val cookieManager = CookieManager.getInstance()
-        cookieManager.flush()
-        collectCookies(cookieManager, request.allowedHosts, currentUrl)
-    }.getOrDefault(emptyMap())
+    val cookies = if (request.extractCookies) {
+        runCatching {
+            val cookieManager = CookieManager.getInstance()
+            cookieManager.flush()
+            collectCookies(cookieManager, request.allowedHosts, currentUrl)
+        }.getOrDefault(emptyMap())
+    } else {
+        emptyMap()
+    }
+    val selectorScript = captureSelectors.toCaptureSelectorArrayScript()
     val script = """
         (() => {
+            const shouldCaptureLocalStorage = ${request.extractLocalStorage};
+            const shouldCaptureSessionStorage = ${request.extractSessionStorage};
+            const shouldCaptureHtml = ${request.extractHtmlDigest};
+            const MAX_STORAGE_ENTRY_COUNT = $MAX_STORAGE_ENTRY_COUNT;
+            const MAX_STORAGE_VALUE_LENGTH = $MAX_STORAGE_VALUE_LENGTH;
+            const MAX_CAPTURED_FIELD_LENGTH = $MAX_CAPTURED_FIELD_LENGTH;
+            const MAX_HTML_CAPTURE_CHARS = $MAX_HTML_CAPTURE_CHARS;
+            const truncate = (value, limit) => {
+              const text = (value ?? "") + "";
+              return text.length > limit ? text.slice(0, limit) : text;
+            };
             const readStorage = (name) => {
               const snapshot = {};
               try {
                 const storage = window[name];
-                for (let i = 0; i < storage.length; i++) {
+                const limit = Math.min(storage.length, MAX_STORAGE_ENTRY_COUNT);
+                for (let i = 0; i < limit; i++) {
                   const key = storage.key(i);
                   if (key) {
-                    snapshot[key] = storage.getItem(key) || "";
+                    snapshot[key] = truncate(storage.getItem(key), MAX_STORAGE_VALUE_LENGTH);
                   }
                 }
               } catch (error) {}
               return snapshot;
             };
+            const selectors = $selectorScript;
             const fields = {};
             try {
-              ${captureSelectors.joinToString("\n") { selector ->
-                  val nodeName = "node_${selector.hashCode().toString().replace("-", "_")}"
-                  """try { const $nodeName = document.querySelector(${selector.quoteJs()}); if ($nodeName) { fields[${selector.quoteJs()}] = (($nodeName.value || $nodeName.textContent || "") + "").trim(); } } catch (error) {}"""
-              }}
+              selectors.forEach((selector) => {
+                try {
+                  const node = document.querySelector(selector);
+                  if (node) {
+                    fields[selector] = truncate((node.value || node.textContent || "").trim(), MAX_CAPTURED_FIELD_LENGTH);
+                  }
+                } catch (error) {}
+              });
             } catch (error) {}
             let html = "";
             try {
-              html = document.documentElement ? (document.documentElement.outerHTML || "") : "";
+              if (shouldCaptureHtml) {
+                html = truncate(document.documentElement ? (document.documentElement.outerHTML || "") : "", MAX_HTML_CAPTURE_CHARS);
+              }
             } catch (error) {}
             try {
               return JSON.stringify({
                 html,
-                localStorageSnapshot: readStorage("localStorage"),
-                sessionStorageSnapshot: readStorage("sessionStorage"),
+                localStorageSnapshot: shouldCaptureLocalStorage ? readStorage("localStorage") : {},
+                sessionStorageSnapshot: shouldCaptureSessionStorage ? readStorage("sessionStorage") : {},
                 capturedFields: fields
               });
             } catch (error) {
@@ -725,9 +759,21 @@ private fun captureWebSessionPacket(
                 WebSessionPacket(
                     finalUrl = currentUrl,
                     cookies = cookies,
-                    localStorageSnapshot = payload.optJSONObject("localStorageSnapshot").toStringMap(),
-                    sessionStorageSnapshot = payload.optJSONObject("sessionStorageSnapshot").toStringMap(),
-                    htmlDigest = sha256(payload.optString("html", "")),
+                    localStorageSnapshot = if (request.extractLocalStorage) {
+                        payload.optJSONObject("localStorageSnapshot").toStringMap()
+                    } else {
+                        emptyMap()
+                    },
+                    sessionStorageSnapshot = if (request.extractSessionStorage) {
+                        payload.optJSONObject("sessionStorageSnapshot").toStringMap()
+                    } else {
+                        emptyMap()
+                    },
+                    htmlDigest = if (request.extractHtmlDigest) {
+                        sha256(payload.optString("html", ""))
+                    } else {
+                        ""
+                    },
                     capturedFields = payload.optJSONObject("capturedFields").toStringMap(),
                     timestamp = OffsetDateTime.now().toString(),
                 )
@@ -772,7 +818,7 @@ private fun emptyWebSessionPacket(
         cookies = emptyMap(),
         localStorageSnapshot = emptyMap(),
         sessionStorageSnapshot = emptyMap(),
-        htmlDigest = sha256(""),
+        htmlDigest = if (request.extractHtmlDigest) sha256("") else "",
         capturedFields = captureSelectorsForRequest(request).associateWith { "" },
         capturedPackets = emptyMap(),
         timestamp = OffsetDateTime.now().toString(),
@@ -828,12 +874,7 @@ fun effectiveCaptureSpecs(request: WebSessionRequest): List<WebSessionCaptureSpe
 }
 
 fun captureSelectorsForRequest(request: WebSessionRequest): List<String> {
-    return (
-        request.captureSelectors +
-            effectiveCaptureSpecs(request).flatMap { spec -> spec.captureSelectors + spec.requiredSelectors }
-        )
-        .filter(String::isNotBlank)
-        .distinct()
+    return rawCaptureSelectorsForRequest(request).boundedCaptureSelectors()
 }
 
 fun requiredCapturePacketIds(request: WebSessionRequest): Set<String> {
@@ -894,7 +935,13 @@ fun isCaptureSpecReady(spec: WebSessionCaptureSpec, packet: WebSessionPacket): B
         return false
     }
     val requiredSelectors = spec.requiredSelectors.ifEmpty { spec.captureSelectors }
-    return requiredSelectors.all { selector -> !packet.capturedFields[selector].isNullOrBlank() }
+        .filter(String::isNotBlank)
+        .distinct()
+    val boundedSelectors = requiredSelectors.boundedCaptureSelectors()
+    if (boundedSelectors.size != requiredSelectors.size) {
+        return false
+    }
+    return boundedSelectors.all { selector -> !packet.capturedFields[selector].isNullOrBlank() }
 }
 
 fun aggregateWebSessionPacket(
@@ -981,18 +1028,68 @@ fun shouldSurfaceConsoleError(message: String?): Boolean {
     return !normalized.contains("beangle is not defined", ignoreCase = true)
 }
 
-private fun String.quoteJs(): String = buildString {
+private fun rawCaptureSelectorsForRequest(request: WebSessionRequest): List<String> {
+    return (
+        request.captureSelectors +
+            effectiveCaptureSpecs(request).flatMap { spec -> spec.captureSelectors + spec.requiredSelectors }
+        )
+        .filter(String::isNotBlank)
+        .distinct()
+}
+
+private fun List<String>.boundedCaptureSelectors(): List<String> {
+    return asSequence()
+        .filter { it.isNotBlank() && it.length <= MAX_CAPTURE_SELECTOR_LENGTH }
+        .distinct()
+        .take(MAX_CAPTURE_SELECTOR_COUNT)
+        .toList()
+}
+
+internal fun List<String>.toCaptureSelectorArrayScript(): String {
+    val boundedSelectors = boundedCaptureSelectors()
+    if (boundedSelectors.isEmpty()) {
+        return "[]"
+    }
+    val builder = StringBuilder()
+    builder.append('[')
+    var hasSelector = false
+    for (selector in boundedSelectors) {
+        val checkpoint = builder.length
+        if (hasSelector) {
+            builder.append(',')
+        }
+        if (!builder.appendQuotedJsString(selector)) {
+            builder.setLength(checkpoint)
+            continue
+        }
+        if (builder.length > MAX_CAPTURE_SELECTOR_SCRIPT_LENGTH) {
+            builder.setLength(checkpoint)
+            break
+        }
+        hasSelector = true
+    }
+    builder.append(']')
+    return builder.toString()
+}
+
+private fun StringBuilder.appendQuotedJsString(value: String): Boolean {
+    if (value.isBlank() || value.length > MAX_CAPTURE_SELECTOR_LENGTH) {
+        return false
+    }
     append('"')
-    forEach { char ->
+    value.forEach { char ->
         when (char) {
             '\\' -> append("\\\\")
             '"' -> append("\\\"")
             '\n' -> append("\\n")
             '\r' -> append("\\r")
+            '\u2028' -> append("\\u2028")
+            '\u2029' -> append("\\u2029")
             else -> append(char)
         }
     }
     append('"')
+    return true
 }
 
 private fun sha256(value: String): String {

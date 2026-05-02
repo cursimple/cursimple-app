@@ -71,6 +71,45 @@ class PluginWebSessionScreenTest {
     }
 
     @Test
+    fun `capture selectors drop oversize values before script generation`() {
+        val overlongSelector = "a".repeat(3000)
+        val request = webRequest(
+            capturePackets = listOf(
+                WebSessionCaptureSpec(
+                    id = "login",
+                    captureSelectors = listOf("title", overlongSelector),
+                ),
+            ),
+        )
+
+        assertEquals(listOf("title"), captureSelectorsForRequest(request))
+    }
+
+    @Test
+    fun `capture selector script ignores oversize values before escaping`() {
+        val overlongSelector = "\\".repeat(3000)
+
+        val script = listOf("title", overlongSelector).toCaptureSelectorArrayScript()
+
+        assertEquals("[\"title\"]", script)
+    }
+
+    @Test
+    fun `capture selectors cap runaway selector lists`() {
+        val selectors = (0 until 80).map { "meta[name='field$it']" }
+        val request = webRequest(
+            capturePackets = listOf(
+                WebSessionCaptureSpec(
+                    id = "login",
+                    captureSelectors = selectors,
+                ),
+            ),
+        )
+
+        assertEquals(64, captureSelectorsForRequest(request).size)
+    }
+
+    @Test
     fun `required capture packets must all be present before web session completes`() {
         val request = webRequest(
             capturePackets = listOf(
@@ -91,6 +130,21 @@ class PluginWebSessionScreenTest {
 
         assertFalse(hasAllRequiredCapturePackets(request, mapOf("login" to loginPacket)))
         assertTrue(hasAllRequiredCapturePackets(request, mapOf("login" to loginPacket, "eams" to eamsPacket)))
+    }
+
+    @Test
+    fun `oversized required selector does not satisfy capture readiness`() {
+        val overlongSelector = "a".repeat(3000)
+        val spec = WebSessionCaptureSpec(
+            id = "login",
+            captureSelectors = listOf(overlongSelector),
+        )
+        val packet = webPacket(
+            finalUrl = "https://example.edu.cn/login",
+            capturedFields = mapOf(overlongSelector to "ok"),
+        )
+
+        assertFalse(isCaptureSpecReady(spec, packet))
     }
 
     @Test
