@@ -39,9 +39,6 @@
           "required": true,
           "urlHost": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
           "urlPathContains": "/eams/courseTableForStd",
-          "captureSelectors": [
-            "title"
-          ],
           "minCookieCount": 1
         }
       ],
