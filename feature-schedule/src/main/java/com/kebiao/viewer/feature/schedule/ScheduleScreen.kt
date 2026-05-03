@@ -62,6 +62,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
@@ -70,6 +71,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -79,7 +82,9 @@ import com.kebiao.viewer.core.kernel.model.ClassSlotTime
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
+import com.kebiao.viewer.core.kernel.model.findSlot
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
+import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.plugin.ui.BannerContribution
 import com.kebiao.viewer.core.plugin.ui.CourseBadgeRule
 import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
@@ -136,6 +141,7 @@ fun ScheduleRoute(
         onCreateReminder = viewModel::createReminderForSelection,
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveManualCourse = viewModel::removeManualCourse,
+        onAddManualCourse = viewModel::addManualCourse,
         onCreateBulkReminder = viewModel::createReminderForCourses,
         onPrevWeek = onPrevWeek,
         onNextWeek = onNextWeek,
@@ -165,6 +171,7 @@ fun ScheduleScreen(
     onCreateReminder: (Int, String?) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
     onRemoveManualCourse: (String) -> Unit,
+    onAddManualCourse: (CourseItem) -> Unit = {},
     onCreateBulkReminder: (Set<String>, Int, String?) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
@@ -255,6 +262,7 @@ fun ScheduleScreen(
                     onCellClick = onCellClickHandler,
                     onCourseLongClick = onLongClickHandler,
                     onWeekOffsetChange = onWeekOffsetChange,
+                    onAddManualCourse = onAddManualCourse,
                 )
 
                 ScheduleViewMode.Day -> DailyScheduleSection(
@@ -744,6 +752,7 @@ private fun WeeklyScheduleSection(
     onCellClick: (List<CourseItem>) -> Unit,
     onCourseLongClick: (String) -> Unit,
     onWeekOffsetChange: (Int) -> Unit,
+    onAddManualCourse: (CourseItem) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(schedule, timingProfile, manualCourses) {
@@ -856,6 +865,8 @@ private fun WeeklyScheduleSection(
                             multiSelectedIds = multiSelectedIds,
                             onCellClick = onCellClick,
                             onCourseLongClick = onCourseLongClick,
+                            currentWeekIndex = pageWeek.weekIndex,
+                            onAddManualCourse = onAddManualCourse,
                         )
                     }
                 }
@@ -1302,7 +1313,7 @@ private fun computeWeekNumber(
     dayOffset: Int,
     zone: ZoneId,
 ): Int {
-    val target = LocalDate.now(zone).plusDays(dayOffset.toLong())
+    val target = BeijingTime.todayIn(zone).plusDays(dayOffset.toLong())
     val termStart = overrideTermStart ?: timingProfile?.termStartLocalDate()
     val termStartMonday = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val targetMonday = target.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -1349,6 +1360,8 @@ private fun ScheduleGrid(
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>) -> Unit,
     onCourseLongClick: (String) -> Unit,
+    currentWeekIndex: Int = 1,
+    onAddManualCourse: (CourseItem) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val cellGroups = remember(activeEntries) {
@@ -1362,6 +1375,29 @@ private fun ScheduleGrid(
             }
     }
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
+
+    // Empty-cell tap-to-add overlay state. Hoisted to grid scope so the dialog can read it
+    // outside the inner positional Box. Hint cell auto-clears after 2.5s.
+    var hintCell by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<Int, Int>?>(null) }
+    var addRequest by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<Triple<Int, Int, Int>?>(null)
+    }
+    val occupiedCells = androidx.compose.runtime.remember(cellGroups) {
+        buildSet {
+            cellGroups.forEach { (entry, _, _) ->
+                val p = entry.placement
+                for (r in 0 until p.rowSpan) {
+                    add(p.dayIndex to (p.rowIndex + r))
+                }
+            }
+        }
+    }
+    androidx.compose.runtime.LaunchedEffect(hintCell) {
+        if (hintCell != null) {
+            kotlinx.coroutines.delay(2500)
+            hintCell = null
+        }
+    }
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = modifier.verticalScroll(rememberScrollState()),
@@ -1405,6 +1441,7 @@ private fun ScheduleGrid(
                             shape = RoundedCornerShape(16.dp),
                         ),
                 ) {
+                    val density = androidx.compose.ui.platform.LocalDensity.current
                     Box(
                         modifier = Modifier
                             .width(gridWidth)
@@ -1421,6 +1458,19 @@ private fun ScheduleGrid(
                                         strokeWidth = strokeWidth,
                                     )
                                 }
+                            }
+                            .pointerInput(slots.size, dayColumnWidth, slotHeight, occupiedCells) {
+                                detectTapGestures(
+                                    onTap = { offset: androidx.compose.ui.geometry.Offset ->
+                                        val dayWidthPx = with(density) { dayColumnWidth.toPx() }
+                                        val slotHeightPx = with(density) { slotHeight.toPx() }
+                                        val day = (offset.x / dayWidthPx).toInt().coerceIn(0, 6)
+                                        val slot = (offset.y / slotHeightPx).toInt().coerceIn(0, slots.size - 1)
+                                        if ((day to slot) !in occupiedCells) {
+                                            hintCell = day to slot
+                                        }
+                                    },
+                                )
                             },
                     ) {
 
@@ -1446,9 +1496,78 @@ private fun ScheduleGrid(
                                 onLongClick = { onCourseLongClick(course.id) },
                             )
                         }
+
+                        // Tap-hint overlay: translucent tint + central plus button. Keep the
+                        // last cell around so we can animate it out via alpha rather than
+                        // popping off the tree the moment the timer clears hintCell.
+                        val lastHintCell = androidx.compose.runtime.remember { mutableStateOf<Pair<Int, Int>?>(null) }
+                        androidx.compose.runtime.LaunchedEffect(hintCell) {
+                            if (hintCell != null) lastHintCell.value = hintCell
+                        }
+                        val hintAlpha by androidx.compose.animation.core.animateFloatAsState(
+                            targetValue = if (hintCell != null) 1f else 0f,
+                            animationSpec = androidx.compose.animation.core.tween(durationMillis = 280),
+                            label = "hintCellAlpha",
+                        )
+                        if (hintAlpha > 0.01f) {
+                            lastHintCell.value?.let { (day, slotIdx) ->
+                                val slot = slots.getOrNull(slotIdx)
+                                if (slot != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(dayColumnWidth - 3.dp)
+                                            .height(slotHeight - 3.dp)
+                                            .offset(
+                                                x = dayColumnWidth * day + 1.5.dp,
+                                                y = slotHeight * slotIdx + 1.5.dp,
+                                            )
+                                            .alpha(hintAlpha)
+                                            .background(
+                                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                                                shape = RoundedCornerShape(8.dp),
+                                            ),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        androidx.compose.material3.Surface(
+                                            shape = androidx.compose.foundation.shape.CircleShape,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clickable(enabled = hintCell != null) {
+                                                    addRequest = Triple(day + 1, slot.startNode, slot.endNode)
+                                                    hintCell = null
+                                                },
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                androidx.compose.material3.Icon(
+                                                    imageVector = Icons.Rounded.Add,
+                                                    contentDescription = "添加课程",
+                                                    tint = MaterialTheme.colorScheme.onPrimary,
+                                                    modifier = Modifier.size(22.dp),
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
+        }
+
+        addRequest?.let { (day, startNode, endNode) ->
+            QuickAddCourseDialog(
+                dayOfWeek = day,
+                startNode = startNode,
+                endNode = endNode,
+                initialWeek = currentWeekIndex,
+                onDismiss = { addRequest = null },
+                onConfirm = { course ->
+                    onAddManualCourse(course)
+                    addRequest = null
+                },
+            )
         }
     }
 }
@@ -1808,6 +1927,9 @@ internal fun ReminderComposerCard(
 @Composable
 internal fun ReminderRulesSection(
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
+    schedule: TermSchedule?,
+    timingProfile: TermTimingProfile?,
+    manualCourses: List<CourseItem>,
     onRemoveReminderRule: (String) -> Unit,
 ) {
     Card(
@@ -1821,6 +1943,9 @@ internal fun ReminderRulesSection(
         ) {
             Text("提醒规则", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             reminderRules.forEach { rule ->
+                val display = remember(rule, schedule, timingProfile, manualCourses) {
+                    describeReminderRule(rule, schedule, timingProfile, manualCourses)
+                }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1830,10 +1955,26 @@ internal fun ReminderRulesSection(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("规则：${rule.scopeType.name}", fontWeight = FontWeight.Medium)
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(display.title, fontWeight = FontWeight.Medium)
                         Text(
-                            "提前 ${rule.advanceMinutes} 分钟 · ${rule.ringtoneUri ?: "系统默认铃声"}",
+                            display.timing,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (display.nextTrigger != null) {
+                            Text(
+                                display.nextTrigger,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium,
+                            )
+                        }
+                        Text(
+                            display.options,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -1845,6 +1986,112 @@ internal fun ReminderRulesSection(
             }
         }
     }
+}
+
+private data class ReminderRuleDisplay(
+    val title: String,
+    val timing: String,
+    val options: String,
+    val nextTrigger: String?,
+)
+
+private fun describeReminderRule(
+    rule: com.kebiao.viewer.core.reminder.model.ReminderRule,
+    schedule: TermSchedule?,
+    timingProfile: TermTimingProfile?,
+    manualCourses: List<CourseItem>,
+): ReminderRuleDisplay {
+    val course = rule.courseId?.let { id ->
+        schedule?.dailySchedules?.flatMap { it.courses }?.firstOrNull { it.id == id }
+            ?: manualCourses.firstOrNull { it.id == id }
+    }
+    val nextTrigger = computeNextTrigger(rule, schedule, timingProfile, manualCourses)
+    val scope = rule.scopeType
+    val title: String
+    val timing: String
+    when (scope) {
+        com.kebiao.viewer.core.reminder.model.ReminderScopeType.SingleCourse -> {
+            title = course?.title ?: "（已删除的课程）"
+            val day = course?.time?.dayOfWeek?.let(::weekdayLabel)
+            val nodeRange = course?.time?.let { "第${it.startNode}-${it.endNode}节" }
+            val slot = course?.time?.let { timingProfile?.findSlot(it.startNode, it.endNode) }
+            val timeRange = slot?.let { "${it.startTime}-${it.endTime}" }
+            val location = course?.location?.takeIf(String::isNotBlank)
+            timing = listOfNotNull(day, timeRange, nodeRange, location).joinToString(" · ")
+                .ifBlank { "时间未知" }
+        }
+        com.kebiao.viewer.core.reminder.model.ReminderScopeType.TimeSlot -> {
+            val day = rule.dayOfWeek?.let(::weekdayLabel)
+            val startNode = rule.startNode
+            val endNode = rule.endNode
+            val nodeRange = if (startNode != null && endNode != null) {
+                "第$startNode-${endNode}节"
+            } else null
+            val slot = if (startNode != null && endNode != null) {
+                timingProfile?.findSlot(startNode, endNode)
+            } else null
+            val timeRange = slot?.let { "${it.startTime}-${it.endTime}" }
+            title = listOfNotNull(day, nodeRange).joinToString(" ").ifBlank { "时间段提醒" }
+            timing = listOfNotNull(timeRange, "每周重复").joinToString(" · ")
+        }
+    }
+    val ringtone = if (rule.ringtoneUri.isNullOrBlank()) "系统默认铃声" else "自定义铃声"
+    val options = "提前 ${rule.advanceMinutes} 分钟 · $ringtone"
+    return ReminderRuleDisplay(title = title, timing = timing, options = options, nextTrigger = nextTrigger)
+}
+
+private fun computeNextTrigger(
+    rule: com.kebiao.viewer.core.reminder.model.ReminderRule,
+    schedule: TermSchedule?,
+    timingProfile: TermTimingProfile?,
+    manualCourses: List<CourseItem>,
+): String? {
+    val profile = timingProfile ?: return null
+    val mergedSchedule = mergeManualCourses(schedule, manualCourses) ?: return null
+    val plans = runCatching {
+        com.kebiao.viewer.core.reminder.ReminderPlanner().expandRule(rule, mergedSchedule, profile)
+    }.getOrNull().orEmpty()
+    val nowMs = System.currentTimeMillis()
+    val nextPlan = plans.firstOrNull { it.triggerAtMillis >= nowMs } ?: return null
+    val zone = runCatching { java.time.ZoneId.of(profile.timezone) }
+        .getOrDefault(java.time.ZoneId.systemDefault())
+    val trigger = java.time.Instant.ofEpochMilli(nextPlan.triggerAtMillis).atZone(zone)
+    val date = "${trigger.monthValue}月${trigger.dayOfMonth}日"
+    val weekday = weekdayLabel(trigger.dayOfWeek.value)
+    val time = String.format("%02d:%02d", trigger.hour, trigger.minute)
+    return "下次提醒：$date $weekday $time"
+}
+
+private fun mergeManualCourses(
+    schedule: TermSchedule?,
+    manualCourses: List<CourseItem>,
+): TermSchedule? {
+    if (schedule == null && manualCourses.isEmpty()) return null
+    val base = schedule ?: TermSchedule(
+        termId = "manual-only",
+        updatedAt = java.time.OffsetDateTime.now().toString(),
+        dailySchedules = emptyList(),
+    )
+    if (manualCourses.isEmpty()) return base
+    val grouped = manualCourses.groupBy { it.time.dayOfWeek }
+    val merged = (1..7).map { day ->
+        val existing = base.dailySchedules.firstOrNull { it.dayOfWeek == day }
+        val extras = grouped[day].orEmpty()
+        val combined = (existing?.courses.orEmpty() + extras)
+        com.kebiao.viewer.core.kernel.model.DailySchedule(dayOfWeek = day, courses = combined)
+    }
+    return base.copy(dailySchedules = merged)
+}
+
+private fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
+    1 -> "周一"
+    2 -> "周二"
+    3 -> "周三"
+    4 -> "周四"
+    5 -> "周五"
+    6 -> "周六"
+    7 -> "周日"
+    else -> "周$dayOfWeek"
 }
 
 private data class DayHeaderModel(
@@ -1931,7 +2178,7 @@ private fun buildWeekModel(
     overrideTermStart: LocalDate? = null,
     zone: ZoneId = ZoneId.of("Asia/Shanghai"),
 ): WeekModel {
-    val today = LocalDate.now(zone)
+    val today = BeijingTime.todayIn(zone)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
     val termStart = overrideTermStart ?: timingProfile?.termStartLocalDate()
     val termStartWeek = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -1989,14 +2236,17 @@ private fun displaySlots(
                 endTime = "",
             )
         }
-        return baseSlots + extraSlots
+        // 即使没有课时数据也补到至少 8 节，方便用户在下半段加课。
+        val combined = baseSlots + extraSlots
+        val padded = padToMinimumSlots(combined, minimum = 8)
+        return padded
     }
     val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
     val derived = allCourses
         .map { it.time.startNode to it.time.endNode }
         .distinct()
         .sortedBy { it.first }
-    return derived.mapIndexed { index, (startNode, endNode) ->
+    val derivedSlots = derived.mapIndexed { index, (startNode, endNode) ->
         DisplaySlot(
             startNode = startNode,
             endNode = endNode,
@@ -2005,6 +2255,23 @@ private fun displaySlots(
             endTime = "--:--",
         )
     }
+    return padToMinimumSlots(derivedSlots, minimum = 8)
+}
+
+private fun padToMinimumSlots(slots: List<DisplaySlot>, minimum: Int): List<DisplaySlot> {
+    if (slots.size >= minimum) return slots
+    val lastEnd = slots.maxOfOrNull { it.endNode } ?: 0
+    val pads = (slots.size until minimum).mapIndexed { offset, _ ->
+        val node = lastEnd + offset + 1
+        DisplaySlot(
+            startNode = node,
+            endNode = node,
+            indexLabel = "${slots.size + offset + 1}",
+            startTime = "",
+            endTime = "",
+        )
+    }
+    return slots + pads
 }
 
 private fun coursePlacement(

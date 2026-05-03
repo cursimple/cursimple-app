@@ -3,6 +3,7 @@ package com.kebiao.viewer.feature.schedule
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -195,31 +196,42 @@ fun CourseDetailDialog(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (manual) {
-                            OutlinedButton(onClick = { onDelete(course) }) {
+                            OutlinedButton(
+                                onClick = { onDelete(course) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                            ) {
                                 Icon(
                                     imageVector = Icons.Rounded.DeleteOutline,
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text("删除")
+                                Text("删除", maxLines = 1, softWrap = false)
                             }
-                            Spacer(Modifier.width(8.dp))
                         }
-                        OutlinedButton(onClick = { onSetReminder(course) }) {
+                        OutlinedButton(
+                            onClick = { onSetReminder(course) },
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
                             Icon(
                                 imageVector = Icons.Rounded.NotificationsActive,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text("设为提醒")
+                            Text("设为提醒", maxLines = 1, softWrap = false)
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Button(onClick = onDismiss) { Text("关闭") }
+                        Button(
+                            onClick = onDismiss,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        ) {
+                            Text("关闭", maxLines = 1, softWrap = false)
+                        }
                     }
                 }
             }

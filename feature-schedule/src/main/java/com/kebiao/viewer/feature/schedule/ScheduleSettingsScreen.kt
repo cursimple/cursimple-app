@@ -132,6 +132,9 @@ fun ScheduleSettingsScreen(
             if (state.reminderRules.isNotEmpty()) {
                 ReminderRulesSection(
                     reminderRules = state.reminderRules,
+                    schedule = state.schedule,
+                    timingProfile = state.timingProfile,
+                    manualCourses = state.manualCourses,
                     onRemoveReminderRule = onRemoveReminderRule,
                 )
             }

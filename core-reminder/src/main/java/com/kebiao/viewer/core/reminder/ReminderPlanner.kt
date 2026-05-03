@@ -1,5 +1,6 @@
 package com.kebiao.viewer.core.reminder
 
+import com.kebiao.viewer.core.kernel.model.ClassSlotTime
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
@@ -52,7 +53,8 @@ class ReminderPlanner {
             if (courseDate.isBefore(fromDate)) {
                 return@mapNotNull null
             }
-            val trigger = LocalDateTime.of(courseDate, slot.startLocalTime())
+            val classStart = LocalDateTime.of(courseDate, slot.startLocalTime())
+            val trigger = classStart
                 .minusMinutes(rule.advanceMinutes.toLong())
                 .atZone(zone)
                 .toInstant()
@@ -61,13 +63,49 @@ class ReminderPlanner {
                 planId = "${rule.ruleId}_${course.id}_$trigger",
                 ruleId = rule.ruleId,
                 pluginId = rule.pluginId,
-                title = "${course.title} 即将开始",
-                message = "${course.time.startNode}-${course.time.endNode}节 ${course.location.ifBlank { "待定教室" }}",
+                title = buildTitle(course, courseDate, slot, rule.advanceMinutes),
+                message = buildMessage(course, courseDate, slot),
                 triggerAtMillis = trigger,
                 ringtoneUri = rule.ringtoneUri,
                 courseId = course.id,
             )
         }
+    }
+
+    private fun buildTitle(
+        course: CourseItem,
+        courseDate: LocalDate,
+        slot: ClassSlotTime,
+        advanceMinutes: Int,
+    ): String {
+        val weekday = weekdayName(course.time.dayOfWeek)
+        val startTime = slot.startTime
+        val advance = if (advanceMinutes > 0) "（提前${advanceMinutes}分钟）" else ""
+        return "${weekday} ${startTime} ${course.title}$advance"
+    }
+
+    private fun buildMessage(
+        course: CourseItem,
+        courseDate: LocalDate,
+        slot: ClassSlotTime,
+    ): String {
+        val date = "${courseDate.monthValue}月${courseDate.dayOfMonth}日"
+        val weekday = weekdayName(course.time.dayOfWeek)
+        val timeRange = "${slot.startTime}-${slot.endTime}"
+        val nodes = "第${course.time.startNode}-${course.time.endNode}节"
+        val location = course.location.ifBlank { "待定教室" }
+        return "$date $weekday $timeRange · $nodes · $location"
+    }
+
+    private fun weekdayName(dayOfWeek: Int): String = when (dayOfWeek) {
+        1 -> "周一"
+        2 -> "周二"
+        3 -> "周三"
+        4 -> "周四"
+        5 -> "周五"
+        6 -> "周六"
+        7 -> "周日"
+        else -> "周$dayOfWeek"
     }
 
     private fun ReminderRule.matches(course: CourseItem): Boolean {

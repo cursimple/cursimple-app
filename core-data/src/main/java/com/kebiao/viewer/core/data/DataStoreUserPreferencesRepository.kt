@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 private val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
@@ -31,6 +32,11 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
             timeZoneId = prefs[KEY_TIME_ZONE_ID] ?: UserPreferences.DEFAULT_TIME_ZONE_ID,
             enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
             pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
+            debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
+                runCatching { LocalDateTime.parse(raw) }.getOrNull()
+            },
+            disclaimerAccepted = prefs[KEY_DISCLAIMER_ACCEPTED] ?: false,
+            loaded = true,
         )
     }
 
@@ -68,6 +74,22 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
         }
     }
 
+    override suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?) {
+        store.edit { prefs ->
+            // Drop legacy date-only key whenever forced time is touched.
+            prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
+            if (dateTime == null) {
+                prefs.remove(KEY_DEBUG_FORCED_DATETIME)
+            } else {
+                prefs[KEY_DEBUG_FORCED_DATETIME] = dateTime.toString()
+            }
+        }
+    }
+
+    override suspend fun setDisclaimerAccepted(accepted: Boolean) {
+        store.edit { prefs -> prefs[KEY_DISCLAIMER_ACCEPTED] = accepted }
+    }
+
     override suspend fun seedEnabledPlugins(pluginIds: Set<String>) {
         store.edit { prefs ->
             if (prefs[KEY_PLUGINS_SEEDED] == true) return@edit
@@ -86,5 +108,8 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
         val KEY_TIME_ZONE_ID = stringPreferencesKey("time_zone_id")
         val KEY_ENABLED_PLUGIN_IDS = stringSetPreferencesKey("enabled_plugin_ids")
         val KEY_PLUGINS_SEEDED = booleanPreferencesKey("plugins_seeded")
+        val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
+        val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
+        val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")
     }
 }

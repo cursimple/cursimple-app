@@ -6,6 +6,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Menu
@@ -34,8 +37,11 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -80,6 +86,7 @@ import com.kebiao.viewer.app.theme.ClassScheduleTheme
 import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
+import com.kebiao.viewer.feature.plugin.BundledPluginCatalogEntry
 import com.kebiao.viewer.feature.plugin.PluginMarketRoute
 import com.kebiao.viewer.feature.schedule.AddCourseDialog
 import com.kebiao.viewer.feature.schedule.ManageScheduleSheet
@@ -107,7 +114,10 @@ class MainActivity : ComponentActivity() {
         val container = (application as ClassScheduleApplication).appContainer
         setContent {
             val prefsViewModel: AppPreferencesViewModel = viewModel(
-                factory = AppPreferencesViewModelFactory(container.userPreferencesRepository),
+                factory = AppPreferencesViewModelFactory(
+                    container.userPreferencesRepository,
+                    refreshWidgets = { container.refreshWidgets() },
+                ),
             )
             val prefs by prefsViewModel.state.collectAsStateWithLifecycle()
 
@@ -116,31 +126,73 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
+                    if (prefs.loaded) {
+                        OnboardingGate(
+                            disclaimerAccepted = prefs.disclaimerAccepted,
+                            onAccept = { prefsViewModel.setDisclaimerAccepted(true) },
+                            onReject = { finishAndRemoveTask() },
+                        )
+                    }
+                    if (prefs.loaded && prefs.disclaimerAccepted) {
                     val appZone = remember(prefs.timeZoneId) { BeijingTime.resolveZone(prefs.timeZoneId) }
                     androidx.compose.runtime.CompositionLocalProvider(LocalAppZone provides appZone) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
+                    var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
+                    var showAddMenu by remember { mutableStateOf(false) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
                             scheduleRepository = container.scheduleRepository,
                             pluginManager = container.pluginManager,
                             reminderCoordinator = container.reminderCoordinator,
                             manualCourseRepository = container.manualCourseRepository,
-                            onSyncCompleted = { container.refreshWidgets() },
+                            onSyncCompleted = { profile -> container.refreshWidgets(profile) },
                         ),
                     )
                     val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()
 
-                    androidx.compose.runtime.LaunchedEffect(scheduleState.installedPlugins, prefs.pluginsSeeded) {
-                        if (!prefs.pluginsSeeded && scheduleState.installedPlugins.isNotEmpty()) {
-                            prefsViewModel.seedEnabledPlugins(
-                                scheduleState.installedPlugins.map { it.pluginId }.toSet(),
-                            )
-                        }
-                    }
+                    val termProfileViewModel: TermProfileViewModel = viewModel(
+                        factory = TermProfileViewModelFactory(
+                            termRepo = container.termProfileRepository,
+                            userPrefs = container.userPreferencesRepository,
+                            onActiveTermChanged = { container.refreshWidgets() },
+                        ),
+                    )
+                    val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
 
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+                    var showTermStartReminder by rememberSaveable { mutableStateOf(false) }
+                    var autoPromptedThisSession by rememberSaveable { mutableStateOf(false) }
+                    androidx.compose.runtime.LaunchedEffect(prefs.loaded, prefs.termStartDate, prefs.disclaimerAccepted) {
+                        // Once per app launch, gently remind the user to set the term start date
+                        // if it's missing. We surface a dismissible reminder instead of forcing
+                        // the date picker open.
+                        if (prefs.loaded && prefs.disclaimerAccepted && prefs.termStartDate == null && !autoPromptedThisSession) {
+                            autoPromptedThisSession = true
+                            showTermStartReminder = true
+                        }
+                    }
+                    if (showTermStartReminder) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { showTermStartReminder = false },
+                            title = { Text("还没有设置开学日期") },
+                            text = {
+                                Text("没有开学日期就无法计算当前周次。可以稍后在课表页右上角的提示按钮，或抽屉里随时设置。")
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    showTermStartReminder = false
+                                    showDatePicker = true
+                                }) { Text("去设置") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showTermStartReminder = false }) {
+                                    Text("稍后再说")
+                                }
+                            },
+                        )
+                    }
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
@@ -149,6 +201,9 @@ class MainActivity : ComponentActivity() {
                     var showClearTermStartConfirm by rememberSaveable { mutableStateOf(false) }
                     var showClearEverythingConfirm by rememberSaveable { mutableStateOf(false) }
                     var showClearManualConfirm by rememberSaveable { mutableStateOf(false) }
+                    var showWidgetPicker by rememberSaveable { mutableStateOf(false) }
+                    var showClearSheet by rememberSaveable { mutableStateOf(false) }
+                    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
                     var weekOffset by rememberSaveable { mutableIntStateOf(0) }
                     var dayOffset by rememberSaveable { mutableIntStateOf(0) }
                     var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.Week) }
@@ -156,7 +211,9 @@ class MainActivity : ComponentActivity() {
 
                     val effectiveTermStart = prefs.termStartDate
                         ?: scheduleState.timingProfile?.termStartLocalDate()
-                    val today = LocalDate.now(appZone)
+                    val today = remember(prefs.debugForcedDateTime, appZone) {
+                        prefs.debugForcedDateTime?.toLocalDate() ?: LocalDate.now(appZone)
+                    }
                     val currentWeekIndex = effectiveTermStart?.let { start ->
                         val termStartMonday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
                         val todayMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -206,6 +263,10 @@ class MainActivity : ComponentActivity() {
                                 onPickTermStartDate = { showDatePicker = true },
                                 onClearTermStartDate = { showClearTermStartConfirm = true },
                                 onPickTimeZone = { showTimeZoneDialog = true },
+                                onOpenWidgetPicker = {
+                                    scope.launch { drawerState.close() }
+                                    showWidgetPicker = true
+                                },
                             )
                         },
                     ) {
@@ -214,6 +275,7 @@ class MainActivity : ComponentActivity() {
                                 .fillMaxSize()
                                 .background(MaterialTheme.colorScheme.background),
                             containerColor = MaterialTheme.colorScheme.background,
+                            snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
                             topBar = {
                                 CenterAlignedTopAppBar(
                                     title = {
@@ -222,16 +284,47 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.clickable { showWeekMenu = true },
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(
-                                                        text = "第 $displayedWeekIndex 周",
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                    )
-                                                    Icon(
-                                                        imageVector = Icons.Rounded.ArrowDropDown,
-                                                        contentDescription = "切换周次",
-                                                    )
+                                                val isCurrentWeek = displayedWeekIndex == currentWeekIndex
+                                                Surface(
+                                                    color = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
+                                                    else androidx.compose.ui.graphics.Color.Transparent,
+                                                    shape = RoundedCornerShape(50),
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        modifier = Modifier.padding(
+                                                            horizontal = if (isCurrentWeek) 12.dp else 0.dp,
+                                                            vertical = if (isCurrentWeek) 2.dp else 0.dp,
+                                                        ),
+                                                    ) {
+                                                        Text(
+                                                            text = "第 $displayedWeekIndex 周",
+                                                            style = MaterialTheme.typography.titleMedium,
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            color = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
+                                                            else MaterialTheme.colorScheme.onBackground,
+                                                        )
+                                                        if (isCurrentWeek) {
+                                                            Spacer(Modifier.width(4.dp))
+                                                            Surface(
+                                                                color = MaterialTheme.colorScheme.primary,
+                                                                shape = RoundedCornerShape(50),
+                                                            ) {
+                                                                Text(
+                                                                    text = "本周",
+                                                                    style = MaterialTheme.typography.labelSmall,
+                                                                    color = MaterialTheme.colorScheme.onPrimary,
+                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                                                )
+                                                            }
+                                                        }
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.ArrowDropDown,
+                                                            contentDescription = "切换周次",
+                                                            tint = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
+                                                            else MaterialTheme.colorScheme.onBackground,
+                                                        )
+                                                    }
                                                 }
                                                 val termLabel = remember(effectiveTermStart) {
                                                     formatTermLabel(effectiveTermStart)
@@ -261,6 +354,24 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     actions = {
+                                        if (prefs.loaded && prefs.termStartDate == null && currentScreen == AppScreen.Schedule) {
+                                            IconButton(onClick = { showTermStartReminder = true }) {
+                                                Surface(
+                                                    shape = CircleShape,
+                                                    color = MaterialTheme.colorScheme.errorContainer,
+                                                    modifier = Modifier.size(28.dp),
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Icon(
+                                                            imageVector = Icons.Rounded.PriorityHigh,
+                                                            contentDescription = "请设置开学日期",
+                                                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                                                            modifier = Modifier.size(18.dp),
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
                                         if (currentScreen == AppScreen.Schedule) {
                                             IconButton(
                                                 onClick = {
@@ -287,11 +398,80 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 }
                                             }
-                                            IconButton(onClick = { showManageSheet = true }) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.Add,
-                                                    contentDescription = "管理课表",
-                                                )
+                                            Box {
+                                                IconButton(onClick = { showAddMenu = true }) {
+                                                    Surface(
+                                                        shape = CircleShape,
+                                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                                        modifier = Modifier.size(32.dp),
+                                                    ) {
+                                                        Box(contentAlignment = Alignment.Center) {
+                                                            Icon(
+                                                                imageVector = Icons.Rounded.Add,
+                                                                contentDescription = "添加课表",
+                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                                modifier = Modifier.size(20.dp),
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                DropdownMenu(
+                                                    expanded = showAddMenu,
+                                                    onDismissRequest = { showAddMenu = false },
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Text("切换 / 管理学期") },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Rounded.CalendarMonth,
+                                                                contentDescription = null,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showAddMenu = false
+                                                            subScreen = MainActivity.SubScreen.TermManagement
+                                                        },
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("手动添加课程") },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Rounded.Add,
+                                                                contentDescription = null,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showAddMenu = false
+                                                            showAddCourseDialog = true
+                                                        },
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("清空课表") },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Rounded.CleaningServices,
+                                                                contentDescription = null,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showAddMenu = false
+                                                            showClearSheet = true
+                                                        },
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text("导入 / 导出课程") },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Rounded.SwapHoriz,
+                                                                contentDescription = null,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showAddMenu = false
+                                                            subScreen = MainActivity.SubScreen.ImportExport
+                                                        },
+                                                    )
+                                                }
                                             }
                                         }
                                     },
@@ -331,8 +511,18 @@ class MainActivity : ComponentActivity() {
                                         syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
                                         syncStatusMessage = scheduleState.statusMessage,
                                         pendingWebSession = scheduleState.pendingWebSession,
+                                        bundledCatalog = container.bundledPluginCatalog.map {
+                                            BundledPluginCatalogEntry(
+                                                pluginId = it.pluginId,
+                                                name = it.name,
+                                                description = it.description,
+                                            )
+                                        },
                                         onSetPluginEnabled = prefsViewModel::setPluginEnabled,
                                         onSyncPlugin = scheduleViewModel::syncSchedule,
+                                        onAddBundledPlugin = { id ->
+                                            scope.launch { container.installBundledPlugin(id) }
+                                        },
                                         onCompleteWebSession = scheduleViewModel::completeWebSession,
                                         onCancelWebSession = scheduleViewModel::cancelWebSession,
                                         modifier = Modifier.fillMaxSize(),
@@ -345,12 +535,50 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.About -> AboutScreen(
                                         advancedToolsEnabled = prefs.advancedToolsEnabled,
+                                        debugForcedDateTime = prefs.debugForcedDateTime,
                                         onSetAdvancedTools = prefsViewModel::setAdvancedToolsEnabled,
+                                        onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
                             }
                         }
+                    }
+
+                    when (subScreen) {
+                        MainActivity.SubScreen.TermManagement -> {
+                            TermManagementScreen(
+                                state = termProfileState,
+                                onBack = { subScreen = null },
+                                onCreate = { name, date ->
+                                    termProfileViewModel.createTerm(name, date)
+                                    weekOffset = 0
+                                    dayOffset = 0
+                                },
+                                onRename = termProfileViewModel::renameTerm,
+                                onSetStartDate = { id, date ->
+                                    termProfileViewModel.setStartDate(id, date)
+                                    weekOffset = 0
+                                    dayOffset = 0
+                                },
+                                onActivate = { id ->
+                                    termProfileViewModel.activate(id)
+                                    weekOffset = 0
+                                    dayOffset = 0
+                                },
+                                onDelete = termProfileViewModel::delete,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            androidx.activity.compose.BackHandler { subScreen = null }
+                        }
+                        MainActivity.SubScreen.ImportExport -> {
+                            ImportExportScreen(
+                                onBack = { subScreen = null },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            androidx.activity.compose.BackHandler { subScreen = null }
+                        }
+                        null -> Unit
                     }
 
                     if (showDatePicker) {
@@ -359,8 +587,12 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showDatePicker = false },
                             onConfirm = { date ->
                                 prefsViewModel.setTermStartDate(date)
+                                // After (re)setting term start, snap views back to today / current week.
+                                weekOffset = 0
+                                dayOffset = 0
                                 showDatePicker = false
                             },
+                            showHint = prefs.termStartDate == null,
                         )
                     }
 
@@ -512,6 +744,38 @@ class MainActivity : ComponentActivity() {
                             onRemoveCourse = scheduleViewModel::removeManualCourse,
                         )
                     }
+
+                    if (showWidgetPicker) {
+                        WidgetPickerSheet(
+                            onDismiss = { showWidgetPicker = false },
+                            onShowMessage = { msg ->
+                                scope.launch { snackbarHostState.showSnackbar(msg) }
+                            },
+                        )
+                    }
+
+                    if (showClearSheet) {
+                        val importedCourses = remember(scheduleState.schedule) {
+                            scheduleState.schedule?.dailySchedules
+                                ?.flatMap { it.courses }
+                                ?.distinctBy { it.id }
+                                .orEmpty()
+                        }
+                        ClearScheduleSheet(
+                            manualCourses = scheduleState.manualCourses,
+                            importedCourses = importedCourses,
+                            onDismiss = { showClearSheet = false },
+                            onConfirm = { selected ->
+                                when (selected) {
+                                    ClearScope.ManualOnly -> scheduleViewModel.clearManualCourses()
+                                    ClearScope.ImportedOnly -> scheduleViewModel.clearImportedSchedule()
+                                    ClearScope.Everything -> scheduleViewModel.clearAllSchedules()
+                                }
+                                showClearSheet = false
+                            },
+                        )
+                    }
+                    }
                     }
                 }
             }
@@ -527,6 +791,8 @@ class MainActivity : ComponentActivity() {
         Reminders("提醒", Icons.Rounded.Notifications),
         About("关于", Icons.Rounded.Info),
     }
+
+    enum class SubScreen { TermManagement, ImportExport }
 }
 
 @Composable
@@ -543,37 +809,53 @@ private fun AppDrawer(
     onPickTermStartDate: () -> Unit,
     onClearTermStartDate: () -> Unit,
     onPickTimeZone: () -> Unit,
+    onOpenWidgetPicker: () -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.fillMaxWidth(0.72f),
+        modifier = Modifier.fillMaxWidth(0.68f),
         drawerContainerColor = MaterialTheme.colorScheme.surface,
     ) {
+        val scrollState = rememberScrollState()
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 16.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .verticalScroll(scrollState)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = "课表查看",
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = if (termStartDate != null) "当前 第 $currentWeekIndex 周" else "未设置开学日期",
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             MainActivity.AppScreen.entries.forEach { screen ->
                 NavigationDrawerItem(
-                    label = { Text(screen.label) },
-                    icon = { Icon(screen.icon, contentDescription = null) },
+                    label = {
+                        Text(
+                            text = screen.label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = screen.icon,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    },
                     selected = screen == currentScreen,
                     onClick = { onSelectScreen(screen) },
+                    modifier = Modifier.height(44.dp),
                     colors = NavigationDrawerItemDefaults.colors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                         unselectedContainerColor = MaterialTheme.colorScheme.surface,
@@ -581,13 +863,13 @@ private fun AppDrawer(
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Text(
                 text = "偏好",
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
@@ -622,7 +904,12 @@ private fun AppDrawer(
                 onClick = onPickTermStartDate,
                 trailing = if (termStartDate != null) {
                     {
-                        TextButton(onClick = onClearTermStartDate) { Text("清除") }
+                        TextButton(
+                            onClick = onClearTermStartDate,
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                        ) {
+                            Text("清除", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 } else null,
             )
@@ -634,9 +921,18 @@ private fun AppDrawer(
                 onClick = onPickTimeZone,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(6.dp))
+
+            DrawerActionRow(
+                icon = Icons.Rounded.Widgets,
+                title = "桌面小组件",
+                subtitle = "添加课表、下一节课或课程提醒",
+                onClick = onOpenWidgetPicker,
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = "课表查看 · v0.1.0",
@@ -658,31 +954,31 @@ private fun DrawerActionRow(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(22.dp),
+                modifier = Modifier.size(18.dp),
             )
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -699,6 +995,7 @@ private fun TermStartDatePicker(
     initial: LocalDate?,
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
+    showHint: Boolean = false,
 ) {
     val zone = LocalAppZone.current
     val initialMillis = (initial ?: LocalDate.now(zone))
@@ -724,7 +1021,56 @@ private fun TermStartDatePicker(
             TextButton(onClick = onDismiss) { Text("取消") }
         },
     ) {
-        DatePicker(state = state)
+        if (showHint) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(top = 8.dp),
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.PriorityHigh,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "请设置开学日期，用于计算当前周次和正确显示课表。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+        }
+        DatePicker(
+            state = state,
+            title = {
+                Text(
+                    text = "选择开学日期",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 4.dp),
+                )
+            },
+            headline = {
+                val zoneLocal = LocalAppZone.current
+                val selectedDate = state.selectedDateMillis?.let { millis ->
+                    Instant.ofEpochMilli(millis).atZone(zoneLocal).toLocalDate()
+                }
+                val fmt = DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日")
+                Text(
+                    text = selectedDate?.let { "开学日期：${fmt.format(it)}" } ?: "选择第 1 周的周一",
+                    style = MaterialTheme.typography.headlineSmall,
+                    modifier = Modifier.padding(start = 24.dp, end = 12.dp, bottom = 12.dp),
+                )
+            },
+        )
     }
 }
 

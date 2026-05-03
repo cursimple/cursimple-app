@@ -12,6 +12,9 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.ClassScheduleViewer">
+        <!-- Vendor opt-ins so MIUI / vivo / HONOR launchers index our widgets in their pickers. -->
+        <meta-data android:name="miuiWidgetVersion" android:value="1" />
+        <meta-data android:name="vivoWidgetVersion" android:value="1" />
         <activity
             android:name=".app.MainActivity"
             android:exported="true">

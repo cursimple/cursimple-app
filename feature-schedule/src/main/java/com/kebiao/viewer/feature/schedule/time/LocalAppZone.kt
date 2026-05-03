@@ -7,4 +7,4 @@ import java.time.ZoneId
 
 val LocalAppZone = compositionLocalOf<ZoneId> { BeijingTime.zone }
 
-fun ZoneId.today(): LocalDate = LocalDate.now(this)
+fun ZoneId.today(): LocalDate = BeijingTime.todayIn(this)

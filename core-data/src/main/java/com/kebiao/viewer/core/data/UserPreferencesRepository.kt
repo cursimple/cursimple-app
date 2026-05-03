@@ -2,6 +2,7 @@ package com.kebiao.viewer.core.data
 
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 enum class ThemeMode { System, Light, Dark }
 
@@ -15,6 +16,10 @@ data class UserPreferences(
     val timeZoneId: String = DEFAULT_TIME_ZONE_ID,
     val enabledPluginIds: Set<String> = emptySet(),
     val pluginsSeeded: Boolean = false,
+    val debugForcedDateTime: LocalDateTime? = null,
+    val disclaimerAccepted: Boolean = false,
+    /** True once the persisted prefs have been read at least once. False = still loading. */
+    val loaded: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_TIME_ZONE_ID: String = "Asia/Shanghai"
@@ -30,4 +35,6 @@ interface UserPreferencesRepository {
     suspend fun setTimeZoneId(timeZoneId: String)
     suspend fun setPluginEnabled(pluginId: String, enabled: Boolean)
     suspend fun seedEnabledPlugins(pluginIds: Set<String>)
+    suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
+    suspend fun setDisclaimerAccepted(accepted: Boolean)
 }
