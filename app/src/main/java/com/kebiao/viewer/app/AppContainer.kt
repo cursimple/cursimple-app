@@ -9,21 +9,28 @@ import com.kebiao.viewer.core.data.ScheduleRepository
 import com.kebiao.viewer.core.data.UserPreferencesRepository
 import com.kebiao.viewer.core.data.plugin.DataStorePluginRegistryRepository
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
+import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
+import com.kebiao.viewer.core.data.term.TermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
+import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.plugin.PluginManager
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.feature.widget.ScheduleWidgetUpdater
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 class AppContainer(
     private val app: Application,
 ) {
-    val scheduleRepository: ScheduleRepository = DataStoreScheduleRepository(app)
+    val termProfileRepository: TermProfileRepository = DataStoreTermProfileRepository(app)
+    private val scheduleStore = DataStoreScheduleRepository(app, termProfileRepository)
+    val scheduleRepository: ScheduleRepository = scheduleStore
     val pluginRegistryRepository = DataStorePluginRegistryRepository(app)
     val reminderRepository = DataStoreReminderRepository(app)
     val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(app)
     val userPreferencesRepository: UserPreferencesRepository = DataStoreUserPreferencesRepository(app)
-    val manualCourseRepository: ManualCourseRepository = DataStoreManualCourseRepository(app)
+    private val manualStore = DataStoreManualCourseRepository(app, termProfileRepository)
+    val manualCourseRepository: ManualCourseRepository = manualStore
     val pluginManager = PluginManager(
         context = app,
         registryRepository = pluginRegistryRepository,
@@ -33,16 +40,47 @@ class AppContainer(
         repository = reminderRepository,
     )
 
+    val bundledPluginCatalog: List<BundledPluginEntry> = listOf(
+        BundledPluginEntry(
+            pluginId = YANGTZEU_PLUGIN_ID,
+            assetRoot = "plugin-dev/yangtzeu-eams-v2",
+            name = "长江大学教务插件",
+            description = "通过 ATrust + EAMS 抓取课表的内置插件。",
+        ),
+    )
+
     init {
         runBlocking {
-            pluginManager.ensureBundledPlugin("plugin-dev/yangtzeu-eams-v2")
+            // Bootstrap term list: if empty, seed from any existing legacy termStartDate
+            // so users keep their schedule after the upgrade.
+            val legacyTermStart = userPreferencesRepository.preferencesFlow.first()
+                .termStartDate?.toString()
+            val activeTermId = termProfileRepository.ensureBootstrapped(
+                defaultName = "默认学期",
+                legacyTermStartDateIso = legacyTermStart,
+            )
+            scheduleStore.migrateLegacyScheduleIfNeeded(activeTermId)
+            manualStore.migrateLegacyManualIfNeeded(activeTermId)
+
+            // Clean up plugins that are no longer offered (e.g. legacy demo plugins from
+            // earlier builds). Do NOT auto-install bundled plugins — the user adds them
+            // explicitly from the plugin market.
+            val catalogIds = bundledPluginCatalog.map { it.pluginId }.toSet()
             pluginManager.getInstalledPlugins()
-                .filterNot { it.pluginId == YANGTZEU_PLUGIN_ID }
+                .filterNot { it.pluginId in catalogIds }
                 .forEach { runCatching { pluginManager.removePlugin(it.pluginId) } }
         }
     }
 
-    suspend fun refreshWidgets() {
+    suspend fun installBundledPlugin(pluginId: String) {
+        val entry = bundledPluginCatalog.firstOrNull { it.pluginId == pluginId } ?: return
+        pluginManager.ensureBundledPlugin(entry.assetRoot)
+    }
+
+    suspend fun refreshWidgets(timingProfile: TermTimingProfile? = null) {
+        if (timingProfile != null) {
+            widgetPreferencesRepository.saveTimingProfile(timingProfile)
+        }
         ScheduleWidgetUpdater.refreshAll(app)
     }
 
@@ -50,3 +88,10 @@ class AppContainer(
         const val YANGTZEU_PLUGIN_ID = "yangtzeu-eams-v2"
     }
 }
+
+data class BundledPluginEntry(
+    val pluginId: String,
+    val assetRoot: String,
+    val name: String,
+    val description: String,
+)

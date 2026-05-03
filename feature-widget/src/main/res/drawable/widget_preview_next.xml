@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="240dp"
+    android:height="200dp"
+    android:viewportWidth="240"
+    android:viewportHeight="200">
+
+    <!-- Card background -->
+    <path
+        android:fillColor="#FFF7F1EA"
+        android:pathData="M12,12 h216 a16,16 0 0 1 16,16 v144 a16,16 0 0 1 -16,16 h-216 a16,16 0 0 1 -16,-16 v-144 a16,16 0 0 1 16,-16 z" />
+
+    <!-- Section label: 下一节课 -->
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M22,28 h64 v8 h-64 z" />
+    <!-- Countdown pill -->
+    <path
+        android:fillColor="#FFEDD3B7"
+        android:pathData="M174,24 h44 a8,8 0 0 1 8,8 v0 a8,8 0 0 1 -8,8 h-44 a8,8 0 0 1 -8,-8 v0 a8,8 0 0 1 8,-8 z" />
+
+    <!-- Focus card (live) -->
+    <path
+        android:fillColor="#FFFFFBF4"
+        android:pathData="M16,52 h208 a10,10 0 0 1 10,10 v52 a10,10 0 0 1 -10,10 h-208 a10,10 0 0 1 -10,-10 v-52 a10,10 0 0 1 10,-10 z" />
+    <path
+        android:fillColor="#FFD0763B"
+        android:pathData="M16,52 h6 v72 h-6 z" />
+    <!-- Status label -->
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M36,62 h40 v6 h-40 z" />
+    <!-- Course title -->
+    <path
+        android:fillColor="#FF3B2C1B"
+        android:pathData="M36,76 h148 v14 h-148 z" />
+    <!-- Time -->
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M36,98 h96 v7 h-96 z" />
+    <!-- Location -->
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M36,110 h120 v7 h-120 z" />
+
+    <!-- Compact upcoming -->
+    <path
+        android:fillColor="#FFFFFBF4"
+        android:pathData="M16,138 h208 a10,10 0 0 1 10,10 v32 a10,10 0 0 1 -10,10 h-208 a10,10 0 0 1 -10,-10 v-32 a10,10 0 0 1 10,-10 z" />
+    <path
+        android:fillColor="#FF8FB48E"
+        android:pathData="M16,138 h6 v52 h-6 z" />
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M36,148 h32 v6 h-32 z" />
+    <path
+        android:fillColor="#FF3B2C1B"
+        android:pathData="M36,160 h130 v10 h-130 z" />
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M36,176 h100 v6 h-100 z" />
+</vector>

@@ -7,14 +7,17 @@ import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.data.UserPreferences
 import com.kebiao.viewer.core.data.UserPreferencesRepository
+import com.kebiao.viewer.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.LocalDateTime
 
 class AppPreferencesViewModel(
     private val repository: UserPreferencesRepository,
+    private val refreshWidgets: suspend () -> Unit = {},
 ) : ViewModel() {
 
     val state: StateFlow<UserPreferences> = repository.preferencesFlow
@@ -47,15 +50,30 @@ class AppPreferencesViewModel(
     fun seedEnabledPlugins(pluginIds: Set<String>) {
         viewModelScope.launch { repository.seedEnabledPlugins(pluginIds) }
     }
+
+    fun setDisclaimerAccepted(accepted: Boolean) {
+        viewModelScope.launch { repository.setDisclaimerAccepted(accepted) }
+    }
+
+    fun setDebugForcedDateTime(dateTime: LocalDateTime?) {
+        // Apply in-process override synchronously so the rest of the app sees the new "now"
+        // immediately, before DataStore commit and the flow re-emits.
+        BeijingTime.setForcedNow(dateTime)
+        viewModelScope.launch {
+            repository.setDebugForcedDateTime(dateTime)
+            refreshWidgets()
+        }
+    }
 }
 
 class AppPreferencesViewModelFactory(
     private val repository: UserPreferencesRepository,
+    private val refreshWidgets: suspend () -> Unit = {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AppPreferencesViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return AppPreferencesViewModel(repository) as T
+            return AppPreferencesViewModel(repository, refreshWidgets) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

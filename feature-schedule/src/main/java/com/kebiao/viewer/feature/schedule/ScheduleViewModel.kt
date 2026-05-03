@@ -61,7 +61,7 @@ class ScheduleViewModel(
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
     private val manualCourseRepository: ManualCourseRepository,
-    private val onSyncCompleted: suspend () -> Unit = {},
+    private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScheduleUiState())
@@ -377,6 +377,15 @@ class ScheduleViewModel(
         }
     }
 
+    fun clearImportedSchedule() {
+        viewModelScope.launch {
+            scheduleRepository.clearSchedule()
+            _uiState.update {
+                it.copy(schedule = null, statusMessage = "已清空导入的课表")
+            }
+        }
+    }
+
     fun clearAllSchedules() {
         viewModelScope.launch {
             val ruleIds = _uiState.value.reminderRules.map { it.ruleId }
@@ -409,6 +418,11 @@ class ScheduleViewModel(
                     uiSchema = schema,
                     timingProfile = timingProfile,
                 )
+            }
+            // Mirror the timing profile into widget storage so home-screen widgets can
+            // resolve real clock times even before the user has run a fresh sync.
+            if (timingProfile != null) {
+                onSyncCompleted(timingProfile)
             }
         }.onFailure { error ->
             PluginLogger.error(
@@ -456,7 +470,7 @@ class ScheduleViewModel(
                         timingProfile = result.timingProfile,
                         preferSystemClock = false,
                     )
-                    onSyncCompleted()
+                    onSyncCompleted(result.timingProfile)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
@@ -587,7 +601,7 @@ class ScheduleViewModelFactory(
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
     private val manualCourseRepository: ManualCourseRepository,
-    private val onSyncCompleted: suspend () -> Unit = {},
+    private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {

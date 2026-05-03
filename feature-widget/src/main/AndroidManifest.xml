@@ -2,10 +2,21 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <application>
+        <!--
+            Each widget is registered twice:
+              * a generic AOSP receiver, and
+              * a vendor-aware receiver that also responds to miui.appwidget.action.APPWIDGET_UPDATE
+                and carries miui/vivo/HONOR meta-data so those launchers list us in their
+                widget pickers (where the standard pinAppWidget API is often blocked).
+            Both run in the main process so Glance's DataStore-backed state stays consistent.
+        -->
+
+        <!-- Today schedule -->
         <receiver
             android:name=".ScheduleGlanceWidgetReceiver"
-            android:exported="false"
-            android:label="课表查看">
+            android:exported="true"
+            android:icon="@drawable/widget_preview_today"
+            android:label="@string/widget_label_today">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -14,7 +25,108 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/schedule_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".ScheduleGlanceWidgetReceiverMIUI"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_today"
+            android:label="@string/widget_label_today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/schedule_widget_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/glance_appwidget_description" />
+            <meta-data android:name="com.hihonor.widget.type" android:value="honorcard" />
+        </receiver>
+
+        <!-- Next course -->
+        <receiver
+            android:name=".NextCourseGlanceWidgetReceiver"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_next"
+            android:label="@string/widget_label_next">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/next_course_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".NextCourseGlanceWidgetReceiverMIUI"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_next"
+            android:label="@string/widget_label_next">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/next_course_widget_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/next_course_widget_description" />
+            <meta-data android:name="com.hihonor.widget.type" android:value="honorcard" />
+        </receiver>
+
+        <!-- Reminder -->
+        <receiver
+            android:name=".ReminderGlanceWidgetReceiver"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_reminder"
+            android:label="@string/widget_label_reminder">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/reminder_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".ReminderGlanceWidgetReceiverMIUI"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_reminder"
+            android:label="@string/widget_label_reminder">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/reminder_widget_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/reminder_widget_description" />
+            <meta-data android:name="com.hihonor.widget.type" android:value="honorcard" />
+        </receiver>
     </application>
 
 </manifest>
-

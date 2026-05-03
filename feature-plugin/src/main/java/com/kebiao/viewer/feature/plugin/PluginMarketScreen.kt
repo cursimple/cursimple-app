@@ -36,6 +36,12 @@ import com.kebiao.viewer.core.plugin.install.InstalledPluginRecord
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 
+data class BundledPluginCatalogEntry(
+    val pluginId: String,
+    val name: String,
+    val description: String,
+)
+
 @Composable
 fun PluginMarketRoute(
     installedPlugins: List<InstalledPluginRecord>,
@@ -43,8 +49,10 @@ fun PluginMarketRoute(
     syncingPluginId: String?,
     syncStatusMessage: String?,
     pendingWebSession: WebSessionRequest?,
+    bundledCatalog: List<BundledPluginCatalogEntry>,
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
+    onAddBundledPlugin: (String) -> Unit,
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
@@ -55,8 +63,10 @@ fun PluginMarketRoute(
         syncingPluginId = syncingPluginId,
         syncStatusMessage = syncStatusMessage,
         pendingWebSession = pendingWebSession,
+        bundledCatalog = bundledCatalog,
         onSetPluginEnabled = onSetPluginEnabled,
         onSyncPlugin = onSyncPlugin,
+        onAddBundledPlugin = onAddBundledPlugin,
         onCompleteWebSession = onCompleteWebSession,
         onCancelWebSession = onCancelWebSession,
         modifier = modifier,
@@ -70,22 +80,28 @@ fun PluginMarketScreen(
     syncingPluginId: String?,
     syncStatusMessage: String?,
     pendingWebSession: WebSessionRequest?,
+    bundledCatalog: List<BundledPluginCatalogEntry>,
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
+    onAddBundledPlugin: (String) -> Unit,
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var detailPluginId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showAddSheet by rememberSaveable { mutableStateOf(false) }
     val detailPlugin = detailPluginId?.let { id -> installedPlugins.firstOrNull { it.pluginId == id } }
     if (detailPlugin != null) {
         PluginDetailScreen(
             plugin = detailPlugin,
             isEnabled = detailPlugin.pluginId in enabledPluginIds,
             isSyncing = syncingPluginId == detailPlugin.pluginId,
+            pendingWebSession = pendingWebSession,
             onBack = { detailPluginId = null },
             onSetEnabled = { onSetPluginEnabled(detailPlugin.pluginId, it) },
             onSync = { onSyncPlugin(detailPlugin.pluginId) },
+            onCompleteWebSession = onCompleteWebSession,
+            onCancelWebSession = onCancelWebSession,
             modifier = modifier,
         )
         return
@@ -105,6 +121,10 @@ fun PluginMarketScreen(
                 PluginCountHeader(
                     enabledCount = enabledCount,
                     totalCount = installedPlugins.size,
+                    canAdd = bundledCatalog.any { entry ->
+                        installedPlugins.none { it.pluginId == entry.pluginId }
+                    },
+                    onAddClick = { showAddSheet = true },
                 )
             }
 
@@ -127,7 +147,10 @@ fun PluginMarketScreen(
 
             if (installedPlugins.isEmpty()) {
                 item {
-                    EmptyStateCard("当前没有可用插件", "应用启动时会自动装入长江大学教务插件；如果这里还是空的，说明内置安装过程出了问题。")
+                    EmptyStateCard(
+                        title = "还没有任何插件",
+                        subtitle = "点击右上角的「添加」按钮，从内置目录中加入插件。添加后还需要在卡片上手动开启。",
+                    )
                 }
             } else {
                 items(installedPlugins, key = { it.pluginId }) { plugin ->
@@ -165,10 +188,88 @@ fun PluginMarketScreen(
             }
         }
     }
+
+    if (showAddSheet) {
+        AddBundledPluginDialog(
+            entries = bundledCatalog,
+            installedIds = installedPlugins.map { it.pluginId }.toSet(),
+            onDismiss = { showAddSheet = false },
+            onAdd = { id ->
+                onAddBundledPlugin(id)
+                showAddSheet = false
+            },
+        )
+    }
 }
 
 @Composable
-private fun PluginCountHeader(enabledCount: Int, totalCount: Int) {
+private fun AddBundledPluginDialog(
+    entries: List<BundledPluginCatalogEntry>,
+    installedIds: Set<String>,
+    onDismiss: () -> Unit,
+    onAdd: (String) -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("添加插件") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (entries.isEmpty()) {
+                    Text(
+                        "暂无可添加的内置插件。",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    entries.forEach { entry ->
+                        val installed = entry.pluginId in installedIds
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(entry.name, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        entry.description,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                if (installed) {
+                                    Text(
+                                        "已添加",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                } else {
+                                    Button(onClick = { onAdd(entry.pluginId) }) {
+                                        Text("添加")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("关闭") }
+        },
+    )
+}
+
+@Composable
+private fun PluginCountHeader(
+    enabledCount: Int,
+    totalCount: Int,
+    canAdd: Boolean,
+    onAddClick: () -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -189,12 +290,18 @@ private fun PluginCountHeader(enabledCount: Int, totalCount: Int) {
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
+                Text(
+                    text = "已启用 / 已安装",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            Text(
-                text = "已启用 / 已安装",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Button(
+                onClick = onAddClick,
+                enabled = canAdd,
+            ) {
+                Text("添加")
+            }
         }
     }
 }
@@ -270,9 +377,12 @@ private fun PluginDetailScreen(
     plugin: InstalledPluginRecord,
     isEnabled: Boolean,
     isSyncing: Boolean,
+    pendingWebSession: WebSessionRequest?,
     onBack: () -> Unit,
     onSetEnabled: (Boolean) -> Unit,
     onSync: () -> Unit,
+    onCompleteWebSession: (WebSessionPacket) -> Unit,
+    onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -376,6 +486,28 @@ private fun PluginDetailScreen(
                             }
                         }
                     }
+                }
+            }
+        }
+
+        pendingWebSession?.let { request ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Color(0xD9000000))
+                    .padding(12.dp),
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    PluginWebSessionScreen(
+                        request = request,
+                        onFinish = onCompleteWebSession,
+                        onCancel = onCancelWebSession,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
             }
         }

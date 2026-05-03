@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="240dp"
+    android:viewportWidth="320"
+    android:viewportHeight="240">
+
+    <!-- Card background -->
+    <path
+        android:fillColor="#FFF7F1EA"
+        android:pathData="M16,16 h288 a16,16 0 0 1 16,16 v176 a16,16 0 0 1 -16,16 h-288 a16,16 0 0 1 -16,-16 v-176 a16,16 0 0 1 16,-16 z" />
+
+    <!-- Header: prev arrow -->
+    <path
+        android:fillColor="#FFE7DCCA"
+        android:pathData="M28,28 m20,0 a20,20 0 1,0 0.001,0 z" />
+    <path
+        android:fillColor="#FF6E5945"
+        android:strokeWidth="3"
+        android:strokeColor="#FF6E5945"
+        android:pathData="M52,42 L42,48 L52,54" />
+
+    <!-- Date title -->
+    <path
+        android:fillColor="#FF3B2C1B"
+        android:pathData="M104,40 h112 v14 h-112 z" />
+    <!-- Today pill -->
+    <path
+        android:fillColor="#FFD0763B"
+        android:pathData="M226,42 h36 a8,8 0 0 1 8,8 v0 a8,8 0 0 1 -8,8 h-36 a8,8 0 0 1 -8,-8 v0 a8,8 0 0 1 8,-8 z" />
+    <!-- Weekday subtitle -->
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M124,64 h72 v8 h-72 z" />
+
+    <!-- Header: next arrow -->
+    <path
+        android:fillColor="#FFE7DCCA"
+        android:pathData="M272,28 m20,0 a20,20 0 1,0 0.001,0 z" />
+    <path
+        android:fillColor="#FF6E5945"
+        android:strokeWidth="3"
+        android:strokeColor="#FF6E5945"
+        android:pathData="M286,42 L296,48 L286,54" />
+
+    <!-- Course row 1 (live) -->
+    <path
+        android:fillColor="#FFFFFBF4"
+        android:pathData="M20,90 h280 a10,10 0 0 1 10,10 v30 a10,10 0 0 1 -10,10 h-280 a10,10 0 0 1 -10,-10 v-30 a10,10 0 0 1 10,-10 z" />
+    <path
+        android:fillColor="#FFD0763B"
+        android:pathData="M20,90 h6 v50 h-6 z" />
+    <path
+        android:fillColor="#FF3B2C1B"
+        android:pathData="M40,100 h120 v10 h-120 z" />
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M40,116 h160 v8 h-160 z" />
+    <path
+        android:fillColor="#FFD0763B"
+        android:pathData="M250,100 h44 a6,6 0 0 1 6,6 v0 a6,6 0 0 1 -6,6 h-44 a6,6 0 0 1 -6,-6 v0 a6,6 0 0 1 6,-6 z" />
+
+    <!-- Course row 2 -->
+    <path
+        android:fillColor="#FFFFFBF4"
+        android:pathData="M20,150 h280 a10,10 0 0 1 10,10 v30 a10,10 0 0 1 -10,10 h-280 a10,10 0 0 1 -10,-10 v-30 a10,10 0 0 1 10,-10 z" />
+    <path
+        android:fillColor="#FF8FB48E"
+        android:pathData="M20,150 h6 v50 h-6 z" />
+    <path
+        android:fillColor="#FF3B2C1B"
+        android:pathData="M40,160 h140 v10 h-140 z" />
+    <path
+        android:fillColor="#FFB89B7B"
+        android:pathData="M40,176 h120 v8 h-120 z" />
+</vector>
