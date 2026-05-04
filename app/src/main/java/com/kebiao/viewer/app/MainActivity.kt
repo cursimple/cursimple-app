@@ -40,6 +40,7 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
@@ -299,24 +300,11 @@ class MainActivity : ComponentActivity() {
                         drawerContent = {
                             AppDrawer(
                                 currentScreen = currentScreen,
-                                themeMode = prefs.themeMode,
-                                themeAccent = prefs.themeAccent,
                                 termStartDate = prefs.termStartDate,
-                                timeZoneId = prefs.timeZoneId,
                                 currentWeekIndex = currentWeekIndex,
                                 onSelectScreen = {
                                     currentScreen = it
                                     scope.launch { drawerState.close() }
-                                },
-                                onPickThemeMode = { showThemeSheet = true },
-                                onPickThemeAccent = { showThemeAccentDialog = true },
-                                onPickTermStartDate = { showDatePicker = true },
-                                onPickCurrentWeek = { showCurrentWeekDialog = true },
-                                onClearTermStartDate = { showClearTermStartConfirm = true },
-                                onPickTimeZone = { showTimeZoneDialog = true },
-                                onOpenWidgetPicker = {
-                                    scope.launch { drawerState.close() }
-                                    showWidgetPicker = true
                                 },
                             )
                         },
@@ -553,6 +541,7 @@ class MainActivity : ComponentActivity() {
                                         onNextDay = { dayOffset += 1 },
                                         onResetDay = { dayOffset = 0 },
                                         onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
+                                        totalScheduleDisplayEnabled = prefs.totalScheduleDisplayEnabled,
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -581,6 +570,24 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.Reminders -> SettingsRoute(
                                         viewModel = scheduleViewModel,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+
+                                    AppScreen.Settings -> AppSettingsRoute(
+                                        themeMode = prefs.themeMode,
+                                        themeAccentLabel = themeAccentLabel(prefs.themeAccent),
+                                        termStartDate = prefs.termStartDate,
+                                        timeZoneLabel = timeZoneLabel(prefs.timeZoneId),
+                                        currentWeekIndex = currentWeekIndex,
+                                        totalScheduleDisplayEnabled = prefs.totalScheduleDisplayEnabled,
+                                        onPickThemeMode = { showThemeSheet = true },
+                                        onPickThemeAccent = { showThemeAccentDialog = true },
+                                        onPickTermStartDate = { showDatePicker = true },
+                                        onPickCurrentWeek = { showCurrentWeekDialog = true },
+                                        onClearTermStartDate = { showClearTermStartConfirm = true },
+                                        onPickTimeZone = { showTimeZoneDialog = true },
+                                        onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
+                                        onOpenWidgetPicker = { showWidgetPicker = true },
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -901,6 +908,7 @@ class MainActivity : ComponentActivity() {
         Schedule("课表", Icons.AutoMirrored.Rounded.MenuBook),
         Plugins("插件", Icons.Rounded.Extension),
         Reminders("提醒", Icons.Rounded.Notifications),
+        Settings("设置", Icons.Rounded.Settings),
         About("关于", Icons.Rounded.Info),
     }
 
@@ -910,19 +918,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AppDrawer(
     currentScreen: MainActivity.AppScreen,
-    themeMode: ThemeMode,
-    themeAccent: ThemeAccent,
     termStartDate: LocalDate?,
-    timeZoneId: String,
     currentWeekIndex: Int,
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
-    onPickThemeMode: () -> Unit,
-    onPickThemeAccent: () -> Unit,
-    onPickTermStartDate: () -> Unit,
-    onPickCurrentWeek: () -> Unit,
-    onClearTermStartDate: () -> Unit,
-    onPickTimeZone: () -> Unit,
-    onOpenWidgetPicker: () -> Unit,
 ) {
     ModalDrawerSheet(
         modifier = Modifier.fillMaxWidth(0.68f),
@@ -978,83 +976,6 @@ private fun AppDrawer(
 
             Spacer(modifier = Modifier.height(6.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "偏好",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            DrawerActionRow(
-                icon = Icons.Rounded.Palette,
-                title = "主题",
-                subtitle = themeAccentLabel(themeAccent),
-                onClick = onPickThemeAccent,
-            )
-
-            DrawerActionRow(
-                icon = when (themeMode) {
-                    ThemeMode.Dark -> Icons.Rounded.Brightness4
-                    else -> Icons.Rounded.Brightness7
-                },
-                title = "外观",
-                subtitle = when (themeMode) {
-                    ThemeMode.System -> "跟随系统"
-                    ThemeMode.Light -> "亮色"
-                    ThemeMode.Dark -> "暗色"
-                },
-                onClick = onPickThemeMode,
-            )
-
-            DrawerActionRow(
-                icon = Icons.Rounded.CalendarMonth,
-                title = "开学日期",
-                subtitle = termStartDate?.let {
-                    val fmt = DateTimeFormatter.ofPattern("yyyy/M/d")
-                    "${fmt.format(it)} · 第 $currentWeekIndex 周"
-                } ?: "点击设置（用于计算当前周次）",
-                onClick = onPickTermStartDate,
-                trailing = if (termStartDate != null) {
-                    {
-                        TextButton(
-                            onClick = onClearTermStartDate,
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                        ) {
-                            Text("清除", style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                } else null,
-            )
-
-            DrawerActionRow(
-                icon = Icons.Rounded.CalendarMonth,
-                title = "当前周",
-                subtitle = if (termStartDate != null) {
-                    "第 $currentWeekIndex 周 · 可按周数反推开学日期"
-                } else {
-                    "点击输入今天所在周数"
-                },
-                onClick = onPickCurrentWeek,
-            )
-
-            DrawerActionRow(
-                icon = Icons.Rounded.Public,
-                title = "时区",
-                subtitle = timeZoneLabel(timeZoneId),
-                onClick = onPickTimeZone,
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            Spacer(modifier = Modifier.height(6.dp))
-
-            DrawerActionRow(
-                icon = Icons.Rounded.Widgets,
-                title = "桌面小组件",
-                subtitle = "添加课表、下一节课或课程提醒",
-                onClick = onOpenWidgetPicker,
-            )
 
             Spacer(modifier = Modifier.height(8.dp))
 

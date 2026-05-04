@@ -117,6 +117,7 @@ fun ScheduleRoute(
     onPrevDay: () -> Unit = {},
     onNextDay: () -> Unit = {},
     onResetDay: () -> Unit = {},
+    totalScheduleDisplayEnabled: Boolean = true,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleScreen(
@@ -148,6 +149,7 @@ fun ScheduleRoute(
         onNextDay = onNextDay,
         onResetDay = onResetDay,
         onOpenPluginMarket = onOpenPluginMarket,
+        totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
         modifier = modifier,
     )
 }
@@ -183,6 +185,7 @@ fun ScheduleScreen(
     overrideTermStart: LocalDate? = null,
     viewMode: ScheduleViewMode = ScheduleViewMode.Week,
     dayOffset: Int = 0,
+    totalScheduleDisplayEnabled: Boolean = true,
 ) {
     var showSyncSettings by rememberSaveable { mutableStateOf(state.schedule == null) }
     var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
@@ -257,6 +260,7 @@ fun ScheduleScreen(
                     onCourseLongClick = onLongClickHandler,
                     onWeekOffsetChange = onWeekOffsetChange,
                     onAddManualCourse = onAddManualCourse,
+                    totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
                 )
 
                 ScheduleViewMode.Day -> DailyScheduleSection(
@@ -726,6 +730,7 @@ private fun WeeklyScheduleSection(
     onCourseLongClick: (String) -> Unit,
     onWeekOffsetChange: (Int) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
+    totalScheduleDisplayEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(schedule, timingProfile, manualCourses) {
@@ -819,8 +824,13 @@ private fun WeeklyScheduleSection(
                     val pageWeek = remember(timingProfile, pageOffset, overrideTermStart, zone) {
                         buildWeekModel(pageOffset, overrideTermStart, zone)
                     }
-                    val active = remember(allCourses, slots, pageWeek.weekIndex) {
-                        buildWeekRenderEntries(allCourses, slots, pageWeek.weekIndex)
+                    val active = remember(allCourses, slots, pageWeek.weekIndex, totalScheduleDisplayEnabled) {
+                        buildWeekRenderEntries(
+                            allCourses = allCourses,
+                            slots = slots,
+                            weekIndex = pageWeek.weekIndex,
+                            totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
+                        )
                     }
                     if (active.isEmpty()) {
                         EmptyWeekState(schedule = schedule)
@@ -2078,7 +2088,7 @@ private data class WeekModel(
     val days: List<DayHeaderModel>,
 )
 
-private data class DisplaySlot(
+internal data class DisplaySlot(
     val startNode: Int,
     val endNode: Int,
     val label: String,
@@ -2086,13 +2096,13 @@ private data class DisplaySlot(
     val endTime: String,
 )
 
-private data class CoursePlacement(
+internal data class CoursePlacement(
     val dayIndex: Int,
     val rowIndex: Int,
     val rowSpan: Int,
 )
 
-private data class CourseRenderEntry(
+internal data class CourseRenderEntry(
     val course: CourseItem,
     val placement: CoursePlacement,
     val inactive: Boolean,
@@ -2320,18 +2330,20 @@ internal fun activeCoursesForWeek(courses: List<CourseItem>, weekNumber: Int): L
     return courses.filter { it.isActiveInWeek(weekNumber) }
 }
 
-/**
- * 周课表条目构建：
- * 只返回当前周生效的课程。非当前周课程不再作为灰色占位或角标参与渲染。
- */
-private fun buildWeekRenderEntries(
+internal fun buildWeekRenderEntries(
     allCourses: List<CourseItem>,
     slots: List<DisplaySlot>,
     weekIndex: Int,
+    totalScheduleDisplayEnabled: Boolean = false,
 ): List<CourseRenderEntry> {
     data class Resolved(val course: CourseItem, val placement: CoursePlacement)
 
-    val resolved = activeCoursesForWeek(allCourses, weekIndex)
+    val source = if (totalScheduleDisplayEnabled) {
+        allCourses
+    } else {
+        activeCoursesForWeek(allCourses, weekIndex)
+    }
+    val resolved = source
         .mapNotNull { course ->
             val placement = coursePlacement(course, slots) ?: return@mapNotNull null
             Resolved(course, placement)
@@ -2339,8 +2351,22 @@ private fun buildWeekRenderEntries(
     val grouped = resolved.groupBy { it.placement.dayIndex to it.placement.rowIndex }
     val entries = mutableListOf<CourseRenderEntry>()
     for ((_, list) in grouped) {
-        list.distinctBy { it.course.id }.forEach {
-            entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = false)
+        list.distinctBy { it.course.id }
+            .sortedWith(
+                compareBy<Resolved>(
+                    { !it.course.isActiveInWeek(weekIndex) },
+                    { it.course.time.startNode },
+                    { it.course.time.endNode },
+                    { it.course.title },
+                    { it.course.id },
+                ),
+            )
+            .forEach {
+                entries += CourseRenderEntry(
+                    course = it.course,
+                    placement = it.placement,
+                    inactive = !it.course.isActiveInWeek(weekIndex),
+                )
         }
     }
     return entries

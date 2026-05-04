@@ -43,6 +43,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setTimeZoneId(timeZoneId) }
     }
 
+    fun setTotalScheduleDisplayEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setTotalScheduleDisplayEnabled(enabled) }
+    }
+
     fun setPluginEnabled(pluginId: String, enabled: Boolean) {
         viewModelScope.launch { repository.setPluginEnabled(pluginId, enabled) }
     }
