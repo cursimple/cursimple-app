@@ -6,6 +6,11 @@
             android:name=".ScheduleWidgetActionReceiver"
             android:exported="false" />
 
+        <service
+            android:name=".ScheduleWidgetRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <!--
             Each widget is registered twice:
               * a generic AOSP receiver, and

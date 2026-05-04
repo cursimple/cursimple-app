@@ -5,28 +5,15 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
-import com.kebiao.viewer.core.data.widget.WidgetScheduleSnapshot
-import com.kebiao.viewer.core.kernel.model.CourseItem
-import com.kebiao.viewer.core.kernel.model.TermTimingProfile
-import com.kebiao.viewer.core.kernel.model.coursesOfDay
-import com.kebiao.viewer.core.kernel.model.endLocalTime
-import com.kebiao.viewer.core.kernel.model.findSlot
-import com.kebiao.viewer.core.kernel.model.startLocalTime
-import com.kebiao.viewer.core.kernel.time.BeijingTime
-import com.kebiao.viewer.core.reminder.model.ReminderRule
-import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
@@ -61,15 +48,14 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 val manager = AppWidgetManager.getInstance(appContext)
                 val ids = appWidgetIds ?: scheduleWidgetIds(appContext, manager)
                 if (ids.isEmpty()) return@launch
-                val repository = DataStoreWidgetPreferencesRepository(appContext)
-                val snapshot = repository.scheduleSnapshotFlow.first()
                 ids.forEach { appWidgetId ->
-                    val offset = repository.widgetDayOffset(appWidgetId)
                     val sizeClass = sizeClassForWidget(manager, appWidgetId)
+                    val dayData = ScheduleWidgetDataSource.loadDay(appContext, appWidgetId)
                     manager.updateAppWidget(
                         appWidgetId,
-                        buildScheduleViews(appContext, appWidgetId, offset, sizeClass, snapshot),
+                        buildScheduleViews(appContext, appWidgetId, sizeClass, dayData),
                     )
+                    manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.widget_course_list)
                 }
             }
         }
@@ -98,22 +84,16 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
         private fun buildScheduleViews(
             context: Context,
             appWidgetId: Int,
-            offset: Int,
             sizeClass: WidgetSizeClass,
-            snapshot: WidgetScheduleSnapshot?,
+            dayData: ScheduleWidgetDayData,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_schedule_today)
-            val zone = BeijingTime.resolveZone(snapshot?.timeZoneId ?: DEFAULT_TIME_ZONE_ID)
-            BeijingTime.setForcedNow(snapshot?.debugForcedDateTimeIso?.let(::parseLocalDateTime))
-            val today = BeijingTime.todayIn(zone)
-            val targetDate = today.plusDays(offset.toLong())
-            val weekIndex = resolveWeekIndex(targetDate, snapshot?.termStartDateIso?.let(::parseLocalDate))
-            val courses = snapshot.coursesOfDay(targetDate.dayOfWeek.value)
-                .filter { it.activeOnWeek(weekIndex) }
-                .sortedBy { it.time.startNode }
 
-            views.setTextViewText(R.id.widget_title, "${dateFormatter.format(targetDate)} · ${WidgetDayLabels.tag(offset)}")
-            views.setTextViewText(R.id.widget_subtitle, weekdayLabel(targetDate))
+            views.setTextViewText(
+                R.id.widget_title,
+                "${dateFormatter.format(dayData.targetDate)} · ${WidgetDayLabels.tag(dayData.offset)}",
+            )
+            views.setTextViewText(R.id.widget_subtitle, dayData.weekdayLabel)
             views.setViewVisibility(
                 R.id.widget_subtitle,
                 if (sizeClass == WidgetSizeClass.Compact) View.GONE else View.VISIBLE,
@@ -128,51 +108,17 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             )
             views.setViewVisibility(R.id.widget_prev, View.VISIBLE)
             views.setViewVisibility(R.id.widget_next, View.VISIBLE)
-            views.setViewVisibility(R.id.widget_reset, if (offset == 0) View.GONE else View.VISIBLE)
+            views.setViewVisibility(R.id.widget_reset, if (dayData.offset == 0) View.GONE else View.VISIBLE)
             views.setOnClickPendingIntent(
                 R.id.widget_reset,
                 actionPendingIntent(context, appWidgetId, ScheduleWidgetActionReceiver.ACTION_RESET),
             )
 
-            views.removeAllViews(R.id.widget_course_list)
-            if (courses.isEmpty()) {
-                views.setViewVisibility(R.id.widget_course_list, View.GONE)
-                views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-                views.setTextViewText(R.id.widget_empty, WidgetDayLabels.empty(offset))
-            } else {
-                views.setViewVisibility(R.id.widget_course_list, View.VISIBLE)
-                views.setViewVisibility(R.id.widget_empty, View.GONE)
-                courses.take(sizeClass.dailyCourseRows()).forEach { course ->
-                    views.addView(
-                        R.id.widget_course_list,
-                        buildCourseRow(context, course, snapshot?.timingProfile, snapshot?.reminderRules.orEmpty()),
-                    )
-                }
-            }
+            views.setRemoteAdapter(R.id.widget_course_list, courseListIntent(context, appWidgetId))
+            views.setEmptyView(R.id.widget_course_list, R.id.widget_empty)
+            views.setViewVisibility(R.id.widget_course_list, View.VISIBLE)
+            views.setTextViewText(R.id.widget_empty, WidgetDayLabels.empty(dayData.offset))
             return views
-        }
-
-        private fun buildCourseRow(
-            context: Context,
-            course: CourseItem,
-            timingProfile: TermTimingProfile?,
-            reminderRules: List<ReminderRule>,
-        ): RemoteViews {
-            val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
-            val nodeRange = "${course.time.startNode}-${course.time.endNode}节"
-            val timeRange = timingProfile?.courseClockRange(course) ?: nodeRange
-            val subline = listOf(course.location, course.teacher)
-                .filter { it.isNotBlank() }
-                .joinToString(" · ")
-                .ifBlank { "待定" }
-            row.setTextViewText(R.id.course_nodes, nodeRange)
-            row.setTextViewText(R.id.course_time, timeRange)
-            row.setTextViewText(R.id.course_title, course.title)
-            row.setTextViewText(R.id.course_subtitle, subline)
-            val hasReminder = reminderRules.any { it.matches(course) }
-            row.setViewVisibility(R.id.course_badge, if (hasReminder) View.VISIBLE else View.GONE)
-            row.setTextViewText(R.id.course_badge, if (hasReminder) "提醒" else "")
-            return row
         }
 
         private fun actionPendingIntent(context: Context, appWidgetId: Int, action: String): PendingIntent {
@@ -189,47 +135,13 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             )
         }
 
-        private fun WidgetScheduleSnapshot?.coursesOfDay(dayOfWeek: Int): List<CourseItem> {
-            if (this == null) return emptyList()
-            val importedCourses = schedule?.coursesOfDay(dayOfWeek).orEmpty()
-            val manualDayCourses = manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
-            return importedCourses + manualDayCourses
-        }
-
-        private fun ReminderRule.matches(course: CourseItem): Boolean = when (scopeType) {
-            ReminderScopeType.SingleCourse -> courseId == course.id
-            ReminderScopeType.TimeSlot ->
-                startNode == course.time.startNode && endNode == course.time.endNode
-        }
-
-        private fun TermTimingProfile.courseStartTime(course: CourseItem): LocalTime? =
-            findSlot(course.time.startNode, course.time.endNode)?.startLocalTime()
-
-        private fun TermTimingProfile.courseClockRange(course: CourseItem): String =
-            findSlot(course.time.startNode, course.time.endNode)?.let { slot ->
-                "${clockFormatter.format(slot.startLocalTime())}-${clockFormatter.format(slot.endLocalTime())}"
-            } ?: "${course.time.startNode}-${course.time.endNode}节"
-
-        private fun weekdayLabel(date: LocalDate): String = when (date.dayOfWeek.value) {
-            1 -> "星期一"
-            2 -> "星期二"
-            3 -> "星期三"
-            4 -> "星期四"
-            5 -> "星期五"
-            6 -> "星期六"
-            7 -> "星期日"
-            else -> ""
-        }
-
-        private fun parseLocalDate(value: String): LocalDate? =
-            runCatching { LocalDate.parse(value) }.getOrNull()
-
-        private fun parseLocalDateTime(value: String): LocalDateTime? =
-            runCatching { LocalDateTime.parse(value) }.getOrNull()
+        private fun courseListIntent(context: Context, appWidgetId: Int): Intent =
+            Intent(context, ScheduleWidgetRemoteViewsService::class.java).apply {
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
+            }
 
         private val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
-        private val clockFormatter = DateTimeFormatter.ofPattern("HH:mm")
-        private const val DEFAULT_TIME_ZONE_ID = "Asia/Shanghai"
         private const val DEFAULT_MIN_WIDTH_DP = 220
         private const val DEFAULT_MIN_HEIGHT_DP = 180
     }
