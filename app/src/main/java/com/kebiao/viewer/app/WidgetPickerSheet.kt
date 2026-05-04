@@ -55,7 +55,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.kebiao.viewer.feature.widget.WidgetCatalog
 import com.kebiao.viewer.feature.widget.WidgetCatalogEntry
-import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -104,20 +103,7 @@ fun WidgetPickerSheet(
 
     var pendingConfirm by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var manualGuideEntry by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
-    var pendingPinWatch by remember { mutableStateOf<PinWatch?>(null) }
     var showWidgetHelp by remember { mutableStateOf(false) }
-
-    val pinWatch = pendingPinWatch
-    if (pinWatch != null) {
-        LaunchedEffect(pinWatch.token) {
-            delay(6_000)
-            val installedNow = WidgetCatalog.installedCount(context, pinWatch.entry)
-            if (installedNow <= pinWatch.baselineCount) {
-                manualGuideEntry = pinWatch.entry
-            }
-            pendingPinWatch = null
-        }
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -214,17 +200,14 @@ fun WidgetPickerSheet(
                 TextButton(onClick = {
                     val entry = pending
                     pendingConfirm = null
-                    val baseline = WidgetCatalog.installedCount(context, entry)
-                    val ok = WidgetCatalog.requestPin(context, entry)
-                    if (ok) {
-                        onShowMessage("已发起添加请求，请在系统弹窗中确认")
-                        pendingPinWatch = PinWatch(
-                            entry = entry,
-                            baselineCount = baseline,
-                            token = System.nanoTime(),
-                        )
-                    } else {
-                        manualGuideEntry = entry
+                    when (WidgetCatalog.requestPin(context, entry)) {
+                        WidgetCatalog.PinRequestResult.Started -> {
+                            onShowMessage("已发起添加请求，请在系统弹窗中确认")
+                        }
+                        WidgetCatalog.PinRequestResult.Unsupported,
+                        is WidgetCatalog.PinRequestResult.Failed -> {
+                            manualGuideEntry = entry
+                        }
                     }
                 }) { Text("添加") }
             },
@@ -270,53 +253,73 @@ private fun WidgetHelpDialog(
                         "拖动边缘或控制点调整大小，完成后点一下桌面空白处。",
                     ),
                 )
-                WidgetGuideSection(
-                    title = "一加 / ColorOS",
-                    steps = listOf(
-                        "长按桌面空白处，进入桌面编辑。",
-                        "依次选择「卡片」→「插件」，找到「课表查看器」。",
-                        "长按要添加的小组件，拖到桌面空位后松手。",
-                        "想改尺寸时，长按桌面小组件，松手后等待一会；出现边框或控制点后即可拖动调整大小。",
-                    ),
-                )
-                WidgetGuideSection(
-                    title = "华为 / 荣耀",
-                    steps = listOf(
-                        "在桌面双指捏合，进入桌面编辑。",
-                        "进入「服务卡片」，再进入底部的「窗口小工具」。",
-                        "找到「课表查看器」并添加到桌面。",
-                    ),
-                )
-                WidgetGuideSection(
-                    title = "小米 / 红米",
-                    steps = listOf(
-                        "在桌面双指捏合，点击底部「添加小部件」。",
-                        "点右上角搜索；如果当前页只有系统卡片，继续进入底部「安卓小部件」。",
-                        "搜索或找到「课表查看器」，选择要添加的样式。",
-                    ),
-                )
-                WidgetGuideSection(
-                    title = "OPPO / realme",
-                    steps = listOf(
-                        "在桌面双指捏合，进入桌面编辑。",
-                        "选择「插件」或「小组件」。",
-                        "找到「课表查看器」，长按并拖到桌面。",
-                    ),
-                )
-                WidgetGuideSection(
-                    title = "vivo / iQOO",
-                    steps = listOf(
-                        "在桌面双指捏合，点击底部「组件」。",
-                        "如果列表里没有看到应用，向上滑到底部进入「更多组件」。",
-                        "找到「课表查看器」后添加到桌面。",
-                    ),
-                )
+                widgetVendorGuides().forEach { guide ->
+                    WidgetGuideSection(title = guide.title, steps = guide.steps)
+                }
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("知道了") }
         },
     )
+}
+
+private data class WidgetGuide(
+    val title: String,
+    val steps: List<String>,
+)
+
+private fun widgetVendorGuides(): List<WidgetGuide> = listOf(
+    WidgetGuide(
+        title = "一加 / ColorOS",
+        steps = listOf(
+            "长按桌面空白处，进入桌面编辑。",
+            "依次选择「卡片」→「插件」，找到「课表查看器」。",
+            "长按要添加的小组件，拖到桌面空位后松手。",
+            "想改尺寸时，长按桌面小组件，松手后等待一会；出现边框或控制点后即可拖动调整大小。",
+        ),
+    ),
+    WidgetGuide(
+        title = "华为 / 荣耀",
+        steps = listOf(
+            "在桌面双指捏合，进入桌面编辑。",
+            "进入「服务卡片」，再进入底部的「窗口小工具」。",
+            "找到「课表查看器」并添加到桌面。",
+        ),
+    ),
+    WidgetGuide(
+        title = "小米 / 红米",
+        steps = listOf(
+            "在桌面双指捏合，点击底部「添加小部件」。",
+            "点右上角搜索；如果当前页只有系统卡片，继续进入底部「安卓小部件」。",
+            "搜索或找到「课表查看器」，选择要添加的样式。",
+        ),
+    ),
+    WidgetGuide(
+        title = "OPPO / realme",
+        steps = listOf(
+            "在桌面双指捏合，进入桌面编辑。",
+            "选择「插件」或「小组件」。",
+            "找到「课表查看器」，长按并拖到桌面。",
+        ),
+    ),
+    WidgetGuide(
+        title = "vivo / iQOO",
+        steps = listOf(
+            "在桌面双指捏合，点击底部「组件」。",
+            "如果列表里没有看到应用，向上滑到底部进入「更多组件」。",
+            "找到「课表查看器」后添加到桌面。",
+        ),
+    ),
+)
+
+private fun widgetVendorGuide(vendor: WidgetCatalog.LauncherVendor): WidgetGuide? = when (vendor) {
+    WidgetCatalog.LauncherVendor.Miui -> widgetVendorGuides().first { it.title == "小米 / 红米" }
+    WidgetCatalog.LauncherVendor.Huawei -> widgetVendorGuides().first { it.title == "华为 / 荣耀" }
+    WidgetCatalog.LauncherVendor.Oppo -> widgetVendorGuides().first { it.title == "一加 / ColorOS" }
+    WidgetCatalog.LauncherVendor.Vivo -> widgetVendorGuides().first { it.title == "vivo / iQOO" }
+    WidgetCatalog.LauncherVendor.Samsung,
+    WidgetCatalog.LauncherVendor.Other -> null
 }
 
 @Composable
@@ -400,12 +403,6 @@ private fun WidgetPickerRow(
     }
 }
 
-private data class PinWatch(
-    val entry: WidgetCatalogEntry,
-    val baselineCount: Int,
-    val token: Long,
-)
-
 @Composable
 private fun ManualAddGuideDialog(
     entry: WidgetCatalogEntry,
@@ -419,18 +416,7 @@ private fun ManualAddGuideDialog(
         "3. 找到「课表查看器」或搜索「课表查看」",
         "4. 长按「${entry.title}」并拖到桌面空位后松手",
     )
-    val vendorSteps = when (vendor) {
-        WidgetCatalog.LauncherVendor.Miui ->
-            listOf("小米 / 红米：进入「添加小部件」后可点右上角搜索；如果当前页没有应用小组件，请进入底部「安卓小部件」。")
-        WidgetCatalog.LauncherVendor.Huawei ->
-            listOf("华为 / 荣耀：在桌面双指捏合后，进入「服务卡片」→「窗口小工具」，再找「课表查看器」。")
-        WidgetCatalog.LauncherVendor.Oppo ->
-            listOf("OPPO / realme / 一加：入口通常叫「插件」或「小组件」；一加可从「卡片」→「插件」进入。")
-        WidgetCatalog.LauncherVendor.Vivo ->
-            listOf("vivo / iQOO：进入底部「组件」后，如果没有看到应用，请滑到底部点「更多组件」。")
-        WidgetCatalog.LauncherVendor.Samsung,
-        WidgetCatalog.LauncherVendor.Other -> null
-    }
+    val vendorGuide = widgetVendorGuide(vendor)
     val permissionTip = when (vendor) {
         WidgetCatalog.LauncherVendor.Miui ->
             "如果一键添加仍然没有弹窗，可到「应用信息 → 权限管理」检查「显示弹出式窗口」与「后台弹出界面」。"
@@ -455,9 +441,9 @@ private fun ManualAddGuideDialog(
                 genericSteps.forEach { step ->
                     Text(step, style = MaterialTheme.typography.bodySmall)
                 }
-                if (vendorSteps != null) {
+                if (vendorGuide != null) {
                     Spacer(Modifier.height(4.dp))
-                    vendorSteps.forEach { step ->
+                    vendorGuide.steps.forEach { step ->
                         Text(
                             step,
                             style = MaterialTheme.typography.bodySmall,

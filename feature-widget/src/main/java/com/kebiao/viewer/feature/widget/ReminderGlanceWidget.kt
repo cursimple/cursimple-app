@@ -75,7 +75,13 @@ class ReminderGlanceWidget : GlanceAppWidget() {
         val plans = if (schedule != null && timingProfile != null) {
             rules.flatMap { rule ->
                 runCatching {
-                    planner.expandRule(rule = rule, schedule = schedule, timingProfile = timingProfile)
+                    planner.expandRule(
+                        rule = rule,
+                        schedule = schedule,
+                        timingProfile = timingProfile,
+                        fromDate = today,
+                        temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+                    )
                 }.getOrDefault(emptyList())
             }.filter { it.triggerAtMillis >= now }
                 .sortedBy { it.triggerAtMillis }

@@ -4,12 +4,14 @@ import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 
 class ScheduleValidationTest {
     @Test
@@ -159,6 +161,34 @@ class ScheduleValidationTest {
         assertEquals("active", entries.first().course.id)
         assertFalse(entries.first().inactive)
         assertTrue(entries.last().inactive)
+    }
+
+    @Test
+    fun `temporary override renders source weekday courses in actual date column`() {
+        val monday = course(id = "monday", weeks = listOf(4)).copy(
+            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+        )
+        val wednesday = course(id = "wednesday", weeks = listOf(4)).copy(
+            time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
+        )
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(monday, wednesday),
+            slots = listOf(testSlot()),
+            weekIndex = 4,
+            weekStart = LocalDate.of(2026, 5, 4),
+            temporaryScheduleOverrides = listOf(
+                TemporaryScheduleOverride(
+                    id = "makeup",
+                    startDate = "2026-05-06",
+                    endDate = "2026-05-06",
+                    sourceDayOfWeek = 1,
+                ),
+            ),
+        )
+
+        assertTrue(entries.any { it.course.id == "monday" && it.placement.dayIndex == 2 })
+        assertFalse(entries.any { it.course.id == "wednesday" && it.placement.dayIndex == 2 })
     }
 
     private fun testSlot(): DisplaySlot = DisplaySlot(

@@ -11,6 +11,7 @@ import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleDayOfWeek
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
@@ -32,6 +33,7 @@ internal data class ScheduleWidgetDayData(
     val offset: Int,
     val targetDate: LocalDate,
     val weekdayLabel: String,
+    val sourceDayOfWeek: Int,
     val rows: List<ScheduleWidgetCourseRow>,
 )
 
@@ -59,7 +61,10 @@ internal object ScheduleWidgetDataSource {
         val termStart = activeTermStartDate(termProfileRepository, timingProfile)
             ?: userPrefs.termStartDate
         val weekIndex = resolveWeekIndex(targetDate, termStart)
-        val dayOfWeek = targetDate.dayOfWeek.value
+        val dayOfWeek = resolveTemporaryScheduleDayOfWeek(
+            date = targetDate,
+            overrides = userPrefs.temporaryScheduleOverrides,
+        )
 
         val importedCourses = scheduleRepository.scheduleFlow.first()
             ?.coursesOfDay(dayOfWeek)
@@ -76,6 +81,7 @@ internal object ScheduleWidgetDataSource {
             offset = offset,
             targetDate = targetDate,
             weekdayLabel = weekdayLabel(targetDate),
+            sourceDayOfWeek = dayOfWeek,
             rows = rows,
         )
     }

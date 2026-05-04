@@ -40,6 +40,9 @@ class AppContainer(
     val reminderCoordinator = ReminderCoordinator(
         context = app,
         repository = reminderRepository,
+        temporaryScheduleOverridesProvider = {
+            userPreferencesRepository.preferencesFlow.first().temporaryScheduleOverrides
+        },
     )
 
     val bundledPluginCatalog: List<BundledPluginEntry> = listOf(
@@ -92,6 +95,20 @@ class AppContainer(
             widgetPreferencesRepository.saveTimingProfile(timingProfile)
         }
         ScheduleWidgetUpdater.refreshAll(app)
+    }
+
+    suspend fun refreshScheduleOutputs() {
+        refreshWidgets()
+        val schedule = scheduleRepository.scheduleFlow.first() ?: return
+        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first() ?: return
+        val pluginId = scheduleRepository.lastPluginIdFlow.first()
+        if (pluginId.isBlank()) return
+        reminderCoordinator.syncRulesForSchedule(
+            pluginId = pluginId,
+            schedule = schedule,
+            timingProfile = timingProfile,
+            preferSystemClock = false,
+        )
     }
 
     suspend fun normalizeTimingProfileForActiveTerm(timingProfile: TermTimingProfile?): TermTimingProfile? {
