@@ -9,11 +9,8 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
-import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
-import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
@@ -133,13 +130,16 @@ private fun DayHeader(date: LocalDate, offset: Int) {
     ) {
         IconCircleButton(
             label = "‹",
-            onClick = actionRunCallback<PrevDayAction>(),
+            onClick = if (offset > -1) {
+                ScheduleWidgetActionActivity.action(ScheduleWidgetActionActivity.ACTION_PREV)
+            } else {
+                null
+            },
         )
         Spacer(GlanceModifier.width(8.dp))
         Box(
             modifier = GlanceModifier
-                .defaultWeight()
-                .clickable(actionRunCallback<ResetDayAction>()),
+                .defaultWeight(),
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -163,20 +163,50 @@ private fun DayHeader(date: LocalDate, offset: Int) {
                     )
                 }
                 Spacer(GlanceModifier.height(2.dp))
-                Text(
-                    text = if (offset == 0) weekdayLabel(date) else "${weekdayLabel(date)} · 点此回今天",
-                    style = TextStyle(
-                        color = GlanceTheme.colors.onSurfaceVariant,
-                        fontSize = 11.sp,
-                    ),
-                    maxLines = 1,
-                )
+                if (offset == 0) {
+                    Text(
+                        text = weekdayLabel(date),
+                        style = TextStyle(
+                            color = GlanceTheme.colors.onSurfaceVariant,
+                            fontSize = 11.sp,
+                        ),
+                        maxLines = 1,
+                    )
+                } else {
+                    ResetTodayButton(date)
+                }
             }
         }
         Spacer(GlanceModifier.width(8.dp))
         IconCircleButton(
             label = "›",
-            onClick = actionRunCallback<NextDayAction>(),
+            onClick = if (offset < 1) {
+                ScheduleWidgetActionActivity.action(ScheduleWidgetActionActivity.ACTION_NEXT)
+            } else {
+                null
+            },
+        )
+    }
+}
+
+@Composable
+private fun ResetTodayButton(date: LocalDate) {
+    Box(
+        modifier = GlanceModifier
+            .background(GlanceTheme.colors.surfaceVariant)
+            .cornerRadius(10.dp)
+            .clickable(ScheduleWidgetActionActivity.action(ScheduleWidgetActionActivity.ACTION_RESET))
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "${weekdayLabel(date)} · 回今天",
+            style = TextStyle(
+                color = GlanceTheme.colors.onSurfaceVariant,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+            ),
+            maxLines = 1,
         )
     }
 }
@@ -309,7 +339,6 @@ private fun offsetTagLabel(offset: Int): String = when (offset) {
     -1 -> "昨天"
     0 -> "今天"
     1 -> "明天"
-    2 -> "后天"
     else -> if (offset > 0) "+$offset 天" else "$offset 天"
 }
 
@@ -318,28 +347,4 @@ private fun offsetEmptyLabel(offset: Int): String = when (offset) {
     0 -> "今日没有课程，享受一天"
     1 -> "明日没有课程"
     else -> "当日没有课程"
-}
-
-class PrevDayAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val app = context.applicationContext
-        DataStoreWidgetPreferencesRepository(app).shiftWidgetDayOffset(-1)
-        ScheduleGlanceWidget().refreshAll(app)
-    }
-}
-
-class NextDayAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val app = context.applicationContext
-        DataStoreWidgetPreferencesRepository(app).shiftWidgetDayOffset(1)
-        ScheduleGlanceWidget().refreshAll(app)
-    }
-}
-
-class ResetDayAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        val app = context.applicationContext
-        DataStoreWidgetPreferencesRepository(app).setWidgetDayOffset(0)
-        ScheduleGlanceWidget().refreshAll(app)
-    }
 }

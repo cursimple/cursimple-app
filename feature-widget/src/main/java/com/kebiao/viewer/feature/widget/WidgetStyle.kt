@@ -3,6 +3,7 @@
 package com.kebiao.viewer.feature.widget
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceModifier
@@ -35,6 +36,7 @@ internal object WidgetStyle {
     val rowPaddingV = 8.dp
     val rowPaddingH = 10.dp
     val accentWidth = 4.dp
+    val disabledContent = ColorProvider(Color(0xFF9AA3AE))
 }
 
 @Composable
@@ -119,23 +121,23 @@ internal fun PillBadge(text: String, container: ColorProvider, onContainer: Colo
 @Composable
 internal fun IconCircleButton(
     label: String,
-    onClick: Action,
+    onClick: Action?,
 ) {
+    val baseModifier = GlanceModifier
+        .size(40.dp)
+        .background(GlanceTheme.colors.surfaceVariant)
+        .cornerRadius(20.dp)
     // Use a single Box with both background and clickable on the same node — Glance maps
     // this cleanly to a single FrameLayout that the launcher's RemoteViews host can hit-test
     // reliably. Nesting clickable + background on different layers caused flaky taps.
     Box(
-        modifier = GlanceModifier
-            .size(40.dp)
-            .background(GlanceTheme.colors.surfaceVariant)
-            .cornerRadius(20.dp)
-            .clickable(onClick),
+        modifier = if (onClick == null) baseModifier else baseModifier.clickable(onClick),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = label,
             style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
+                color = if (onClick == null) WidgetStyle.disabledContent else GlanceTheme.colors.onSurface,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
             ),

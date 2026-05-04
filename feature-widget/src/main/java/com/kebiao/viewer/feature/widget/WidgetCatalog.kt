@@ -34,7 +34,7 @@ object WidgetCatalog {
             WidgetCatalogEntry(
                 id = "today",
                 title = "今日课程",
-                description = "今天/明天的全部课程列表，可一键切换",
+                description = "昨天/今天/明天的全部课程列表，可一键切换",
                 provider = ComponentName(pkg, ScheduleGlanceWidgetReceiver::class.java.name),
                 vendorProviders = listOf(
                     ComponentName(pkg, "com.kebiao.viewer.feature.widget.ScheduleGlanceWidgetReceiverMIUI"),
