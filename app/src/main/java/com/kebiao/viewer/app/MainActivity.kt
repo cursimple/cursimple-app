@@ -808,7 +808,7 @@ class MainActivity : ComponentActivity() {
                                 showWeekMenu = false
                             },
                             onSetSelectedAsCurrent = { selectedWeek ->
-                                prefsViewModel.setTermStartDate(
+                                setActiveTermStartDate(
                                     deriveTermStartForCurrentWeek(today = today, currentWeek = selectedWeek),
                                 )
                                 weekOffset = 0
