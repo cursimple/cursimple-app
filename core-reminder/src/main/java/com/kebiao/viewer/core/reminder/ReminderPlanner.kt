@@ -4,7 +4,9 @@ import com.kebiao.viewer.core.kernel.model.ClassSlotTime
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.model.findSlot
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleDayOfWeek
 import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.core.kernel.time.BeijingTime
@@ -21,6 +23,7 @@ class ReminderPlanner {
         schedule: TermSchedule,
         timingProfile: TermTimingProfile,
         fromDate: LocalDate = BeijingTime.today(),
+        temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     ): List<ReminderPlan> {
         return schedule.dailySchedules
             .flatMap { it.courses }
@@ -31,6 +34,7 @@ class ReminderPlanner {
                     course = course,
                     timingProfile = timingProfile,
                     fromDate = fromDate,
+                    temporaryScheduleOverrides = temporaryScheduleOverrides,
                 )
             }
             .distinctBy { it.planId }
@@ -42,17 +46,17 @@ class ReminderPlanner {
         course: CourseItem,
         timingProfile: TermTimingProfile,
         fromDate: LocalDate,
+        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     ): List<ReminderPlan> {
         val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: return emptyList()
         val termStart = timingProfile.termStartLocalDate()
         val zone = ZoneId.of(timingProfile.timezone)
-        return course.weeks.mapNotNull { week ->
-            val courseDate = termStart
-                .plusWeeks((week - 1).toLong())
-                .plusDays((course.time.dayOfWeek - 1).toLong())
-            if (courseDate.isBefore(fromDate)) {
-                return@mapNotNull null
-            }
+        return courseOccurrenceDates(
+            course = course,
+            termStart = termStart,
+            fromDate = fromDate,
+            temporaryScheduleOverrides = temporaryScheduleOverrides,
+        ).map { courseDate ->
             val classStart = LocalDateTime.of(courseDate, slot.startLocalTime())
             val trigger = classStart
                 .minusMinutes(rule.advanceMinutes.toLong())
@@ -70,6 +74,23 @@ class ReminderPlanner {
                 courseId = course.id,
             )
         }
+    }
+
+    private fun courseOccurrenceDates(
+        course: CourseItem,
+        termStart: LocalDate,
+        fromDate: LocalDate,
+        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    ): List<LocalDate> {
+        return course.weeks
+            .flatMap { week ->
+                val weekStart = termStart.plusWeeks((week - 1).toLong())
+                (0..6).map { offset -> weekStart.plusDays(offset.toLong()) }
+            }
+            .filterNot { it.isBefore(fromDate) }
+            .filter { date ->
+                resolveTemporaryScheduleDayOfWeek(date, temporaryScheduleOverrides) == course.time.dayOfWeek
+            }
     }
 
     private fun buildTitle(

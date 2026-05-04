@@ -1,6 +1,7 @@
 package com.kebiao.viewer.core.data
 
 import kotlinx.coroutines.flow.Flow
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -17,6 +18,7 @@ data class UserPreferences(
     val totalScheduleDisplayEnabled: Boolean = true,
     val enabledPluginIds: Set<String> = emptySet(),
     val pluginsSeeded: Boolean = false,
+    val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
     /** True once the persisted prefs have been read at least once. False = still loading. */
@@ -37,6 +39,9 @@ interface UserPreferencesRepository {
     suspend fun setTotalScheduleDisplayEnabled(enabled: Boolean)
     suspend fun setPluginEnabled(pluginId: String, enabled: Boolean)
     suspend fun seedEnabledPlugins(pluginIds: Set<String>)
+    suspend fun upsertTemporaryScheduleOverride(override: TemporaryScheduleOverride)
+    suspend fun removeTemporaryScheduleOverride(id: String)
+    suspend fun clearTemporaryScheduleOverrides()
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
 }

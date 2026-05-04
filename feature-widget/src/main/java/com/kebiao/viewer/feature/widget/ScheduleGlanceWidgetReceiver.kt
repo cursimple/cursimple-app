@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
+import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -93,7 +94,12 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 R.id.widget_title,
                 "${dateFormatter.format(dayData.targetDate)} · ${WidgetDayLabels.tag(dayData.offset)}",
             )
-            views.setTextViewText(R.id.widget_subtitle, dayData.weekdayLabel)
+            val subtitle = if (dayData.sourceDayOfWeek != dayData.targetDate.dayOfWeek.value) {
+                "${dayData.weekdayLabel} · 按${weekdayLabel(dayData.sourceDayOfWeek)}课"
+            } else {
+                dayData.weekdayLabel
+            }
+            views.setTextViewText(R.id.widget_subtitle, subtitle)
             views.setViewVisibility(
                 R.id.widget_subtitle,
                 if (sizeClass == WidgetSizeClass.Compact) View.GONE else View.VISIBLE,

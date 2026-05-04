@@ -82,7 +82,12 @@ import com.kebiao.viewer.core.kernel.model.ClassSlotTime
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.model.findSlot
+import com.kebiao.viewer.core.kernel.model.isTemporaryScheduleOverridden
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleDayOfWeek
+import com.kebiao.viewer.core.kernel.model.shortWeekdayLabel
+import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.plugin.ui.BannerContribution
@@ -118,6 +123,7 @@ fun ScheduleRoute(
     onNextDay: () -> Unit = {},
     onResetDay: () -> Unit = {},
     totalScheduleDisplayEnabled: Boolean = true,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleScreen(
@@ -150,6 +156,7 @@ fun ScheduleRoute(
         onResetDay = onResetDay,
         onOpenPluginMarket = onOpenPluginMarket,
         totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
+        temporaryScheduleOverrides = temporaryScheduleOverrides,
         modifier = modifier,
     )
 }
@@ -186,6 +193,7 @@ fun ScheduleScreen(
     viewMode: ScheduleViewMode = ScheduleViewMode.Week,
     dayOffset: Int = 0,
     totalScheduleDisplayEnabled: Boolean = true,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
 ) {
     var showSyncSettings by rememberSaveable { mutableStateOf(state.schedule == null) }
     var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
@@ -195,8 +203,8 @@ fun ScheduleScreen(
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
     val zone = LocalAppZone.current
-    val displayedWeek = remember(state.timingProfile, weekOffset, overrideTermStart, zone) {
-        buildWeekModel(weekOffset, overrideTermStart, zone)
+    val displayedWeek = remember(state.timingProfile, weekOffset, overrideTermStart, zone, temporaryScheduleOverrides) {
+        buildWeekModel(weekOffset, overrideTermStart, zone, temporaryScheduleOverrides)
     }
     val visibleWeekNumber = displayedWeek.weekIndex
     val horizontalScrollState = rememberScrollState()
@@ -261,6 +269,7 @@ fun ScheduleScreen(
                     onWeekOffsetChange = onWeekOffsetChange,
                     onAddManualCourse = onAddManualCourse,
                     totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
+                    temporaryScheduleOverrides = temporaryScheduleOverrides,
                 )
 
                 ScheduleViewMode.Day -> DailyScheduleSection(
@@ -272,6 +281,7 @@ fun ScheduleScreen(
                     reminderRules = state.reminderRules,
                     targetDate = zone.today().plusDays(dayOffset.toLong()),
                     targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
+                    temporaryScheduleOverrides = temporaryScheduleOverrides,
                     selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                     multiSelectMode = multiSelectMode,
                     multiSelectedIds = selectedIds,
@@ -731,6 +741,7 @@ private fun WeeklyScheduleSection(
     onWeekOffsetChange: (Int) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
     totalScheduleDisplayEnabled: Boolean = true,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(schedule, timingProfile, manualCourses) {
@@ -821,15 +832,24 @@ private fun WeeklyScheduleSection(
                     beyondViewportPageCount = 1,
                 ) { page ->
                     val pageOffset = page + safeMin
-                    val pageWeek = remember(timingProfile, pageOffset, overrideTermStart, zone) {
-                        buildWeekModel(pageOffset, overrideTermStart, zone)
+                    val pageWeek = remember(timingProfile, pageOffset, overrideTermStart, zone, temporaryScheduleOverrides) {
+                        buildWeekModel(pageOffset, overrideTermStart, zone, temporaryScheduleOverrides)
                     }
-                    val active = remember(allCourses, slots, pageWeek.weekIndex, totalScheduleDisplayEnabled) {
+                    val active = remember(
+                        allCourses,
+                        slots,
+                        pageWeek.weekIndex,
+                        pageWeek.weekStart,
+                        totalScheduleDisplayEnabled,
+                        temporaryScheduleOverrides,
+                    ) {
                         buildWeekRenderEntries(
                             allCourses = allCourses,
                             slots = slots,
                             weekIndex = pageWeek.weekIndex,
                             totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
+                            weekStart = pageWeek.weekStart,
+                            temporaryScheduleOverrides = temporaryScheduleOverrides,
                         )
                     }
                     if (active.isEmpty()) {
@@ -867,6 +887,7 @@ private fun DailyScheduleSection(
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     targetDate: LocalDate,
     targetWeekNumber: Int,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
@@ -884,7 +905,8 @@ private fun DailyScheduleSection(
         schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
     }
     val today = LocalAppZone.current.today()
-    val targetDayOfWeek = targetDate.dayOfWeek.value
+    val targetDayOfWeek = resolveTemporaryScheduleDayOfWeek(targetDate, temporaryScheduleOverrides)
+    val overrideDayOfWeek = targetDayOfWeek.takeIf { it != targetDate.dayOfWeek.value }
 
     Card(
         modifier = modifier,
@@ -897,7 +919,11 @@ private fun DailyScheduleSection(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            DailyHeaderRow(date = targetDate, isToday = targetDate == today)
+            DailyHeaderRow(
+                date = targetDate,
+                isToday = targetDate == today,
+                overrideDayOfWeek = overrideDayOfWeek,
+            )
 
             if (slots.isEmpty() || allCourses.isEmpty()) {
                 EmptyWeekState(schedule = schedule)
@@ -941,7 +967,11 @@ private fun DailyScheduleSection(
 }
 
 @Composable
-private fun DailyHeaderRow(date: LocalDate, isToday: Boolean) {
+private fun DailyHeaderRow(
+    date: LocalDate,
+    isToday: Boolean,
+    overrideDayOfWeek: Int?,
+) {
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
     Row(
         modifier = Modifier
@@ -977,6 +1007,19 @@ private fun DailyHeaderRow(date: LocalDate, isToday: Boolean) {
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        if (overrideDayOfWeek != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(999.dp),
+            ) {
+                Text(
+                    text = "按${weekdayLabel(overrideDayOfWeek)}课",
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+        }
     }
 }
 
@@ -1381,7 +1424,7 @@ private fun ScheduleGrid(
         modifier = modifier.verticalScroll(rememberScrollState()),
     ) {
         val timeColumnWidth = 60.dp
-        val dayHeaderHeight = 52.dp
+        val dayHeaderHeight = if (week.days.any { it.overrideLabel != null }) 66.dp else 52.dp
         val totalWidth = maxWidth
         val dayColumnWidth = ((totalWidth - timeColumnWidth) / 7).coerceAtLeast(36.dp)
         val gridWidth = dayColumnWidth * 7
@@ -1594,6 +1637,16 @@ private fun DayHeader(
             maxLines = 1,
             softWrap = false,
         )
+        if (day.overrideLabel != null) {
+            Text(
+                text = day.overrideLabel,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (day.isToday) accents.todayOnContainer else MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                softWrap = false,
+            )
+        }
     }
 }
 
@@ -2080,6 +2133,7 @@ private data class DayHeaderModel(
     val weekdayLabel: String,
     val dateLabel: String,
     val isToday: Boolean,
+    val overrideLabel: String? = null,
 )
 
 private data class WeekModel(
@@ -2157,6 +2211,7 @@ private fun buildWeekModel(
     weekOffset: Int,
     termStart: LocalDate? = null,
     zone: ZoneId = ZoneId.of("Asia/Shanghai"),
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
@@ -2173,6 +2228,9 @@ private fun buildWeekModel(
             weekdayLabel = chineseShortWeekday(date.dayOfWeek),
             dateLabel = if (date.dayOfMonth == 1) "${date.monthValue}月" else date.dayOfMonth.toString(),
             isToday = date == today,
+            overrideLabel = if (isTemporaryScheduleOverridden(date, temporaryScheduleOverrides)) {
+                "按${shortWeekdayLabel(resolveTemporaryScheduleDayOfWeek(date, temporaryScheduleOverrides))}"
+            } else null,
         )
     }
     return WeekModel(
@@ -2258,8 +2316,9 @@ private fun padToMinimumSlots(slots: List<DisplaySlot>, minimum: Int): List<Disp
 private fun coursePlacement(
     course: CourseItem,
     slots: List<DisplaySlot>,
+    dayIndexOverride: Int? = null,
 ): CoursePlacement? {
-    val dayIndex = course.time.dayOfWeek - 1
+    val dayIndex = dayIndexOverride ?: (course.time.dayOfWeek - 1)
     if (dayIndex !in 0..6) {
         return null
     }
@@ -2335,19 +2394,39 @@ internal fun buildWeekRenderEntries(
     slots: List<DisplaySlot>,
     weekIndex: Int,
     totalScheduleDisplayEnabled: Boolean = false,
+    weekStart: LocalDate? = null,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
 ): List<CourseRenderEntry> {
     data class Resolved(val course: CourseItem, val placement: CoursePlacement)
 
-    val source = if (totalScheduleDisplayEnabled) {
-        allCourses
-    } else {
-        activeCoursesForWeek(allCourses, weekIndex)
-    }
-    val resolved = source
-        .mapNotNull { course ->
-            val placement = coursePlacement(course, slots) ?: return@mapNotNull null
-            Resolved(course, placement)
+    val resolved = if (weekStart != null && temporaryScheduleOverrides.isNotEmpty()) {
+        (0..6).flatMap { dayIndex ->
+            val actualDate = weekStart.plusDays(dayIndex.toLong())
+            val sourceDayOfWeek = resolveTemporaryScheduleDayOfWeek(actualDate, temporaryScheduleOverrides)
+            val source = if (totalScheduleDisplayEnabled) {
+                allCourses
+            } else {
+                activeCoursesForWeek(allCourses, weekIndex)
+            }
+            source
+                .filter { it.time.dayOfWeek == sourceDayOfWeek }
+                .mapNotNull { course ->
+                    val placement = coursePlacement(course, slots, dayIndex) ?: return@mapNotNull null
+                    Resolved(course, placement)
+                }
         }
+    } else {
+        val source = if (totalScheduleDisplayEnabled) {
+            allCourses
+        } else {
+            activeCoursesForWeek(allCourses, weekIndex)
+        }
+        source
+            .mapNotNull { course ->
+                val placement = coursePlacement(course, slots) ?: return@mapNotNull null
+                Resolved(course, placement)
+            }
+    }
     val grouped = resolved.groupBy { it.placement.dayIndex to it.placement.rowIndex }
     val entries = mutableListOf<CourseRenderEntry>()
     for ((_, list) in grouped) {

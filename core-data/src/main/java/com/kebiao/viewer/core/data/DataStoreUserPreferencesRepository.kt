@@ -9,14 +9,21 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.LocalDateTime
 
 private val Context.userPreferencesDataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
-class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepository {
+class DataStoreUserPreferencesRepository(
+    context: Context,
+    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
+) : UserPreferencesRepository {
     private val store = context.applicationContext.userPreferencesDataStore
 
     override val preferencesFlow: Flow<UserPreferences> = store.data.map { prefs ->
@@ -33,6 +40,9 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
             totalScheduleDisplayEnabled = prefs[KEY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
             enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
             pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
+            temporaryScheduleOverrides = decodeTemporaryScheduleOverrides(
+                prefs[KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON],
+            ),
             debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
             },
@@ -105,6 +115,38 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
         }
     }
 
+    override suspend fun upsertTemporaryScheduleOverride(override: TemporaryScheduleOverride) {
+        store.edit { prefs ->
+            val current = decodeTemporaryScheduleOverrides(prefs[KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON])
+                .filterNot { it.id == override.id }
+            prefs[KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON] = json.encodeToString(current + override)
+        }
+    }
+
+    override suspend fun removeTemporaryScheduleOverride(id: String) {
+        store.edit { prefs ->
+            val next = decodeTemporaryScheduleOverrides(prefs[KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON])
+                .filterNot { it.id == id }
+            if (next.isEmpty()) {
+                prefs.remove(KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON)
+            } else {
+                prefs[KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON] = json.encodeToString(next)
+            }
+        }
+    }
+
+    override suspend fun clearTemporaryScheduleOverrides() {
+        store.edit { prefs ->
+            prefs.remove(KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON)
+        }
+    }
+
+    private fun decodeTemporaryScheduleOverrides(raw: String?): List<TemporaryScheduleOverride> {
+        return raw
+            ?.let { value -> runCatching { json.decodeFromString<List<TemporaryScheduleOverride>>(value) }.getOrNull() }
+            .orEmpty()
+    }
+
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_THEME_ACCENT = stringPreferencesKey("theme_accent")
@@ -114,6 +156,7 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
         val KEY_TOTAL_SCHEDULE_DISPLAY_ENABLED = booleanPreferencesKey("total_schedule_display_enabled")
         val KEY_ENABLED_PLUGIN_IDS = stringSetPreferencesKey("enabled_plugin_ids")
         val KEY_PLUGINS_SEEDED = booleanPreferencesKey("plugins_seeded")
+        val KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON = stringPreferencesKey("temporary_schedule_overrides_json")
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")
