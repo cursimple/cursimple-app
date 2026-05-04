@@ -164,6 +164,7 @@ class MainActivity : ComponentActivity() {
 
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
+                    val drawerGesturesEnabled = !scheduleState.isSyncing && scheduleState.pendingWebSession == null
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
                     var showCurrentWeekDialog by rememberSaveable { mutableStateOf(false) }
                     var showTermStartReminder by rememberSaveable { mutableStateOf(false) }
@@ -249,7 +250,7 @@ class MainActivity : ComponentActivity() {
 
                     ModalNavigationDrawer(
                         drawerState = drawerState,
-                        gesturesEnabled = true,
+                        gesturesEnabled = drawerGesturesEnabled,
                         drawerContent = {
                             AppDrawer(
                                 currentScreen = currentScreen,
