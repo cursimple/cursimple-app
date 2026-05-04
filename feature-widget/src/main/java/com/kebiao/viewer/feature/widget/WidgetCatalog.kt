@@ -65,17 +65,31 @@ object WidgetCatalog {
         return AppWidgetManager.getInstance(context).isRequestPinAppWidgetSupported
     }
 
-    fun requestPin(context: Context, entry: WidgetCatalogEntry): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+    sealed interface PinRequestResult {
+        data object Started : PinRequestResult
+        data object Unsupported : PinRequestResult
+        data class Failed(val message: String?) : PinRequestResult
+    }
+
+    fun requestPin(context: Context, entry: WidgetCatalogEntry): PinRequestResult {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return PinRequestResult.Unsupported
         val manager = AppWidgetManager.getInstance(context)
-        if (!manager.isRequestPinAppWidgetSupported) return false
+        if (!manager.isRequestPinAppWidgetSupported) return PinRequestResult.Unsupported
         val callback = PendingIntent.getBroadcast(
             context,
             entry.id.hashCode(),
             Intent(ACTION_WIDGET_PINNED).setPackage(context.packageName),
             pendingIntentFlags(),
         )
-        return manager.requestPinAppWidget(entry.provider, null, callback)
+        return runCatching {
+            if (manager.requestPinAppWidget(entry.provider, null, callback)) {
+                PinRequestResult.Started
+            } else {
+                PinRequestResult.Failed(null)
+            }
+        }.getOrElse { error ->
+            PinRequestResult.Failed(error.message)
+        }
     }
 
     private fun pendingIntentFlags(): Int {
@@ -109,19 +123,33 @@ object WidgetCatalog {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
         val resolved = pm.resolveActivity(intent, 0)
         val pkg = resolved?.activityInfo?.packageName.orEmpty()
+        val device = listOf(Build.MANUFACTURER, Build.BRAND, Build.DEVICE, Build.PRODUCT)
+            .joinToString(" ")
         return when {
             pkg.contains("miui", ignoreCase = true) ||
-                pkg.startsWith("com.mi", ignoreCase = true) -> LauncherVendor.Miui
+                pkg.startsWith("com.mi", ignoreCase = true) ||
+                device.contains("xiaomi", ignoreCase = true) ||
+                device.contains("redmi", ignoreCase = true) -> LauncherVendor.Miui
             pkg.contains("huawei", ignoreCase = true) ||
-                pkg.contains("honor", ignoreCase = true) -> LauncherVendor.Huawei
+                pkg.contains("honor", ignoreCase = true) ||
+                device.contains("huawei", ignoreCase = true) ||
+                device.contains("honor", ignoreCase = true) -> LauncherVendor.Huawei
             pkg.contains("oppo", ignoreCase = true) ||
                 pkg.contains("oplus", ignoreCase = true) ||
-                pkg.contains("realme", ignoreCase = true) -> LauncherVendor.Oppo
+                pkg.contains("realme", ignoreCase = true) ||
+                pkg.contains("oneplus", ignoreCase = true) ||
+                device.contains("oppo", ignoreCase = true) ||
+                device.contains("oplus", ignoreCase = true) ||
+                device.contains("realme", ignoreCase = true) ||
+                device.contains("oneplus", ignoreCase = true) -> LauncherVendor.Oppo
             pkg.contains("vivo", ignoreCase = true) ||
                 pkg.contains("bbk", ignoreCase = true) ||
-                pkg.contains("iqoo", ignoreCase = true) -> LauncherVendor.Vivo
+                pkg.contains("iqoo", ignoreCase = true) ||
+                device.contains("vivo", ignoreCase = true) ||
+                device.contains("iqoo", ignoreCase = true) -> LauncherVendor.Vivo
             pkg.contains("samsung", ignoreCase = true) ||
-                pkg.contains("sec.android", ignoreCase = true) -> LauncherVendor.Samsung
+                pkg.contains("sec.android", ignoreCase = true) ||
+                device.contains("samsung", ignoreCase = true) -> LauncherVendor.Samsung
             else -> LauncherVendor.Other
         }
     }

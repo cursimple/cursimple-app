@@ -119,7 +119,7 @@ class MainActivity : ComponentActivity() {
             val prefsViewModel: AppPreferencesViewModel = viewModel(
                 factory = AppPreferencesViewModelFactory(
                     container.userPreferencesRepository,
-                    refreshWidgets = { container.refreshWidgets() },
+                    refreshScheduleOutputs = { container.refreshScheduleOutputs() },
                 ),
             )
             val prefs by prefsViewModel.state.collectAsStateWithLifecycle()
@@ -542,6 +542,7 @@ class MainActivity : ComponentActivity() {
                                         onResetDay = { dayOffset = 0 },
                                         onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
                                         totalScheduleDisplayEnabled = prefs.totalScheduleDisplayEnabled,
+                                        temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -580,6 +581,7 @@ class MainActivity : ComponentActivity() {
                                         timeZoneLabel = timeZoneLabel(prefs.timeZoneId),
                                         currentWeekIndex = currentWeekIndex,
                                         totalScheduleDisplayEnabled = prefs.totalScheduleDisplayEnabled,
+                                        temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         onPickThemeMode = { showThemeSheet = true },
                                         onPickThemeAccent = { showThemeAccentDialog = true },
                                         onPickTermStartDate = { showDatePicker = true },
@@ -587,6 +589,9 @@ class MainActivity : ComponentActivity() {
                                         onClearTermStartDate = { showClearTermStartConfirm = true },
                                         onPickTimeZone = { showTimeZoneDialog = true },
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
+                                        onUpsertTemporaryScheduleOverride = prefsViewModel::upsertTemporaryScheduleOverride,
+                                        onRemoveTemporaryScheduleOverride = prefsViewModel::removeTemporaryScheduleOverride,
+                                        onClearTemporaryScheduleOverrides = prefsViewModel::clearTemporaryScheduleOverrides,
                                         onOpenWidgetPicker = { showWidgetPicker = true },
                                         modifier = Modifier.fillMaxSize(),
                                     )

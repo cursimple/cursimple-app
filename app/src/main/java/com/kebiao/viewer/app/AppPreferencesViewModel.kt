@@ -7,6 +7,7 @@ import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.data.UserPreferences
 import com.kebiao.viewer.core.data.UserPreferencesRepository
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +18,7 @@ import java.time.LocalDateTime
 
 class AppPreferencesViewModel(
     private val repository: UserPreferencesRepository,
-    private val refreshWidgets: suspend () -> Unit = {},
+    private val refreshScheduleOutputs: suspend () -> Unit = {},
 ) : ViewModel() {
 
     val state: StateFlow<UserPreferences> = repository.preferencesFlow
@@ -47,6 +48,27 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setTotalScheduleDisplayEnabled(enabled) }
     }
 
+    fun upsertTemporaryScheduleOverride(override: TemporaryScheduleOverride) {
+        viewModelScope.launch {
+            repository.upsertTemporaryScheduleOverride(override)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun removeTemporaryScheduleOverride(id: String) {
+        viewModelScope.launch {
+            repository.removeTemporaryScheduleOverride(id)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun clearTemporaryScheduleOverrides() {
+        viewModelScope.launch {
+            repository.clearTemporaryScheduleOverrides()
+            refreshScheduleOutputs()
+        }
+    }
+
     fun setPluginEnabled(pluginId: String, enabled: Boolean) {
         viewModelScope.launch { repository.setPluginEnabled(pluginId, enabled) }
     }
@@ -65,19 +87,19 @@ class AppPreferencesViewModel(
         BeijingTime.setForcedNow(dateTime)
         viewModelScope.launch {
             repository.setDebugForcedDateTime(dateTime)
-            refreshWidgets()
+            refreshScheduleOutputs()
         }
     }
 }
 
 class AppPreferencesViewModelFactory(
     private val repository: UserPreferencesRepository,
-    private val refreshWidgets: suspend () -> Unit = {},
+    private val refreshScheduleOutputs: suspend () -> Unit = {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AppPreferencesViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return AppPreferencesViewModel(repository, refreshWidgets) as T
+            return AppPreferencesViewModel(repository, refreshScheduleOutputs) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

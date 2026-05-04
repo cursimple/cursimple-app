@@ -43,7 +43,9 @@ import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
 import com.kebiao.viewer.core.kernel.model.endLocalTime
 import com.kebiao.viewer.core.kernel.model.findSlot
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleDayOfWeek
 import com.kebiao.viewer.core.kernel.model.startLocalTime
+import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
 import java.time.Duration
@@ -76,7 +78,7 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
         val now = BeijingTime.nowTimeIn(zone)
-        val dayOfWeek = today.dayOfWeek.value
+        val dayOfWeek = resolveTemporaryScheduleDayOfWeek(today, userPrefs.temporaryScheduleOverrides)
         val weekIndex = resolveWeekIndex(today, userPrefs.termStartDate)
 
         val displayCourses = (schedule?.coursesOfDay(dayOfWeek).orEmpty() +
@@ -126,11 +128,16 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
             else -> null
         }
 
+        val todayHeader = if (dayOfWeek != today.dayOfWeek.value) {
+            "今日课程 · 按${weekdayLabel(dayOfWeek)}"
+        } else {
+            "今日课程"
+        }
         val headerLabel = when {
-            live != null -> "今日课程 · 上课中"
-            firstUpcoming != null -> "下一节课"
-            annotated.isNotEmpty() -> "今日课程已结束"
-            else -> "下一节课"
+            live != null -> "$todayHeader · 上课中"
+            firstUpcoming != null -> if (dayOfWeek != today.dayOfWeek.value) todayHeader else "下一节课"
+            annotated.isNotEmpty() -> "$todayHeader · 已结束"
+            else -> if (dayOfWeek != today.dayOfWeek.value) todayHeader else "下一节课"
         }
 
         provideContent {
