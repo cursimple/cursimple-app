@@ -4,7 +4,6 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import androidx.glance.GlanceId
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -15,27 +14,17 @@ import java.util.concurrent.TimeUnit
 object ScheduleWidgetUpdater {
     suspend fun refreshAll(context: Context) {
         val app = context.applicationContext
-        // Glance refreshes by GlanceAppWidget class; this covers the AOSP receivers.
-        ScheduleGlanceWidget().refreshAll(app)
+        ScheduleGlanceWidgetReceiver.updateWidgets(app)
         NextCourseGlanceWidget().refreshAll(app)
         ReminderGlanceWidget().refreshAll(app)
-        // The vendor-aware receivers are separate ComponentNames that Glance won't visit
-        // automatically — nudge them via the standard AppWidgetManager update broadcast so
-        // any pinned MIUI / vivo / HONOR instances get re-rendered.
+        // Next-course and reminder vendor-aware receivers are separate ComponentNames
+        // that Glance won't visit automatically.
         broadcastVendorUpdate(app)
     }
 
-    suspend fun refreshSchedule(context: Context, glanceId: GlanceId? = null) {
+    fun refreshSchedule(context: Context, appWidgetIds: IntArray? = null) {
         val app = context.applicationContext
-        val widget = ScheduleGlanceWidget()
-        if (glanceId != null) {
-            widget.update(app, glanceId)
-        }
-        widget.refreshAll(app)
-        broadcastVendorUpdate(
-            context = app,
-            receiverClassNames = listOf(SCHEDULE_VENDOR_RECEIVER),
-        )
+        ScheduleGlanceWidgetReceiver.updateWidgets(app, appWidgetIds)
     }
 
     private fun broadcastVendorUpdate(
@@ -56,11 +45,7 @@ object ScheduleWidgetUpdater {
         }
     }
 
-    private const val SCHEDULE_VENDOR_RECEIVER =
-        "com.kebiao.viewer.feature.widget.ScheduleGlanceWidgetReceiverMIUI"
-
     private val VENDOR_RECEIVERS = listOf(
-        SCHEDULE_VENDOR_RECEIVER,
         "com.kebiao.viewer.feature.widget.NextCourseGlanceWidgetReceiverMIUI",
         "com.kebiao.viewer.feature.widget.ReminderGlanceWidgetReceiverMIUI",
     )

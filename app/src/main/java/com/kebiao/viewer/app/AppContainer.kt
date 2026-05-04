@@ -12,6 +12,7 @@ import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
 import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.term.TermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
+import com.kebiao.viewer.core.data.widget.WidgetScheduleSnapshot
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.core.plugin.PluginManager
@@ -91,7 +92,22 @@ class AppContainer(
         if (timingProfile != null) {
             widgetPreferencesRepository.saveTimingProfile(timingProfile)
         }
+        widgetPreferencesRepository.saveScheduleSnapshot(buildWidgetScheduleSnapshot(timingProfile))
         ScheduleWidgetUpdater.refreshAll(app)
+    }
+
+    private suspend fun buildWidgetScheduleSnapshot(timingProfile: TermTimingProfile?): WidgetScheduleSnapshot {
+        val userPrefs = userPreferencesRepository.preferencesFlow.first()
+        val effectiveTimingProfile = timingProfile ?: widgetPreferencesRepository.timingProfileFlow.first()
+        return WidgetScheduleSnapshot(
+            schedule = scheduleRepository.scheduleFlow.first(),
+            manualCourses = manualCourseRepository.manualCoursesFlow.first(),
+            reminderRules = reminderRepository.reminderRulesFlow.first(),
+            timingProfile = effectiveTimingProfile,
+            termStartDateIso = userPrefs.termStartDate?.toString(),
+            timeZoneId = userPrefs.timeZoneId,
+            debugForcedDateTimeIso = userPrefs.debugForcedDateTime?.toString(),
+        )
     }
 
     suspend fun normalizeTimingProfileForActiveTerm(timingProfile: TermTimingProfile?): TermTimingProfile? {
