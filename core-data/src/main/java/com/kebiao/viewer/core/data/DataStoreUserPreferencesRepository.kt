@@ -30,6 +30,7 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
             termStartDate = prefs[KEY_TERM_START_EPOCH_DAY]?.let(LocalDate::ofEpochDay),
             developerModeEnabled = prefs[KEY_DEVELOPER_MODE] ?: false,
             timeZoneId = prefs[KEY_TIME_ZONE_ID] ?: UserPreferences.DEFAULT_TIME_ZONE_ID,
+            totalScheduleDisplayEnabled = prefs[KEY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
             enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
             pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
             debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
@@ -64,6 +65,10 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
 
     override suspend fun setTimeZoneId(timeZoneId: String) {
         store.edit { prefs -> prefs[KEY_TIME_ZONE_ID] = timeZoneId }
+    }
+
+    override suspend fun setTotalScheduleDisplayEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_TOTAL_SCHEDULE_DISPLAY_ENABLED] = enabled }
     }
 
     override suspend fun setPluginEnabled(pluginId: String, enabled: Boolean) {
@@ -106,6 +111,7 @@ class DataStoreUserPreferencesRepository(context: Context) : UserPreferencesRepo
         val KEY_TERM_START_EPOCH_DAY = longPreferencesKey("term_start_epoch_day")
         val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val KEY_TIME_ZONE_ID = stringPreferencesKey("time_zone_id")
+        val KEY_TOTAL_SCHEDULE_DISPLAY_ENABLED = booleanPreferencesKey("total_schedule_display_enabled")
         val KEY_ENABLED_PLUGIN_IDS = stringSetPreferencesKey("enabled_plugin_ids")
         val KEY_PLUGINS_SEEDED = booleanPreferencesKey("plugins_seeded")
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")

@@ -14,6 +14,7 @@ data class UserPreferences(
     val termStartDate: LocalDate? = null,
     val developerModeEnabled: Boolean = false,
     val timeZoneId: String = DEFAULT_TIME_ZONE_ID,
+    val totalScheduleDisplayEnabled: Boolean = true,
     val enabledPluginIds: Set<String> = emptySet(),
     val pluginsSeeded: Boolean = false,
     val debugForcedDateTime: LocalDateTime? = null,
@@ -33,6 +34,7 @@ interface UserPreferencesRepository {
     suspend fun setTermStartDate(date: LocalDate?)
     suspend fun setDeveloperModeEnabled(enabled: Boolean)
     suspend fun setTimeZoneId(timeZoneId: String)
+    suspend fun setTotalScheduleDisplayEnabled(enabled: Boolean)
     suspend fun setPluginEnabled(pluginId: String, enabled: Boolean)
     suspend fun seedEnabledPlugins(pluginIds: Set<String>)
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
