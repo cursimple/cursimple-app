@@ -33,6 +33,7 @@ import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
+import com.kebiao.viewer.core.data.DataStoreManualCourseRepository
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
 import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
 import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
@@ -64,9 +65,11 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         val appContext = context.applicationContext
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
+        val manualCourseRepository = DataStoreManualCourseRepository(appContext, termProfileRepository)
         val userPreferencesRepository = DataStoreUserPreferencesRepository(appContext)
         val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(appContext)
         val schedule = scheduleRepository.scheduleFlow.first()
+        val manualCourses = manualCourseRepository.manualCoursesFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
         val zone = BeijingTime.resolveZone(userPrefs.timeZoneId)
@@ -76,7 +79,8 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         val dayOfWeek = today.dayOfWeek.value
         val weekIndex = resolveWeekIndex(today, userPrefs.termStartDate)
 
-        val displayCourses = schedule?.coursesOfDay(dayOfWeek).orEmpty()
+        val displayCourses = (schedule?.coursesOfDay(dayOfWeek).orEmpty() +
+            manualCourses.filter { it.time.dayOfWeek == dayOfWeek })
             .filter { it.activeOnWeek(weekIndex) }
             .sortedBy { it.time.startNode }
 

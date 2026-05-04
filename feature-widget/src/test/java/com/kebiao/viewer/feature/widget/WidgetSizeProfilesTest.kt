@@ -23,6 +23,7 @@ class WidgetSizeProfilesTest {
 
     @Test
     fun `size profiles distinguish compact regular and expanded widgets`() {
+        assertEquals(WidgetSizeClass.Compact, WidgetSizeClass.fromDp(widthDp = 160, heightDp = 110))
         assertEquals(WidgetSizeClass.Compact, WidgetSizeClass.fromDp(widthDp = 160, heightDp = 120))
         assertEquals(WidgetSizeClass.Regular, WidgetSizeClass.fromDp(widthDp = 220, heightDp = 180))
         assertEquals(WidgetSizeClass.Expanded, WidgetSizeClass.fromDp(widthDp = 300, heightDp = 260))

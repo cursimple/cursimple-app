@@ -36,11 +36,6 @@ class DataStoreWidgetPreferencesRepository(
             ?.let { raw -> runCatching { json.decodeFromString<TermTimingProfile>(raw) }.getOrNull() }
     }
 
-    override val scheduleSnapshotFlow: Flow<WidgetScheduleSnapshot?> = store.data.map { preferences ->
-        preferences[KEY_SCHEDULE_SNAPSHOT_JSON]
-            ?.let { raw -> runCatching { json.decodeFromString<WidgetScheduleSnapshot>(raw) }.getOrNull() }
-    }
-
     override suspend fun setWidgetDay(day: WidgetDay) {
         store.edit { preferences ->
             preferences[KEY_WIDGET_DAY] = day.name
@@ -108,21 +103,10 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
-    override suspend fun saveScheduleSnapshot(snapshot: WidgetScheduleSnapshot?) {
-        store.edit { preferences ->
-            if (snapshot == null) {
-                preferences.remove(KEY_SCHEDULE_SNAPSHOT_JSON)
-            } else {
-                preferences[KEY_SCHEDULE_SNAPSHOT_JSON] = json.encodeToString(snapshot)
-            }
-        }
-    }
-
     private companion object {
         val KEY_WIDGET_DAY = stringPreferencesKey("widget_day")
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
-        val KEY_SCHEDULE_SNAPSHOT_JSON = stringPreferencesKey("widget_schedule_snapshot_json")
         const val MIN_OFFSET = -3650
         const val MAX_OFFSET = 3650
 
