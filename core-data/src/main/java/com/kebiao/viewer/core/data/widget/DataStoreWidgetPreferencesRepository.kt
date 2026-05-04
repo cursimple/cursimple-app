@@ -58,7 +58,7 @@ class DataStoreWidgetPreferencesRepository(
 
     override suspend fun shiftWidgetDayOffset(delta: Int) {
         store.edit { preferences ->
-            val current = preferences[KEY_WIDGET_DAY_OFFSET] ?: 0
+            val current = (preferences[KEY_WIDGET_DAY_OFFSET] ?: 0).coerceIn(MIN_OFFSET, MAX_OFFSET)
             preferences[KEY_WIDGET_DAY_OFFSET] = (current + delta).coerceIn(MIN_OFFSET, MAX_OFFSET)
         }
     }
@@ -77,7 +77,7 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_DAY = stringPreferencesKey("widget_day")
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
-        const val MIN_OFFSET = -180
-        const val MAX_OFFSET = 180
+        const val MIN_OFFSET = -1
+        const val MAX_OFFSET = 1
     }
 }
