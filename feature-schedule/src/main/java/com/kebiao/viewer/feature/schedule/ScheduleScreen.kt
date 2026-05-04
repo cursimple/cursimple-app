@@ -84,7 +84,6 @@ import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.findSlot
 import com.kebiao.viewer.core.kernel.model.startLocalTime
-import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.plugin.ui.BannerContribution
 import com.kebiao.viewer.core.plugin.ui.CourseBadgeRule
@@ -194,7 +193,7 @@ fun ScheduleScreen(
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
     val zone = LocalAppZone.current
     val displayedWeek = remember(state.timingProfile, weekOffset, overrideTermStart, zone) {
-        buildWeekModel(state.timingProfile, weekOffset, overrideTermStart, zone)
+        buildWeekModel(weekOffset, overrideTermStart, zone)
     }
     val visibleWeekNumber = displayedWeek.weekIndex
     val horizontalScrollState = rememberScrollState()
@@ -268,7 +267,7 @@ fun ScheduleScreen(
                     uiSchema = state.uiSchema,
                     reminderRules = state.reminderRules,
                     targetDate = zone.today().plusDays(dayOffset.toLong()),
-                    targetWeekNumber = computeWeekNumber(state.timingProfile, overrideTermStart, dayOffset, zone),
+                    targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
                     selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                     multiSelectMode = multiSelectMode,
                     multiSelectedIds = selectedIds,
@@ -818,7 +817,7 @@ private fun WeeklyScheduleSection(
                 ) { page ->
                     val pageOffset = page + safeMin
                     val pageWeek = remember(timingProfile, pageOffset, overrideTermStart, zone) {
-                        buildWeekModel(timingProfile, pageOffset, overrideTermStart, zone)
+                        buildWeekModel(pageOffset, overrideTermStart, zone)
                     }
                     val active = remember(allCourses, slots, pageWeek.weekIndex) {
                         buildWeekRenderEntries(allCourses, slots, pageWeek.weekIndex)
@@ -1279,13 +1278,11 @@ private fun BackToTodayButton(
 }
 
 private fun computeWeekNumber(
-    timingProfile: TermTimingProfile?,
-    overrideTermStart: LocalDate?,
+    termStart: LocalDate?,
     dayOffset: Int,
     zone: ZoneId,
 ): Int {
     val target = BeijingTime.todayIn(zone).plusDays(dayOffset.toLong())
-    val termStart = overrideTermStart ?: timingProfile?.termStartLocalDate()
     val termStartMonday = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val targetMonday = target.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     return if (termStartMonday != null) {
@@ -2147,14 +2144,12 @@ private fun MultiSelectActionBar(
 }
 
 private fun buildWeekModel(
-    timingProfile: TermTimingProfile?,
     weekOffset: Int,
-    overrideTermStart: LocalDate? = null,
+    termStart: LocalDate? = null,
     zone: ZoneId = ZoneId.of("Asia/Shanghai"),
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
-    val termStart = overrideTermStart ?: timingProfile?.termStartLocalDate()
     val termStartWeek = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val weekIndex = if (termStartWeek != null) {
         max(1, ChronoUnit.WEEKS.between(termStartWeek, weekStart).toInt() + 1)
