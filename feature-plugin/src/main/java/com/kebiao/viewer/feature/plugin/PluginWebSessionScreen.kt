@@ -14,17 +14,23 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -57,6 +63,16 @@ private const val MAX_STORAGE_ENTRY_COUNT = 256
 private const val MAX_STORAGE_VALUE_LENGTH = 8192
 private const val MAX_HTML_CAPTURE_CHARS = 524288
 
+private enum class UploadStage(
+    val label: String,
+    val step: Int,
+    val progress: Float,
+) {
+    Capturing("采集网页数据", 1, 0.33f),
+    Packing("整理会话数据", 2, 0.66f),
+    Writing("写入课表数据", 3, 0.9f),
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun PluginWebSessionScreen(
@@ -77,6 +93,7 @@ fun PluginWebSessionScreen(
     val popupWebViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val consoleError = remember(request.token) { mutableStateOf<String?>(null) }
     val capturedPackets = remember(request.token) { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
+    val uploadStage = remember(request.token) { mutableStateOf<UploadStage?>(null) }
     val pendingCompletion = remember(request.token) {
         mutableStateOf<Pair<WebSessionPacket, Map<String, WebCapturedPacket>>?>(null)
     }
@@ -99,12 +116,15 @@ fun PluginWebSessionScreen(
         val cookieCount = latestPacket?.cookies?.size ?: 0
         val lsCount = latestPacket?.localStorageSnapshot?.size ?: 0
         val ssCount = latestPacket?.sessionStorageSnapshot?.size ?: 0
+        val activeUploadStage = uploadStage.value
         when {
+            activeUploadStage != null -> {
+                "上传课表 · ${activeUploadStage.label}（${activeUploadStage.step}/3，已用 $elapsedLabel）"
+            }
             pageError.value != null -> "页面加载失败：${pageError.value}"
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
             popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
             consoleError.value != null -> "页面脚本提示：${consoleError.value}"
-            isFinishing.value -> "正在写入课表数据…（已用 $elapsedLabel）"
             isCapturing.value -> "正在采集会话凭据…（已用 $elapsedLabel）"
             requiredPacketCount > 0 -> {
                 val captured = packets.count { it.value.id in requiredCapturePacketIds(request) }
@@ -170,7 +190,9 @@ fun PluginWebSessionScreen(
             return
         }
         isFinishing.value = true
+        uploadStage.value = UploadStage.Packing
         val finalPacket = aggregateWebSessionPacket(request, packet, packets)
+        uploadStage.value = UploadStage.Writing
         PluginLogger.info(
             "plugin.web_session.capture.complete",
             mapOf(
@@ -262,9 +284,10 @@ fun PluginWebSessionScreen(
 
     fun uploadCurrentSession() {
         val webView = foregroundWebView() ?: return
-        if (isFinishing.value) {
+        if (isFinishing.value || isCapturing.value) {
             return
         }
+        uploadStage.value = UploadStage.Capturing
         PluginLogger.info(
             "plugin.web_session.manual_complete.start",
             mapOf(
@@ -300,22 +323,59 @@ fun PluginWebSessionScreen(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(request.title, style = MaterialTheme.typography.titleMedium)
-        val toolbarScrollState = rememberScrollState()
-        Row(
+        val uploadInProgress = uploadStage.value != null || isFinishing.value
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(toolbarScrollState)
                 .padding(top = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Button(onClick = onCancel) {
-                Text("取消")
+            val itemsPerRow = when {
+                maxWidth < 260.dp -> 1
+                maxWidth < 520.dp -> 2
+                else -> 4
             }
-            OutlinedButton(
-                onClick = {
-                    val popup = popupWebViewState.value
-                    if (popup != null) {
-                        val list = popup.copyBackForwardList()
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                maxItemsInEachRow = itemsPerRow,
+            ) {
+                val buttonModifier = Modifier
+                    .weight(1f)
+                    .defaultMinSize(minWidth = 0.dp)
+                    .height(40.dp)
+                Button(
+                    onClick = onCancel,
+                    enabled = !uploadInProgress,
+                    modifier = buttonModifier,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                ) {
+                    Text("取消", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(
+                    onClick = {
+                        val popup = popupWebViewState.value
+                        if (popup != null) {
+                            val list = popup.copyBackForwardList()
+                            val current = list.currentIndex
+                            var target = -1
+                            for (i in current - 1 downTo 0) {
+                                val url = list.getItemAtIndex(i)?.url.orEmpty()
+                                if (url.isNotBlank() && !isInternalWebViewUrl(url)) {
+                                    target = i
+                                    break
+                                }
+                            }
+                            if (target >= 0) {
+                                popup.goBackOrForward(target - current)
+                            } else {
+                                popupWebViewState.value = null
+                                popup.destroy()
+                            }
+                            return@OutlinedButton
+                        }
+                        val webView = webViewState.value ?: return@OutlinedButton
+                        val list = webView.copyBackForwardList()
                         val current = list.currentIndex
                         var target = -1
                         for (i in current - 1 downTo 0) {
@@ -326,45 +386,39 @@ fun PluginWebSessionScreen(
                             }
                         }
                         if (target >= 0) {
-                            popup.goBackOrForward(target - current)
+                            webView.goBackOrForward(target - current)
                         } else {
-                            popupWebViewState.value = null
-                            popup.destroy()
+                            webView.loadUrl(request.startUrl)
                         }
-                        return@OutlinedButton
-                    }
-                    val webView = webViewState.value ?: return@OutlinedButton
-                    val list = webView.copyBackForwardList()
-                    val current = list.currentIndex
-                    var target = -1
-                    for (i in current - 1 downTo 0) {
-                        val url = list.getItemAtIndex(i)?.url.orEmpty()
-                        if (url.isNotBlank() && !isInternalWebViewUrl(url)) {
-                            target = i
-                            break
-                        }
-                    }
-                    if (target >= 0) {
-                        webView.goBackOrForward(target - current)
-                    } else {
-                        webView.loadUrl(request.startUrl)
-                    }
-                },
-            ) {
-                Text("后退")
-            }
-            OutlinedButton(
-                onClick = {
-                    foregroundWebView()?.reload()
-                },
-            ) {
-                Text("刷新")
-            }
-            Button(
-                onClick = ::uploadCurrentSession,
-                enabled = !isFinishing.value,
-            ) {
-                Text(if (isFinishing.value) "上传中..." else "上传课表")
+                    },
+                    enabled = !uploadInProgress,
+                    modifier = buttonModifier,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                ) {
+                    Text("后退", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                OutlinedButton(
+                    onClick = {
+                        foregroundWebView()?.reload()
+                    },
+                    enabled = !uploadInProgress,
+                    modifier = buttonModifier,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                ) {
+                    Text("刷新", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Button(
+                    onClick = ::uploadCurrentSession,
+                    enabled = !isFinishing.value && !isCapturing.value,
+                    modifier = buttonModifier,
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                ) {
+                    Text(
+                        if (uploadInProgress) "上传中" else "上传课表",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
         if (effectiveCaptureSpecs(request).isNotEmpty()) {
@@ -376,14 +430,43 @@ fun PluginWebSessionScreen(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        if (requiredPacketCount > 0) {
+        val activeUploadStage = uploadStage.value
+        if (activeUploadStage != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "当前进度：${activeUploadStage.label}（${activeUploadStage.step}/3）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            val animated by androidx.compose.animation.core.animateFloatAsState(
+                targetValue = activeUploadStage.progress,
+                label = "upload-progress",
+            )
+            LinearProgressIndicator(
+                progress = { animated },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp),
+            )
+        } else if (requiredPacketCount > 0) {
             val captured = capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }
             val progress = (captured.toFloat() / requiredPacketCount).coerceIn(0f, 1f)
             val animated by androidx.compose.animation.core.animateFloatAsState(
                 targetValue = progress,
                 label = "capture-progress",
             )
-            androidx.compose.material3.LinearProgressIndicator(
+            LinearProgressIndicator(
                 progress = { animated },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -394,7 +477,7 @@ fun PluginWebSessionScreen(
                 targetValue = loadProgress.value / 100f,
                 label = "page-progress",
             )
-            androidx.compose.material3.LinearProgressIndicator(
+            LinearProgressIndicator(
                 progress = { animated },
                 modifier = Modifier
                     .fillMaxWidth()

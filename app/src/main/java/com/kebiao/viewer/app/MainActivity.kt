@@ -88,7 +88,6 @@ import com.kebiao.viewer.app.util.ScheduleMetadataExportSnapshot
 import com.kebiao.viewer.app.util.ScheduleMetadataExporter
 import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.ThemeMode
-import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.feature.plugin.BundledPluginCatalogEntry
 import com.kebiao.viewer.feature.plugin.PluginMarketRoute
 import com.kebiao.viewer.feature.schedule.AddCourseDialog
@@ -148,6 +147,9 @@ class MainActivity : ComponentActivity() {
                             pluginManager = container.pluginManager,
                             reminderCoordinator = container.reminderCoordinator,
                             manualCourseRepository = container.manualCourseRepository,
+                            normalizeTimingProfile = { profile ->
+                                container.normalizeTimingProfileForActiveTerm(profile)
+                            },
                             onSyncCompleted = { profile -> container.refreshWidgets(profile) },
                         ),
                     )
@@ -161,6 +163,14 @@ class MainActivity : ComponentActivity() {
                         ),
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
+                    fun setActiveTermStartDate(date: LocalDate?) {
+                        val activeTermId = termProfileState.activeTermId
+                        if (activeTermId.isNotBlank()) {
+                            termProfileViewModel.setStartDate(activeTermId, date)
+                        } else {
+                            prefsViewModel.setTermStartDate(date)
+                        }
+                    }
 
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
@@ -213,9 +223,30 @@ class MainActivity : ComponentActivity() {
                     var dayOffset by rememberSaveable { mutableIntStateOf(0) }
                     var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.Week) }
                     var showWeekMenu by remember { mutableStateOf(false) }
+                    var syncWasActive by rememberSaveable { mutableStateOf(false) }
+                    androidx.compose.runtime.LaunchedEffect(
+                        scheduleState.isSyncing,
+                        scheduleState.pendingWebSession,
+                        scheduleState.schedule,
+                        scheduleState.statusMessage,
+                    ) {
+                        val syncActive = scheduleState.isSyncing || scheduleState.pendingWebSession != null
+                        val justCompleted = syncWasActive &&
+                            !syncActive &&
+                            scheduleState.schedule != null &&
+                            scheduleState.statusMessage == "同步完成，已更新课表"
+                        if (justCompleted) {
+                            currentScreen = AppScreen.Schedule
+                            subScreen = null
+                            weekOffset = 0
+                            dayOffset = 0
+                            scheduleViewMode = ScheduleViewMode.Week
+                            snackbarHostState.showSnackbar("同步完成，已回到课表")
+                        }
+                        syncWasActive = syncActive
+                    }
 
                     val effectiveTermStart = prefs.termStartDate
-                        ?: scheduleState.timingProfile?.termStartLocalDate()
                     val today = remember(prefs.debugForcedDateTime, appZone) {
                         prefs.debugForcedDateTime?.toLocalDate() ?: LocalDate.now(appZone)
                     }
@@ -634,7 +665,7 @@ class MainActivity : ComponentActivity() {
                             initial = prefs.termStartDate,
                             onDismiss = { showDatePicker = false },
                             onConfirm = { date ->
-                                prefsViewModel.setTermStartDate(date)
+                                setActiveTermStartDate(date)
                                 // After (re)setting term start, snap views back to today / current week.
                                 weekOffset = 0
                                 dayOffset = 0
@@ -649,7 +680,7 @@ class MainActivity : ComponentActivity() {
                             initialWeek = currentWeekIndex,
                             onDismiss = { showCurrentWeekDialog = false },
                             onConfirm = { week ->
-                                prefsViewModel.setTermStartDate(
+                                setActiveTermStartDate(
                                     deriveTermStartForCurrentWeek(today = today, currentWeek = week),
                                 )
                                 weekOffset = 0
@@ -699,7 +730,7 @@ class MainActivity : ComponentActivity() {
                             text = { Text("清除后将无法计算当前周次，需要重新设置。确定继续？") },
                             confirmButton = {
                                 TextButton(onClick = {
-                                    prefsViewModel.setTermStartDate(null)
+                                    setActiveTermStartDate(null)
                                     showClearTermStartConfirm = false
                                 }) { Text("清除") }
                             },

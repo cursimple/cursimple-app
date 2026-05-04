@@ -32,6 +32,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
 import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
+import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
@@ -48,9 +49,11 @@ import java.time.LocalTime
 class NextCourseGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val scheduleRepository = DataStoreScheduleRepository(context.applicationContext)
-        val userPreferencesRepository = DataStoreUserPreferencesRepository(context.applicationContext)
-        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(context.applicationContext)
+        val appContext = context.applicationContext
+        val termProfileRepository = DataStoreTermProfileRepository(appContext)
+        val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
+        val userPreferencesRepository = DataStoreUserPreferencesRepository(appContext)
+        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(appContext)
         val schedule = scheduleRepository.scheduleFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
@@ -59,18 +62,11 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         val today = BeijingTime.todayIn(zone)
         val now = BeijingTime.nowTimeIn(zone)
         val dayOfWeek = today.dayOfWeek.value
-        val weekIndex = resolveWeekIndex(today, userPrefs.termStartDate, timingProfile)
+        val weekIndex = resolveWeekIndex(today, userPrefs.termStartDate)
 
-        val rawCoursesToday = schedule?.coursesOfDay(dayOfWeek).orEmpty()
-        val courses = rawCoursesToday
+        val displayCourses = schedule?.coursesOfDay(dayOfWeek).orEmpty()
             .filter { it.activeOnWeek(weekIndex) }
             .sortedBy { it.time.startNode }
-        // If week filter wipes everything but there ARE courses today in some weeks,
-        // fall back to showing them ungated. Better to show stale-week info than
-        // blank "no courses" when the user has actually synced data.
-        val displayCourses = if (courses.isEmpty() && rawCoursesToday.isNotEmpty()) {
-            rawCoursesToday.sortedBy { it.time.startNode }
-        } else courses
 
         data class Annotated(val course: CourseItem, val status: CourseStatus)
 
