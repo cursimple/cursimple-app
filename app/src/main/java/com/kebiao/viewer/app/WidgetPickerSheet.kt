@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.automirrored.rounded.HelpOutline
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.Add
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -100,6 +102,7 @@ fun WidgetPickerSheet(
     var pendingConfirm by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var manualGuideEntry by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var pendingPinWatch by remember { mutableStateOf<PinWatch?>(null) }
+    var showColorOsGuide by remember { mutableStateOf(false) }
 
     val pinWatch = pendingPinWatch
     if (pinWatch != null) {
@@ -124,11 +127,23 @@ fun WidgetPickerSheet(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text(
-                text = "添加桌面小组件",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "添加桌面小组件",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                IconButton(onClick = { showColorOsGuide = true }) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.HelpOutline,
+                        contentDescription = "查看一加添加方法",
+                    )
+                }
+            }
             Text(
                 text = if (pinSupported) {
                     "选择一种样式，确认后系统会弹出「添加到桌面」确认框。\n" +
@@ -159,6 +174,12 @@ fun WidgetPickerSheet(
             }
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    if (showColorOsGuide) {
+        ColorOsWidgetGuideDialog(
+            onDismiss = { showColorOsGuide = false },
+        )
     }
 
     val guideEntry = manualGuideEntry
@@ -209,6 +230,25 @@ fun WidgetPickerSheet(
             },
         )
     }
+}
+
+@Composable
+private fun ColorOsWidgetGuideDialog(
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("一加（ColorOS）添加方法") },
+        text = {
+            Text(
+                "长按桌面空白处-卡片-插件-课表查看，然后完成添加",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("知道了") }
+        },
+    )
 }
 
 @Composable

@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import androidx.glance.GlanceId
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -24,14 +25,26 @@ object ScheduleWidgetUpdater {
         broadcastVendorUpdate(app)
     }
 
-    private fun broadcastVendorUpdate(context: Context) {
+    suspend fun refreshSchedule(context: Context, glanceId: GlanceId? = null) {
+        val app = context.applicationContext
+        val widget = ScheduleGlanceWidget()
+        if (glanceId != null) {
+            widget.update(app, glanceId)
+        }
+        widget.refreshAll(app)
+        broadcastVendorUpdate(
+            context = app,
+            receiverClassNames = listOf(SCHEDULE_VENDOR_RECEIVER),
+        )
+    }
+
+    private fun broadcastVendorUpdate(
+        context: Context,
+        receiverClassNames: List<String> = VENDOR_RECEIVERS,
+    ) {
         val manager = AppWidgetManager.getInstance(context)
         val pkg = context.packageName
-        listOf(
-            "com.kebiao.viewer.feature.widget.ScheduleGlanceWidgetReceiverMIUI",
-            "com.kebiao.viewer.feature.widget.NextCourseGlanceWidgetReceiverMIUI",
-            "com.kebiao.viewer.feature.widget.ReminderGlanceWidgetReceiverMIUI",
-        ).forEach { className ->
+        receiverClassNames.forEach { className ->
             val component = ComponentName(pkg, className)
             val ids = runCatching { manager.getAppWidgetIds(component) }.getOrNull() ?: return@forEach
             if (ids.isEmpty()) return@forEach
@@ -42,6 +55,15 @@ object ScheduleWidgetUpdater {
             context.sendBroadcast(intent)
         }
     }
+
+    private const val SCHEDULE_VENDOR_RECEIVER =
+        "com.kebiao.viewer.feature.widget.ScheduleGlanceWidgetReceiverMIUI"
+
+    private val VENDOR_RECEIVERS = listOf(
+        SCHEDULE_VENDOR_RECEIVER,
+        "com.kebiao.viewer.feature.widget.NextCourseGlanceWidgetReceiverMIUI",
+        "com.kebiao.viewer.feature.widget.ReminderGlanceWidgetReceiverMIUI",
+    )
 }
 
 object ScheduleWidgetWorkScheduler {
