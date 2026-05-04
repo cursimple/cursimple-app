@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,11 +40,9 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Public
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -59,6 +58,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -79,10 +79,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kebiao.viewer.app.theme.ClassScheduleTheme
+import com.kebiao.viewer.app.util.ScheduleMetadataExportSnapshot
+import com.kebiao.viewer.app.util.ScheduleMetadataExporter
 import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
@@ -162,6 +165,7 @@ class MainActivity : ComponentActivity() {
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
+                    var showCurrentWeekDialog by rememberSaveable { mutableStateOf(false) }
                     var showTermStartReminder by rememberSaveable { mutableStateOf(false) }
                     var autoPromptedThisSession by rememberSaveable { mutableStateOf(false) }
                     androidx.compose.runtime.LaunchedEffect(prefs.loaded, prefs.termStartDate, prefs.disclaimerAccepted) {
@@ -245,7 +249,7 @@ class MainActivity : ComponentActivity() {
 
                     ModalNavigationDrawer(
                         drawerState = drawerState,
-                        gesturesEnabled = scheduleState.pendingWebSession == null,
+                        gesturesEnabled = true,
                         drawerContent = {
                             AppDrawer(
                                 currentScreen = currentScreen,
@@ -261,6 +265,7 @@ class MainActivity : ComponentActivity() {
                                 onPickThemeMode = { showThemeSheet = true },
                                 onPickThemeAccent = { showThemeAccentDialog = true },
                                 onPickTermStartDate = { showDatePicker = true },
+                                onPickCurrentWeek = { showCurrentWeekDialog = true },
                                 onClearTermStartDate = { showClearTermStartConfirm = true },
                                 onPickTimeZone = { showTimeZoneDialog = true },
                                 onOpenWidgetPicker = {
@@ -538,6 +543,48 @@ class MainActivity : ComponentActivity() {
                                         debugForcedDateTime = prefs.debugForcedDateTime,
                                         onSetDeveloperMode = prefsViewModel::setDeveloperModeEnabled,
                                         onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
+                                        onExportScheduleMetadata = {
+                                            scope.launch {
+                                                val snapshot = ScheduleMetadataExportSnapshot(
+                                                    schedule = scheduleState.schedule,
+                                                    manualCourses = scheduleState.manualCourses,
+                                                    timingProfile = scheduleState.timingProfile,
+                                                    installedPlugins = scheduleState.installedPlugins,
+                                                    enabledPluginIds = prefs.enabledPluginIds,
+                                                    selectedPluginId = scheduleState.pluginId,
+                                                    termStartDate = prefs.termStartDate,
+                                                    timeZoneId = prefs.timeZoneId,
+                                                    currentWeekIndex = currentWeekIndex,
+                                                    displayedWeekIndex = displayedWeekIndex,
+                                                    isSyncing = scheduleState.isSyncing,
+                                                    statusMessage = scheduleState.statusMessage,
+                                                    messages = scheduleState.messages,
+                                                )
+                                                val intent = ScheduleMetadataExporter.export(this@MainActivity, snapshot)
+                                                if (intent != null) {
+                                                    runCatching {
+                                                        val chooser = android.content.Intent.createChooser(intent, "导出课表元数据").apply {
+                                                            clipData = intent.clipData
+                                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                        }
+                                                        startActivity(chooser)
+                                                    }.onFailure {
+                                                        android.widget.Toast.makeText(
+                                                            this@MainActivity,
+                                                            "无法启动分享：${it.message}",
+                                                            android.widget.Toast.LENGTH_SHORT,
+                                                        ).show()
+                                                    }
+                                                } else {
+                                                    android.widget.Toast.makeText(
+                                                        this@MainActivity,
+                                                        "导出课表元数据失败，请稍后重试",
+                                                        android.widget.Toast.LENGTH_SHORT,
+                                                    ).show()
+                                                }
+                                            }
+                                        },
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
@@ -593,6 +640,21 @@ class MainActivity : ComponentActivity() {
                                 showDatePicker = false
                             },
                             showHint = prefs.termStartDate == null,
+                        )
+                    }
+
+                    if (showCurrentWeekDialog) {
+                        CurrentWeekDialog(
+                            initialWeek = currentWeekIndex,
+                            onDismiss = { showCurrentWeekDialog = false },
+                            onConfirm = { week ->
+                                prefsViewModel.setTermStartDate(
+                                    deriveTermStartForCurrentWeek(today = today, currentWeek = week),
+                                )
+                                weekOffset = 0
+                                dayOffset = 0
+                                showCurrentWeekDialog = false
+                            },
                         )
                     }
 
@@ -713,9 +775,13 @@ class MainActivity : ComponentActivity() {
                                 }
                                 showWeekMenu = false
                             },
-                            onSetSelectedAsCurrent = {
+                            onSetSelectedAsCurrent = { selectedWeek ->
+                                prefsViewModel.setTermStartDate(
+                                    deriveTermStartForCurrentWeek(today = today, currentWeek = selectedWeek),
+                                )
+                                weekOffset = 0
+                                dayOffset = 0
                                 showWeekMenu = false
-                                showDatePicker = true
                             },
                             onDismiss = { showWeekMenu = false },
                         )
@@ -807,6 +873,7 @@ private fun AppDrawer(
     onPickThemeMode: () -> Unit,
     onPickThemeAccent: () -> Unit,
     onPickTermStartDate: () -> Unit,
+    onPickCurrentWeek: () -> Unit,
     onClearTermStartDate: () -> Unit,
     onPickTimeZone: () -> Unit,
     onOpenWidgetPicker: () -> Unit,
@@ -912,6 +979,17 @@ private fun AppDrawer(
                         }
                     }
                 } else null,
+            )
+
+            DrawerActionRow(
+                icon = Icons.Rounded.CalendarMonth,
+                title = "当前周",
+                subtitle = if (termStartDate != null) {
+                    "第 $currentWeekIndex 周 · 可按周数反推开学日期"
+                } else {
+                    "点击输入今天所在周数"
+                },
+                onClick = onPickCurrentWeek,
             )
 
             DrawerActionRow(
@@ -1072,6 +1150,52 @@ private fun TermStartDatePicker(
             },
         )
     }
+}
+
+@Composable
+private fun CurrentWeekDialog(
+    initialWeek: Int,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit,
+) {
+    var weekText by rememberSaveable(initialWeek) { mutableStateOf(initialWeek.coerceAtLeast(1).toString()) }
+    val parsedWeek = weekText.toIntOrNull()
+    val weekValid = parsedWeek != null && parsedWeek >= 1
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("设置当前周") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "输入今天所在的教学周，应用会用今天日期反推开学日期。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = weekText,
+                    onValueChange = { weekText = it.filter(Char::isDigit).take(3) },
+                    label = { Text("当前周") },
+                    singleLine = true,
+                    isError = weekText.isNotBlank() && !weekValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    supportingText = {
+                        if (weekText.isNotBlank() && !weekValid) {
+                            Text("请输入大于 0 的周数")
+                        }
+                    },
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { parsedWeek?.let(onConfirm) },
+                enabled = weekValid,
+            ) { Text("设置") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
 }
 
 @Composable

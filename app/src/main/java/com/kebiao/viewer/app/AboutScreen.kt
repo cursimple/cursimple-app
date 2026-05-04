@@ -84,6 +84,7 @@ fun AboutScreen(
     debugForcedDateTime: LocalDateTime?,
     onSetDeveloperMode: (Boolean) -> Unit,
     onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
+    onExportScheduleMetadata: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -177,6 +178,7 @@ fun AboutScreen(
                             }
                         }
                     },
+                    onExportScheduleMetadata = onExportScheduleMetadata,
                     onDisable = {
                         onSetDeveloperMode(false)
                         Toast.makeText(context, "已关闭开发者模式", Toast.LENGTH_SHORT).show()
@@ -471,6 +473,7 @@ private fun DeveloperCard(
     onClearForcedDateTime: () -> Unit,
     onExportLogs: () -> Unit,
     onClearLogs: () -> Unit,
+    onExportScheduleMetadata: () -> Unit,
     onDisable: () -> Unit,
 ) {
     Card(
@@ -558,6 +561,14 @@ private fun DeveloperCard(
                     Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("清空日志")
+                }
+                Button(
+                    onClick = onExportScheduleMetadata,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("导出课表元数据")
                 }
                 TextButton(
                     onClick = onDisable,

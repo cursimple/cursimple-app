@@ -26,6 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 
 private const val DefaultWeekPickerTotalWeeks = 25
 
@@ -36,7 +39,7 @@ fun WeekPickerSheet(
     selectedWeek: Int,
     totalWeeks: Int = DefaultWeekPickerTotalWeeks,
     onSelectWeek: (Int) -> Unit,
-    onSetSelectedAsCurrent: () -> Unit,
+    onSetSelectedAsCurrent: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -61,8 +64,8 @@ fun WeekPickerSheet(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = onSetSelectedAsCurrent) {
-                    Text("修改开学日期")
+                TextButton(onClick = { onSetSelectedAsCurrent(selectedWeek) }) {
+                    Text("设为当前周")
                 }
             }
 
@@ -104,6 +107,11 @@ internal fun resolveWeekPickerTotalWeeks(
         .maxOrNull()
     val baseWeeks = explicitMaxWeek ?: fallbackWeeks
     return maxOf(1, baseWeeks, currentWeek, selectedWeek)
+}
+
+internal fun deriveTermStartForCurrentWeek(today: LocalDate, currentWeek: Int): LocalDate {
+    val currentMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    return currentMonday.minusWeeks((currentWeek.coerceAtLeast(1) - 1).toLong())
 }
 
 @Composable

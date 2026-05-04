@@ -260,6 +260,23 @@ fun PluginWebSessionScreen(
         return true
     }
 
+    fun uploadCurrentSession() {
+        val webView = foregroundWebView() ?: return
+        if (isFinishing.value) {
+            return
+        }
+        PluginLogger.info(
+            "plugin.web_session.manual_complete.start",
+            mapOf(
+                "pluginId" to request.pluginId,
+                "sessionId" to request.sessionId,
+                "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
+            ),
+        )
+        val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
+        probeWebSession(webView, target, forceFinish = true)
+    }
+
     LaunchedEffect(request.token) {
         while (true) {
             delay(800)
@@ -283,13 +300,6 @@ fun PluginWebSessionScreen(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(request.title, style = MaterialTheme.typography.titleMedium)
-        Text(
-            text = "允许域名：${request.allowedHosts.joinToString()}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
         val toolbarScrollState = rememberScrollState()
         Row(
             modifier = Modifier
@@ -350,30 +360,12 @@ fun PluginWebSessionScreen(
             ) {
                 Text("刷新")
             }
-        }
-        Button(
-            onClick = {
-                val webView = foregroundWebView() ?: return@Button
-                if (isFinishing.value) {
-                    return@Button
-                }
-                PluginLogger.info(
-                    "plugin.web_session.manual_complete.start",
-                    mapOf(
-                        "pluginId" to request.pluginId,
-                        "sessionId" to request.sessionId,
-                        "finalUrl" to PluginLogger.sanitizeUrl(currentUrl.value),
-                    ),
-                )
-                val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
-                probeWebSession(webView, target, forceFinish = true)
-            },
-            enabled = !isFinishing.value,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-        ) {
-            Text(if (isFinishing.value) "正在上传课表..." else "上传课表")
+            Button(
+                onClick = ::uploadCurrentSession,
+                enabled = !isFinishing.value,
+            ) {
+                Text(if (isFinishing.value) "上传中..." else "上传课表")
+            }
         }
         if (effectiveCaptureSpecs(request).isNotEmpty()) {
             Text(

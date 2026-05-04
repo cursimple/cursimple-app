@@ -4,6 +4,7 @@ import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -89,5 +90,22 @@ class ScheduleValidationTest {
         assertTrue(course.isActiveInWeek(3))
         assertFalse(course.isActiveInWeek(5))
         assertTrue(allWeeksCourse.isActiveInWeek(30))
+    }
+
+    @Test
+    fun `week render source excludes courses from other weeks`() {
+        val base = CourseItem(
+            id = "base",
+            title = "基础课程",
+            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+        )
+        val active = base.copy(id = "active", weeks = listOf(4))
+        val inactive = base.copy(id = "inactive", weeks = listOf(5))
+        val allWeeks = base.copy(id = "all-weeks", weeks = emptyList())
+
+        val visibleIds = activeCoursesForWeek(listOf(active, inactive, allWeeks), weekNumber = 4)
+            .map { it.id }
+
+        assertEquals(listOf("active", "all-weeks"), visibleIds)
     }
 }
