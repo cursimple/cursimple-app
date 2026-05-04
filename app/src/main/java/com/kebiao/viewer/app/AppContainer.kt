@@ -13,11 +13,13 @@ import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.term.TermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
+import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.core.plugin.PluginManager
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.feature.widget.ScheduleWidgetUpdater
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import java.time.LocalDate
 
 class AppContainer(
     private val app: Application,
@@ -92,8 +94,41 @@ class AppContainer(
         ScheduleWidgetUpdater.refreshAll(app)
     }
 
+    suspend fun normalizeTimingProfileForActiveTerm(timingProfile: TermTimingProfile?): TermTimingProfile? {
+        if (timingProfile == null) {
+            return null
+        }
+        val activeTermId = termProfileRepository.activeTermId()
+        val activeTerm = termProfileRepository.termsFlow.first()
+            .firstOrNull { it.id == activeTermId }
+        val activeTermStart = activeTerm?.termStartDate?.let(::parseIsoDate)
+        val pluginTermStart = runCatching { timingProfile.termStartLocalDate() }.getOrNull()
+        val canonicalTermStart = activeTermStart ?: pluginTermStart
+
+        if (canonicalTermStart != null) {
+            if (activeTermId.isNotBlank() && activeTermStart != canonicalTermStart) {
+                termProfileRepository.setTermStartDate(activeTermId, canonicalTermStart.toString())
+            }
+            val prefsTermStart = userPreferencesRepository.preferencesFlow.first().termStartDate
+            if (prefsTermStart != canonicalTermStart) {
+                userPreferencesRepository.setTermStartDate(canonicalTermStart)
+            }
+            val canonicalIso = canonicalTermStart.toString()
+            return if (timingProfile.termStartDate == canonicalIso) {
+                timingProfile
+            } else {
+                timingProfile.copy(termStartDate = canonicalIso)
+            }
+        }
+
+        return timingProfile
+    }
+
     private companion object {
         const val YANGTZEU_PLUGIN_ID = "yangtzeu-eams-v2"
+
+        fun parseIsoDate(value: String): LocalDate? =
+            runCatching { LocalDate.parse(value) }.getOrNull()
     }
 }
 

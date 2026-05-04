@@ -30,6 +30,7 @@ import androidx.glance.text.TextStyle
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
 import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
+import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.ReminderPlanner
@@ -42,10 +43,12 @@ import java.time.format.DateTimeFormatter
 class ReminderGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val scheduleRepository = DataStoreScheduleRepository(context.applicationContext)
-        val reminderRepository = DataStoreReminderRepository(context.applicationContext)
-        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(context.applicationContext)
-        val userPreferencesRepository = DataStoreUserPreferencesRepository(context.applicationContext)
+        val appContext = context.applicationContext
+        val termProfileRepository = DataStoreTermProfileRepository(appContext)
+        val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
+        val reminderRepository = DataStoreReminderRepository(appContext)
+        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(appContext)
+        val userPreferencesRepository = DataStoreUserPreferencesRepository(appContext)
 
         val schedule = scheduleRepository.scheduleFlow.first()
         val rules = reminderRepository.reminderRulesFlow.first().filter { it.enabled }

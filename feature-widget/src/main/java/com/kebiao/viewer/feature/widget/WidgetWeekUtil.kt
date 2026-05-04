@@ -5,7 +5,6 @@ import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.endLocalTime
 import com.kebiao.viewer.core.kernel.model.startLocalTime
-import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -15,12 +14,9 @@ import kotlin.math.max
 
 internal fun resolveWeekIndex(
     targetDate: LocalDate,
-    termStartOverride: LocalDate?,
-    timingProfile: TermTimingProfile?,
+    termStartDate: LocalDate?,
 ): Int? {
-    val termStart = termStartOverride
-        ?: timingProfile?.let { runCatching { it.termStartLocalDate() }.getOrNull() }
-        ?: return null
+    val termStart = termStartDate ?: return null
     val termStartMonday = termStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val targetMonday = targetDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val weeks = ChronoUnit.WEEKS.between(termStartMonday, targetMonday).toInt() + 1
@@ -28,8 +24,7 @@ internal fun resolveWeekIndex(
 }
 
 internal fun CourseItem.activeOnWeek(weekIndex: Int?): Boolean {
-    // No week info known → fall back to showing the course (legacy behaviour).
-    if (weekIndex == null) return true
+    if (weekIndex == null) return false
     if (weeks.isEmpty()) return true
     return weeks.contains(weekIndex)
 }
@@ -42,11 +37,11 @@ internal fun TermTimingProfile.startSlotFor(startNode: Int): ClassSlotTime? =
 internal fun TermTimingProfile.endSlotFor(endNode: Int): ClassSlotTime? =
     slotTimes.firstOrNull { it.startNode <= endNode && endNode <= it.endNode }
 
-/** Real-clock start of a course, falling back to per-node lookup when no exact slot match exists. */
+/** Real-clock start of a course using the configured node range. */
 internal fun TermTimingProfile.courseStartTime(course: CourseItem): LocalTime? =
     runCatching { startSlotFor(course.time.startNode)?.startLocalTime() }.getOrNull()
 
-/** Real-clock end of a course, falling back to per-node lookup. */
+/** Real-clock end of a course using the configured node range. */
 internal fun TermTimingProfile.courseEndTime(course: CourseItem): LocalTime? =
     runCatching { endSlotFor(course.time.endNode)?.endLocalTime() }.getOrNull()
 

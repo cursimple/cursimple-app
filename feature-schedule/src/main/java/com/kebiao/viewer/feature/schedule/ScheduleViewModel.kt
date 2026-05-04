@@ -61,6 +61,7 @@ class ScheduleViewModel(
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
     private val manualCourseRepository: ManualCourseRepository,
+    private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -412,7 +413,7 @@ class ScheduleViewModel(
     private suspend fun loadPluginPresentation(pluginId: String) {
         runCatching {
             val schema = pluginManager.loadUiSchema(pluginId)
-            val timingProfile = pluginManager.loadTimingProfile(pluginId)
+            val timingProfile = normalizeTimingProfile(pluginManager.loadTimingProfile(pluginId))
             _uiState.update {
                 it.copy(
                     uiSchema = schema,
@@ -460,17 +461,19 @@ class ScheduleViewModel(
                     }
                     return
                 }
+                var syncedTimingProfile: TermTimingProfile? = null
                 try {
+                    syncedTimingProfile = normalizeTimingProfile(result.timingProfile)
                     withContext(ioDispatcher) {
                         scheduleRepository.saveSchedule(schedule)
                     }
                     reminderCoordinator.syncRulesForSchedule(
                         pluginId = _uiState.value.pluginId,
                         schedule = schedule,
-                        timingProfile = result.timingProfile,
+                        timingProfile = syncedTimingProfile,
                         preferSystemClock = false,
                     )
-                    onSyncCompleted(result.timingProfile)
+                    onSyncCompleted(syncedTimingProfile)
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Throwable) {
@@ -501,7 +504,7 @@ class ScheduleViewModel(
                         "courseCount" to schedule.dailySchedules.sumOf { it.courses.size },
                         "messageCount" to result.messages.size,
                         "recommendationCount" to result.recommendations.size,
-                        "hasTimingProfile" to (result.timingProfile != null),
+                        "hasTimingProfile" to (syncedTimingProfile != null),
                         "elapsedMs" to (System.currentTimeMillis() - startedAt),
                     ),
                 )
@@ -511,7 +514,7 @@ class ScheduleViewModel(
                         pendingWebSession = null,
                         schedule = schedule,
                         uiSchema = result.uiSchema,
-                        timingProfile = result.timingProfile,
+                        timingProfile = syncedTimingProfile,
                         alarmRecommendations = result.recommendations,
                         messages = result.messages,
                         statusMessage = "同步完成，已更新课表",
@@ -601,6 +604,7 @@ class ScheduleViewModelFactory(
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
     private val manualCourseRepository: ManualCourseRepository,
+    private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -611,6 +615,7 @@ class ScheduleViewModelFactory(
                 pluginManager = pluginManager,
                 reminderCoordinator = reminderCoordinator,
                 manualCourseRepository = manualCourseRepository,
+                normalizeTimingProfile = normalizeTimingProfile,
                 onSyncCompleted = onSyncCompleted,
             ) as T
         }

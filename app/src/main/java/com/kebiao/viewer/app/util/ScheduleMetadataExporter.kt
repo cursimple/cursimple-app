@@ -131,7 +131,6 @@ private fun CourseTimeSlot.toJson(): JSONObject {
 
 private fun TermTimingProfile.toJson(): JSONObject {
     return JSONObject()
-        .put("termStartDate", termStartDate)
         .put("timezone", timezone)
         .put("slotTimes", JSONArray().also { array ->
             slotTimes.forEach { slot ->
