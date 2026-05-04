@@ -245,6 +245,20 @@ class MainActivity : ComponentActivity() {
                         }
                         syncWasActive = syncActive
                     }
+                    androidx.compose.runtime.LaunchedEffect(
+                        scheduleState.initialized,
+                        scheduleState.schedule,
+                        scheduleState.manualCourses,
+                        scheduleState.reminderRules,
+                        scheduleState.timingProfile,
+                        prefs.termStartDate,
+                        prefs.timeZoneId,
+                        prefs.debugForcedDateTime,
+                    ) {
+                        if (scheduleState.initialized) {
+                            container.refreshWidgets(scheduleState.timingProfile)
+                        }
+                    }
 
                     val effectiveTermStart = prefs.termStartDate
                     val today = remember(prefs.debugForcedDateTime, appZone) {
