@@ -144,7 +144,9 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             row.setTextViewText(R.id.course_time, timeRange)
             row.setTextViewText(R.id.course_title, course.title)
             row.setTextViewText(R.id.course_subtitle, subline)
-            row.setTextViewText(R.id.course_badge, if (reminderRules.any { it.matches(course) }) "提醒" else "")
+            val hasReminder = reminderRules.any { it.matches(course) }
+            row.setViewVisibility(R.id.course_badge, if (hasReminder) View.VISIBLE else View.GONE)
+            row.setTextViewText(R.id.course_badge, if (hasReminder) "提醒" else "")
             return row
         }
 

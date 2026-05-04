@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -329,28 +329,36 @@ fun PluginWebSessionScreen(
                 .fillMaxWidth()
                 .padding(top = 2.dp),
         ) {
-            val itemsPerRow = when {
-                maxWidth < 260.dp -> 1
-                maxWidth < 520.dp -> 2
-                else -> 4
+            val compact = maxWidth < 360.dp
+            val buttonGap = if (compact) 4.dp else 6.dp
+            val buttonPadding = PaddingValues(horizontal = if (compact) 2.dp else 8.dp)
+            val buttonTextStyle = if (compact) {
+                MaterialTheme.typography.labelSmall
+            } else {
+                MaterialTheme.typography.labelMedium
             }
-            FlowRow(
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-                maxItemsInEachRow = itemsPerRow,
+                horizontalArrangement = Arrangement.spacedBy(buttonGap),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 val buttonModifier = Modifier
                     .weight(1f)
                     .defaultMinSize(minWidth = 0.dp)
-                    .height(40.dp)
+                    .height(if (compact) 36.dp else 40.dp)
                 Button(
                     onClick = onCancel,
                     enabled = !uploadInProgress,
                     modifier = buttonModifier,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                    contentPadding = buttonPadding,
                 ) {
-                    Text("取消", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "取消",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        style = buttonTextStyle,
+                    )
                 }
                 OutlinedButton(
                     onClick = {
@@ -393,9 +401,15 @@ fun PluginWebSessionScreen(
                     },
                     enabled = !uploadInProgress,
                     modifier = buttonModifier,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                    contentPadding = buttonPadding,
                 ) {
-                    Text("后退", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "后退",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        style = buttonTextStyle,
+                    )
                 }
                 OutlinedButton(
                     onClick = {
@@ -403,20 +417,28 @@ fun PluginWebSessionScreen(
                     },
                     enabled = !uploadInProgress,
                     modifier = buttonModifier,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                    contentPadding = buttonPadding,
                 ) {
-                    Text("刷新", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        "刷新",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        style = buttonTextStyle,
+                    )
                 }
                 Button(
                     onClick = ::uploadCurrentSession,
                     enabled = !isFinishing.value && !isCapturing.value,
                     modifier = buttonModifier,
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp),
+                    contentPadding = buttonPadding,
                 ) {
                     Text(
                         if (uploadInProgress) "上传中" else "上传课表",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        style = buttonTextStyle,
                     )
                 }
             }
