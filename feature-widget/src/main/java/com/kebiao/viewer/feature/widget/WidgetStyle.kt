@@ -16,14 +16,10 @@ import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
-import androidx.glance.layout.Spacer
-import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
-import androidx.glance.layout.height
 import androidx.glance.layout.padding
 import androidx.glance.layout.size
-import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -35,18 +31,25 @@ internal object WidgetStyle {
     val rowCorner = 14.dp
     val rowPaddingV = 8.dp
     val rowPaddingH = 10.dp
-    val accentWidth = 4.dp
     val disabledContent = ColorProvider(Color(0xFF9AA3AE))
 }
 
 @Composable
-internal fun WidgetCard(content: @Composable () -> Unit) {
+internal fun WidgetCard(
+    sizeClass: WidgetSizeClass = WidgetSizeClass.Regular,
+    content: @Composable () -> Unit,
+) {
+    val outerPadding = when (sizeClass) {
+        WidgetSizeClass.Compact -> 8.dp
+        WidgetSizeClass.Regular -> WidgetStyle.outerPadding
+        WidgetSizeClass.Expanded -> WidgetStyle.outerPadding
+    }
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
             .cornerRadius(WidgetStyle.cardCorner)
-            .padding(WidgetStyle.outerPadding),
+            .padding(outerPadding),
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
             content()
@@ -68,6 +71,7 @@ internal fun SectionLabel(text: String) {
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 internal fun AccentRow(
     accent: ColorProvider,
     dimmed: Boolean = false,
@@ -79,22 +83,12 @@ internal fun AccentRow(
             .background(if (dimmed) GlanceTheme.colors.surfaceVariant else GlanceTheme.colors.surface)
             .cornerRadius(WidgetStyle.rowCorner)
             .padding(0.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = GlanceModifier
-                .width(WidgetStyle.accentWidth)
-                .fillMaxHeight()
-                .background(accent),
-        ) { Spacer(GlanceModifier.height(36.dp)) }
-        Spacer(GlanceModifier.width(8.dp))
-        Box(
-            modifier = GlanceModifier
-                .padding(end = WidgetStyle.rowPaddingH, top = WidgetStyle.rowPaddingV, bottom = WidgetStyle.rowPaddingV)
+                .padding(horizontal = WidgetStyle.rowPaddingH, vertical = WidgetStyle.rowPaddingV)
                 .fillMaxWidth(),
-        ) {
-            content()
-        }
+        ) { content() }
     }
 }
 

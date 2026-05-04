@@ -15,7 +15,7 @@
             Both run in the main process so Glance's DataStore-backed state stays consistent.
         -->
 
-        <!-- Today schedule -->
+        <!-- Daily schedule -->
         <receiver
             android:name=".ScheduleGlanceWidgetReceiver"
             android:exported="true"
