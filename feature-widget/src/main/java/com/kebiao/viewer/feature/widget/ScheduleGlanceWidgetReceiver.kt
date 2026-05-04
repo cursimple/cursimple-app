@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
@@ -33,6 +34,16 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
         updateWidgets(context.applicationContext, appWidgetIds)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         val appContext = context.applicationContext
@@ -54,12 +65,21 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 val snapshot = repository.scheduleSnapshotFlow.first()
                 ids.forEach { appWidgetId ->
                     val offset = repository.widgetDayOffset(appWidgetId)
+                    val sizeClass = sizeClassForWidget(manager, appWidgetId)
                     manager.updateAppWidget(
                         appWidgetId,
-                        buildScheduleViews(appContext, appWidgetId, offset, snapshot),
+                        buildScheduleViews(appContext, appWidgetId, offset, sizeClass, snapshot),
                     )
                 }
             }
+        }
+
+        private fun sizeClassForWidget(manager: AppWidgetManager, appWidgetId: Int): WidgetSizeClass {
+            val options = manager.getAppWidgetOptions(appWidgetId)
+            return WidgetSizeClass.fromDp(
+                widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, DEFAULT_MIN_WIDTH_DP),
+                heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, DEFAULT_MIN_HEIGHT_DP),
+            )
         }
 
         private fun scheduleWidgetIds(context: Context, manager: AppWidgetManager): IntArray {
@@ -79,6 +99,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             context: Context,
             appWidgetId: Int,
             offset: Int,
+            sizeClass: WidgetSizeClass,
             snapshot: WidgetScheduleSnapshot?,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_schedule_today)
@@ -91,8 +112,12 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 .filter { it.activeOnWeek(weekIndex) }
                 .sortedBy { it.time.startNode }
 
-            views.setTextViewText(R.id.widget_title, "${dateFormatter.format(targetDate)} · ${offsetTagLabel(offset)}")
+            views.setTextViewText(R.id.widget_title, "${dateFormatter.format(targetDate)} · ${WidgetDayLabels.tag(offset)}")
             views.setTextViewText(R.id.widget_subtitle, weekdayLabel(targetDate))
+            views.setViewVisibility(
+                R.id.widget_subtitle,
+                if (sizeClass == WidgetSizeClass.Compact) View.GONE else View.VISIBLE,
+            )
             views.setOnClickPendingIntent(
                 R.id.widget_prev,
                 actionPendingIntent(context, appWidgetId, ScheduleWidgetActionReceiver.ACTION_PREV),
@@ -101,8 +126,8 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 R.id.widget_next,
                 actionPendingIntent(context, appWidgetId, ScheduleWidgetActionReceiver.ACTION_NEXT),
             )
-            views.setViewVisibility(R.id.widget_prev, if (offset > -1) View.VISIBLE else View.INVISIBLE)
-            views.setViewVisibility(R.id.widget_next, if (offset < 1) View.VISIBLE else View.INVISIBLE)
+            views.setViewVisibility(R.id.widget_prev, View.VISIBLE)
+            views.setViewVisibility(R.id.widget_next, View.VISIBLE)
             views.setViewVisibility(R.id.widget_reset, if (offset == 0) View.GONE else View.VISIBLE)
             views.setOnClickPendingIntent(
                 R.id.widget_reset,
@@ -113,11 +138,11 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             if (courses.isEmpty()) {
                 views.setViewVisibility(R.id.widget_course_list, View.GONE)
                 views.setViewVisibility(R.id.widget_empty, View.VISIBLE)
-                views.setTextViewText(R.id.widget_empty, offsetEmptyLabel(offset))
+                views.setTextViewText(R.id.widget_empty, WidgetDayLabels.empty(offset))
             } else {
                 views.setViewVisibility(R.id.widget_course_list, View.VISIBLE)
                 views.setViewVisibility(R.id.widget_empty, View.GONE)
-                courses.take(MAX_ROWS).forEach { course ->
+                courses.take(sizeClass.dailyCourseRows()).forEach { course ->
                     views.addView(
                         R.id.widget_course_list,
                         buildCourseRow(context, course, snapshot?.timingProfile, snapshot?.reminderRules.orEmpty()),
@@ -196,20 +221,6 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             else -> ""
         }
 
-        private fun offsetTagLabel(offset: Int): String = when (offset) {
-            -1 -> "昨天"
-            0 -> "今天"
-            1 -> "明天"
-            else -> if (offset > 0) "+$offset 天" else "$offset 天"
-        }
-
-        private fun offsetEmptyLabel(offset: Int): String = when (offset) {
-            -1 -> "昨日没有课程"
-            0 -> "今日没有课程，享受一天"
-            1 -> "明日没有课程"
-            else -> "当日没有课程"
-        }
-
         private fun parseLocalDate(value: String): LocalDate? =
             runCatching { LocalDate.parse(value) }.getOrNull()
 
@@ -219,7 +230,8 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
         private val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
         private val clockFormatter = DateTimeFormatter.ofPattern("HH:mm")
         private const val DEFAULT_TIME_ZONE_ID = "Asia/Shanghai"
-        private const val MAX_ROWS = 4
+        private const val DEFAULT_MIN_WIDTH_DP = 220
+        private const val DEFAULT_MIN_HEIGHT_DP = 180
     }
 }
 

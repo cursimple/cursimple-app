@@ -4,13 +4,16 @@ package com.kebiao.viewer.feature.widget
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.LocalSize
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.updateAll
@@ -39,8 +42,17 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToInt
 
 class ReminderGlanceWidget : GlanceAppWidget() {
+
+    override val sizeMode: SizeMode = SizeMode.Responsive(
+        setOf(
+            DpSize(160.dp, 110.dp),
+            DpSize(220.dp, 160.dp),
+            DpSize(300.dp, 240.dp),
+        ),
+    )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val appContext = context.applicationContext
@@ -67,12 +79,17 @@ class ReminderGlanceWidget : GlanceAppWidget() {
                 }.getOrDefault(emptyList())
             }.filter { it.triggerAtMillis >= now }
                 .sortedBy { it.triggerAtMillis }
-                .take(4)
         } else emptyList()
 
         provideContent {
+            val sizeClass = WidgetSizeClass.fromDp(
+                widthDp = LocalSize.current.width.value.roundToInt(),
+                heightDp = LocalSize.current.height.value.roundToInt(),
+            )
+            val visiblePlans = plans.take(sizeClass.reminderRows())
+
             GlanceTheme {
-                WidgetCard {
+                WidgetCard(sizeClass = sizeClass) {
                     Row(
                         modifier = GlanceModifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -102,11 +119,11 @@ class ReminderGlanceWidget : GlanceAppWidget() {
                             )
                         }
                     }
-                    Spacer(GlanceModifier.height(8.dp))
-                    if (plans.isEmpty()) {
-                        EmptyReminders(hasRules = rules.isNotEmpty())
+                    Spacer(GlanceModifier.height(if (sizeClass == WidgetSizeClass.Compact) 6.dp else 8.dp))
+                    if (visiblePlans.isEmpty()) {
+                        EmptyReminders(sizeClass = sizeClass, hasRules = rules.isNotEmpty())
                     } else {
-                        plans.forEachIndexed { index, plan ->
+                        visiblePlans.forEachIndexed { index, plan ->
                             val ts = Instant.ofEpochMilli(plan.triggerAtMillis).atZone(zone).toLocalDateTime()
                             val isToday = ts.toLocalDate() == today
                             val isSoon = (plan.triggerAtMillis - now) <= 60 * 60 * 1000L
@@ -118,7 +135,7 @@ class ReminderGlanceWidget : GlanceAppWidget() {
                                 countdown = formatCountdown(plan.triggerAtMillis - now),
                                 accentPrimary = isToday || isSoon,
                             )
-                            if (index < plans.lastIndex) {
+                            if (index < visiblePlans.lastIndex) {
                                 Spacer(GlanceModifier.height(6.dp))
                             }
                         }
@@ -195,13 +212,16 @@ private fun ReminderEntry(
 }
 
 @Composable
-private fun EmptyReminders(hasRules: Boolean) {
+private fun EmptyReminders(sizeClass: WidgetSizeClass, hasRules: Boolean) {
     Box(
         modifier = GlanceModifier
             .fillMaxWidth()
             .background(GlanceTheme.colors.surfaceVariant)
             .cornerRadius(WidgetStyle.rowCorner)
-            .padding(horizontal = 12.dp, vertical = 16.dp),
+            .padding(
+                horizontal = if (sizeClass == WidgetSizeClass.Compact) 10.dp else 12.dp,
+                vertical = if (sizeClass == WidgetSizeClass.Compact) 12.dp else 16.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -209,25 +229,31 @@ private fun EmptyReminders(hasRules: Boolean) {
                 text = if (hasRules) "🌙" else "🔕",
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 20.sp,
+                    fontSize = if (sizeClass == WidgetSizeClass.Compact) 18.sp else 20.sp,
                 ),
             )
-            Spacer(GlanceModifier.height(4.dp))
+            Spacer(GlanceModifier.height(if (sizeClass == WidgetSizeClass.Compact) 2.dp else 4.dp))
             Text(
-                text = if (hasRules) "暂无即将到来的提醒" else "尚未设置提醒规则",
+                text = if (hasRules) {
+                    if (sizeClass == WidgetSizeClass.Compact) "暂无提醒" else "暂无即将到来的提醒"
+                } else {
+                    if (sizeClass == WidgetSizeClass.Compact) "尚未设置提醒" else "尚未设置提醒规则"
+                },
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurface,
-                    fontSize = 13.sp,
+                    fontSize = if (sizeClass == WidgetSizeClass.Compact) 12.sp else 13.sp,
                     fontWeight = FontWeight.Bold,
                 ),
             )
-            Text(
-                text = if (hasRules) "未来一段时间没有规划" else "在应用内为课程添加提醒",
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 11.sp,
-                ),
-            )
+            if (sizeClass != WidgetSizeClass.Compact) {
+                Text(
+                    text = if (hasRules) "未来一段时间没有规划" else "在应用内为课程添加提醒",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 11.sp,
+                    ),
+                )
+            }
         }
     }
 }

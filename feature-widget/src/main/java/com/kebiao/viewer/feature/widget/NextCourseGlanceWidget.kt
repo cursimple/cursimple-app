@@ -5,12 +5,15 @@ package com.kebiao.viewer.feature.widget
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.sp
+import androidx.glance.LocalSize
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
@@ -45,8 +48,17 @@ import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
+import kotlin.math.roundToInt
 
 class NextCourseGlanceWidget : GlanceAppWidget() {
+
+    override val sizeMode: SizeMode = SizeMode.Responsive(
+        setOf(
+            DpSize(160.dp, 120.dp),
+            DpSize(220.dp, 180.dp),
+            DpSize(300.dp, 260.dp),
+        ),
+    )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val appContext = context.applicationContext
@@ -118,13 +130,25 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         }
 
         provideContent {
+            val sizeClass = WidgetSizeClass.fromDp(
+                widthDp = LocalSize.current.width.value.roundToInt(),
+                heightDp = LocalSize.current.height.value.roundToInt(),
+            )
+            val outerPadding = if (sizeClass == WidgetSizeClass.Compact) 8.dp else WidgetStyle.outerPadding
+            val rowGap = if (sizeClass == WidgetSizeClass.Compact) 6.dp else 8.dp
+            val displayAnnotated = if (sizeClass == WidgetSizeClass.Compact) {
+                annotated.take(sizeClass.nextCourseRows())
+            } else {
+                annotated
+            }
+
             GlanceTheme {
                 Column(
                     modifier = GlanceModifier
                         .fillMaxSize()
                         .background(GlanceTheme.colors.widgetBackground)
                         .cornerRadius(WidgetStyle.cardCorner)
-                        .padding(WidgetStyle.outerPadding),
+                        .padding(outerPadding),
                 ) {
                     Row(
                         modifier = GlanceModifier.fillMaxWidth(),
@@ -134,20 +158,20 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
                         Box(modifier = GlanceModifier.defaultWeight()) { Spacer(GlanceModifier.height(0.dp)) }
                         headerBadge?.invoke()
                     }
-                    Spacer(GlanceModifier.height(8.dp))
-                    if (annotated.isEmpty()) {
-                        EmptyState()
+                    Spacer(GlanceModifier.height(rowGap))
+                    if (displayAnnotated.isEmpty()) {
+                        EmptyState(sizeClass)
                     } else {
                         LazyColumn(
                             modifier = GlanceModifier
                                 .fillMaxWidth()
                                 .defaultWeight(),
                         ) {
-                            items(annotated, itemId = { it.course.id.hashCode().toLong() }) { entry ->
+                            items(displayAnnotated, itemId = { it.course.id.hashCode().toLong() }) { entry ->
                                 val isFocus = entry.course === live ||
                                     (live == null && entry.course === firstUpcoming)
-                                Column(modifier = GlanceModifier.fillMaxWidth().padding(bottom = 8.dp)) {
-                                    if (isFocus) {
+                                Column(modifier = GlanceModifier.fillMaxWidth().padding(bottom = rowGap)) {
+                                    if (sizeClass != WidgetSizeClass.Compact && isFocus) {
                                         FocusCard(
                                             course = entry.course,
                                             profile = timingProfile,
@@ -322,13 +346,16 @@ private fun CompactRow(course: CourseItem, profile: TermTimingProfile?, status: 
 }
 
 @Composable
-private fun EmptyState() {
+private fun EmptyState(sizeClass: WidgetSizeClass) {
     Box(
         modifier = GlanceModifier
             .fillMaxWidth()
             .background(GlanceTheme.colors.surfaceVariant)
             .cornerRadius(WidgetStyle.rowCorner)
-            .padding(horizontal = 12.dp, vertical = 16.dp),
+            .padding(
+                horizontal = if (sizeClass == WidgetSizeClass.Compact) 10.dp else 12.dp,
+                vertical = if (sizeClass == WidgetSizeClass.Compact) 12.dp else 16.dp,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -336,25 +363,27 @@ private fun EmptyState() {
                 text = "✨",
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 20.sp,
+                    fontSize = if (sizeClass == WidgetSizeClass.Compact) 18.sp else 20.sp,
                 ),
             )
-            Spacer(GlanceModifier.height(4.dp))
+            Spacer(GlanceModifier.height(if (sizeClass == WidgetSizeClass.Compact) 2.dp else 4.dp))
             Text(
-                text = "今天没有更多课程",
+                text = if (sizeClass == WidgetSizeClass.Compact) "今天没有课程" else "今天没有更多课程",
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurface,
-                    fontSize = 13.sp,
+                    fontSize = if (sizeClass == WidgetSizeClass.Compact) 12.sp else 13.sp,
                     fontWeight = FontWeight.Bold,
                 ),
             )
-            Text(
-                text = "好好休息吧",
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurfaceVariant,
-                    fontSize = 11.sp,
-                ),
-            )
+            if (sizeClass != WidgetSizeClass.Compact) {
+                Text(
+                    text = "好好休息吧",
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 11.sp,
+                    ),
+                )
+            }
         }
     }
 }

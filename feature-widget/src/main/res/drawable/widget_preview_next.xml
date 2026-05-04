@@ -23,9 +23,6 @@
     <path
         android:fillColor="#FFFFFBF4"
         android:pathData="M16,52 h208 a10,10 0 0 1 10,10 v52 a10,10 0 0 1 -10,10 h-208 a10,10 0 0 1 -10,-10 v-52 a10,10 0 0 1 10,-10 z" />
-    <path
-        android:fillColor="#FFD0763B"
-        android:pathData="M16,52 h6 v72 h-6 z" />
     <!-- Status label -->
     <path
         android:fillColor="#FFB89B7B"
@@ -47,9 +44,6 @@
     <path
         android:fillColor="#FFFFFBF4"
         android:pathData="M16,138 h208 a10,10 0 0 1 10,10 v32 a10,10 0 0 1 -10,10 h-208 a10,10 0 0 1 -10,-10 v-32 a10,10 0 0 1 10,-10 z" />
-    <path
-        android:fillColor="#FF8FB48E"
-        android:pathData="M16,138 h6 v52 h-6 z" />
     <path
         android:fillColor="#FFB89B7B"
         android:pathData="M36,148 h32 v6 h-32 z" />
