@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.LocalContext
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.cornerRadius
@@ -123,6 +124,7 @@ class ScheduleGlanceWidget : GlanceAppWidget() {
 
 @Composable
 private fun DayHeader(date: LocalDate, offset: Int) {
+    val context = LocalContext.current
     val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
     Row(
         modifier = GlanceModifier.fillMaxWidth(),
@@ -131,7 +133,7 @@ private fun DayHeader(date: LocalDate, offset: Int) {
         IconCircleButton(
             label = "‹",
             onClick = if (offset > -1) {
-                ScheduleWidgetActionActivity.action(ScheduleWidgetActionActivity.ACTION_PREV)
+                ScheduleWidgetActionReceiver.action(context, ScheduleWidgetActionReceiver.ACTION_PREV)
             } else {
                 null
             },
@@ -181,7 +183,7 @@ private fun DayHeader(date: LocalDate, offset: Int) {
         IconCircleButton(
             label = "›",
             onClick = if (offset < 1) {
-                ScheduleWidgetActionActivity.action(ScheduleWidgetActionActivity.ACTION_NEXT)
+                ScheduleWidgetActionReceiver.action(context, ScheduleWidgetActionReceiver.ACTION_NEXT)
             } else {
                 null
             },
@@ -191,11 +193,12 @@ private fun DayHeader(date: LocalDate, offset: Int) {
 
 @Composable
 private fun ResetTodayButton(date: LocalDate) {
+    val context = LocalContext.current
     Box(
         modifier = GlanceModifier
             .background(GlanceTheme.colors.surfaceVariant)
             .cornerRadius(10.dp)
-            .clickable(ScheduleWidgetActionActivity.action(ScheduleWidgetActionActivity.ACTION_RESET))
+            .clickable(ScheduleWidgetActionReceiver.action(context, ScheduleWidgetActionReceiver.ACTION_RESET))
             .padding(horizontal = 8.dp, vertical = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
