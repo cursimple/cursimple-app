@@ -108,4 +108,75 @@ class ScheduleValidationTest {
 
         assertEquals(listOf("active", "all-weeks"), visibleIds)
     }
+
+    @Test
+    fun `week render entries exclude inactive courses when total schedule display is disabled`() {
+        val active = course(id = "active", weeks = listOf(4))
+        val inactive = course(id = "inactive", weeks = listOf(5))
+        val allWeeks = course(id = "all-weeks", weeks = emptyList())
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(active, inactive, allWeeks),
+            slots = listOf(testSlot()),
+            weekIndex = 4,
+            totalScheduleDisplayEnabled = false,
+        )
+
+        assertEquals(listOf("active", "all-weeks"), entries.map { it.course.id })
+        assertTrue(entries.none { it.inactive })
+    }
+
+    @Test
+    fun `week render entries include inactive courses when total schedule display is enabled`() {
+        val active = course(id = "active", weeks = listOf(4))
+        val inactive = course(id = "inactive", weeks = listOf(5))
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(inactive, active),
+            slots = listOf(testSlot()),
+            weekIndex = 4,
+            totalScheduleDisplayEnabled = true,
+        )
+
+        assertEquals(listOf("active", "inactive"), entries.map { it.course.id })
+        assertFalse(entries.first { it.course.id == "active" }.inactive)
+        assertTrue(entries.first { it.course.id == "inactive" }.inactive)
+    }
+
+    @Test
+    fun `same cell render entries prefer current week course as main entry`() {
+        val active = course(id = "active", title = "本周课", weeks = listOf(4))
+        val inactive = course(id = "inactive", title = "非本周课", weeks = listOf(5))
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(inactive, active),
+            slots = listOf(testSlot()),
+            weekIndex = 4,
+            totalScheduleDisplayEnabled = true,
+        )
+
+        assertEquals(2, entries.size)
+        assertEquals("active", entries.first().course.id)
+        assertFalse(entries.first().inactive)
+        assertTrue(entries.last().inactive)
+    }
+
+    private fun testSlot(): DisplaySlot = DisplaySlot(
+        startNode = 1,
+        endNode = 2,
+        label = "第一节",
+        startTime = "08:00",
+        endTime = "09:35",
+    )
+
+    private fun course(
+        id: String,
+        title: String = id,
+        weeks: List<Int>,
+    ): CourseItem = CourseItem(
+        id = id,
+        title = title,
+        weeks = weeks,
+        time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+    )
 }
