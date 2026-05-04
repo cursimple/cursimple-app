@@ -9,6 +9,7 @@ import com.kebiao.viewer.core.plugin.workflow.WorkflowStepDefinition
 import com.kebiao.viewer.core.plugin.workflow.WorkflowStepType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -18,12 +19,14 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.net.URL
 import java.time.OffsetDateTime
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 interface WorkflowEngine {
     suspend fun start(bundle: InstalledPluginBundle, input: PluginSyncInput, assetReader: (String) -> String): WorkflowExecutionResult
@@ -34,6 +37,11 @@ interface WorkflowEngine {
 class DefaultWorkflowEngine(
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
     private val client: OkHttpClient = OkHttpClient(),
+    private val freshClientFactory: (OkHttpClient) -> OkHttpClient = { baseClient ->
+        baseClient.newBuilder()
+            .connectionPool(ConnectionPool(0, 1, TimeUnit.NANOSECONDS))
+            .build()
+    },
 ) : WorkflowEngine {
     private val pendingExecutions = linkedMapOf<String, PendingWorkflowExecution>()
     private val mutex = Mutex()
@@ -355,11 +363,12 @@ class DefaultWorkflowEngine(
         if (repeat == null) {
             return@withContext executeHttpRequestOnce(step, execution, stepIndex)
         }
-        val responses = repeat.values.mapIndexed { offset, value ->
+        val responses = mutableListOf<String>()
+        for ((offset, value) in repeat.values.withIndex()) {
             val repeatedExecution = execution.copy(
                 contextData = execution.contextData + (repeat.variable to value.toString()),
             )
-            executeHttpRequestOnce(
+            responses += executeHttpRequestOnce(
                 step = step,
                 execution = repeatedExecution,
                 stepIndex = stepIndex,
@@ -374,67 +383,99 @@ class DefaultWorkflowEngine(
         responses.joinToString("\n")
     }
 
-    private fun executeHttpRequestOnce(
+    private suspend fun executeHttpRequestOnce(
         step: WorkflowStepDefinition,
         execution: PendingWorkflowExecution,
         stepIndex: Int,
         extraFields: Map<String, Any?> = emptyMap(),
     ): String {
-        val startedAt = System.currentTimeMillis()
         val url = renderTemplate(step.urlTemplate.orEmpty(), execution)
         val method = step.httpMethod?.uppercase().orEmpty().ifBlank { "GET" }
         val baseFields = stepFields(execution, step, stepIndex) + extraFields + mapOf(
             "method" to method,
             "url" to PluginLogger.sanitizeUrl(url),
         )
-        PluginLogger.info("plugin.workflow.http.start", baseFields)
-        return try {
-            require(isHostAllowed(url, execution.bundle.record.allowedHosts)) { "目标域名不在插件白名单中: ${PluginLogger.sanitizeUrl(url)}" }
-            val builder = Request.Builder().url(url)
-            step.cookieSessionId
-                ?.let(execution.webPackets::get)
-                ?.cookies
-                ?.takeIf(Map<String, String>::isNotEmpty)
-                ?.entries
-                ?.joinToString("; ") { (key, value) -> "$key=$value" }
-                ?.let { builder.header("Cookie", it) }
-            step.httpHeaders.forEach { (key, value) ->
-                builder.addHeader(key, renderTemplate(value, execution))
-            }
-            if (method == "GET" || method == "HEAD") {
-                builder.method(method, null)
-            } else {
-                val body = renderTemplate(step.httpBodyTemplate.orEmpty(), execution)
-                val contentType = step.httpContentType?.ifBlank { null } ?: "application/json; charset=utf-8"
-                builder.method(method, body.toRequestBody(contentType.toMediaType()))
-            }
-            client.newCall(builder.build()).execute().use { response ->
-                val responseBody = response.body.string()
-                val summaryFields = baseFields + mapOf(
-                    "statusCode" to response.code,
-                    "requestHeaderCount" to step.httpHeaders.size + if (step.cookieSessionId != null) 1 else 0,
-                    "responseHeaderCount" to response.headers.names().size,
-                    "responseLength" to responseBody.length,
-                    "responseSha256" to PluginLogger.sha256(responseBody),
-                    "elapsedMs" to elapsedSince(startedAt),
-                )
-                if (response.isSuccessful) {
-                    PluginLogger.info("plugin.workflow.http.success", summaryFields)
-                } else {
-                    PluginLogger.warn("plugin.workflow.http.failure_status", summaryFields)
+        val retryBodyContains = step.httpRetryBodyContains?.takeIf(String::isNotBlank)
+        val retryDelayMillis = step.httpRetryDelayMillis ?: DefaultHttpRetryDelayMillis
+        require(retryDelayMillis >= 0) { "HTTP 重试延迟不能小于 0" }
+        var attempt = 1
+        while (true) {
+            val startedAt = System.currentTimeMillis()
+            val attemptFields = baseFields + mapOf("attempt" to attempt)
+            PluginLogger.info("plugin.workflow.http.start", attemptFields)
+            try {
+                require(isHostAllowed(url, execution.bundle.record.allowedHosts)) { "目标域名不在插件白名单中: ${PluginLogger.sanitizeUrl(url)}" }
+                val builder = Request.Builder().url(url)
+                step.cookieSessionId
+                    ?.let(execution.webPackets::get)
+                    ?.cookies
+                    ?.takeIf(Map<String, String>::isNotEmpty)
+                    ?.entries
+                    ?.joinToString("; ") { (key, value) -> "$key=$value" }
+                    ?.let { builder.header("Cookie", it) }
+                step.httpHeaders.forEach { (key, value) ->
+                    builder.addHeader(key, renderTemplate(value, execution))
                 }
-                check(response.isSuccessful) { "HTTP 请求失败: ${response.code}" }
-                responseBody
+                if (step.httpFreshConnection) {
+                    builder.header("Connection", "close")
+                }
+                if (method == "GET" || method == "HEAD") {
+                    builder.method(method, null)
+                } else {
+                    val body = renderTemplate(step.httpBodyTemplate.orEmpty(), execution)
+                    val contentType = step.httpContentType?.ifBlank { null } ?: "application/json; charset=utf-8"
+                    builder.method(method, body.toRequestBody(contentType.toMediaType()))
+                }
+                var responseToReturn: String? = null
+                val callClient = if (step.httpFreshConnection) freshClientFactory(client) else client
+                try {
+                    callClient.newCall(builder.build()).execute().use { response ->
+                        val responseBody = response.body.string()
+                        val summaryFields = attemptFields + mapOf(
+                            "statusCode" to response.code,
+                            "requestHeaderCount" to step.httpHeaders.size + if (step.cookieSessionId != null) 1 else 0,
+                            "responseHeaderCount" to response.headers.names().size,
+                            "responseLength" to responseBody.length,
+                            "responseSha256" to PluginLogger.sha256(responseBody),
+                            "elapsedMs" to elapsedSince(startedAt),
+                        )
+                        if (!response.isSuccessful) {
+                            PluginLogger.warn("plugin.workflow.http.failure_status", summaryFields)
+                            check(response.isSuccessful) { "HTTP 请求失败: ${response.code}" }
+                        }
+                        if (retryBodyContains != null && responseBody.contains(retryBodyContains)) {
+                            PluginLogger.warn(
+                                "plugin.workflow.http.retry_body",
+                                summaryFields + mapOf(
+                                    "retryBodyContains" to retryBodyContains,
+                                    "retryDelayMillis" to retryDelayMillis,
+                                ),
+                            )
+                        } else {
+                            PluginLogger.info("plugin.workflow.http.success", summaryFields)
+                            responseToReturn = responseBody
+                        }
+                    }
+                } finally {
+                    if (step.httpFreshConnection && callClient !== client) {
+                        callClient.connectionPool.evictAll()
+                    }
+                }
+                if (responseToReturn != null) {
+                    return responseToReturn
+                }
+                delay(retryDelayMillis)
+                attempt++
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                PluginLogger.error(
+                    "plugin.workflow.http.failure",
+                    attemptFields + mapOf("elapsedMs" to elapsedSince(startedAt)),
+                    error,
+                )
+                throw error
             }
-        } catch (error: CancellationException) {
-            throw error
-        } catch (error: Throwable) {
-            PluginLogger.error(
-                "plugin.workflow.http.failure",
-                baseFields + mapOf("elapsedMs" to elapsedSince(startedAt)),
-                error,
-            )
-            throw error
         }
     }
 
@@ -630,5 +671,9 @@ class DefaultWorkflowEngine(
 
     private fun elapsedSince(startedAt: Long): Long {
         return System.currentTimeMillis() - startedAt
+    }
+
+    private companion object {
+        const val DefaultHttpRetryDelayMillis = 200L
     }
 }

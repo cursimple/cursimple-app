@@ -8,6 +8,28 @@ import kotlinx.serialization.Serializable
 import java.security.MessageDigest
 
 internal class EamsScheduleParser {
+    private val eamsSlotNodeByLabel = mapOf(
+        "第一节" to 1,
+        "第二节" to 2,
+        "第三节" to 4,
+        "第四节" to 5,
+        "第五节" to 7,
+        "第六节" to 8,
+        "午间课" to 3,
+        "晚间课" to 6,
+    )
+
+    private val defaultSlotNodeByIndex = mapOf(
+        0 to 1,
+        1 to 2,
+        2 to 4,
+        3 to 5,
+        4 to 7,
+        5 to 8,
+        6 to 3,
+        7 to 6,
+    )
+
     fun extractMetadata(pageHtml: String): EamsCourseTableMeta {
         val maxWeek = Regex("""<option value="(\d+)">第\d+周</option>""")
             .findAll(pageHtml)
@@ -86,6 +108,7 @@ internal class EamsScheduleParser {
         maxWeek: Int,
         teacherMap: Map<String, String>,
     ): List<CourseItem> {
+        val slotNodeMap = parseSlotNodeMap(detailHtml, unitCount)
         val blockPattern = Regex(
             """var teachers = \[(.*?)];.*?activity = new TaskActivity\((.*?)\);\s*((?:index\s*=\s*\d+\s*\*\s*unitCount\s*\+\s*\d+\s*;\s*table\d+\.activities\[index]\[table\d+\.activities\[index]\.length]=activity;\s*)+)""",
             setOf(RegexOption.DOT_MATCHES_ALL),
@@ -121,9 +144,9 @@ internal class EamsScheduleParser {
                 .toList()
             require(indices.isNotEmpty()) { "未找到课表位置索引" }
             val dayOfWeek = indices.first().first + 1
-            val slotIndices = indices.map { it.second }.sorted()
-            val startNode = slotIndices.first() + 1
-            val endNode = slotIndices.last() + 1
+            val nodes = indices.map { (_, slotIndex) -> resolveSlotNode(slotIndex, unitCount, slotNodeMap) }.sorted()
+            val startNode = nodes.first()
+            val endNode = nodes.last()
             val title = normalizeCourseTitle(rawCourseLabel)
             CourseItem(
                 id = stableCourseId(
@@ -147,6 +170,41 @@ internal class EamsScheduleParser {
                 ),
             )
         }.distinctBy { it.id }.toList()
+    }
+
+    private fun parseSlotNodeMap(detailHtml: String, unitCount: Int): Map<Int, Int> {
+        val rowPattern = Regex("""<tr\b[^>]*>(.*?)</tr>""", setOf(RegexOption.DOT_MATCHES_ALL))
+        val slotPattern = Regex("""id=["']TD(\d+)_\d+["']""")
+        return rowPattern.findAll(detailHtml).mapNotNull { match ->
+            val rowHtml = match.groupValues.getOrNull(1).orEmpty()
+            val label = Regex("""<td\b[^>]*>\s*(?:<font\b[^>]*>)?\s*([^<]+?)\s*(?:</font>)?\s*</td>""", setOf(RegexOption.DOT_MATCHES_ALL))
+                .find(rowHtml)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.let(::normalizeHtmlText)
+                ?.takeIf(String::isNotBlank)
+                ?: return@mapNotNull null
+            val node = eamsSlotNodeByLabel[label] ?: return@mapNotNull null
+            val slotIndex = slotPattern.find(rowHtml)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+                ?.rem(unitCount)
+                ?: return@mapNotNull null
+            slotIndex to node
+        }.toMap()
+    }
+
+    private fun resolveSlotNode(
+        slotIndex: Int,
+        unitCount: Int,
+        slotNodeMap: Map<Int, Int>,
+    ): Int {
+        slotNodeMap[slotIndex]?.let { return it }
+        if (unitCount == defaultSlotNodeByIndex.size) {
+            defaultSlotNodeByIndex[slotIndex]?.let { return it }
+        }
+        error("未找到 EAMS 节次索引映射: unitCount=$unitCount, slotIndex=$slotIndex")
     }
 
     private fun parseWeeks(validWeeks: String, maxWeek: Int): List<Int> {
@@ -173,6 +231,13 @@ internal class EamsScheduleParser {
             .replace("\\n", "\n")
             .replace("\\r", "\r")
             .replace("\\\\", "\\")
+            .trim()
+    }
+
+    private fun normalizeHtmlText(value: String): String {
+        return value
+            .replace(Regex("""<[^>]+>"""), "")
+            .replace("&nbsp;", " ")
             .trim()
     }
 

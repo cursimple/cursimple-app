@@ -52,6 +52,7 @@
       "type": "http_request",
       "responseKey": "courseHome",
       "cookieSessionId": "login",
+      "httpFreshConnection": true,
       "httpMethod": "GET",
       "urlTemplate": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action?_={{nowMillis}}&sf_request_type=ajax",
       "httpHeaders": {
@@ -72,6 +73,7 @@
       "type": "http_request",
       "responseKey": "courseDetail",
       "cookieSessionId": "login",
+      "httpFreshConnection": true,
       "httpMethod": "POST",
       "httpContentType": "application/x-www-form-urlencoded; charset=UTF-8",
       "urlTemplate": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action?sf_request_type=ajax",
@@ -85,7 +87,9 @@
       "httpBodyTemplate": "ignoreHead=1&setting.kind=std&startWeek={{context.week}}&project.id={{context.courseMeta.projectId}}&semester.id={{context.courseMeta.semesterId}}&ids={{context.courseMeta.ids}}",
       "httpRepeatStart": 1,
       "httpRepeatEndTemplate": "{{context.courseMeta.maxWeek}}",
-      "httpRepeatVariable": "week"
+      "httpRepeatVariable": "week",
+      "httpRetryBodyContains": "请不要过快点击",
+      "httpRetryDelayMillis": 400
     },
     {
       "id": "schedule",

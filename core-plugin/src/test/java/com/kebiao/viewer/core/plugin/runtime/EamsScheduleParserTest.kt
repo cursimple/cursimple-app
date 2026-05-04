@@ -96,9 +96,65 @@ class EamsScheduleParserTest {
 
         val wednesdayCourse = schedule.dailySchedules.first { it.dayOfWeek == 3 }.courses.single()
         assertEquals("人工智能概论", wednesdayCourse.title)
-        assertEquals(4, wednesdayCourse.time.startNode)
-        assertEquals(4, wednesdayCourse.time.endNode)
+        assertEquals(5, wednesdayCourse.time.startNode)
+        assertEquals(5, wednesdayCourse.time.endNode)
         assertTrue(wednesdayCourse.weeks.containsAll(listOf(1, 5)))
+    }
+
+    @Test
+    fun `buildSchedule maps table row labels to canonical EAMS nodes`() {
+        val detailHtml = """
+            <script language="JavaScript">
+                var table0 = new CourseTable(2026,56);
+                var unitCount = 8;
+                var teachers = [{id:7343,name:"黄晓娟",lab:false}];
+                var actTeachers = [{id:7343,name:"黄晓娟",lab:false}];
+                var assistantName = "";
+                var actTeacherId = [];
+                var actTeacherName = [];
+                activity = new TaskActivity(actTeacherId.join(','),actTeacherName.join(','),"111427(776246)","高等数学A（下）(776246)","497","西7-402c","011111111",null,null,assistantName,"","");
+                index =0*unitCount+2;
+                table0.activities[index][table0.activities[index].length]=activity;
+
+                var teachers = [{id:10044,name:"徐阳",lab:false}];
+                var actTeachers = [{id:10044,name:"徐阳",lab:false}];
+                var assistantName = "";
+                var actTeacherId = [];
+                var actTeacherName = [];
+                activity = new TaskActivity(actTeacherId.join(','),actTeacherName.join(','),"126996(776318)","人工智能概论(776318)","433","西5-215c","111111111",null,null,assistantName,"","");
+                index =0*unitCount+6;
+                table0.activities[index][table0.activities[index].length]=activity;
+                table0.marshalTable(2,1,1);
+            </script>
+            <table id="manualArrangeCourseTable">
+              <tr>
+                <td><font size="2px"> 第三节</font></td>
+                <td id="TD2_0"></td>
+              </tr>
+              <tr>
+                <td><font size="2px"> 午间课</font></td>
+                <td id="TD6_0"></td>
+              </tr>
+            </table>
+        """.trimIndent()
+        val meta = EamsCourseTableMeta(
+            semesterId = "389",
+            ids = "556449",
+            projectId = "1",
+            maxWeek = 7,
+        )
+
+        val schedule = parser.buildSchedule(
+            meta = meta,
+            detailHtml = detailHtml,
+            termId = "2026-spring",
+            updatedAt = "2026-04-30T00:00:00+08:00",
+        )
+
+        val mondayCourses = schedule.dailySchedules.first { it.dayOfWeek == 1 }.courses
+        assertEquals(2, mondayCourses.size)
+        assertEquals(4, mondayCourses.first { it.title == "高等数学A（下）" }.time.startNode)
+        assertEquals(3, mondayCourses.first { it.title == "人工智能概论" }.time.startNode)
     }
 
     @Test
