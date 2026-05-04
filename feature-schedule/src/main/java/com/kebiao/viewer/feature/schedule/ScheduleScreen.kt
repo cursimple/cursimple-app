@@ -83,13 +83,12 @@ import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.findSlot
+import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.plugin.ui.BannerContribution
 import com.kebiao.viewer.core.plugin.ui.CourseBadgeRule
 import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
-import com.kebiao.viewer.core.plugin.web.WebSessionPacket
-import com.kebiao.viewer.feature.plugin.PluginWebSessionScreen
 import com.kebiao.viewer.feature.schedule.time.LocalAppZone
 import com.kebiao.viewer.feature.schedule.time.today
 import java.time.DayOfWeek
@@ -150,8 +149,6 @@ fun ScheduleRoute(
         onNextDay = onNextDay,
         onResetDay = onResetDay,
         onOpenPluginMarket = onOpenPluginMarket,
-        onCompleteWebSession = viewModel::completeWebSession,
-        onCancelWebSession = viewModel::cancelWebSession,
         modifier = modifier,
     )
 }
@@ -179,8 +176,6 @@ fun ScheduleScreen(
     onNextDay: () -> Unit,
     onResetDay: () -> Unit,
     onOpenPluginMarket: () -> Unit,
-    onCompleteWebSession: (WebSessionPacket) -> Unit,
-    onCancelWebSession: () -> Unit,
     onWeekOffsetChange: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     weekOffset: Int = 0,
@@ -341,27 +336,6 @@ fun ScheduleScreen(
             )
         }
 
-        state.pendingWebSession?.let { request ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.6f))
-                    .padding(12.dp),
-            ) {
-                Card(
-                    modifier = Modifier.fillMaxSize(),
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    PluginWebSessionScreen(
-                        request = request,
-                        onFinish = onCompleteWebSession,
-                        onCancel = onCancelWebSession,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -1090,25 +1064,22 @@ private fun DayRow(
         verticalAlignment = Alignment.Top,
     ) {
         Column(
-            modifier = Modifier.width(56.dp),
+            modifier = Modifier.width(62.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(
-                text = slot.startTime,
+                text = slot.label,
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Box(
-                modifier = Modifier
-                    .width(1.dp)
-                    .height(28.dp)
-                    .background(accents.gridLine.copy(alpha = 0.6f)),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
             )
             Text(
-                text = slot.endTime,
-                fontSize = 11.sp,
+                text = slotTimeRange(slot),
+                fontSize = 9.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
 
@@ -1402,7 +1373,7 @@ private fun ScheduleGrid(
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = modifier.verticalScroll(rememberScrollState()),
     ) {
-        val timeColumnWidth = 32.dp
+        val timeColumnWidth = 60.dp
         val dayHeaderHeight = 52.dp
         val totalWidth = maxWidth
         val dayColumnWidth = ((totalWidth - timeColumnWidth) / 7).coerceAtLeast(36.dp)
@@ -1667,23 +1638,26 @@ private fun TimeCell(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = slot.indexLabel,
+            text = slot.label,
             color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            text = slot.startTime,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 9.sp,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
         Text(
-            text = slot.endTime,
+            text = slotTimeRange(slot),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 9.sp,
+            fontSize = 8.sp,
             textAlign = TextAlign.Center,
         )
+    }
+}
+
+private fun slotTimeRange(slot: DisplaySlot): String {
+    return if (slot.startTime.isBlank() && slot.endTime.isBlank()) {
+        ""
+    } else {
+        "${slot.startTime}~${slot.endTime}"
     }
 }
 
@@ -2110,7 +2084,7 @@ private data class WeekModel(
 private data class DisplaySlot(
     val startNode: Int,
     val endNode: Int,
-    val indexLabel: String,
+    val label: String,
     val startTime: String,
     val endTime: String,
 )
@@ -2208,7 +2182,9 @@ private fun displaySlots(
     timingProfile: TermTimingProfile?,
     manualCourses: List<CourseItem> = emptyList(),
 ): List<DisplaySlot> {
-    val profileSlots = timingProfile?.slotTimes.orEmpty().sortedBy { it.startNode }
+    val profileSlots = timingProfile?.slotTimes.orEmpty().sortedWith(
+        compareBy<ClassSlotTime>({ it.startLocalTime() }, { it.startNode }, { it.endNode }),
+    )
     val allCoursesForExtras = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
     if (profileSlots.isNotEmpty()) {
         val coveredMax = profileSlots.maxOf { it.endNode }
@@ -2222,7 +2198,7 @@ private fun displaySlots(
             DisplaySlot(
                 startNode = slot.startNode,
                 endNode = slot.endNode,
-                indexLabel = "${index + 1}",
+                label = slot.label.ifBlank { "第${index + 1}节" },
                 startTime = slot.startTime,
                 endTime = slot.endTime,
             )
@@ -2231,7 +2207,7 @@ private fun displaySlots(
             DisplaySlot(
                 startNode = node,
                 endNode = node,
-                indexLabel = "${profileSlots.size + offset + 1}",
+                label = "第${profileSlots.size + offset + 1}节",
                 startTime = "",
                 endTime = "",
             )
@@ -2250,7 +2226,7 @@ private fun displaySlots(
         DisplaySlot(
             startNode = startNode,
             endNode = endNode,
-            indexLabel = "${index + 1}",
+            label = "第${index + 1}节",
             startTime = "--:--",
             endTime = "--:--",
         )
@@ -2266,7 +2242,7 @@ private fun padToMinimumSlots(slots: List<DisplaySlot>, minimum: Int): List<Disp
         DisplaySlot(
             startNode = node,
             endNode = node,
-            indexLabel = "${slots.size + offset + 1}",
+            label = "第${slots.size + offset + 1}节",
             startTime = "",
             endTime = "",
         )
@@ -2345,51 +2321,31 @@ internal fun CourseItem.isActiveInWeek(weekNumber: Int): Boolean {
     return weeks.isEmpty() || weekNumber in weeks
 }
 
+internal fun activeCoursesForWeek(courses: List<CourseItem>, weekNumber: Int): List<CourseItem> {
+    return courses.filter { it.isActiveInWeek(weekNumber) }
+}
+
 /**
  * 周课表条目构建：
- * - 本周激活的课全部加入，inactive=false
- * - 同 (day, rowIndex) 格子若本周完全没有激活课，则从非本周课中挑一门"距离当前周最近"作为灰色占位
- *   （距离按 weeks 中与当前周的最小绝对差衡量，相同距离时优先未来一周）
- * - cellGroups 在外层会按 (dayIndex, rowIndex) 分组并按去重 course 数计角标，
- *   因此返回的 entries 数量 = 该格里所有不同课程数（含 inactive 占位），刚好用作角标计数
+ * 只返回当前周生效的课程。非当前周课程不再作为灰色占位或角标参与渲染。
  */
 private fun buildWeekRenderEntries(
     allCourses: List<CourseItem>,
     slots: List<DisplaySlot>,
     weekIndex: Int,
 ): List<CourseRenderEntry> {
-    data class Resolved(val course: CourseItem, val placement: CoursePlacement, val active: Boolean)
+    data class Resolved(val course: CourseItem, val placement: CoursePlacement)
 
-    val resolved = allCourses.mapNotNull { course ->
-        val placement = coursePlacement(course, slots) ?: return@mapNotNull null
-        Resolved(course, placement, course.isActiveInWeek(weekIndex))
-    }
+    val resolved = activeCoursesForWeek(allCourses, weekIndex)
+        .mapNotNull { course ->
+            val placement = coursePlacement(course, slots) ?: return@mapNotNull null
+            Resolved(course, placement)
+        }
     val grouped = resolved.groupBy { it.placement.dayIndex to it.placement.rowIndex }
     val entries = mutableListOf<CourseRenderEntry>()
     for ((_, list) in grouped) {
-        val deduped = list.distinctBy { it.course.id }
-        val activeOnes = deduped.filter { it.active }
-        val inactiveOnes = deduped.filter { !it.active }
-        if (activeOnes.isNotEmpty()) {
-            // 本周激活课优先渲染（main 取列表第一项）；同格非本周课也加入 entries，
-            // 仅参与角标计数（cellGroups 按 placement 聚合并用 distinctBy id 数课）
-            activeOnes.forEach {
-                entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = false)
-            }
-            inactiveOnes.forEach {
-                entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = true)
-            }
-        } else if (inactiveOnes.isNotEmpty()) {
-            // 取距离当前周最近的一门作占位卡片，其余仅参与角标计数
-            val nearest = inactiveOnes.minByOrNull { res ->
-                val w = res.course.weeks
-                if (w.isEmpty()) 0
-                else w.minOf { week -> kotlin.math.abs(week - weekIndex) * 2 + if (week < weekIndex) 1 else 0 }
-            } ?: continue
-            entries += CourseRenderEntry(course = nearest.course, placement = nearest.placement, inactive = true)
-            inactiveOnes.filter { it.course.id != nearest.course.id }.forEach {
-                entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = true)
-            }
+        list.distinctBy { it.course.id }.forEach {
+            entries += CourseRenderEntry(course = it.course, placement = it.placement, inactive = false)
         }
     }
     return entries

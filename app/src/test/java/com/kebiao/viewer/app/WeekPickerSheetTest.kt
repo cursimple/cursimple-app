@@ -60,4 +60,22 @@ class WeekPickerSheetTest {
 
         assertEquals(-49, dayOffset)
     }
+
+    @Test
+    fun `current week derives term start from today's monday`() {
+        val today = LocalDate.of(2026, 5, 4)
+
+        val termStart = deriveTermStartForCurrentWeek(today = today, currentWeek = 11)
+
+        assertEquals(LocalDate.of(2026, 2, 23), termStart)
+    }
+
+    @Test
+    fun `current week below one is treated as first week`() {
+        val today = LocalDate.of(2026, 5, 6)
+
+        val termStart = deriveTermStartForCurrentWeek(today = today, currentWeek = 0)
+
+        assertEquals(LocalDate.of(2026, 5, 4), termStart)
+    }
 }
