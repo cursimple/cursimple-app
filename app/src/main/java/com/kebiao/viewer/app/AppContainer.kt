@@ -65,9 +65,17 @@ class AppContainer(
             // Clean up plugins that are no longer offered (e.g. legacy demo plugins from
             // earlier builds). Do NOT auto-install bundled plugins — the user adds them
             // explicitly from the plugin market.
-            val catalogIds = bundledPluginCatalog.map { it.pluginId }.toSet()
-            pluginManager.getInstalledPlugins()
-                .filterNot { it.pluginId in catalogIds }
+            val catalogById = bundledPluginCatalog.associateBy { it.pluginId }
+            val installedPlugins = pluginManager.getInstalledPlugins()
+            installedPlugins
+                .filter { it.isBundled && it.pluginId in catalogById }
+                .forEach { plugin ->
+                    runCatching {
+                        pluginManager.ensureBundledPlugin(catalogById.getValue(plugin.pluginId).assetRoot)
+                    }
+                }
+            installedPlugins
+                .filterNot { it.pluginId in catalogById }
                 .forEach { runCatching { pluginManager.removePlugin(it.pluginId) } }
         }
     }
