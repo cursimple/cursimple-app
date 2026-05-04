@@ -123,8 +123,8 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
         val KEY_SCHEDULE_SNAPSHOT_JSON = stringPreferencesKey("widget_schedule_snapshot_json")
-        const val MIN_OFFSET = -1
-        const val MAX_OFFSET = 1
+        const val MIN_OFFSET = -3650
+        const val MAX_OFFSET = 3650
 
         fun widgetDayOffsetKey(appWidgetId: Int) = intPreferencesKey("widget_day_offset__$appWidgetId")
     }

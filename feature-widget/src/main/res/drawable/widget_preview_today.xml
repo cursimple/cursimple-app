@@ -48,9 +48,6 @@
         android:fillColor="#FFFFFBF4"
         android:pathData="M20,90 h280 a10,10 0 0 1 10,10 v30 a10,10 0 0 1 -10,10 h-280 a10,10 0 0 1 -10,-10 v-30 a10,10 0 0 1 10,-10 z" />
     <path
-        android:fillColor="#FFD0763B"
-        android:pathData="M20,90 h6 v50 h-6 z" />
-    <path
         android:fillColor="#FF3B2C1B"
         android:pathData="M40,100 h120 v10 h-120 z" />
     <path
@@ -64,9 +61,6 @@
     <path
         android:fillColor="#FFFFFBF4"
         android:pathData="M20,150 h280 a10,10 0 0 1 10,10 v30 a10,10 0 0 1 -10,10 h-280 a10,10 0 0 1 -10,-10 v-30 a10,10 0 0 1 10,-10 z" />
-    <path
-        android:fillColor="#FF8FB48E"
-        android:pathData="M20,150 h6 v50 h-6 z" />
     <path
         android:fillColor="#FF3B2C1B"
         android:pathData="M40,160 h140 v10 h-140 z" />
