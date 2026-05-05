@@ -17,15 +17,36 @@ import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
+import com.kebiao.viewer.core.reminder.model.systemAlarmLabel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.time.LocalDateTime
 import java.time.ZoneId
 
 class SystemAlarmRegistryTest {
+    @Test
+    fun `system clock alarm label does not include hash token`() {
+        val plan = ReminderPlan(
+            planId = "plan",
+            ruleId = "rule",
+            pluginId = "demo",
+            title = "高等数学",
+            message = "高等数学即将开始",
+            triggerAtMillis = sampleNowMillis(hour = 7, minute = 45),
+            ringtoneUri = null,
+            courseId = "math",
+        )
+
+        val label = plan.systemAlarmLabel()
+
+        assertEquals("课表提醒 · 高等数学 · 07:45", label)
+        assertFalse(label.contains("#"))
+    }
+
     @Test
     fun `successful system clock dispatch is recorded and skipped next time`() = runBlocking {
         val repository = FakeReminderRepository(
@@ -195,6 +216,27 @@ class SystemAlarmRegistryTest {
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
     }
 
+    @Test
+    fun `deleting a reminder rule dismisses its registered system alarm`() = runBlocking {
+        val record = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+        val repository = FakeReminderRepository(rules = listOf(sampleRule())).apply {
+            records.value = listOf(record)
+        }
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            systemDispatcher = FakeAlarmDispatcher(succeeded = true),
+            systemDismisser = dismisser,
+        )
+
+        coordinator.deleteRule("rule")
+
+        assertEquals(1, dismisser.dismissCount)
+        assertEquals(emptyList<ReminderRule>(), repository.getReminderRules())
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+    }
+
     private fun sampleRule(): ReminderRule = ReminderRule(
         ruleId = "rule",
         pluginId = "demo",
@@ -244,8 +286,8 @@ class SystemAlarmRegistryTest {
         planId = "plan-$triggerAtMillis",
         courseId = "math",
         triggerAtMillis = triggerAtMillis,
-        message = "课表提醒 · 高等数学 · #test",
-        alarmLabel = "课表提醒 · 高等数学 · #test",
+        message = "课表提醒 · 高等数学 · 07:45",
+        alarmLabel = "课表提醒 · 高等数学 · 07:45",
         createdAtMillis = triggerAtMillis - 60_000,
     )
 

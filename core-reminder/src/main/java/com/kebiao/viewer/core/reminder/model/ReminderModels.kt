@@ -2,7 +2,8 @@ package com.kebiao.viewer.core.reminder.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.security.MessageDigest
+import java.time.Instant
+import java.time.ZoneId
 
 @Serializable
 data class ReminderRule(
@@ -102,8 +103,9 @@ fun ReminderPlan.systemAlarmKey(): String =
     listOf(pluginId, triggerAtMillis.toString(), title, message, ringtoneUri.orEmpty()).joinToString("|")
 
 fun ReminderPlan.systemAlarmLabel(): String {
-    val token = systemAlarmKey().stableShortToken()
-    return "课表提醒 · $title · #$token"
+    val trigger = Instant.ofEpochMilli(triggerAtMillis).atZone(ZoneId.systemDefault())
+    val time = "${trigger.hour.toString().padStart(2, '0')}:${trigger.minute.toString().padStart(2, '0')}"
+    return "课表提醒 · $title · $time"
 }
 
 enum class AlarmDispatchChannel {
@@ -121,9 +123,3 @@ data class AlarmDismissResult(
     val succeeded: Boolean,
     val message: String,
 )
-
-private fun String.stableShortToken(): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-        .digest(toByteArray(Charsets.UTF_8))
-    return digest.take(4).joinToString("") { byte -> "%02x".format(byte) }
-}

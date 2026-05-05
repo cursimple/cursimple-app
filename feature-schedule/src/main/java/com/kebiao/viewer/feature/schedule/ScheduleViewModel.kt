@@ -329,6 +329,50 @@ class ScheduleViewModel(
         }
     }
 
+    fun createReminderForCourse(courseId: String, advanceMinutes: Int, ringtoneUri: String?) {
+        val state = _uiState.value
+        val schedule = reminderSchedule(state)
+        if (state.pluginId.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先选择插件后再创建提醒") }
+            return
+        }
+        if (schedule == null) {
+            _uiState.update { it.copy(statusMessage = "暂无课表可设置提醒") }
+            return
+        }
+        viewModelScope.launch {
+            val rule = reminderCoordinator.createRule(
+                pluginId = state.pluginId,
+                courseId = courseId,
+                dayOfWeek = null,
+                startNode = null,
+                endNode = null,
+                scopeType = ReminderScopeType.SingleCourse,
+                advanceMinutes = advanceMinutes.coerceIn(0, 720),
+                ringtoneUri = ringtoneUri,
+            )
+            val dispatchSummary = syncTodaySystemClockAlarms(
+                pluginId = state.pluginId,
+                schedule = schedule,
+                timingProfile = state.timingProfile,
+                reason = ReminderSyncReason.RuleCreatedToday,
+            )
+            val courseTitle = schedule.dailySchedules
+                .flatMap { it.courses }
+                .firstOrNull { it.id == courseId }
+                ?.title
+            _uiState.update {
+                it.copy(
+                    selectionState = null,
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已创建提醒：${courseTitle ?: rule.ruleId.take(8)}",
+                        summary = dispatchSummary,
+                    ),
+                )
+            }
+        }
+    }
+
     fun addManualCourse(course: CourseItem) {
         viewModelScope.launch {
             manualCourseRepository.addCourse(course)
