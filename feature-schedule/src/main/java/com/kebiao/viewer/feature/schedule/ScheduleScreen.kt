@@ -148,6 +148,7 @@ fun ScheduleRoute(
         onSelectTimeSlot = viewModel::selectTimeSlot,
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
+        onCreateCourseReminder = viewModel::createReminderForCourse,
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveManualCourse = viewModel::removeManualCourse,
         onAddManualCourse = viewModel::addManualCourse,
@@ -178,6 +179,7 @@ fun ScheduleScreen(
     onSelectTimeSlot: (Int, Int) -> Unit,
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
+    onCreateCourseReminder: (String, Int, String?) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
     onRemoveManualCourse: (String) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
@@ -203,6 +205,7 @@ fun ScheduleScreen(
     var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
     var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
     var detailCourses by remember { mutableStateOf<List<CourseItem>>(emptyList()) }
+    var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
@@ -344,12 +347,23 @@ fun ScheduleScreen(
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
                 onDismiss = { detailCourses = emptyList() },
                 onSetReminder = { c ->
-                    onSelectCourse(c.id)
+                    pendingReminderCourse = c
                     detailCourses = emptyList()
                 },
                 onDelete = { c ->
                     onRemoveManualCourse(c.id)
                     detailCourses = detailCourses.filterNot { it.id == c.id }
+                },
+            )
+        }
+
+        pendingReminderCourse?.let { course ->
+            CourseReminderDialog(
+                course = course,
+                onDismiss = { pendingReminderCourse = null },
+                onConfirm = { advance, ringtone ->
+                    onCreateCourseReminder(course.id, advance, ringtone)
+                    pendingReminderCourse = null
                 },
             )
         }
