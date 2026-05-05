@@ -59,9 +59,44 @@ data class ReminderPlan(
     val courseId: String?,
 )
 
+data class ReminderSyncWindow(
+    val startMillis: Long,
+    val endMillis: Long,
+)
+
+enum class ReminderSyncReason {
+    RuleCreatedToday,
+    DailyNextDay,
+    AfterClassToday,
+    ScheduleChanged,
+}
+
+@Serializable
+data class SystemAlarmRecord(
+    @SerialName("alarmKey") val alarmKey: String,
+    @SerialName("ruleId") val ruleId: String,
+    @SerialName("pluginId") val pluginId: String,
+    @SerialName("planId") val planId: String,
+    @SerialName("triggerAtMillis") val triggerAtMillis: Long,
+    @SerialName("message") val message: String,
+    @SerialName("createdAtMillis") val createdAtMillis: Long,
+)
+
+data class SystemAlarmSyncSummary(
+    val submittedCount: Int,
+    val createdCount: Int,
+    val skippedExistingCount: Int,
+    val skippedUnrepresentableCount: Int,
+    val results: List<AlarmDispatchResult>,
+) {
+    val failedCount: Int = results.count { !it.succeeded }
+}
+
+fun ReminderPlan.systemAlarmKey(): String =
+    listOf(pluginId, triggerAtMillis.toString(), title, message, ringtoneUri.orEmpty()).joinToString("|")
+
 enum class AlarmDispatchChannel {
     SystemClock,
-    AppAlarm,
 }
 
 data class AlarmDispatchResult(
