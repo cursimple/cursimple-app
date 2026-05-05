@@ -8,8 +8,10 @@ import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.reminder.dispatch.AlarmDispatcher
+import com.kebiao.viewer.core.reminder.dispatch.AlarmDismisser
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchChannel
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
+import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
@@ -101,6 +103,98 @@ class SystemAlarmRegistryTest {
         assertEquals(1, second.failedCount)
     }
 
+    @Test
+    fun `expired records are dismissed before the next sync`() = runBlocking {
+        val profile = sampleProfile()
+        val expiredRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(expiredRecord)
+        }
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            systemDispatcher = FakeAlarmDispatcher(succeeded = true),
+            systemDismisser = dismisser,
+        )
+        val nowMillis = sampleNowMillis(hour = 9, minute = 40)
+
+        val summary = coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile, nowMillis),
+            reason = ReminderSyncReason.AfterClassToday,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(1, summary.dismissedCount)
+        assertEquals(0, summary.dismissFailedCount)
+        assertEquals(1, dismisser.dismissCount)
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+    }
+
+    @Test
+    fun `daily next day sync does not dismiss future alarms that are still today`() = runBlocking {
+        val profile = sampleProfile()
+        val futureTodayRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 23, minute = 0))
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(futureTodayRecord)
+        }
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            systemDispatcher = FakeAlarmDispatcher(succeeded = true),
+            systemDismisser = dismisser,
+        )
+        val nowMillis = sampleNowMillis(hour = 22, minute = 0)
+
+        val summary = coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.nextDay(profile, nowMillis),
+            reason = ReminderSyncReason.DailyNextDay,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(0, summary.dismissedCount)
+        assertEquals(0, dismisser.dismissCount)
+        assertEquals(listOf(futureTodayRecord), repository.records.value)
+    }
+
+    @Test
+    fun `stale records in the active window are dismissed`() = runBlocking {
+        val profile = sampleProfile()
+        val staleRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 10, minute = 0))
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(staleRecord)
+        }
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            systemDispatcher = FakeAlarmDispatcher(succeeded = true),
+            systemDismisser = dismisser,
+        )
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+
+        val summary = coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile, nowMillis),
+            reason = ReminderSyncReason.ScheduleChanged,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(1, summary.dismissedCount)
+        assertEquals(0, summary.dismissFailedCount)
+        assertEquals(1, dismisser.dismissCount)
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+    }
+
     private fun sampleRule(): ReminderRule = ReminderRule(
         ruleId = "rule",
         pluginId = "demo",
@@ -143,6 +237,18 @@ class SystemAlarmRegistryTest {
             .toInstant()
             .toEpochMilli()
 
+    private fun sampleRecord(triggerAtMillis: Long): SystemAlarmRecord = SystemAlarmRecord(
+        alarmKey = "alarm-$triggerAtMillis",
+        ruleId = "rule",
+        pluginId = "demo",
+        planId = "plan-$triggerAtMillis",
+        courseId = "math",
+        triggerAtMillis = triggerAtMillis,
+        message = "课表提醒 · 高等数学 · #test",
+        alarmLabel = "课表提醒 · 高等数学 · #test",
+        createdAtMillis = triggerAtMillis - 60_000,
+    )
+
     private class FakeAlarmDispatcher(
         private val succeeded: Boolean,
     ) : AlarmDispatcher {
@@ -154,6 +260,21 @@ class SystemAlarmRegistryTest {
                 channel = AlarmDispatchChannel.SystemClock,
                 succeeded = succeeded,
                 message = if (succeeded) "ok" else "failed",
+            )
+        }
+    }
+
+    private class FakeAlarmDismisser(
+        private val succeeded: Boolean,
+    ) : AlarmDismisser {
+        var dismissCount: Int = 0
+
+        override suspend fun dismiss(record: SystemAlarmRecord): AlarmDismissResult {
+            dismissCount += 1
+            return AlarmDismissResult(
+                alarmKey = record.alarmKey,
+                succeeded = succeeded,
+                message = if (succeeded) "dismissed" else "failed",
             )
         }
     }
@@ -181,6 +302,10 @@ class SystemAlarmRegistryTest {
 
         override suspend fun saveSystemAlarmRecord(record: SystemAlarmRecord) {
             records.value = records.value.filterNot { it.alarmKey == record.alarmKey } + record
+        }
+
+        override suspend fun removeSystemAlarmRecord(alarmKey: String) {
+            records.value = records.value.filterNot { it.alarmKey == alarmKey }
         }
 
         override suspend fun removeSystemAlarmRecordsForRule(ruleId: String) {

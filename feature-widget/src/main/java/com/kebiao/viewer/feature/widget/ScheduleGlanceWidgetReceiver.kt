@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter
 
 open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        reconcileSystemAlarmsFromWidget(context)
         updateWidgets(context.applicationContext, appWidgetIds)
     }
 
@@ -29,6 +30,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
         newOptions: Bundle,
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+        reconcileSystemAlarmsFromWidget(context)
         updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
     }
 

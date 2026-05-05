@@ -2,6 +2,7 @@ package com.kebiao.viewer.core.reminder.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import java.security.MessageDigest
 
 @Serializable
 data class ReminderRule(
@@ -69,6 +70,7 @@ enum class ReminderSyncReason {
     DailyNextDay,
     AfterClassToday,
     ScheduleChanged,
+    WidgetRefresh,
 }
 
 @Serializable
@@ -77,8 +79,10 @@ data class SystemAlarmRecord(
     @SerialName("ruleId") val ruleId: String,
     @SerialName("pluginId") val pluginId: String,
     @SerialName("planId") val planId: String,
+    @SerialName("courseId") val courseId: String? = null,
     @SerialName("triggerAtMillis") val triggerAtMillis: Long,
     @SerialName("message") val message: String,
+    @SerialName("alarmLabel") val alarmLabel: String? = null,
     @SerialName("createdAtMillis") val createdAtMillis: Long,
 )
 
@@ -88,12 +92,19 @@ data class SystemAlarmSyncSummary(
     val skippedExistingCount: Int,
     val skippedUnrepresentableCount: Int,
     val results: List<AlarmDispatchResult>,
+    val dismissedCount: Int = 0,
+    val dismissFailedCount: Int = 0,
 ) {
     val failedCount: Int = results.count { !it.succeeded }
 }
 
 fun ReminderPlan.systemAlarmKey(): String =
     listOf(pluginId, triggerAtMillis.toString(), title, message, ringtoneUri.orEmpty()).joinToString("|")
+
+fun ReminderPlan.systemAlarmLabel(): String {
+    val token = systemAlarmKey().stableShortToken()
+    return "课表提醒 · $title · #$token"
+}
 
 enum class AlarmDispatchChannel {
     SystemClock,
@@ -104,3 +115,15 @@ data class AlarmDispatchResult(
     val succeeded: Boolean,
     val message: String,
 )
+
+data class AlarmDismissResult(
+    val alarmKey: String,
+    val succeeded: Boolean,
+    val message: String,
+)
+
+private fun String.stableShortToken(): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+        .digest(toByteArray(Charsets.UTF_8))
+    return digest.take(4).joinToString("") { byte -> "%02x".format(byte) }
+}

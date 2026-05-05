@@ -19,6 +19,8 @@ interface ReminderRepository {
 
     suspend fun saveSystemAlarmRecord(record: SystemAlarmRecord)
 
+    suspend fun removeSystemAlarmRecord(alarmKey: String)
+
     suspend fun removeSystemAlarmRecordsForRule(ruleId: String)
 
     suspend fun clearSystemAlarmRecords()

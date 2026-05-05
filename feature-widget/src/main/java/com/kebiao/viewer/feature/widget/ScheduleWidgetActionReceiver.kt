@@ -63,6 +63,7 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
                 else -> return
             }
             ScheduleGlanceWidgetReceiver.updateWidgets(context)
+            WidgetSystemAlarmSynchronizer.reconcileToday(context)
             return
         }
         when (action) {
@@ -84,6 +85,7 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
             else -> return
         }
         ScheduleGlanceWidgetReceiver.updateWidgets(context, intArrayOf(appWidgetId))
+        WidgetSystemAlarmSynchronizer.reconcileToday(context)
     }
 
     companion object {

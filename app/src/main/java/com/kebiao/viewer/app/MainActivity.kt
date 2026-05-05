@@ -100,6 +100,7 @@ import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.feature.schedule.ScheduleViewModelFactory
 import com.kebiao.viewer.feature.schedule.time.LocalAppZone
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -152,6 +153,7 @@ class MainActivity : ComponentActivity() {
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
                             onSyncCompleted = { profile -> container.refreshWidgets(profile) },
+                            resolveTimingProfile = { container.widgetPreferencesRepository.timingProfileFlow.first() },
                         ),
                     )
                     val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()

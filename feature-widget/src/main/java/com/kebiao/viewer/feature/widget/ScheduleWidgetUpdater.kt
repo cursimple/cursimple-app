@@ -75,6 +75,7 @@ class ScheduleWidgetRefreshWorker(
     override suspend fun doWork(): Result {
         return runCatching {
             ScheduleWidgetUpdater.refreshAll(applicationContext)
+            WidgetSystemAlarmSynchronizer.reconcileToday(applicationContext)
             Result.success()
         }.getOrElse {
             Result.retry()

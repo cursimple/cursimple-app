@@ -294,6 +294,15 @@ private fun formatCountdown(diffMillis: Long): String {
 open class ReminderGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = ReminderGlanceWidget()
 
+    override fun onUpdate(
+        context: Context,
+        appWidgetManager: android.appwidget.AppWidgetManager,
+        appWidgetIds: IntArray,
+    ) {
+        reconcileSystemAlarmsFromWidget(context)
+        super.onUpdate(context, appWidgetManager, appWidgetIds)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         WidgetCatalog.notifyInstalledChanged(context)

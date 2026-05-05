@@ -75,6 +75,16 @@ class DataStoreReminderRepository(
         }
     }
 
+    override suspend fun removeSystemAlarmRecord(alarmKey: String) {
+        store.edit { preferences ->
+            val next = preferences.decodeSystemAlarmRecords().filterNot { it.alarmKey == alarmKey }
+            preferences[KEY_SYSTEM_ALARM_RECORDS] = json.encodeToString(
+                ListSerializer(SystemAlarmRecord.serializer()),
+                next,
+            )
+        }
+    }
+
     override suspend fun removeSystemAlarmRecordsForRule(ruleId: String) {
         store.edit { preferences ->
             val next = preferences.decodeSystemAlarmRecords().filterNot { it.ruleId == ruleId }

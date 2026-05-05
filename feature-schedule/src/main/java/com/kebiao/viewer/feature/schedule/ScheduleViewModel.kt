@@ -31,6 +31,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -69,6 +70,7 @@ class ScheduleViewModel(
     private val manualCourseRepository: ManualCourseRepository,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
+    private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScheduleUiState())
@@ -330,13 +332,30 @@ class ScheduleViewModel(
     fun addManualCourse(course: CourseItem) {
         viewModelScope.launch {
             manualCourseRepository.addCourse(course)
-            _uiState.update { it.copy(statusMessage = "已添加课程：${course.title}") }
+            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已添加课程：${course.title}",
+                        summary = dispatchSummary,
+                    ),
+                )
+            }
         }
     }
 
     fun removeManualCourse(courseId: String) {
         viewModelScope.launch {
             manualCourseRepository.removeCourse(courseId)
+            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已删除手动课程",
+                        summary = dispatchSummary,
+                    ),
+                )
+            }
         }
     }
 
@@ -385,22 +404,45 @@ class ScheduleViewModel(
     fun loadSampleCourses() {
         viewModelScope.launch {
             manualCourseRepository.replaceAll(sampleManualCourses())
-            _uiState.update { it.copy(statusMessage = "已加载示例课表") }
+            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已加载示例课表",
+                        summary = dispatchSummary,
+                    ),
+                )
+            }
         }
     }
 
     fun clearManualCourses() {
         viewModelScope.launch {
             manualCourseRepository.replaceAll(emptyList())
-            _uiState.update { it.copy(statusMessage = "已清空手动课表") }
+            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已清空手动课表",
+                        summary = dispatchSummary,
+                    ),
+                )
+            }
         }
     }
 
     fun clearImportedSchedule() {
         viewModelScope.launch {
             scheduleRepository.clearSchedule()
+            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
             _uiState.update {
-                it.copy(schedule = null, statusMessage = "已清空导入的课表")
+                it.copy(
+                    schedule = null,
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已清空导入的课表",
+                        summary = dispatchSummary,
+                    ),
+                )
             }
         }
     }
@@ -449,11 +491,11 @@ class ScheduleViewModel(
                 advanceMinutes = advanceMinutes.coerceIn(0, 720),
                 ringtoneUri = ringtoneUri,
             )
-            val schedule = _uiState.value.schedule
+            val schedule = currentReminderSchedule()
             if (schedule != null) {
                 val dispatchSummary = syncTodaySystemClockAlarms(
                     pluginId = pluginId,
-                    schedule = reminderSchedule(_uiState.value) ?: schedule,
+                    schedule = schedule,
                     timingProfile = _uiState.value.timingProfile,
                     reason = ReminderSyncReason.RuleCreatedToday,
                 )
@@ -463,14 +505,10 @@ class ScheduleViewModel(
                 }
                 _uiState.update {
                     it.copy(
-                        statusMessage = if (enabled) {
-                            systemAlarmSyncMessage(
-                                successMessage = "已开启$label",
-                                summary = dispatchSummary,
-                            )
-                        } else {
-                            "已关闭$label"
-                        },
+                        statusMessage = systemAlarmSyncMessage(
+                            successMessage = if (enabled) "已开启$label" else "已关闭$label",
+                            summary = dispatchSummary,
+                        ),
                     )
                 }
                 return@launch
@@ -491,7 +529,7 @@ class ScheduleViewModel(
         timingProfile: TermTimingProfile?,
         reason: ReminderSyncReason,
     ): SystemAlarmSyncSummary {
-        val profile = timingProfile ?: return emptySystemAlarmSyncSummary()
+        val profile = timingProfile ?: resolveTimingProfile() ?: return emptySystemAlarmSyncSummary()
         return reminderCoordinator.syncSystemClockAlarmsForWindow(
             pluginId = pluginId,
             schedule = schedule,
@@ -501,17 +539,40 @@ class ScheduleViewModel(
         )
     }
 
+    private suspend fun reconcileTodaySystemClockAlarms(reason: ReminderSyncReason): SystemAlarmSyncSummary {
+        val pluginId = _uiState.value.pluginId
+        val schedule = currentReminderSchedule()
+        if (schedule == null) {
+            reminderCoordinator.clearSystemAlarmRecords()
+            return emptySystemAlarmSyncSummary()
+        }
+        return syncTodaySystemClockAlarms(
+            pluginId = pluginId,
+            schedule = schedule,
+            timingProfile = _uiState.value.timingProfile,
+            reason = reason,
+        )
+    }
+
     private fun systemAlarmSyncMessage(
         successMessage: String,
         summary: SystemAlarmSyncSummary,
     ): String {
         val details = buildList {
+            if (summary.dismissedCount > 0) add("已删除 ${summary.dismissedCount} 个过期系统闹钟")
+            if (summary.dismissFailedCount > 0) add("${summary.dismissFailedCount} 个过期系统闹钟删除失败")
             if (summary.createdCount > 0) add("成功添加 ${summary.createdCount} 个系统闹钟")
             if (summary.skippedExistingCount > 0) add("跳过 ${summary.skippedExistingCount} 个已添加闹钟")
             if (summary.skippedUnrepresentableCount > 0) add("跳过 ${summary.skippedUnrepresentableCount} 个无法安全表达日期的闹钟")
             if (summary.failedCount > 0) add("${summary.failedCount} 个设置失败：${summary.results.first { !it.succeeded }.message}")
         }
         return if (details.isEmpty()) "$successMessage；暂无可立即添加的系统闹钟" else "$successMessage；${details.joinToString("，")}"
+    }
+
+    private suspend fun currentReminderSchedule(): TermSchedule? {
+        val schedule = scheduleRepository.scheduleFlow.first()
+        val manualCourses = manualCourseRepository.manualCoursesFlow.first()
+        return mergeManualCoursesForReminders(schedule, manualCourses)
     }
 
     private suspend fun loadPluginPresentation(pluginId: String) {
@@ -747,6 +808,7 @@ class ScheduleViewModelFactory(
     private val manualCourseRepository: ManualCourseRepository,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
+    private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
@@ -758,6 +820,7 @@ class ScheduleViewModelFactory(
                 manualCourseRepository = manualCourseRepository,
                 normalizeTimingProfile = normalizeTimingProfile,
                 onSyncCompleted = onSyncCompleted,
+                resolveTimingProfile = resolveTimingProfile,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

@@ -109,7 +109,6 @@ class AppContainer(
         val schedule = reminderSchedule() ?: return
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first() ?: return
         val pluginId = scheduleRepository.lastPluginIdFlow.first()
-        if (pluginId.isBlank()) return
         reminderCoordinator.syncSystemClockAlarmsForWindow(
             pluginId = pluginId,
             schedule = schedule,
@@ -124,12 +123,13 @@ class AppContainer(
         val schedule = reminderSchedule()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val pluginId = scheduleRepository.lastPluginIdFlow.first()
-        if (schedule != null && timingProfile != null && pluginId.isNotBlank()) {
+        if (schedule != null && timingProfile != null) {
             val window = when (reason) {
                 ReminderSyncReason.DailyNextDay -> ReminderSyncWindows.nextDay(timingProfile)
                 ReminderSyncReason.AfterClassToday,
                 ReminderSyncReason.RuleCreatedToday,
-                ReminderSyncReason.ScheduleChanged -> ReminderSyncWindows.todayFromNow(timingProfile)
+                ReminderSyncReason.ScheduleChanged,
+                ReminderSyncReason.WidgetRefresh -> ReminderSyncWindows.todayFromNow(timingProfile)
             }
             reminderCoordinator.syncSystemClockAlarmsForWindow(
                 pluginId = pluginId,
