@@ -5,9 +5,12 @@ import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.reminder.dispatch.AlarmDispatcher
+import com.kebiao.viewer.core.reminder.dispatch.AlarmDismisser
 import com.kebiao.viewer.core.reminder.dispatch.SystemAlarmClockDispatcher
+import com.kebiao.viewer.core.reminder.dispatch.SystemAlarmClockDismisser
 import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
+import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderRule
@@ -17,7 +20,10 @@ import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
 import com.kebiao.viewer.core.reminder.model.systemAlarmKey
+import com.kebiao.viewer.core.reminder.model.systemAlarmLabel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -30,6 +36,7 @@ class ReminderCoordinator(
     private val planner: ReminderPlanner = ReminderPlanner(),
     private val temporaryScheduleOverridesProvider: suspend () -> List<TemporaryScheduleOverride> = { emptyList() },
     private val systemDispatcher: AlarmDispatcher = SystemAlarmClockDispatcher(context),
+    private val systemDismisser: AlarmDismisser = SystemAlarmClockDismisser(context),
 ) {
 
     val reminderRulesFlow: Flow<List<ReminderRule>> = repository.reminderRulesFlow
@@ -121,12 +128,19 @@ class ReminderCoordinator(
     }
 
     suspend fun deleteRule(ruleId: String) {
-        repository.removeReminderRule(ruleId)
-        repository.removeSystemAlarmRecordsForRule(ruleId)
+        SYSTEM_ALARM_LOCK.withLock {
+            val records = repository.getSystemAlarmRecords().filter { it.ruleId == ruleId }
+            dismissRecords(records)
+            repository.removeReminderRule(ruleId)
+            repository.removeSystemAlarmRecordsForRule(ruleId)
+        }
     }
 
     suspend fun clearSystemAlarmRecords() {
-        repository.clearSystemAlarmRecords()
+        SYSTEM_ALARM_LOCK.withLock {
+            dismissRecords(repository.getSystemAlarmRecords())
+            repository.clearSystemAlarmRecords()
+        }
     }
 
     suspend fun syncSystemClockAlarmsForWindow(
@@ -136,23 +150,12 @@ class ReminderCoordinator(
         window: ReminderSyncWindow,
         reason: ReminderSyncReason,
         nowMillis: Long = System.currentTimeMillis(),
-    ): SystemAlarmSyncSummary {
-        val profile = timingProfile ?: return SystemAlarmSyncSummary(
-            submittedCount = 0,
-            createdCount = 0,
-            skippedExistingCount = 0,
-            skippedUnrepresentableCount = 0,
-            results = emptyList(),
+    ): SystemAlarmSyncSummary = SYSTEM_ALARM_LOCK.withLock {
+        val expiredDismissal = dismissRecordsBefore(nowMillis)
+        val profile = timingProfile ?: return@withLock emptySystemAlarmSyncSummary(
+            dismissedCount = expiredDismissal.dismissedCount,
+            dismissFailedCount = expiredDismissal.failedCount,
         )
-        runCatching {
-            repository.clearSystemAlarmRecordsBefore(window.startMillis)
-        }.onFailure { error ->
-            ReminderLogger.warn(
-                "reminder.system_clock.registry.cleanup.failure",
-                mapOf("cutoffMillis" to window.startMillis),
-                error,
-            )
-        }
         val zone = ZoneId.of(profile.timezone)
         val systemClockZone = ZoneId.systemDefault()
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
@@ -171,6 +174,12 @@ class ReminderCoordinator(
             .distinctBy { it.systemAlarmKey() }
             .sortedBy { it.triggerAtMillis }
             .toList()
+        val plannedKeys = plans.mapTo(mutableSetOf()) { it.systemAlarmKey() }
+        val staleDismissal = dismissStaleRecordsInWindow(
+            pluginId = pluginId,
+            plannedKeys = plannedKeys,
+            window = window,
+        )
         val existingKeys = runCatching {
             repository.getSystemAlarmRecords().mapTo(mutableSetOf()) { it.alarmKey }
         }.getOrElse { error ->
@@ -218,14 +227,17 @@ class ReminderCoordinator(
             results += result
             if (result.succeeded) {
                 runCatching {
+                    val label = plan.systemAlarmLabel()
                     repository.saveSystemAlarmRecord(
                         SystemAlarmRecord(
                             alarmKey = key,
                             ruleId = plan.ruleId,
                             pluginId = plan.pluginId,
                             planId = plan.planId,
+                            courseId = plan.courseId,
                             triggerAtMillis = plan.triggerAtMillis,
-                            message = plan.title,
+                            message = label,
+                            alarmLabel = label,
                             createdAtMillis = System.currentTimeMillis(),
                         ),
                     )
@@ -240,12 +252,16 @@ class ReminderCoordinator(
                 }
             }
         }
+        val dismissedCount = expiredDismissal.dismissedCount + staleDismissal.dismissedCount
+        val dismissFailedCount = expiredDismissal.failedCount + staleDismissal.failedCount
         val summary = SystemAlarmSyncSummary(
             submittedCount = results.size,
             createdCount = results.count { it.succeeded },
             skippedExistingCount = skippedExisting,
             skippedUnrepresentableCount = skippedUnrepresentable,
             results = results,
+            dismissedCount = dismissedCount,
+            dismissFailedCount = dismissFailedCount,
         )
         ReminderLogger.info(
             "reminder.system_clock.sync.finish",
@@ -256,12 +272,109 @@ class ReminderCoordinator(
                 "createdCount" to summary.createdCount,
                 "skippedExistingCount" to summary.skippedExistingCount,
                 "skippedUnrepresentableCount" to summary.skippedUnrepresentableCount,
+                "dismissedCount" to summary.dismissedCount,
+                "dismissFailedCount" to summary.dismissFailedCount,
                 "failureCount" to summary.failedCount,
             ),
         )
-        return summary
+        summary
+    }
+
+    private suspend fun dismissRecordsBefore(cutoffMillis: Long): DismissStats {
+        val records = runCatching {
+            repository.getSystemAlarmRecords()
+                .filter { it.triggerAtMillis < cutoffMillis }
+        }.getOrElse { error ->
+            ReminderLogger.warn(
+                "reminder.system_clock.registry.read_for_cleanup.failure",
+                mapOf("cutoffMillis" to cutoffMillis),
+                error,
+            )
+            emptyList()
+        }
+        return dismissRecords(records)
+    }
+
+    private suspend fun dismissStaleRecordsInWindow(
+        pluginId: String,
+        plannedKeys: Set<String>,
+        window: ReminderSyncWindow,
+    ): DismissStats {
+        val records = runCatching {
+            repository.getSystemAlarmRecords()
+                .filter { record ->
+                    record.pluginId == pluginId &&
+                        record.triggerAtMillis in window.startMillis..window.endMillis &&
+                        record.alarmKey !in plannedKeys
+                }
+        }.getOrElse { error ->
+            ReminderLogger.warn(
+                "reminder.system_clock.registry.read_stale.failure",
+                mapOf("pluginId" to pluginId),
+                error,
+            )
+            emptyList()
+        }
+        return dismissRecords(records)
+    }
+
+    private suspend fun dismissRecords(records: List<SystemAlarmRecord>): DismissStats {
+        if (records.isEmpty()) return DismissStats()
+        var dismissed = 0
+        var failed = 0
+        records.distinctBy { it.alarmKey }.forEach { record ->
+            val result = runCatching {
+                systemDismisser.dismiss(record)
+            }.getOrElse { error ->
+                ReminderLogger.warn(
+                    "reminder.system_clock.dismiss.unhandled_failure",
+                    mapOf("alarmKey" to record.alarmKey),
+                    error,
+                )
+                AlarmDismissResult(
+                    alarmKey = record.alarmKey,
+                    succeeded = false,
+                    message = error.message ?: "删除系统闹钟失败",
+                )
+            }
+            if (result.succeeded) {
+                dismissed += 1
+                runCatching {
+                    repository.removeSystemAlarmRecord(record.alarmKey)
+                }.onFailure { error ->
+                    ReminderLogger.warn(
+                        "reminder.system_clock.registry.remove_after_dismiss.failure",
+                        mapOf("alarmKey" to record.alarmKey),
+                        error,
+                    )
+                }
+            } else {
+                failed += 1
+            }
+        }
+        return DismissStats(dismissedCount = dismissed, failedCount = failed)
     }
 }
+
+private val SYSTEM_ALARM_LOCK = Mutex()
+
+private data class DismissStats(
+    val dismissedCount: Int = 0,
+    val failedCount: Int = 0,
+)
+
+private fun emptySystemAlarmSyncSummary(
+    dismissedCount: Int = 0,
+    dismissFailedCount: Int = 0,
+): SystemAlarmSyncSummary = SystemAlarmSyncSummary(
+    submittedCount = 0,
+    createdCount = 0,
+    skippedExistingCount = 0,
+    skippedUnrepresentableCount = 0,
+    results = emptyList(),
+    dismissedCount = dismissedCount,
+    dismissFailedCount = dismissFailedCount,
+)
 
 object ReminderSyncWindows {
     fun todayFromNow(

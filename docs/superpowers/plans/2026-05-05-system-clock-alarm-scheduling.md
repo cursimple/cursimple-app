@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking. Do not run git commit unless the user explicitly requests it.
 
-**Goal:** 让课程提醒只通过系统时钟 App 创建闹钟，并用成功登记簿避免重复添加。
+**Goal:** 让课程提醒只通过系统时钟 App 创建/关闭闹钟，并用成功登记簿避免重复添加。
 
-**Architecture:** 保留现有 `ReminderRule -> ReminderPlanner -> ReminderPlan` 结构。新增系统闹钟登记簿和窗口化同步入口，所有课程闹钟提交都走 `AlarmClock.ACTION_SET_ALARM`；内部检查闹钟只负责在 22:00 和下课时唤起检查，不作为正式课程闹钟。
+**Architecture:** 保留现有 `ReminderRule -> ReminderPlanner -> ReminderPlan` 结构。新增系统闹钟登记簿和窗口化同步入口，所有课程闹钟提交都走 `AlarmClock.ACTION_SET_ALARM`，过期或失效闹钟通过带唯一标签的 `AlarmClock.ACTION_DISMISS_ALARM` 请求关闭；内部检查闹钟只负责在 22:00 和下课时唤起检查，不作为正式课程闹钟。
 
 **Tech Stack:** Kotlin、Android AlarmClock Intent、AlarmManager、BroadcastReceiver、DataStore、kotlinx.serialization、JUnit4、pwsh。
 
@@ -42,7 +42,7 @@
 - [x] 在 `ReminderModels.kt` 新增 `SystemAlarmRecord`。
 - [x] 在 `ReminderModels.kt` 新增 `ReminderSyncWindow(startMillis, endMillis)`。
 - [x] 在 `ReminderModels.kt` 新增 `ReminderSyncReason`，包含 `RuleCreatedToday`、`DailyNextDay`、`AfterClassToday`、`ScheduleChanged`。
-- [x] 在 `ReminderRepository` 增加 `systemAlarmRecordsFlow`、`getSystemAlarmRecords()`、`saveSystemAlarmRecord(record)`、`removeSystemAlarmRecordsForRule(ruleId)`、`clearSystemAlarmRecords()`、`clearSystemAlarmRecordsBefore(cutoffMillis)`。
+- [x] 在 `ReminderRepository` 增加 `systemAlarmRecordsFlow`、`getSystemAlarmRecords()`、`saveSystemAlarmRecord(record)`、`removeSystemAlarmRecord(alarmKey)`、`removeSystemAlarmRecordsForRule(ruleId)`、`clearSystemAlarmRecords()`、`clearSystemAlarmRecordsBefore(cutoffMillis)`。
 - [x] 在 `DataStoreReminderRepository` 增加 `KEY_SYSTEM_ALARM_RECORDS`，读写 `SystemAlarmRecord` 列表。
 - [x] 写单元测试覆盖成功登记、同 key 跳过、失败不登记。
 
@@ -72,8 +72,9 @@
 
 - [x] 删除单条提醒规则时调用 `removeSystemAlarmRecordsForRule(ruleId)`。
 - [x] 清空全部课表时调用 `clearSystemAlarmRecords()`。
-- [x] 调度前调用 `clearSystemAlarmRecordsBefore(window.startMillis)`。
-- [x] 不尝试删除系统时钟 App 中的闹钟，因为 Android 标准 API 不提供可靠删除入口。
+- [x] 调度前按当前时间请求删除并清理过期登记，避免误删同日稍晚闹钟。
+- [x] 下课检查、规则删除、课表变化和小组件刷新时按唯一标签请求删除过期或失效的系统时钟闹钟。
+- [x] 清理登记簿时只以当前时间为过期线，避免 22:00 检查明天闹钟时误删今天晚间尚未触发的闹钟。
 
 ## Chunk 5: 测试与验证
 
