@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -1127,7 +1128,7 @@ private fun DayRow(
         verticalAlignment = Alignment.Top,
     ) {
         Column(
-            modifier = Modifier.width(62.dp),
+            modifier = Modifier.widthIn(min = 38.dp, max = 52.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -1141,8 +1142,10 @@ private fun DayRow(
             Text(
                 text = slotTimeRange(slot),
                 fontSize = 9.sp,
+                lineHeight = 9.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
+                maxLines = 2,
             )
         }
 
@@ -1444,7 +1447,11 @@ private fun ScheduleGrid(
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = modifier.verticalScroll(rememberScrollState()),
     ) {
-        val timeColumnWidth = 60.dp
+        val timeColumnWidth = when {
+            maxWidth < 360.dp -> 44.dp
+            maxWidth < 420.dp -> 48.dp
+            else -> 52.dp
+        }
         val dayHeaderHeight = if (week.days.any { it.overrideLabel != null }) 66.dp else 52.dp
         val totalWidth = maxWidth
         val dayColumnWidth = ((totalWidth - timeColumnWidth) / 7).coerceAtLeast(36.dp)
@@ -1729,7 +1736,9 @@ private fun TimeCell(
             text = slotTimeRange(slot),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 8.sp,
+            lineHeight = 8.sp,
             textAlign = TextAlign.Center,
+            maxLines = 2,
         )
     }
 }
@@ -1738,7 +1747,7 @@ private fun slotTimeRange(slot: DisplaySlot): String {
     return if (slot.startTime.isBlank() && slot.endTime.isBlank()) {
         ""
     } else {
-        "${slot.startTime}~${slot.endTime}"
+        "${slot.startTime}\n${slot.endTime}"
     }
 }
 
