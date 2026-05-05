@@ -129,8 +129,9 @@ class ReminderCoordinator(
 
     suspend fun deleteRule(ruleId: String) {
         SYSTEM_ALARM_LOCK.withLock {
+            val nowMillis = System.currentTimeMillis()
             val records = repository.getSystemAlarmRecords().filter { it.ruleId == ruleId }
-            dismissRecords(records)
+            dismissRecords(records.filter { it.triggerAtMillis > nowMillis })
             repository.removeReminderRule(ruleId)
             repository.removeSystemAlarmRecordsForRule(ruleId)
         }
@@ -138,7 +139,10 @@ class ReminderCoordinator(
 
     suspend fun clearSystemAlarmRecords() {
         SYSTEM_ALARM_LOCK.withLock {
-            dismissRecords(repository.getSystemAlarmRecords())
+            val nowMillis = System.currentTimeMillis()
+            dismissRecords(
+                repository.getSystemAlarmRecords().filter { it.triggerAtMillis > nowMillis },
+            )
             repository.clearSystemAlarmRecords()
         }
     }
@@ -151,10 +155,9 @@ class ReminderCoordinator(
         reason: ReminderSyncReason,
         nowMillis: Long = System.currentTimeMillis(),
     ): SystemAlarmSyncSummary = SYSTEM_ALARM_LOCK.withLock {
-        val expiredDismissal = dismissRecordsBefore(nowMillis)
+        val expiredRecordClearedCount = clearExpiredRecordsBefore(nowMillis)
         val profile = timingProfile ?: return@withLock emptySystemAlarmSyncSummary(
-            dismissedCount = expiredDismissal.dismissedCount,
-            dismissFailedCount = expiredDismissal.failedCount,
+            expiredRecordClearedCount = expiredRecordClearedCount,
         )
         val zone = ZoneId.of(profile.timezone)
         val systemClockZone = ZoneId.systemDefault()
@@ -252,16 +255,15 @@ class ReminderCoordinator(
                 }
             }
         }
-        val dismissedCount = expiredDismissal.dismissedCount + staleDismissal.dismissedCount
-        val dismissFailedCount = expiredDismissal.failedCount + staleDismissal.failedCount
         val summary = SystemAlarmSyncSummary(
             submittedCount = results.size,
             createdCount = results.count { it.succeeded },
             skippedExistingCount = skippedExisting,
             skippedUnrepresentableCount = skippedUnrepresentable,
             results = results,
-            dismissedCount = dismissedCount,
-            dismissFailedCount = dismissFailedCount,
+            expiredRecordClearedCount = expiredRecordClearedCount,
+            dismissedCount = staleDismissal.dismissedCount,
+            dismissFailedCount = staleDismissal.failedCount,
         )
         ReminderLogger.info(
             "reminder.system_clock.sync.finish",
@@ -272,6 +274,7 @@ class ReminderCoordinator(
                 "createdCount" to summary.createdCount,
                 "skippedExistingCount" to summary.skippedExistingCount,
                 "skippedUnrepresentableCount" to summary.skippedUnrepresentableCount,
+                "expiredRecordClearedCount" to summary.expiredRecordClearedCount,
                 "dismissedCount" to summary.dismissedCount,
                 "dismissFailedCount" to summary.dismissFailedCount,
                 "failureCount" to summary.failedCount,
@@ -280,7 +283,7 @@ class ReminderCoordinator(
         summary
     }
 
-    private suspend fun dismissRecordsBefore(cutoffMillis: Long): DismissStats {
+    private suspend fun clearExpiredRecordsBefore(cutoffMillis: Long): Int {
         val records = runCatching {
             repository.getSystemAlarmRecords()
                 .filter { it.triggerAtMillis < cutoffMillis }
@@ -290,9 +293,25 @@ class ReminderCoordinator(
                 mapOf("cutoffMillis" to cutoffMillis),
                 error,
             )
-            emptyList()
+            return 0
         }
-        return dismissRecords(records)
+        val clearedCount = records.distinctBy { it.alarmKey }.size
+        if (clearedCount == 0) return 0
+        return runCatching {
+            repository.clearSystemAlarmRecordsBefore(cutoffMillis)
+            ReminderLogger.info(
+                "reminder.system_clock.registry.expired_cleanup.success",
+                mapOf("cutoffMillis" to cutoffMillis, "clearedCount" to clearedCount),
+            )
+            clearedCount
+        }.getOrElse { error ->
+            ReminderLogger.warn(
+                "reminder.system_clock.registry.expired_cleanup.failure",
+                mapOf("cutoffMillis" to cutoffMillis, "clearedCount" to clearedCount),
+                error,
+            )
+            0
+        }
     }
 
     private suspend fun dismissStaleRecordsInWindow(
@@ -364,16 +383,14 @@ private data class DismissStats(
 )
 
 private fun emptySystemAlarmSyncSummary(
-    dismissedCount: Int = 0,
-    dismissFailedCount: Int = 0,
+    expiredRecordClearedCount: Int = 0,
 ): SystemAlarmSyncSummary = SystemAlarmSyncSummary(
     submittedCount = 0,
     createdCount = 0,
     skippedExistingCount = 0,
     skippedUnrepresentableCount = 0,
     results = emptyList(),
-    dismissedCount = dismissedCount,
-    dismissFailedCount = dismissFailedCount,
+    expiredRecordClearedCount = expiredRecordClearedCount,
 )
 
 object ReminderSyncWindows {
