@@ -6,6 +6,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.edit
 import com.kebiao.viewer.core.reminder.ReminderRepository
 import com.kebiao.viewer.core.reminder.model.ReminderRule
+import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -24,6 +25,12 @@ class DataStoreReminderRepository(
     override val reminderRulesFlow: Flow<List<ReminderRule>> = store.data.map { preferences ->
         preferences[KEY_REMINDER_RULES]?.let {
             json.decodeFromString(ListSerializer(ReminderRule.serializer()), it)
+        }.orEmpty()
+    }
+
+    override val systemAlarmRecordsFlow: Flow<List<SystemAlarmRecord>> = store.data.map { preferences ->
+        preferences[KEY_SYSTEM_ALARM_RECORDS]?.let {
+            json.decodeFromString(ListSerializer(SystemAlarmRecord.serializer()), it)
         }.orEmpty()
     }
 
@@ -53,13 +60,65 @@ class DataStoreReminderRepository(
         }
     }
 
+    override suspend fun getSystemAlarmRecords(): List<SystemAlarmRecord> = systemAlarmRecordsFlow.first()
+
+    override suspend fun saveSystemAlarmRecord(record: SystemAlarmRecord) {
+        store.edit { preferences ->
+            val next = preferences.decodeSystemAlarmRecords()
+                .filterNot { it.alarmKey == record.alarmKey }
+                .plus(record)
+                .sortedBy { it.triggerAtMillis }
+            preferences[KEY_SYSTEM_ALARM_RECORDS] = json.encodeToString(
+                ListSerializer(SystemAlarmRecord.serializer()),
+                next,
+            )
+        }
+    }
+
+    override suspend fun removeSystemAlarmRecordsForRule(ruleId: String) {
+        store.edit { preferences ->
+            val next = preferences.decodeSystemAlarmRecords().filterNot { it.ruleId == ruleId }
+            preferences[KEY_SYSTEM_ALARM_RECORDS] = json.encodeToString(
+                ListSerializer(SystemAlarmRecord.serializer()),
+                next,
+            )
+        }
+    }
+
+    override suspend fun clearSystemAlarmRecords() {
+        store.edit { preferences ->
+            preferences[KEY_SYSTEM_ALARM_RECORDS] = json.encodeToString(
+                ListSerializer(SystemAlarmRecord.serializer()),
+                emptyList(),
+            )
+        }
+    }
+
+    override suspend fun clearSystemAlarmRecordsBefore(cutoffMillis: Long) {
+        store.edit { preferences ->
+            val next = preferences.decodeSystemAlarmRecords()
+                .filterNot { it.triggerAtMillis < cutoffMillis }
+            preferences[KEY_SYSTEM_ALARM_RECORDS] = json.encodeToString(
+                ListSerializer(SystemAlarmRecord.serializer()),
+                next,
+            )
+        }
+    }
+
     private companion object {
         val KEY_REMINDER_RULES = stringPreferencesKey("reminder_rules")
+        val KEY_SYSTEM_ALARM_RECORDS = stringPreferencesKey("system_alarm_records")
     }
 
     private fun androidx.datastore.preferences.core.Preferences.decodeReminderRules(): List<ReminderRule> {
         return this[KEY_REMINDER_RULES]?.let {
             json.decodeFromString(ListSerializer(ReminderRule.serializer()), it)
+        }.orEmpty()
+    }
+
+    private fun androidx.datastore.preferences.core.Preferences.decodeSystemAlarmRecords(): List<SystemAlarmRecord> {
+        return this[KEY_SYSTEM_ALARM_RECORDS]?.let {
+            json.decodeFromString(ListSerializer(SystemAlarmRecord.serializer()), it)
         }.orEmpty()
     }
 }

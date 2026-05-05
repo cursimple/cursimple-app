@@ -41,6 +41,9 @@ class ClassScheduleApplication : Application() {
         appContainer = AppContainer(this)
         ScheduleWidgetWorkScheduler.schedule(this)
         LogCleanupScheduler.schedule(this)
+        appScope.launch {
+            appContainer.scheduleSystemAlarmChecks()
+        }
 
         appScope.launch {
             appContainer.userPreferencesRepository.preferencesFlow

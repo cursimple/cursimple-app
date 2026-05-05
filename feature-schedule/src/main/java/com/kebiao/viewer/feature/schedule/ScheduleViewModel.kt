@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.kebiao.viewer.core.data.ManualCourseRepository
 import com.kebiao.viewer.core.data.ScheduleRepository
 import com.kebiao.viewer.core.kernel.model.CourseItem
+import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.plugin.PluginManager
@@ -18,10 +19,12 @@ import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
-import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
+import com.kebiao.viewer.core.reminder.ReminderSyncWindows
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderRule
+import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
+import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.OffsetDateTime
 
 sealed interface ScheduleSelectionState {
     data class SingleCourse(val courseId: String) : ScheduleSelectionState
@@ -280,7 +284,7 @@ class ScheduleViewModel(
     fun createReminderForSelection(advanceMinutes: Int, ringtoneUri: String?) {
         val state = _uiState.value
         val selection = state.selectionState ?: return
-        val schedule = state.schedule ?: return
+        val schedule = reminderSchedule(state) ?: return
         viewModelScope.launch {
             val rule = when (selection) {
                 is ScheduleSelectionState.SingleCourse -> reminderCoordinator.createRule(
@@ -305,18 +309,18 @@ class ScheduleViewModel(
                     ringtoneUri = ringtoneUri,
                 )
             }
-            val dispatchResults = reminderCoordinator.syncRulesForSchedule(
+            val dispatchSummary = syncTodaySystemClockAlarms(
                 pluginId = state.pluginId,
                 schedule = schedule,
                 timingProfile = state.timingProfile,
-                preferSystemClock = true,
+                reason = ReminderSyncReason.RuleCreatedToday,
             )
             _uiState.update {
                 it.copy(
                     selectionState = null,
-                    statusMessage = reminderDispatchMessage(
+                    statusMessage = systemAlarmSyncMessage(
                         successMessage = "已创建提醒规则：${rule.ruleId.take(8)}",
-                        results = dispatchResults,
+                        summary = dispatchSummary,
                     ),
                 )
             }
@@ -356,19 +360,19 @@ class ScheduleViewModel(
                     ringtoneUri = ringtoneUri,
                 )
             }
-            val schedule = state.schedule
+            val schedule = reminderSchedule(state)
             if (schedule != null) {
-                val dispatchResults = reminderCoordinator.syncRulesForSchedule(
+                val dispatchSummary = syncTodaySystemClockAlarms(
                     pluginId = state.pluginId,
                     schedule = schedule,
                     timingProfile = state.timingProfile,
-                    preferSystemClock = true,
+                    reason = ReminderSyncReason.RuleCreatedToday,
                 )
                 _uiState.update {
                     it.copy(
-                        statusMessage = reminderDispatchMessage(
+                        statusMessage = systemAlarmSyncMessage(
                             successMessage = "已为 ${courseIds.size} 门课程创建提醒",
-                            results = dispatchResults,
+                            summary = dispatchSummary,
                         ),
                     )
                 }
@@ -405,6 +409,7 @@ class ScheduleViewModel(
         viewModelScope.launch {
             val ruleIds = _uiState.value.reminderRules.map { it.ruleId }
             ruleIds.forEach { reminderCoordinator.deleteRule(it) }
+            reminderCoordinator.clearSystemAlarmRecords()
             manualCourseRepository.replaceAll(emptyList())
             scheduleRepository.clearSchedule()
             _uiState.update {
@@ -446,11 +451,11 @@ class ScheduleViewModel(
             )
             val schedule = _uiState.value.schedule
             if (schedule != null) {
-                val dispatchResults = reminderCoordinator.syncRulesForSchedule(
+                val dispatchSummary = syncTodaySystemClockAlarms(
                     pluginId = pluginId,
-                    schedule = schedule,
+                    schedule = reminderSchedule(_uiState.value) ?: schedule,
                     timingProfile = _uiState.value.timingProfile,
-                    preferSystemClock = true,
+                    reason = ReminderSyncReason.RuleCreatedToday,
                 )
                 val label = when (period) {
                     ReminderDayPeriod.Morning -> "上午首次课提醒"
@@ -459,9 +464,9 @@ class ScheduleViewModel(
                 _uiState.update {
                     it.copy(
                         statusMessage = if (enabled) {
-                            reminderDispatchMessage(
+                            systemAlarmSyncMessage(
                                 successMessage = "已开启$label",
-                                results = dispatchResults,
+                                summary = dispatchSummary,
                             )
                         } else {
                             "已关闭$label"
@@ -480,16 +485,33 @@ class ScheduleViewModel(
         }
     }
 
-    private fun reminderDispatchMessage(
+    private suspend fun syncTodaySystemClockAlarms(
+        pluginId: String,
+        schedule: TermSchedule,
+        timingProfile: TermTimingProfile?,
+        reason: ReminderSyncReason,
+    ): SystemAlarmSyncSummary {
+        val profile = timingProfile ?: return emptySystemAlarmSyncSummary()
+        return reminderCoordinator.syncSystemClockAlarmsForWindow(
+            pluginId = pluginId,
+            schedule = schedule,
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile),
+            reason = reason,
+        )
+    }
+
+    private fun systemAlarmSyncMessage(
         successMessage: String,
-        results: List<AlarmDispatchResult>,
+        summary: SystemAlarmSyncSummary,
     ): String {
-        val failures = results.filterNot { it.succeeded }
-        return when {
-            results.isEmpty() -> "$successMessage；暂无未来触发时间"
-            failures.isEmpty() -> successMessage
-            else -> "$successMessage；${failures.size}/${results.size} 个提醒未完成设置：${failures.first().message}"
+        val details = buildList {
+            if (summary.createdCount > 0) add("成功添加 ${summary.createdCount} 个系统闹钟")
+            if (summary.skippedExistingCount > 0) add("跳过 ${summary.skippedExistingCount} 个已添加闹钟")
+            if (summary.skippedUnrepresentableCount > 0) add("跳过 ${summary.skippedUnrepresentableCount} 个无法安全表达日期的闹钟")
+            if (summary.failedCount > 0) add("${summary.failedCount} 个设置失败：${summary.results.first { !it.succeeded }.message}")
         }
+        return if (details.isEmpty()) "$successMessage；暂无可立即添加的系统闹钟" else "$successMessage；${details.joinToString("，")}"
     }
 
     private suspend fun loadPluginPresentation(pluginId: String) {
@@ -549,11 +571,11 @@ class ScheduleViewModel(
                     withContext(ioDispatcher) {
                         scheduleRepository.saveSchedule(schedule)
                     }
-                    reminderCoordinator.syncRulesForSchedule(
+                    syncTodaySystemClockAlarms(
                         pluginId = _uiState.value.pluginId,
-                        schedule = schedule,
+                        schedule = mergeManualCoursesForReminders(schedule, _uiState.value.manualCourses) ?: schedule,
                         timingProfile = syncedTimingProfile,
-                        preferSystemClock = false,
+                        reason = ReminderSyncReason.ScheduleChanged,
                     )
                     onSyncCompleted(syncedTimingProfile)
                 } catch (error: CancellationException) {
@@ -680,6 +702,43 @@ internal fun validatePluginSchedule(schedule: TermSchedule): TermSchedule {
     require(courses.size <= 1000) { "插件返回的课程数量过多" }
     return schedule
 }
+
+private fun reminderSchedule(state: ScheduleUiState): TermSchedule? =
+    mergeManualCoursesForReminders(state.schedule, state.manualCourses)
+
+private fun mergeManualCoursesForReminders(
+    schedule: TermSchedule?,
+    manualCourses: List<CourseItem>,
+): TermSchedule? {
+    if (schedule == null && manualCourses.isEmpty()) return null
+    val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+    val dailySchedules = allCourses
+        .groupBy { it.time.dayOfWeek }
+        .toSortedMap()
+        .map { (day, courses) ->
+            DailySchedule(
+                dayOfWeek = day,
+                courses = courses.sortedWith(
+                    compareBy<CourseItem> { it.time.startNode }
+                        .thenBy { it.time.endNode }
+                        .thenBy { it.title },
+                ),
+            )
+        }
+    return TermSchedule(
+        termId = schedule?.termId ?: "manual",
+        updatedAt = schedule?.updatedAt ?: OffsetDateTime.now().toString(),
+        dailySchedules = dailySchedules,
+    )
+}
+
+private fun emptySystemAlarmSyncSummary(): SystemAlarmSyncSummary = SystemAlarmSyncSummary(
+    submittedCount = 0,
+    createdCount = 0,
+    skippedExistingCount = 0,
+    skippedUnrepresentableCount = 0,
+    results = emptyList(),
+)
 
 class ScheduleViewModelFactory(
     private val scheduleRepository: ScheduleRepository,
