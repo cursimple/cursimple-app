@@ -191,6 +191,34 @@ class ScheduleValidationTest {
         assertFalse(entries.any { it.course.id == "wednesday" && it.placement.dayIndex == 2 })
     }
 
+    @Test
+    fun `date override uses source date week for active courses`() {
+        val sourceWeekCourse = course(id = "source-week", weeks = listOf(5)).copy(
+            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+        )
+        val targetWeekCourse = course(id = "target-week", weeks = listOf(4)).copy(
+            time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
+        )
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(sourceWeekCourse, targetWeekCourse),
+            slots = listOf(testSlot()),
+            weekIndex = 4,
+            weekStart = LocalDate.of(2026, 5, 4),
+            termStart = LocalDate.of(2026, 4, 13),
+            temporaryScheduleOverrides = listOf(
+                TemporaryScheduleOverride(
+                    id = "date-to-date",
+                    targetDate = "2026-05-06",
+                    sourceDate = "2026-05-11",
+                ),
+            ),
+        )
+
+        assertTrue(entries.any { it.course.id == "source-week" && it.placement.dayIndex == 2 && !it.inactive })
+        assertFalse(entries.any { it.course.id == "target-week" && it.placement.dayIndex == 2 })
+    }
+
     private fun testSlot(): DisplaySlot = DisplaySlot(
         startNode = 1,
         endNode = 2,

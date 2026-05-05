@@ -7,6 +7,7 @@ import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import org.junit.Assert.assertEquals
@@ -115,5 +116,53 @@ class ReminderPlannerTest {
 
         assertEquals(1, plans.size)
         assertEquals(true, plans.single().message.startsWith("2月28日"))
+    }
+
+    @Test
+    fun firstCourseOfPeriodRuleKeepsOnlyEarliestCourseInPeriod() {
+        val schedule = TermSchedule(
+            termId = "2026-spring",
+            updatedAt = "2026-04-27T08:00:00+08:00",
+            dailySchedules = listOf(
+                DailySchedule(
+                    dayOfWeek = 1,
+                    courses = listOf(
+                        CourseItem(
+                            id = "late",
+                            title = "线性代数",
+                            weeks = listOf(1),
+                            time = CourseTimeSlot(dayOfWeek = 1, startNode = 3, endNode = 4),
+                        ),
+                        CourseItem(
+                            id = "early",
+                            title = "高等数学",
+                            weeks = listOf(1),
+                            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val profile = TermTimingProfile(
+            termStartDate = "2026-02-23",
+            slotTimes = listOf(
+                ClassSlotTime(1, 2, "08:00", "09:35"),
+                ClassSlotTime(3, 4, "10:00", "11:35"),
+            ),
+        )
+        val rule = ReminderRule(
+            ruleId = "morning",
+            pluginId = "demo",
+            scopeType = ReminderScopeType.FirstCourseOfPeriod,
+            period = ReminderDayPeriod.Morning,
+            advanceMinutes = 15,
+            createdAt = "2026-02-23T00:00:00+08:00",
+            updatedAt = "2026-02-23T00:00:00+08:00",
+        )
+
+        val plans = planner.expandRule(rule, schedule, profile, fromDate = java.time.LocalDate.of(2026, 2, 23))
+
+        assertEquals(1, plans.size)
+        assertEquals("early", plans.single().courseId)
     }
 }

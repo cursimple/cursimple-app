@@ -43,7 +43,7 @@ import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
 import com.kebiao.viewer.core.kernel.model.endLocalTime
 import com.kebiao.viewer.core.kernel.model.findSlot
-import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleDayOfWeek
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.core.kernel.time.BeijingTime
@@ -78,13 +78,28 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
         val now = BeijingTime.nowTimeIn(zone)
-        val dayOfWeek = resolveTemporaryScheduleDayOfWeek(today, userPrefs.temporaryScheduleOverrides)
-        val weekIndex = resolveWeekIndex(today, userPrefs.termStartDate)
+        fun coursesForDate(targetDate: LocalDate): DayCourses {
+            val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, userPrefs.temporaryScheduleOverrides)
+            val dayOfWeek = sourceDate.dayOfWeek.value
+            val weekIndex = resolveWeekIndex(sourceDate, userPrefs.termStartDate)
+            val courses = (schedule?.coursesOfDay(dayOfWeek).orEmpty() +
+                manualCourses.filter { it.time.dayOfWeek == dayOfWeek })
+                .filter { it.activeOnWeek(weekIndex) }
+                .sortedBy { it.time.startNode }
+            return DayCourses(
+                targetDate = targetDate,
+                sourceDate = sourceDate,
+                courses = courses,
+            )
+        }
 
-        val displayCourses = (schedule?.coursesOfDay(dayOfWeek).orEmpty() +
-            manualCourses.filter { it.time.dayOfWeek == dayOfWeek })
-            .filter { it.activeOnWeek(weekIndex) }
-            .sortedBy { it.time.startNode }
+        val todayCourses = coursesForDate(today)
+        val dayCourses = if (shouldShowNextDayAtNight(now, todayCourses.courses, timingProfile)) {
+            coursesForDate(today.plusDays(1))
+        } else {
+            todayCourses
+        }
+        val displayCourses = dayCourses.courses
 
         data class Annotated(val course: CourseItem, val status: CourseStatus)
 
@@ -128,16 +143,17 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
             else -> null
         }
 
-        val todayHeader = if (dayOfWeek != today.dayOfWeek.value) {
-            "今日课程 · 按${weekdayLabel(dayOfWeek)}"
+        val dayLabel = if (dayCourses.targetDate == today) "今日课程" else "明日课程"
+        val todayHeader = if (dayCourses.sourceDate != dayCourses.targetDate) {
+            "$dayLabel · 按${sourceDateLabel(dayCourses.sourceDate)}"
         } else {
-            "今日课程"
+            dayLabel
         }
         val headerLabel = when {
             live != null -> "$todayHeader · 上课中"
-            firstUpcoming != null -> if (dayOfWeek != today.dayOfWeek.value) todayHeader else "下一节课"
+            firstUpcoming != null -> if (todayHeader != "今日课程") todayHeader else "下一节课"
             annotated.isNotEmpty() -> "$todayHeader · 已结束"
-            else -> if (dayOfWeek != today.dayOfWeek.value) todayHeader else "下一节课"
+            else -> if (todayHeader != "今日课程") todayHeader else "下一节课"
         }
 
         provideContent {
@@ -210,6 +226,12 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
 }
 
 internal enum class CourseStatus { Past, Live, Upcoming }
+
+private data class DayCourses(
+    val targetDate: LocalDate,
+    val sourceDate: LocalDate,
+    val courses: List<CourseItem>,
+)
 
 @Composable
 private fun FocusCard(
@@ -405,6 +427,9 @@ private fun formatCountdown(minutes: Long): String {
     val m = minutes % 60
     return if (m == 0L) "${h}小时后" else "${h}小时${m}分后"
 }
+
+private fun sourceDateLabel(date: LocalDate): String =
+    "${date.monthValue}月${date.dayOfMonth}日${weekdayLabel(date.dayOfWeek.value)}"
 
 open class NextCourseGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget: GlanceAppWidget = NextCourseGlanceWidget()

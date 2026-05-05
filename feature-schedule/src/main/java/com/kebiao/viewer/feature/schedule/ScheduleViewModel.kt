@@ -18,6 +18,7 @@ import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
+import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import kotlinx.coroutines.CoroutineDispatcher
@@ -407,6 +408,45 @@ class ScheduleViewModel(
         viewModelScope.launch {
             reminderCoordinator.deleteRule(ruleId)
             _uiState.update { it.copy(statusMessage = "已删除提醒规则") }
+        }
+    }
+
+    fun saveFirstCourseReminder(
+        period: ReminderDayPeriod,
+        enabled: Boolean,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+    ) {
+        val state = _uiState.value
+        val pluginId = state.pluginId
+        if (pluginId.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先选择插件后再设置首次课提醒") }
+            return
+        }
+        viewModelScope.launch {
+            reminderCoordinator.upsertFirstCourseReminder(
+                pluginId = pluginId,
+                period = period,
+                enabled = enabled,
+                advanceMinutes = advanceMinutes.coerceIn(0, 720),
+                ringtoneUri = ringtoneUri,
+            )
+            val schedule = _uiState.value.schedule
+            if (schedule != null) {
+                reminderCoordinator.syncRulesForSchedule(
+                    pluginId = pluginId,
+                    schedule = schedule,
+                    timingProfile = _uiState.value.timingProfile,
+                    preferSystemClock = true,
+                )
+            }
+            val label = when (period) {
+                ReminderDayPeriod.Morning -> "上午首次课提醒"
+                ReminderDayPeriod.Afternoon -> "下午首次课提醒"
+            }
+            _uiState.update {
+                it.copy(statusMessage = if (enabled) "已开启$label" else "已关闭$label")
+            }
         }
     }
 

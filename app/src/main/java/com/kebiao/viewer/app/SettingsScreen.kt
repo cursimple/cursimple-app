@@ -1,5 +1,7 @@
 package com.kebiao.viewer.app
 
+import android.content.Intent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,17 +23,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
+import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -40,26 +47,34 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kebiao.viewer.app.util.LogExporter
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.feature.schedule.ScheduleSettingsRoute
 import com.kebiao.viewer.feature.schedule.ScheduleViewModel
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -74,6 +89,8 @@ fun AppSettingsRoute(
     currentWeekIndex: Int,
     totalScheduleDisplayEnabled: Boolean,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    advancedToolsEnabled: Boolean,
+    debugForcedDateTime: LocalDateTime?,
     onPickThemeMode: () -> Unit,
     onPickThemeAccent: () -> Unit,
     onPickTermStartDate: () -> Unit,
@@ -85,6 +102,9 @@ fun AppSettingsRoute(
     onRemoveTemporaryScheduleOverride: (String) -> Unit,
     onClearTemporaryScheduleOverrides: () -> Unit,
     onOpenWidgetPicker: () -> Unit,
+    onSetAdvancedTools: (Boolean) -> Unit,
+    onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
+    onExportScheduleMetadata: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val scrollState = rememberScrollState()
@@ -195,6 +215,16 @@ fun AppSettingsRoute(
             subtitle = "添加课表、下一节课或课程提醒",
             onClick = onOpenWidgetPicker,
         )
+
+        if (advancedToolsEnabled) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            AdvancedToolsSection(
+                debugForcedDateTime = debugForcedDateTime,
+                onSetAdvancedTools = onSetAdvancedTools,
+                onSetDebugForcedDateTime = onSetDebugForcedDateTime,
+                onExportScheduleMetadata = onExportScheduleMetadata,
+            )
+        }
     }
 
     if (showTemporaryOverrides) {
@@ -218,11 +248,10 @@ private fun TemporaryScheduleOverridesDialog(
     onDismiss: () -> Unit,
 ) {
     val today = LocalDate.now()
-    var startDate by rememberSaveable { mutableStateOf(today) }
-    var endDate by rememberSaveable { mutableStateOf(today) }
-    var sourceDayOfWeek by rememberSaveable { mutableIntStateOf(today.dayOfWeek.value) }
-    var pickStartDate by rememberSaveable { mutableStateOf(false) }
-    var pickEndDate by rememberSaveable { mutableStateOf(false) }
+    var targetDate by rememberSaveable { mutableStateOf(today) }
+    var sourceDate by rememberSaveable { mutableStateOf(today) }
+    var pickTargetDate by rememberSaveable { mutableStateOf(false) }
+    var pickSourceDate by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -236,32 +265,30 @@ private fun TemporaryScheduleOverridesDialog(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DateChoiceButton(
-                        label = "开始",
-                        date = startDate,
+                        label = "调课日",
+                        date = targetDate,
                         modifier = Modifier.weight(1f),
-                        onClick = { pickStartDate = true },
+                        onClick = { pickTargetDate = true },
                     )
                     DateChoiceButton(
-                        label = "结束",
-                        date = endDate,
+                        label = "按此日",
+                        date = sourceDate,
                         modifier = Modifier.weight(1f),
-                        onClick = { pickEndDate = true },
+                        onClick = { pickSourceDate = true },
                     )
                 }
-                WeekdaySelector(
-                    selected = sourceDayOfWeek,
-                    onSelect = { sourceDayOfWeek = it },
+                Text(
+                    text = "将在 ${formatLongDate(targetDate)} 显示并提醒 ${formatLongDate(sourceDate)} 的课程。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Button(
                     onClick = {
-                        val normalizedStart = minOf(startDate, endDate)
-                        val normalizedEnd = maxOf(startDate, endDate)
                         onAdd(
                             TemporaryScheduleOverride(
                                 id = UUID.randomUUID().toString(),
-                                startDate = normalizedStart.toString(),
-                                endDate = normalizedEnd.toString(),
-                                sourceDayOfWeek = sourceDayOfWeek,
+                                targetDate = targetDate.toString(),
+                                sourceDate = sourceDate.toString(),
                             ),
                         )
                     },
@@ -296,24 +323,24 @@ private fun TemporaryScheduleOverridesDialog(
         } else null,
     )
 
-    if (pickStartDate) {
+    if (pickTargetDate) {
         SettingsDatePickerDialog(
-            initial = startDate,
+            initial = targetDate,
             onConfirm = {
-                startDate = it
-                pickStartDate = false
+                targetDate = it
+                pickTargetDate = false
             },
-            onDismiss = { pickStartDate = false },
+            onDismiss = { pickTargetDate = false },
         )
     }
-    if (pickEndDate) {
+    if (pickSourceDate) {
         SettingsDatePickerDialog(
-            initial = endDate,
+            initial = sourceDate,
             onConfirm = {
-                endDate = it
-                pickEndDate = false
+                sourceDate = it
+                pickSourceDate = false
             },
-            onDismiss = { pickEndDate = false },
+            onDismiss = { pickSourceDate = false },
         )
     }
 }
@@ -330,37 +357,6 @@ private fun DateChoiceButton(
         onClick = onClick,
     ) {
         Text("$label ${formatShortDate(date)}")
-    }
-}
-
-@Composable
-private fun WeekdaySelector(
-    selected: Int,
-    onSelect: (Int) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        listOf(1, 2, 3, 4).let { days ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                days.forEach { day ->
-                    FilterChip(
-                        selected = selected == day,
-                        onClick = { onSelect(day) },
-                        label = { Text(weekdayLabel(day)) },
-                    )
-                }
-            }
-        }
-        listOf(5, 6, 7).let { days ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                days.forEach { day ->
-                    FilterChip(
-                        selected = selected == day,
-                        onClick = { onSelect(day) },
-                        label = { Text(weekdayLabel(day)) },
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -384,7 +380,7 @@ private fun TemporaryOverrideRuleRow(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "按${weekdayLabel(rule.sourceDayOfWeek)}课上",
+                    text = formatOverrideSource(rule),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -437,27 +433,217 @@ private fun temporaryOverridesSubtitle(overrides: List<TemporaryScheduleOverride
 }
 
 private fun formatOverrideSummary(rule: TemporaryScheduleOverride): String {
-    return "${formatOverrideRange(rule)} · 按${weekdayLabel(rule.sourceDayOfWeek)}课上"
+    return "${formatOverrideRange(rule)} · ${formatOverrideSource(rule)}"
 }
 
 private fun formatOverrideRange(rule: TemporaryScheduleOverride): String {
-    val start = parseIsoDate(rule.startDate)
-    val end = parseIsoDate(rule.endDate)
-    if (start == null || end == null) return "日期无效"
-    val normalizedStart = minOf(start, end)
-    val normalizedEnd = maxOf(start, end)
-    return if (normalizedStart == normalizedEnd) {
-        formatShortDate(normalizedStart)
+    val target = parseIsoDate(rule.targetDate) ?: parseIsoDate(rule.startDate)
+    return target?.let(::formatShortDate) ?: "日期无效"
+}
+
+private fun formatOverrideSource(rule: TemporaryScheduleOverride): String {
+    val target = parseIsoDate(rule.targetDate) ?: parseIsoDate(rule.startDate)
+    val source = target?.let { resolveTemporaryScheduleSourceDate(it, listOf(rule)) }
+    return if (source != null) {
+        "按${formatLongDate(source)}课上"
     } else {
-        "${formatShortDate(normalizedStart)} - ${formatShortDate(normalizedEnd)}"
+        "来源日期无效"
     }
 }
 
 private fun formatShortDate(date: LocalDate): String =
     "${date.monthValue}/${date.dayOfMonth}"
 
+private fun formatLongDate(date: LocalDate): String =
+    "${formatShortDate(date)} ${weekdayLabel(date.dayOfWeek.value)}"
+
 private fun parseIsoDate(value: String): LocalDate? =
     runCatching { LocalDate.parse(value) }.getOrNull()
+
+@Composable
+private fun AdvancedToolsSection(
+    debugForcedDateTime: LocalDateTime?,
+    onSetAdvancedTools: (Boolean) -> Unit,
+    onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
+    onExportScheduleMetadata: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pendingForcedDate by rememberSaveable { mutableStateOf<LocalDate?>(null) }
+    var showForcedDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showForcedTimePicker by rememberSaveable { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.Code,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "高级诊断",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Text(
+            text = "调试时间、导出日志与课表元数据。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        AdvancedActionRow(
+            icon = Icons.Rounded.CalendarMonth,
+            title = "调试时间",
+            subtitle = if (debugForcedDateTime != null) {
+                "当前强制为 ${DateTimeFormatter.ofPattern("yyyy/M/d EEEE HH:mm").format(debugForcedDateTime)}"
+            } else {
+                "使用真实时间"
+            },
+            onClick = {
+                pendingForcedDate = debugForcedDateTime?.toLocalDate() ?: LocalDate.now()
+                showForcedDatePicker = true
+            },
+        )
+        if (debugForcedDateTime != null) {
+            AdvancedActionRow(
+                icon = Icons.Rounded.Restore,
+                title = "复原真实时间",
+                subtitle = "课表、小组件与提醒恢复使用系统时间",
+                onClick = {
+                    onSetDebugForcedDateTime(null)
+                    Toast.makeText(context, "已恢复真实时间", Toast.LENGTH_SHORT).show()
+                },
+            )
+        }
+        AdvancedActionRow(
+            icon = Icons.Rounded.Download,
+            title = "导出日志",
+            subtitle = "导出最近 logcat 与插件诊断日志",
+            onClick = {
+                scope.launch {
+                    val intent = LogExporter.exportRecentLogs(context)
+                    if (intent != null) {
+                        runCatching {
+                            val chooser = Intent.createChooser(intent, "导出日志").apply {
+                                clipData = intent.clipData
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(chooser)
+                        }.onFailure {
+                            Toast.makeText(context, "无法启动分享：${it.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        Toast.makeText(context, "导出日志失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+        )
+        AdvancedActionRow(
+            icon = Icons.Rounded.Delete,
+            title = "清空日志",
+            subtitle = "只清理 App 自己维护的日志缓存",
+            onClick = {
+                scope.launch {
+                    if (LogExporter.clearLogs(context)) {
+                        Toast.makeText(context, "已清空日志", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "清空日志失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+        )
+        AdvancedActionRow(
+            icon = Icons.Rounded.Schedule,
+            title = "导出课表元数据",
+            subtitle = "导出当前课表、插件与调试状态",
+            onClick = onExportScheduleMetadata,
+        )
+        AdvancedActionRow(
+            icon = Icons.Rounded.BugReport,
+            title = "关闭高级工具",
+            subtitle = "隐藏调试入口与工具",
+            onClick = {
+                onSetAdvancedTools(false)
+                Toast.makeText(context, "已关闭高级工具", Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
+
+    if (showForcedDatePicker) {
+        SettingsDatePickerDialog(
+            initial = pendingForcedDate ?: debugForcedDateTime?.toLocalDate() ?: LocalDate.now(),
+            onConfirm = { date ->
+                pendingForcedDate = date
+                showForcedDatePicker = false
+                showForcedTimePicker = true
+            },
+            onDismiss = { showForcedDatePicker = false },
+        )
+    }
+
+    if (showForcedTimePicker) {
+        val baseDate = pendingForcedDate ?: debugForcedDateTime?.toLocalDate() ?: LocalDate.now()
+        ForcedTimePickerDialog(
+            initial = debugForcedDateTime?.toLocalTime() ?: LocalTime.of(8, 0),
+            onDismiss = { showForcedTimePicker = false },
+            onConfirm = { time ->
+                val combined = LocalDateTime.of(baseDate, time)
+                onSetDebugForcedDateTime(combined)
+                showForcedTimePicker = false
+                Toast.makeText(
+                    context,
+                    "已强制时间：${DateTimeFormatter.ofPattern("yyyy/M/d HH:mm").format(combined)}",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            },
+        )
+    }
+}
+
+@Composable
+private fun AdvancedActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    SettingsActionRow(
+        icon = icon,
+        title = title,
+        subtitle = subtitle,
+        onClick = onClick,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ForcedTimePickerDialog(
+    initial: LocalTime,
+    onDismiss: () -> Unit,
+    onConfirm: (LocalTime) -> Unit,
+) {
+    val state = rememberTimePickerState(
+        initialHour = initial.hour,
+        initialMinute = initial.minute,
+        is24Hour = true,
+    )
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择调试时间") },
+        text = { TimePicker(state = state) },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
+                Text("确定")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
 
 @Composable
 private fun SettingsActionRow(

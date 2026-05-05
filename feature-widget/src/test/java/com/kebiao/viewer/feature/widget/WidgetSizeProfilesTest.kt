@@ -1,7 +1,14 @@
 package com.kebiao.viewer.feature.widget
 
+import com.kebiao.viewer.core.kernel.model.ClassSlotTime
+import com.kebiao.viewer.core.kernel.model.CourseItem
+import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
+import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalTime
 
 class WidgetSizeProfilesTest {
     @Test
@@ -27,5 +34,22 @@ class WidgetSizeProfilesTest {
         assertEquals(WidgetSizeClass.Compact, WidgetSizeClass.fromDp(widthDp = 160, heightDp = 120))
         assertEquals(WidgetSizeClass.Regular, WidgetSizeClass.fromDp(widthDp = 220, heightDp = 180))
         assertEquals(WidgetSizeClass.Expanded, WidgetSizeClass.fromDp(widthDp = 300, heightDp = 260))
+    }
+
+    @Test
+    fun `widgets advance to next day at night only after current day is done`() {
+        val profile = TermTimingProfile(
+            termStartDate = "2026-02-23",
+            slotTimes = listOf(ClassSlotTime(1, 2, "08:00", "09:35")),
+        )
+        val course = CourseItem(
+            id = "math",
+            title = "高等数学",
+            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+        )
+
+        assertFalse(shouldShowNextDayAtNight(LocalTime.of(21, 59), listOf(course), profile))
+        assertTrue(shouldShowNextDayAtNight(LocalTime.of(22, 0), listOf(course), profile))
+        assertTrue(shouldShowNextDayAtNight(LocalTime.of(22, 0), emptyList(), profile))
     }
 }

@@ -9,6 +9,23 @@ import java.time.LocalDate
 
 class TemporaryScheduleOverrideTest {
     @Test
+    fun `explicit date override resolves source date`() {
+        val target = LocalDate.of(2026, 5, 6)
+        val source = LocalDate.of(2026, 5, 11)
+        val overrides = listOf(
+            TemporaryScheduleOverride(
+                id = "makeup",
+                targetDate = target.toString(),
+                sourceDate = source.toString(),
+            ),
+        )
+
+        assertEquals(source, resolveTemporaryScheduleSourceDate(target, overrides))
+        assertEquals(1, resolveTemporaryScheduleDayOfWeek(target, overrides))
+        assertTrue(isTemporaryScheduleOverridden(target, overrides))
+    }
+
+    @Test
     fun `single day override resolves source weekday`() {
         val date = LocalDate.of(2026, 5, 6)
         val overrides = listOf(
