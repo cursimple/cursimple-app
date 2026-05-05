@@ -1,6 +1,5 @@
 package com.kebiao.viewer.feature.schedule
 
-import android.content.Intent
 import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
@@ -58,6 +58,7 @@ fun ScheduleSettingsScreen(
     }
     val scrollState = rememberScrollState()
 
+    val context = LocalContext.current
     val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
         ringtoneUri = uri?.toString()
@@ -107,14 +108,9 @@ fun ScheduleSettingsScreen(
                     ringtoneUri = ringtoneUri,
                     onAdvanceMinutesChange = { advanceMinutesText = it.filter(Char::isDigit) },
                     onPickRingtone = {
-                        ringtoneLauncher.launch(
-                            Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                                putExtra(
-                                    RingtoneManager.EXTRA_RINGTONE_TYPE,
-                                    RingtoneManager.TYPE_ALARM,
-                                )
-                            },
-                        )
+                        launchAlarmRingtonePicker(context) { intent ->
+                            ringtoneLauncher.launch(intent)
+                        }
                     },
                     onCreateReminder = {
                         onCreateReminder(advanceMinutesText.toIntOrNull() ?: 20, ringtoneUri)
