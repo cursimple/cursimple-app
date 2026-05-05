@@ -29,6 +29,55 @@ internal fun CourseItem.activeOnWeek(weekIndex: Int?): Boolean {
     return weeks.contains(weekIndex)
 }
 
+internal enum class CourseStatus { Past, Live, Upcoming }
+
+internal data class NextCourseEntry(
+    val course: CourseItem,
+    val status: CourseStatus,
+)
+
+internal fun visibleNextCourseEntries(
+    courses: List<CourseItem>,
+    today: LocalDate,
+    targetDate: LocalDate,
+    now: LocalTime,
+    timingProfile: TermTimingProfile?,
+): List<NextCourseEntry> =
+    courses
+        .map { course ->
+            NextCourseEntry(
+                course = course,
+                status = resolveCourseStatus(
+                    course = course,
+                    today = today,
+                    targetDate = targetDate,
+                    now = now,
+                    timingProfile = timingProfile,
+                ),
+            )
+        }
+        .filter { it.status != CourseStatus.Past }
+
+private fun resolveCourseStatus(
+    course: CourseItem,
+    today: LocalDate,
+    targetDate: LocalDate,
+    now: LocalTime,
+    timingProfile: TermTimingProfile?,
+): CourseStatus {
+    if (targetDate.isBefore(today)) return CourseStatus.Past
+    if (targetDate.isAfter(today)) return CourseStatus.Upcoming
+
+    val startTime = timingProfile?.courseStartTime(course)
+    val endTime = timingProfile?.courseEndTime(course)
+    return when {
+        startTime == null || endTime == null -> CourseStatus.Upcoming
+        !now.isBefore(endTime) -> CourseStatus.Past
+        !now.isBefore(startTime) -> CourseStatus.Live
+        else -> CourseStatus.Upcoming
+    }
+}
+
 /** Slot whose [startNode]/[endNode] together cover [startNode]; used to derive course start time. */
 internal fun TermTimingProfile.startSlotFor(startNode: Int): ClassSlotTime? =
     slotTimes.firstOrNull { it.startNode <= startNode && startNode <= it.endNode }

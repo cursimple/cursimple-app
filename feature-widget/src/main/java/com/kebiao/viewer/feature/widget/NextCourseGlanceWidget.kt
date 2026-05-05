@@ -41,10 +41,7 @@ import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
-import com.kebiao.viewer.core.kernel.model.endLocalTime
-import com.kebiao.viewer.core.kernel.model.findSlot
 import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
-import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
@@ -101,21 +98,15 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         }
         val displayCourses = dayCourses.courses
 
-        data class Annotated(val course: CourseItem, val status: CourseStatus)
-
-        val annotated = displayCourses.map { course ->
-            val startTime = timingProfile?.courseStartTime(course)
-            val endTime = timingProfile?.courseEndTime(course)
-            val status = when {
-                startTime == null || endTime == null -> CourseStatus.Upcoming
-                !now.isBefore(endTime) -> CourseStatus.Past
-                !now.isBefore(startTime) -> CourseStatus.Live
-                else -> CourseStatus.Upcoming
-            }
-            Annotated(course, status)
-        }
-        val live = annotated.firstOrNull { it.status == CourseStatus.Live }?.course
-        val firstUpcoming = annotated.firstOrNull { it.status == CourseStatus.Upcoming }?.course
+        val visibleEntries = visibleNextCourseEntries(
+            courses = displayCourses,
+            today = today,
+            targetDate = dayCourses.targetDate,
+            now = now,
+            timingProfile = timingProfile,
+        )
+        val live = visibleEntries.firstOrNull { it.status == CourseStatus.Live }?.course
+        val firstUpcoming = visibleEntries.firstOrNull { it.status == CourseStatus.Upcoming }?.course
 
         val headerBadge: (@Composable () -> Unit)? = when {
             live != null -> {
@@ -152,8 +143,14 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         val headerLabel = when {
             live != null -> "$todayHeader · 上课中"
             firstUpcoming != null -> if (todayHeader != "今日课程") todayHeader else "下一节课"
-            annotated.isNotEmpty() -> "$todayHeader · 已结束"
+            displayCourses.isNotEmpty() -> "$todayHeader · 已结束"
             else -> if (todayHeader != "今日课程") todayHeader else "下一节课"
+        }
+        val emptyTitle = when {
+            dayCourses.targetDate == today && displayCourses.isNotEmpty() -> "今天没有更多课程"
+            dayCourses.targetDate == today -> "今天没有课程"
+            dayCourses.targetDate == today.plusDays(1) -> "明天没有课程"
+            else -> "当天没有课程"
         }
 
         provideContent {
@@ -164,9 +161,9 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
             val outerPadding = if (sizeClass == WidgetSizeClass.Compact) 8.dp else WidgetStyle.outerPadding
             val rowGap = if (sizeClass == WidgetSizeClass.Compact) 6.dp else 8.dp
             val displayAnnotated = if (sizeClass == WidgetSizeClass.Compact) {
-                annotated.take(sizeClass.nextCourseRows())
+                visibleEntries.take(sizeClass.nextCourseRows())
             } else {
-                annotated
+                visibleEntries
             }
 
             GlanceTheme {
@@ -187,7 +184,7 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
                     }
                     Spacer(GlanceModifier.height(rowGap))
                     if (displayAnnotated.isEmpty()) {
-                        EmptyState(sizeClass)
+                        EmptyState(sizeClass, emptyTitle)
                     } else {
                         LazyColumn(
                             modifier = GlanceModifier
@@ -224,8 +221,6 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
         updateAll(context)
     }
 }
-
-internal enum class CourseStatus { Past, Live, Upcoming }
 
 private data class DayCourses(
     val targetDate: LocalDate,
@@ -379,7 +374,7 @@ private fun CompactRow(course: CourseItem, profile: TermTimingProfile?, status: 
 }
 
 @Composable
-private fun EmptyState(sizeClass: WidgetSizeClass) {
+private fun EmptyState(sizeClass: WidgetSizeClass, title: String) {
     Box(
         modifier = GlanceModifier
             .fillMaxWidth()
@@ -401,7 +396,7 @@ private fun EmptyState(sizeClass: WidgetSizeClass) {
             )
             Spacer(GlanceModifier.height(if (sizeClass == WidgetSizeClass.Compact) 2.dp else 4.dp))
             Text(
-                text = if (sizeClass == WidgetSizeClass.Compact) "今天没有课程" else "今天没有更多课程",
+                text = title,
                 style = TextStyle(
                     color = GlanceTheme.colors.onSurface,
                     fontSize = if (sizeClass == WidgetSizeClass.Compact) 12.sp else 13.sp,

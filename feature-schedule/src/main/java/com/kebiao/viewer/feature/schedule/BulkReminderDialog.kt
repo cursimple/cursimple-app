@@ -1,6 +1,5 @@
 package com.kebiao.viewer.feature.schedule
 
-import android.content.Intent
 import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
@@ -36,6 +36,7 @@ fun BulkReminderDialog(
 ) {
     var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
     var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
     val ringtoneLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
@@ -66,14 +67,9 @@ fun BulkReminderDialog(
                 )
                 Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Button(onClick = {
-                        ringtoneLauncher.launch(
-                            Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                                putExtra(
-                                    RingtoneManager.EXTRA_RINGTONE_TYPE,
-                                    RingtoneManager.TYPE_ALARM,
-                                )
-                            },
-                        )
+                        launchAlarmRingtonePicker(context) { intent ->
+                            ringtoneLauncher.launch(intent)
+                        }
                     }) { Text("选择铃声") }
                     Spacer(Modifier.width(10.dp))
                     Text(

@@ -1,6 +1,5 @@
 package com.kebiao.viewer.feature.schedule
 
-import android.content.Intent
 import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -67,6 +66,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -2031,6 +2031,7 @@ private fun FirstCourseReminderRow(
         mutableStateOf((rule?.advanceMinutes ?: 20).toString())
     }
     var ringtoneUri by rememberSaveable(rule?.ruleId, period.name) { mutableStateOf(rule?.ringtoneUri) }
+    val context = LocalContext.current
     val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
         ringtoneUri = uri?.toString()
@@ -2091,11 +2092,9 @@ private fun FirstCourseReminderRow(
             ) {
                 Button(
                     onClick = {
-                        ringtoneLauncher.launch(
-                            Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
-                            },
-                        )
+                        launchAlarmRingtonePicker(context) { intent ->
+                            ringtoneLauncher.launch(intent)
+                        }
                     },
                 ) {
                     Text("选择铃声")
