@@ -61,7 +61,7 @@ data class ReminderPlan(
 
 enum class AlarmDispatchChannel {
     SystemClock,
-    AppFallback,
+    AppAlarm,
 }
 
 data class AlarmDispatchResult(

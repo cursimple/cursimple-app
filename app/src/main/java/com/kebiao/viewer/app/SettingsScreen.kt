@@ -520,7 +520,7 @@ private fun DeveloperDebugSection(
         DeveloperActionRow(
             icon = Icons.Rounded.Download,
             title = "导出日志",
-            subtitle = "导出最近 logcat 与插件诊断日志",
+            subtitle = "导出完整 logcat、App 与插件诊断日志",
             onClick = {
                 scope.launch {
                     val intent = LogExporter.exportRecentLogs(context)
@@ -544,7 +544,7 @@ private fun DeveloperDebugSection(
         DeveloperActionRow(
             icon = Icons.Rounded.Delete,
             title = "清空日志",
-            subtitle = "只清理 App 自己维护的日志缓存",
+            subtitle = "清理 App 自有诊断与已导出日志",
             onClick = {
                 scope.launch {
                     if (LogExporter.clearLogs(context)) {

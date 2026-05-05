@@ -18,6 +18,7 @@ import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
 import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
+import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
@@ -304,7 +305,7 @@ class ScheduleViewModel(
                     ringtoneUri = ringtoneUri,
                 )
             }
-            reminderCoordinator.syncRulesForSchedule(
+            val dispatchResults = reminderCoordinator.syncRulesForSchedule(
                 pluginId = state.pluginId,
                 schedule = schedule,
                 timingProfile = state.timingProfile,
@@ -313,7 +314,10 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     selectionState = null,
-                    statusMessage = "已创建提醒规则：${rule.ruleId.take(8)}",
+                    statusMessage = reminderDispatchMessage(
+                        successMessage = "已创建提醒规则：${rule.ruleId.take(8)}",
+                        results = dispatchResults,
+                    ),
                 )
             }
         }
@@ -354,14 +358,23 @@ class ScheduleViewModel(
             }
             val schedule = state.schedule
             if (schedule != null) {
-                reminderCoordinator.syncRulesForSchedule(
+                val dispatchResults = reminderCoordinator.syncRulesForSchedule(
                     pluginId = state.pluginId,
                     schedule = schedule,
                     timingProfile = state.timingProfile,
                     preferSystemClock = true,
                 )
+                _uiState.update {
+                    it.copy(
+                        statusMessage = reminderDispatchMessage(
+                            successMessage = "已为 ${courseIds.size} 门课程创建提醒",
+                            results = dispatchResults,
+                        ),
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(statusMessage = "已为 ${courseIds.size} 门课程创建提醒；暂无课表可设置提醒") }
             }
-            _uiState.update { it.copy(statusMessage = "已为 ${courseIds.size} 门课程创建提醒") }
         }
     }
 
@@ -433,12 +446,29 @@ class ScheduleViewModel(
             )
             val schedule = _uiState.value.schedule
             if (schedule != null) {
-                reminderCoordinator.syncRulesForSchedule(
+                val dispatchResults = reminderCoordinator.syncRulesForSchedule(
                     pluginId = pluginId,
                     schedule = schedule,
                     timingProfile = _uiState.value.timingProfile,
                     preferSystemClock = true,
                 )
+                val label = when (period) {
+                    ReminderDayPeriod.Morning -> "上午首次课提醒"
+                    ReminderDayPeriod.Afternoon -> "下午首次课提醒"
+                }
+                _uiState.update {
+                    it.copy(
+                        statusMessage = if (enabled) {
+                            reminderDispatchMessage(
+                                successMessage = "已开启$label",
+                                results = dispatchResults,
+                            )
+                        } else {
+                            "已关闭$label"
+                        },
+                    )
+                }
+                return@launch
             }
             val label = when (period) {
                 ReminderDayPeriod.Morning -> "上午首次课提醒"
@@ -447,6 +477,18 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(statusMessage = if (enabled) "已开启$label" else "已关闭$label")
             }
+        }
+    }
+
+    private fun reminderDispatchMessage(
+        successMessage: String,
+        results: List<AlarmDispatchResult>,
+    ): String {
+        val failures = results.filterNot { it.succeeded }
+        return when {
+            results.isEmpty() -> "$successMessage；暂无未来触发时间"
+            failures.isEmpty() -> successMessage
+            else -> "$successMessage；${failures.size}/${results.size} 个提醒未完成设置：${failures.first().message}"
         }
     }
 
