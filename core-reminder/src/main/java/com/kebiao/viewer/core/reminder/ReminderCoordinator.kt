@@ -4,9 +4,10 @@ import android.content.Context
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
-import com.kebiao.viewer.core.reminder.dispatch.FallbackAlarmDispatcher
+import com.kebiao.viewer.core.reminder.dispatch.AppAlarmDispatcher
 import com.kebiao.viewer.core.reminder.dispatch.HybridAlarmDispatcher
 import com.kebiao.viewer.core.reminder.dispatch.SystemAlarmClockDispatcher
+import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderRule
@@ -22,10 +23,10 @@ class ReminderCoordinator(
     private val temporaryScheduleOverridesProvider: suspend () -> List<TemporaryScheduleOverride> = { emptyList() },
 ) {
     private val systemDispatcher = SystemAlarmClockDispatcher(context)
-    private val fallbackDispatcher = FallbackAlarmDispatcher(context)
+    private val appDispatcher = AppAlarmDispatcher(context)
     private val dispatcher = HybridAlarmDispatcher(
         systemDispatcher = systemDispatcher,
-        fallbackDispatcher = fallbackDispatcher,
+        appDispatcher = appDispatcher,
     )
 
     val reminderRulesFlow: Flow<List<ReminderRule>> = repository.reminderRulesFlow
@@ -111,25 +112,45 @@ class ReminderCoordinator(
     ): List<AlarmDispatchResult> {
         val profile = timingProfile ?: return emptyList()
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
-        return repository.getReminderRules()
+        val rules = repository.getReminderRules()
             .filter { it.enabled && it.pluginId == pluginId }
-            .flatMap { rule ->
-                planner.expandRule(
-                    rule = rule,
-                    schedule = schedule,
-                    timingProfile = profile,
-                    temporaryScheduleOverrides = temporaryScheduleOverrides,
-                ).map { plan ->
-                    if (preferSystemClock) {
-                        dispatcher.dispatch(plan)
-                    } else {
-                        fallbackDispatch(plan)
-                    }
-                }
+        val plans = rules.flatMap { rule ->
+            planner.expandRule(
+                rule = rule,
+                schedule = schedule,
+                timingProfile = profile,
+                temporaryScheduleOverrides = temporaryScheduleOverrides,
+            )
+        }
+        ReminderLogger.info(
+            "reminder.sync.start",
+            mapOf(
+                "pluginId" to pluginId,
+                "ruleCount" to rules.size,
+                "planCount" to plans.size,
+                "preferSystemClock" to preferSystemClock,
+            ),
+        )
+        val results = plans.map { plan ->
+            if (preferSystemClock) {
+                dispatcher.dispatch(plan)
+            } else {
+                appDispatch(plan)
             }
+        }
+        ReminderLogger.info(
+            "reminder.sync.finish",
+            mapOf(
+                "pluginId" to pluginId,
+                "planCount" to plans.size,
+                "successCount" to results.count { it.succeeded },
+                "failureCount" to results.count { !it.succeeded },
+            ),
+        )
+        return results
     }
 
-    private suspend fun fallbackDispatch(plan: com.kebiao.viewer.core.reminder.model.ReminderPlan): AlarmDispatchResult {
-        return fallbackDispatcher.dispatch(plan)
+    private suspend fun appDispatch(plan: com.kebiao.viewer.core.reminder.model.ReminderPlan): AlarmDispatchResult {
+        return appDispatcher.dispatch(plan)
     }
 }
