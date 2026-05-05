@@ -94,8 +94,8 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 R.id.widget_title,
                 "${dateFormatter.format(dayData.targetDate)} · ${WidgetDayLabels.tag(dayData.offset)}",
             )
-            val subtitle = if (dayData.sourceDayOfWeek != dayData.targetDate.dayOfWeek.value) {
-                "${dayData.weekdayLabel} · 按${weekdayLabel(dayData.sourceDayOfWeek)}课"
+            val subtitle = if (dayData.sourceDate != dayData.targetDate) {
+                "${dayData.weekdayLabel} · 按${sourceDateLabel(dayData.sourceDate)}课"
             } else {
                 dayData.weekdayLabel
             }
@@ -106,18 +106,33 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             )
             views.setOnClickPendingIntent(
                 R.id.widget_prev,
-                actionPendingIntent(context, appWidgetId, ScheduleWidgetActionReceiver.ACTION_PREV),
+                actionPendingIntent(
+                    context,
+                    appWidgetId,
+                    ScheduleWidgetActionReceiver.ACTION_PREV,
+                    dayData.offset,
+                ),
             )
             views.setOnClickPendingIntent(
                 R.id.widget_next,
-                actionPendingIntent(context, appWidgetId, ScheduleWidgetActionReceiver.ACTION_NEXT),
+                actionPendingIntent(
+                    context,
+                    appWidgetId,
+                    ScheduleWidgetActionReceiver.ACTION_NEXT,
+                    dayData.offset,
+                ),
             )
             views.setViewVisibility(R.id.widget_prev, View.VISIBLE)
             views.setViewVisibility(R.id.widget_next, View.VISIBLE)
-            views.setViewVisibility(R.id.widget_reset, if (dayData.offset == 0) View.GONE else View.VISIBLE)
+            views.setViewVisibility(R.id.widget_reset, if (dayData.manualOffset == 0) View.GONE else View.VISIBLE)
             views.setOnClickPendingIntent(
                 R.id.widget_reset,
-                actionPendingIntent(context, appWidgetId, ScheduleWidgetActionReceiver.ACTION_RESET),
+                actionPendingIntent(
+                    context,
+                    appWidgetId,
+                    ScheduleWidgetActionReceiver.ACTION_RESET,
+                    dayData.offset,
+                ),
             )
 
             views.setRemoteAdapter(R.id.widget_course_list, courseListIntent(context, appWidgetId))
@@ -127,11 +142,17 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             return views
         }
 
-        private fun actionPendingIntent(context: Context, appWidgetId: Int, action: String): PendingIntent {
+        private fun actionPendingIntent(
+            context: Context,
+            appWidgetId: Int,
+            action: String,
+            currentOffset: Int,
+        ): PendingIntent {
             val intent = Intent(context, ScheduleWidgetActionReceiver::class.java).apply {
                 setPackage(context.packageName)
                 putExtra(ScheduleWidgetActionReceiver.EXTRA_ACTION, action)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(ScheduleWidgetActionReceiver.EXTRA_CURRENT_OFFSET, currentOffset)
             }
             return PendingIntent.getBroadcast(
                 context,
@@ -148,6 +169,9 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             }
 
         private val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
+        private fun sourceDateLabel(date: java.time.LocalDate): String =
+            "${dateFormatter.format(date)}${weekdayLabel(date.dayOfWeek.value)}"
+
         private const val DEFAULT_MIN_WIDTH_DP = 220
         private const val DEFAULT_MIN_HEIGHT_DP = 180
     }

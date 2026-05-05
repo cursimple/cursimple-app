@@ -4,22 +4,51 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 
 @Serializable
 data class TemporaryScheduleOverride(
     @SerialName("id") val id: String,
-    @SerialName("startDate") val startDate: String,
-    @SerialName("endDate") val endDate: String,
-    @SerialName("sourceDayOfWeek") val sourceDayOfWeek: Int,
+    @SerialName("targetDate") val targetDate: String = "",
+    @SerialName("sourceDate") val sourceDate: String = "",
+    @SerialName("startDate") val startDate: String = "",
+    @SerialName("endDate") val endDate: String = "",
+    @SerialName("sourceDayOfWeek") val sourceDayOfWeek: Int? = null,
 )
 
 fun TemporaryScheduleOverride.containsDate(date: LocalDate): Boolean {
-    if (sourceDayOfWeek !in 1..7) return false
-    val start = parseOverrideDate(startDate) ?: return false
-    val end = parseOverrideDate(endDate) ?: return false
+    return sourceDateFor(date) != null
+}
+
+fun TemporaryScheduleOverride.sourceDateFor(date: LocalDate): LocalDate? {
+    val explicitTarget = parseOverrideDate(targetDate)
+    val explicitSource = parseOverrideDate(sourceDate)
+    if (explicitTarget != null || explicitSource != null) {
+        return if (explicitTarget == date) explicitSource else null
+    }
+
+    val legacySourceDayOfWeek = sourceDayOfWeek?.takeIf { it in 1..7 } ?: return null
+    val start = parseOverrideDate(startDate) ?: return null
+    val end = parseOverrideDate(endDate) ?: return null
     val normalizedStart = minOf(start, end)
     val normalizedEnd = maxOf(start, end)
-    return !date.isBefore(normalizedStart) && !date.isAfter(normalizedEnd)
+    if (date.isBefore(normalizedStart) || date.isAfter(normalizedEnd)) return null
+    return date
+        .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        .plusDays((legacySourceDayOfWeek - 1).toLong())
+}
+
+fun TemporaryScheduleOverride.targetDates(): List<LocalDate> {
+    val explicitTarget = parseOverrideDate(targetDate)
+    if (explicitTarget != null) return listOf(explicitTarget)
+
+    val start = parseOverrideDate(startDate) ?: return emptyList()
+    val end = parseOverrideDate(endDate) ?: return emptyList()
+    val normalizedStart = minOf(start, end)
+    val normalizedEnd = maxOf(start, end)
+    val days = ChronoUnit.DAYS.between(normalizedStart, normalizedEnd).toInt()
+    return (0..days).map { offset -> normalizedStart.plusDays(offset.toLong()) }
 }
 
 fun matchingTemporaryScheduleOverride(
@@ -33,15 +62,21 @@ fun resolveTemporaryScheduleDayOfWeek(
     date: LocalDate,
     overrides: List<TemporaryScheduleOverride>,
 ): Int {
-    return matchingTemporaryScheduleOverride(date, overrides)?.sourceDayOfWeek
-        ?: date.dayOfWeek.value
+    return resolveTemporaryScheduleSourceDate(date, overrides).dayOfWeek.value
+}
+
+fun resolveTemporaryScheduleSourceDate(
+    date: LocalDate,
+    overrides: List<TemporaryScheduleOverride>,
+): LocalDate {
+    return matchingTemporaryScheduleOverride(date, overrides)?.sourceDateFor(date) ?: date
 }
 
 fun isTemporaryScheduleOverridden(
     date: LocalDate,
     overrides: List<TemporaryScheduleOverride>,
 ): Boolean {
-    return resolveTemporaryScheduleDayOfWeek(date, overrides) != date.dayOfWeek.value
+    return resolveTemporaryScheduleSourceDate(date, overrides) != date
 }
 
 fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {

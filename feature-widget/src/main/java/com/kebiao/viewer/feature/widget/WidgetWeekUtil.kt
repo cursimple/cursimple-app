@@ -51,3 +51,16 @@ internal fun TermTimingProfile.courseClockRange(course: CourseItem, separator: S
     val end = endSlotFor(course.time.endNode)?.endTime ?: return null
     return "$start$separator$end"
 }
+
+internal fun shouldShowNextDayAtNight(
+    now: LocalTime,
+    courses: List<CourseItem>,
+    timingProfile: TermTimingProfile?,
+): Boolean {
+    if (now.isBefore(NIGHT_ADVANCE_TIME)) return false
+    if (courses.isEmpty()) return true
+    val endTimes = courses.map { course -> timingProfile?.courseEndTime(course) }
+    return endTimes.all { endTime -> endTime != null && !now.isBefore(endTime) }
+}
+
+private val NIGHT_ADVANCE_TIME: LocalTime = LocalTime.of(22, 0)

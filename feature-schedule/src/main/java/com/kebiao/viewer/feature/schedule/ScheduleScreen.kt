@@ -51,6 +51,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -85,14 +86,16 @@ import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.model.findSlot
 import com.kebiao.viewer.core.kernel.model.isTemporaryScheduleOverridden
-import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleDayOfWeek
-import com.kebiao.viewer.core.kernel.model.shortWeekdayLabel
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.plugin.ui.BannerContribution
 import com.kebiao.viewer.core.plugin.ui.CourseBadgeRule
 import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
+import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
+import com.kebiao.viewer.core.reminder.model.ReminderRule
+import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.feature.schedule.time.LocalAppZone
 import com.kebiao.viewer.feature.schedule.time.today
 import java.time.DayOfWeek
@@ -281,6 +284,7 @@ fun ScheduleScreen(
                     reminderRules = state.reminderRules,
                     targetDate = zone.today().plusDays(dayOffset.toLong()),
                     targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
+                    termStartDate = overrideTermStart,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
                     selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                     multiSelectMode = multiSelectMode,
@@ -842,6 +846,7 @@ private fun WeeklyScheduleSection(
                         pageWeek.weekStart,
                         totalScheduleDisplayEnabled,
                         temporaryScheduleOverrides,
+                        overrideTermStart,
                     ) {
                         buildWeekRenderEntries(
                             allCourses = allCourses,
@@ -849,6 +854,7 @@ private fun WeeklyScheduleSection(
                             weekIndex = pageWeek.weekIndex,
                             totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
                             weekStart = pageWeek.weekStart,
+                            termStart = overrideTermStart,
                             temporaryScheduleOverrides = temporaryScheduleOverrides,
                         )
                     }
@@ -887,6 +893,7 @@ private fun DailyScheduleSection(
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     targetDate: LocalDate,
     targetWeekNumber: Int,
+    termStartDate: LocalDate?,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
@@ -905,8 +912,12 @@ private fun DailyScheduleSection(
         schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
     }
     val today = LocalAppZone.current.today()
-    val targetDayOfWeek = resolveTemporaryScheduleDayOfWeek(targetDate, temporaryScheduleOverrides)
-    val overrideDayOfWeek = targetDayOfWeek.takeIf { it != targetDate.dayOfWeek.value }
+    val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, temporaryScheduleOverrides)
+    val targetDayOfWeek = sourceDate.dayOfWeek.value
+    val sourceWeekNumber = computeWeekNumberForDate(termStartDate, sourceDate).takeIf {
+        sourceDate != targetDate
+    } ?: targetWeekNumber
+    val overrideLabel = sourceDate.takeIf { it != targetDate }?.let(::formatSourceDateLabel)
 
     Card(
         modifier = modifier,
@@ -922,7 +933,7 @@ private fun DailyScheduleSection(
             DailyHeaderRow(
                 date = targetDate,
                 isToday = targetDate == today,
-                overrideDayOfWeek = overrideDayOfWeek,
+                overrideLabel = overrideLabel,
             )
 
             if (slots.isEmpty() || allCourses.isEmpty()) {
@@ -946,7 +957,7 @@ private fun DailyScheduleSection(
             ) { _ ->
                 val active = allCourses
                     .filter { it.time.dayOfWeek == targetDayOfWeek }
-                    .filter { it.isActiveInWeek(targetWeekNumber) }
+                    .filter { it.isActiveInWeek(sourceWeekNumber) }
                     .sortedBy { it.time.startNode }
                 DayList(
                     slots = slots,
@@ -970,7 +981,7 @@ private fun DailyScheduleSection(
 private fun DailyHeaderRow(
     date: LocalDate,
     isToday: Boolean,
-    overrideDayOfWeek: Int?,
+    overrideLabel: String?,
 ) {
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
     Row(
@@ -1007,13 +1018,13 @@ private fun DailyHeaderRow(
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (overrideDayOfWeek != null) {
+        if (overrideLabel != null) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    text = "按${weekdayLabel(overrideDayOfWeek)}课",
+                    text = "按${overrideLabel}课",
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -1336,6 +1347,13 @@ private fun computeWeekNumber(
     zone: ZoneId,
 ): Int {
     val target = BeijingTime.todayIn(zone).plusDays(dayOffset.toLong())
+    return computeWeekNumberForDate(termStart, target)
+}
+
+private fun computeWeekNumberForDate(
+    termStart: LocalDate?,
+    target: LocalDate,
+): Int {
     val termStartMonday = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     val targetMonday = target.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     return if (termStartMonday != null) {
@@ -1344,6 +1362,9 @@ private fun computeWeekNumber(
         1
     }
 }
+
+private fun formatSourceDateLabel(date: LocalDate): String =
+    "${date.monthValue}/${date.dayOfMonth}${weekdayLabel(date.dayOfWeek.value)}"
 
 @Composable
 private fun EmptyWeekState(schedule: TermSchedule?) {
@@ -1959,6 +1980,144 @@ internal fun ReminderComposerCard(
 }
 
 @Composable
+internal fun FirstCourseReminderSettingsCard(
+    reminderRules: List<ReminderRule>,
+    pluginId: String,
+    onSave: (ReminderDayPeriod, Boolean, Int, String?) -> Unit,
+) {
+    val automaticRules = reminderRules.filter {
+        it.pluginId == pluginId && it.scopeType == ReminderScopeType.FirstCourseOfPeriod
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text("首次课提醒", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "分别控制上午第一节课和下午第一节课的自动提醒。",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FirstCourseReminderRow(
+                title = "上午首次课提醒",
+                rule = automaticRules.firstOrNull { it.period == ReminderDayPeriod.Morning },
+                period = ReminderDayPeriod.Morning,
+                onSave = onSave,
+            )
+            FirstCourseReminderRow(
+                title = "下午首次课提醒",
+                rule = automaticRules.firstOrNull { it.period == ReminderDayPeriod.Afternoon },
+                period = ReminderDayPeriod.Afternoon,
+                onSave = onSave,
+            )
+        }
+    }
+}
+
+@Composable
+private fun FirstCourseReminderRow(
+    title: String,
+    rule: ReminderRule?,
+    period: ReminderDayPeriod,
+    onSave: (ReminderDayPeriod, Boolean, Int, String?) -> Unit,
+) {
+    var enabled by rememberSaveable(rule?.ruleId, period.name) { mutableStateOf(rule?.enabled == true) }
+    var advanceMinutesText by rememberSaveable(rule?.ruleId, period.name) {
+        mutableStateOf((rule?.advanceMinutes ?: 20).toString())
+    }
+    var ringtoneUri by rememberSaveable(rule?.ruleId, period.name) { mutableStateOf(rule?.ringtoneUri) }
+    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        ringtoneUri = uri?.toString()
+    }
+    val advance = advanceMinutesText.toIntOrNull()
+    val canSave = advance != null && advance in 0..720
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = if (enabled) "已开启" else "默认关闭",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { checked ->
+                        enabled = checked
+                        if (canSave) {
+                            onSave(period, checked, advance ?: 20, ringtoneUri)
+                        }
+                    },
+                )
+            }
+            OutlinedTextField(
+                value = advanceMinutesText,
+                onValueChange = { advanceMinutesText = it.filter(Char::isDigit).take(4) },
+                label = { Text("提前分钟数") },
+                singleLine = true,
+                isError = advanceMinutesText.isNotBlank() && !canSave,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                supportingText = {
+                    if (advanceMinutesText.isNotBlank() && !canSave) {
+                        Text("请输入 0 到 720 分钟")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = {
+                        ringtoneLauncher.launch(
+                            Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            },
+                        )
+                    },
+                ) {
+                    Text("选择铃声")
+                }
+                Text(
+                    text = if (ringtoneUri.isNullOrBlank()) "系统默认铃声" else "已选择铃声",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(
+                    onClick = { onSave(period, enabled, advance ?: 20, ringtoneUri) },
+                    enabled = canSave,
+                ) {
+                    Text("保存")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 internal fun ReminderRulesSection(
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     schedule: TermSchedule?,
@@ -1966,6 +2125,8 @@ internal fun ReminderRulesSection(
     manualCourses: List<CourseItem>,
     onRemoveReminderRule: (String) -> Unit,
 ) {
+    val visibleRules = reminderRules.filter { it.scopeType != ReminderScopeType.FirstCourseOfPeriod }
+    if (visibleRules.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -1976,7 +2137,7 @@ internal fun ReminderRulesSection(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text("提醒规则", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            reminderRules.forEach { rule ->
+            visibleRules.forEach { rule ->
                 val display = remember(rule, schedule, timingProfile, manualCourses) {
                     describeReminderRule(rule, schedule, timingProfile, manualCourses)
                 }
@@ -2044,7 +2205,7 @@ private fun describeReminderRule(
     val title: String
     val timing: String
     when (scope) {
-        com.kebiao.viewer.core.reminder.model.ReminderScopeType.SingleCourse -> {
+        ReminderScopeType.SingleCourse -> {
             title = course?.title ?: "（已删除的课程）"
             val day = course?.time?.dayOfWeek?.let(::weekdayLabel)
             val nodeRange = course?.time?.let { "第${it.startNode}-${it.endNode}节" }
@@ -2054,7 +2215,7 @@ private fun describeReminderRule(
             timing = listOfNotNull(day, timeRange, nodeRange, location).joinToString(" · ")
                 .ifBlank { "时间未知" }
         }
-        com.kebiao.viewer.core.reminder.model.ReminderScopeType.TimeSlot -> {
+        ReminderScopeType.TimeSlot -> {
             val day = rule.dayOfWeek?.let(::weekdayLabel)
             val startNode = rule.startNode
             val endNode = rule.endNode
@@ -2067,6 +2228,14 @@ private fun describeReminderRule(
             val timeRange = slot?.let { "${it.startTime}-${it.endTime}" }
             title = listOfNotNull(day, nodeRange).joinToString(" ").ifBlank { "时间段提醒" }
             timing = listOfNotNull(timeRange, "每周重复").joinToString(" · ")
+        }
+        ReminderScopeType.FirstCourseOfPeriod -> {
+            title = when (rule.period) {
+                ReminderDayPeriod.Morning -> "上午首次课提醒"
+                ReminderDayPeriod.Afternoon -> "下午首次课提醒"
+                null -> "首次课提醒"
+            }
+            timing = "按每天对应时段的第一节课自动提醒"
         }
     }
     val ringtone = if (rule.ringtoneUri.isNullOrBlank()) "系统默认铃声" else "自定义铃声"
@@ -2229,7 +2398,7 @@ private fun buildWeekModel(
             dateLabel = if (date.dayOfMonth == 1) "${date.monthValue}月" else date.dayOfMonth.toString(),
             isToday = date == today,
             overrideLabel = if (isTemporaryScheduleOverridden(date, temporaryScheduleOverrides)) {
-                "按${shortWeekdayLabel(resolveTemporaryScheduleDayOfWeek(date, temporaryScheduleOverrides))}"
+                "按${formatSourceDateLabel(resolveTemporaryScheduleSourceDate(date, temporaryScheduleOverrides))}"
             } else null,
         )
     }
@@ -2364,9 +2533,10 @@ private fun hasReminderForCourse(
 ): Boolean {
     return rules.any { rule ->
         when (rule.scopeType) {
-            com.kebiao.viewer.core.reminder.model.ReminderScopeType.SingleCourse -> rule.courseId == course.id
-            com.kebiao.viewer.core.reminder.model.ReminderScopeType.TimeSlot ->
+            ReminderScopeType.SingleCourse -> rule.courseId == course.id
+            ReminderScopeType.TimeSlot ->
                 rule.startNode == course.time.startNode && rule.endNode == course.time.endNode
+            ReminderScopeType.FirstCourseOfPeriod -> false
         }
     }
 }
@@ -2395,24 +2565,27 @@ internal fun buildWeekRenderEntries(
     weekIndex: Int,
     totalScheduleDisplayEnabled: Boolean = false,
     weekStart: LocalDate? = null,
+    termStart: LocalDate? = null,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
 ): List<CourseRenderEntry> {
-    data class Resolved(val course: CourseItem, val placement: CoursePlacement)
+    data class Resolved(val course: CourseItem, val placement: CoursePlacement, val sourceWeekIndex: Int)
 
     val resolved = if (weekStart != null && temporaryScheduleOverrides.isNotEmpty()) {
         (0..6).flatMap { dayIndex ->
             val actualDate = weekStart.plusDays(dayIndex.toLong())
-            val sourceDayOfWeek = resolveTemporaryScheduleDayOfWeek(actualDate, temporaryScheduleOverrides)
+            val sourceDate = resolveTemporaryScheduleSourceDate(actualDate, temporaryScheduleOverrides)
+            val sourceDayOfWeek = sourceDate.dayOfWeek.value
+            val sourceWeekIndex = termStart?.let { computeWeekNumberForDate(it, sourceDate) } ?: weekIndex
             val source = if (totalScheduleDisplayEnabled) {
                 allCourses
             } else {
-                activeCoursesForWeek(allCourses, weekIndex)
+                activeCoursesForWeek(allCourses, sourceWeekIndex)
             }
             source
                 .filter { it.time.dayOfWeek == sourceDayOfWeek }
                 .mapNotNull { course ->
                     val placement = coursePlacement(course, slots, dayIndex) ?: return@mapNotNull null
-                    Resolved(course, placement)
+                    Resolved(course, placement, sourceWeekIndex)
                 }
         }
     } else {
@@ -2424,7 +2597,7 @@ internal fun buildWeekRenderEntries(
         source
             .mapNotNull { course ->
                 val placement = coursePlacement(course, slots) ?: return@mapNotNull null
-                Resolved(course, placement)
+                Resolved(course, placement, weekIndex)
             }
     }
     val grouped = resolved.groupBy { it.placement.dayIndex to it.placement.rowIndex }
@@ -2433,7 +2606,7 @@ internal fun buildWeekRenderEntries(
         list.distinctBy { it.course.id }
             .sortedWith(
                 compareBy<Resolved>(
-                    { !it.course.isActiveInWeek(weekIndex) },
+                    { !it.course.isActiveInWeek(it.sourceWeekIndex) },
                     { it.course.time.startNode },
                     { it.course.time.endNode },
                     { it.course.title },
@@ -2444,7 +2617,7 @@ internal fun buildWeekRenderEntries(
                 entries += CourseRenderEntry(
                     course = it.course,
                     placement = it.placement,
-                    inactive = !it.course.isActiveInWeek(weekIndex),
+                    inactive = !it.course.isActiveInWeek(it.sourceWeekIndex),
                 )
         }
     }

@@ -8,6 +8,7 @@ data class ReminderRule(
     @SerialName("ruleId") val ruleId: String,
     @SerialName("pluginId") val pluginId: String,
     @SerialName("scopeType") val scopeType: ReminderScopeType,
+    @SerialName("period") val period: ReminderDayPeriod? = null,
     @SerialName("courseId") val courseId: String? = null,
     @SerialName("dayOfWeek") val dayOfWeek: Int? = null,
     @SerialName("startNode") val startNode: Int? = null,
@@ -27,6 +28,18 @@ enum class ReminderScopeType {
 
     @SerialName("time_slot")
     TimeSlot,
+
+    @SerialName("first_course_of_period")
+    FirstCourseOfPeriod,
+}
+
+@Serializable
+enum class ReminderDayPeriod {
+    @SerialName("morning")
+    Morning,
+
+    @SerialName("afternoon")
+    Afternoon,
 }
 
 @Serializable

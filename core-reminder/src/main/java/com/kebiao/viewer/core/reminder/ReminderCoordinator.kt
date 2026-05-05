@@ -8,7 +8,9 @@ import com.kebiao.viewer.core.reminder.dispatch.FallbackAlarmDispatcher
 import com.kebiao.viewer.core.reminder.dispatch.HybridAlarmDispatcher
 import com.kebiao.viewer.core.reminder.dispatch.SystemAlarmClockDispatcher
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
+import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderRule
+import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import kotlinx.coroutines.flow.Flow
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -40,7 +42,7 @@ class ReminderCoordinator(
         dayOfWeek: Int?,
         startNode: Int?,
         endNode: Int?,
-        scopeType: com.kebiao.viewer.core.reminder.model.ReminderScopeType,
+        scopeType: ReminderScopeType,
         advanceMinutes: Int,
         ringtoneUri: String?,
     ): ReminderRule {
@@ -49,6 +51,7 @@ class ReminderCoordinator(
             ruleId = UUID.randomUUID().toString(),
             pluginId = pluginId,
             scopeType = scopeType,
+            period = null,
             courseId = courseId,
             dayOfWeek = dayOfWeek,
             startNode = startNode,
@@ -57,6 +60,40 @@ class ReminderCoordinator(
             ringtoneUri = ringtoneUri,
             createdAt = now,
             updatedAt = now,
+        )
+        repository.saveReminderRule(rule)
+        return rule
+    }
+
+    suspend fun upsertFirstCourseReminder(
+        pluginId: String,
+        period: ReminderDayPeriod,
+        enabled: Boolean,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+    ): ReminderRule {
+        val now = OffsetDateTime.now().toString()
+        val existing = repository.getReminderRules().firstOrNull {
+            it.pluginId == pluginId &&
+                it.scopeType == ReminderScopeType.FirstCourseOfPeriod &&
+                it.period == period
+        }
+        val rule = (existing ?: ReminderRule(
+            ruleId = UUID.randomUUID().toString(),
+            pluginId = pluginId,
+            scopeType = ReminderScopeType.FirstCourseOfPeriod,
+            period = period,
+            advanceMinutes = advanceMinutes,
+            ringtoneUri = ringtoneUri,
+            enabled = enabled,
+            createdAt = now,
+            updatedAt = now,
+        )).copy(
+            advanceMinutes = advanceMinutes,
+            ringtoneUri = ringtoneUri,
+            enabled = enabled,
+            updatedAt = now,
+            period = period,
         )
         repository.saveReminderRule(rule)
         return rule

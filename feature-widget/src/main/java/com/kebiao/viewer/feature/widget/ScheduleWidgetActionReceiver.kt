@@ -24,6 +24,11 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
                         AppWidgetManager.EXTRA_APPWIDGET_ID,
                         AppWidgetManager.INVALID_APPWIDGET_ID,
                     ),
+                    currentOffset = if (intent.hasExtra(EXTRA_CURRENT_OFFSET)) {
+                        intent.getIntExtra(EXTRA_CURRENT_OFFSET, 0)
+                    } else {
+                        null
+                    },
                 )
             } finally {
                 pendingResult.finish()
@@ -31,12 +36,29 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         }
     }
 
-    private suspend fun handleAction(context: Context, action: String?, appWidgetId: Int) {
+    private suspend fun handleAction(
+        context: Context,
+        action: String?,
+        appWidgetId: Int,
+        currentOffset: Int?,
+    ) {
         val repository = DataStoreWidgetPreferencesRepository(context)
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             when (action) {
-                ACTION_PREV -> repository.shiftWidgetDayOffset(-1)
-                ACTION_NEXT -> repository.shiftWidgetDayOffset(1)
+                ACTION_PREV -> {
+                    if (currentOffset != null) {
+                        repository.setWidgetDayOffset(currentOffset - 1)
+                    } else {
+                        repository.shiftWidgetDayOffset(-1)
+                    }
+                }
+                ACTION_NEXT -> {
+                    if (currentOffset != null) {
+                        repository.setWidgetDayOffset(currentOffset + 1)
+                    } else {
+                        repository.shiftWidgetDayOffset(1)
+                    }
+                }
                 ACTION_RESET -> repository.setWidgetDayOffset(0)
                 else -> return
             }
@@ -44,8 +66,20 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
             return
         }
         when (action) {
-            ACTION_PREV -> repository.shiftWidgetDayOffset(appWidgetId, -1)
-            ACTION_NEXT -> repository.shiftWidgetDayOffset(appWidgetId, 1)
+            ACTION_PREV -> {
+                if (currentOffset != null) {
+                    repository.setWidgetDayOffset(appWidgetId, currentOffset - 1)
+                } else {
+                    repository.shiftWidgetDayOffset(appWidgetId, -1)
+                }
+            }
+            ACTION_NEXT -> {
+                if (currentOffset != null) {
+                    repository.setWidgetDayOffset(appWidgetId, currentOffset + 1)
+                } else {
+                    repository.shiftWidgetDayOffset(appWidgetId, 1)
+                }
+            }
             ACTION_RESET -> repository.setWidgetDayOffset(appWidgetId, 0)
             else -> return
         }
@@ -58,6 +92,7 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         const val ACTION_RESET = "reset"
 
         const val EXTRA_ACTION = "schedule_widget_action"
+        const val EXTRA_CURRENT_OFFSET = "schedule_widget_current_offset"
 
         fun action(context: Context, action: String): Action {
             val intent = Intent(context, ScheduleWidgetActionReceiver::class.java).apply {

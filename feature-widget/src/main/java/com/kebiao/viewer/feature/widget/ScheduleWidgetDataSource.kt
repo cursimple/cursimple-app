@@ -11,7 +11,7 @@ import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
-import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleDayOfWeek
+import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
@@ -31,9 +31,10 @@ internal data class ScheduleWidgetCourseRow(
 
 internal data class ScheduleWidgetDayData(
     val offset: Int,
+    val manualOffset: Int,
     val targetDate: LocalDate,
     val weekdayLabel: String,
-    val sourceDayOfWeek: Int,
+    val sourceDate: LocalDate,
     val rows: List<ScheduleWidgetCourseRow>,
 )
 
@@ -52,19 +53,70 @@ internal object ScheduleWidgetDataSource {
         val zone = BeijingTime.resolveZone(userPrefs.timeZoneId)
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
-        val offset = if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
+        val manualOffset = if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             widgetPreferencesRepository.widgetDayOffsetFlow.first()
         } else {
             widgetPreferencesRepository.widgetDayOffset(appWidgetId)
         }
-        val targetDate = today.plusDays(offset.toLong())
         val termStart = activeTermStartDate(termProfileRepository, timingProfile)
             ?: userPrefs.termStartDate
-        val weekIndex = resolveWeekIndex(targetDate, termStart)
-        val dayOfWeek = resolveTemporaryScheduleDayOfWeek(
-            date = targetDate,
-            overrides = userPrefs.temporaryScheduleOverrides,
+
+        val currentDay = loadDate(
+            targetDate = today,
+            offset = 0,
+            manualOffset = manualOffset,
+            termStart = termStart,
+            timingProfile = timingProfile,
+            scheduleRepository = scheduleRepository,
+            manualCourseRepository = manualCourseRepository,
+            reminderRepository = reminderRepository,
+            temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
         )
+        if (manualOffset == 0 && shouldShowNextDayAtNight(BeijingTime.nowTimeIn(zone), currentDay.courses, timingProfile)) {
+            return loadDate(
+                targetDate = today.plusDays(1),
+                offset = 1,
+                manualOffset = manualOffset,
+                termStart = termStart,
+                timingProfile = timingProfile,
+                scheduleRepository = scheduleRepository,
+                manualCourseRepository = manualCourseRepository,
+                reminderRepository = reminderRepository,
+                temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            ).data
+        }
+        if (manualOffset == 0) return currentDay.data
+
+        return loadDate(
+            targetDate = today.plusDays(manualOffset.toLong()),
+            offset = manualOffset,
+            manualOffset = manualOffset,
+            termStart = termStart,
+            timingProfile = timingProfile,
+            scheduleRepository = scheduleRepository,
+            manualCourseRepository = manualCourseRepository,
+            reminderRepository = reminderRepository,
+            temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+        ).data
+    }
+
+    private suspend fun loadDate(
+        targetDate: LocalDate,
+        offset: Int,
+        manualOffset: Int,
+        termStart: LocalDate?,
+        timingProfile: TermTimingProfile?,
+        scheduleRepository: DataStoreScheduleRepository,
+        manualCourseRepository: DataStoreManualCourseRepository,
+        reminderRepository: DataStoreReminderRepository,
+        temporaryScheduleOverrides: List<com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride>,
+    ): LoadedDay {
+        val sourceDate = resolveTemporaryScheduleSourceDate(
+            date = targetDate,
+            overrides = temporaryScheduleOverrides,
+        )
+        val weekIndex = resolveWeekIndex(sourceDate, termStart)
+        val dayOfWeek = sourceDate.dayOfWeek.value
 
         val importedCourses = scheduleRepository.scheduleFlow.first()
             ?.coursesOfDay(dayOfWeek)
@@ -72,19 +124,28 @@ internal object ScheduleWidgetDataSource {
         val manualCourses = manualCourseRepository.manualCoursesFlow.first()
             .filter { it.time.dayOfWeek == dayOfWeek }
         val reminderRules = reminderRepository.reminderRulesFlow.first()
-        val rows = (importedCourses + manualCourses)
+        val courses = (importedCourses + manualCourses)
             .filter { it.activeOnWeek(weekIndex) }
             .sortedBy { it.time.startNode }
-            .map { it.toRow(timingProfile, reminderRules) }
+        val rows = courses.map { it.toRow(timingProfile, reminderRules) }
 
-        return ScheduleWidgetDayData(
-            offset = offset,
-            targetDate = targetDate,
-            weekdayLabel = weekdayLabel(targetDate),
-            sourceDayOfWeek = dayOfWeek,
-            rows = rows,
+        return LoadedDay(
+            data = ScheduleWidgetDayData(
+                offset = offset,
+                manualOffset = manualOffset,
+                targetDate = targetDate,
+                weekdayLabel = weekdayLabel(targetDate),
+                sourceDate = sourceDate,
+                rows = rows,
+            ),
+            courses = courses,
         )
     }
+
+    private data class LoadedDay(
+        val data: ScheduleWidgetDayData,
+        val courses: List<CourseItem>,
+    )
 
     private suspend fun activeTermStartDate(
         termProfileRepository: DataStoreTermProfileRepository,
@@ -122,6 +183,7 @@ internal object ScheduleWidgetDataSource {
         ReminderScopeType.SingleCourse -> courseId == course.id
         ReminderScopeType.TimeSlot ->
             startNode == course.time.startNode && endNode == course.time.endNode
+        ReminderScopeType.FirstCourseOfPeriod -> false
     }
 
     private fun parseIsoDate(value: String): LocalDate? =

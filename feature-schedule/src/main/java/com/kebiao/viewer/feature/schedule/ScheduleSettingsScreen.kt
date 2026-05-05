@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 
 @Composable
 fun ScheduleSettingsRoute(
@@ -34,6 +35,7 @@ fun ScheduleSettingsRoute(
         onSelectTimeSlot = viewModel::selectTimeSlot,
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
+        onSaveFirstCourseReminder = viewModel::saveFirstCourseReminder,
         onRemoveReminderRule = viewModel::removeReminderRule,
         modifier = modifier,
     )
@@ -45,6 +47,7 @@ fun ScheduleSettingsScreen(
     onSelectTimeSlot: (Int, Int) -> Unit,
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
+    onSaveFirstCourseReminder: (ReminderDayPeriod, Boolean, Int, String?) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -89,6 +92,12 @@ fun ScheduleSettingsScreen(
                     lines = state.alarmRecommendations.map { "建议提前 ${it.advanceMinutes} 分钟：${it.note}" },
                 )
             }
+
+            FirstCourseReminderSettingsCard(
+                reminderRules = state.reminderRules,
+                pluginId = state.pluginId,
+                onSave = onSaveFirstCourseReminder,
+            )
 
             if (state.selectionState != null) {
                 ReminderComposerCard(
