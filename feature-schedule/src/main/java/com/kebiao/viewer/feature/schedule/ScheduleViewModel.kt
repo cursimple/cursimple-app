@@ -603,8 +603,9 @@ class ScheduleViewModel(
         summary: SystemAlarmSyncSummary,
     ): String {
         val details = buildList {
-            if (summary.dismissedCount > 0) add("已删除 ${summary.dismissedCount} 个过期系统闹钟")
-            if (summary.dismissFailedCount > 0) add("${summary.dismissFailedCount} 个过期系统闹钟删除失败")
+            if (summary.expiredRecordClearedCount > 0) add("已清理 ${summary.expiredRecordClearedCount} 个过期闹钟登记")
+            if (summary.dismissedCount > 0) add("已删除 ${summary.dismissedCount} 个失效系统闹钟")
+            if (summary.dismissFailedCount > 0) add("${summary.dismissFailedCount} 个失效系统闹钟删除失败")
             if (summary.createdCount > 0) add("成功添加 ${summary.createdCount} 个系统闹钟")
             if (summary.skippedExistingCount > 0) add("跳过 ${summary.skippedExistingCount} 个已添加闹钟")
             if (summary.skippedUnrepresentableCount > 0) add("跳过 ${summary.skippedUnrepresentableCount} 个无法安全表达日期的闹钟")

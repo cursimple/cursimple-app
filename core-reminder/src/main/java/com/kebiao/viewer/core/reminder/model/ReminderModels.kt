@@ -93,6 +93,7 @@ data class SystemAlarmSyncSummary(
     val skippedExistingCount: Int,
     val skippedUnrepresentableCount: Int,
     val results: List<AlarmDispatchResult>,
+    val expiredRecordClearedCount: Int = 0,
     val dismissedCount: Int = 0,
     val dismissFailedCount: Int = 0,
 ) {

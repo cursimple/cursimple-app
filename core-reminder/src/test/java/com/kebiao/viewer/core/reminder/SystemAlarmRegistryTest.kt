@@ -125,7 +125,7 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
-    fun `expired records are dismissed before the next sync`() = runBlocking {
+    fun `expired records are cleared locally before the next sync`() = runBlocking {
         val profile = sampleProfile()
         val expiredRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
         val repository = FakeReminderRepository(rules = emptyList()).apply {
@@ -149,9 +149,10 @@ class SystemAlarmRegistryTest {
             nowMillis = nowMillis,
         )
 
-        assertEquals(1, summary.dismissedCount)
+        assertEquals(1, summary.expiredRecordClearedCount)
+        assertEquals(0, summary.dismissedCount)
         assertEquals(0, summary.dismissFailedCount)
-        assertEquals(1, dismisser.dismissCount)
+        assertEquals(0, dismisser.dismissCount)
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
     }
 
@@ -217,8 +218,8 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
-    fun `deleting a reminder rule dismisses its registered system alarm`() = runBlocking {
-        val record = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+    fun `deleting a reminder rule dismisses its registered future system alarm`() = runBlocking {
+        val record = sampleRecord(triggerAtMillis = futureMillis())
         val repository = FakeReminderRepository(rules = listOf(sampleRule())).apply {
             records.value = listOf(record)
         }
@@ -233,6 +234,27 @@ class SystemAlarmRegistryTest {
         coordinator.deleteRule("rule")
 
         assertEquals(1, dismisser.dismissCount)
+        assertEquals(emptyList<ReminderRule>(), repository.getReminderRules())
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+    }
+
+    @Test
+    fun `deleting a reminder rule clears expired records without dismissing system alarm`() = runBlocking {
+        val record = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+        val repository = FakeReminderRepository(rules = listOf(sampleRule())).apply {
+            records.value = listOf(record)
+        }
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            systemDispatcher = FakeAlarmDispatcher(succeeded = true),
+            systemDismisser = dismisser,
+        )
+
+        coordinator.deleteRule("rule")
+
+        assertEquals(0, dismisser.dismissCount)
         assertEquals(emptyList<ReminderRule>(), repository.getReminderRules())
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
     }
@@ -278,6 +300,8 @@ class SystemAlarmRegistryTest {
             .atZone(ZoneId.systemDefault())
             .toInstant()
             .toEpochMilli()
+
+    private fun futureMillis(): Long = System.currentTimeMillis() + 60 * 60 * 1000
 
     private fun sampleRecord(triggerAtMillis: Long): SystemAlarmRecord = SystemAlarmRecord(
         alarmKey = "alarm-$triggerAtMillis",
