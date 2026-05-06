@@ -41,7 +41,7 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:showWhenLocked="true"
-            android:theme="@style/Theme.ClassScheduleViewer"
+            android:theme="@style/Theme.ClassScheduleViewer.AlarmRinging"
             android:turnScreenOn="true" />
 
         <provider
