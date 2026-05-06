@@ -2,7 +2,9 @@
 
 package com.kebiao.viewer.feature.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,10 @@ import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.ReminderPlanner
+import com.kebiao.viewer.core.reminder.model.AppAlarmOperationMode
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
+import com.kebiao.viewer.core.reminder.model.ReminderPlan
+import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.Instant
@@ -64,6 +70,7 @@ class ReminderGlanceWidget : GlanceAppWidget() {
 
         val schedule = scheduleRepository.scheduleFlow.first()
         val rules = reminderRepository.reminderRulesFlow.first().filter { it.enabled }
+        val alarmRecords = reminderRepository.systemAlarmRecordsFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
         val zone = BeijingTime.resolveZone(userPrefs.timeZoneId)
@@ -86,13 +93,18 @@ class ReminderGlanceWidget : GlanceAppWidget() {
             }.filter { it.triggerAtMillis >= now }
                 .sortedBy { it.triggerAtMillis }
         } else emptyList()
+        val entries = buildReminderWidgetEntries(
+            plans = plans,
+            records = alarmRecords,
+            nowMillis = now,
+        )
 
         provideContent {
             val sizeClass = WidgetSizeClass.fromDp(
                 widthDp = LocalSize.current.width.value.roundToInt(),
                 heightDp = LocalSize.current.height.value.roundToInt(),
             )
-            val visiblePlans = plans.take(sizeClass.reminderRows())
+            val visibleEntries = entries.take(sizeClass.reminderRows())
 
             GlanceTheme {
                 WidgetCard(sizeClass = sizeClass) {
@@ -117,31 +129,31 @@ class ReminderGlanceWidget : GlanceAppWidget() {
                             ),
                         )
                         Box(modifier = GlanceModifier.defaultWeight()) { Spacer(GlanceModifier.height(0.dp)) }
-                        if (plans.isNotEmpty()) {
+                        if (entries.isNotEmpty()) {
                             PillBadge(
-                                text = "${plans.size} 条",
+                                text = "${entries.size} 条",
                                 container = GlanceTheme.colors.primaryContainer,
                                 onContainer = GlanceTheme.colors.onPrimaryContainer,
                             )
                         }
                     }
                     Spacer(GlanceModifier.height(if (sizeClass == WidgetSizeClass.Compact) 6.dp else 8.dp))
-                    if (visiblePlans.isEmpty()) {
+                    if (visibleEntries.isEmpty()) {
                         EmptyReminders(sizeClass = sizeClass, hasRules = rules.isNotEmpty())
                     } else {
-                        visiblePlans.forEachIndexed { index, plan ->
-                            val ts = Instant.ofEpochMilli(plan.triggerAtMillis).atZone(zone).toLocalDateTime()
+                        visibleEntries.forEachIndexed { index, entry ->
+                            val ts = Instant.ofEpochMilli(entry.triggerAtMillis).atZone(zone).toLocalDateTime()
                             val isToday = ts.toLocalDate() == today
-                            val isSoon = (plan.triggerAtMillis - now) <= 60 * 60 * 1000L
+                            val isSoon = (entry.triggerAtMillis - now) <= 60 * 60 * 1000L
                             ReminderEntry(
                                 dateLabel = formatDateLabel(ts.toLocalDate(), today),
                                 timeLabel = ts.toLocalTime().withSecond(0).withNano(0).toString().substring(0, 5),
-                                title = plan.title,
-                                message = plan.message,
-                                countdown = formatCountdown(plan.triggerAtMillis - now),
+                                title = entry.title,
+                                message = entry.message,
+                                countdown = formatCountdown(entry.triggerAtMillis - now),
                                 accentPrimary = isToday || isSoon,
                             )
-                            if (index < visiblePlans.lastIndex) {
+                            if (index < visibleEntries.lastIndex) {
                                 Spacer(GlanceModifier.height(6.dp))
                             }
                         }
@@ -155,6 +167,56 @@ class ReminderGlanceWidget : GlanceAppWidget() {
         updateAll(context)
     }
 }
+
+internal data class ReminderWidgetEntry(
+    val id: String,
+    val triggerAtMillis: Long,
+    val title: String,
+    val message: String,
+)
+
+internal fun buildReminderWidgetEntries(
+    plans: List<ReminderPlan>,
+    records: List<SystemAlarmRecord>,
+    nowMillis: Long,
+): List<ReminderWidgetEntry> {
+    val planEntries = plans
+        .asSequence()
+        .filter { it.triggerAtMillis >= nowMillis }
+        .map { plan ->
+            ReminderWidgetEntry(
+                id = "plan:${plan.planId}:${plan.triggerAtMillis}",
+                triggerAtMillis = plan.triggerAtMillis,
+                title = plan.title.ifBlank { "课程提醒" },
+                message = plan.message.ifBlank { "课程即将开始" },
+            )
+        }
+    val snoozeEntries = records
+        .asSequence()
+        .filter { it.backend == ReminderAlarmBackend.AppAlarmClock }
+        .filter { it.operationMode == AppAlarmOperationMode.SnoozeForegroundService }
+        .filter { it.triggerAtMillis >= nowMillis }
+        .map { record ->
+            ReminderWidgetEntry(
+                id = "record:${record.backend.name}:${record.alarmKey}",
+                triggerAtMillis = record.triggerAtMillis,
+                title = firstNotBlank(record.displayTitle, record.alarmLabel, record.message)
+                    ?: "课程提醒",
+                message = firstNotBlank(record.displayMessage) ?: "已延后 5 分钟",
+            )
+        }
+    return (planEntries + snoozeEntries)
+        .distinctBy { it.id }
+        .sortedWith(
+            compareBy<ReminderWidgetEntry> { it.triggerAtMillis }
+                .thenBy { it.title }
+                .thenBy { it.id },
+        )
+        .toList()
+}
+
+private fun firstNotBlank(vararg values: String?): String? =
+    values.firstOrNull { !it.isNullOrBlank() }
 
 @Composable
 private fun ReminderEntry(
@@ -296,16 +358,26 @@ open class ReminderGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override fun onUpdate(
         context: Context,
-        appWidgetManager: android.appwidget.AppWidgetManager,
+        appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
         reconcileSystemAlarmsFromWidget(context)
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        reconcileSystemAlarmsFromWidget(context)
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
-        WidgetCatalog.notifyInstalledChanged(context)
+        WidgetLifecycleRefresher.onWidgetSetChanged(context, reason = "reminder_widget_deleted")
     }
 }
 

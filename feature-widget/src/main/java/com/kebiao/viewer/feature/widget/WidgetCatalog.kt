@@ -78,7 +78,9 @@ object WidgetCatalog {
         val callback = PendingIntent.getBroadcast(
             context,
             entry.id.hashCode(),
-            Intent(ACTION_WIDGET_PINNED).setPackage(context.packageName),
+            Intent(ACTION_WIDGET_PINNED)
+                .setClass(context, WidgetPinResultReceiver::class.java)
+                .setPackage(context.packageName),
             pendingIntentFlags(),
         )
         return runCatching {
@@ -102,6 +104,9 @@ object WidgetCatalog {
 
     /** Action for an app-local broadcast emitted whenever the installed-widget set may have changed. */
     const val ACTION_WIDGET_INSTALLED_CHANGED: String = "com.kebiao.viewer.WIDGET_INSTALLED_CHANGED"
+
+    /** Action delivered by requestPinAppWidget once the launcher accepts a pinned widget. */
+    const val ACTION_WIDGET_PINNED: String = "com.kebiao.viewer.WIDGET_PINNED"
 
     fun notifyInstalledChanged(context: Context) {
         val intent = Intent(ACTION_WIDGET_INSTALLED_CHANGED).setPackage(context.packageName)
@@ -162,6 +167,4 @@ object WidgetCatalog {
         }
         return runCatching { context.startActivity(intent) }.isSuccess
     }
-
-    private const val ACTION_WIDGET_PINNED = "com.kebiao.viewer.WIDGET_PINNED"
 }

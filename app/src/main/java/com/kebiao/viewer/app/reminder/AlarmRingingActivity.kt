@@ -7,7 +7,9 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.Button
@@ -17,6 +19,8 @@ import androidx.core.content.ContextCompat
 import com.kebiao.viewer.core.reminder.dispatch.AppAlarmClockIntents
 
 class AlarmRingingActivity : Activity() {
+    private var actionSent = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         configureWindow()
@@ -88,20 +92,66 @@ class AlarmRingingActivity : Activity() {
             textSize = 18f
             setOnClickListener { sendServiceAction(AlarmRingingService.ACTION_SNOOZE) }
         }
+        val gestureHint = TextView(this).apply {
+            text = "右滑关闭 · 左滑延后"
+            textSize = 13f
+            setTextColor(Color.rgb(111, 123, 115))
+            gravity = Gravity.CENTER
+            setPadding(0, 18.dp(), 0, 0)
+        }
         root.addView(titleView, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(messageView, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(stopButton, buttonLayoutParams())
         root.addView(snoozeButton, buttonLayoutParams())
+        root.addView(gestureHint, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        attachSwipeActions(root)
         setContentView(root)
     }
 
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                sendServiceAction(AlarmRingingService.ACTION_STOP)
+                true
+            }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                sendServiceAction(AlarmRingingService.ACTION_SNOOZE)
+                true
+            }
+            else -> super.onKeyDown(keyCode, event)
+        }
+    }
+
     private fun sendServiceAction(actionName: String) {
+        if (actionSent) return
+        actionSent = true
         val serviceIntent = Intent(this, AlarmRingingService::class.java).apply {
             action = actionName
             copyAlarmExtrasFrom(intent)
         }
         ContextCompat.startForegroundService(this, serviceIntent)
         finish()
+    }
+
+    private fun attachSwipeActions(root: LinearLayout) {
+        var downX = 0f
+        root.setOnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    true
+                }
+                MotionEvent.ACTION_UP -> {
+                    val delta = event.x - downX
+                    when {
+                        delta >= SWIPE_THRESHOLD_PX -> sendServiceAction(AlarmRingingService.ACTION_STOP)
+                        delta <= -SWIPE_THRESHOLD_PX -> sendServiceAction(AlarmRingingService.ACTION_SNOOZE)
+                    }
+                    true
+                }
+                else -> true
+            }
+        }
     }
 
     private fun Intent.copyAlarmExtrasFrom(source: Intent) {
@@ -128,4 +178,7 @@ class AlarmRingingActivity : Activity() {
         }
 
     private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
+
+    private val SWIPE_THRESHOLD_PX: Int
+        get() = 96.dp()
 }

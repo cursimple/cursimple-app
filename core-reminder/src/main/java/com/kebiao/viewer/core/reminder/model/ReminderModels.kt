@@ -66,6 +66,9 @@ enum class AppAlarmOperationMode {
 
     @SerialName("foreground_service")
     ForegroundService,
+
+    @SerialName("snooze_foreground_service")
+    SnoozeForegroundService,
 }
 
 data class ReminderAlarmSettings(
@@ -84,6 +87,18 @@ data class ReminderPlan(
     val triggerAtMillis: Long,
     val ringtoneUri: String?,
     val courseId: String?,
+)
+
+sealed interface TriggeredAppAlarmFinishAction {
+    data object Dismiss : TriggeredAppAlarmFinishAction
+
+    data class Snooze(val plan: ReminderPlan) : TriggeredAppAlarmFinishAction
+}
+
+data class TriggeredAppAlarmFinishResult(
+    val consumed: Boolean,
+    val snoozeCreated: Boolean = false,
+    val message: String = "",
 )
 
 data class ReminderSyncWindow(
@@ -112,6 +127,8 @@ data class SystemAlarmRecord(
     @SerialName("backend") val backend: ReminderAlarmBackend = ReminderAlarmBackend.SystemClockApp,
     @SerialName("requestCode") val requestCode: Int? = null,
     @SerialName("operationMode") val operationMode: AppAlarmOperationMode = AppAlarmOperationMode.LegacyBroadcast,
+    @SerialName("displayTitle") val displayTitle: String? = null,
+    @SerialName("displayMessage") val displayMessage: String? = null,
     @SerialName("createdAtMillis") val createdAtMillis: Long,
 )
 
@@ -132,6 +149,29 @@ fun ReminderPlan.systemAlarmKey(): String =
     listOf(pluginId, triggerAtMillis.toString(), title, message, ringtoneUri.orEmpty()).joinToString("|")
 
 fun ReminderPlan.appAlarmRequestCode(): Int = systemAlarmKey().hashCode() and Int.MAX_VALUE
+
+fun ReminderPlan.toAppAlarmRecord(
+    operationMode: AppAlarmOperationMode,
+    createdAtMillis: Long = System.currentTimeMillis(),
+): SystemAlarmRecord {
+    val label = systemAlarmLabel()
+    return SystemAlarmRecord(
+        alarmKey = systemAlarmKey(),
+        ruleId = ruleId,
+        pluginId = pluginId,
+        planId = planId,
+        courseId = courseId,
+        triggerAtMillis = triggerAtMillis,
+        message = label,
+        alarmLabel = label,
+        backend = ReminderAlarmBackend.AppAlarmClock,
+        requestCode = appAlarmRequestCode(),
+        operationMode = operationMode,
+        displayTitle = title,
+        displayMessage = message,
+        createdAtMillis = createdAtMillis,
+    )
+}
 
 fun ReminderPlan.systemAlarmLabel(): String {
     val trigger = Instant.ofEpochMilli(triggerAtMillis).atZone(ZoneId.systemDefault())

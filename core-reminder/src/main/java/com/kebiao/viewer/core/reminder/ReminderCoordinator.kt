@@ -10,6 +10,7 @@ import com.kebiao.viewer.core.reminder.dispatch.AppAlarmClockDispatcher
 import com.kebiao.viewer.core.reminder.dispatch.AppAlarmClockDismisser
 import com.kebiao.viewer.core.reminder.dispatch.SystemAlarmClockDispatcher
 import com.kebiao.viewer.core.reminder.dispatch.SystemAlarmClockDismisser
+import com.kebiao.viewer.core.reminder.model.AlarmDispatchChannel
 import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
 import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
@@ -24,9 +25,12 @@ import com.kebiao.viewer.core.reminder.model.ReminderSyncWindow
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
+import com.kebiao.viewer.core.reminder.model.TriggeredAppAlarmFinishAction
+import com.kebiao.viewer.core.reminder.model.TriggeredAppAlarmFinishResult
 import com.kebiao.viewer.core.reminder.model.appAlarmRequestCode
 import com.kebiao.viewer.core.reminder.model.systemAlarmKey
 import com.kebiao.viewer.core.reminder.model.systemAlarmLabel
+import com.kebiao.viewer.core.reminder.model.toAppAlarmRecord
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -204,21 +208,34 @@ class ReminderCoordinator(
     suspend fun consumeTriggeredAppAlarm(
         alarmKey: String,
         ruleId: String,
-    ) = SYSTEM_ALARM_LOCK.withLock {
+    ) {
+        finishTriggeredAppAlarm(
+            alarmKey = alarmKey,
+            ruleId = ruleId,
+            action = TriggeredAppAlarmFinishAction.Dismiss,
+        )
+    }
+
+    suspend fun finishTriggeredAppAlarm(
+        alarmKey: String,
+        ruleId: String,
+        action: TriggeredAppAlarmFinishAction,
+    ): TriggeredAppAlarmFinishResult = SYSTEM_ALARM_LOCK.withLock {
         val rule = repository.getReminderRules().firstOrNull { it.ruleId == ruleId }
         if (rule == null) {
             repository.removeSystemAlarmRecord(alarmKey, ReminderAlarmBackend.AppAlarmClock)
-            return@withLock
+            return@withLock finishTriggeredAction(action)
         }
-        if (!rule.shouldDeleteAfterAppAlarmRing()) {
-            repository.removeSystemAlarmRecord(alarmKey, ReminderAlarmBackend.AppAlarmClock)
-            return@withLock
+
+        repository.removeSystemAlarmRecord(alarmKey, ReminderAlarmBackend.AppAlarmClock)
+        if (rule.shouldDeleteAfterAppAlarmRing()) {
+            val nowMillis = System.currentTimeMillis()
+            val records = repository.getSystemAlarmRecords().filter { it.ruleId == ruleId }
+            dismissRecords(records.filter { it.triggerAtMillis > nowMillis })
+            repository.removeReminderRule(ruleId)
+            repository.removeSystemAlarmRecordsForRule(ruleId)
         }
-        val nowMillis = System.currentTimeMillis()
-        val records = repository.getSystemAlarmRecords().filter { it.ruleId == ruleId }
-        dismissRecords(records.filter { it.triggerAtMillis > nowMillis })
-        repository.removeReminderRule(ruleId)
-        repository.removeSystemAlarmRecordsForRule(ruleId)
+        finishTriggeredAction(action)
     }
 
     suspend fun syncSystemClockAlarmsForWindow(
@@ -228,6 +245,7 @@ class ReminderCoordinator(
         window: ReminderSyncWindow,
         reason: ReminderSyncReason,
         nowMillis: Long = System.currentTimeMillis(),
+        clearExpiredRecords: Boolean = true,
     ): SystemAlarmSyncSummary = syncAlarmsForWindow(
         pluginId = pluginId,
         schedule = schedule,
@@ -235,6 +253,7 @@ class ReminderCoordinator(
         window = window,
         reason = reason,
         nowMillis = nowMillis,
+        clearExpiredRecords = clearExpiredRecords,
     )
 
     suspend fun syncAlarmsForWindow(
@@ -244,13 +263,14 @@ class ReminderCoordinator(
         window: ReminderSyncWindow,
         reason: ReminderSyncReason,
         nowMillis: Long = System.currentTimeMillis(),
+        clearExpiredRecords: Boolean = true,
     ): SystemAlarmSyncSummary = SYSTEM_ALARM_LOCK.withLock {
-        val expiredAppDismissal = if (reason == ReminderSyncReason.AfterClassToday) {
+        val expiredAppDismissal = if (clearExpiredRecords && reason == ReminderSyncReason.AfterClassToday) {
             dismissExpiredAppAlarmRecords(nowMillis)
         } else {
             DismissStats()
         }
-        val expiredRecordClearedCount = clearExpiredRecordsBefore(nowMillis)
+        val expiredRecordClearedCount = if (clearExpiredRecords) clearExpiredRecordsBefore(nowMillis) else 0
         val profile = timingProfile ?: return@withLock emptySystemAlarmSyncSummary(
             expiredRecordClearedCount = expiredRecordClearedCount,
             dismissedCount = expiredAppDismissal.dismissedCount,
@@ -370,6 +390,8 @@ class ReminderCoordinator(
                             } else {
                                 AppAlarmOperationMode.LegacyBroadcast
                             },
+                            displayTitle = plan.title,
+                            displayMessage = plan.message,
                             createdAtMillis = System.currentTimeMillis(),
                         ),
                     )
@@ -442,6 +464,7 @@ class ReminderCoordinator(
                     record.pluginId == pluginId &&
                         record.backend == ReminderAlarmBackend.AppAlarmClock &&
                         record.operationMode != CURRENT_APP_ALARM_OPERATION_MODE &&
+                        record.operationMode != AppAlarmOperationMode.SnoozeForegroundService &&
                         record.triggerAtMillis in window.startMillis..window.endMillis
                 }
         }.getOrElse { error ->
@@ -498,6 +521,8 @@ class ReminderCoordinator(
                     record.pluginId == pluginId &&
                         record.backend == backend &&
                         record.triggerAtMillis in window.startMillis..window.endMillis &&
+                        (backend != ReminderAlarmBackend.AppAlarmClock ||
+                            record.operationMode != AppAlarmOperationMode.SnoozeForegroundService) &&
                         record.alarmKey !in plannedKeys
                 }
         }.getOrElse { error ->
@@ -550,6 +575,50 @@ class ReminderCoordinator(
             }
         }
         return DismissStats(dismissedCount = dismissed, failedCount = failed)
+    }
+
+    private suspend fun finishTriggeredAction(
+        action: TriggeredAppAlarmFinishAction,
+    ): TriggeredAppAlarmFinishResult = when (action) {
+        TriggeredAppAlarmFinishAction.Dismiss -> TriggeredAppAlarmFinishResult(
+            consumed = true,
+            message = "闹钟已关闭",
+        )
+
+        is TriggeredAppAlarmFinishAction.Snooze -> {
+            val result = runCatching {
+                appDispatcher.dispatch(action.plan)
+            }.getOrElse { error ->
+                ReminderLogger.warn(
+                    "reminder.app_alarm_clock.snooze.dispatch_unhandled_failure",
+                    mapOf("ruleId" to action.plan.ruleId, "planId" to action.plan.planId),
+                    error,
+                )
+                AlarmDispatchResult(
+                    channel = AlarmDispatchChannel.AppAlarmClock,
+                    succeeded = false,
+                    message = error.message ?: "延后闹钟设置失败",
+                )
+            }
+            if (result.succeeded) {
+                repository.saveSystemAlarmRecord(
+                    action.plan.toAppAlarmRecord(
+                        operationMode = AppAlarmOperationMode.SnoozeForegroundService,
+                    ),
+                )
+                TriggeredAppAlarmFinishResult(
+                    consumed = true,
+                    snoozeCreated = true,
+                    message = "已延后 5 分钟",
+                )
+            } else {
+                TriggeredAppAlarmFinishResult(
+                    consumed = true,
+                    snoozeCreated = false,
+                    message = result.message,
+                )
+            }
+        }
     }
 }
 

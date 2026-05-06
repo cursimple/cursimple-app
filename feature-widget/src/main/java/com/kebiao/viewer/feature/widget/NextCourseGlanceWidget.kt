@@ -2,7 +2,9 @@
 
 package com.kebiao.viewer.feature.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.DpSize
@@ -431,16 +433,26 @@ open class NextCourseGlanceWidgetReceiver : GlanceAppWidgetReceiver() {
 
     override fun onUpdate(
         context: Context,
-        appWidgetManager: android.appwidget.AppWidgetManager,
+        appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
     ) {
         reconcileSystemAlarmsFromWidget(context)
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        reconcileSystemAlarmsFromWidget(context)
+        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
+    }
+
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
-        WidgetCatalog.notifyInstalledChanged(context)
+        WidgetLifecycleRefresher.onWidgetSetChanged(context, reason = "next_widget_deleted")
     }
 }
 
