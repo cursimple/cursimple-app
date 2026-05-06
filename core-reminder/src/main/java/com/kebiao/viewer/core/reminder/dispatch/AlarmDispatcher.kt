@@ -31,7 +31,9 @@ object AppAlarmClockIntents {
     const val RECEIVER_CLASS_NAME = "com.kebiao.viewer.app.reminder.AppAlarmReceiver"
     const val EXTRA_ALARM_KEY = "com.kebiao.viewer.extra.ALARM_KEY"
     const val EXTRA_RULE_ID = "com.kebiao.viewer.extra.RULE_ID"
+    const val EXTRA_PLUGIN_ID = "com.kebiao.viewer.extra.PLUGIN_ID"
     const val EXTRA_PLAN_ID = "com.kebiao.viewer.extra.PLAN_ID"
+    const val EXTRA_COURSE_ID = "com.kebiao.viewer.extra.COURSE_ID"
     const val EXTRA_TRIGGER_AT_MILLIS = "com.kebiao.viewer.extra.TRIGGER_AT_MILLIS"
     const val EXTRA_TITLE = "com.kebiao.viewer.extra.TITLE"
     const val EXTRA_MESSAGE = "com.kebiao.viewer.extra.MESSAGE"
@@ -213,7 +215,9 @@ private fun appAlarmOperationIntent(
             component = ComponentName(context.packageName, AppAlarmClockIntents.RECEIVER_CLASS_NAME)
             putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, plan.systemAlarmKey())
             putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, plan.ruleId)
+            putExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID, plan.pluginId)
             putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, plan.planId)
+            putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, plan.courseId)
             putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, plan.triggerAtMillis)
             putExtra(AppAlarmClockIntents.EXTRA_TITLE, plan.title)
             putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, plan.message)
@@ -234,7 +238,9 @@ private fun appAlarmOperationIntent(
             component = ComponentName(context.packageName, AppAlarmClockIntents.RECEIVER_CLASS_NAME)
             putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, record.alarmKey)
             putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, record.ruleId)
+            putExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID, record.pluginId)
             putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, record.planId)
+            putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, record.courseId)
             putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, record.triggerAtMillis)
             putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, record.message)
         },
