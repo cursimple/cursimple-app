@@ -40,7 +40,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             val repository = DataStoreWidgetPreferencesRepository(appContext)
             appWidgetIds.forEach { repository.clearWidgetDayOffset(it) }
-            WidgetCatalog.notifyInstalledChanged(appContext)
+            WidgetLifecycleRefresher.onWidgetSetChanged(appContext, reason = "today_widget_deleted")
         }
     }
 

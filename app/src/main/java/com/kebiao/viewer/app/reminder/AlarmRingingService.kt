@@ -22,10 +22,10 @@ import com.kebiao.viewer.R
 import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
-import com.kebiao.viewer.core.reminder.dispatch.AppAlarmClockDispatcher
 import com.kebiao.viewer.core.reminder.dispatch.AppAlarmClockIntents
 import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
+import com.kebiao.viewer.core.reminder.model.TriggeredAppAlarmFinishAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -97,6 +97,9 @@ class AlarmRingingService : Service() {
             stopSelf()
             return
         }
+        serviceScope.launch(Dispatchers.IO) {
+            AlarmRuntimeMaintenance.onAlarmStarted(applicationContext)
+        }
         ringJob = serviceScope.launch {
             val prefs = DataStoreUserPreferencesRepository(applicationContext).preferencesFlow.first()
             val repeatCount = prefs.alarmRepeatCount.coerceIn(1, 10)
@@ -145,11 +148,9 @@ class AlarmRingingService : Service() {
         finishMutex.withLock {
             stopPlayback()
             if (alarm != null) {
-                consumeTriggeredAlarm(alarm)
-                if (snooze) {
-                    scheduleSnooze(alarm)
-                }
+                finishTriggeredAlarm(alarm, snooze)
             }
+            runPostFinishMaintenance()
             currentAlarm = null
             ReminderLogger.info(
                 "reminder.app_alarm_clock.ringing.stop",
@@ -164,55 +165,61 @@ class AlarmRingingService : Service() {
         }
     }
 
-    private suspend fun consumeTriggeredAlarm(alarm: ActiveAlarm) {
+    private suspend fun finishTriggeredAlarm(alarm: ActiveAlarm, snooze: Boolean) {
         if (alarm.alarmKey.isBlank()) return
         withContext(Dispatchers.IO) {
             runCatching {
                 val repository = DataStoreReminderRepository(applicationContext)
-                ReminderCoordinator(
+                val action = if (snooze) {
+                    TriggeredAppAlarmFinishAction.Snooze(alarm.toSnoozePlan())
+                } else {
+                    TriggeredAppAlarmFinishAction.Dismiss
+                }
+                val result = ReminderCoordinator(
                     context = applicationContext,
                     repository = repository,
-                ).consumeTriggeredAppAlarm(
+                ).finishTriggeredAppAlarm(
                     alarmKey = alarm.alarmKey,
                     ruleId = alarm.ruleId,
+                    action = action,
+                )
+                ReminderLogger.info(
+                    "reminder.app_alarm_clock.ringing.finish_result",
+                    mapOf(
+                        "alarmKey" to alarm.alarmKey,
+                        "ruleId" to alarm.ruleId,
+                        "snooze" to snooze,
+                        "snoozeCreated" to result.snoozeCreated,
+                        "message" to result.message,
+                    ),
                 )
             }.onFailure { error ->
                 ReminderLogger.warn(
-                    "reminder.app_alarm_clock.ringing.consume.failure",
-                    mapOf("alarmKey" to alarm.alarmKey, "ruleId" to alarm.ruleId),
+                    "reminder.app_alarm_clock.ringing.finish.failure",
+                    mapOf("alarmKey" to alarm.alarmKey, "ruleId" to alarm.ruleId, "snooze" to snooze),
                     error,
                 )
             }
         }
     }
 
-    private suspend fun scheduleSnooze(alarm: ActiveAlarm) {
+    private fun ActiveAlarm.toSnoozePlan(): ReminderPlan {
         val triggerAtMillis = System.currentTimeMillis() + SNOOZE_DELAY_MILLIS
-        val plan = ReminderPlan(
-            planId = "${alarm.planId.ifBlank { alarm.alarmKey }}_snooze_$triggerAtMillis",
-            ruleId = alarm.ruleId,
-            pluginId = alarm.pluginId.ifBlank { "snooze" },
-            title = alarm.title.ifBlank { "课程提醒" },
-            message = alarm.message.ifBlank { "课程即将开始" },
+        return ReminderPlan(
+            planId = "${planId.ifBlank { alarmKey }}_snooze_$triggerAtMillis",
+            ruleId = ruleId,
+            pluginId = pluginId.ifBlank { "snooze" },
+            title = title.ifBlank { "课程提醒" },
+            message = "已延后 5 分钟",
             triggerAtMillis = triggerAtMillis,
-            ringtoneUri = alarm.ringtoneUri,
-            courseId = alarm.courseId,
+            ringtoneUri = ringtoneUri,
+            courseId = courseId,
         )
+    }
+
+    private suspend fun runPostFinishMaintenance() {
         withContext(Dispatchers.IO) {
-            val result = AppAlarmClockDispatcher(applicationContext).dispatch(plan)
-            val event = if (result.succeeded) {
-                "reminder.app_alarm_clock.ringing.snooze.success"
-            } else {
-                "reminder.app_alarm_clock.ringing.snooze.failure"
-            }
-            ReminderLogger.info(
-                event,
-                mapOf(
-                    "alarmKey" to alarm.alarmKey,
-                    "triggerAtMillis" to triggerAtMillis,
-                    "message" to result.message,
-                ),
-            )
+            AlarmRuntimeMaintenance.onAlarmFinished(applicationContext)
         }
     }
 

@@ -1,6 +1,11 @@
 package com.kebiao.viewer.app
 
+import android.app.AlarmManager
 import android.app.Application
+import android.app.NotificationManager
+import android.os.Build
+import android.os.PowerManager
+import androidx.core.app.NotificationManagerCompat
 import com.kebiao.viewer.core.data.DataStoreManualCourseRepository
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
 import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
@@ -26,9 +31,14 @@ import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
 import com.kebiao.viewer.app.reminder.SystemAlarmCheckScheduler
 import com.kebiao.viewer.feature.widget.ScheduleWidgetUpdater
+import com.kebiao.viewer.feature.widget.ScheduleWidgetWorkScheduler
+import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 
 class AppContainer(
     private val app: Application,
@@ -184,6 +194,50 @@ class AppContainer(
         SystemAlarmCheckScheduler.scheduleNextAfterClassCheck(app, profile)
     }
 
+    suspend fun ensureAlarmRuntimeHealth() {
+        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+        scheduleSystemAlarmChecks(timingProfile)
+        ScheduleWidgetWorkScheduler.schedule(app)
+        logAlarmRuntimeHealth()
+    }
+
+    suspend fun runAlarmFollowUpSync(
+        nowMillis: Long = System.currentTimeMillis(),
+        clearExpiredRecords: Boolean = true,
+    ): List<SystemAlarmSyncSummary> {
+        val schedule = reminderSchedule()
+        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+        val pluginId = scheduleRepository.lastPluginIdFlow.first()
+        if (schedule == null || timingProfile == null) {
+            scheduleSystemAlarmChecks(timingProfile)
+            return emptyList()
+        }
+        userPreferencesRepository.markAlarmPollAt(nowMillis)
+        val summaries = mutableListOf<SystemAlarmSyncSummary>()
+        summaries += reminderCoordinator.syncAlarmsForWindow(
+            pluginId = pluginId,
+            schedule = schedule,
+            timingProfile = timingProfile,
+            window = ReminderSyncWindows.todayFromNow(timingProfile, nowMillis),
+            reason = ReminderSyncReason.AfterClassToday,
+            nowMillis = nowMillis,
+            clearExpiredRecords = clearExpiredRecords,
+        )
+        if (shouldSyncNextDayAfterAlarm(timingProfile, nowMillis)) {
+            summaries += reminderCoordinator.syncAlarmsForWindow(
+                pluginId = pluginId,
+                schedule = schedule,
+                timingProfile = timingProfile,
+                window = ReminderSyncWindows.nextDay(timingProfile, nowMillis),
+                reason = ReminderSyncReason.DailyNextDay,
+                nowMillis = nowMillis,
+                clearExpiredRecords = clearExpiredRecords,
+            )
+        }
+        scheduleSystemAlarmChecks(timingProfile)
+        return summaries
+    }
+
     suspend fun normalizeTimingProfileForActiveTerm(timingProfile: TermTimingProfile?): TermTimingProfile? {
         if (timingProfile == null) {
             return null
@@ -217,9 +271,46 @@ class AppContainer(
     private companion object {
         const val YANGTZEU_PLUGIN_ID = "yangtzeu-eams-v2"
         const val SHARED_ALARM_POLL_INTERVAL_MILLIS = 40L * 60L * 1000L
+        val NEXT_DAY_SYNC_START_TIME: LocalTime = LocalTime.NOON
+        const val ALARM_RINGING_CHANNEL_ID = "course_alarm_ringing"
 
         fun parseIsoDate(value: String): LocalDate? =
             runCatching { LocalDate.parse(value) }.getOrNull()
+    }
+
+    private fun shouldSyncNextDayAfterAlarm(timingProfile: TermTimingProfile, nowMillis: Long): Boolean {
+        val zone = ZoneId.of(timingProfile.timezone)
+        val localTime = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalTime()
+        return !localTime.isBefore(NEXT_DAY_SYNC_START_TIME)
+    }
+
+    private fun logAlarmRuntimeHealth() {
+        val alarmManager = app.getSystemService(AlarmManager::class.java)
+        val notificationManager = app.getSystemService(NotificationManager::class.java)
+        val powerManager = app.getSystemService(PowerManager::class.java)
+        val exactAlarmEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            runCatching { alarmManager.canScheduleExactAlarms() }.getOrDefault(false)
+        val notificationsEnabled = NotificationManagerCompat.from(app).areNotificationsEnabled()
+        val fullScreenIntentEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+            runCatching { notificationManager.canUseFullScreenIntent() }.getOrDefault(false)
+        val channelImportance = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notificationManager.getNotificationChannel(ALARM_RINGING_CHANNEL_ID)?.importance ?: 0
+        } else {
+            NotificationManager.IMPORTANCE_HIGH
+        }
+        val ignoringBatteryOptimizations = runCatching {
+            powerManager.isIgnoringBatteryOptimizations(app.packageName)
+        }.getOrDefault(false)
+        ReminderLogger.info(
+            "reminder.app_alarm_clock.runtime_health",
+            mapOf(
+                "exactAlarmEnabled" to exactAlarmEnabled,
+                "notificationsEnabled" to notificationsEnabled,
+                "fullScreenIntentEnabled" to fullScreenIntentEnabled,
+                "ringingChannelImportance" to channelImportance,
+                "ignoringBatteryOptimizations" to ignoringBatteryOptimizations,
+            ),
+        )
     }
 
     private suspend fun reminderSchedule(): TermSchedule? {
