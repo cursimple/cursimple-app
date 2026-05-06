@@ -6,6 +6,10 @@
             android:name=".ScheduleWidgetActionReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".WidgetPinResultReceiver"
+            android:exported="false" />
+
         <service
             android:name=".ScheduleWidgetRemoteViewsService"
             android:exported="false"
