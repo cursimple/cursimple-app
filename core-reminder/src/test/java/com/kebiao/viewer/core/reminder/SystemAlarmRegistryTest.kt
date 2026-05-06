@@ -12,6 +12,7 @@ import com.kebiao.viewer.core.reminder.dispatch.AlarmDismisser
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchChannel
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
 import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
+import com.kebiao.viewer.core.reminder.model.AppAlarmOperationMode
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmSettings
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
@@ -159,6 +160,55 @@ class SystemAlarmRegistryTest {
         assertEquals(1, summary.createdCount)
         assertEquals(ReminderAlarmBackend.AppAlarmClock, record.backend)
         assertEquals(record.alarmKey.hashCode() and Int.MAX_VALUE, record.requestCode)
+        assertEquals(AppAlarmOperationMode.ForegroundService, record.operationMode)
+    }
+
+    @Test
+    fun `app managed sync migrates legacy broadcast operation before recreating alarm`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.AppAlarmClock) },
+            appDispatcher = dispatcher,
+            appDismisser = appDismisser,
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+        val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
+        coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+        repository.records.value = repository.records.value.map {
+            it.copy(operationMode = AppAlarmOperationMode.LegacyBroadcast)
+        }
+
+        val summary = coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.ScheduleChanged,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(1, summary.dismissedCount)
+        assertEquals(1, summary.createdCount)
+        assertEquals(1, appDismisser.dismissCount)
+        assertEquals(2, dispatcher.dispatchCount)
+        assertEquals(AppAlarmOperationMode.ForegroundService, repository.records.value.single().operationMode)
     }
 
     @Test

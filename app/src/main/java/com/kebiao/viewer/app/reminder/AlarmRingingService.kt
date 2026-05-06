@@ -252,7 +252,9 @@ class AlarmRingingService : Service() {
             .addAction(0, "停止", stopIntent)
             .addAction(0, "延后 5 分钟", snoozeIntent)
             .build()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
         } else {
             startForeground(NOTIFICATION_ID, notification)
@@ -444,7 +446,7 @@ class AlarmRingingService : Service() {
     )
 
     companion object {
-        const val ACTION_RING = "com.kebiao.viewer.action.ALARM_RING"
+        const val ACTION_RING = AppAlarmClockIntents.ACTION_RING
         const val ACTION_STOP = "com.kebiao.viewer.action.ALARM_STOP"
         const val ACTION_SNOOZE = "com.kebiao.viewer.action.ALARM_SNOOZE"
         private const val CHANNEL_ID = "course_alarm_ringing"

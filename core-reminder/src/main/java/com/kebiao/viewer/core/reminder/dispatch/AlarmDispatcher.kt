@@ -28,7 +28,9 @@ interface AlarmDismisser {
 
 object AppAlarmClockIntents {
     const val ACTION_TRIGGER = "com.kebiao.viewer.action.APP_ALARM_TRIGGER"
+    const val ACTION_RING = "com.kebiao.viewer.action.ALARM_RING"
     const val RECEIVER_CLASS_NAME = "com.kebiao.viewer.app.reminder.AppAlarmReceiver"
+    const val SERVICE_CLASS_NAME = "com.kebiao.viewer.app.reminder.AlarmRingingService"
     const val EXTRA_ALARM_KEY = "com.kebiao.viewer.extra.ALARM_KEY"
     const val EXTRA_RULE_ID = "com.kebiao.viewer.extra.RULE_ID"
     const val EXTRA_PLUGIN_ID = "com.kebiao.viewer.extra.PLUGIN_ID"
@@ -110,6 +112,7 @@ class AppAlarmClockDismisser(
         val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val requestCode = record.requestCode ?: (record.alarmKey.hashCode() and Int.MAX_VALUE)
         val pendingIntent = appAlarmOperationIntent(appContext, record, requestCode)
+        val legacyReceiverIntent = legacyAppAlarmReceiverIntent(appContext, record, requestCode)
         ReminderLogger.info(
             "reminder.app_alarm_clock.dismiss.start",
             mapOf(
@@ -123,6 +126,8 @@ class AppAlarmClockDismisser(
         return runCatching {
             alarmManager.cancel(pendingIntent)
             pendingIntent.cancel()
+            alarmManager.cancel(legacyReceiverIntent)
+            legacyReceiverIntent.cancel()
             ReminderLogger.info(
                 "reminder.app_alarm_clock.dismiss.success",
                 mapOf("ruleId" to record.ruleId, "planId" to record.planId, "alarmKey" to record.alarmKey),
@@ -207,26 +212,76 @@ private fun appAlarmOperationIntent(
     context: Context,
     plan: ReminderPlan,
     requestCode: Int,
-): PendingIntent =
-    PendingIntent.getBroadcast(
-        context.applicationContext,
-        requestCode,
-        Intent(AppAlarmClockIntents.ACTION_TRIGGER).apply {
-            component = ComponentName(context.packageName, AppAlarmClockIntents.RECEIVER_CLASS_NAME)
-            putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, plan.systemAlarmKey())
-            putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, plan.ruleId)
-            putExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID, plan.pluginId)
-            putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, plan.planId)
-            putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, plan.courseId)
-            putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, plan.triggerAtMillis)
-            putExtra(AppAlarmClockIntents.EXTRA_TITLE, plan.title)
-            putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, plan.message)
-            putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, plan.ringtoneUri)
-        },
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
+): PendingIntent = appAlarmServicePendingIntent(
+    context = context,
+    requestCode = requestCode,
+    intent = appAlarmServiceIntent(context, plan),
+)
 
 private fun appAlarmOperationIntent(
+    context: Context,
+    record: SystemAlarmRecord,
+    requestCode: Int,
+): PendingIntent = appAlarmServicePendingIntent(
+    context = context,
+    requestCode = requestCode,
+    intent = appAlarmServiceIntent(context, record),
+)
+
+private fun appAlarmServicePendingIntent(
+    context: Context,
+    requestCode: Int,
+    intent: Intent,
+): PendingIntent =
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        PendingIntent.getForegroundService(
+            context.applicationContext,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    } else {
+        PendingIntent.getService(
+            context.applicationContext,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+private fun appAlarmServiceIntent(
+    context: Context,
+    plan: ReminderPlan,
+): Intent =
+    Intent(AppAlarmClockIntents.ACTION_RING).apply {
+        component = ComponentName(context.packageName, AppAlarmClockIntents.SERVICE_CLASS_NAME)
+        putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, plan.systemAlarmKey())
+        putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, plan.ruleId)
+        putExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID, plan.pluginId)
+        putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, plan.planId)
+        putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, plan.courseId)
+        putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, plan.triggerAtMillis)
+        putExtra(AppAlarmClockIntents.EXTRA_TITLE, plan.title)
+        putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, plan.message)
+        putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, plan.ringtoneUri)
+    }
+
+private fun appAlarmServiceIntent(
+    context: Context,
+    record: SystemAlarmRecord,
+): Intent =
+    Intent(AppAlarmClockIntents.ACTION_RING).apply {
+        component = ComponentName(context.packageName, AppAlarmClockIntents.SERVICE_CLASS_NAME)
+        putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, record.alarmKey)
+        putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, record.ruleId)
+        putExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID, record.pluginId)
+        putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, record.planId)
+        putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, record.courseId)
+        putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, record.triggerAtMillis)
+        putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, record.message)
+    }
+
+private fun legacyAppAlarmReceiverIntent(
     context: Context,
     record: SystemAlarmRecord,
     requestCode: Int,

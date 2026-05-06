@@ -13,6 +13,7 @@ import com.kebiao.viewer.core.reminder.dispatch.SystemAlarmClockDismisser
 import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
 import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
+import com.kebiao.viewer.core.reminder.model.AppAlarmOperationMode
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmSettings
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
@@ -275,6 +276,14 @@ class ReminderCoordinator(
             .sortedBy { it.triggerAtMillis }
             .toList()
         val plannedKeys = plans.mapTo(mutableSetOf()) { it.systemAlarmKey() }
+        val outdatedAppOperationDismissal = if (settings.backend == ReminderAlarmBackend.AppAlarmClock) {
+            dismissOutdatedAppAlarmOperationRecords(
+                pluginId = pluginId,
+                window = window,
+            )
+        } else {
+            DismissStats()
+        }
         val staleDismissal = dismissStaleRecordsInWindow(
             pluginId = pluginId,
             plannedKeys = plannedKeys,
@@ -284,6 +293,7 @@ class ReminderCoordinator(
         val existingKeys = runCatching {
             repository.getSystemAlarmRecords()
                 .filter { it.backend == settings.backend }
+                .filter { settings.backend != ReminderAlarmBackend.AppAlarmClock || it.operationMode == CURRENT_APP_ALARM_OPERATION_MODE }
                 .mapTo(mutableSetOf()) { it.alarmKey }
         }.getOrElse { error ->
             ReminderLogger.warn(
@@ -355,6 +365,11 @@ class ReminderCoordinator(
                             } else {
                                 null
                             },
+                            operationMode = if (settings.backend == ReminderAlarmBackend.AppAlarmClock) {
+                                CURRENT_APP_ALARM_OPERATION_MODE
+                            } else {
+                                AppAlarmOperationMode.LegacyBroadcast
+                            },
                             createdAtMillis = System.currentTimeMillis(),
                         ),
                     )
@@ -376,8 +391,12 @@ class ReminderCoordinator(
             skippedUnrepresentableCount = skippedUnrepresentable,
             results = results,
             expiredRecordClearedCount = expiredRecordClearedCount,
-            dismissedCount = expiredAppDismissal.dismissedCount + staleDismissal.dismissedCount,
-            dismissFailedCount = expiredAppDismissal.failedCount + staleDismissal.failedCount,
+            dismissedCount = expiredAppDismissal.dismissedCount +
+                outdatedAppOperationDismissal.dismissedCount +
+                staleDismissal.dismissedCount,
+            dismissFailedCount = expiredAppDismissal.failedCount +
+                outdatedAppOperationDismissal.failedCount +
+                staleDismissal.failedCount,
         )
         ReminderLogger.info(
             "reminder.system_clock.sync.finish",
@@ -406,6 +425,29 @@ class ReminderCoordinator(
             ReminderLogger.warn(
                 "reminder.app_alarm_clock.registry.read_expired.failure",
                 mapOf("nowMillis" to nowMillis),
+                error,
+            )
+            emptyList()
+        }
+        return dismissRecords(records)
+    }
+
+    private suspend fun dismissOutdatedAppAlarmOperationRecords(
+        pluginId: String,
+        window: ReminderSyncWindow,
+    ): DismissStats {
+        val records = runCatching {
+            repository.getSystemAlarmRecords()
+                .filter { record ->
+                    record.pluginId == pluginId &&
+                        record.backend == ReminderAlarmBackend.AppAlarmClock &&
+                        record.operationMode != CURRENT_APP_ALARM_OPERATION_MODE &&
+                        record.triggerAtMillis in window.startMillis..window.endMillis
+                }
+        }.getOrElse { error ->
+            ReminderLogger.warn(
+                "reminder.app_alarm_clock.registry.read_outdated_operation.failure",
+                mapOf("pluginId" to pluginId),
                 error,
             )
             emptyList()
@@ -512,6 +554,8 @@ class ReminderCoordinator(
 }
 
 private val SYSTEM_ALARM_LOCK = Mutex()
+
+private val CURRENT_APP_ALARM_OPERATION_MODE = AppAlarmOperationMode.ForegroundService
 
 private data class DismissStats(
     val dismissedCount: Int = 0,
