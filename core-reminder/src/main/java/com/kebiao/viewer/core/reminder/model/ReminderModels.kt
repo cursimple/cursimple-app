@@ -50,6 +50,22 @@ enum class ReminderDispatchMode {
     SystemFirst,
 }
 
+@Serializable
+enum class ReminderAlarmBackend {
+    @SerialName("app_alarm_clock")
+    AppAlarmClock,
+
+    @SerialName("system_clock_app")
+    SystemClockApp,
+}
+
+data class ReminderAlarmSettings(
+    val backend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
+    val ringDurationSeconds: Int = 60,
+    val repeatIntervalSeconds: Int = 120,
+    val repeatCount: Int = 1,
+)
+
 data class ReminderPlan(
     val planId: String,
     val ruleId: String,
@@ -84,6 +100,8 @@ data class SystemAlarmRecord(
     @SerialName("triggerAtMillis") val triggerAtMillis: Long,
     @SerialName("message") val message: String,
     @SerialName("alarmLabel") val alarmLabel: String? = null,
+    @SerialName("backend") val backend: ReminderAlarmBackend = ReminderAlarmBackend.SystemClockApp,
+    @SerialName("requestCode") val requestCode: Int? = null,
     @SerialName("createdAtMillis") val createdAtMillis: Long,
 )
 
@@ -103,6 +121,8 @@ data class SystemAlarmSyncSummary(
 fun ReminderPlan.systemAlarmKey(): String =
     listOf(pluginId, triggerAtMillis.toString(), title, message, ringtoneUri.orEmpty()).joinToString("|")
 
+fun ReminderPlan.appAlarmRequestCode(): Int = systemAlarmKey().hashCode() and Int.MAX_VALUE
+
 fun ReminderPlan.systemAlarmLabel(): String {
     val trigger = Instant.ofEpochMilli(triggerAtMillis).atZone(ZoneId.systemDefault())
     val time = "${trigger.hour.toString().padStart(2, '0')}:${trigger.minute.toString().padStart(2, '0')}"
@@ -110,7 +130,8 @@ fun ReminderPlan.systemAlarmLabel(): String {
 }
 
 enum class AlarmDispatchChannel {
-    SystemClock,
+    AppAlarmClock,
+    SystemClockApp,
 }
 
 data class AlarmDispatchResult(

@@ -6,10 +6,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.decodeFromString
@@ -47,6 +49,16 @@ class DataStoreUserPreferencesRepository(
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
             },
             disclaimerAccepted = prefs[KEY_DISCLAIMER_ACCEPTED] ?: false,
+            alarmBackend = prefs[KEY_ALARM_BACKEND]
+                ?.let { runCatching { ReminderAlarmBackend.valueOf(it) }.getOrNull() }
+                ?: ReminderAlarmBackend.AppAlarmClock,
+            alarmRingDurationSeconds = (prefs[KEY_ALARM_RING_DURATION_SECONDS] ?: DEFAULT_RING_DURATION_SECONDS)
+                .coerceIn(MIN_RING_DURATION_SECONDS, MAX_RING_DURATION_SECONDS),
+            alarmRepeatIntervalSeconds = (prefs[KEY_ALARM_REPEAT_INTERVAL_SECONDS] ?: DEFAULT_REPEAT_INTERVAL_SECONDS)
+                .coerceIn(MIN_REPEAT_INTERVAL_SECONDS, MAX_REPEAT_INTERVAL_SECONDS),
+            alarmRepeatCount = (prefs[KEY_ALARM_REPEAT_COUNT] ?: DEFAULT_REPEAT_COUNT)
+                .coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT),
+            lastAlarmPollAtMillis = prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] ?: 0L,
             loaded = true,
         )
     }
@@ -105,6 +117,51 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_DISCLAIMER_ACCEPTED] = accepted }
     }
 
+    override suspend fun setAlarmBackend(backend: ReminderAlarmBackend) {
+        store.edit { prefs -> prefs[KEY_ALARM_BACKEND] = backend.name }
+    }
+
+    override suspend fun setAlarmRingDurationSeconds(seconds: Int) {
+        store.edit { prefs ->
+            prefs[KEY_ALARM_RING_DURATION_SECONDS] = seconds.coerceIn(
+                MIN_RING_DURATION_SECONDS,
+                MAX_RING_DURATION_SECONDS,
+            )
+        }
+    }
+
+    override suspend fun setAlarmRepeatIntervalSeconds(seconds: Int) {
+        store.edit { prefs ->
+            prefs[KEY_ALARM_REPEAT_INTERVAL_SECONDS] = seconds.coerceIn(
+                MIN_REPEAT_INTERVAL_SECONDS,
+                MAX_REPEAT_INTERVAL_SECONDS,
+            )
+        }
+    }
+
+    override suspend fun setAlarmRepeatCount(count: Int) {
+        store.edit { prefs ->
+            prefs[KEY_ALARM_REPEAT_COUNT] = count.coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT)
+        }
+    }
+
+    override suspend fun markAlarmPollAt(millis: Long) {
+        store.edit { prefs -> prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] = millis.coerceAtLeast(0L) }
+    }
+
+    override suspend fun tryClaimAlarmPoll(nowMillis: Long, minIntervalMillis: Long): Boolean {
+        var claimed = false
+        store.edit { prefs ->
+            val previous = prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] ?: 0L
+            val elapsed = nowMillis - previous
+            if (previous == 0L || elapsed < 0L || elapsed >= minIntervalMillis) {
+                prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] = nowMillis.coerceAtLeast(0L)
+                claimed = true
+            }
+        }
+        return claimed
+    }
+
     override suspend fun seedEnabledPlugins(pluginIds: Set<String>) {
         store.edit { prefs ->
             if (prefs[KEY_PLUGINS_SEEDED] == true) return@edit
@@ -160,5 +217,20 @@ class DataStoreUserPreferencesRepository(
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")
+        val KEY_ALARM_BACKEND = stringPreferencesKey("alarm_backend")
+        val KEY_ALARM_RING_DURATION_SECONDS = intPreferencesKey("alarm_ring_duration_seconds")
+        val KEY_ALARM_REPEAT_INTERVAL_SECONDS = intPreferencesKey("alarm_repeat_interval_seconds")
+        val KEY_ALARM_REPEAT_COUNT = intPreferencesKey("alarm_repeat_count")
+        val KEY_LAST_ALARM_POLL_AT_MILLIS = longPreferencesKey("last_alarm_poll_at_millis")
+
+        const val DEFAULT_RING_DURATION_SECONDS = 60
+        const val DEFAULT_REPEAT_INTERVAL_SECONDS = 120
+        const val DEFAULT_REPEAT_COUNT = 1
+        const val MIN_RING_DURATION_SECONDS = 5
+        const val MAX_RING_DURATION_SECONDS = 600
+        const val MIN_REPEAT_INTERVAL_SECONDS = 5
+        const val MAX_REPEAT_INTERVAL_SECONDS = 3600
+        const val MIN_REPEAT_COUNT = 1
+        const val MAX_REPEAT_COUNT = 10
     }
 }

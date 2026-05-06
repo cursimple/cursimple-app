@@ -2,6 +2,7 @@ package com.kebiao.viewer.core.data
 
 import kotlinx.coroutines.flow.Flow
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -21,6 +22,11 @@ data class UserPreferences(
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
+    val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
+    val alarmRingDurationSeconds: Int = 60,
+    val alarmRepeatIntervalSeconds: Int = 120,
+    val alarmRepeatCount: Int = 1,
+    val lastAlarmPollAtMillis: Long = 0L,
     /** True once the persisted prefs have been read at least once. False = still loading. */
     val loaded: Boolean = false,
 ) {
@@ -44,4 +50,10 @@ interface UserPreferencesRepository {
     suspend fun clearTemporaryScheduleOverrides()
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
+    suspend fun setAlarmBackend(backend: ReminderAlarmBackend)
+    suspend fun setAlarmRingDurationSeconds(seconds: Int)
+    suspend fun setAlarmRepeatIntervalSeconds(seconds: Int)
+    suspend fun setAlarmRepeatCount(count: Int)
+    suspend fun markAlarmPollAt(millis: Long)
+    suspend fun tryClaimAlarmPoll(nowMillis: Long, minIntervalMillis: Long): Boolean
 }

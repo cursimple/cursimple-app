@@ -70,6 +70,7 @@ class ScheduleViewModel(
     private val manualCourseRepository: ManualCourseRepository,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
+    private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -574,7 +575,8 @@ class ScheduleViewModel(
         reason: ReminderSyncReason,
     ): SystemAlarmSyncSummary {
         val profile = timingProfile ?: resolveTimingProfile() ?: return emptySystemAlarmSyncSummary()
-        return reminderCoordinator.syncSystemClockAlarmsForWindow(
+        onAlarmSyncChecked()
+        return reminderCoordinator.syncAlarmsForWindow(
             pluginId = pluginId,
             schedule = schedule,
             timingProfile = profile,
@@ -604,14 +606,14 @@ class ScheduleViewModel(
     ): String {
         val details = buildList {
             if (summary.expiredRecordClearedCount > 0) add("已清理 ${summary.expiredRecordClearedCount} 个过期闹钟登记")
-            if (summary.dismissedCount > 0) add("已删除 ${summary.dismissedCount} 个失效系统闹钟")
-            if (summary.dismissFailedCount > 0) add("${summary.dismissFailedCount} 个失效系统闹钟删除失败")
-            if (summary.createdCount > 0) add("成功添加 ${summary.createdCount} 个系统闹钟")
+            if (summary.dismissedCount > 0) add("已删除 ${summary.dismissedCount} 个失效闹钟")
+            if (summary.dismissFailedCount > 0) add("${summary.dismissFailedCount} 个失效闹钟删除失败")
+            if (summary.createdCount > 0) add("成功添加 ${summary.createdCount} 个闹钟")
             if (summary.skippedExistingCount > 0) add("跳过 ${summary.skippedExistingCount} 个已添加闹钟")
             if (summary.skippedUnrepresentableCount > 0) add("跳过 ${summary.skippedUnrepresentableCount} 个无法安全表达日期的闹钟")
             if (summary.failedCount > 0) add("${summary.failedCount} 个设置失败：${summary.results.first { !it.succeeded }.message}")
         }
-        return if (details.isEmpty()) "$successMessage；暂无可立即添加的系统闹钟" else "$successMessage；${details.joinToString("，")}"
+        return if (details.isEmpty()) "$successMessage；暂无可立即添加的闹钟" else "$successMessage；${details.joinToString("，")}"
     }
 
     private suspend fun currentReminderSchedule(): TermSchedule? {
@@ -853,6 +855,7 @@ class ScheduleViewModelFactory(
     private val manualCourseRepository: ManualCourseRepository,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
+    private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -865,6 +868,7 @@ class ScheduleViewModelFactory(
                 manualCourseRepository = manualCourseRepository,
                 normalizeTimingProfile = normalizeTimingProfile,
                 onSyncCompleted = onSyncCompleted,
+                onAlarmSyncChecked = onAlarmSyncChecked,
                 resolveTimingProfile = resolveTimingProfile,
             ) as T
         }

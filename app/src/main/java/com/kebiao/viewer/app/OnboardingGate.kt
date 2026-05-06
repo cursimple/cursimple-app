@@ -106,7 +106,7 @@ private fun DisclaimerDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "课程提醒触发时间依赖系统闹钟与通知机制，可能受到电池优化、勿扰模式或厂商后台限制的影响，作者不对因此造成的迟到、缺席或其它损失承担责任。",
+                    "课程提醒触发时间依赖精确闹钟与通知机制，可能受到电池优化、勿扰模式或厂商后台限制的影响，作者不对因此造成的迟到、缺席或其它损失承担责任。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

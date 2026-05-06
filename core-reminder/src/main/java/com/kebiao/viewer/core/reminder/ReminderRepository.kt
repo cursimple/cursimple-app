@@ -1,6 +1,7 @@
 package com.kebiao.viewer.core.reminder
 
 import com.kebiao.viewer.core.reminder.model.ReminderRule
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.flow.Flow
 
@@ -19,7 +20,7 @@ interface ReminderRepository {
 
     suspend fun saveSystemAlarmRecord(record: SystemAlarmRecord)
 
-    suspend fun removeSystemAlarmRecord(alarmKey: String)
+    suspend fun removeSystemAlarmRecord(alarmKey: String, backend: ReminderAlarmBackend? = null)
 
     suspend fun removeSystemAlarmRecordsForRule(ruleId: String)
 

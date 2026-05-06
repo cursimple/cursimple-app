@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.edit
 import com.kebiao.viewer.core.reminder.ReminderRepository
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.flow.Flow
@@ -65,7 +66,7 @@ class DataStoreReminderRepository(
     override suspend fun saveSystemAlarmRecord(record: SystemAlarmRecord) {
         store.edit { preferences ->
             val next = preferences.decodeSystemAlarmRecords()
-                .filterNot { it.alarmKey == record.alarmKey }
+                .filterNot { it.alarmKey == record.alarmKey && it.backend == record.backend }
                 .plus(record)
                 .sortedBy { it.triggerAtMillis }
             preferences[KEY_SYSTEM_ALARM_RECORDS] = json.encodeToString(
@@ -75,9 +76,11 @@ class DataStoreReminderRepository(
         }
     }
 
-    override suspend fun removeSystemAlarmRecord(alarmKey: String) {
+    override suspend fun removeSystemAlarmRecord(alarmKey: String, backend: ReminderAlarmBackend?) {
         store.edit { preferences ->
-            val next = preferences.decodeSystemAlarmRecords().filterNot { it.alarmKey == alarmKey }
+            val next = preferences.decodeSystemAlarmRecords().filterNot {
+                it.alarmKey == alarmKey && (backend == null || it.backend == backend)
+            }
             preferences[KEY_SYSTEM_ALARM_RECORDS] = json.encodeToString(
                 ListSerializer(SystemAlarmRecord.serializer()),
                 next,
