@@ -59,6 +59,15 @@ enum class ReminderAlarmBackend {
     SystemClockApp,
 }
 
+@Serializable
+enum class AppAlarmOperationMode {
+    @SerialName("legacy_broadcast")
+    LegacyBroadcast,
+
+    @SerialName("foreground_service")
+    ForegroundService,
+}
+
 data class ReminderAlarmSettings(
     val backend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
     val ringDurationSeconds: Int = 60,
@@ -102,6 +111,7 @@ data class SystemAlarmRecord(
     @SerialName("alarmLabel") val alarmLabel: String? = null,
     @SerialName("backend") val backend: ReminderAlarmBackend = ReminderAlarmBackend.SystemClockApp,
     @SerialName("requestCode") val requestCode: Int? = null,
+    @SerialName("operationMode") val operationMode: AppAlarmOperationMode = AppAlarmOperationMode.LegacyBroadcast,
     @SerialName("createdAtMillis") val createdAtMillis: Long,
 )
 
