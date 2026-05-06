@@ -1,13 +1,18 @@
 package com.kebiao.viewer.core.reminder.dispatch
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchChannel
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
 import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
+import com.kebiao.viewer.core.reminder.model.appAlarmRequestCode
+import com.kebiao.viewer.core.reminder.model.systemAlarmKey
 import com.kebiao.viewer.core.reminder.model.systemAlarmLabel
 import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import java.time.Instant
@@ -18,6 +23,125 @@ interface AlarmDispatcher {
 
 interface AlarmDismisser {
     suspend fun dismiss(record: SystemAlarmRecord): AlarmDismissResult
+}
+
+object AppAlarmClockIntents {
+    const val ACTION_TRIGGER = "com.kebiao.viewer.action.APP_ALARM_TRIGGER"
+    const val EXTRA_ALARM_KEY = "com.kebiao.viewer.extra.ALARM_KEY"
+    const val EXTRA_RULE_ID = "com.kebiao.viewer.extra.RULE_ID"
+    const val EXTRA_PLAN_ID = "com.kebiao.viewer.extra.PLAN_ID"
+    const val EXTRA_TRIGGER_AT_MILLIS = "com.kebiao.viewer.extra.TRIGGER_AT_MILLIS"
+    const val EXTRA_TITLE = "com.kebiao.viewer.extra.TITLE"
+    const val EXTRA_MESSAGE = "com.kebiao.viewer.extra.MESSAGE"
+    const val EXTRA_RINGTONE_URI = "com.kebiao.viewer.extra.RINGTONE_URI"
+}
+
+class AppAlarmClockDispatcher(
+    private val context: Context,
+) : AlarmDispatcher {
+    override suspend fun dispatch(plan: ReminderPlan): AlarmDispatchResult {
+        val appContext = context.applicationContext
+        val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        if (!alarmManager.canScheduleExactAlarmCompat()) {
+            ReminderLogger.warn(
+                "reminder.app_alarm_clock.dispatch.permission_missing",
+                mapOf("ruleId" to plan.ruleId, "planId" to plan.planId, "triggerAtMillis" to plan.triggerAtMillis),
+            )
+            return AlarmDispatchResult(
+                channel = AlarmDispatchChannel.AppAlarmClock,
+                succeeded = false,
+                message = "精确闹钟权限未开启",
+            )
+        }
+        val requestCode = plan.appAlarmRequestCode()
+        val operation = appAlarmOperationIntent(appContext, plan, requestCode)
+        val showIntent = appAlarmShowIntent(appContext, plan, requestCode)
+        ReminderLogger.info(
+            "reminder.app_alarm_clock.dispatch.start",
+            mapOf(
+                "ruleId" to plan.ruleId,
+                "planId" to plan.planId,
+                "requestCode" to requestCode,
+                "triggerAtMillis" to plan.triggerAtMillis,
+            ),
+        )
+        return runCatching {
+            alarmManager.setAlarmClock(
+                AlarmManager.AlarmClockInfo(plan.triggerAtMillis, showIntent),
+                operation,
+            )
+            ReminderLogger.info(
+                "reminder.app_alarm_clock.dispatch.success",
+                mapOf("ruleId" to plan.ruleId, "planId" to plan.planId, "requestCode" to requestCode),
+            )
+            AlarmDispatchResult(
+                channel = AlarmDispatchChannel.AppAlarmClock,
+                succeeded = true,
+                message = "App 自管闹钟已设置",
+            )
+        }.getOrElse {
+            val message = when (it) {
+                is SecurityException -> "系统拒绝设置精确闹钟"
+                else -> it.message ?: "设置 App 自管闹钟失败"
+            }
+            ReminderLogger.warn(
+                "reminder.app_alarm_clock.dispatch.failure",
+                mapOf("ruleId" to plan.ruleId, "planId" to plan.planId, "reason" to message),
+                it,
+            )
+            AlarmDispatchResult(
+                channel = AlarmDispatchChannel.AppAlarmClock,
+                succeeded = false,
+                message = message,
+            )
+        }
+    }
+}
+
+class AppAlarmClockDismisser(
+    private val context: Context,
+) : AlarmDismisser {
+    override suspend fun dismiss(record: SystemAlarmRecord): AlarmDismissResult {
+        val appContext = context.applicationContext
+        val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val requestCode = record.requestCode ?: (record.alarmKey.hashCode() and Int.MAX_VALUE)
+        val pendingIntent = appAlarmOperationIntent(appContext, record, requestCode)
+        ReminderLogger.info(
+            "reminder.app_alarm_clock.dismiss.start",
+            mapOf(
+                "ruleId" to record.ruleId,
+                "planId" to record.planId,
+                "alarmKey" to record.alarmKey,
+                "requestCode" to requestCode,
+                "triggerAtMillis" to record.triggerAtMillis,
+            ),
+        )
+        return runCatching {
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
+            ReminderLogger.info(
+                "reminder.app_alarm_clock.dismiss.success",
+                mapOf("ruleId" to record.ruleId, "planId" to record.planId, "alarmKey" to record.alarmKey),
+            )
+            AlarmDismissResult(
+                alarmKey = record.alarmKey,
+                succeeded = true,
+                message = "App 自管闹钟已取消",
+            )
+        }.getOrElse {
+            val message = it.message ?: "取消 App 自管闹钟失败"
+            ReminderLogger.warn(
+                "reminder.app_alarm_clock.dismiss.failure",
+                mapOf("ruleId" to record.ruleId, "planId" to record.planId, "alarmKey" to record.alarmKey),
+                it,
+            )
+            AlarmDismissResult(
+                alarmKey = record.alarmKey,
+                succeeded = false,
+                message = message,
+            )
+        }
+    }
 }
 
 class SystemAlarmClockDispatcher(
@@ -46,7 +170,7 @@ class SystemAlarmClockDispatcher(
                 mapOf("ruleId" to plan.ruleId, "planId" to plan.planId),
             )
             AlarmDispatchResult(
-                channel = AlarmDispatchChannel.SystemClock,
+                channel = AlarmDispatchChannel.SystemClockApp,
                 succeeded = true,
                 message = "系统时钟已接受创建请求",
             )
@@ -62,12 +186,76 @@ class SystemAlarmClockDispatcher(
                 it,
             )
             AlarmDispatchResult(
-                channel = AlarmDispatchChannel.SystemClock,
+                channel = AlarmDispatchChannel.SystemClockApp,
                 succeeded = false,
                 message = message,
             )
         }
     }
+}
+
+private fun AlarmManager.canScheduleExactAlarmCompat(): Boolean =
+    Build.VERSION.SDK_INT < Build.VERSION_CODES.S || runCatching {
+        canScheduleExactAlarms()
+    }.getOrDefault(false)
+
+private fun appAlarmOperationIntent(
+    context: Context,
+    plan: ReminderPlan,
+    requestCode: Int,
+): PendingIntent =
+    PendingIntent.getBroadcast(
+        context.applicationContext,
+        requestCode,
+        Intent(AppAlarmClockIntents.ACTION_TRIGGER).apply {
+            setPackage(context.packageName)
+            putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, plan.systemAlarmKey())
+            putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, plan.ruleId)
+            putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, plan.planId)
+            putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, plan.triggerAtMillis)
+            putExtra(AppAlarmClockIntents.EXTRA_TITLE, plan.title)
+            putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, plan.message)
+            putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, plan.ringtoneUri)
+        },
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+private fun appAlarmOperationIntent(
+    context: Context,
+    record: SystemAlarmRecord,
+    requestCode: Int,
+): PendingIntent =
+    PendingIntent.getBroadcast(
+        context.applicationContext,
+        requestCode,
+        Intent(AppAlarmClockIntents.ACTION_TRIGGER).apply {
+            setPackage(context.packageName)
+            putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, record.alarmKey)
+            putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, record.ruleId)
+            putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, record.planId)
+            putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, record.triggerAtMillis)
+            putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, record.message)
+        },
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+private fun appAlarmShowIntent(
+    context: Context,
+    plan: ReminderPlan,
+    requestCode: Int,
+): PendingIntent {
+    val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?: Intent(Intent.ACTION_MAIN).apply {
+            setPackage(context.packageName)
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+    launchIntent.putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, plan.systemAlarmKey())
+    return PendingIntent.getActivity(
+        context.applicationContext,
+        requestCode,
+        launchIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 }
 
 class SystemAlarmClockDismisser(

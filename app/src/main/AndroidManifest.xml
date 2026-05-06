@@ -6,6 +6,11 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application
         android:name=".app.ClassScheduleApplication"
@@ -49,6 +54,19 @@
                 <action android:name="android.intent.action.DATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".app.reminder.AppAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.kebiao.viewer.action.APP_ALARM_TRIGGER" />
+            </intent-filter>
+        </receiver>
+
+        <service
+            android:name=".app.reminder.AlarmRingingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 
 </manifest>

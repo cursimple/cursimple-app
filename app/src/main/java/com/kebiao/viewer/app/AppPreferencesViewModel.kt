@@ -9,6 +9,7 @@ import com.kebiao.viewer.core.data.UserPreferences
 import com.kebiao.viewer.core.data.UserPreferencesRepository
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.time.BeijingTime
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -46,6 +47,25 @@ class AppPreferencesViewModel(
 
     fun setTotalScheduleDisplayEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setTotalScheduleDisplayEnabled(enabled) }
+    }
+
+    fun setAlarmBackend(backend: ReminderAlarmBackend) {
+        viewModelScope.launch {
+            repository.setAlarmBackend(backend)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun setAlarmRingDurationSeconds(seconds: Int) {
+        viewModelScope.launch { repository.setAlarmRingDurationSeconds(seconds) }
+    }
+
+    fun setAlarmRepeatIntervalSeconds(seconds: Int) {
+        viewModelScope.launch { repository.setAlarmRepeatIntervalSeconds(seconds) }
+    }
+
+    fun setAlarmRepeatCount(count: Int) {
+        viewModelScope.launch { repository.setAlarmRepeatCount(count) }
     }
 
     fun upsertTemporaryScheduleOverride(override: TemporaryScheduleOverride) {
