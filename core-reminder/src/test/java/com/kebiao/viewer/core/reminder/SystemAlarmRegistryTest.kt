@@ -356,6 +356,53 @@ class SystemAlarmRegistryTest {
         assertEquals(listOf(other), repository.records.value)
     }
 
+    @Test
+    fun `consuming triggered app managed course alarm deletes one shot rule and its alarms`() = runBlocking {
+        val fired = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+            .copy(alarmKey = "fired", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1001)
+        val future = sampleRecord(triggerAtMillis = futureMillis())
+            .copy(alarmKey = "future", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1002)
+        val repository = FakeReminderRepository(rules = listOf(sampleRule())).apply {
+            records.value = listOf(fired, future)
+        }
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDismisser = appDismisser,
+        )
+
+        coordinator.consumeTriggeredAppAlarm("fired", "rule")
+
+        assertEquals(emptyList<ReminderRule>(), repository.getReminderRules())
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+        assertEquals(1, appDismisser.dismissCount)
+    }
+
+    @Test
+    fun `consuming first course app alarm keeps recurring rule`() = runBlocking {
+        val rule = sampleRule().copy(scopeType = ReminderScopeType.FirstCourseOfPeriod)
+        val fired = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+            .copy(alarmKey = "fired", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1001)
+        val future = sampleRecord(triggerAtMillis = futureMillis())
+            .copy(alarmKey = "future", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1002)
+        val repository = FakeReminderRepository(rules = listOf(rule)).apply {
+            records.value = listOf(fired, future)
+        }
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDismisser = appDismisser,
+        )
+
+        coordinator.consumeTriggeredAppAlarm("fired", "rule")
+
+        assertEquals(listOf(rule), repository.getReminderRules())
+        assertEquals(listOf(future), repository.records.value)
+        assertEquals(0, appDismisser.dismissCount)
+    }
+
     private fun sampleRule(): ReminderRule = ReminderRule(
         ruleId = "rule",
         pluginId = "demo",

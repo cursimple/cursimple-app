@@ -200,6 +200,26 @@ class ReminderCoordinator(
         result
     }
 
+    suspend fun consumeTriggeredAppAlarm(
+        alarmKey: String,
+        ruleId: String,
+    ) = SYSTEM_ALARM_LOCK.withLock {
+        val rule = repository.getReminderRules().firstOrNull { it.ruleId == ruleId }
+        if (rule == null) {
+            repository.removeSystemAlarmRecord(alarmKey, ReminderAlarmBackend.AppAlarmClock)
+            return@withLock
+        }
+        if (!rule.shouldDeleteAfterAppAlarmRing()) {
+            repository.removeSystemAlarmRecord(alarmKey, ReminderAlarmBackend.AppAlarmClock)
+            return@withLock
+        }
+        val nowMillis = System.currentTimeMillis()
+        val records = repository.getSystemAlarmRecords().filter { it.ruleId == ruleId }
+        dismissRecords(records.filter { it.triggerAtMillis > nowMillis })
+        repository.removeReminderRule(ruleId)
+        repository.removeSystemAlarmRecordsForRule(ruleId)
+    }
+
     suspend fun syncSystemClockAlarmsForWindow(
         pluginId: String,
         schedule: TermSchedule,
@@ -577,3 +597,6 @@ private fun ReminderRule.hasSameDefinition(
         this.ringtoneUri.normalizeRingtoneUri() == ringtoneUri.normalizeRingtoneUri()
 
 private fun String?.normalizeRingtoneUri(): String? = takeUnless { it.isNullOrBlank() }
+
+private fun ReminderRule.shouldDeleteAfterAppAlarmRing(): Boolean =
+    scopeType != ReminderScopeType.FirstCourseOfPeriod
