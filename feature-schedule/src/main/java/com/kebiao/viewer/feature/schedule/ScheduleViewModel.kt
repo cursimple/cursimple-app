@@ -21,10 +21,12 @@ import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.core.reminder.ReminderSyncWindows
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
+import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +59,7 @@ data class ScheduleUiState(
     val pendingWebSession: WebSessionRequest? = null,
     val alarmRecommendations: List<AlarmRecommendation> = emptyList(),
     val reminderRules: List<ReminderRule> = emptyList(),
+    val systemAlarmRecords: List<SystemAlarmRecord> = emptyList(),
     val selectionState: ScheduleSelectionState? = null,
     val timingProfile: TermTimingProfile? = null,
     val messages: List<String> = emptyList(),
@@ -107,6 +110,8 @@ class ScheduleViewModel(
                     installedPlugins = pair.second,
                     reminderRules = reminderRules,
                 )
+            }.combine(reminderCoordinator.systemAlarmRecordsFlow) { snapshot, systemAlarmRecords ->
+                snapshot.copy(systemAlarmRecords = systemAlarmRecords)
             }.collect { snapshot ->
                 val selectedPluginId = when {
                     snapshot.installedPlugins.any { it.pluginId == snapshot.pluginId } -> snapshot.pluginId
@@ -121,6 +126,7 @@ class ScheduleViewModel(
                         termId = snapshot.termId,
                         installedPlugins = snapshot.installedPlugins,
                         reminderRules = snapshot.reminderRules,
+                        systemAlarmRecords = snapshot.systemAlarmRecords,
                     )
                 }
                 if (selectedPluginId.isNotBlank()) {
@@ -516,6 +522,29 @@ class ScheduleViewModel(
         }
     }
 
+    fun removeAlarmRecord(alarmKey: String, backend: ReminderAlarmBackend) {
+        viewModelScope.launch {
+            val result = reminderCoordinator.deleteAlarmRecord(alarmKey, backend)
+            _uiState.update {
+                it.copy(statusMessage = if (result.succeeded) result.message else "闹钟取消失败：${result.message}")
+            }
+        }
+    }
+
+    fun refreshReminderAlarmsNow() {
+        viewModelScope.launch {
+            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已刷新今日闹钟",
+                        summary = summary,
+                    ),
+                )
+            }
+        }
+    }
+
     fun saveFirstCourseReminder(
         period: ReminderDayPeriod,
         enabled: Boolean,
@@ -784,6 +813,7 @@ class ScheduleViewModel(
         val termId: String,
         val installedPlugins: List<InstalledPluginRecord>,
         val reminderRules: List<ReminderRule>,
+        val systemAlarmRecords: List<SystemAlarmRecord> = emptyList(),
     )
 
     private data class BaseSnapshot(

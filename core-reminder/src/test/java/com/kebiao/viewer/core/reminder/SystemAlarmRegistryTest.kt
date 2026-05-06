@@ -332,6 +332,30 @@ class SystemAlarmRegistryTest {
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
     }
 
+    @Test
+    fun `deleting one app managed alarm record dismisses and removes only that record`() = runBlocking {
+        val target = sampleRecord(triggerAtMillis = futureMillis())
+            .copy(alarmKey = "target", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1001)
+        val other = sampleRecord(triggerAtMillis = futureMillis() + 60_000)
+            .copy(alarmKey = "other", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1002)
+        val repository = FakeReminderRepository(rules = listOf(sampleRule())).apply {
+            records.value = listOf(target, other)
+        }
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.AppAlarmClock) },
+            appDismisser = appDismisser,
+        )
+
+        val result = coordinator.deleteAlarmRecord("target", ReminderAlarmBackend.AppAlarmClock)
+
+        assertEquals(true, result.succeeded)
+        assertEquals(1, appDismisser.dismissCount)
+        assertEquals(listOf(other), repository.records.value)
+    }
+
     private fun sampleRule(): ReminderRule = ReminderRule(
         ruleId = "rule",
         pluginId = "demo",

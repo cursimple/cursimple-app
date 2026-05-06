@@ -33,11 +33,14 @@ class SystemAlarmCheckReceiver : BroadcastReceiver() {
                 when (intent.action) {
                     ACTION_DAILY_NEXT_DAY_CHECK -> app.appContainer.runSystemAlarmCheck(ReminderSyncReason.DailyNextDay)
                     ACTION_AFTER_CLASS_CHECK -> app.appContainer.runSystemAlarmCheck(ReminderSyncReason.AfterClassToday)
-                    Intent.ACTION_BOOT_COMPLETED -> app.appContainer.scheduleSystemAlarmChecks()
+                    Intent.ACTION_BOOT_COMPLETED,
                     Intent.ACTION_MY_PACKAGE_REPLACED,
                     Intent.ACTION_TIME_CHANGED,
                     Intent.ACTION_TIMEZONE_CHANGED,
-                    Intent.ACTION_DATE_CHANGED -> app.appContainer.scheduleSystemAlarmChecks()
+                    Intent.ACTION_DATE_CHANGED,
+                    AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
+                        app.appContainer.refreshScheduleOutputs()
+                    }
                     else -> ReminderLogger.warn(
                         "reminder.system_clock.check.unknown_action",
                         mapOf("action" to intent.action.orEmpty()),
