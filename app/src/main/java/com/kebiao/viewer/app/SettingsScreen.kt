@@ -2,6 +2,7 @@ package com.kebiao.viewer.app
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -303,6 +304,9 @@ private fun AlarmReliabilitySection(
     val exactAlarmEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
     val notificationEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         NotificationManagerCompat.from(context).areNotificationsEnabled()
+    val notificationManager = remember(context) { context.getSystemService(NotificationManager::class.java) }
+    val fullScreenIntentEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+        notificationManager.canUseFullScreenIntent()
     val batteryOptimizationIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName)
 
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -352,6 +356,18 @@ private fun AlarmReliabilitySection(
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                 } else {
                     launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
+                }
+            },
+        )
+        SettingsActionRow(
+            icon = Icons.Rounded.Notifications,
+            title = "全屏响铃权限",
+            subtitle = if (fullScreenIntentEnabled) "已开启" else "未开启，锁屏响铃页可能不会自动弹出",
+            onClick = {
+                if (fullScreenIntentEnabled) {
+                    Toast.makeText(context, "全屏响铃权限已开启", Toast.LENGTH_SHORT).show()
+                } else {
+                    launchSettingsIntent(context, AlarmPermissionIntents.fullScreenIntentSettingsIntent(context))
                 }
             },
         )

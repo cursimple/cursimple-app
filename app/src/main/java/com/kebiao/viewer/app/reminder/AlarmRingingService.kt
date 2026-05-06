@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -12,6 +13,7 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.IBinder
 import android.os.PowerManager
 import android.os.VibrationEffect
@@ -244,6 +246,7 @@ class AlarmRingingService : Service() {
                 putAlarmExtras(alarm)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            alarmActivityOptions(),
         )
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
@@ -267,6 +270,19 @@ class AlarmRingingService : Service() {
             startForeground(NOTIFICATION_ID, notification)
         }
         ReminderLogger.info("reminder.app_alarm_clock.ringing.foreground.start", mapOf("alarmKey" to alarm.alarmKey))
+    }
+
+    private fun alarmActivityOptions(): Bundle? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.VANILLA_ICE_CREAM) return null
+        val backgroundStartMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_ALWAYS
+        } else {
+            @Suppress("DEPRECATION")
+            ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+        }
+        return ActivityOptions.makeBasic().apply {
+            setPendingIntentCreatorBackgroundActivityStartMode(backgroundStartMode)
+        }.toBundle()
     }
 
     private fun serviceIntent(actionName: String, alarm: ActiveAlarm): Intent =

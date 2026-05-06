@@ -1,18 +1,19 @@
 package com.kebiao.viewer.app.reminder
 
 import android.app.Activity
-import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ViewGroup
+import android.view.Window
 import android.view.WindowManager
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -23,12 +24,14 @@ class AlarmRingingActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
         configureWindow()
         render()
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        actionSent = false
         setIntent(intent)
         render()
     }
@@ -45,10 +48,6 @@ class AlarmRingingActivity : Activity() {
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val keyguardManager = getSystemService(KeyguardManager::class.java)
-            keyguardManager?.requestDismissKeyguard(this, null)
-        }
     }
 
     private fun render() {
@@ -62,8 +61,8 @@ class AlarmRingingActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(36.dp(), 48.dp(), 36.dp(), 48.dp())
-            setBackgroundColor(Color.rgb(248, 250, 247))
+            setPadding(28.dp(), 52.dp(), 28.dp(), 42.dp())
+            setBackgroundColor(Color.rgb(19, 24, 31))
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -71,55 +70,64 @@ class AlarmRingingActivity : Activity() {
         }
         val titleView = TextView(this).apply {
             text = title
-            textSize = 28f
-            setTextColor(Color.rgb(27, 36, 31))
+            textSize = 30f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
         }
         val messageView = TextView(this).apply {
             text = message
             textSize = 16f
-            setTextColor(Color.rgb(87, 99, 91))
+            setTextColor(Color.rgb(206, 214, 224))
             gravity = Gravity.CENTER
-            setPadding(0, 16.dp(), 0, 32.dp())
+            setPadding(0, 16.dp(), 0, 44.dp())
         }
-        val stopButton = Button(this).apply {
-            text = "停止"
-            textSize = 18f
-            setOnClickListener { sendServiceAction(AlarmRingingService.ACTION_STOP) }
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
         }
-        val snoozeButton = Button(this).apply {
-            text = "延后 5 分钟"
-            textSize = 18f
-            setOnClickListener { sendServiceAction(AlarmRingingService.ACTION_SNOOZE) }
-        }
+        val snoozeButton = actionButton(
+            text = "延后 5 分钟",
+            backgroundColor = Color.rgb(43, 57, 74),
+            textColor = Color.WHITE,
+            actionName = AlarmRingingService.ACTION_SNOOZE,
+        )
+        val stopButton = actionButton(
+            text = "关闭",
+            backgroundColor = Color.rgb(230, 74, 55),
+            textColor = Color.WHITE,
+            actionName = AlarmRingingService.ACTION_STOP,
+        )
         val gestureHint = TextView(this).apply {
-            text = "右滑关闭 · 左滑延后"
+            text = "左滑延后 · 右滑关闭"
             textSize = 13f
-            setTextColor(Color.rgb(111, 123, 115))
+            setTextColor(Color.rgb(146, 157, 171))
             gravity = Gravity.CENTER
-            setPadding(0, 18.dp(), 0, 0)
+            setPadding(0, 20.dp(), 0, 0)
         }
         root.addView(titleView, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         root.addView(messageView, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        root.addView(stopButton, buttonLayoutParams())
-        root.addView(snoozeButton, buttonLayoutParams())
+        actions.addView(snoozeButton, actionButtonLayoutParams(left = true))
+        actions.addView(stopButton, actionButtonLayoutParams(left = false))
+        root.addView(actions, LinearLayout.LayoutParams.MATCH_PARENT, 58.dp())
         root.addView(gestureHint, LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         attachSwipeActions(root)
         setContentView(root)
     }
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> {
-                sendServiceAction(AlarmRingingService.ACTION_STOP)
-                true
-            }
-            KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                sendServiceAction(AlarmRingingService.ACTION_SNOOZE)
-                true
-            }
-            else -> super.onKeyDown(keyCode, event)
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val action = when (event.keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> AlarmRingingService.ACTION_STOP
+            KeyEvent.KEYCODE_VOLUME_DOWN -> AlarmRingingService.ACTION_SNOOZE
+            else -> null
         }
+        if (action != null) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                sendServiceAction(action)
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun sendServiceAction(actionName: String) {
@@ -169,12 +177,41 @@ class AlarmRingingActivity : Activity() {
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, source.getStringExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI))
     }
 
-    private fun buttonLayoutParams(): LinearLayout.LayoutParams =
+    private fun actionButton(
+        text: String,
+        backgroundColor: Int,
+        textColor: Int,
+        actionName: String,
+    ): TextView = TextView(this).apply {
+        this.text = text
+        textSize = 17f
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setTextColor(textColor)
+        background = roundedBackground(backgroundColor)
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { sendServiceAction(actionName) }
+    }
+
+    private fun roundedBackground(color: Int): GradientDrawable =
+        GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = 8.dp().toFloat()
+            setColor(color)
+        }
+
+    private fun actionButtonLayoutParams(left: Boolean): LinearLayout.LayoutParams =
         LinearLayout.LayoutParams(
+            0,
             LinearLayout.LayoutParams.MATCH_PARENT,
-            54.dp(),
+            1f,
         ).apply {
-            topMargin = 12.dp()
+            if (left) {
+                rightMargin = 6.dp()
+            } else {
+                leftMargin = 6.dp()
+            }
         }
 
     private fun Int.dp(): Int = (this * resources.displayMetrics.density).toInt()
