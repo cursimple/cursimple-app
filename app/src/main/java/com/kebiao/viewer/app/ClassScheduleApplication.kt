@@ -9,6 +9,7 @@ import com.kebiao.viewer.app.util.PluginFileLogSink
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.plugin.logging.PluginLogger
 import com.kebiao.viewer.core.reminder.logging.ReminderLogger
+import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.feature.widget.ScheduleWidgetWorkScheduler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -43,6 +44,7 @@ class ClassScheduleApplication : Application() {
         LogCleanupScheduler.schedule(this)
         appScope.launch {
             appContainer.scheduleSystemAlarmChecks()
+            appContainer.tryRunSharedAlarmPoll(ReminderSyncReason.WidgetRefresh)
         }
 
         appScope.launch {

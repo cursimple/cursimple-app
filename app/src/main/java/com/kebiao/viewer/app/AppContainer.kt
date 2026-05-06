@@ -7,6 +7,7 @@ import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
 import com.kebiao.viewer.core.data.ManualCourseRepository
 import com.kebiao.viewer.core.data.ScheduleRepository
 import com.kebiao.viewer.core.data.UserPreferencesRepository
+import com.kebiao.viewer.core.data.UserPreferences
 import com.kebiao.viewer.core.data.plugin.DataStorePluginRegistryRepository
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
 import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
@@ -20,7 +21,9 @@ import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.core.plugin.PluginManager
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.core.reminder.ReminderSyncWindows
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmSettings
 import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
+import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
 import com.kebiao.viewer.app.reminder.SystemAlarmCheckScheduler
 import com.kebiao.viewer.feature.widget.ScheduleWidgetUpdater
 import kotlinx.coroutines.flow.first
@@ -48,6 +51,9 @@ class AppContainer(
         repository = reminderRepository,
         temporaryScheduleOverridesProvider = {
             userPreferencesRepository.preferencesFlow.first().temporaryScheduleOverrides
+        },
+        alarmSettingsProvider = {
+            userPreferencesRepository.preferencesFlow.first().toReminderAlarmSettings()
         },
     )
 
@@ -109,13 +115,14 @@ class AppContainer(
         val schedule = reminderSchedule() ?: return
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first() ?: return
         val pluginId = scheduleRepository.lastPluginIdFlow.first()
-        reminderCoordinator.syncSystemClockAlarmsForWindow(
+        reminderCoordinator.syncAlarmsForWindow(
             pluginId = pluginId,
             schedule = schedule,
             timingProfile = timingProfile,
             window = ReminderSyncWindows.todayFromNow(timingProfile),
             reason = ReminderSyncReason.ScheduleChanged,
         )
+        userPreferencesRepository.markAlarmPollAt(System.currentTimeMillis())
         scheduleSystemAlarmChecks(timingProfile)
     }
 
@@ -124,6 +131,7 @@ class AppContainer(
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val pluginId = scheduleRepository.lastPluginIdFlow.first()
         if (schedule != null && timingProfile != null) {
+            userPreferencesRepository.markAlarmPollAt(System.currentTimeMillis())
             val window = when (reason) {
                 ReminderSyncReason.DailyNextDay -> ReminderSyncWindows.nextDay(timingProfile)
                 ReminderSyncReason.AfterClassToday,
@@ -131,7 +139,7 @@ class AppContainer(
                 ReminderSyncReason.ScheduleChanged,
                 ReminderSyncReason.WidgetRefresh -> ReminderSyncWindows.todayFromNow(timingProfile)
             }
-            reminderCoordinator.syncSystemClockAlarmsForWindow(
+            reminderCoordinator.syncAlarmsForWindow(
                 pluginId = pluginId,
                 schedule = schedule,
                 timingProfile = timingProfile,
@@ -140,6 +148,34 @@ class AppContainer(
             )
         }
         scheduleSystemAlarmChecks(timingProfile)
+    }
+
+    suspend fun tryRunSharedAlarmPoll(
+        reason: ReminderSyncReason = ReminderSyncReason.WidgetRefresh,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): SystemAlarmSyncSummary {
+        val claimed = userPreferencesRepository.tryClaimAlarmPoll(
+            nowMillis = nowMillis,
+            minIntervalMillis = SHARED_ALARM_POLL_INTERVAL_MILLIS,
+        )
+        if (!claimed) return emptySystemAlarmSyncSummary()
+        val schedule = reminderSchedule()
+        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+        val pluginId = scheduleRepository.lastPluginIdFlow.first()
+        val summary = if (schedule != null && timingProfile != null) {
+            reminderCoordinator.syncAlarmsForWindow(
+                pluginId = pluginId,
+                schedule = schedule,
+                timingProfile = timingProfile,
+                window = ReminderSyncWindows.todayFromNow(timingProfile, nowMillis),
+                reason = reason,
+                nowMillis = nowMillis,
+            )
+        } else {
+            emptySystemAlarmSyncSummary()
+        }
+        scheduleSystemAlarmChecks(timingProfile)
+        return summary
     }
 
     suspend fun scheduleSystemAlarmChecks(timingProfile: TermTimingProfile? = null) {
@@ -180,6 +216,7 @@ class AppContainer(
 
     private companion object {
         const val YANGTZEU_PLUGIN_ID = "yangtzeu-eams-v2"
+        const val SHARED_ALARM_POLL_INTERVAL_MILLIS = 40L * 60L * 1000L
 
         fun parseIsoDate(value: String): LocalDate? =
             runCatching { LocalDate.parse(value) }.getOrNull()
@@ -217,6 +254,21 @@ class AppContainer(
         )
     }
 }
+
+private fun UserPreferences.toReminderAlarmSettings(): ReminderAlarmSettings = ReminderAlarmSettings(
+    backend = alarmBackend,
+    ringDurationSeconds = alarmRingDurationSeconds,
+    repeatIntervalSeconds = alarmRepeatIntervalSeconds,
+    repeatCount = alarmRepeatCount,
+)
+
+private fun emptySystemAlarmSyncSummary(): SystemAlarmSyncSummary = SystemAlarmSyncSummary(
+    submittedCount = 0,
+    createdCount = 0,
+    skippedExistingCount = 0,
+    skippedUnrepresentableCount = 0,
+    results = emptyList(),
+)
 
 data class BundledPluginEntry(
     val pluginId: String,

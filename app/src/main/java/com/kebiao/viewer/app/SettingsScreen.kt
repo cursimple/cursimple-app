@@ -1,7 +1,15 @@
 package com.kebiao.viewer.app
 
+import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.PowerManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +37,7 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.EventRepeat
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Restore
@@ -43,6 +52,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -53,6 +63,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -63,11 +74,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import com.kebiao.viewer.app.reminder.AlarmPermissionIntents
 import com.kebiao.viewer.app.util.LogExporter
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.feature.schedule.ScheduleSettingsRoute
 import com.kebiao.viewer.feature.schedule.ScheduleViewModel
 import kotlinx.coroutines.launch
@@ -88,6 +103,10 @@ fun AppSettingsRoute(
     timeZoneLabel: String,
     currentWeekIndex: Int,
     totalScheduleDisplayEnabled: Boolean,
+    alarmBackend: ReminderAlarmBackend,
+    alarmRingDurationSeconds: Int,
+    alarmRepeatIntervalSeconds: Int,
+    alarmRepeatCount: Int,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     developerModeEnabled: Boolean,
     debugForcedDateTime: LocalDateTime?,
@@ -98,6 +117,10 @@ fun AppSettingsRoute(
     onClearTermStartDate: () -> Unit,
     onPickTimeZone: () -> Unit,
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
+    onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
+    onAlarmRingDurationSecondsChange: (Int) -> Unit,
+    onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
+    onAlarmRepeatCountChange: (Int) -> Unit,
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit,
     onRemoveTemporaryScheduleOverride: (String) -> Unit,
     onClearTemporaryScheduleOverrides: () -> Unit,
@@ -109,6 +132,7 @@ fun AppSettingsRoute(
 ) {
     val scrollState = rememberScrollState()
     var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
+    var showAlarmBackendDialog by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -216,6 +240,17 @@ fun AppSettingsRoute(
             onClick = onOpenWidgetPicker,
         )
 
+        AlarmReliabilitySection(
+            alarmBackend = alarmBackend,
+            alarmRingDurationSeconds = alarmRingDurationSeconds,
+            alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
+            alarmRepeatCount = alarmRepeatCount,
+            onPickBackend = { showAlarmBackendDialog = true },
+            onRingDurationChange = onAlarmRingDurationSecondsChange,
+            onRepeatIntervalChange = onAlarmRepeatIntervalSecondsChange,
+            onRepeatCountChange = onAlarmRepeatCountChange,
+        )
+
         if (developerModeEnabled) {
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             DeveloperDebugSection(
@@ -235,6 +270,250 @@ fun AppSettingsRoute(
             onClear = onClearTemporaryScheduleOverrides,
             onDismiss = { showTemporaryOverrides = false },
         )
+    }
+    if (showAlarmBackendDialog) {
+        AlarmBackendDialog(
+            selected = alarmBackend,
+            onSelect = {
+                onAlarmBackendChange(it)
+                showAlarmBackendDialog = false
+            },
+            onDismiss = { showAlarmBackendDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun AlarmReliabilitySection(
+    alarmBackend: ReminderAlarmBackend,
+    alarmRingDurationSeconds: Int,
+    alarmRepeatIntervalSeconds: Int,
+    alarmRepeatCount: Int,
+    onPickBackend: () -> Unit,
+    onRingDurationChange: (Int) -> Unit,
+    onRepeatIntervalChange: (Int) -> Unit,
+    onRepeatCountChange: (Int) -> Unit,
+) {
+    val context = LocalContext.current
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        Toast.makeText(context, if (granted) "通知权限已开启" else "通知权限未开启", Toast.LENGTH_SHORT).show()
+    }
+    val alarmManager = remember(context) { context.getSystemService(Context.ALARM_SERVICE) as AlarmManager }
+    val powerManager = remember(context) { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+    val exactAlarmEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
+    val notificationEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+        NotificationManagerCompat.from(context).areNotificationsEnabled()
+    val batteryOptimizationIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.Notifications,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = "提醒与闹钟",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        SettingsActionRow(
+            icon = Icons.Rounded.Schedule,
+            title = "闹钟通道",
+            subtitle = alarmBackendLabel(alarmBackend),
+            onClick = onPickBackend,
+        )
+        SettingsActionRow(
+            icon = Icons.Rounded.Schedule,
+            title = "精确闹钟权限",
+            subtitle = if (exactAlarmEnabled) "已开启" else "未开启，App 自管闹钟无法设置",
+            onClick = {
+                if (exactAlarmEnabled) {
+                    Toast.makeText(context, "精确闹钟权限已开启", Toast.LENGTH_SHORT).show()
+                } else {
+                    launchSettingsIntent(context, AlarmPermissionIntents.exactAlarmSettingsIntent(context))
+                }
+            },
+        )
+        SettingsActionRow(
+            icon = Icons.Rounded.Notifications,
+            title = "通知权限",
+            subtitle = if (notificationEnabled) "已开启" else "未开启，响铃通知可能无法显示",
+            onClick = {
+                if (notificationEnabled) {
+                    Toast.makeText(context, "通知权限已开启", Toast.LENGTH_SHORT).show()
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
+                }
+            },
+        )
+        SettingsActionRow(
+            icon = Icons.Rounded.Restore,
+            title = "省电优化",
+            subtitle = if (batteryOptimizationIgnored) "已允许后台运行" else "建议允许后台运行，提升响铃服务可靠性",
+            onClick = {
+                if (batteryOptimizationIgnored) {
+                    Toast.makeText(context, "已允许后台运行", Toast.LENGTH_SHORT).show()
+                } else {
+                    launchSettingsIntent(context, AlarmPermissionIntents.batteryOptimizationIntent(context))
+                }
+            },
+        )
+        AlarmNumberSettingRow(
+            title = "响铃时长",
+            value = alarmRingDurationSeconds,
+            unit = "秒",
+            min = 5,
+            max = 600,
+            step = 5,
+            onValueChange = onRingDurationChange,
+        )
+        AlarmNumberSettingRow(
+            title = "响铃间隔",
+            value = alarmRepeatIntervalSeconds,
+            unit = "秒",
+            min = 5,
+            max = 3600,
+            step = 5,
+            onValueChange = onRepeatIntervalChange,
+        )
+        AlarmNumberSettingRow(
+            title = "响铃次数",
+            value = alarmRepeatCount,
+            unit = "次",
+            min = 1,
+            max = 10,
+            step = 1,
+            onValueChange = onRepeatCountChange,
+        )
+    }
+}
+
+@Composable
+private fun AlarmNumberSettingRow(
+    title: String,
+    value: Int,
+    unit: String,
+    min: Int,
+    max: Int,
+    step: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "$value $unit",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            OutlinedButton(
+                enabled = value > min,
+                onClick = { onValueChange((value - step).coerceAtLeast(min)) },
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            ) {
+                Text("-")
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            OutlinedButton(
+                enabled = value < max,
+                onClick = { onValueChange((value + step).coerceAtMost(max)) },
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+            ) {
+                Text("+")
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlarmBackendDialog(
+    selected: ReminderAlarmBackend,
+    onSelect: (ReminderAlarmBackend) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("闹钟通道") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ReminderAlarmBackend.entries.forEach { backend ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(backend) }
+                            .padding(vertical = 6.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        RadioButton(
+                            selected = selected == backend,
+                            onClick = { onSelect(backend) },
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = alarmBackendLabel(backend),
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = alarmBackendDescription(backend),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("完成") }
+        },
+    )
+}
+
+private fun alarmBackendLabel(backend: ReminderAlarmBackend): String = when (backend) {
+    ReminderAlarmBackend.AppAlarmClock -> "App 自管闹钟"
+    ReminderAlarmBackend.SystemClockApp -> "系统时钟 App 闹钟"
+}
+
+private fun alarmBackendDescription(backend: ReminderAlarmBackend): String = when (backend) {
+    ReminderAlarmBackend.AppAlarmClock -> "使用 AlarmManager.setAlarmClock，由本 App 控制响铃。"
+    ReminderAlarmBackend.SystemClockApp -> "使用系统时钟 App 创建和删除闹钟。"
+}
+
+private fun launchSettingsIntent(context: Context, intent: Intent) {
+    runCatching {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure {
+        runCatching {
+            context.startActivity(
+                AlarmPermissionIntents.appDetailsIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.onFailure { error ->
+            Toast.makeText(context, "无法打开设置：${error.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 }
 

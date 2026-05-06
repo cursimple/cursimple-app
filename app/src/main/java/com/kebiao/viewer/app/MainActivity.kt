@@ -153,6 +153,9 @@ class MainActivity : ComponentActivity() {
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
                             onSyncCompleted = { profile -> container.refreshWidgets(profile) },
+                            onAlarmSyncChecked = {
+                                container.userPreferencesRepository.markAlarmPollAt(System.currentTimeMillis())
+                            },
                             resolveTimingProfile = { container.widgetPreferencesRepository.timingProfileFlow.first() },
                         ),
                     )
@@ -583,6 +586,10 @@ class MainActivity : ComponentActivity() {
                                         timeZoneLabel = timeZoneLabel(prefs.timeZoneId),
                                         currentWeekIndex = currentWeekIndex,
                                         totalScheduleDisplayEnabled = prefs.totalScheduleDisplayEnabled,
+                                        alarmBackend = prefs.alarmBackend,
+                                        alarmRingDurationSeconds = prefs.alarmRingDurationSeconds,
+                                        alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
+                                        alarmRepeatCount = prefs.alarmRepeatCount,
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         developerModeEnabled = prefs.developerModeEnabled,
                                         debugForcedDateTime = prefs.debugForcedDateTime,
@@ -593,6 +600,10 @@ class MainActivity : ComponentActivity() {
                                         onClearTermStartDate = { showClearTermStartConfirm = true },
                                         onPickTimeZone = { showTimeZoneDialog = true },
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
+                                        onAlarmBackendChange = prefsViewModel::setAlarmBackend,
+                                        onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
+                                        onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
+                                        onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
                                         onUpsertTemporaryScheduleOverride = prefsViewModel::upsertTemporaryScheduleOverride,
                                         onRemoveTemporaryScheduleOverride = prefsViewModel::removeTemporaryScheduleOverride,
                                         onClearTemporaryScheduleOverrides = prefsViewModel::clearTemporaryScheduleOverrides,
