@@ -3,6 +3,7 @@ package com.kebiao.viewer.core.reminder.dispatch
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -27,6 +28,7 @@ interface AlarmDismisser {
 
 object AppAlarmClockIntents {
     const val ACTION_TRIGGER = "com.kebiao.viewer.action.APP_ALARM_TRIGGER"
+    const val RECEIVER_CLASS_NAME = "com.kebiao.viewer.app.reminder.AppAlarmReceiver"
     const val EXTRA_ALARM_KEY = "com.kebiao.viewer.extra.ALARM_KEY"
     const val EXTRA_RULE_ID = "com.kebiao.viewer.extra.RULE_ID"
     const val EXTRA_PLAN_ID = "com.kebiao.viewer.extra.PLAN_ID"
@@ -208,7 +210,7 @@ private fun appAlarmOperationIntent(
         context.applicationContext,
         requestCode,
         Intent(AppAlarmClockIntents.ACTION_TRIGGER).apply {
-            setPackage(context.packageName)
+            component = ComponentName(context.packageName, AppAlarmClockIntents.RECEIVER_CLASS_NAME)
             putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, plan.systemAlarmKey())
             putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, plan.ruleId)
             putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, plan.planId)
@@ -229,7 +231,7 @@ private fun appAlarmOperationIntent(
         context.applicationContext,
         requestCode,
         Intent(AppAlarmClockIntents.ACTION_TRIGGER).apply {
-            setPackage(context.packageName)
+            component = ComponentName(context.packageName, AppAlarmClockIntents.RECEIVER_CLASS_NAME)
             putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, record.alarmKey)
             putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, record.ruleId)
             putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, record.planId)

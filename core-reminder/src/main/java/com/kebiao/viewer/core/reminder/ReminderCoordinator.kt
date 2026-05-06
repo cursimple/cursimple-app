@@ -49,6 +49,8 @@ class ReminderCoordinator(
 
     val reminderRulesFlow: Flow<List<ReminderRule>> = repository.reminderRulesFlow
 
+    val systemAlarmRecordsFlow: Flow<List<SystemAlarmRecord>> = repository.systemAlarmRecordsFlow
+
     suspend fun getRules(): List<ReminderRule> = repository.getReminderRules()
 
     suspend fun saveRule(rule: ReminderRule) {
@@ -153,6 +155,49 @@ class ReminderCoordinator(
             )
             repository.clearSystemAlarmRecords()
         }
+    }
+
+    suspend fun deleteAlarmRecord(
+        alarmKey: String,
+        backend: ReminderAlarmBackend,
+    ): AlarmDismissResult = SYSTEM_ALARM_LOCK.withLock {
+        val record = repository.getSystemAlarmRecords()
+            .firstOrNull { it.alarmKey == alarmKey && it.backend == backend }
+            ?: return@withLock AlarmDismissResult(
+                alarmKey = alarmKey,
+                succeeded = true,
+                message = "闹钟登记已不存在",
+            )
+        if (record.triggerAtMillis <= System.currentTimeMillis()) {
+            repository.removeSystemAlarmRecord(record.alarmKey, record.backend)
+            return@withLock AlarmDismissResult(
+                alarmKey = record.alarmKey,
+                succeeded = true,
+                message = "已移除过期闹钟登记",
+            )
+        }
+        val dismisser = when (record.backend) {
+            ReminderAlarmBackend.AppAlarmClock -> appDismisser
+            ReminderAlarmBackend.SystemClockApp -> systemDismisser
+        }
+        val result = runCatching {
+            dismisser.dismiss(record)
+        }.getOrElse { error ->
+            ReminderLogger.warn(
+                "reminder.system_clock.dismiss.single_unhandled_failure",
+                mapOf("alarmKey" to record.alarmKey, "backend" to record.backend.name),
+                error,
+            )
+            AlarmDismissResult(
+                alarmKey = record.alarmKey,
+                succeeded = false,
+                message = error.message ?: "取消闹钟失败",
+            )
+        }
+        if (result.succeeded) {
+            repository.removeSystemAlarmRecord(record.alarmKey, record.backend)
+        }
+        result
     }
 
     suspend fun syncSystemClockAlarmsForWindow(
