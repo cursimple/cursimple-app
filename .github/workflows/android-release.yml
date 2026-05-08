@@ -35,18 +35,51 @@ jobs:
           CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
         run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
 
-      - name: Build release (v7a/v8a/universal)
+      - name: Configure release ABI splits
+        shell: pwsh
+        run: |
+          $buildFile = "app/build.gradle.kts"
+          $content = Get-Content -Raw -LiteralPath $buildFile
+          $current = 'include("armeabi-v7a", "arm64-v8a")'
+          $target = 'include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")'
+          if (-not $content.Contains($current)) {
+            throw "Expected ABI split declaration was not found."
+          }
+          $content.Replace($current, $target) | Set-Content -NoNewline -LiteralPath $buildFile
+
+      - name: Build release (4 ABIs + universal)
         run: ./gradlew assembleRelease
+
+      - name: Rename release APKs
+        shell: pwsh
+        run: |
+          $releaseDir = "app/build/outputs/apk/release"
+          $targets = @(
+            @{ Abi = "armeabi-v7a"; Regex = "(^|-)armeabi-v7a(-|$)" },
+            @{ Abi = "arm64-v8a"; Regex = "(^|-)arm64-v8a(-|$)" },
+            @{ Abi = "x86"; Regex = "(^|-)x86(-|$)" },
+            @{ Abi = "x86_64"; Regex = "(^|-)x86_64(-|$)" },
+            @{ Abi = "universal"; Regex = "(^|-)universal(-|$)" }
+          )
+
+          foreach ($target in $targets) {
+            $matches = @(Get-ChildItem -LiteralPath $releaseDir -Filter "*.apk" | Where-Object { $_.BaseName -match $target.Regex })
+            if ($matches.Count -ne 1) {
+              throw "Expected exactly one APK for $($target.Abi), found $($matches.Count)."
+            }
+
+            Move-Item -LiteralPath $matches[0].FullName -Destination (Join-Path $releaseDir "ClassScheduleViewer-$($target.Abi).apk") -Force
+          }
 
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-apk-${{ github.sha }}
-          path: app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/release/ClassScheduleViewer-*.apk
           if-no-files-found: error
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/*.apk
+          files: app/build/outputs/apk/release/ClassScheduleViewer-*.apk
           generate_release_notes: true
