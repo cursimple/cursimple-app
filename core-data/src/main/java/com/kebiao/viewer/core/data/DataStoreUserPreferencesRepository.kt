@@ -60,6 +60,7 @@ class DataStoreUserPreferencesRepository(
                 .coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT),
             lastAlarmPollAtMillis = prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] ?: 0L,
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,
+            ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
             loaded = true,
         )
     }
@@ -167,6 +168,16 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_AUTO_UPDATE_ENABLED] = enabled }
     }
 
+    override suspend fun setIgnoredUpdateVersionCode(versionCode: Int?) {
+        store.edit { prefs ->
+            if (versionCode == null) {
+                prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
+            } else {
+                prefs[KEY_IGNORED_UPDATE_VERSION_CODE] = versionCode
+            }
+        }
+    }
+
     override suspend fun seedEnabledPlugins(pluginIds: Set<String>) {
         store.edit { prefs ->
             if (prefs[KEY_PLUGINS_SEEDED] == true) return@edit
@@ -228,6 +239,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_ALARM_REPEAT_COUNT = intPreferencesKey("alarm_repeat_count")
         val KEY_LAST_ALARM_POLL_AT_MILLIS = longPreferencesKey("last_alarm_poll_at_millis")
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
+        val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
 
         const val DEFAULT_RING_DURATION_SECONDS = 60
         const val DEFAULT_REPEAT_INTERVAL_SECONDS = 120

@@ -13,6 +13,8 @@ import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.core.reminder.ReminderSyncWindows
+import com.kebiao.viewer.core.reminder.logging.ReminderLogger
+import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmSettings
 import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
@@ -29,14 +31,13 @@ internal object WidgetSystemAlarmSynchronizer {
         val reminderRepository = DataStoreReminderRepository(appContext)
         val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(appContext)
         val nowMillis = System.currentTimeMillis()
-        val claimed = userPreferencesRepository.tryClaimAlarmPoll(
-            nowMillis = nowMillis,
-            minIntervalMillis = SHARED_ALARM_POLL_INTERVAL_MILLIS,
-        )
-        if (!claimed) return emptySystemAlarmSyncSummary()
+        val preferences = userPreferencesRepository.preferencesFlow.first()
+        val alarmSettings = preferences.toReminderAlarmSettings()
 
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
-            ?: return emptySystemAlarmSyncSummary()
+            ?: return emptySystemAlarmSyncSummary().also { summary ->
+                logAlarmRegistrationReadiness(summary, alarmSettings.backend)
+            }
         val pluginId = scheduleRepository.lastPluginIdFlow.first()
 
         val schedule = mergeManualCoursesForReminders(
@@ -50,14 +51,16 @@ internal object WidgetSystemAlarmSynchronizer {
                 userPreferencesRepository.preferencesFlow.first().temporaryScheduleOverrides
             },
             alarmSettingsProvider = {
-                userPreferencesRepository.preferencesFlow.first().toReminderAlarmSettings()
+                alarmSettings
             },
         )
         if (schedule == null) {
             coordinator.clearSystemAlarmRecords()
-            return emptySystemAlarmSyncSummary()
+            return emptySystemAlarmSyncSummary().also { summary ->
+                logAlarmRegistrationReadiness(summary, alarmSettings.backend)
+            }
         }
-        return coordinator.syncAlarmsForWindow(
+        val summary = coordinator.syncAlarmsForWindow(
             pluginId = pluginId,
             schedule = schedule,
             timingProfile = timingProfile,
@@ -65,6 +68,8 @@ internal object WidgetSystemAlarmSynchronizer {
             reason = ReminderSyncReason.WidgetRefresh,
             nowMillis = nowMillis,
         )
+        logAlarmRegistrationReadiness(summary, alarmSettings.backend)
+        return summary
     }
 
     private fun mergeManualCoursesForReminders(
@@ -108,5 +113,67 @@ internal object WidgetSystemAlarmSynchronizer {
         repeatCount = alarmRepeatCount,
     )
 
-    private const val SHARED_ALARM_POLL_INTERVAL_MILLIS = 40L * 60L * 1000L
+    private fun logAlarmRegistrationReadiness(
+        summary: SystemAlarmSyncSummary,
+        backend: ReminderAlarmBackend,
+    ) {
+        val readiness = summarizeWidgetAlarmRegistration(summary, backend)
+        ReminderLogger.info(
+            "widget.alarm_registration.readiness",
+            mapOf(
+                "backend" to readiness.backendLabel,
+                "status" to readiness.status.name,
+                "message" to readiness.message,
+                "submittedCount" to summary.submittedCount,
+                "createdCount" to summary.createdCount,
+                "skippedExistingCount" to summary.skippedExistingCount,
+                "skippedUnrepresentableCount" to summary.skippedUnrepresentableCount,
+                "registryWriteFailedCount" to summary.registryWriteFailedCount,
+                "failureCount" to summary.failedCount,
+            ),
+        )
+    }
+}
+
+internal enum class WidgetAlarmRegistrationStatus {
+    Ready,
+    Repaired,
+    Failed,
+    NotNeeded,
+}
+
+internal data class WidgetAlarmRegistrationReadiness(
+    val status: WidgetAlarmRegistrationStatus,
+    val backendLabel: String,
+    val message: String,
+)
+
+internal fun summarizeWidgetAlarmRegistration(
+    summary: SystemAlarmSyncSummary,
+    backend: ReminderAlarmBackend,
+): WidgetAlarmRegistrationReadiness {
+    val backendLabel = when (backend) {
+        ReminderAlarmBackend.AppAlarmClock -> "App 自管闹钟"
+        ReminderAlarmBackend.SystemClockApp -> "系统时钟 App 闹钟"
+    }
+    val hasFailure = summary.failedCount > 0 ||
+        summary.skippedUnrepresentableCount > 0 ||
+        summary.dismissFailedCount > 0
+    val status = when {
+        hasFailure -> WidgetAlarmRegistrationStatus.Failed
+        summary.createdCount > 0 -> WidgetAlarmRegistrationStatus.Repaired
+        summary.skippedExistingCount > 0 -> WidgetAlarmRegistrationStatus.Ready
+        else -> WidgetAlarmRegistrationStatus.NotNeeded
+    }
+    val message = when (status) {
+        WidgetAlarmRegistrationStatus.Ready -> "提醒已通过$backendLabel 注册就绪"
+        WidgetAlarmRegistrationStatus.Repaired -> "已通过$backendLabel 补注册 ${summary.createdCount} 个提醒"
+        WidgetAlarmRegistrationStatus.Failed -> "提醒通过$backendLabel 注册失败，请检查权限和闹钟通道"
+        WidgetAlarmRegistrationStatus.NotNeeded -> "当前窗口没有需要注册的提醒"
+    }
+    return WidgetAlarmRegistrationReadiness(
+        status = status,
+        backendLabel = backendLabel,
+        message = message,
+    )
 }

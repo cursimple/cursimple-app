@@ -7,6 +7,7 @@ data class AppUpdateInfo(
     val versionName: String,
     val tagName: String,
     val releaseUrl: String,
+    val releaseNotes: String,
     val asset: AppUpdateAsset,
     val candidates: List<AppUpdateDownloadCandidate>,
 )
