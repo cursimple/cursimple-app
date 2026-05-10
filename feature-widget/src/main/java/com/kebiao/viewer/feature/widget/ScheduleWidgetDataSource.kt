@@ -5,6 +5,7 @@ import android.content.Context
 import com.kebiao.viewer.core.data.DataStoreManualCourseRepository
 import com.kebiao.viewer.core.data.DataStoreScheduleRepository
 import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
+import com.kebiao.viewer.core.data.ThemeAccent
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
 import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
@@ -38,6 +39,7 @@ internal data class ScheduleWidgetDayData(
     val weekdayLabel: String,
     val sourceDate: LocalDate,
     val rows: List<ScheduleWidgetCourseRow>,
+    val themeAccent: ThemeAccent = ThemeAccent.Green,
 )
 
 internal object ScheduleWidgetDataSource {
@@ -73,6 +75,7 @@ internal object ScheduleWidgetDataSource {
             manualCourseRepository = manualCourseRepository,
             reminderRepository = reminderRepository,
             temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            themeAccent = userPrefs.themeAccent,
         )
         if (manualOffset == 0 && shouldShowNextDayAtNight(BeijingTime.nowTimeIn(zone), currentDay.courses, timingProfile)) {
             return loadDate(
@@ -85,6 +88,7 @@ internal object ScheduleWidgetDataSource {
                 manualCourseRepository = manualCourseRepository,
                 reminderRepository = reminderRepository,
                 temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+                themeAccent = userPrefs.themeAccent,
             ).data
         }
         if (manualOffset == 0) return currentDay.data
@@ -99,6 +103,7 @@ internal object ScheduleWidgetDataSource {
             manualCourseRepository = manualCourseRepository,
             reminderRepository = reminderRepository,
             temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            themeAccent = userPrefs.themeAccent,
         ).data
     }
 
@@ -112,6 +117,7 @@ internal object ScheduleWidgetDataSource {
         manualCourseRepository: DataStoreManualCourseRepository,
         reminderRepository: DataStoreReminderRepository,
         temporaryScheduleOverrides: List<com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride>,
+        themeAccent: ThemeAccent,
     ): LoadedDay {
         val sourceDate = resolveTemporaryScheduleSourceDate(
             date = targetDate,
@@ -143,6 +149,7 @@ internal object ScheduleWidgetDataSource {
                 weekdayLabel = weekdayLabel(targetDate),
                 sourceDate = sourceDate,
                 rows = rows,
+                themeAccent = themeAccent,
             ),
             courses = courses,
         )

@@ -37,14 +37,20 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
         super.onDeleted(context, appWidgetIds)
         val appContext = context.applicationContext
+        val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-            val repository = DataStoreWidgetPreferencesRepository(appContext)
-            appWidgetIds.forEach { repository.clearWidgetDayOffset(it) }
-            WidgetLifecycleRefresher.onWidgetSetChanged(appContext, reason = "today_widget_deleted")
+            try {
+                val repository = DataStoreWidgetPreferencesRepository(appContext)
+                appWidgetIds.forEach { repository.clearWidgetDayOffset(it) }
+                WidgetLifecycleRefresher.onWidgetSetChanged(appContext, reason = "today_widget_deleted")
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 
     companion object {
+        @Suppress("DEPRECATION")
         fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
             val appContext = context.applicationContext
             CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
@@ -84,6 +90,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             return ids.toIntArray()
         }
 
+        @Suppress("DEPRECATION")
         private fun buildScheduleViews(
             context: Context,
             appWidgetId: Int,
@@ -91,6 +98,8 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             dayData: ScheduleWidgetDayData,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_schedule_today)
+
+            views.setInt(R.id.widget_root, "setBackgroundResource", widgetCardBackground(dayData.themeAccent))
 
             views.setTextViewText(
                 R.id.widget_title,
@@ -139,7 +148,10 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
 
             views.setRemoteAdapter(R.id.widget_course_list, courseListIntent(context, appWidgetId))
             views.setEmptyView(R.id.widget_course_list, R.id.widget_empty)
-            views.setViewVisibility(R.id.widget_course_list, View.VISIBLE)
+            val hasRows = dayData.rows.isNotEmpty()
+            views.setViewVisibility(R.id.widget_course_list, if (hasRows) View.VISIBLE else View.GONE)
+            views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
+            views.setInt(R.id.widget_empty, "setBackgroundResource", widgetRowVariantBackground(dayData.themeAccent))
             views.setTextViewText(R.id.widget_empty, WidgetDayLabels.empty(dayData.offset))
             return views
         }
@@ -173,6 +185,14 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
         private val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
         private fun sourceDateLabel(date: java.time.LocalDate): String =
             "${dateFormatter.format(date)}${weekdayLabel(date.dayOfWeek.value)}"
+
+        private fun widgetCardBackground(accent: com.kebiao.viewer.core.data.ThemeAccent): Int = when (accent) {
+            com.kebiao.viewer.core.data.ThemeAccent.Green -> R.drawable.widget_bg_card_green
+            com.kebiao.viewer.core.data.ThemeAccent.Blue -> R.drawable.widget_bg_card_blue
+            com.kebiao.viewer.core.data.ThemeAccent.Purple -> R.drawable.widget_bg_card_purple
+            com.kebiao.viewer.core.data.ThemeAccent.Orange -> R.drawable.widget_bg_card_orange
+            com.kebiao.viewer.core.data.ThemeAccent.Pink -> R.drawable.widget_bg_card_pink
+        }
 
         private const val DEFAULT_MIN_WIDTH_DP = 220
         private const val DEFAULT_MIN_HEIGHT_DP = 180

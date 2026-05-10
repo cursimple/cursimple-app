@@ -24,6 +24,7 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.kebiao.viewer.core.data.ThemeAccent
 
 internal object WidgetStyle {
     val outerPadding = 12.dp
@@ -34,9 +35,40 @@ internal object WidgetStyle {
     val disabledContent = ColorProvider(Color(0xFF9AA3AE))
 }
 
+internal fun widgetBackgroundFor(accent: ThemeAccent): ColorProvider = ColorProvider(
+    when (accent) {
+        ThemeAccent.Green -> Color(0xFFDDEFE4)
+        ThemeAccent.Blue -> Color(0xFFDDE5F1)
+        ThemeAccent.Purple -> Color(0xFFE4DDED)
+        ThemeAccent.Orange -> Color(0xFFF1E2D3)
+        ThemeAccent.Pink -> Color(0xFFEDDADF)
+    },
+)
+
+internal fun widgetSurfaceFor(accent: ThemeAccent): ColorProvider = ColorProvider(
+    when (accent) {
+        ThemeAccent.Green -> Color(0xFFB8DCC9)
+        ThemeAccent.Blue -> Color(0xFFB8C9DD)
+        ThemeAccent.Purple -> Color(0xFFC8B8D9)
+        ThemeAccent.Orange -> Color(0xFFE5C8A6)
+        ThemeAccent.Pink -> Color(0xFFDDB8C2)
+    },
+)
+
+internal fun widgetSurfaceVariantFor(accent: ThemeAccent): ColorProvider = ColorProvider(
+    when (accent) {
+        ThemeAccent.Green -> Color(0xFF98C9AE)
+        ThemeAccent.Blue -> Color(0xFF98AECB)
+        ThemeAccent.Purple -> Color(0xFFAE98C5)
+        ThemeAccent.Orange -> Color(0xFFD8B17A)
+        ThemeAccent.Pink -> Color(0xFFCD98A6)
+    },
+)
+
 @Composable
 internal fun WidgetCard(
     sizeClass: WidgetSizeClass = WidgetSizeClass.Regular,
+    accent: ThemeAccent = ThemeAccent.Green,
     content: @Composable () -> Unit,
 ) {
     val outerPadding = when (sizeClass) {
@@ -47,7 +79,7 @@ internal fun WidgetCard(
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(GlanceTheme.colors.widgetBackground)
+            .background(widgetBackgroundFor(accent))
             .cornerRadius(WidgetStyle.cardCorner)
             .padding(outerPadding),
     ) {
@@ -75,12 +107,13 @@ internal fun SectionLabel(text: String) {
 internal fun AccentRow(
     accent: ColorProvider,
     dimmed: Boolean = false,
+    themeAccent: ThemeAccent = ThemeAccent.Green,
     content: @Composable () -> Unit,
 ) {
     Row(
         modifier = GlanceModifier
             .fillMaxWidth()
-            .background(if (dimmed) GlanceTheme.colors.surfaceVariant else GlanceTheme.colors.surface)
+            .background(if (dimmed) widgetSurfaceVariantFor(themeAccent) else widgetSurfaceFor(themeAccent))
             .cornerRadius(WidgetStyle.rowCorner)
             .padding(0.dp),
     ) {

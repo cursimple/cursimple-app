@@ -33,8 +33,15 @@ import com.kebiao.viewer.app.reminder.SystemAlarmCheckScheduler
 import com.kebiao.viewer.feature.widget.ScheduleWidgetUpdater
 import com.kebiao.viewer.feature.widget.ScheduleWidgetWorkScheduler
 import com.kebiao.viewer.core.reminder.logging.ReminderLogger
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -43,6 +50,8 @@ import java.time.ZoneId
 class AppContainer(
     private val app: Application,
 ) {
+    private val containerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
     val termProfileRepository: TermProfileRepository = DataStoreTermProfileRepository(app)
     private val scheduleStore = DataStoreScheduleRepository(app, termProfileRepository)
     val scheduleRepository: ScheduleRepository = scheduleStore
@@ -56,15 +65,23 @@ class AppContainer(
         context = app,
         registryRepository = pluginRegistryRepository,
     )
+
+    private val temporaryScheduleOverridesState = userPreferencesRepository.preferencesFlow
+        .map { it.temporaryScheduleOverrides }
+        .stateIn(containerScope, SharingStarted.Eagerly, emptyList())
+    private val alarmSettingsState = userPreferencesRepository.preferencesFlow
+        .map { it.toReminderAlarmSettings() }
+        .stateIn(
+            containerScope,
+            SharingStarted.Eagerly,
+            UserPreferences().toReminderAlarmSettings(),
+        )
+
     val reminderCoordinator = ReminderCoordinator(
         context = app,
         repository = reminderRepository,
-        temporaryScheduleOverridesProvider = {
-            userPreferencesRepository.preferencesFlow.first().temporaryScheduleOverrides
-        },
-        alarmSettingsProvider = {
-            userPreferencesRepository.preferencesFlow.first().toReminderAlarmSettings()
-        },
+        temporaryScheduleOverridesProvider = { temporaryScheduleOverridesState.value },
+        alarmSettingsProvider = { alarmSettingsState.value },
     )
 
     val bundledPluginCatalog: List<BundledPluginEntry> = listOf(
@@ -76,43 +93,45 @@ class AppContainer(
         ),
     )
 
-    init {
-        runBlocking {
-            // Bootstrap term list: if empty, seed from any existing legacy termStartDate
-            // so users keep their schedule after the upgrade.
-            val legacyTermStart = userPreferencesRepository.preferencesFlow.first()
-                .termStartDate?.toString()
-            val activeTermId = termProfileRepository.ensureBootstrapped(
-                defaultName = "默认学期",
-                legacyTermStartDateIso = legacyTermStart,
-            )
-            scheduleStore.migrateLegacyScheduleIfNeeded(activeTermId)
-            manualStore.migrateLegacyManualIfNeeded(activeTermId)
+    val bootstrapJob: Job = containerScope.launch {
+        // Bootstrap term list: if empty, seed from any existing legacy termStartDate
+        // so users keep their schedule after the upgrade.
+        val legacyTermStart = userPreferencesRepository.preferencesFlow.first()
+            .termStartDate?.toString()
+        val activeTermId = termProfileRepository.ensureBootstrapped(
+            defaultName = "默认学期",
+            legacyTermStartDateIso = legacyTermStart,
+        )
+        scheduleStore.migrateLegacyScheduleIfNeeded(activeTermId)
+        manualStore.migrateLegacyManualIfNeeded(activeTermId)
 
-            // Clean up plugins that are no longer offered (e.g. legacy demo plugins from
-            // earlier builds). Do NOT auto-install bundled plugins — the user adds them
-            // explicitly from the plugin market.
-            val catalogById = bundledPluginCatalog.associateBy { it.pluginId }
-            val installedPlugins = pluginManager.getInstalledPlugins()
-            installedPlugins
-                .filter { it.isBundled && it.pluginId in catalogById }
-                .forEach { plugin ->
-                    runCatching {
-                        pluginManager.ensureBundledPlugin(catalogById.getValue(plugin.pluginId).assetRoot)
-                    }
+        // Clean up plugins that are no longer offered (e.g. legacy demo plugins from
+        // earlier builds). Do NOT auto-install bundled plugins — the user adds them
+        // explicitly from the plugin market.
+        val catalogById = bundledPluginCatalog.associateBy { it.pluginId }
+        val installedPlugins = pluginManager.getInstalledPlugins()
+        installedPlugins
+            .filter { it.isBundled && it.pluginId in catalogById }
+            .forEach { plugin ->
+                runCatching {
+                    pluginManager.ensureBundledPlugin(catalogById.getValue(plugin.pluginId).assetRoot)
                 }
-            installedPlugins
-                .filterNot { it.pluginId in catalogById }
-                .forEach { runCatching { pluginManager.removePlugin(it.pluginId) } }
-        }
+            }
+        installedPlugins
+            .filterNot { it.pluginId in catalogById }
+            .forEach { runCatching { pluginManager.removePlugin(it.pluginId) } }
     }
 
+    private suspend fun awaitBootstrap() = bootstrapJob.join()
+
     suspend fun installBundledPlugin(pluginId: String) {
+        awaitBootstrap()
         val entry = bundledPluginCatalog.firstOrNull { it.pluginId == pluginId } ?: return
         pluginManager.ensureBundledPlugin(entry.assetRoot)
     }
 
     suspend fun refreshWidgets(timingProfile: TermTimingProfile? = null) {
+        awaitBootstrap()
         if (timingProfile != null) {
             widgetPreferencesRepository.saveTimingProfile(timingProfile)
         }
@@ -121,6 +140,7 @@ class AppContainer(
     }
 
     suspend fun refreshScheduleOutputs() {
+        awaitBootstrap()
         refreshWidgets()
         val schedule = reminderSchedule() ?: return
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first() ?: return
@@ -137,6 +157,7 @@ class AppContainer(
     }
 
     suspend fun runSystemAlarmCheck(reason: ReminderSyncReason) {
+        awaitBootstrap()
         val schedule = reminderSchedule()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val pluginId = scheduleRepository.lastPluginIdFlow.first()
@@ -164,6 +185,7 @@ class AppContainer(
         reason: ReminderSyncReason = ReminderSyncReason.WidgetRefresh,
         nowMillis: Long = System.currentTimeMillis(),
     ): SystemAlarmSyncSummary {
+        awaitBootstrap()
         val claimed = userPreferencesRepository.tryClaimAlarmPoll(
             nowMillis = nowMillis,
             minIntervalMillis = SHARED_ALARM_POLL_INTERVAL_MILLIS,
@@ -189,12 +211,14 @@ class AppContainer(
     }
 
     suspend fun scheduleSystemAlarmChecks(timingProfile: TermTimingProfile? = null) {
+        awaitBootstrap()
         val profile = timingProfile ?: widgetPreferencesRepository.timingProfileFlow.first() ?: return
         SystemAlarmCheckScheduler.scheduleDailyNextDayCheck(app, profile)
         SystemAlarmCheckScheduler.scheduleNextAfterClassCheck(app, profile)
     }
 
     suspend fun ensureAlarmRuntimeHealth() {
+        awaitBootstrap()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         scheduleSystemAlarmChecks(timingProfile)
         ScheduleWidgetWorkScheduler.schedule(app)
@@ -205,6 +229,7 @@ class AppContainer(
         nowMillis: Long = System.currentTimeMillis(),
         clearExpiredRecords: Boolean = true,
     ): List<SystemAlarmSyncSummary> {
+        awaitBootstrap()
         val schedule = reminderSchedule()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val pluginId = scheduleRepository.lastPluginIdFlow.first()
@@ -242,6 +267,7 @@ class AppContainer(
         if (timingProfile == null) {
             return null
         }
+        awaitBootstrap()
         val activeTermId = termProfileRepository.activeTermId()
         val activeTerm = termProfileRepository.termsFlow.first()
             .firstOrNull { it.id == activeTermId }
