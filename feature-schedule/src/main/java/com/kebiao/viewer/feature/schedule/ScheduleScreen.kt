@@ -3,6 +3,7 @@ package com.kebiao.viewer.feature.schedule
 import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.IntentCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -26,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedContent
@@ -110,6 +112,7 @@ import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.core.reminder.model.ReminderTimeRange
 import com.kebiao.viewer.feature.schedule.time.LocalAppZone
 import com.kebiao.viewer.feature.schedule.time.today
+import kotlinx.coroutines.flow.drop
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -237,7 +240,9 @@ fun ScheduleScreen(
     }
 
     val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        val uri = result.data?.let {
+            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
+        }
         ringtoneUri = uri?.toString()
     }
 
@@ -853,25 +858,38 @@ private fun WeeklyScheduleSection(
                 val pagerLatestRequest = androidx.compose.runtime.remember {
                     androidx.compose.runtime.mutableIntStateOf(weekOffset)
                 }
+                val isReconciling = androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableStateOf(false)
+                }
                 androidx.compose.runtime.LaunchedEffect(weekOffset, safeMin, pageCount) {
-                    if (weekOffset == pagerLatestRequest.intValue) return@LaunchedEffect
-                    pagerLatestRequest.intValue = weekOffset
                     val target = (weekOffset - safeMin).coerceIn(0, pageCount - 1)
+                    if (pagerState.currentPage == target && pagerLatestRequest.intValue == weekOffset) {
+                        return@LaunchedEffect
+                    }
+                    pagerLatestRequest.intValue = weekOffset
                     if (pagerState.currentPage != target) {
-                        pagerState.animateScrollToPage(target)
+                        isReconciling.value = true
+                        try {
+                            pagerState.animateScrollToPage(target)
+                        } finally {
+                            isReconciling.value = false
+                        }
                     }
                 }
                 androidx.compose.runtime.LaunchedEffect(pagerState, safeMin) {
                     androidx.compose.runtime.snapshotFlow {
                         if (pagerState.isScrollInProgress) pagerState.targetPage
                         else pagerState.currentPage
-                    }.collect { page ->
-                        val newOffset = page + safeMin
-                        if (newOffset != pagerLatestRequest.intValue) {
-                            pagerLatestRequest.intValue = newOffset
-                            onWeekOffsetChange(newOffset)
-                        }
                     }
+                        .drop(1)
+                        .collect { page ->
+                            if (isReconciling.value) return@collect
+                            val newOffset = page + safeMin
+                            if (newOffset != pagerLatestRequest.intValue) {
+                                pagerLatestRequest.intValue = newOffset
+                                onWeekOffsetChange(newOffset)
+                            }
+                        }
                 }
 
                 androidx.compose.foundation.pager.HorizontalPager(
@@ -2114,7 +2132,7 @@ internal fun FirstCourseReminderSettingsCard(
     var showRuleEditor by rememberSaveable { mutableStateOf(false) }
     var editingOccupancy by remember { mutableStateOf<ReminderCustomOccupancy?>(null) }
     var showOccupancyEditor by rememberSaveable { mutableStateOf(false) }
-    var templateMessage by rememberSaveable { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2187,14 +2205,6 @@ internal fun FirstCourseReminderSettingsCard(
                 }
             }
 
-            templateMessage?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -2213,7 +2223,7 @@ internal fun FirstCourseReminderSettingsCard(
                             emptyList(),
                             listOf(ReminderAction(ReminderActionType.RemindFirstCandidate)),
                         )
-                        templateMessage = "已生成标准上午首课提醒"
+                        android.widget.Toast.makeText(context, "已生成标准上午首课提醒", android.widget.Toast.LENGTH_SHORT).show()
                     },
                 ) {
                     Text("标准上午")
@@ -2224,7 +2234,7 @@ internal fun FirstCourseReminderSettingsCard(
                             ?: visibleOccupancies.firstOrNull()
                         if (occupancy == null) {
                             showOccupancyEditor = true
-                            templateMessage = "请先创建一个早自习占用，时间段可自定义。"
+                            android.widget.Toast.makeText(context, "请先创建一个早自习占用，时间段可自定义。", android.widget.Toast.LENGTH_SHORT).show()
                             return@Button
                         }
                         val candidate = FirstCourseCandidateScope(nodeRange = ReminderNodeRange(1, 4))
@@ -2268,7 +2278,7 @@ internal fun FirstCourseReminderSettingsCard(
                             listOf(ReminderCondition(ReminderConditionType.OccupancyAbsent, occupancyId = occupancy.occupancyId)),
                             listOf(ReminderAction(ReminderActionType.RemindFirstCandidate)),
                         )
-                        templateMessage = "已生成早自习智能上午规则"
+                        android.widget.Toast.makeText(context, "已生成早自习智能上午规则", android.widget.Toast.LENGTH_SHORT).show()
                     },
                 ) {
                     Text("早自习智能")
@@ -2424,6 +2434,7 @@ private fun CustomOccupancyEditor(
                     value = startTime,
                     onValueChange = { startTime = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
                     label = { Text("开始时间") },
+                    placeholder = { Text("HH:mm") },
                     singleLine = true,
                     isError = startTime.isNotBlank() && parsedStart == null,
                     modifier = Modifier.weight(1f),
@@ -2432,6 +2443,7 @@ private fun CustomOccupancyEditor(
                     value = endTime,
                     onValueChange = { endTime = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
                     label = { Text("结束时间") },
+                    placeholder = { Text("HH:mm") },
                     singleLine = true,
                     isError = endTime.isNotBlank() && (parsedEnd == null || (parsedStart != null && !parsedEnd.isAfter(parsedStart))),
                     modifier = Modifier.weight(1f),
@@ -2447,21 +2459,24 @@ private fun CustomOccupancyEditor(
             OutlinedTextField(
                 value = weeksText,
                 onValueChange = { weeksText = it.filter { c -> c.isDigit() || c == ',' || c == '，' } },
-                label = { Text("生效周次，可空") },
+                label = { Text("生效周次") },
+                placeholder = { Text("可空，例 1,3-5") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
                 value = includeDatesText,
                 onValueChange = { includeDatesText = it.take(120) },
-                label = { Text("指定日期，可空，YYYY-MM-DD 逗号分隔") },
+                label = { Text("指定日期") },
+                placeholder = { Text("可空，YYYY-MM-DD 逗号分隔") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
             OutlinedTextField(
                 value = excludeDatesText,
                 onValueChange = { excludeDatesText = it.take(120) },
-                label = { Text("排除日期，可空，YYYY-MM-DD 逗号分隔") },
+                label = { Text("排除日期") },
+                placeholder = { Text("可空，YYYY-MM-DD 逗号分隔") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -2469,7 +2484,8 @@ private fun CustomOccupancyEditor(
                 OutlinedTextField(
                     value = linkedStartText,
                     onValueChange = { linkedStartText = it.filter(Char::isDigit).take(2) },
-                    label = { Text("关联起始节，可空") },
+                    label = { Text("关联起始节") },
+                    placeholder = { Text("可空") },
                     singleLine = true,
                     isError = linkedStartText.isNotBlank() && !linkedRangeValid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -2478,7 +2494,8 @@ private fun CustomOccupancyEditor(
                 OutlinedTextField(
                     value = linkedEndText,
                     onValueChange = { linkedEndText = it.filter(Char::isDigit).take(2) },
-                    label = { Text("关联结束节，可空") },
+                    label = { Text("关联结束节") },
+                    placeholder = { Text("可空") },
                     singleLine = true,
                     isError = linkedEndText.isNotBlank() && !linkedRangeValid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -2527,23 +2544,35 @@ private fun WeekdayToggleRow(
     ) {
         (1..7).forEach { day ->
             val selected = day in selectedDays
-            Button(
-                onClick = { onToggle(day) },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selected) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.surface
-                    },
-                    contentColor = if (selected) {
-                        MaterialTheme.colorScheme.onPrimary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                ),
-                modifier = Modifier.weight(1f),
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .aspectRatio(1f)
+                    .clip(CircleShape)
+                    .clickable { onToggle(day) },
+                shape = CircleShape,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.surface
+                },
             ) {
-                Text(shortWeekdayLabel(day), maxLines = 1)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = shortWeekdayLabel(day),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (selected) {
+                            MaterialTheme.colorScheme.onPrimary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
             }
         }
     }
@@ -2844,7 +2873,9 @@ internal fun ExamReminderSettingsCard(
     var ringtoneUri by rememberSaveable(rule?.ruleId, rule?.updatedAt) { mutableStateOf(rule?.ringtoneUri) }
     val context = LocalContext.current
     val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        val uri = result.data?.let {
+            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
+        }
         ringtoneUri = uri?.toString()
     }
     val advance = advanceMinutesText.toIntOrNull()

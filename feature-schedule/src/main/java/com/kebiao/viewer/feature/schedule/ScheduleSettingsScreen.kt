@@ -10,6 +10,7 @@ import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.IntentCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -129,7 +130,9 @@ fun ScheduleSettingsScreen(
 
     val context = LocalContext.current
     val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        val uri = result.data?.let {
+            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
+        }
         ringtoneUri = uri?.toString()
     }
 
@@ -150,17 +153,6 @@ fun ScheduleSettingsScreen(
                 onRefresh = onRefreshReminderAlarms,
                 onRemoveAlarmRecord = onRemoveAlarmRecord,
             )
-
-            val statusLines = buildList {
-                state.statusMessage?.takeIf(String::isNotBlank)?.let(::add)
-                addAll(state.messages)
-            }
-            if (statusLines.isNotEmpty()) {
-                MessageCard(
-                    title = "插件状态",
-                    lines = statusLines,
-                )
-            }
 
             if (state.alarmRecommendations.isNotEmpty()) {
                 MessageCard(

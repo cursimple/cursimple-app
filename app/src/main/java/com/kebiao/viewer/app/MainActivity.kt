@@ -265,6 +265,7 @@ class MainActivity : ComponentActivity() {
                         prefs.termStartDate,
                         prefs.timeZoneId,
                         prefs.debugForcedDateTime,
+                        prefs.themeAccent,
                     ) {
                         if (scheduleState.initialized) {
                             container.refreshWidgets(scheduleState.timingProfile)
@@ -524,7 +525,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     },
-                                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                                    colors = TopAppBarDefaults.topAppBarColors(
                                         containerColor = MaterialTheme.colorScheme.background,
                                     ),
                                 )

@@ -152,6 +152,11 @@ fun UpdateCheckSection(
                 fontWeight = FontWeight.SemiBold,
             )
         }
+        Text(
+            text = "从 GitHub Release 检查与下载新版本。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         UpdateSwitchRow(
             title = "自动检查更新",
             subtitle = if (autoCheckEnabled) "发现新版本后询问是否更新" else "仅手动检查更新",

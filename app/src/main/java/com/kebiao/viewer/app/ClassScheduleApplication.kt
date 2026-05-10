@@ -15,6 +15,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -43,16 +44,29 @@ class ClassScheduleApplication : Application() {
         ScheduleWidgetWorkScheduler.schedule(this)
         LogCleanupScheduler.schedule(this)
         appScope.launch {
+            appContainer.bootstrapJob.join()
             appContainer.scheduleSystemAlarmChecks()
             appContainer.tryRunSharedAlarmPoll(ReminderSyncReason.WidgetRefresh)
         }
 
         appScope.launch {
+            appContainer.bootstrapJob.join()
             appContainer.userPreferencesRepository.preferencesFlow
                 .map { it.debugForcedDateTime }
                 .distinctUntilChanged()
                 .collect { forced ->
                     BeijingTime.setForcedNow(forced)
+                    appContainer.refreshWidgets()
+                }
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            appContainer.userPreferencesRepository.preferencesFlow
+                .map { it.themeAccent }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
                     appContainer.refreshWidgets()
                 }
         }

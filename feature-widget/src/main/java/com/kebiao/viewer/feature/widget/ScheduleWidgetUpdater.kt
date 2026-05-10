@@ -24,40 +24,14 @@ object ScheduleWidgetUpdater {
     suspend fun refreshAll(context: Context) {
         val app = context.applicationContext
         ScheduleGlanceWidgetReceiver.updateWidgets(app)
-        NextCourseGlanceWidget().refreshAll(app)
-        ReminderGlanceWidget().refreshAll(app)
-        // Next-course and reminder vendor-aware receivers are separate ComponentNames
-        // that Glance won't visit automatically.
-        broadcastVendorUpdate(app)
+        NextCourseGlanceWidgetReceiver.updateWidgets(app)
+        ReminderGlanceWidgetReceiver.updateWidgets(app)
     }
 
     fun refreshSchedule(context: Context, appWidgetIds: IntArray? = null) {
         val app = context.applicationContext
         ScheduleGlanceWidgetReceiver.updateWidgets(app, appWidgetIds)
     }
-
-    private fun broadcastVendorUpdate(
-        context: Context,
-        receiverClassNames: List<String> = VENDOR_RECEIVERS,
-    ) {
-        val manager = AppWidgetManager.getInstance(context)
-        val pkg = context.packageName
-        receiverClassNames.forEach { className ->
-            val component = ComponentName(pkg, className)
-            val ids = runCatching { manager.getAppWidgetIds(component) }.getOrNull() ?: return@forEach
-            if (ids.isEmpty()) return@forEach
-            val intent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE).apply {
-                this.component = component
-                putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-            }
-            context.sendBroadcast(intent)
-        }
-    }
-
-    private val VENDOR_RECEIVERS = listOf(
-        "com.kebiao.viewer.feature.widget.NextCourseGlanceWidgetReceiverMIUI",
-        "com.kebiao.viewer.feature.widget.ReminderGlanceWidgetReceiverMIUI",
-    )
 }
 
 object ScheduleWidgetWorkScheduler {
