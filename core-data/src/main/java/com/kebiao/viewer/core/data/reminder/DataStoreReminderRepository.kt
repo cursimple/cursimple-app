@@ -6,6 +6,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.core.edit
 import com.kebiao.viewer.core.reminder.ReminderRepository
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
+import com.kebiao.viewer.core.reminder.model.ReminderCustomOccupancy
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.flow.Flow
@@ -26,6 +27,12 @@ class DataStoreReminderRepository(
     override val reminderRulesFlow: Flow<List<ReminderRule>> = store.data.map { preferences ->
         preferences[KEY_REMINDER_RULES]?.let {
             json.decodeFromString(ListSerializer(ReminderRule.serializer()), it)
+        }.orEmpty()
+    }
+
+    override val customOccupanciesFlow: Flow<List<ReminderCustomOccupancy>> = store.data.map { preferences ->
+        preferences[KEY_CUSTOM_OCCUPANCIES]?.let {
+            json.decodeFromString(ListSerializer(ReminderCustomOccupancy.serializer()), it)
         }.orEmpty()
     }
 
@@ -56,6 +63,34 @@ class DataStoreReminderRepository(
             val next = preferences.decodeReminderRules().filterNot { it.ruleId == ruleId }
             preferences[KEY_REMINDER_RULES] = json.encodeToString(
                 ListSerializer(ReminderRule.serializer()),
+                next,
+            )
+        }
+    }
+
+    override suspend fun getCustomOccupancies(pluginId: String?): List<ReminderCustomOccupancy> {
+        val occupancies = customOccupanciesFlow.first()
+        return pluginId?.let { id -> occupancies.filter { it.pluginId == id } } ?: occupancies
+    }
+
+    override suspend fun saveCustomOccupancy(occupancy: ReminderCustomOccupancy) {
+        store.edit { preferences ->
+            val next = preferences.decodeCustomOccupancies()
+                .filterNot { it.occupancyId == occupancy.occupancyId }
+                .plus(occupancy)
+                .sortedBy { it.createdAt }
+            preferences[KEY_CUSTOM_OCCUPANCIES] = json.encodeToString(
+                ListSerializer(ReminderCustomOccupancy.serializer()),
+                next,
+            )
+        }
+    }
+
+    override suspend fun removeCustomOccupancy(occupancyId: String) {
+        store.edit { preferences ->
+            val next = preferences.decodeCustomOccupancies().filterNot { it.occupancyId == occupancyId }
+            preferences[KEY_CUSTOM_OCCUPANCIES] = json.encodeToString(
+                ListSerializer(ReminderCustomOccupancy.serializer()),
                 next,
             )
         }
@@ -120,12 +155,19 @@ class DataStoreReminderRepository(
 
     private companion object {
         val KEY_REMINDER_RULES = stringPreferencesKey("reminder_rules")
+        val KEY_CUSTOM_OCCUPANCIES = stringPreferencesKey("custom_occupancies")
         val KEY_SYSTEM_ALARM_RECORDS = stringPreferencesKey("system_alarm_records")
     }
 
     private fun androidx.datastore.preferences.core.Preferences.decodeReminderRules(): List<ReminderRule> {
         return this[KEY_REMINDER_RULES]?.let {
             json.decodeFromString(ListSerializer(ReminderRule.serializer()), it)
+        }.orEmpty()
+    }
+
+    private fun androidx.datastore.preferences.core.Preferences.decodeCustomOccupancies(): List<ReminderCustomOccupancy> {
+        return this[KEY_CUSTOM_OCCUPANCIES]?.let {
+            json.decodeFromString(ListSerializer(ReminderCustomOccupancy.serializer()), it)
         }.orEmpty()
     }
 

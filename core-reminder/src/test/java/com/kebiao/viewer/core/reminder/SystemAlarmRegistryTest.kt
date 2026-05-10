@@ -16,6 +16,7 @@ import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
 import com.kebiao.viewer.core.reminder.model.AppAlarmOperationMode
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmSettings
+import com.kebiao.viewer.core.reminder.model.ReminderCustomOccupancy
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
@@ -782,9 +783,11 @@ class SystemAlarmRegistryTest {
         rules: List<ReminderRule>,
     ) : ReminderRepository {
         private val rulesState = MutableStateFlow(rules)
+        private val occupanciesState = MutableStateFlow<List<ReminderCustomOccupancy>>(emptyList())
         val records = MutableStateFlow<List<SystemAlarmRecord>>(emptyList())
 
         override val reminderRulesFlow: Flow<List<ReminderRule>> = rulesState
+        override val customOccupanciesFlow: Flow<List<ReminderCustomOccupancy>> = occupanciesState
         override val systemAlarmRecordsFlow: Flow<List<SystemAlarmRecord>> = records
 
         override suspend fun getReminderRules(): List<ReminderRule> = rulesState.value
@@ -795,6 +798,22 @@ class SystemAlarmRegistryTest {
 
         override suspend fun removeReminderRule(ruleId: String) {
             rulesState.value = rulesState.value.filterNot { it.ruleId == ruleId }
+        }
+
+        override suspend fun getCustomOccupancies(pluginId: String?): List<ReminderCustomOccupancy> {
+            return pluginId?.let { id ->
+                occupanciesState.value.filter { it.pluginId == id }
+            } ?: occupanciesState.value
+        }
+
+        override suspend fun saveCustomOccupancy(occupancy: ReminderCustomOccupancy) {
+            occupanciesState.value = occupanciesState.value.filterNot {
+                it.occupancyId == occupancy.occupancyId
+            } + occupancy
+        }
+
+        override suspend fun removeCustomOccupancy(occupancyId: String) {
+            occupanciesState.value = occupanciesState.value.filterNot { it.occupancyId == occupancyId }
         }
 
         override suspend fun getSystemAlarmRecords(): List<SystemAlarmRecord> = records.value

@@ -51,9 +51,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kebiao.viewer.core.reminder.model.FirstCourseCandidateScope
+import com.kebiao.viewer.core.reminder.model.ReminderAction
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
-import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
+import com.kebiao.viewer.core.reminder.model.ReminderCondition
+import com.kebiao.viewer.core.reminder.model.ReminderConditionMode
 import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
+import com.kebiao.viewer.core.reminder.model.ReminderTimeRange
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import java.time.Instant
 import java.time.LocalDate
@@ -71,7 +75,9 @@ fun ScheduleSettingsRoute(
         onSelectTimeSlot = viewModel::selectTimeSlot,
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
-        onSaveFirstCourseReminder = viewModel::saveFirstCourseReminder,
+        onSaveFirstCourseReminder = viewModel::saveFlexibleFirstCourseReminder,
+        onSaveCustomOccupancy = viewModel::saveCustomOccupancy,
+        onRemoveCustomOccupancy = viewModel::removeCustomOccupancy,
         onSaveExamReminder = viewModel::saveExamReminder,
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveAlarmRecord = viewModel::removeAlarmRecord,
@@ -86,7 +92,28 @@ fun ScheduleSettingsScreen(
     onSelectTimeSlot: (Int, Int) -> Unit,
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
-    onSaveFirstCourseReminder: (ReminderDayPeriod, Boolean, Int, String?, Int?, Int?, List<ReminderNodeRange>) -> Unit,
+    onSaveFirstCourseReminder: (
+        String?,
+        String,
+        Boolean,
+        Int,
+        String?,
+        FirstCourseCandidateScope,
+        ReminderConditionMode,
+        List<ReminderCondition>,
+        List<ReminderAction>,
+    ) -> Unit,
+    onSaveCustomOccupancy: (
+        String?,
+        String,
+        ReminderTimeRange,
+        List<Int>,
+        List<Int>,
+        List<String>,
+        List<String>,
+        ReminderNodeRange?,
+    ) -> Unit,
+    onRemoveCustomOccupancy: (String) -> Unit,
     onSaveExamReminder: (Boolean, Int, String?) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
     onRemoveAlarmRecord: (String, ReminderAlarmBackend) -> Unit,
@@ -144,8 +171,12 @@ fun ScheduleSettingsScreen(
 
             FirstCourseReminderSettingsCard(
                 reminderRules = state.reminderRules,
+                customOccupancies = state.customOccupancies,
                 pluginId = state.pluginId,
-                onSave = onSaveFirstCourseReminder,
+                onSaveRule = onSaveFirstCourseReminder,
+                onSaveOccupancy = onSaveCustomOccupancy,
+                onRemoveOccupancy = onRemoveCustomOccupancy,
+                onRemoveRule = onRemoveReminderRule,
             )
 
             ExamReminderSettingsCard(

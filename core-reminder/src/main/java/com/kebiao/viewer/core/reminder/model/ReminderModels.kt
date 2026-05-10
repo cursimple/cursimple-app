@@ -1,5 +1,6 @@
 package com.kebiao.viewer.core.reminder.model
 
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -15,6 +16,11 @@ data class ReminderRule(
     @SerialName("periodEndNode") val periodEndNode: Int? = null,
     @SerialName("mutedNodeRanges") val mutedNodeRanges: List<ReminderNodeRange> = emptyList(),
     @SerialName("mutedCourseIds") val mutedCourseIds: List<String> = emptyList(),
+    @SerialName("displayName") val displayName: String? = null,
+    @SerialName("firstCourseCandidate") val firstCourseCandidate: FirstCourseCandidateScope? = null,
+    @SerialName("conditionMode") val conditionMode: ReminderConditionMode = ReminderConditionMode.All,
+    @SerialName("conditions") val conditions: List<ReminderCondition> = emptyList(),
+    @SerialName("actions") val actions: List<ReminderAction> = emptyList(),
     @SerialName("courseId") val courseId: String? = null,
     @SerialName("dayOfWeek") val dayOfWeek: Int? = null,
     @SerialName("startNode") val startNode: Int? = null,
@@ -70,6 +76,127 @@ enum class ReminderDayPeriod {
     @SerialName("evening")
     Evening,
 }
+
+@Serializable
+data class ReminderTimeRange(
+    @SerialName("startTime") val startTime: String,
+    @SerialName("endTime") val endTime: String,
+)
+
+@Serializable
+data class FirstCourseCandidateScope(
+    @SerialName("daysOfWeek") val daysOfWeek: List<Int> = emptyList(),
+    @SerialName("weeks") val weeks: List<Int> = emptyList(),
+    @SerialName("includeDates") val includeDates: List<String> = emptyList(),
+    @SerialName("excludeDates") val excludeDates: List<String> = emptyList(),
+    @SerialName("timeRange") val timeRange: ReminderTimeRange? = null,
+    @SerialName("nodeRange") val nodeRange: ReminderNodeRange? = null,
+    @SerialName("categories") val categories: List<CourseCategory> = listOf(CourseCategory.Course),
+    @SerialName("titleContains") val titleContains: String? = null,
+    @SerialName("teacherContains") val teacherContains: String? = null,
+    @SerialName("locationContains") val locationContains: String? = null,
+)
+
+@Serializable
+enum class ReminderConditionMode {
+    @SerialName("all")
+    All,
+
+    @SerialName("any")
+    Any,
+}
+
+@Serializable
+enum class ReminderConditionType {
+    @SerialName("course_exists_in_nodes")
+    CourseExistsInNodes,
+
+    @SerialName("course_absent_in_nodes")
+    CourseAbsentInNodes,
+
+    @SerialName("course_exists_in_time")
+    CourseExistsInTime,
+
+    @SerialName("course_absent_in_time")
+    CourseAbsentInTime,
+
+    @SerialName("occupancy_exists")
+    OccupancyExists,
+
+    @SerialName("occupancy_absent")
+    OccupancyAbsent,
+
+    @SerialName("occupancy_overlaps_course")
+    OccupancyOverlapsCourse,
+
+    @SerialName("occupancy_before_course")
+    OccupancyBeforeCourse,
+
+    @SerialName("weekday_matches")
+    WeekdayMatches,
+
+    @SerialName("week_matches")
+    WeekMatches,
+
+    @SerialName("date_matches")
+    DateMatches,
+
+    @SerialName("course_text_matches")
+    CourseTextMatches,
+}
+
+@Serializable
+data class ReminderCondition(
+    @SerialName("type") val type: ReminderConditionType,
+    @SerialName("nodeRange") val nodeRange: ReminderNodeRange? = null,
+    @SerialName("timeRange") val timeRange: ReminderTimeRange? = null,
+    @SerialName("occupancyId") val occupancyId: String? = null,
+    @SerialName("daysOfWeek") val daysOfWeek: List<Int> = emptyList(),
+    @SerialName("weeks") val weeks: List<Int> = emptyList(),
+    @SerialName("dates") val dates: List<String> = emptyList(),
+    @SerialName("text") val text: String? = null,
+)
+
+@Serializable
+enum class ReminderActionType {
+    @SerialName("remind_first_candidate")
+    RemindFirstCandidate,
+
+    @SerialName("skip")
+    Skip,
+
+    @SerialName("continue_after_node")
+    ContinueAfterNode,
+
+    @SerialName("continue_after_time")
+    ContinueAfterTime,
+
+    @SerialName("use_candidate_scope")
+    UseCandidateScope,
+}
+
+@Serializable
+data class ReminderAction(
+    @SerialName("type") val type: ReminderActionType,
+    @SerialName("afterNode") val afterNode: Int? = null,
+    @SerialName("afterTime") val afterTime: String? = null,
+    @SerialName("candidateScope") val candidateScope: FirstCourseCandidateScope? = null,
+)
+
+@Serializable
+data class ReminderCustomOccupancy(
+    @SerialName("occupancyId") val occupancyId: String,
+    @SerialName("pluginId") val pluginId: String,
+    @SerialName("name") val name: String,
+    @SerialName("timeRange") val timeRange: ReminderTimeRange,
+    @SerialName("daysOfWeek") val daysOfWeek: List<Int> = emptyList(),
+    @SerialName("weeks") val weeks: List<Int> = emptyList(),
+    @SerialName("includeDates") val includeDates: List<String> = emptyList(),
+    @SerialName("excludeDates") val excludeDates: List<String> = emptyList(),
+    @SerialName("linkedNodeRange") val linkedNodeRange: ReminderNodeRange? = null,
+    @SerialName("createdAt") val createdAt: String,
+    @SerialName("updatedAt") val updatedAt: String,
+)
 
 @Serializable
 enum class ReminderDispatchMode {
