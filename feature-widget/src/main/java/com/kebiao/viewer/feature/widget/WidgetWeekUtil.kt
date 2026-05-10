@@ -106,10 +106,11 @@ internal fun shouldShowNextDayAtNight(
     courses: List<CourseItem>,
     timingProfile: TermTimingProfile?,
 ): Boolean {
+    if (NIGHT_ADVANCE_TIME == LocalTime.MIDNIGHT) return false
     if (now.isBefore(NIGHT_ADVANCE_TIME)) return false
     if (courses.isEmpty()) return true
     val endTimes = courses.map { course -> timingProfile?.courseEndTime(course) }
     return endTimes.all { endTime -> endTime != null && !now.isBefore(endTime) }
 }
 
-private val NIGHT_ADVANCE_TIME: LocalTime = LocalTime.of(22, 0)
+private val NIGHT_ADVANCE_TIME: LocalTime = LocalTime.MIDNIGHT

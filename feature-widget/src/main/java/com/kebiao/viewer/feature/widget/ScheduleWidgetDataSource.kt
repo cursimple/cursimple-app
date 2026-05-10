@@ -8,9 +8,11 @@ import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
 import com.kebiao.viewer.core.data.reminder.DataStoreReminderRepository
 import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
+import com.kebiao.viewer.core.kernel.model.filterTemporaryCancelledCourses
 import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.model.ReminderRule
@@ -124,7 +126,11 @@ internal object ScheduleWidgetDataSource {
         val manualCourses = manualCourseRepository.manualCoursesFlow.first()
             .filter { it.time.dayOfWeek == dayOfWeek }
         val reminderRules = reminderRepository.reminderRulesFlow.first()
-        val courses = (importedCourses + manualCourses)
+        val courses = filterTemporaryCancelledCourses(
+            date = targetDate,
+            courses = importedCourses + manualCourses,
+            overrides = temporaryScheduleOverrides,
+        )
             .filter { it.activeOnWeek(weekIndex) }
             .sortedBy { it.time.startNode }
         val rows = courses.map { it.toRow(timingProfile, reminderRules) }
@@ -173,7 +179,7 @@ internal object ScheduleWidgetDataSource {
             id = id,
             nodeRange = nodeRange,
             timeRange = timeRange,
-            title = title,
+            title = if (category == CourseCategory.Exam) "考试 · $title" else title,
             subtitle = subtitle,
             hasReminder = reminderRules.any { it.matches(this) },
         )

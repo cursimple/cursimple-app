@@ -110,6 +110,10 @@ class AppPreferencesViewModel(
             refreshScheduleOutputs()
         }
     }
+
+    fun setAutoUpdateEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setAutoUpdateEnabled(enabled) }
+    }
 }
 
 class AppPreferencesViewModelFactory(

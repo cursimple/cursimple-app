@@ -31,10 +31,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun BulkReminderDialog(
     selectedCount: Int,
+    defaultAdvanceMinutes: Int = 20,
+    containsExam: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (advanceMinutes: Int, ringtoneUri: String?) -> Unit,
 ) {
-    var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
+    var advanceMinutesText by rememberSaveable(defaultAdvanceMinutes) { mutableStateOf(defaultAdvanceMinutes.toString()) }
     var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val ringtoneLauncher = rememberLauncherForActivityResult(
@@ -49,11 +51,15 @@ fun BulkReminderDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(24.dp),
-        title = { Text("批量设置提醒") },
+        title = { Text(if (containsExam) "批量设置考试提醒" else "批量设置提醒") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "将为已选中的 $selectedCount 门课程统一创建上课前提醒。",
+                    text = if (containsExam) {
+                        "将为已选中的 $selectedCount 项内容统一创建考试/课程提醒。"
+                    } else {
+                        "将为已选中的 $selectedCount 门课程统一创建上课前提醒。"
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

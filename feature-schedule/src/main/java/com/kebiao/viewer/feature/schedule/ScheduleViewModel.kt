@@ -22,6 +22,7 @@ import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.core.reminder.ReminderSyncWindows
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
+import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
@@ -550,6 +551,9 @@ class ScheduleViewModel(
         enabled: Boolean,
         advanceMinutes: Int,
         ringtoneUri: String?,
+        periodStartNode: Int? = null,
+        periodEndNode: Int? = null,
+        mutedNodeRanges: List<ReminderNodeRange> = emptyList(),
     ) {
         val state = _uiState.value
         val pluginId = state.pluginId
@@ -564,6 +568,9 @@ class ScheduleViewModel(
                 enabled = enabled,
                 advanceMinutes = advanceMinutes.coerceIn(0, 720),
                 ringtoneUri = ringtoneUri,
+                periodStartNode = periodStartNode,
+                periodEndNode = periodEndNode,
+                mutedNodeRanges = mutedNodeRanges,
             )
             val schedule = currentReminderSchedule()
             if (schedule != null) {
@@ -576,6 +583,7 @@ class ScheduleViewModel(
                 val label = when (period) {
                     ReminderDayPeriod.Morning -> "上午首次课提醒"
                     ReminderDayPeriod.Afternoon -> "下午首次课提醒"
+                    ReminderDayPeriod.Evening -> "晚上首次课提醒"
                 }
                 _uiState.update {
                     it.copy(
@@ -590,6 +598,7 @@ class ScheduleViewModel(
             val label = when (period) {
                 ReminderDayPeriod.Morning -> "上午首次课提醒"
                 ReminderDayPeriod.Afternoon -> "下午首次课提醒"
+                ReminderDayPeriod.Evening -> "晚上首次课提醒"
             }
             _uiState.update {
                 it.copy(statusMessage = if (enabled) "已开启$label" else "已关闭$label")

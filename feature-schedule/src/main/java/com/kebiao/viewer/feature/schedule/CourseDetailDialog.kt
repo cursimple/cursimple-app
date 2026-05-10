@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.kebiao.viewer.core.kernel.model.ClassSlotTime
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 
@@ -71,7 +72,17 @@ fun CourseDetailDialog(
     }
     val course = courses[selectedIndex.coerceIn(0, courses.size - 1)]
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
-    val palette = remember(course.title, accents) { courseColor(course.title, accents.coursePalette) }
+    val palette = remember(course.title, course.category, accents) { courseColor(course.title, accents.coursePalette) }
+    val headerContainer = if (course.category == CourseCategory.Exam) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        palette.container
+    }
+    val headerContent = if (course.category == CourseCategory.Exam) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        palette.onContainer
+    }
     val isThisWeek = course.weeks.isEmpty() || course.weeks.contains(visibleWeekNumber)
     val manual = isManual(course)
     val weekday = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
@@ -106,7 +117,7 @@ fun CourseDetailDialog(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(palette.container)
+                        .background(headerContainer)
                         .padding(horizontal = 20.dp, vertical = 18.dp),
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -115,15 +126,15 @@ fun CourseDetailDialog(
                                 text = course.title,
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = palette.onContainer,
+                                color = headerContent,
                                 modifier = Modifier.weight(1f),
                             )
                             StatusChip(thisWeek = isThisWeek, manual = manual)
                         }
                         Text(
-                            text = "$weekday · $nodeRange",
+                            text = "${if (course.category == CourseCategory.Exam) "考试 · " else ""}$weekday · $nodeRange",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = palette.onContainer.copy(alpha = 0.85f),
+                            color = headerContent.copy(alpha = 0.85f),
                         )
                     }
                 }
