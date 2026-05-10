@@ -16,8 +16,13 @@ import com.kebiao.viewer.core.reminder.logging.ReminderLogger
 import com.kebiao.viewer.core.reminder.model.AlarmDispatchResult
 import com.kebiao.viewer.core.reminder.model.AlarmDismissResult
 import com.kebiao.viewer.core.reminder.model.AppAlarmOperationMode
+import com.kebiao.viewer.core.reminder.model.FirstCourseCandidateScope
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmSettings
+import com.kebiao.viewer.core.reminder.model.ReminderAction
+import com.kebiao.viewer.core.reminder.model.ReminderCondition
+import com.kebiao.viewer.core.reminder.model.ReminderConditionMode
+import com.kebiao.viewer.core.reminder.model.ReminderCustomOccupancy
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
@@ -27,6 +32,7 @@ import com.kebiao.viewer.core.reminder.model.ReminderSyncWindow
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
+import com.kebiao.viewer.core.reminder.model.ReminderTimeRange
 import com.kebiao.viewer.core.reminder.model.TriggeredAppAlarmFinishAction
 import com.kebiao.viewer.core.reminder.model.TriggeredAppAlarmFinishResult
 import com.kebiao.viewer.core.reminder.model.appAlarmRequestCode
@@ -55,6 +61,8 @@ class ReminderCoordinator(
 ) {
 
     val reminderRulesFlow: Flow<List<ReminderRule>> = repository.reminderRulesFlow
+
+    val customOccupanciesFlow: Flow<List<ReminderCustomOccupancy>> = repository.customOccupanciesFlow
 
     val systemAlarmRecordsFlow: Flow<List<SystemAlarmRecord>> = repository.systemAlarmRecordsFlow
 
@@ -151,6 +159,91 @@ class ReminderCoordinator(
         )
         repository.saveReminderRule(rule)
         return rule
+    }
+
+    suspend fun upsertFlexibleFirstCourseReminder(
+        pluginId: String,
+        ruleId: String?,
+        displayName: String,
+        enabled: Boolean,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+        candidate: FirstCourseCandidateScope,
+        conditionMode: ReminderConditionMode,
+        conditions: List<ReminderCondition>,
+        actions: List<ReminderAction>,
+    ): ReminderRule {
+        val now = OffsetDateTime.now().toString()
+        val existing = ruleId?.let { id ->
+            repository.getReminderRules().firstOrNull {
+                it.ruleId == id && it.pluginId == pluginId && it.scopeType == ReminderScopeType.FirstCourseOfPeriod
+            }
+        }
+        val rule = (existing ?: ReminderRule(
+            ruleId = UUID.randomUUID().toString(),
+            pluginId = pluginId,
+            scopeType = ReminderScopeType.FirstCourseOfPeriod,
+            advanceMinutes = advanceMinutes,
+            ringtoneUri = ringtoneUri,
+            enabled = enabled,
+            createdAt = now,
+            updatedAt = now,
+        )).copy(
+            displayName = displayName.takeIf { it.isNotBlank() },
+            advanceMinutes = advanceMinutes,
+            ringtoneUri = ringtoneUri,
+            enabled = enabled,
+            updatedAt = now,
+            firstCourseCandidate = candidate,
+            conditionMode = conditionMode,
+            conditions = conditions,
+            actions = actions,
+            periodStartNode = candidate.nodeRange?.startNode,
+            periodEndNode = candidate.nodeRange?.endNode,
+            mutedNodeRanges = emptyList(),
+        )
+        repository.saveReminderRule(rule)
+        return rule
+    }
+
+    suspend fun upsertCustomOccupancy(
+        pluginId: String,
+        occupancyId: String?,
+        name: String,
+        timeRange: ReminderTimeRange,
+        daysOfWeek: List<Int>,
+        weeks: List<Int>,
+        includeDates: List<String>,
+        excludeDates: List<String>,
+        linkedNodeRange: ReminderNodeRange?,
+    ): ReminderCustomOccupancy {
+        val now = OffsetDateTime.now().toString()
+        val existing = occupancyId?.let { id ->
+            repository.getCustomOccupancies(pluginId).firstOrNull { it.occupancyId == id }
+        }
+        val occupancy = (existing ?: ReminderCustomOccupancy(
+            occupancyId = UUID.randomUUID().toString(),
+            pluginId = pluginId,
+            name = name,
+            timeRange = timeRange,
+            createdAt = now,
+            updatedAt = now,
+        )).copy(
+            name = name,
+            timeRange = timeRange,
+            daysOfWeek = daysOfWeek.distinct().sorted(),
+            weeks = weeks.distinct().sorted(),
+            includeDates = includeDates.distinct().sorted(),
+            excludeDates = excludeDates.distinct().sorted(),
+            linkedNodeRange = linkedNodeRange?.normalized(),
+            updatedAt = now,
+        )
+        repository.saveCustomOccupancy(occupancy)
+        return occupancy
+    }
+
+    suspend fun removeCustomOccupancy(occupancyId: String) {
+        repository.removeCustomOccupancy(occupancyId)
     }
 
     suspend fun upsertExamReminder(
@@ -356,6 +449,7 @@ class ReminderCoordinator(
         val zone = ZoneId.of(profile.timezone)
         val systemClockZone = ZoneId.systemDefault()
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
+        val customOccupancies = repository.getCustomOccupancies(pluginId)
         cleanupExpiredExamMutes(
             pluginId = pluginId,
             schedule = schedule,
@@ -372,6 +466,7 @@ class ReminderCoordinator(
                 timingProfile = profile,
                 fromDate = Instant.ofEpochMilli(window.startMillis).atZone(zone).toLocalDate(),
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
+                customOccupancies = customOccupancies,
             )
         }.asSequence()
             .filter { it.triggerAtMillis in window.startMillis..window.endMillis }

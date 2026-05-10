@@ -15,32 +15,46 @@ import com.kebiao.viewer.core.kernel.model.termStartLocalDate
 import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
+import com.kebiao.viewer.core.reminder.model.ReminderCustomOccupancy
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 
 class ReminderPlanner {
+    private val firstCourseEvaluator = FirstCourseRuleEvaluator()
+
     fun expandRule(
         rule: ReminderRule,
         schedule: TermSchedule,
         timingProfile: TermTimingProfile,
         fromDate: LocalDate = BeijingTime.today(),
         temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+        customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
     ): List<ReminderPlan> {
         if (rule.scopeType == ReminderScopeType.FirstCourseOfPeriod) {
-            return expandFirstCourseOfPeriodRule(
+            val zone = ZoneId.of(timingProfile.timezone)
+            return firstCourseEvaluator.expand(
                 rule = rule,
                 schedule = schedule,
                 timingProfile = timingProfile,
                 fromDate = fromDate,
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
+                customOccupancies = customOccupancies,
             )
+                .map { target ->
+                    buildPlan(
+                        rule = rule,
+                        course = target.course,
+                        courseDate = target.courseDate,
+                        slot = target.slot,
+                        zone = zone,
+                        titlePeriod = target.period,
+                    )
+                }
+                .distinctBy { it.planId }
+                .sortedBy { it.triggerAtMillis }
         }
         return schedule.dailySchedules
             .flatMap { it.courses }
@@ -78,71 +92,6 @@ class ReminderPlanner {
         }
     }
 
-    private fun expandFirstCourseOfPeriodRule(
-        rule: ReminderRule,
-        schedule: TermSchedule,
-        timingProfile: TermTimingProfile,
-        fromDate: LocalDate,
-        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
-    ): List<ReminderPlan> {
-        val period = rule.period ?: return emptyList()
-        val termStart = timingProfile.termStartLocalDate()
-        val zone = ZoneId.of(timingProfile.timezone)
-        val candidates = schedule.dailySchedules
-            .flatMap { it.courses }
-            .flatMap { course ->
-                val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode)
-                    ?: return@flatMap emptyList()
-                val startTime = slot.startLocalTime()
-                val muted = rule.mutedNodeRanges.any { range ->
-                    range.overlaps(course.time.startNode, course.time.endNode)
-                }
-                val inPeriod = rule.includesCourseInPeriod(course, startTime)
-                if (!inPeriod && !muted) return@flatMap emptyList()
-                courseOccurrenceDates(
-                    course = course,
-                    termStart = termStart,
-                    fromDate = fromDate,
-                    temporaryScheduleOverrides = temporaryScheduleOverrides,
-                ).map { courseDate ->
-                    FirstCourseCandidate(
-                        course = course,
-                        courseDate = courseDate,
-                        slot = slot,
-                        startTime = startTime,
-                        muted = muted,
-                    )
-                }
-            }
-
-        return candidates
-            .groupBy { it.courseDate }
-            .values
-            .mapNotNull { dayCandidates ->
-                if (dayCandidates.any { it.muted }) return@mapNotNull null
-                dayCandidates.minWithOrNull(
-                    compareBy<FirstCourseCandidate>(
-                        { it.startTime },
-                        { it.course.time.startNode },
-                        { it.course.time.endNode },
-                        { it.course.title },
-                        { it.course.id },
-                    ),
-                )
-            }
-            .map { candidate ->
-                buildPlan(
-                    rule = rule,
-                    course = candidate.course,
-                    courseDate = candidate.courseDate,
-                    slot = candidate.slot,
-                    zone = zone,
-                )
-            }
-            .distinctBy { it.planId }
-            .sortedBy { it.triggerAtMillis }
-    }
-
     private fun courseOccurrenceDates(
         course: CourseItem,
         termStart: LocalDate,
@@ -173,6 +122,7 @@ class ReminderPlanner {
         courseDate: LocalDate,
         slot: ClassSlotTime,
         zone: ZoneId,
+        titlePeriod: ReminderDayPeriod? = rule.period,
     ): ReminderPlan {
         val classStart = LocalDateTime.of(courseDate, slot.startLocalTime())
         val trigger = classStart
@@ -184,7 +134,7 @@ class ReminderPlanner {
             planId = "${rule.ruleId}_${course.id}_$trigger",
             ruleId = rule.ruleId,
             pluginId = rule.pluginId,
-            title = buildTitle(course, courseDate, slot, rule.advanceMinutes, rule.period),
+            title = buildTitle(course, courseDate, slot, rule.advanceMinutes, titlePeriod),
             message = buildMessage(course, courseDate, slot),
             triggerAtMillis = trigger,
             ringtoneUri = rule.ringtoneUri,
@@ -249,44 +199,14 @@ class ReminderPlanner {
         }
     }
 
-    private fun ReminderDayPeriod.includes(time: LocalTime): Boolean = when (this) {
-        ReminderDayPeriod.Morning -> time.isBefore(NOON)
-        ReminderDayPeriod.Afternoon -> !time.isBefore(NOON) && time.isBefore(EVENING)
-        ReminderDayPeriod.Evening -> !time.isBefore(EVENING)
-    }
-
-    private fun ReminderRule.includesCourseInPeriod(course: CourseItem, startTime: LocalTime): Boolean {
-        val periodStart = periodStartNode
-        val periodEnd = periodEndNode
-        if (periodStart != null && periodEnd != null) {
-            val normalizedStart = minOf(periodStart, periodEnd)
-            val normalizedEnd = maxOf(periodStart, periodEnd)
-            return course.time.startNode <= normalizedEnd && course.time.endNode >= normalizedStart
-        }
-        return period?.includes(startTime) == true
-    }
-
     private fun CourseItem.isActiveOnSourceDate(termStart: LocalDate, sourceDate: LocalDate): Boolean {
         if (weeks.isEmpty()) return true
         return resolveTermWeek(termStart, sourceDate) in weeks
     }
 
-    private fun resolveTermWeek(termStart: LocalDate, date: LocalDate): Int {
-        val termStartMonday = termStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val dateMonday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        return ChronoUnit.WEEKS.between(termStartMonday, dateMonday).toInt() + 1
-    }
-
-    private data class FirstCourseCandidate(
-        val course: CourseItem,
-        val courseDate: LocalDate,
-        val slot: ClassSlotTime,
-        val startTime: LocalTime,
-        val muted: Boolean,
-    )
-
-    private companion object {
-        val NOON: LocalTime = LocalTime.NOON
-        val EVENING: LocalTime = LocalTime.of(18, 0)
-    }
+    private fun resolveTermWeek(termStart: LocalDate, date: LocalDate): Int =
+        java.time.temporal.ChronoUnit.WEEKS.between(
+            termStart.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)),
+            date.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)),
+        ).toInt() + 1
 }

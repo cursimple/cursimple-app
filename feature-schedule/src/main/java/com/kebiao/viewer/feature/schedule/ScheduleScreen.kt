@@ -96,14 +96,23 @@ import com.kebiao.viewer.core.kernel.time.BeijingTime
 import com.kebiao.viewer.core.plugin.ui.BannerContribution
 import com.kebiao.viewer.core.plugin.ui.CourseBadgeRule
 import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
+import com.kebiao.viewer.core.reminder.model.FirstCourseCandidateScope
+import com.kebiao.viewer.core.reminder.model.ReminderAction
+import com.kebiao.viewer.core.reminder.model.ReminderActionType
+import com.kebiao.viewer.core.reminder.model.ReminderCondition
+import com.kebiao.viewer.core.reminder.model.ReminderConditionMode
+import com.kebiao.viewer.core.reminder.model.ReminderConditionType
+import com.kebiao.viewer.core.reminder.model.ReminderCustomOccupancy
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
+import com.kebiao.viewer.core.reminder.model.ReminderTimeRange
 import com.kebiao.viewer.feature.schedule.time.LocalAppZone
 import com.kebiao.viewer.feature.schedule.time.today
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -2072,12 +2081,41 @@ internal fun ReminderComposerCard(
 @Composable
 internal fun FirstCourseReminderSettingsCard(
     reminderRules: List<ReminderRule>,
+    customOccupancies: List<ReminderCustomOccupancy>,
     pluginId: String,
-    onSave: (ReminderDayPeriod, Boolean, Int, String?, Int?, Int?, List<ReminderNodeRange>) -> Unit,
+    onSaveRule: (
+        String?,
+        String,
+        Boolean,
+        Int,
+        String?,
+        FirstCourseCandidateScope,
+        ReminderConditionMode,
+        List<ReminderCondition>,
+        List<ReminderAction>,
+    ) -> Unit,
+    onSaveOccupancy: (
+        String?,
+        String,
+        ReminderTimeRange,
+        List<Int>,
+        List<Int>,
+        List<String>,
+        List<String>,
+        ReminderNodeRange?,
+    ) -> Unit,
+    onRemoveOccupancy: (String) -> Unit,
+    onRemoveRule: (String) -> Unit,
 ) {
-    val automaticRules = reminderRules.filter {
+    val firstCourseRules = reminderRules.filter {
         it.pluginId == pluginId && it.scopeType == ReminderScopeType.FirstCourseOfPeriod
     }
+    val visibleOccupancies = customOccupancies.filter { it.pluginId == pluginId }
+    var showRuleEditor by rememberSaveable { mutableStateOf(false) }
+    var editingOccupancy by remember { mutableStateOf<ReminderCustomOccupancy?>(null) }
+    var showOccupancyEditor by rememberSaveable { mutableStateOf(false) }
+    var templateMessage by rememberSaveable { mutableStateOf<String?>(null) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -2087,18 +2125,704 @@ internal fun FirstCourseReminderSettingsCard(
             modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("首次课提醒", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text("首次课提醒规则", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text(
-                text = "按时段控制首门课提醒，可配置免提醒前置节次。",
+                text = "按候选课程、条件和动作决定当天提醒哪一门课。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            firstCoursePeriodDefaults.forEach { config ->
-                FirstCourseReminderRow(
-                    config = config,
-                    rule = automaticRules.firstOrNull { it.period == config.period },
-                    onSave = onSave,
+
+            FirstCourseOccupancySection(
+                occupancies = visibleOccupancies,
+                editingOccupancy = editingOccupancy,
+                showEditor = showOccupancyEditor,
+                onAdd = {
+                    editingOccupancy = null
+                    showOccupancyEditor = true
+                },
+                onEdit = {
+                    editingOccupancy = it
+                    showOccupancyEditor = true
+                },
+                onCancelEdit = {
+                    editingOccupancy = null
+                    showOccupancyEditor = false
+                },
+                onSave = { occupancyId, name, timeRange, days, weeks, includeDates, excludeDates, linkedNodes ->
+                    onSaveOccupancy(occupancyId, name, timeRange, days, weeks, includeDates, excludeDates, linkedNodes)
+                    editingOccupancy = null
+                    showOccupancyEditor = false
+                },
+                onRemove = onRemoveOccupancy,
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("规则列表", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                if (firstCourseRules.isEmpty()) {
+                    Text(
+                        text = "还没有首课提醒规则，可从模板开始。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                firstCourseRules.forEach { rule ->
+                    FirstCourseRuleRow(
+                        rule = rule,
+                        customOccupancies = visibleOccupancies,
+                        onToggle = { checked ->
+                            onSaveRule(
+                                rule.ruleId,
+                                rule.firstCourseDisplayName(),
+                                checked,
+                                rule.advanceMinutes,
+                                rule.ringtoneUri,
+                                rule.flexibleCandidateScope(),
+                                rule.conditionMode,
+                                rule.conditions,
+                                rule.actions,
+                            )
+                        },
+                        onRemove = { onRemoveRule(rule.ruleId) },
+                    )
+                }
+            }
+
+            templateMessage?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
                 )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = {
+                        onSaveRule(
+                            null,
+                            "上午首课提醒",
+                            true,
+                            20,
+                            null,
+                            FirstCourseCandidateScope(nodeRange = ReminderNodeRange(1, 4)),
+                            ReminderConditionMode.All,
+                            emptyList(),
+                            listOf(ReminderAction(ReminderActionType.RemindFirstCandidate)),
+                        )
+                        templateMessage = "已生成标准上午首课提醒"
+                    },
+                ) {
+                    Text("标准上午")
+                }
+                Button(
+                    onClick = {
+                        val occupancy = visibleOccupancies.firstOrNull { it.name.contains("早自习") }
+                            ?: visibleOccupancies.firstOrNull()
+                        if (occupancy == null) {
+                            showOccupancyEditor = true
+                            templateMessage = "请先创建一个早自习占用，时间段可自定义。"
+                            return@Button
+                        }
+                        val candidate = FirstCourseCandidateScope(nodeRange = ReminderNodeRange(1, 4))
+                        val existingByName = firstCourseRules.associateBy { it.displayName }
+                        onSaveRule(
+                            existingByName["早自习且第一节有课"]?.ruleId,
+                            "早自习且第一节有课",
+                            true,
+                            20,
+                            null,
+                            candidate,
+                            ReminderConditionMode.All,
+                            listOf(
+                                ReminderCondition(ReminderConditionType.OccupancyExists, occupancyId = occupancy.occupancyId),
+                                ReminderCondition(ReminderConditionType.CourseExistsInNodes, nodeRange = ReminderNodeRange(1, 1)),
+                            ),
+                            listOf(ReminderAction(ReminderActionType.Skip)),
+                        )
+                        onSaveRule(
+                            existingByName["早自习且第一节无课"]?.ruleId,
+                            "早自习且第一节无课",
+                            true,
+                            20,
+                            null,
+                            candidate,
+                            ReminderConditionMode.All,
+                            listOf(
+                                ReminderCondition(ReminderConditionType.OccupancyExists, occupancyId = occupancy.occupancyId),
+                                ReminderCondition(ReminderConditionType.CourseAbsentInNodes, nodeRange = ReminderNodeRange(1, 1)),
+                            ),
+                            listOf(ReminderAction(ReminderActionType.ContinueAfterNode, afterNode = 1)),
+                        )
+                        onSaveRule(
+                            existingByName["无早自习"]?.ruleId,
+                            "无早自习",
+                            true,
+                            20,
+                            null,
+                            candidate,
+                            ReminderConditionMode.All,
+                            listOf(ReminderCondition(ReminderConditionType.OccupancyAbsent, occupancyId = occupancy.occupancyId)),
+                            listOf(ReminderAction(ReminderActionType.RemindFirstCandidate)),
+                        )
+                        templateMessage = "已生成早自习智能上午规则"
+                    },
+                ) {
+                    Text("早自习智能")
+                }
+                TextButton(onClick = { showRuleEditor = !showRuleEditor }) {
+                    Text(if (showRuleEditor) "收起" else "新建规则")
+                }
+            }
+
+            if (showRuleEditor) {
+                FirstCourseRuleEditor(
+                    occupancies = visibleOccupancies,
+                    onSave = { name, enabled, advance, candidate, conditionMode, conditions, actions ->
+                        onSaveRule(null, name, enabled, advance, null, candidate, conditionMode, conditions, actions)
+                        showRuleEditor = false
+                    },
+                    onCancel = { showRuleEditor = false },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FirstCourseOccupancySection(
+    occupancies: List<ReminderCustomOccupancy>,
+    editingOccupancy: ReminderCustomOccupancy?,
+    showEditor: Boolean,
+    onAdd: () -> Unit,
+    onEdit: (ReminderCustomOccupancy) -> Unit,
+    onCancelEdit: () -> Unit,
+    onSave: (String?, String, ReminderTimeRange, List<Int>, List<Int>, List<String>, List<String>, ReminderNodeRange?) -> Unit,
+    onRemove: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("自定义占用", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = "早自习、午休等不显示在课表里，但可参与提醒判断。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onAdd) {
+                Text("新增")
+            }
+        }
+        if (occupancies.isEmpty()) {
+            Text(
+                text = "暂无自定义占用。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        occupancies.forEach { occupancy ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(occupancy.name, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = occupancySummary(occupancy),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onEdit(occupancy) }) {
+                        Text("编辑")
+                    }
+                    TextButton(onClick = { onRemove(occupancy.occupancyId) }) {
+                        Text("删除")
+                    }
+                }
+            }
+        }
+        if (showEditor) {
+            CustomOccupancyEditor(
+                occupancy = editingOccupancy,
+                onSave = onSave,
+                onCancel = onCancelEdit,
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomOccupancyEditor(
+    occupancy: ReminderCustomOccupancy?,
+    onSave: (String?, String, ReminderTimeRange, List<Int>, List<Int>, List<String>, List<String>, ReminderNodeRange?) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var name by remember(occupancy?.occupancyId) { mutableStateOf(occupancy?.name ?: "早自习") }
+    var startTime by remember(occupancy?.occupancyId) { mutableStateOf(occupancy?.timeRange?.startTime ?: "07:10") }
+    var endTime by remember(occupancy?.occupancyId) { mutableStateOf(occupancy?.timeRange?.endTime ?: "07:50") }
+    var selectedDays by remember(occupancy?.occupancyId) {
+        mutableStateOf(occupancy?.daysOfWeek?.toSet()?.takeIf { it.isNotEmpty() } ?: setOf(1, 2, 3, 4, 5))
+    }
+    var weeksText by remember(occupancy?.occupancyId) {
+        mutableStateOf(occupancy?.weeks.orEmpty().joinToString(","))
+    }
+    var includeDatesText by remember(occupancy?.occupancyId) {
+        mutableStateOf(occupancy?.includeDates.orEmpty().joinToString(","))
+    }
+    var excludeDatesText by remember(occupancy?.occupancyId) {
+        mutableStateOf(occupancy?.excludeDates.orEmpty().joinToString(","))
+    }
+    var linkedStartText by remember(occupancy?.occupancyId) {
+        mutableStateOf(occupancy?.linkedNodeRange?.startNode?.toString().orEmpty())
+    }
+    var linkedEndText by remember(occupancy?.occupancyId) {
+        mutableStateOf(occupancy?.linkedNodeRange?.endNode?.toString().orEmpty())
+    }
+    val parsedStart = startTime.parseUiTimeOrNull()
+    val parsedEnd = endTime.parseUiTimeOrNull()
+    val linkedStart = linkedStartText.toIntOrNull()
+    val linkedEnd = linkedEndText.toIntOrNull()
+    val linkedRangeValid = (linkedStartText.isBlank() && linkedEndText.isBlank()) ||
+        (linkedStart != null && linkedEnd != null && linkedStart in 1..32 && linkedEnd in linkedStart..32)
+    val canSave = name.isNotBlank() && parsedStart != null && parsedEnd != null &&
+        parsedEnd.isAfter(parsedStart) && linkedRangeValid
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("占用时间段", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(24) },
+                label = { Text("名称") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = startTime,
+                    onValueChange = { startTime = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
+                    label = { Text("开始时间") },
+                    singleLine = true,
+                    isError = startTime.isNotBlank() && parsedStart == null,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = endTime,
+                    onValueChange = { endTime = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
+                    label = { Text("结束时间") },
+                    singleLine = true,
+                    isError = endTime.isNotBlank() && (parsedEnd == null || (parsedStart != null && !parsedEnd.isAfter(parsedStart))),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Text("生效星期", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            WeekdayToggleRow(
+                selectedDays = selectedDays,
+                onToggle = { day ->
+                    selectedDays = if (day in selectedDays) selectedDays - day else selectedDays + day
+                },
+            )
+            OutlinedTextField(
+                value = weeksText,
+                onValueChange = { weeksText = it.filter { c -> c.isDigit() || c == ',' || c == '，' } },
+                label = { Text("生效周次，可空") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = includeDatesText,
+                onValueChange = { includeDatesText = it.take(120) },
+                label = { Text("指定日期，可空，YYYY-MM-DD 逗号分隔") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = excludeDatesText,
+                onValueChange = { excludeDatesText = it.take(120) },
+                label = { Text("排除日期，可空，YYYY-MM-DD 逗号分隔") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = linkedStartText,
+                    onValueChange = { linkedStartText = it.filter(Char::isDigit).take(2) },
+                    label = { Text("关联起始节，可空") },
+                    singleLine = true,
+                    isError = linkedStartText.isNotBlank() && !linkedRangeValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = linkedEndText,
+                    onValueChange = { linkedEndText = it.filter(Char::isDigit).take(2) },
+                    label = { Text("关联结束节，可空") },
+                    singleLine = true,
+                    isError = linkedEndText.isNotBlank() && !linkedRangeValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = {
+                        val linkedRange = if (linkedStart != null && linkedEnd != null) {
+                            ReminderNodeRange(linkedStart, linkedEnd)
+                        } else {
+                            null
+                        }
+                        onSave(
+                            occupancy?.occupancyId,
+                            name.trim(),
+                            ReminderTimeRange(startTime, endTime),
+                            selectedDays.sorted(),
+                            parseUiIntList(weeksText),
+                            parseUiDateList(includeDatesText),
+                            parseUiDateList(excludeDatesText),
+                            linkedRange,
+                        )
+                    },
+                    enabled = canSave,
+                ) {
+                    Text("保存占用")
+                }
+                TextButton(onClick = onCancel) {
+                    Text("取消")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WeekdayToggleRow(
+    selectedDays: Set<Int>,
+    onToggle: (Int) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        (1..7).forEach { day ->
+            val selected = day in selectedDays
+            Button(
+                onClick = { onToggle(day) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (selected) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    contentColor = if (selected) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                ),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(shortWeekdayLabel(day), maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FirstCourseRuleRow(
+    rule: ReminderRule,
+    customOccupancies: List<ReminderCustomOccupancy>,
+    onToggle: (Boolean) -> Unit,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(rule.firstCourseDisplayName(), fontWeight = FontWeight.Medium)
+                Text(
+                    text = listOf(
+                        candidateScopeSummary(rule.flexibleCandidateScope()),
+                        conditionSummary(rule, customOccupancies),
+                        actionSummary(rule),
+                    ).filter { it.isNotBlank() }.joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "提前 ${rule.advanceMinutes} 分钟",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = rule.enabled, onCheckedChange = onToggle)
+            TextButton(onClick = onRemove) {
+                Text("删除")
+            }
+        }
+    }
+}
+
+@Composable
+private fun FirstCourseRuleEditor(
+    occupancies: List<ReminderCustomOccupancy>,
+    onSave: (
+        String,
+        Boolean,
+        Int,
+        FirstCourseCandidateScope,
+        ReminderConditionMode,
+        List<ReminderCondition>,
+        List<ReminderAction>,
+    ) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var name by rememberSaveable { mutableStateOf("自定义首课提醒") }
+    var enabled by rememberSaveable { mutableStateOf(true) }
+    var advanceText by rememberSaveable { mutableStateOf("20") }
+    var candidateStartText by rememberSaveable { mutableStateOf("1") }
+    var candidateEndText by rememberSaveable { mutableStateOf("4") }
+    var occupancyMode by rememberSaveable { mutableStateOf("none") }
+    var selectedOccupancyId by remember(occupancies) {
+        mutableStateOf(occupancies.firstOrNull()?.occupancyId.orEmpty())
+    }
+    var nodeMode by rememberSaveable { mutableStateOf("none") }
+    var conditionStartText by rememberSaveable { mutableStateOf("1") }
+    var conditionEndText by rememberSaveable { mutableStateOf("1") }
+    var actionMode by rememberSaveable { mutableStateOf("remind") }
+    var continueAfterText by rememberSaveable { mutableStateOf("1") }
+
+    val advance = advanceText.toIntOrNull()
+    val candidateStart = candidateStartText.toIntOrNull()
+    val candidateEnd = candidateEndText.toIntOrNull()
+    val conditionStart = conditionStartText.toIntOrNull()
+    val conditionEnd = conditionEndText.toIntOrNull()
+    val continueAfter = continueAfterText.toIntOrNull()
+    val candidateValid = candidateStart != null && candidateEnd != null &&
+        candidateStart in 1..32 && candidateEnd in candidateStart..32
+    val conditionNodeValid = nodeMode == "none" ||
+        (conditionStart != null && conditionEnd != null && conditionStart in 1..32 && conditionEnd in conditionStart..32)
+    val actionValid = actionMode != "continue" || continueAfter != null
+    val occupancyValid = occupancyMode == "none" || selectedOccupancyId.isNotBlank()
+    val canSave = name.isNotBlank() && advance != null && advance in 0..720 &&
+        candidateValid && conditionNodeValid && actionValid && occupancyValid
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("新建首课规则", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it.take(32) },
+                label = { Text("规则名称") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("启用规则", modifier = Modifier.weight(1f))
+                Switch(checked = enabled, onCheckedChange = { enabled = it })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = candidateStartText,
+                    onValueChange = { candidateStartText = it.filter(Char::isDigit).take(2) },
+                    label = { Text("候选起始节") },
+                    singleLine = true,
+                    isError = candidateStartText.isNotBlank() && !candidateValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = candidateEndText,
+                    onValueChange = { candidateEndText = it.filter(Char::isDigit).take(2) },
+                    label = { Text("候选结束节") },
+                    singleLine = true,
+                    isError = candidateEndText.isNotBlank() && !candidateValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            OutlinedTextField(
+                value = advanceText,
+                onValueChange = { advanceText = it.filter(Char::isDigit).take(4) },
+                label = { Text("提前分钟数") },
+                singleLine = true,
+                isError = advanceText.isNotBlank() && (advance == null || advance !in 0..720),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text("占用条件", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OptionButtonRow(
+                options = listOf("none" to "不限", "exists" to "占用存在", "absent" to "占用不存在"),
+                selected = occupancyMode,
+                onSelected = { occupancyMode = it },
+            )
+            if (occupancyMode != "none") {
+                OptionButtonRow(
+                    options = occupancies.map { it.occupancyId to it.name }.ifEmpty { listOf("" to "先新增占用") },
+                    selected = selectedOccupancyId,
+                    onSelected = { selectedOccupancyId = it },
+                )
+            }
+            Text("课程条件", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OptionButtonRow(
+                options = listOf("none" to "不限", "exists" to "节次有课", "absent" to "节次无课"),
+                selected = nodeMode,
+                onSelected = { nodeMode = it },
+            )
+            if (nodeMode != "none") {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = conditionStartText,
+                        onValueChange = { conditionStartText = it.filter(Char::isDigit).take(2) },
+                        label = { Text("条件起始节") },
+                        singleLine = true,
+                        isError = conditionStartText.isNotBlank() && !conditionNodeValid,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = conditionEndText,
+                        onValueChange = { conditionEndText = it.filter(Char::isDigit).take(2) },
+                        label = { Text("条件结束节") },
+                        singleLine = true,
+                        isError = conditionEndText.isNotBlank() && !conditionNodeValid,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            Text("动作", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OptionButtonRow(
+                options = listOf("remind" to "提醒首课", "skip" to "跳过", "continue" to "从某节后找"),
+                selected = actionMode,
+                onSelected = { actionMode = it },
+            )
+            if (actionMode == "continue") {
+                OutlinedTextField(
+                    value = continueAfterText,
+                    onValueChange = { continueAfterText = it.filter(Char::isDigit).take(2) },
+                    label = { Text("从第几节之后继续") },
+                    singleLine = true,
+                    isError = continueAfterText.isNotBlank() && continueAfter == null,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = {
+                        val conditions = buildList {
+                            when (occupancyMode) {
+                                "exists" -> add(ReminderCondition(ReminderConditionType.OccupancyExists, occupancyId = selectedOccupancyId))
+                                "absent" -> add(ReminderCondition(ReminderConditionType.OccupancyAbsent, occupancyId = selectedOccupancyId))
+                            }
+                            if (nodeMode != "none" && conditionStart != null && conditionEnd != null) {
+                                val range = ReminderNodeRange(conditionStart, conditionEnd)
+                                add(
+                                    ReminderCondition(
+                                        type = if (nodeMode == "exists") {
+                                            ReminderConditionType.CourseExistsInNodes
+                                        } else {
+                                            ReminderConditionType.CourseAbsentInNodes
+                                        },
+                                        nodeRange = range,
+                                    ),
+                                )
+                            }
+                        }
+                        val actions = listOf(
+                            when (actionMode) {
+                                "skip" -> ReminderAction(ReminderActionType.Skip)
+                                "continue" -> ReminderAction(ReminderActionType.ContinueAfterNode, afterNode = continueAfter)
+                                else -> ReminderAction(ReminderActionType.RemindFirstCandidate)
+                            },
+                        )
+                        onSave(
+                            name.trim(),
+                            enabled,
+                            advance ?: 20,
+                            FirstCourseCandidateScope(nodeRange = ReminderNodeRange(candidateStart ?: 1, candidateEnd ?: 4)),
+                            ReminderConditionMode.All,
+                            conditions,
+                            actions,
+                        )
+                    },
+                    enabled = canSave,
+                ) {
+                    Text("保存规则")
+                }
+                TextButton(onClick = onCancel) {
+                    Text("取消")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OptionButtonRow(
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelected: (String) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        options.forEach { (value, label) ->
+            val active = value == selected
+            Button(
+                onClick = { onSelected(value) },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (active) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surface
+                    },
+                    contentColor = if (active) {
+                        MaterialTheme.colorScheme.onPrimary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                ),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -2215,218 +2939,6 @@ internal fun ExamReminderSettingsCard(
 }
 
 @Composable
-private fun FirstCourseReminderRow(
-    config: FirstCoursePeriodConfig,
-    rule: ReminderRule?,
-    onSave: (ReminderDayPeriod, Boolean, Int, String?, Int?, Int?, List<ReminderNodeRange>) -> Unit,
-) {
-    val period = config.period
-    var enabled by rememberSaveable(rule?.ruleId, period.name) { mutableStateOf(rule?.enabled == true) }
-    var advanceMinutesText by rememberSaveable(rule?.ruleId, period.name) {
-        mutableStateOf((rule?.advanceMinutes ?: 20).toString())
-    }
-    var periodStartText by rememberSaveable(rule?.ruleId, period.name) {
-        mutableStateOf((rule?.periodStartNode ?: config.defaultStartNode).toString())
-    }
-    var periodEndText by rememberSaveable(rule?.ruleId, period.name) {
-        mutableStateOf((rule?.periodEndNode ?: config.defaultEndNode).toString())
-    }
-    var mutedPreludeEnabled by rememberSaveable(rule?.ruleId, period.name) {
-        mutableStateOf(rule?.mutedNodeRanges.orEmpty().isNotEmpty())
-    }
-    var mutedStartText by rememberSaveable(rule?.ruleId, period.name) {
-        mutableStateOf((rule?.mutedNodeRanges?.firstOrNull()?.startNode ?: config.defaultMutedNode).toString())
-    }
-    var mutedEndText by rememberSaveable(rule?.ruleId, period.name) {
-        mutableStateOf((rule?.mutedNodeRanges?.firstOrNull()?.endNode ?: config.defaultMutedNode).toString())
-    }
-    var ringtoneUri by rememberSaveable(rule?.ruleId, period.name) { mutableStateOf(rule?.ringtoneUri) }
-    val context = LocalContext.current
-    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
-        ringtoneUri = uri?.toString()
-    }
-    val advance = advanceMinutesText.toIntOrNull()
-    val periodStart = periodStartText.toIntOrNull()
-    val periodEnd = periodEndText.toIntOrNull()
-    val mutedStart = mutedStartText.toIntOrNull()
-    val mutedEnd = mutedEndText.toIntOrNull()
-    val periodValid = periodStart != null && periodEnd != null && periodStart in 1..32 && periodEnd in periodStart..32
-    val mutedValid = !mutedPreludeEnabled ||
-        (mutedStart != null && mutedEnd != null && mutedStart in 1..32 && mutedEnd in mutedStart..32)
-    val canSave = advance != null && advance in 0..720 && periodValid && mutedValid
-    fun save(checked: Boolean = enabled) {
-        val mutedRanges = if (mutedPreludeEnabled && mutedStart != null && mutedEnd != null) {
-            listOf(ReminderNodeRange(mutedStart, mutedEnd))
-        } else {
-            emptyList()
-        }
-        onSave(period, checked, advance ?: 20, ringtoneUri, periodStart, periodEnd, mutedRanges)
-    }
-
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(config.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = if (enabled) "已开启" else "默认关闭",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = { checked ->
-                        enabled = checked
-                        if (canSave) {
-                            save(checked)
-                        }
-                    },
-                )
-            }
-            Text(
-                text = "前置节次当天有课时，该时段不再提醒；前置节次为空时，提醒后续第一门课。",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                OutlinedTextField(
-                    value = periodStartText,
-                    onValueChange = { periodStartText = it.filter(Char::isDigit).take(2) },
-                    label = { Text("时段起始节") },
-                    singleLine = true,
-                    isError = periodStartText.isNotBlank() && !periodValid,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedTextField(
-                    value = periodEndText,
-                    onValueChange = { periodEndText = it.filter(Char::isDigit).take(2) },
-                    label = { Text("时段结束节") },
-                    singleLine = true,
-                    isError = periodEndText.isNotBlank() && !periodValid,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("免提醒前置节次", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = if (mutedPreludeEnabled) "前置节次有课时不提醒本时段" else "未设置前置节次",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Switch(
-                    checked = mutedPreludeEnabled,
-                    onCheckedChange = { mutedPreludeEnabled = it },
-                )
-            }
-            if (mutedPreludeEnabled) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    OutlinedTextField(
-                        value = mutedStartText,
-                        onValueChange = { mutedStartText = it.filter(Char::isDigit).take(2) },
-                        label = { Text("前置起始节") },
-                        singleLine = true,
-                        isError = mutedStartText.isNotBlank() && !mutedValid,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = mutedEndText,
-                        onValueChange = { mutedEndText = it.filter(Char::isDigit).take(2) },
-                        label = { Text("前置结束节") },
-                        singleLine = true,
-                        isError = mutedEndText.isNotBlank() && !mutedValid,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            OutlinedTextField(
-                value = advanceMinutesText,
-                onValueChange = { advanceMinutesText = it.filter(Char::isDigit).take(4) },
-                label = { Text("提前分钟数") },
-                singleLine = true,
-                isError = advanceMinutesText.isNotBlank() && !canSave,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                supportingText = {
-                    if (advanceMinutesText.isNotBlank() && !canSave) {
-                        Text("请输入 0 到 720 分钟")
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(
-                    onClick = {
-                        launchAlarmRingtonePicker(context) { intent ->
-                            ringtoneLauncher.launch(intent)
-                        }
-                    },
-                ) {
-                    Text("选择铃声")
-                }
-                Text(
-                    text = if (ringtoneUri.isNullOrBlank()) "系统默认铃声" else "已选择铃声",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
-                Button(
-                    onClick = { save() },
-                    enabled = canSave,
-                ) {
-                    Text("保存")
-                }
-            }
-        }
-    }
-}
-
-private data class FirstCoursePeriodConfig(
-    val period: ReminderDayPeriod,
-    val title: String,
-    val defaultStartNode: Int,
-    val defaultEndNode: Int,
-    val defaultMutedNode: Int,
-)
-
-private val firstCoursePeriodDefaults = listOf(
-    FirstCoursePeriodConfig(ReminderDayPeriod.Morning, "上午首课提醒", 1, 4, 1),
-    FirstCoursePeriodConfig(ReminderDayPeriod.Afternoon, "下午首课提醒", 5, 8, 5),
-    FirstCoursePeriodConfig(ReminderDayPeriod.Evening, "晚上首课提醒", 9, 12, 9),
-)
-
-@Composable
 internal fun ReminderRulesSection(
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     schedule: TermSchedule?,
@@ -2499,6 +3011,124 @@ private data class ReminderRuleDisplay(
     val nextTrigger: String?,
 )
 
+private fun ReminderRule.firstCourseDisplayName(): String = displayName?.takeIf { it.isNotBlank() } ?: when (period) {
+    ReminderDayPeriod.Morning -> "上午首次课提醒"
+    ReminderDayPeriod.Afternoon -> "下午首次课提醒"
+    ReminderDayPeriod.Evening -> "晚上首次课提醒"
+    null -> "首次课提醒"
+}
+
+private fun ReminderRule.flexibleCandidateScope(): FirstCourseCandidateScope {
+    val startNode = periodStartNode
+    val endNode = periodEndNode
+    return firstCourseCandidate ?: FirstCourseCandidateScope(
+        nodeRange = if (startNode != null && endNode != null) {
+            ReminderNodeRange(startNode, endNode)
+        } else {
+            null
+        },
+        categories = emptyList(),
+    )
+}
+
+private fun candidateScopeSummary(scope: FirstCourseCandidateScope): String {
+    val node = scope.nodeRange?.let { "候选第${it.startNode}-${it.endNode}节" }
+    val time = scope.timeRange?.let { "${it.startTime}-${it.endTime}" }
+    val days = scope.daysOfWeek.takeIf { it.isNotEmpty() }?.joinToString("") { shortWeekdayLabel(it) }
+    val categories = when {
+        scope.categories.isEmpty() -> null
+        scope.categories == listOf(CourseCategory.Course) -> "普通课程"
+        scope.categories == listOf(CourseCategory.Exam) -> "考试"
+        else -> "全部类别"
+    }
+    return listOfNotNull(node, time, days, categories).joinToString(" · ").ifBlank { "默认候选范围" }
+}
+
+private fun conditionSummary(
+    rule: ReminderRule,
+    occupancies: List<ReminderCustomOccupancy>,
+): String {
+    if (rule.conditions.isEmpty()) return "无额外条件"
+    val labels = rule.conditions.take(3).map { it.summaryLabel(occupancies) }
+    val suffix = if (rule.conditions.size > labels.size) "等 ${rule.conditions.size} 条" else null
+    val mode = when (rule.conditionMode) {
+        ReminderConditionMode.All -> "全部满足"
+        ReminderConditionMode.Any -> "任一满足"
+    }
+    return listOf(labels.joinToString("，"), suffix, mode).filterNotNull().joinToString(" · ")
+}
+
+private fun ReminderCondition.summaryLabel(occupancies: List<ReminderCustomOccupancy>): String {
+    val occupancyName = occupancyId?.let { id -> occupancies.firstOrNull { it.occupancyId == id }?.name ?: "指定占用" }
+    return when (type) {
+        ReminderConditionType.CourseExistsInNodes -> nodeRange?.let { "第${it.startNode}-${it.endNode}节有课" } ?: "指定节次有课"
+        ReminderConditionType.CourseAbsentInNodes -> nodeRange?.let { "第${it.startNode}-${it.endNode}节无课" } ?: "指定节次无课"
+        ReminderConditionType.CourseExistsInTime -> timeRange?.let { "${it.startTime}-${it.endTime}有课" } ?: "指定时间有课"
+        ReminderConditionType.CourseAbsentInTime -> timeRange?.let { "${it.startTime}-${it.endTime}无课" } ?: "指定时间无课"
+        ReminderConditionType.OccupancyExists -> "${occupancyName ?: "自定义占用"}存在"
+        ReminderConditionType.OccupancyAbsent -> "${occupancyName ?: "自定义占用"}不存在"
+        ReminderConditionType.OccupancyOverlapsCourse -> "${occupancyName ?: "自定义占用"}与课程重叠"
+        ReminderConditionType.OccupancyBeforeCourse -> "${occupancyName ?: "自定义占用"}早于课程"
+        ReminderConditionType.WeekdayMatches -> "星期匹配"
+        ReminderConditionType.WeekMatches -> "周次匹配"
+        ReminderConditionType.DateMatches -> "日期匹配"
+        ReminderConditionType.CourseTextMatches -> "课程文本匹配"
+    }
+}
+
+private fun actionSummary(rule: ReminderRule): String {
+    if (rule.actions.isEmpty()) return "提醒第一门候选课"
+    return rule.actions.joinToString("，") { action ->
+        when (action.type) {
+            ReminderActionType.RemindFirstCandidate -> "提醒第一门候选课"
+            ReminderActionType.Skip -> "跳过本规则"
+            ReminderActionType.ContinueAfterNode -> "从第${action.afterNode ?: "?"}节后继续找"
+            ReminderActionType.ContinueAfterTime -> "从${action.afterTime ?: "指定时间"}后继续找"
+            ReminderActionType.UseCandidateScope -> "改用另一候选范围"
+        }
+    }
+}
+
+private fun occupancySummary(occupancy: ReminderCustomOccupancy): String {
+    val days = occupancy.daysOfWeek.takeIf { it.isNotEmpty() }?.joinToString("") { shortWeekdayLabel(it) } ?: "全部星期"
+    val weeks = occupancy.weeks.takeIf { it.isNotEmpty() }?.joinToString(",", prefix = "第", postfix = "周")
+    val dates = buildList {
+        if (occupancy.includeDates.isNotEmpty()) add("指定 ${occupancy.includeDates.size} 天")
+        if (occupancy.excludeDates.isNotEmpty()) add("排除 ${occupancy.excludeDates.size} 天")
+    }.joinToString("，").ifBlank { null }
+    val nodes = occupancy.linkedNodeRange?.let { "关联第${it.startNode}-${it.endNode}节" }
+    return listOfNotNull("${occupancy.timeRange.startTime}-${occupancy.timeRange.endTime}", days, weeks, dates, nodes)
+        .joinToString(" · ")
+}
+
+private fun shortWeekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
+    1 -> "一"
+    2 -> "二"
+    3 -> "三"
+    4 -> "四"
+    5 -> "五"
+    6 -> "六"
+    7 -> "日"
+    else -> dayOfWeek.toString()
+}
+
+private fun String.parseUiTimeOrNull(): LocalTime? =
+    runCatching { LocalTime.parse(this) }.getOrNull()
+
+private fun parseUiIntList(value: String): List<Int> =
+    value.split(',', '，', ' ')
+        .mapNotNull { it.trim().toIntOrNull() }
+        .filter { it > 0 }
+        .distinct()
+        .sorted()
+
+private fun parseUiDateList(value: String): List<String> =
+    value.split(',', '，', ' ')
+        .map { it.trim() }
+        .filter { it.length == 10 && runCatching { LocalDate.parse(it) }.isSuccess }
+        .distinct()
+        .sorted()
+
 private fun describeReminderRule(
     rule: com.kebiao.viewer.core.reminder.model.ReminderRule,
     schedule: TermSchedule?,
@@ -2548,21 +3178,12 @@ private fun describeReminderRule(
             timing = listOfNotNull("自动提醒全部考试", muted).joinToString(" · ")
         }
         ReminderScopeType.FirstCourseOfPeriod -> {
-            title = when (rule.period) {
-                ReminderDayPeriod.Morning -> "上午首次课提醒"
-                ReminderDayPeriod.Afternoon -> "下午首次课提醒"
-                ReminderDayPeriod.Evening -> "晚上首次课提醒"
-                null -> "首次课提醒"
-            }
-            val periodRange = if (rule.periodStartNode != null && rule.periodEndNode != null) {
-                "第${rule.periodStartNode}-${rule.periodEndNode}节"
-            } else {
-                "默认时段"
-            }
-            val muted = rule.mutedNodeRanges.firstOrNull()?.let { range ->
-                "免提醒前置第${range.startNode}-${range.endNode}节"
-            }
-            timing = listOfNotNull(periodRange, muted, "按该时段首门课自动提醒").joinToString(" · ")
+            title = rule.firstCourseDisplayName()
+            timing = listOf(
+                candidateScopeSummary(rule.flexibleCandidateScope()),
+                conditionSummary(rule, emptyList()),
+                actionSummary(rule),
+            ).joinToString(" · ")
         }
     }
     val ringtone = if (rule.ringtoneUri.isNullOrBlank()) "系统默认铃声" else "自定义铃声"

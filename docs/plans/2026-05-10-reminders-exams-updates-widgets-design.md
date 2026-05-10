@@ -15,6 +15,8 @@
 
 ## 灵活时段首课提醒
 
+> 已被 `docs/plans/2026-05-10-flexible-first-course-reminder-design.md` 中的“条件规则 + 自定义时间段占用”方案取代。本节仅保留为历史设计记录。
+
 保留 `FirstCourseOfPeriod` 的提醒类型，扩展规则配置：
 
 - 每个时段有节次范围，例如上午、下午、晚上。

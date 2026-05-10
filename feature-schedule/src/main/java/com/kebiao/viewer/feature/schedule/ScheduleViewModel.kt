@@ -20,12 +20,18 @@ import com.kebiao.viewer.core.plugin.web.WebSessionPacket
 import com.kebiao.viewer.core.plugin.web.WebSessionRequest
 import com.kebiao.viewer.core.reminder.ReminderCoordinator
 import com.kebiao.viewer.core.reminder.ReminderSyncWindows
+import com.kebiao.viewer.core.reminder.model.FirstCourseCandidateScope
+import com.kebiao.viewer.core.reminder.model.ReminderAction
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
+import com.kebiao.viewer.core.reminder.model.ReminderCondition
+import com.kebiao.viewer.core.reminder.model.ReminderConditionMode
+import com.kebiao.viewer.core.reminder.model.ReminderCustomOccupancy
 import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
+import com.kebiao.viewer.core.reminder.model.ReminderTimeRange
 import com.kebiao.viewer.core.reminder.model.SystemAlarmSyncSummary
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.CoroutineDispatcher
@@ -60,6 +66,7 @@ data class ScheduleUiState(
     val pendingWebSession: WebSessionRequest? = null,
     val alarmRecommendations: List<AlarmRecommendation> = emptyList(),
     val reminderRules: List<ReminderRule> = emptyList(),
+    val customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
     val systemAlarmRecords: List<SystemAlarmRecord> = emptyList(),
     val selectionState: ScheduleSelectionState? = null,
     val timingProfile: TermTimingProfile? = null,
@@ -113,6 +120,8 @@ class ScheduleViewModel(
                 )
             }.combine(reminderCoordinator.systemAlarmRecordsFlow) { snapshot, systemAlarmRecords ->
                 snapshot.copy(systemAlarmRecords = systemAlarmRecords)
+            }.combine(reminderCoordinator.customOccupanciesFlow) { snapshot, customOccupancies ->
+                snapshot.copy(customOccupancies = customOccupancies)
             }.collect { snapshot ->
                 val selectedPluginId = when {
                     snapshot.installedPlugins.any { it.pluginId == snapshot.pluginId } -> snapshot.pluginId
@@ -127,6 +136,7 @@ class ScheduleViewModel(
                         termId = snapshot.termId,
                         installedPlugins = snapshot.installedPlugins,
                         reminderRules = snapshot.reminderRules,
+                        customOccupancies = snapshot.customOccupancies,
                         systemAlarmRecords = snapshot.systemAlarmRecords,
                     )
                 }
@@ -702,6 +712,117 @@ class ScheduleViewModel(
         }
     }
 
+    fun saveFlexibleFirstCourseReminder(
+        ruleId: String?,
+        displayName: String,
+        enabled: Boolean,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+        candidate: FirstCourseCandidateScope,
+        conditionMode: ReminderConditionMode,
+        conditions: List<ReminderCondition>,
+        actions: List<ReminderAction>,
+    ) {
+        val state = _uiState.value
+        val pluginId = state.pluginId
+        if (pluginId.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先选择插件后再设置首次课提醒") }
+            return
+        }
+        viewModelScope.launch {
+            val rule = reminderCoordinator.upsertFlexibleFirstCourseReminder(
+                pluginId = pluginId,
+                ruleId = ruleId,
+                displayName = displayName,
+                enabled = enabled,
+                advanceMinutes = advanceMinutes.coerceIn(0, 720),
+                ringtoneUri = ringtoneUri,
+                candidate = candidate,
+                conditionMode = conditionMode,
+                conditions = conditions,
+                actions = actions,
+            )
+            val schedule = currentReminderSchedule()
+            val summary = if (schedule != null) {
+                syncTodaySystemClockAlarms(
+                    pluginId = pluginId,
+                    schedule = schedule,
+                    timingProfile = _uiState.value.timingProfile,
+                    reason = ReminderSyncReason.RuleCreatedToday,
+                )
+            } else {
+                emptySystemAlarmSyncSummary()
+            }
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = if (enabled) {
+                            "已保存首课提醒规则：${rule.displayName ?: rule.ruleId.take(8)}"
+                        } else {
+                            "已关闭首课提醒规则：${rule.displayName ?: rule.ruleId.take(8)}"
+                        },
+                        summary = summary,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun saveCustomOccupancy(
+        occupancyId: String?,
+        name: String,
+        timeRange: ReminderTimeRange,
+        daysOfWeek: List<Int>,
+        weeks: List<Int>,
+        includeDates: List<String>,
+        excludeDates: List<String>,
+        linkedNodeRange: ReminderNodeRange?,
+    ) {
+        val state = _uiState.value
+        val pluginId = state.pluginId
+        if (pluginId.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先选择插件后再设置自定义占用") }
+            return
+        }
+        viewModelScope.launch {
+            val occupancy = reminderCoordinator.upsertCustomOccupancy(
+                pluginId = pluginId,
+                occupancyId = occupancyId,
+                name = name,
+                timeRange = timeRange,
+                daysOfWeek = daysOfWeek,
+                weeks = weeks,
+                includeDates = includeDates,
+                excludeDates = excludeDates,
+                linkedNodeRange = linkedNodeRange,
+            )
+            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已保存自定义占用：${occupancy.name}",
+                        summary = summary,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun removeCustomOccupancy(occupancyId: String) {
+        viewModelScope.launch {
+            reminderCoordinator.removeCustomOccupancy(occupancyId)
+            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已删除自定义占用",
+                        summary = summary,
+                    ),
+                )
+            }
+        }
+    }
+
     private suspend fun syncTodaySystemClockAlarms(
         pluginId: String,
         schedule: TermSchedule,
@@ -918,6 +1039,7 @@ class ScheduleViewModel(
         val termId: String,
         val installedPlugins: List<InstalledPluginRecord>,
         val reminderRules: List<ReminderRule>,
+        val customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
         val systemAlarmRecords: List<SystemAlarmRecord> = emptyList(),
     )
 
