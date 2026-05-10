@@ -526,6 +526,24 @@ class ScheduleViewModel(
         }
     }
 
+    fun applyImportedSchedule(
+        schedule: TermSchedule?,
+        manualCourses: List<CourseItem>,
+        onComplete: (Result<Pair<Int, Int>>) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                if (schedule != null) {
+                    scheduleRepository.saveSchedule(schedule)
+                }
+                manualCourseRepository.replaceAll(manualCourses)
+                reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+                val importedCourseCount = schedule?.dailySchedules?.sumOf { it.courses.size } ?: 0
+                importedCourseCount to manualCourses.size
+            }.let(onComplete)
+        }
+    }
+
     fun removeReminderRule(ruleId: String) {
         viewModelScope.launch {
             reminderCoordinator.deleteRule(ruleId)
