@@ -1,0 +1,32 @@
+{
+  "pluginId": "yangtzeu-eams-js-v1",
+  "name": "长江大学教务插件 JS v1",
+  "publisher": "Class Schedule Viewer",
+  "version": "1.0.0",
+  "versionCode": 1000,
+  "description": "通过 ATrust + EAMS 抓取长江大学课表，使用声明式 JSON 编排和 JS 解析课表。",
+  "entryWorkflow": "sync-schedule",
+  "declaredPermissions": [
+    "network",
+    "web_session",
+    "schedule_write",
+    "ui_contribution",
+    "alarm_manage",
+    "script_execute"
+  ],
+  "allowedHosts": [
+    "cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn",
+    "authserver.yangtzeu.edu.cn",
+    "cas.yangtzeu.edu.cn",
+    "ids.yangtzeu.edu.cn",
+    "atrust.yangtzeu.edu.cn",
+    "vpn.yangtzeu.edu.cn",
+    "ehall-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+    "lp-open-weixin-qq-com.atrust.yangtzeu.edu.cn",
+    "open-weixin-qq-com-s.atrust.yangtzeu.edu.cn",
+    "res-wx-qq-com-s.atrust.yangtzeu.edu.cn",
+    "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+    "jwc3.yangtzeu.edu.cn"
+  ],
+  "dataPackVersion": "1"
+}

@@ -1,0 +1,113 @@
+{
+  "workflowId": "sync-schedule",
+  "steps": [
+    {
+      "id": "ui",
+      "type": "ui_emit",
+      "uiAsset": "ui/schedule.json"
+    },
+    {
+      "id": "message",
+      "type": "message",
+      "message": "长江大学 JS 插件已加载，登录完成后会自动请求 EAMS 课表接口并解析结果。"
+    },
+    {
+      "id": "web-login",
+      "type": "web_session",
+      "sessionId": "login",
+      "title": "长江大学统一认证登录",
+      "urlTemplate": "https://atrust.yangtzeu.edu.cn:4443/",
+      "completionUrlContains": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+      "autoNavigateOnUrlContains": "/eams/home.action",
+      "autoNavigateToUrl": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+      "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+      "captureSelectors": [
+        "title"
+      ],
+      "capturePackets": [
+        {
+          "id": "atrust-shortcut",
+          "required": false,
+          "urlHost": "atrust.yangtzeu.edu.cn",
+          "urlPathContains": "/portal/shortcut.html",
+          "captureSelectors": [
+            "title"
+          ]
+        },
+        {
+          "id": "eams-course-home",
+          "required": true,
+          "urlHost": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+          "urlPathContains": "/eams/courseTableForStd",
+          "minCookieCount": 1
+        }
+      ],
+      "extractCookies": true,
+      "extractLocalStorage": true,
+      "extractSessionStorage": true,
+      "extractHtmlDigest": true
+    },
+    {
+      "id": "course-home",
+      "type": "http_request",
+      "responseKey": "courseHome",
+      "cookieSessionId": "login",
+      "httpFreshConnection": true,
+      "httpMethod": "GET",
+      "urlTemplate": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action?_={{nowMillis}}&sf_request_type=ajax",
+      "httpHeaders": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
+      }
+    },
+    {
+      "id": "course-meta",
+      "type": "js_transform",
+      "scriptAsset": "scripts/yangtzeu-eams.js",
+      "scriptFunction": "extractMeta",
+      "sourceContextKey": "courseHome",
+      "responseKey": "courseMeta"
+    },
+    {
+      "id": "course-detail",
+      "type": "http_request",
+      "responseKey": "courseDetail",
+      "cookieSessionId": "login",
+      "httpFreshConnection": true,
+      "httpMethod": "POST",
+      "httpContentType": "application/x-www-form-urlencoded; charset=UTF-8",
+      "urlTemplate": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action?sf_request_type=ajax",
+      "httpHeaders": {
+        "X-Requested-With": "XMLHttpRequest",
+        "Origin": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+        "Referer": "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
+      },
+      "httpBodyTemplate": "ignoreHead=1&setting.kind=std&startWeek={{context.week}}&project.id={{context.courseMeta.projectId}}&semester.id={{context.courseMeta.semesterId}}&ids={{context.courseMeta.ids}}",
+      "httpRepeatStart": 1,
+      "httpRepeatEndTemplate": "{{context.courseMeta.maxWeek}}",
+      "httpRepeatVariable": "week",
+      "httpRetryBodyContains": "请不要过快点击",
+      "httpRetryDelayMillis": 400
+    },
+    {
+      "id": "schedule",
+      "type": "schedule_emit_js",
+      "scriptAsset": "scripts/yangtzeu-eams.js",
+      "scriptFunction": "buildSchedule",
+      "metaContextKey": "courseMeta",
+      "detailContextKey": "courseDetail",
+      "termIdTemplate": "{{context.courseMeta.semesterId}}",
+      "updatedAtNow": true
+    },
+    {
+      "id": "alarm",
+      "type": "alarm_plan_emit",
+      "message": "长江大学课表建议默认提前 20 分钟提醒。",
+      "recommendedAdvanceMinutes": 20
+    }
+  ]
+}
