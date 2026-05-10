@@ -114,6 +114,10 @@ class AppPreferencesViewModel(
     fun setAutoUpdateEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setAutoUpdateEnabled(enabled) }
     }
+
+    fun setIgnoredUpdateVersionCode(versionCode: Int?) {
+        viewModelScope.launch { repository.setIgnoredUpdateVersionCode(versionCode) }
+    }
 }
 
 class AppPreferencesViewModelFactory(

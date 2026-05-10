@@ -164,8 +164,9 @@ data class SystemAlarmSyncSummary(
     val expiredRecordClearedCount: Int = 0,
     val dismissedCount: Int = 0,
     val dismissFailedCount: Int = 0,
+    val registryWriteFailedCount: Int = 0,
 ) {
-    val failedCount: Int = results.count { !it.succeeded }
+    val failedCount: Int = results.count { !it.succeeded } + registryWriteFailedCount
 }
 
 fun ReminderPlan.systemAlarmKey(): String =
