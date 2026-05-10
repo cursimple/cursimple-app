@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
@@ -53,6 +54,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -74,6 +76,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -81,6 +84,7 @@ import com.kebiao.viewer.app.reminder.AlarmPermissionIntents
 import com.kebiao.viewer.app.util.LogExporter
 import com.kebiao.viewer.core.data.ThemeMode
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverrideType
 import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
@@ -543,10 +547,19 @@ private fun TemporaryScheduleOverridesDialog(
     onDismiss: () -> Unit,
 ) {
     val today = LocalDate.now()
+    var mode by rememberSaveable { mutableStateOf(TemporaryOverrideDialogMode.MakeUp) }
     var targetDate by rememberSaveable { mutableStateOf(today) }
     var sourceDate by rememberSaveable { mutableStateOf(today) }
+    var cancelStartNodeText by rememberSaveable { mutableStateOf("1") }
+    var cancelEndNodeText by rememberSaveable { mutableStateOf("1") }
     var pickTargetDate by rememberSaveable { mutableStateOf(false) }
     var pickSourceDate by rememberSaveable { mutableStateOf(false) }
+    val cancelStartNode = cancelStartNodeText.toIntOrNull()
+    val cancelEndNode = cancelEndNodeText.toIntOrNull()
+    val canAddCancellation = cancelStartNode != null &&
+        cancelEndNode != null &&
+        cancelStartNode in 1..32 &&
+        cancelEndNode in cancelStartNode..32
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -559,37 +572,99 @@ private fun TemporaryScheduleOverridesDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OverrideModeButton(
+                        label = "补课/调课",
+                        selected = mode == TemporaryOverrideDialogMode.MakeUp,
+                        modifier = Modifier.weight(1f),
+                        onClick = { mode = TemporaryOverrideDialogMode.MakeUp },
+                    )
+                    OverrideModeButton(
+                        label = "临时取消",
+                        selected = mode == TemporaryOverrideDialogMode.CancelCourse,
+                        modifier = Modifier.weight(1f),
+                        onClick = { mode = TemporaryOverrideDialogMode.CancelCourse },
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DateChoiceButton(
-                        label = "调课日",
+                        label = if (mode == TemporaryOverrideDialogMode.MakeUp) "调课日" else "取消日",
                         date = targetDate,
                         modifier = Modifier.weight(1f),
                         onClick = { pickTargetDate = true },
                     )
-                    DateChoiceButton(
-                        label = "按此日",
-                        date = sourceDate,
-                        modifier = Modifier.weight(1f),
-                        onClick = { pickSourceDate = true },
+                    if (mode == TemporaryOverrideDialogMode.MakeUp) {
+                        DateChoiceButton(
+                            label = "按此日",
+                            date = sourceDate,
+                            modifier = Modifier.weight(1f),
+                            onClick = { pickSourceDate = true },
+                        )
+                    }
+                }
+                if (mode == TemporaryOverrideDialogMode.MakeUp) {
+                    Text(
+                        text = "将在 ${formatLongDate(targetDate)} 显示并提醒 ${formatLongDate(sourceDate)} 的课程。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = cancelStartNodeText,
+                            onValueChange = { cancelStartNodeText = it.filter(Char::isDigit).take(2) },
+                            label = { Text("取消起始节") },
+                            singleLine = true,
+                            isError = cancelStartNodeText.isNotBlank() && !canAddCancellation,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                        )
+                        OutlinedTextField(
+                            value = cancelEndNodeText,
+                            onValueChange = { cancelEndNodeText = it.filter(Char::isDigit).take(2) },
+                            label = { Text("取消结束节") },
+                            singleLine = true,
+                            isError = cancelEndNodeText.isNotBlank() && !canAddCancellation,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    Text(
+                        text = if (canAddCancellation) {
+                            "将在 ${formatLongDate(targetDate)} 隐藏并取消第 $cancelStartNode-${cancelEndNode} 节对应课程提醒。"
+                        } else {
+                            "请输入 1 到 32 之间的有效节次范围。"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (canAddCancellation) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
                     )
                 }
-                Text(
-                    text = "将在 ${formatLongDate(targetDate)} 显示并提醒 ${formatLongDate(sourceDate)} 的课程。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 Button(
                     onClick = {
-                        onAdd(
-                            TemporaryScheduleOverride(
-                                id = UUID.randomUUID().toString(),
-                                targetDate = targetDate.toString(),
-                                sourceDate = sourceDate.toString(),
-                            ),
-                        )
+                        if (mode == TemporaryOverrideDialogMode.MakeUp) {
+                            onAdd(
+                                TemporaryScheduleOverride(
+                                    id = UUID.randomUUID().toString(),
+                                    type = TemporaryScheduleOverrideType.MakeUp,
+                                    targetDate = targetDate.toString(),
+                                    sourceDate = sourceDate.toString(),
+                                ),
+                            )
+                        } else if (canAddCancellation) {
+                            onAdd(
+                                TemporaryScheduleOverride(
+                                    id = UUID.randomUUID().toString(),
+                                    type = TemporaryScheduleOverrideType.CancelCourse,
+                                    targetDate = targetDate.toString(),
+                                    cancelStartNode = cancelStartNode,
+                                    cancelEndNode = cancelEndNode,
+                                ),
+                            )
+                        }
                     },
+                    enabled = mode == TemporaryOverrideDialogMode.MakeUp || canAddCancellation,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("添加规则")
+                    Text(if (mode == TemporaryOverrideDialogMode.MakeUp) "添加规则" else "添加取消规则")
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 if (overrides.isEmpty()) {
@@ -637,6 +712,27 @@ private fun TemporaryScheduleOverridesDialog(
             },
             onDismiss = { pickSourceDate = false },
         )
+    }
+}
+
+private enum class TemporaryOverrideDialogMode { MakeUp, CancelCourse }
+
+@Composable
+private fun OverrideModeButton(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    OutlinedButton(
+        modifier = modifier,
+        onClick = onClick,
+        colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent,
+            contentColor = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
+        Text(label)
     }
 }
 
@@ -737,6 +833,15 @@ private fun formatOverrideRange(rule: TemporaryScheduleOverride): String {
 }
 
 private fun formatOverrideSource(rule: TemporaryScheduleOverride): String {
+    if (rule.type == TemporaryScheduleOverrideType.CancelCourse) {
+        val start = rule.cancelStartNode
+        val end = rule.cancelEndNode ?: start
+        return if (start != null && end != null) {
+            "取消第$start-${end}节"
+        } else {
+            "取消节次无效"
+        }
+    }
     val target = parseIsoDate(rule.targetDate) ?: parseIsoDate(rule.startDate)
     val source = target?.let { resolveTemporaryScheduleSourceDate(it, listOf(rule)) }
     return if (source != null) {

@@ -38,7 +38,7 @@ class WidgetSizeProfilesTest {
     }
 
     @Test
-    fun `widgets advance to next day at night only after current day is done`() {
+    fun `widgets do not advance before the date changes at midnight`() {
         val profile = TermTimingProfile(
             termStartDate = "2026-02-23",
             slotTimes = listOf(ClassSlotTime(1, 2, "08:00", "09:35")),
@@ -50,8 +50,8 @@ class WidgetSizeProfilesTest {
         )
 
         assertFalse(shouldShowNextDayAtNight(LocalTime.of(21, 59), listOf(course), profile))
-        assertTrue(shouldShowNextDayAtNight(LocalTime.of(22, 0), listOf(course), profile))
-        assertTrue(shouldShowNextDayAtNight(LocalTime.of(22, 0), emptyList(), profile))
+        assertFalse(shouldShowNextDayAtNight(LocalTime.of(22, 0), listOf(course), profile))
+        assertFalse(shouldShowNextDayAtNight(LocalTime.of(23, 59), emptyList(), profile))
     }
 
     @Test

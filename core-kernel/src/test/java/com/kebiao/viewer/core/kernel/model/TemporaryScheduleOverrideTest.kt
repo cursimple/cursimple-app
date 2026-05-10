@@ -101,4 +101,45 @@ class TemporaryScheduleOverrideTest {
         assertNull(matchingTemporaryScheduleOverride(date, overrides))
         assertEquals(date.dayOfWeek.value, resolveTemporaryScheduleDayOfWeek(date, overrides))
     }
+
+    @Test
+    fun `cancel override cancels matching node range on target date`() {
+        val date = LocalDate.of(2026, 5, 6)
+        val course = CourseItem(
+            id = "math",
+            title = "高等数学",
+            time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
+        )
+        val override = TemporaryScheduleOverride(
+            id = "cancel",
+            type = TemporaryScheduleOverrideType.CancelCourse,
+            targetDate = "2026-05-06",
+            cancelStartNode = 2,
+            cancelEndNode = 2,
+        )
+
+        assertTrue(isCourseTemporarilyCancelled(date, course, listOf(override)))
+        assertFalse(isCourseTemporarilyCancelled(date.plusDays(1), course, listOf(override)))
+    }
+
+    @Test
+    fun `cancel override can target a single course id`() {
+        val date = LocalDate.of(2026, 5, 6)
+        val target = CourseItem(
+            id = "math",
+            title = "高等数学",
+            time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
+        )
+        val other = target.copy(id = "english", title = "大学英语")
+        val override = TemporaryScheduleOverride(
+            id = "cancel",
+            type = TemporaryScheduleOverrideType.CancelCourse,
+            targetDate = "2026-05-06",
+            cancelStartNode = 1,
+            cancelEndNode = 2,
+            cancelCourseId = "math",
+        )
+
+        assertEquals(listOf(other), filterTemporaryCancelledCourses(date, listOf(target, other), listOf(override)))
+    }
 }

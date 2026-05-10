@@ -27,6 +27,7 @@ data class UserPreferences(
     val alarmRepeatIntervalSeconds: Int = 120,
     val alarmRepeatCount: Int = 1,
     val lastAlarmPollAtMillis: Long = 0L,
+    val autoUpdateEnabled: Boolean = false,
     /** True once the persisted prefs have been read at least once. False = still loading. */
     val loaded: Boolean = false,
 ) {
@@ -56,4 +57,5 @@ interface UserPreferencesRepository {
     suspend fun setAlarmRepeatCount(count: Int)
     suspend fun markAlarmPollAt(millis: Long)
     suspend fun tryClaimAlarmPoll(nowMillis: Long, minIntervalMillis: Long): Boolean
+    suspend fun setAutoUpdateEnabled(enabled: Boolean)
 }

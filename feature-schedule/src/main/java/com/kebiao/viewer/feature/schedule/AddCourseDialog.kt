@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import java.util.UUID
@@ -63,6 +64,7 @@ fun AddCourseDialog(
     var startWeekText by rememberSaveable { mutableStateOf("1") }
     var endWeekText by rememberSaveable { mutableStateOf("16") }
     var parity by rememberSaveable { mutableStateOf(WeekParity.All) }
+    var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
 
     val titleTrimmed = title.trim()
     val startNode = startNodeText.toIntOrNull()
@@ -125,6 +127,24 @@ fun AddCourseDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+
+                Text(
+                    text = "类别",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowChipRow {
+                    FilterChip(
+                        selected = category == CourseCategory.Course,
+                        onClick = { category = CourseCategory.Course },
+                        label = { Text("课程") },
+                    )
+                    FilterChip(
+                        selected = category == CourseCategory.Exam,
+                        onClick = { category = CourseCategory.Exam },
+                        label = { Text("考试") },
+                    )
+                }
 
                 Text(
                     text = "上课时间",
@@ -224,6 +244,7 @@ fun AddCourseDialog(
                                 startWeek = startWeek!!,
                                 endWeek = endWeek!!,
                                 parity = parity,
+                                category = category,
                             )
                             onConfirm(course)
                         },
@@ -256,6 +277,7 @@ private fun buildCourse(
     startWeek: Int,
     endWeek: Int,
     parity: WeekParity,
+    category: CourseCategory,
 ): CourseItem {
     val weeks = (startWeek..endWeek).filter { week ->
         when (parity) {
@@ -270,6 +292,7 @@ private fun buildCourse(
         teacher = teacher,
         location = location,
         weeks = weeks,
+        category = category,
         time = CourseTimeSlot(
             dayOfWeek = dayOfWeek,
             startNode = startNode,

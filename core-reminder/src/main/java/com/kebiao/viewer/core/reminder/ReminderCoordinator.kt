@@ -19,6 +19,7 @@ import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmSettings
 import com.kebiao.viewer.core.reminder.model.ReminderPlan
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
+import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderSyncReason
 import com.kebiao.viewer.core.reminder.model.ReminderSyncWindow
@@ -114,6 +115,9 @@ class ReminderCoordinator(
         enabled: Boolean,
         advanceMinutes: Int,
         ringtoneUri: String?,
+        periodStartNode: Int? = null,
+        periodEndNode: Int? = null,
+        mutedNodeRanges: List<ReminderNodeRange> = emptyList(),
     ): ReminderRule {
         val now = OffsetDateTime.now().toString()
         val existing = repository.getReminderRules().firstOrNull {
@@ -126,6 +130,9 @@ class ReminderCoordinator(
             pluginId = pluginId,
             scopeType = ReminderScopeType.FirstCourseOfPeriod,
             period = period,
+            periodStartNode = periodStartNode,
+            periodEndNode = periodEndNode,
+            mutedNodeRanges = mutedNodeRanges.map { it.normalized() },
             advanceMinutes = advanceMinutes,
             ringtoneUri = ringtoneUri,
             enabled = enabled,
@@ -137,6 +144,9 @@ class ReminderCoordinator(
             enabled = enabled,
             updatedAt = now,
             period = period,
+            periodStartNode = periodStartNode,
+            periodEndNode = periodEndNode,
+            mutedNodeRanges = mutedNodeRanges.map { it.normalized() },
         )
         repository.saveReminderRule(rule)
         return rule

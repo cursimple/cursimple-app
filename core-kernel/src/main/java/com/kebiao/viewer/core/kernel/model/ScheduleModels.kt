@@ -11,12 +11,22 @@ data class CourseTimeSlot(
 )
 
 @Serializable
+enum class CourseCategory {
+    @SerialName("course")
+    Course,
+
+    @SerialName("exam")
+    Exam,
+}
+
+@Serializable
 data class CourseItem(
     @SerialName("id") val id: String,
     @SerialName("title") val title: String,
     @SerialName("teacher") val teacher: String = "",
     @SerialName("location") val location: String = "",
     @SerialName("weeks") val weeks: List<Int> = emptyList(),
+    @SerialName("category") val category: CourseCategory = CourseCategory.Course,
     @SerialName("time") val time: CourseTimeSlot,
 )
 

@@ -27,15 +27,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 
 @Composable
 fun CourseReminderDialog(
     course: CourseItem,
+    defaultAdvanceMinutes: Int = if (course.category == CourseCategory.Exam) 40 else 20,
     onDismiss: () -> Unit,
     onConfirm: (advanceMinutes: Int, ringtoneUri: String?) -> Unit,
 ) {
-    var advanceMinutesText by rememberSaveable(course.id) { mutableStateOf("20") }
+    var advanceMinutesText by rememberSaveable(course.id, defaultAdvanceMinutes) {
+        mutableStateOf(defaultAdvanceMinutes.toString())
+    }
     var ringtoneUri by rememberSaveable(course.id) { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val ringtoneLauncher = rememberLauncherForActivityResult(
@@ -50,7 +54,7 @@ fun CourseReminderDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(24.dp),
-        title = { Text("设置提醒") },
+        title = { Text(if (course.category == CourseCategory.Exam) "设置考试提醒" else "设置提醒") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -59,7 +63,7 @@ fun CourseReminderDialog(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "第 ${course.time.startNode}-${course.time.endNode} 节 · ${course.location.ifBlank { "地点待定" }}",
+                    text = "${if (course.category == CourseCategory.Exam) "考试" else "课程"} · 第 ${course.time.startNode}-${course.time.endNode} 节 · ${course.location.ifBlank { "地点待定" }}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -101,7 +105,7 @@ fun CourseReminderDialog(
                 onClick = { onConfirm(advance ?: 20, ringtoneUri) },
                 enabled = canSave,
             ) {
-                Text("保存提醒")
+                Text(if (course.category == CourseCategory.Exam) "保存考试提醒" else "保存提醒")
             }
         },
         dismissButton = {

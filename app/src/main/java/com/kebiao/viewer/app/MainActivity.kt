@@ -657,7 +657,9 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.About -> AboutScreen(
                                         advancedToolsEnabled = prefs.advancedToolsEnabled,
+                                        autoUpdateEnabled = prefs.autoUpdateEnabled,
                                         onSetAdvancedTools = prefsViewModel::setAdvancedToolsEnabled,
+                                        onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }

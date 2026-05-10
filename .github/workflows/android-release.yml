@@ -71,15 +71,54 @@ jobs:
             Move-Item -LiteralPath $matches[0].FullName -Destination (Join-Path $releaseDir "ClassScheduleViewer-$($target.Abi).apk") -Force
           }
 
+      - name: Generate update manifest
+        shell: pwsh
+        run: |
+          $releaseDir = "app/build/outputs/apk/release"
+          $buildFile = "app/build.gradle.kts"
+          $buildText = Get-Content -Raw -LiteralPath $buildFile
+          if ($buildText -notmatch "versionCode\s*=\s*(\d+)") {
+            throw "versionCode was not found."
+          }
+          $versionCode = [int]$Matches[1]
+          if ($buildText -notmatch "versionName\s*=\s*`"([^`"]+)`"") {
+            throw "versionName was not found."
+          }
+          $versionName = $Matches[1]
+          $tagName = $env:GITHUB_REF_NAME
+          $repo = $env:GITHUB_REPOSITORY
+          $assets = @(Get-ChildItem -LiteralPath $releaseDir -Filter "ClassScheduleViewer-*.apk" | Sort-Object Name | ForEach-Object {
+            $fileName = $_.Name
+            $abi = $fileName -replace "^ClassScheduleViewer-", "" -replace "\.apk$", ""
+            [ordered]@{
+              abi = $abi
+              fileName = $fileName
+              sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              downloadUrl = "https://github.com/$repo/releases/download/$tagName/$fileName"
+            }
+          })
+          $manifest = [ordered]@{
+            schemaVersion = 1
+            versionCode = $versionCode
+            versionName = $versionName
+            tagName = $tagName
+            assets = $assets
+          }
+          $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $releaseDir "update.json") -Encoding utf8
+
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-apk-${{ github.sha }}
-          path: app/build/outputs/apk/release/ClassScheduleViewer-*.apk
+          path: |
+            app/build/outputs/apk/release/ClassScheduleViewer-*.apk
+            app/build/outputs/apk/release/update.json
           if-no-files-found: error
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/release/ClassScheduleViewer-*.apk
+          files: |
+            app/build/outputs/apk/release/ClassScheduleViewer-*.apk
+            app/build/outputs/apk/release/update.json
           generate_release_notes: true
