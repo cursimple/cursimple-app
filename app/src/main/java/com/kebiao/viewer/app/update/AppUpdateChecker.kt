@@ -36,6 +36,7 @@ class AppUpdateChecker(
             val release = JSONObject(releaseResponse.body)
             val tagName = release.optString("tag_name")
             val htmlUrl = release.optString("html_url")
+            val releaseBody = release.optString("body")
             val assets = release.optJSONArray("assets")
             val manifestUrl = (0 until (assets?.length() ?: 0))
                 .mapNotNull { assets?.optJSONObject(it) }
@@ -53,6 +54,7 @@ class AppUpdateChecker(
             val remoteVersionCode = manifest.optInt("versionCode", -1)
             val remoteVersionName = manifest.optString("versionName")
             val manifestTag = manifest.optString("tagName", tagName)
+            val releaseNotes = parseReleaseNotes(manifest, releaseBody)
             if (remoteVersionCode <= BuildConfig.VERSION_CODE) {
                 return@withContext AppUpdateCheckResult.UpToDate
             }
@@ -65,6 +67,7 @@ class AppUpdateChecker(
                     versionName = remoteVersionName,
                     tagName = manifestTag,
                     releaseUrl = htmlUrl,
+                    releaseNotes = releaseNotes,
                     asset = apkAsset,
                     candidates = candidates,
                 ),
@@ -121,6 +124,25 @@ class AppUpdateChecker(
         return supported.firstNotNullOfOrNull { abi -> parsed.firstOrNull { it.abi == abi } }
             ?: parsed.firstOrNull { it.abi == "universal" }
             ?: parsed.firstOrNull()
+    }
+
+    private fun parseReleaseNotes(manifest: JSONObject, releaseBody: String): String {
+        val textFields = listOf("releaseNotes", "changelog", "changeLog", "notes")
+        textFields.firstNotNullOfOrNull { key ->
+            manifest.optString(key).trim().takeIf { it.isNotBlank() }
+        }?.let { return it }
+
+        val changes = manifest.opt("changes")
+        val changesText = when (changes) {
+            is org.json.JSONArray -> (0 until changes.length())
+                .mapNotNull { changes.optString(it).trim().takeIf(String::isNotBlank) }
+                .joinToString(separator = "\n") { "- $it" }
+            is String -> changes.trim()
+            else -> ""
+        }
+        if (changesText.isNotBlank()) return changesText
+
+        return releaseBody.trim()
     }
 
     private fun manifestCandidates(manifestUrl: String, tagName: String): List<UrlCandidate> {

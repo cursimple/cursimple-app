@@ -347,6 +347,7 @@ class ReminderCoordinator(
         )
         var skippedExisting = 0
         var skippedUnrepresentable = 0
+        var registryWriteFailed = 0
         val results = mutableListOf<AlarmDispatchResult>()
         plans.forEach { plan ->
             val key = plan.systemAlarmKey()
@@ -408,6 +409,7 @@ class ReminderCoordinator(
                 }.onSuccess {
                     existingKeys += key
                 }.onFailure { error ->
+                    registryWriteFailed += 1
                     ReminderLogger.warn(
                         "reminder.system_clock.registry.write.failure",
                         mapOf("ruleId" to plan.ruleId, "planId" to plan.planId),
@@ -429,6 +431,7 @@ class ReminderCoordinator(
             dismissFailedCount = expiredAppDismissal.failedCount +
                 outdatedAppOperationDismissal.failedCount +
                 staleDismissal.failedCount,
+            registryWriteFailedCount = registryWriteFailed,
         )
         ReminderLogger.info(
             "reminder.system_clock.sync.finish",
@@ -443,6 +446,7 @@ class ReminderCoordinator(
                 "expiredRecordClearedCount" to summary.expiredRecordClearedCount,
                 "dismissedCount" to summary.dismissedCount,
                 "dismissFailedCount" to summary.dismissFailedCount,
+                "registryWriteFailedCount" to summary.registryWriteFailedCount,
                 "failureCount" to summary.failedCount,
             ),
         )

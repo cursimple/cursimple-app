@@ -113,6 +113,8 @@ fun AppSettingsRoute(
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    autoUpdateEnabled: Boolean,
+    ignoredUpdateVersionCode: Int?,
     advancedToolsEnabled: Boolean,
     debugForcedDateTime: LocalDateTime?,
     onPickThemeMode: () -> Unit,
@@ -130,6 +132,8 @@ fun AppSettingsRoute(
     onRemoveTemporaryScheduleOverride: (String) -> Unit,
     onClearTemporaryScheduleOverrides: () -> Unit,
     onOpenWidgetPicker: () -> Unit,
+    onAutoUpdateEnabledChange: (Boolean) -> Unit,
+    onIgnoreUpdateVersion: (Int?) -> Unit,
     onSetAdvancedTools: (Boolean) -> Unit,
     onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
     onExportScheduleMetadata: () -> Unit,
@@ -243,6 +247,13 @@ fun AppSettingsRoute(
             title = "桌面小组件",
             subtitle = "添加课表、下一节课或课程提醒",
             onClick = onOpenWidgetPicker,
+        )
+
+        UpdateCheckSection(
+            autoCheckEnabled = autoUpdateEnabled,
+            ignoredUpdateVersionCode = ignoredUpdateVersionCode,
+            onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
+            onIgnoreUpdateVersion = onIgnoreUpdateVersion,
         )
 
         AlarmReliabilitySection(

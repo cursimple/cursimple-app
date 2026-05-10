@@ -214,6 +214,11 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
+                    AutomaticUpdateCheckPrompt(
+                        autoCheckEnabled = prefs.autoUpdateEnabled,
+                        ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
+                        onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
+                    )
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
@@ -591,6 +596,8 @@ class MainActivity : ComponentActivity() {
                                         alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
                                         alarmRepeatCount = prefs.alarmRepeatCount,
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
+                                        autoUpdateEnabled = prefs.autoUpdateEnabled,
+                                        ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
                                         advancedToolsEnabled = prefs.advancedToolsEnabled,
                                         debugForcedDateTime = prefs.debugForcedDateTime,
                                         onPickThemeMode = { showThemeSheet = true },
@@ -608,6 +615,8 @@ class MainActivity : ComponentActivity() {
                                         onRemoveTemporaryScheduleOverride = prefsViewModel::removeTemporaryScheduleOverride,
                                         onClearTemporaryScheduleOverrides = prefsViewModel::clearTemporaryScheduleOverrides,
                                         onOpenWidgetPicker = { showWidgetPicker = true },
+                                        onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
+                                        onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
                                         onSetAdvancedTools = prefsViewModel::setAdvancedToolsEnabled,
                                         onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
                                         onExportScheduleMetadata = {
@@ -657,9 +666,7 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.About -> AboutScreen(
                                         advancedToolsEnabled = prefs.advancedToolsEnabled,
-                                        autoUpdateEnabled = prefs.autoUpdateEnabled,
                                         onSetAdvancedTools = prefsViewModel::setAdvancedToolsEnabled,
-                                        onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }
