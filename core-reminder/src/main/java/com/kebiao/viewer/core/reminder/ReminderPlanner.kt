@@ -1,6 +1,7 @@
 package com.kebiao.viewer.core.reminder
 
 import com.kebiao.viewer.core.kernel.model.ClassSlotTime
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
@@ -207,7 +208,8 @@ class ReminderPlanner {
             ReminderDayPeriod.Evening -> "晚上首次课："
             null -> ""
         }
-        return "${weekday} ${startTime} $prefix${course.title}$advance"
+        val title = if (course.category == CourseCategory.Exam) "考试：${course.title}" else course.title
+        return "${weekday} ${startTime} $prefix$title$advance"
     }
 
     private fun buildMessage(
@@ -242,6 +244,7 @@ class ReminderPlanner {
                     course.time.startNode == startNode &&
                     course.time.endNode == endNode
             }
+            ReminderScopeType.Exam -> course.category == CourseCategory.Exam && course.id !in mutedCourseIds
             ReminderScopeType.FirstCourseOfPeriod -> false
         }
     }

@@ -152,6 +152,8 @@ fun ScheduleRoute(
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
         onCreateCourseReminder = viewModel::createReminderForCourse,
+        onMuteExamReminder = viewModel::muteExamReminder,
+        onRestoreExamReminder = viewModel::restoreExamReminder,
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveManualCourse = viewModel::removeManualCourse,
         onAddManualCourse = viewModel::addManualCourse,
@@ -183,6 +185,8 @@ fun ScheduleScreen(
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
     onCreateCourseReminder: (String, Int, String?) -> Unit,
+    onMuteExamReminder: (String) -> Unit,
+    onRestoreExamReminder: (String) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
     onRemoveManualCourse: (String) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
@@ -350,16 +354,23 @@ fun ScheduleScreen(
         }
 
         if (detailCourses.isNotEmpty()) {
+            val examRule = state.reminderRules.firstOrNull {
+                it.pluginId == state.pluginId && it.scopeType == ReminderScopeType.Exam
+            }
             CourseDetailDialog(
                 courses = detailCourses,
                 timingProfile = state.timingProfile,
                 visibleWeekNumber = visibleWeekNumber,
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
+                examReminderEnabled = examRule?.enabled == true,
+                mutedExamCourseIds = examRule?.mutedCourseIds.orEmpty().toSet(),
                 onDismiss = { detailCourses = emptyList() },
                 onSetReminder = { c ->
                     pendingReminderCourse = c
                     detailCourses = emptyList()
                 },
+                onMuteExamReminder = { c -> onMuteExamReminder(c.id) },
+                onRestoreExamReminder = { c -> onRestoreExamReminder(c.id) },
                 onDelete = { c ->
                     onRemoveManualCourse(c.id)
                     detailCourses = detailCourses.filterNot { it.id == c.id }
@@ -2094,6 +2105,116 @@ internal fun FirstCourseReminderSettingsCard(
 }
 
 @Composable
+internal fun ExamReminderSettingsCard(
+    reminderRules: List<ReminderRule>,
+    pluginId: String,
+    onSave: (Boolean, Int, String?) -> Unit,
+) {
+    val rule = reminderRules.firstOrNull {
+        it.pluginId == pluginId && it.scopeType == ReminderScopeType.Exam
+    }
+    var enabled by rememberSaveable(rule?.ruleId, rule?.updatedAt) { mutableStateOf(rule?.enabled == true) }
+    var advanceMinutesText by rememberSaveable(rule?.ruleId, rule?.updatedAt) {
+        mutableStateOf((rule?.advanceMinutes ?: 40).toString())
+    }
+    var ringtoneUri by rememberSaveable(rule?.ruleId, rule?.updatedAt) { mutableStateOf(rule?.ringtoneUri) }
+    val context = LocalContext.current
+    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.getParcelableExtra<android.net.Uri>(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+        ringtoneUri = uri?.toString()
+    }
+    val advance = advanceMinutesText.toIntOrNull()
+    val canSave = advance != null && advance in 0..720
+    val mutedCount = rule?.mutedCourseIds.orEmpty().size
+    fun save(checked: Boolean = enabled) {
+        onSave(checked, advance ?: 40, ringtoneUri)
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("考试提醒", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = if (enabled) "已开启 · 自动提醒全部考试" else "默认关闭",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = { checked ->
+                        enabled = checked
+                        if (canSave) {
+                            save(checked)
+                        }
+                    },
+                )
+            }
+            if (mutedCount > 0) {
+                Text(
+                    text = "已临时取消 $mutedCount 场，考试日期过去后会自动清理。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            OutlinedTextField(
+                value = advanceMinutesText,
+                onValueChange = { advanceMinutesText = it.filter(Char::isDigit).take(4) },
+                label = { Text("提前分钟数") },
+                singleLine = true,
+                isError = advanceMinutesText.isNotBlank() && !canSave,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                supportingText = {
+                    if (advanceMinutesText.isNotBlank() && !canSave) {
+                        Text("请输入 0 到 720 分钟")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = {
+                        launchAlarmRingtonePicker(context) { intent ->
+                            ringtoneLauncher.launch(intent)
+                        }
+                    },
+                ) {
+                    Text("选择铃声")
+                }
+                Text(
+                    text = if (ringtoneUri.isNullOrBlank()) "系统默认铃声" else "已选择铃声",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                Button(
+                    onClick = { save() },
+                    enabled = canSave,
+                ) {
+                    Text("保存")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun FirstCourseReminderRow(
     config: FirstCoursePeriodConfig,
     rule: ReminderRule?,
@@ -2421,6 +2542,11 @@ private fun describeReminderRule(
             title = listOfNotNull(day, nodeRange).joinToString(" ").ifBlank { "时间段提醒" }
             timing = listOfNotNull(timeRange, "每周重复").joinToString(" · ")
         }
+        ReminderScopeType.Exam -> {
+            title = "考试提醒"
+            val muted = rule.mutedCourseIds.takeIf { it.isNotEmpty() }?.let { "已临时取消 ${it.size} 场" }
+            timing = listOfNotNull("自动提醒全部考试", muted).joinToString(" · ")
+        }
         ReminderScopeType.FirstCourseOfPeriod -> {
             title = when (rule.period) {
                 ReminderDayPeriod.Morning -> "上午首次课提醒"
@@ -2734,9 +2860,11 @@ private fun hasReminderForCourse(
 ): Boolean {
     return rules.any { rule ->
         when (rule.scopeType) {
-            ReminderScopeType.SingleCourse -> rule.courseId == course.id
+            ReminderScopeType.SingleCourse -> rule.enabled && rule.courseId == course.id
             ReminderScopeType.TimeSlot ->
-                rule.startNode == course.time.startNode && rule.endNode == course.time.endNode
+                rule.enabled && rule.startNode == course.time.startNode && rule.endNode == course.time.endNode
+            ReminderScopeType.Exam ->
+                rule.enabled && course.category == CourseCategory.Exam && course.id !in rule.mutedCourseIds
             ReminderScopeType.FirstCourseOfPeriod -> false
         }
     }

@@ -523,11 +523,107 @@ class ScheduleViewModel(
         }
     }
 
+    fun saveExamReminder(
+        enabled: Boolean,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+    ) {
+        val state = _uiState.value
+        val pluginId = state.pluginId
+        if (pluginId.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先选择插件后再设置考试提醒") }
+            return
+        }
+        viewModelScope.launch {
+            reminderCoordinator.upsertExamReminder(
+                pluginId = pluginId,
+                enabled = enabled,
+                advanceMinutes = advanceMinutes.coerceIn(0, 720),
+                ringtoneUri = ringtoneUri,
+            )
+            val schedule = currentReminderSchedule()
+            if (schedule != null) {
+                val dispatchSummary = syncTodaySystemClockAlarms(
+                    pluginId = pluginId,
+                    schedule = schedule,
+                    timingProfile = _uiState.value.timingProfile,
+                    reason = ReminderSyncReason.RuleCreatedToday,
+                )
+                _uiState.update {
+                    it.copy(
+                        statusMessage = systemAlarmSyncMessage(
+                            successMessage = if (enabled) "已开启考试提醒" else "已关闭考试提醒",
+                            summary = dispatchSummary,
+                        ),
+                    )
+                }
+            } else {
+                _uiState.update { it.copy(statusMessage = if (enabled) "已开启考试提醒" else "已关闭考试提醒") }
+            }
+        }
+    }
+
+    fun muteExamReminder(courseId: String) {
+        updateExamMute(courseId = courseId, muted = true)
+    }
+
+    fun restoreExamReminder(courseId: String) {
+        updateExamMute(courseId = courseId, muted = false)
+    }
+
     fun removeAlarmRecord(alarmKey: String, backend: ReminderAlarmBackend) {
         viewModelScope.launch {
             val result = reminderCoordinator.deleteAlarmRecord(alarmKey, backend)
             _uiState.update {
                 it.copy(statusMessage = if (result.succeeded) result.message else "闹钟取消失败：${result.message}")
+            }
+        }
+    }
+
+    private fun updateExamMute(courseId: String, muted: Boolean) {
+        val state = _uiState.value
+        val pluginId = state.pluginId
+        if (pluginId.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先选择插件后再调整考试提醒") }
+            return
+        }
+        val rule = state.reminderRules.firstOrNull {
+            it.pluginId == pluginId && it.scopeType == ReminderScopeType.Exam
+        }
+        if (rule?.enabled != true) {
+            _uiState.update { it.copy(statusMessage = "请先在提醒页开启考试提醒") }
+            return
+        }
+        val courseTitle = courseTitleById(state, courseId)
+        viewModelScope.launch {
+            reminderCoordinator.setExamReminderMuted(
+                pluginId = pluginId,
+                courseId = courseId,
+                muted = muted,
+            )
+            val schedule = currentReminderSchedule()
+            val summary = if (schedule != null) {
+                syncTodaySystemClockAlarms(
+                    pluginId = pluginId,
+                    schedule = schedule,
+                    timingProfile = _uiState.value.timingProfile,
+                    reason = ReminderSyncReason.ScheduleChanged,
+                )
+            } else {
+                emptySystemAlarmSyncSummary()
+            }
+            val label = courseTitle ?: "本场考试"
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = if (muted) {
+                            "已取消$label 的考试提醒"
+                        } else {
+                            "已恢复$label 的考试提醒"
+                        },
+                        summary = summary,
+                    ),
+                )
             }
         }
     }
@@ -852,6 +948,11 @@ internal fun validatePluginSchedule(schedule: TermSchedule): TermSchedule {
 
 private fun reminderSchedule(state: ScheduleUiState): TermSchedule? =
     mergeManualCoursesForReminders(state.schedule, state.manualCourses)
+
+private fun courseTitleById(state: ScheduleUiState, courseId: String): String? =
+    (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+        .firstOrNull { it.id == courseId }
+        ?.title
 
 private fun mergeManualCoursesForReminders(
     schedule: TermSchedule?,
