@@ -40,9 +40,11 @@ import com.kebiao.viewer.core.data.DataStoreScheduleRepository
 import com.kebiao.viewer.core.data.DataStoreUserPreferencesRepository
 import com.kebiao.viewer.core.data.term.DataStoreTermProfileRepository
 import com.kebiao.viewer.core.data.widget.DataStoreWidgetPreferencesRepository
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.coursesOfDay
+import com.kebiao.viewer.core.kernel.model.filterTemporaryCancelledCourses
 import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
 import com.kebiao.viewer.core.kernel.time.BeijingTime
@@ -81,8 +83,12 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
             val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, userPrefs.temporaryScheduleOverrides)
             val dayOfWeek = sourceDate.dayOfWeek.value
             val weekIndex = resolveWeekIndex(sourceDate, userPrefs.termStartDate)
-            val courses = (schedule?.coursesOfDay(dayOfWeek).orEmpty() +
-                manualCourses.filter { it.time.dayOfWeek == dayOfWeek })
+            val courses = filterTemporaryCancelledCourses(
+                date = targetDate,
+                courses = schedule?.coursesOfDay(dayOfWeek).orEmpty() +
+                    manualCourses.filter { it.time.dayOfWeek == dayOfWeek },
+                overrides = userPrefs.temporaryScheduleOverrides,
+            )
                 .filter { it.activeOnWeek(weekIndex) }
                 .sortedBy { it.time.startNode }
             return DayCourses(
@@ -143,7 +149,7 @@ class NextCourseGlanceWidget : GlanceAppWidget() {
             dayLabel
         }
         val headerLabel = when {
-            live != null -> "$todayHeader · 上课中"
+            live != null -> "$todayHeader · ${if (live.category == CourseCategory.Exam) "考试中" else "上课中"}"
             firstUpcoming != null -> if (todayHeader != "今日课程") todayHeader else "下一节课"
             displayCourses.isNotEmpty() -> "$todayHeader · 已结束"
             else -> if (todayHeader != "今日课程") todayHeader else "下一节课"
@@ -247,7 +253,7 @@ private fun FocusCard(
     val titleColor = if (isPast) GlanceTheme.colors.onSurfaceVariant
     else GlanceTheme.colors.onSurface
     val label = when (status) {
-        CourseStatus.Live -> "上课中"
+        CourseStatus.Live -> if (course.category == CourseCategory.Exam) "考试中" else "上课中"
         CourseStatus.Upcoming -> "即将开始"
         CourseStatus.Past -> "已结束"
     }
@@ -277,7 +283,7 @@ private fun FocusCard(
             }
             Spacer(GlanceModifier.height(2.dp))
             Text(
-                text = course.title,
+                text = displayCourseTitle(course),
                 style = TextStyle(
                     color = titleColor,
                     fontSize = 15.sp,
@@ -323,7 +329,7 @@ private fun CompactRow(course: CourseItem, profile: TermTimingProfile?, status: 
     val titleColor = if (isPast) GlanceTheme.colors.onSurfaceVariant
     else GlanceTheme.colors.onSurface
     val label = when (status) {
-        CourseStatus.Live -> "上课中"
+        CourseStatus.Live -> if (course.category == CourseCategory.Exam) "考试中" else "上课中"
         CourseStatus.Upcoming -> "稍后"
         CourseStatus.Past -> "已结束"
     }
@@ -350,7 +356,7 @@ private fun CompactRow(course: CourseItem, profile: TermTimingProfile?, status: 
                 )
             }
             Text(
-                text = course.title,
+                text = displayCourseTitle(course),
                 style = TextStyle(
                     color = titleColor,
                     fontSize = 13.sp,
@@ -374,6 +380,9 @@ private fun CompactRow(course: CourseItem, profile: TermTimingProfile?, status: 
         }
     }
 }
+
+private fun displayCourseTitle(course: CourseItem): String =
+    if (course.category == CourseCategory.Exam) "考试 · ${course.title}" else course.title
 
 @Composable
 private fun EmptyState(sizeClass: WidgetSizeClass, title: String) {

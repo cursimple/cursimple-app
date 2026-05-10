@@ -81,11 +81,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kebiao.viewer.core.kernel.model.ClassSlotTime
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.model.findSlot
+import com.kebiao.viewer.core.kernel.model.isCourseTemporarilyCancelled
 import com.kebiao.viewer.core.kernel.model.isTemporaryScheduleOverridden
 import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.weekdayLabel
@@ -95,6 +97,7 @@ import com.kebiao.viewer.core.plugin.ui.BannerContribution
 import com.kebiao.viewer.core.plugin.ui.CourseBadgeRule
 import com.kebiao.viewer.core.plugin.ui.PluginUiSchema
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
+import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderScopeType
 import com.kebiao.viewer.feature.schedule.time.LocalAppZone
@@ -327,8 +330,15 @@ fun ScheduleScreen(
         }
 
         if (showBulkReminder) {
+            val selectedCourses = remember(selectedIds, state.schedule, state.manualCourses) {
+                (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+                    .filter { it.id in selectedIds }
+            }
+            val containsExam = selectedCourses.any { it.category == CourseCategory.Exam }
             BulkReminderDialog(
                 selectedCount = selectedIds.size,
+                defaultAdvanceMinutes = if (containsExam) 40 else 20,
+                containsExam = containsExam,
                 onDismiss = { showBulkReminder = false },
                 onConfirm = { advance, ringtone ->
                     onCreateBulkReminder(selectedIds, advance, ringtone)
@@ -360,6 +370,7 @@ fun ScheduleScreen(
         pendingReminderCourse?.let { course ->
             CourseReminderDialog(
                 course = course,
+                defaultAdvanceMinutes = if (course.category == CourseCategory.Exam) 40 else 20,
                 onDismiss = { pendingReminderCourse = null },
                 onConfirm = { advance, ringtone ->
                     onCreateCourseReminder(course.id, advance, ringtone)
@@ -973,6 +984,7 @@ private fun DailyScheduleSection(
                 val active = allCourses
                     .filter { it.time.dayOfWeek == targetDayOfWeek }
                     .filter { it.isActiveInWeek(sourceWeekNumber) }
+                    .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
                     .sortedBy { it.time.startNode }
                 DayList(
                     slots = slots,
@@ -1171,8 +1183,9 @@ private fun DayRow(
         ) {
             courses.forEach { course ->
                 val palette = courseColor(course.title, accents.coursePalette)
-                val containerColor = palette.container
-                val onColor = palette.onContainer
+                val isExam = course.category == CourseCategory.Exam
+                val containerColor = if (isExam) MaterialTheme.colorScheme.errorContainer else palette.container
+                val onColor = if (isExam) MaterialTheme.colorScheme.onErrorContainer else palette.onContainer
                 val isSelected = course.id == selectedCourseId
                 val isMultiSelected = course.id in multiSelectedIds
                 val highlight = isSelected || isMultiSelected
@@ -1182,8 +1195,18 @@ private fun DayRow(
                         .clip(RoundedCornerShape(10.dp))
                         .background(containerColor)
                         .border(
-                            BorderStroke(if (highlight) 2.dp else 0.dp,
-                                if (highlight) MaterialTheme.colorScheme.primary else Color.Transparent),
+                            BorderStroke(
+                                when {
+                                    highlight -> 2.dp
+                                    isExam -> 1.5.dp
+                                    else -> 0.dp
+                                },
+                                when {
+                                    highlight -> MaterialTheme.colorScheme.primary
+                                    isExam -> MaterialTheme.colorScheme.error
+                                    else -> Color.Transparent
+                                },
+                            ),
                             RoundedCornerShape(10.dp),
                         )
                         .combinedClickable(
@@ -1211,6 +1234,15 @@ private fun DayRow(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (isExam) {
+                            Text(
+                                text = "考试",
+                                color = onColor,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                            )
+                        }
                         if (course.location.isNotBlank()) {
                             Text(
                                 text = course.location,
@@ -1785,15 +1817,29 @@ private fun CourseBlock(
 ) {
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
     val palette = remember(course.title, accents) { courseColor(course.title, accents.coursePalette) }
-    val containerColor = if (inactive) accents.inactiveContainer else palette.container
-    val onColor = if (inactive) accents.inactiveOnContainer else palette.onContainer
+    val isExam = course.category == CourseCategory.Exam
+    val containerColor = when {
+        inactive -> accents.inactiveContainer
+        isExam -> MaterialTheme.colorScheme.errorContainer
+        else -> palette.container
+    }
+    val onColor = when {
+        inactive -> accents.inactiveOnContainer
+        isExam -> MaterialTheme.colorScheme.onErrorContainer
+        else -> palette.onContainer
+    }
     val highlight = multiSelected || selected
     val borderColor = when {
         multiSelected -> MaterialTheme.colorScheme.primary
         selected -> MaterialTheme.colorScheme.primary
+        isExam && !inactive -> MaterialTheme.colorScheme.error
         else -> androidx.compose.ui.graphics.Color.Transparent
     }
-    val borderWidth = if (highlight) 2.dp else 0.dp
+    val borderWidth = when {
+        highlight -> 2.dp
+        isExam && !inactive -> 1.5.dp
+        else -> 0.dp
+    }
 
     Box(
         modifier = Modifier
@@ -1832,6 +1878,16 @@ private fun CourseBlock(
                         text = "非本周",
                         color = onColor,
                         fontSize = 9.sp,
+                        maxLines = 1,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                if (isExam && !inactive) {
+                    Text(
+                        text = "考试",
+                        color = onColor,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         textAlign = TextAlign.Center,
                     )
@@ -2006,7 +2062,7 @@ internal fun ReminderComposerCard(
 internal fun FirstCourseReminderSettingsCard(
     reminderRules: List<ReminderRule>,
     pluginId: String,
-    onSave: (ReminderDayPeriod, Boolean, Int, String?) -> Unit,
+    onSave: (ReminderDayPeriod, Boolean, Int, String?, Int?, Int?, List<ReminderNodeRange>) -> Unit,
 ) {
     val automaticRules = reminderRules.filter {
         it.pluginId == pluginId && it.scopeType == ReminderScopeType.FirstCourseOfPeriod
@@ -2022,36 +2078,46 @@ internal fun FirstCourseReminderSettingsCard(
         ) {
             Text("首次课提醒", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
             Text(
-                text = "分别控制上午第一节课和下午第一节课的自动提醒。",
+                text = "按时段控制首门课提醒，可配置免提醒前置节次。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            FirstCourseReminderRow(
-                title = "上午首次课提醒",
-                rule = automaticRules.firstOrNull { it.period == ReminderDayPeriod.Morning },
-                period = ReminderDayPeriod.Morning,
-                onSave = onSave,
-            )
-            FirstCourseReminderRow(
-                title = "下午首次课提醒",
-                rule = automaticRules.firstOrNull { it.period == ReminderDayPeriod.Afternoon },
-                period = ReminderDayPeriod.Afternoon,
-                onSave = onSave,
-            )
+            firstCoursePeriodDefaults.forEach { config ->
+                FirstCourseReminderRow(
+                    config = config,
+                    rule = automaticRules.firstOrNull { it.period == config.period },
+                    onSave = onSave,
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun FirstCourseReminderRow(
-    title: String,
+    config: FirstCoursePeriodConfig,
     rule: ReminderRule?,
-    period: ReminderDayPeriod,
-    onSave: (ReminderDayPeriod, Boolean, Int, String?) -> Unit,
+    onSave: (ReminderDayPeriod, Boolean, Int, String?, Int?, Int?, List<ReminderNodeRange>) -> Unit,
 ) {
+    val period = config.period
     var enabled by rememberSaveable(rule?.ruleId, period.name) { mutableStateOf(rule?.enabled == true) }
     var advanceMinutesText by rememberSaveable(rule?.ruleId, period.name) {
         mutableStateOf((rule?.advanceMinutes ?: 20).toString())
+    }
+    var periodStartText by rememberSaveable(rule?.ruleId, period.name) {
+        mutableStateOf((rule?.periodStartNode ?: config.defaultStartNode).toString())
+    }
+    var periodEndText by rememberSaveable(rule?.ruleId, period.name) {
+        mutableStateOf((rule?.periodEndNode ?: config.defaultEndNode).toString())
+    }
+    var mutedPreludeEnabled by rememberSaveable(rule?.ruleId, period.name) {
+        mutableStateOf(rule?.mutedNodeRanges.orEmpty().isNotEmpty())
+    }
+    var mutedStartText by rememberSaveable(rule?.ruleId, period.name) {
+        mutableStateOf((rule?.mutedNodeRanges?.firstOrNull()?.startNode ?: config.defaultMutedNode).toString())
+    }
+    var mutedEndText by rememberSaveable(rule?.ruleId, period.name) {
+        mutableStateOf((rule?.mutedNodeRanges?.firstOrNull()?.endNode ?: config.defaultMutedNode).toString())
     }
     var ringtoneUri by rememberSaveable(rule?.ruleId, period.name) { mutableStateOf(rule?.ringtoneUri) }
     val context = LocalContext.current
@@ -2060,7 +2126,22 @@ private fun FirstCourseReminderRow(
         ringtoneUri = uri?.toString()
     }
     val advance = advanceMinutesText.toIntOrNull()
-    val canSave = advance != null && advance in 0..720
+    val periodStart = periodStartText.toIntOrNull()
+    val periodEnd = periodEndText.toIntOrNull()
+    val mutedStart = mutedStartText.toIntOrNull()
+    val mutedEnd = mutedEndText.toIntOrNull()
+    val periodValid = periodStart != null && periodEnd != null && periodStart in 1..32 && periodEnd in periodStart..32
+    val mutedValid = !mutedPreludeEnabled ||
+        (mutedStart != null && mutedEnd != null && mutedStart in 1..32 && mutedEnd in mutedStart..32)
+    val canSave = advance != null && advance in 0..720 && periodValid && mutedValid
+    fun save(checked: Boolean = enabled) {
+        val mutedRanges = if (mutedPreludeEnabled && mutedStart != null && mutedEnd != null) {
+            listOf(ReminderNodeRange(mutedStart, mutedEnd))
+        } else {
+            emptyList()
+        }
+        onSave(period, checked, advance ?: 20, ringtoneUri, periodStart, periodEnd, mutedRanges)
+    }
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -2077,7 +2158,7 @@ private fun FirstCourseReminderRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(config.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Text(
                         text = if (enabled) "已开启" else "默认关闭",
                         style = MaterialTheme.typography.bodySmall,
@@ -2089,10 +2170,81 @@ private fun FirstCourseReminderRow(
                     onCheckedChange = { checked ->
                         enabled = checked
                         if (canSave) {
-                            onSave(period, checked, advance ?: 20, ringtoneUri)
+                            save(checked)
                         }
                     },
                 )
+            }
+            Text(
+                text = "前置节次当天有课时，该时段不再提醒；前置节次为空时，提醒后续第一门课。",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                OutlinedTextField(
+                    value = periodStartText,
+                    onValueChange = { periodStartText = it.filter(Char::isDigit).take(2) },
+                    label = { Text("时段起始节") },
+                    singleLine = true,
+                    isError = periodStartText.isNotBlank() && !periodValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = periodEndText,
+                    onValueChange = { periodEndText = it.filter(Char::isDigit).take(2) },
+                    label = { Text("时段结束节") },
+                    singleLine = true,
+                    isError = periodEndText.isNotBlank() && !periodValid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("免提醒前置节次", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = if (mutedPreludeEnabled) "前置节次有课时不提醒本时段" else "未设置前置节次",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(
+                    checked = mutedPreludeEnabled,
+                    onCheckedChange = { mutedPreludeEnabled = it },
+                )
+            }
+            if (mutedPreludeEnabled) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OutlinedTextField(
+                        value = mutedStartText,
+                        onValueChange = { mutedStartText = it.filter(Char::isDigit).take(2) },
+                        label = { Text("前置起始节") },
+                        singleLine = true,
+                        isError = mutedStartText.isNotBlank() && !mutedValid,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = mutedEndText,
+                        onValueChange = { mutedEndText = it.filter(Char::isDigit).take(2) },
+                        label = { Text("前置结束节") },
+                        singleLine = true,
+                        isError = mutedEndText.isNotBlank() && !mutedValid,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
             OutlinedTextField(
                 value = advanceMinutesText,
@@ -2129,7 +2281,7 @@ private fun FirstCourseReminderRow(
                     modifier = Modifier.weight(1f),
                 )
                 Button(
-                    onClick = { onSave(period, enabled, advance ?: 20, ringtoneUri) },
+                    onClick = { save() },
                     enabled = canSave,
                 ) {
                     Text("保存")
@@ -2138,6 +2290,20 @@ private fun FirstCourseReminderRow(
         }
     }
 }
+
+private data class FirstCoursePeriodConfig(
+    val period: ReminderDayPeriod,
+    val title: String,
+    val defaultStartNode: Int,
+    val defaultEndNode: Int,
+    val defaultMutedNode: Int,
+)
+
+private val firstCoursePeriodDefaults = listOf(
+    FirstCoursePeriodConfig(ReminderDayPeriod.Morning, "上午首课提醒", 1, 4, 1),
+    FirstCoursePeriodConfig(ReminderDayPeriod.Afternoon, "下午首课提醒", 5, 8, 5),
+    FirstCoursePeriodConfig(ReminderDayPeriod.Evening, "晚上首课提醒", 9, 12, 9),
+)
 
 @Composable
 internal fun ReminderRulesSection(
@@ -2228,7 +2394,11 @@ private fun describeReminderRule(
     val timing: String
     when (scope) {
         ReminderScopeType.SingleCourse -> {
-            title = course?.title ?: "（已删除的课程）"
+            title = when {
+                course?.category == CourseCategory.Exam -> "考试：${course.title}"
+                course != null -> course.title
+                else -> "（已删除的课程）"
+            }
             val day = course?.time?.dayOfWeek?.let(::weekdayLabel)
             val nodeRange = course?.time?.let { "第${it.startNode}-${it.endNode}节" }
             val slot = course?.time?.let { timingProfile?.findSlot(it.startNode, it.endNode) }
@@ -2255,9 +2425,18 @@ private fun describeReminderRule(
             title = when (rule.period) {
                 ReminderDayPeriod.Morning -> "上午首次课提醒"
                 ReminderDayPeriod.Afternoon -> "下午首次课提醒"
+                ReminderDayPeriod.Evening -> "晚上首次课提醒"
                 null -> "首次课提醒"
             }
-            timing = "按每天对应时段的第一节课自动提醒"
+            val periodRange = if (rule.periodStartNode != null && rule.periodEndNode != null) {
+                "第${rule.periodStartNode}-${rule.periodEndNode}节"
+            } else {
+                "默认时段"
+            }
+            val muted = rule.mutedNodeRanges.firstOrNull()?.let { range ->
+                "免提醒前置第${range.startNode}-${range.endNode}节"
+            }
+            timing = listOfNotNull(periodRange, muted, "按该时段首门课自动提醒").joinToString(" · ")
         }
     }
     val ringtone = if (rule.ringtoneUri.isNullOrBlank()) "系统默认铃声" else "自定义铃声"
@@ -2605,6 +2784,7 @@ internal fun buildWeekRenderEntries(
             }
             source
                 .filter { it.time.dayOfWeek == sourceDayOfWeek }
+                .filterNot { isCourseTemporarilyCancelled(actualDate, it, temporaryScheduleOverrides) }
                 .mapNotNull { course ->
                     val placement = coursePlacement(course, slots, dayIndex) ?: return@mapNotNull null
                     Resolved(course, placement, sourceWeekIndex)

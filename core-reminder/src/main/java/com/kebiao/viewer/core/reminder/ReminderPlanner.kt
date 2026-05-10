@@ -6,6 +6,7 @@ import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
 import com.kebiao.viewer.core.kernel.model.findSlot
+import com.kebiao.viewer.core.kernel.model.isCourseTemporarilyCancelled
 import com.kebiao.viewer.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.kebiao.viewer.core.kernel.model.startLocalTime
 import com.kebiao.viewer.core.kernel.model.targetDates
@@ -92,7 +93,11 @@ class ReminderPlanner {
                 val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode)
                     ?: return@flatMap emptyList()
                 val startTime = slot.startLocalTime()
-                if (!period.includes(startTime)) return@flatMap emptyList()
+                val muted = rule.mutedNodeRanges.any { range ->
+                    range.overlaps(course.time.startNode, course.time.endNode)
+                }
+                val inPeriod = rule.includesCourseInPeriod(course, startTime)
+                if (!inPeriod && !muted) return@flatMap emptyList()
                 courseOccurrenceDates(
                     course = course,
                     termStart = termStart,
@@ -104,6 +109,7 @@ class ReminderPlanner {
                         courseDate = courseDate,
                         slot = slot,
                         startTime = startTime,
+                        muted = muted,
                     )
                 }
             }
@@ -112,6 +118,7 @@ class ReminderPlanner {
             .groupBy { it.courseDate }
             .values
             .mapNotNull { dayCandidates ->
+                if (dayCandidates.any { it.muted }) return@mapNotNull null
                 dayCandidates.minWithOrNull(
                     compareBy<FirstCourseCandidate>(
                         { it.startTime },
@@ -154,7 +161,8 @@ class ReminderPlanner {
             .filter { date ->
                 val sourceDate = resolveTemporaryScheduleSourceDate(date, temporaryScheduleOverrides)
                 sourceDate.dayOfWeek.value == course.time.dayOfWeek &&
-                    course.isActiveOnSourceDate(termStart, sourceDate)
+                    course.isActiveOnSourceDate(termStart, sourceDate) &&
+                    !isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)
             }
     }
 
@@ -196,6 +204,7 @@ class ReminderPlanner {
         val prefix = when (period) {
             ReminderDayPeriod.Morning -> "上午首次课："
             ReminderDayPeriod.Afternoon -> "下午首次课："
+            ReminderDayPeriod.Evening -> "晚上首次课："
             null -> ""
         }
         return "${weekday} ${startTime} $prefix${course.title}$advance"
@@ -240,6 +249,18 @@ class ReminderPlanner {
     private fun ReminderDayPeriod.includes(time: LocalTime): Boolean = when (this) {
         ReminderDayPeriod.Morning -> time.isBefore(NOON)
         ReminderDayPeriod.Afternoon -> !time.isBefore(NOON) && time.isBefore(EVENING)
+        ReminderDayPeriod.Evening -> !time.isBefore(EVENING)
+    }
+
+    private fun ReminderRule.includesCourseInPeriod(course: CourseItem, startTime: LocalTime): Boolean {
+        val periodStart = periodStartNode
+        val periodEnd = periodEndNode
+        if (periodStart != null && periodEnd != null) {
+            val normalizedStart = minOf(periodStart, periodEnd)
+            val normalizedEnd = maxOf(periodStart, periodEnd)
+            return course.time.startNode <= normalizedEnd && course.time.endNode >= normalizedStart
+        }
+        return period?.includes(startTime) == true
     }
 
     private fun CourseItem.isActiveOnSourceDate(termStart: LocalDate, sourceDate: LocalDate): Boolean {
@@ -258,6 +279,7 @@ class ReminderPlanner {
         val courseDate: LocalDate,
         val slot: ClassSlotTime,
         val startTime: LocalTime,
+        val muted: Boolean,
     )
 
     private companion object {

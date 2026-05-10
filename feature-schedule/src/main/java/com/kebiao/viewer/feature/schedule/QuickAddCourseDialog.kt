@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import java.util.UUID
@@ -58,6 +59,7 @@ fun QuickAddCourseDialog(
     var teacher by rememberSaveable { mutableStateOf("") }
     var startWeekText by rememberSaveable { mutableStateOf("1") }
     var endWeekText by rememberSaveable { mutableStateOf("2") }
+    var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
 
     val titleTrimmed = title.trim()
     val startWeek = startWeekText.toIntOrNull()
@@ -142,6 +144,41 @@ fun QuickAddCourseDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
 
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AssistChip(
+                            onClick = { category = CourseCategory.Course },
+                            label = { Text("课程") },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (category == CourseCategory.Course) {
+                                    MaterialTheme.colorScheme.primaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
+                                labelColor = if (category == CourseCategory.Course) {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            ),
+                        )
+                        AssistChip(
+                            onClick = { category = CourseCategory.Exam },
+                            label = { Text("考试") },
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = if (category == CourseCategory.Exam) {
+                                    MaterialTheme.colorScheme.errorContainer
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant
+                                },
+                                labelColor = if (category == CourseCategory.Exam) {
+                                    MaterialTheme.colorScheme.onErrorContainer
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                },
+                            ),
+                        )
+                    }
+
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
                             value = startWeekText,
@@ -180,6 +217,7 @@ fun QuickAddCourseDialog(
                                 teacher = teacher.trim(),
                                 location = location.trim(),
                                 weeks = weeks,
+                                category = category,
                                 time = CourseTimeSlot(
                                     dayOfWeek = dayOfWeek,
                                     startNode = startNode,

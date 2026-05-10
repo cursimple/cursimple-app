@@ -11,6 +11,9 @@ data class ReminderRule(
     @SerialName("pluginId") val pluginId: String,
     @SerialName("scopeType") val scopeType: ReminderScopeType,
     @SerialName("period") val period: ReminderDayPeriod? = null,
+    @SerialName("periodStartNode") val periodStartNode: Int? = null,
+    @SerialName("periodEndNode") val periodEndNode: Int? = null,
+    @SerialName("mutedNodeRanges") val mutedNodeRanges: List<ReminderNodeRange> = emptyList(),
     @SerialName("courseId") val courseId: String? = null,
     @SerialName("dayOfWeek") val dayOfWeek: Int? = null,
     @SerialName("startNode") val startNode: Int? = null,
@@ -36,12 +39,32 @@ enum class ReminderScopeType {
 }
 
 @Serializable
+data class ReminderNodeRange(
+    @SerialName("startNode") val startNode: Int,
+    @SerialName("endNode") val endNode: Int = startNode,
+) {
+    fun overlaps(start: Int, end: Int): Boolean {
+        val normalizedStart = minOf(startNode, endNode)
+        val normalizedEnd = maxOf(startNode, endNode)
+        return start <= normalizedEnd && end >= normalizedStart
+    }
+
+    fun normalized(): ReminderNodeRange = ReminderNodeRange(
+        startNode = minOf(startNode, endNode),
+        endNode = maxOf(startNode, endNode),
+    )
+}
+
+@Serializable
 enum class ReminderDayPeriod {
     @SerialName("morning")
     Morning,
 
     @SerialName("afternoon")
     Afternoon,
+
+    @SerialName("evening")
+    Evening,
 }
 
 @Serializable

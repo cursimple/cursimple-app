@@ -10,18 +10,33 @@ import java.time.temporal.TemporalAdjusters
 @Serializable
 data class TemporaryScheduleOverride(
     @SerialName("id") val id: String,
+    @SerialName("type") val type: TemporaryScheduleOverrideType = TemporaryScheduleOverrideType.MakeUp,
     @SerialName("targetDate") val targetDate: String = "",
     @SerialName("sourceDate") val sourceDate: String = "",
     @SerialName("startDate") val startDate: String = "",
     @SerialName("endDate") val endDate: String = "",
     @SerialName("sourceDayOfWeek") val sourceDayOfWeek: Int? = null,
+    @SerialName("cancelStartNode") val cancelStartNode: Int? = null,
+    @SerialName("cancelEndNode") val cancelEndNode: Int? = null,
+    @SerialName("cancelCourseId") val cancelCourseId: String? = null,
 )
+
+@Serializable
+enum class TemporaryScheduleOverrideType {
+    @SerialName("make_up")
+    MakeUp,
+
+    @SerialName("cancel_course")
+    CancelCourse,
+}
 
 fun TemporaryScheduleOverride.containsDate(date: LocalDate): Boolean {
     return sourceDateFor(date) != null
 }
 
 fun TemporaryScheduleOverride.sourceDateFor(date: LocalDate): LocalDate? {
+    if (type != TemporaryScheduleOverrideType.MakeUp) return null
+
     val explicitTarget = parseOverrideDate(targetDate)
     val explicitSource = parseOverrideDate(sourceDate)
     if (explicitTarget != null || explicitSource != null) {
@@ -51,6 +66,18 @@ fun TemporaryScheduleOverride.targetDates(): List<LocalDate> {
     return (0..days).map { offset -> normalizedStart.plusDays(offset.toLong()) }
 }
 
+fun TemporaryScheduleOverride.cancelsCourseOn(date: LocalDate, course: CourseItem): Boolean {
+    if (type != TemporaryScheduleOverrideType.CancelCourse) return false
+    if (date !in targetDates()) return false
+    val requiredCourseId = cancelCourseId?.takeIf { it.isNotBlank() }
+    if (requiredCourseId != null && requiredCourseId != course.id) return false
+    val start = cancelStartNode ?: return false
+    val end = cancelEndNode ?: start
+    val normalizedStart = minOf(start, end)
+    val normalizedEnd = maxOf(start, end)
+    return course.time.startNode <= normalizedEnd && course.time.endNode >= normalizedStart
+}
+
 fun matchingTemporaryScheduleOverride(
     date: LocalDate,
     overrides: List<TemporaryScheduleOverride>,
@@ -77,6 +104,23 @@ fun isTemporaryScheduleOverridden(
     overrides: List<TemporaryScheduleOverride>,
 ): Boolean {
     return resolveTemporaryScheduleSourceDate(date, overrides) != date
+}
+
+fun isCourseTemporarilyCancelled(
+    date: LocalDate,
+    course: CourseItem,
+    overrides: List<TemporaryScheduleOverride>,
+): Boolean {
+    return overrides.any { it.cancelsCourseOn(date, course) }
+}
+
+fun filterTemporaryCancelledCourses(
+    date: LocalDate,
+    courses: List<CourseItem>,
+    overrides: List<TemporaryScheduleOverride>,
+): List<CourseItem> {
+    if (overrides.none { it.type == TemporaryScheduleOverrideType.CancelCourse }) return courses
+    return courses.filterNot { course -> isCourseTemporarilyCancelled(date, course, overrides) }
 }
 
 fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {

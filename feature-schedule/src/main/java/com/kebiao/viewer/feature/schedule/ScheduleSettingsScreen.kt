@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
 import com.kebiao.viewer.core.reminder.model.ReminderDayPeriod
+import com.kebiao.viewer.core.reminder.model.ReminderNodeRange
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import java.time.Instant
 import java.time.LocalDate
@@ -84,7 +85,7 @@ fun ScheduleSettingsScreen(
     onSelectTimeSlot: (Int, Int) -> Unit,
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
-    onSaveFirstCourseReminder: (ReminderDayPeriod, Boolean, Int, String?) -> Unit,
+    onSaveFirstCourseReminder: (ReminderDayPeriod, Boolean, Int, String?, Int?, Int?, List<ReminderNodeRange>) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
     onRemoveAlarmRecord: (String, ReminderAlarmBackend) -> Unit,
     onRefreshReminderAlarms: () -> Unit,

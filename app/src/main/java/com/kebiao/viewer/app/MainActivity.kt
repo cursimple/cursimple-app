@@ -657,7 +657,9 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.About -> AboutScreen(
                                         developerModeEnabled = prefs.developerModeEnabled,
+                                        autoUpdateEnabled = prefs.autoUpdateEnabled,
                                         onSetDeveloperMode = prefsViewModel::setDeveloperModeEnabled,
+                                        onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 }

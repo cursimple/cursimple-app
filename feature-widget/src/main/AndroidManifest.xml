@@ -10,6 +10,10 @@
             android:name=".WidgetPinResultReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".ScheduleWidgetRefreshReceiver"
+            android:exported="false" />
+
         <service
             android:name=".ScheduleWidgetRemoteViewsService"
             android:exported="false"
