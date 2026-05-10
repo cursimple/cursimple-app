@@ -2,6 +2,7 @@ package com.kebiao.viewer.core.reminder
 
 import android.content.ContextWrapper
 import com.kebiao.viewer.core.kernel.model.ClassSlotTime
+import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import com.kebiao.viewer.core.kernel.model.DailySchedule
@@ -577,6 +578,82 @@ class SystemAlarmRegistryTest {
         assertEquals(listOf(snoozeRecord), repository.records.value)
     }
 
+    @Test
+    fun `exam reminder sync clears expired muted exam ids and keeps future ones`() = runBlocking {
+        val rule = ReminderRule(
+            ruleId = "exam-rule",
+            pluginId = "demo",
+            scopeType = ReminderScopeType.Exam,
+            mutedCourseIds = listOf("past-exam", "future-exam"),
+            advanceMinutes = 40,
+            createdAt = "2026-02-23T00:00:00+08:00",
+            updatedAt = "2026-02-23T00:00:00+08:00",
+        )
+        val repository = FakeReminderRepository(rules = listOf(rule))
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.SystemClockApp) },
+            systemDispatcher = FakeAlarmDispatcher(succeeded = true),
+        )
+        val profile = sampleProfile()
+        val nowMillis = LocalDateTime.of(2026, 3, 2, 7, 0)
+            .atZone(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+
+        coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleExamSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile, nowMillis),
+            reason = ReminderSyncReason.ScheduleChanged,
+            nowMillis = nowMillis,
+        )
+
+        val updatedRule = repository.getReminderRules().single()
+        assertEquals(listOf("future-exam"), updatedRule.mutedCourseIds)
+    }
+
+    @Test
+    fun `muting exam reminder does not dismiss independent single exam reminder`() = runBlocking {
+        val examRule = ReminderRule(
+            ruleId = "exam-rule",
+            pluginId = "demo",
+            scopeType = ReminderScopeType.Exam,
+            advanceMinutes = 40,
+            createdAt = "2026-02-23T00:00:00+08:00",
+            updatedAt = "2026-02-23T00:00:00+08:00",
+        )
+        val singleRule = sampleRule().copy(ruleId = "single-rule", courseId = "future-exam")
+        val examRecord = sampleRecord(triggerAtMillis = futureMillis()).copy(
+            alarmKey = "exam-alarm",
+            ruleId = "exam-rule",
+            courseId = "future-exam",
+        )
+        val singleRecord = sampleRecord(triggerAtMillis = futureMillis() + 60_000).copy(
+            alarmKey = "single-alarm",
+            ruleId = "single-rule",
+            courseId = "future-exam",
+        )
+        val repository = FakeReminderRepository(rules = listOf(examRule, singleRule)).apply {
+            records.value = listOf(examRecord, singleRecord)
+        }
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            systemDismisser = dismisser,
+        )
+
+        coordinator.setExamReminderMuted(pluginId = "demo", courseId = "future-exam", muted = true)
+
+        val updatedExamRule = repository.getReminderRules().first { it.ruleId == "exam-rule" }
+        assertEquals(listOf("future-exam"), updatedExamRule.mutedCourseIds)
+        assertEquals(listOf(singleRecord), repository.records.value)
+        assertEquals(1, dismisser.dismissCount)
+    }
+
     private fun sampleRule(): ReminderRule = ReminderRule(
         ruleId = "rule",
         pluginId = "demo",
@@ -598,6 +675,32 @@ class SystemAlarmRegistryTest {
                         id = "math",
                         title = "高等数学",
                         weeks = listOf(1),
+                        time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    private fun sampleExamSchedule(): TermSchedule = TermSchedule(
+        termId = "2026-spring",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+        dailySchedules = listOf(
+            DailySchedule(
+                dayOfWeek = 1,
+                courses = listOf(
+                    CourseItem(
+                        id = "past-exam",
+                        title = "高等数学期中",
+                        weeks = listOf(1),
+                        category = CourseCategory.Exam,
+                        time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                    ),
+                    CourseItem(
+                        id = "future-exam",
+                        title = "高等数学期末",
+                        weeks = listOf(2),
+                        category = CourseCategory.Exam,
                         time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
                     ),
                 ),

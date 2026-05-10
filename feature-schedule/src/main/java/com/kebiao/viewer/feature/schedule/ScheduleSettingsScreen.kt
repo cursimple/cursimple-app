@@ -72,6 +72,7 @@ fun ScheduleSettingsRoute(
         onClearSelection = viewModel::clearSelection,
         onCreateReminder = viewModel::createReminderForSelection,
         onSaveFirstCourseReminder = viewModel::saveFirstCourseReminder,
+        onSaveExamReminder = viewModel::saveExamReminder,
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveAlarmRecord = viewModel::removeAlarmRecord,
         onRefreshReminderAlarms = viewModel::refreshReminderAlarmsNow,
@@ -86,6 +87,7 @@ fun ScheduleSettingsScreen(
     onClearSelection: () -> Unit,
     onCreateReminder: (Int, String?) -> Unit,
     onSaveFirstCourseReminder: (ReminderDayPeriod, Boolean, Int, String?, Int?, Int?, List<ReminderNodeRange>) -> Unit,
+    onSaveExamReminder: (Boolean, Int, String?) -> Unit,
     onRemoveReminderRule: (String) -> Unit,
     onRemoveAlarmRecord: (String, ReminderAlarmBackend) -> Unit,
     onRefreshReminderAlarms: () -> Unit,
@@ -144,6 +146,12 @@ fun ScheduleSettingsScreen(
                 reminderRules = state.reminderRules,
                 pluginId = state.pluginId,
                 onSave = onSaveFirstCourseReminder,
+            )
+
+            ExamReminderSettingsCard(
+                reminderRules = state.reminderRules,
+                pluginId = state.pluginId,
+                onSave = onSaveExamReminder,
             )
 
             if (state.selectionState != null) {

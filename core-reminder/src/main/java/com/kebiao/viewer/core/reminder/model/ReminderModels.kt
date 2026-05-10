@@ -14,6 +14,7 @@ data class ReminderRule(
     @SerialName("periodStartNode") val periodStartNode: Int? = null,
     @SerialName("periodEndNode") val periodEndNode: Int? = null,
     @SerialName("mutedNodeRanges") val mutedNodeRanges: List<ReminderNodeRange> = emptyList(),
+    @SerialName("mutedCourseIds") val mutedCourseIds: List<String> = emptyList(),
     @SerialName("courseId") val courseId: String? = null,
     @SerialName("dayOfWeek") val dayOfWeek: Int? = null,
     @SerialName("startNode") val startNode: Int? = null,
@@ -33,6 +34,9 @@ enum class ReminderScopeType {
 
     @SerialName("time_slot")
     TimeSlot,
+
+    @SerialName("exam")
+    Exam,
 
     @SerialName("first_course_of_period")
     FirstCourseOfPeriod,
