@@ -2,11 +2,14 @@ package com.kebiao.viewer.core.reminder
 
 import com.kebiao.viewer.core.reminder.model.ReminderRule
 import com.kebiao.viewer.core.reminder.model.ReminderAlarmBackend
+import com.kebiao.viewer.core.reminder.model.ReminderCustomOccupancy
 import com.kebiao.viewer.core.reminder.model.SystemAlarmRecord
 import kotlinx.coroutines.flow.Flow
 
 interface ReminderRepository {
     val reminderRulesFlow: Flow<List<ReminderRule>>
+
+    val customOccupanciesFlow: Flow<List<ReminderCustomOccupancy>>
 
     val systemAlarmRecordsFlow: Flow<List<SystemAlarmRecord>>
 
@@ -15,6 +18,12 @@ interface ReminderRepository {
     suspend fun saveReminderRule(rule: ReminderRule)
 
     suspend fun removeReminderRule(ruleId: String)
+
+    suspend fun getCustomOccupancies(pluginId: String? = null): List<ReminderCustomOccupancy>
+
+    suspend fun saveCustomOccupancy(occupancy: ReminderCustomOccupancy)
+
+    suspend fun removeCustomOccupancy(occupancyId: String)
 
     suspend fun getSystemAlarmRecords(): List<SystemAlarmRecord>
 
