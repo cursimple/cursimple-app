@@ -702,7 +702,14 @@ class MainActivity : ComponentActivity() {
                             androidx.activity.compose.BackHandler { subScreen = null }
                         }
                         MainActivity.SubScreen.ImportExport -> {
+                            val activeTermProfile = termProfileState.terms
+                                .firstOrNull { it.id == termProfileState.activeTermId }
                             ImportExportScreen(
+                                schedule = scheduleState.schedule,
+                                manualCourses = scheduleState.manualCourses,
+                                termName = activeTermProfile?.name,
+                                termStartDate = prefs.termStartDate,
+                                onApplyImport = scheduleViewModel::applyImportedSchedule,
                                 onBack = { subScreen = null },
                                 modifier = Modifier.fillMaxSize(),
                             )
