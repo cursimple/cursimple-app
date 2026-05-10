@@ -61,8 +61,12 @@ fun CourseDetailDialog(
     timingProfile: TermTimingProfile?,
     visibleWeekNumber: Int,
     isManual: (CourseItem) -> Boolean,
+    examReminderEnabled: Boolean = false,
+    mutedExamCourseIds: Set<String> = emptySet(),
     onDismiss: () -> Unit,
     onSetReminder: (CourseItem) -> Unit,
+    onMuteExamReminder: (CourseItem) -> Unit = {},
+    onRestoreExamReminder: (CourseItem) -> Unit = {},
     onDelete: (CourseItem) -> Unit,
 ) {
     if (courses.isEmpty()) return
@@ -205,6 +209,15 @@ fun CourseDetailDialog(
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+                    if (course.category == CourseCategory.Exam) {
+                        ExamReminderMuteRow(
+                            enabled = examReminderEnabled,
+                            muted = course.id in mutedExamCourseIds,
+                            onMute = { onMuteExamReminder(course) },
+                            onRestore = { onRestoreExamReminder(course) },
+                        )
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -244,6 +257,48 @@ fun CourseDetailDialog(
                             Text("关闭", maxLines = 1, softWrap = false)
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamReminderMuteRow(
+    enabled: Boolean,
+    muted: Boolean,
+    onMute: () -> Unit,
+    onRestore: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "全局考试提醒",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = when {
+                        !enabled -> "未开启，请到提醒页开启"
+                        muted -> "本场考试已临时取消提醒"
+                        else -> "本场考试会按全局规则提醒"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (enabled) {
+                TextButton(onClick = if (muted) onRestore else onMute) {
+                    Text(if (muted) "恢复" else "取消本场")
                 }
             }
         }

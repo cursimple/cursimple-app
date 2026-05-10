@@ -185,10 +185,12 @@ internal object ScheduleWidgetDataSource {
         )
     }
 
-    private fun ReminderRule.matches(course: CourseItem): Boolean = when (scopeType) {
+    private fun ReminderRule.matches(course: CourseItem): Boolean = enabled && when (scopeType) {
         ReminderScopeType.SingleCourse -> courseId == course.id
         ReminderScopeType.TimeSlot ->
             startNode == course.time.startNode && endNode == course.time.endNode
+        ReminderScopeType.Exam ->
+            course.category == CourseCategory.Exam && course.id !in mutedCourseIds
         ReminderScopeType.FirstCourseOfPeriod -> false
     }
 
