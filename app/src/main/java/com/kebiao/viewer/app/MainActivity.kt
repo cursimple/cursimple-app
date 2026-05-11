@@ -554,6 +554,8 @@ class MainActivity : ComponentActivity() {
                                         onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
                                         totalScheduleDisplayEnabled = prefs.totalScheduleDisplayEnabled,
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
+                                        onUpsertTemporaryScheduleOverride = prefsViewModel::upsertTemporaryScheduleOverride,
+                                        onRemoveTemporaryScheduleOverride = prefsViewModel::removeTemporaryScheduleOverride,
                                         modifier = Modifier.fillMaxSize(),
                                     )
 

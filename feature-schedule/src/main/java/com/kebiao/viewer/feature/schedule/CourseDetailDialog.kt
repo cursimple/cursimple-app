@@ -21,10 +21,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Source
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -54,6 +56,7 @@ import com.kebiao.viewer.core.kernel.model.ClassSlotTime
 import com.kebiao.viewer.core.kernel.model.CourseCategory
 import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
+import java.time.LocalDate
 
 @Composable
 fun CourseDetailDialog(
@@ -63,7 +66,11 @@ fun CourseDetailDialog(
     isManual: (CourseItem) -> Boolean,
     examReminderEnabled: Boolean = false,
     mutedExamCourseIds: Set<String> = emptySet(),
+    targetDate: LocalDate? = null,
+    isTemporarilyCancelled: (CourseItem) -> Boolean = { false },
     onDismiss: () -> Unit,
+    onTemporaryCancel: (CourseItem) -> Unit = {},
+    onRestoreTemporaryCancel: (CourseItem) -> Unit = {},
     onSetReminder: (CourseItem) -> Unit,
     onMuteExamReminder: (CourseItem) -> Unit = {},
     onRestoreExamReminder: (CourseItem) -> Unit = {},
@@ -216,6 +223,33 @@ fun CourseDetailDialog(
                             onMute = { onMuteExamReminder(course) },
                             onRestore = { onRestoreExamReminder(course) },
                         )
+                    }
+
+                    if (targetDate != null) {
+                        val temporarilyCancelled = isTemporarilyCancelled(course)
+                        OutlinedButton(
+                            onClick = {
+                                if (temporarilyCancelled) {
+                                    onRestoreTemporaryCancel(course)
+                                } else {
+                                    onTemporaryCancel(course)
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (temporarilyCancelled) Icons.Rounded.Restore else Icons.Rounded.Close,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = if (temporarilyCancelled) "取消临时取消" else "临时取消",
+                                maxLines = 1,
+                                softWrap = false,
+                            )
+                        }
                     }
 
                     Row(

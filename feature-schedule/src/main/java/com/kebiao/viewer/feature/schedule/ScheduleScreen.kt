@@ -68,7 +68,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -88,6 +90,8 @@ import com.kebiao.viewer.core.kernel.model.CourseItem
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverrideType
+import com.kebiao.viewer.core.kernel.model.cancelsCourseOn
 import com.kebiao.viewer.core.kernel.model.findSlot
 import com.kebiao.viewer.core.kernel.model.isCourseTemporarilyCancelled
 import com.kebiao.viewer.core.kernel.model.isTemporaryScheduleOverridden
@@ -120,6 +124,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
+import java.util.UUID
 import kotlin.math.max
 
 enum class ScheduleViewMode { Week, Day }
@@ -143,6 +148,8 @@ fun ScheduleRoute(
     onResetDay: () -> Unit = {},
     totalScheduleDisplayEnabled: Boolean = true,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
+    onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleScreen(
@@ -179,6 +186,8 @@ fun ScheduleRoute(
         onOpenPluginMarket = onOpenPluginMarket,
         totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
         temporaryScheduleOverrides = temporaryScheduleOverrides,
+        onUpsertTemporaryScheduleOverride = onUpsertTemporaryScheduleOverride,
+        onRemoveTemporaryScheduleOverride = onRemoveTemporaryScheduleOverride,
         modifier = modifier,
     )
 }
@@ -219,11 +228,13 @@ fun ScheduleScreen(
     dayOffset: Int = 0,
     totalScheduleDisplayEnabled: Boolean = true,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
+    onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
 ) {
     var showSyncSettings by rememberSaveable { mutableStateOf(state.schedule == null) }
     var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
     var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var detailCourses by remember { mutableStateOf<List<CourseItem>>(emptyList()) }
+    var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
@@ -259,68 +270,68 @@ fun ScheduleScreen(
             if (!state.initialized) {
                 ScheduleInitializingState(modifier = Modifier.fillMaxSize())
             } else {
-            val onCellClickHandler: (List<CourseItem>) -> Unit = { coursesAtCell ->
-                if (multiSelectMode) {
-                    val id = coursesAtCell.firstOrNull()?.id
-                    if (id != null) {
-                        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
-                        if (selectedIds.isEmpty()) multiSelectMode = false
+                val onCellClickHandler: (List<CourseItem>, LocalDate) -> Unit = { coursesAtCell, targetDate ->
+                    if (multiSelectMode) {
+                        val id = coursesAtCell.firstOrNull()?.id
+                        if (id != null) {
+                            selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                            if (selectedIds.isEmpty()) multiSelectMode = false
+                        }
+                    } else {
+                        detailRequest = CourseDetailRequest(coursesAtCell, targetDate)
                     }
-                } else {
-                    detailCourses = coursesAtCell
                 }
-            }
-            val onLongClickHandler: (String) -> Unit = { id ->
-                multiSelectMode = true
-                selectedIds = selectedIds + id
-            }
+                val onLongClickHandler: (String) -> Unit = { id ->
+                    multiSelectMode = true
+                    selectedIds = selectedIds + id
+                }
 
-            when (viewMode) {
-                ScheduleViewMode.Week -> WeeklyScheduleSection(
-                    modifier = Modifier.fillMaxSize(),
-                    schedule = state.schedule,
-                    manualCourses = state.manualCourses,
-                    timingProfile = state.timingProfile,
-                    uiSchema = state.uiSchema,
-                    reminderRules = state.reminderRules,
-                    weekOffset = weekOffset,
-                    minWeekOffset = minWeekOffset,
-                    maxWeekOffset = maxWeekOffset,
-                    overrideTermStart = overrideTermStart,
-                    zone = zone,
-                    horizontalScrollState = horizontalScrollState,
-                    selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
-                    multiSelectMode = multiSelectMode,
-                    multiSelectedIds = selectedIds,
-                    onCellClick = onCellClickHandler,
-                    onCourseLongClick = onLongClickHandler,
-                    onWeekOffsetChange = onWeekOffsetChange,
-                    onAddManualCourse = onAddManualCourse,
-                    totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
-                    temporaryScheduleOverrides = temporaryScheduleOverrides,
-                )
+                when (viewMode) {
+                    ScheduleViewMode.Week -> WeeklyScheduleSection(
+                        modifier = Modifier.fillMaxSize(),
+                        schedule = state.schedule,
+                        manualCourses = state.manualCourses,
+                        timingProfile = state.timingProfile,
+                        uiSchema = state.uiSchema,
+                        reminderRules = state.reminderRules,
+                        weekOffset = weekOffset,
+                        minWeekOffset = minWeekOffset,
+                        maxWeekOffset = maxWeekOffset,
+                        overrideTermStart = overrideTermStart,
+                        zone = zone,
+                        horizontalScrollState = horizontalScrollState,
+                        selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
+                        multiSelectMode = multiSelectMode,
+                        multiSelectedIds = selectedIds,
+                        onCellClick = onCellClickHandler,
+                        onCourseLongClick = onLongClickHandler,
+                        onWeekOffsetChange = onWeekOffsetChange,
+                        onAddManualCourse = onAddManualCourse,
+                        totalScheduleDisplayEnabled = totalScheduleDisplayEnabled,
+                        temporaryScheduleOverrides = temporaryScheduleOverrides,
+                    )
 
-                ScheduleViewMode.Day -> DailyScheduleSection(
-                    modifier = Modifier.fillMaxSize(),
-                    schedule = state.schedule,
-                    manualCourses = state.manualCourses,
-                    timingProfile = state.timingProfile,
-                    uiSchema = state.uiSchema,
-                    reminderRules = state.reminderRules,
-                    targetDate = zone.today().plusDays(dayOffset.toLong()),
-                    targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
-                    termStartDate = overrideTermStart,
-                    temporaryScheduleOverrides = temporaryScheduleOverrides,
-                    selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
-                    multiSelectMode = multiSelectMode,
-                    multiSelectedIds = selectedIds,
-                    dayOffset = dayOffset,
-                    onCellClick = onCellClickHandler,
-                    onCourseLongClick = onLongClickHandler,
-                    onPrevDay = onPrevDay,
-                    onNextDay = onNextDay,
-                )
-            }
+                    ScheduleViewMode.Day -> DailyScheduleSection(
+                        modifier = Modifier.fillMaxSize(),
+                        schedule = state.schedule,
+                        manualCourses = state.manualCourses,
+                        timingProfile = state.timingProfile,
+                        uiSchema = state.uiSchema,
+                        reminderRules = state.reminderRules,
+                        targetDate = zone.today().plusDays(dayOffset.toLong()),
+                        targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
+                        termStartDate = overrideTermStart,
+                        temporaryScheduleOverrides = temporaryScheduleOverrides,
+                        selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
+                        multiSelectMode = multiSelectMode,
+                        multiSelectedIds = selectedIds,
+                        dayOffset = dayOffset,
+                        onCellClick = onCellClickHandler,
+                        onCourseLongClick = onLongClickHandler,
+                        onPrevDay = onPrevDay,
+                        onNextDay = onNextDay,
+                    )
+                }
             }
         }
 
@@ -367,27 +378,53 @@ fun ScheduleScreen(
             )
         }
 
-        if (detailCourses.isNotEmpty()) {
+        detailRequest?.let { request ->
             val examRule = state.reminderRules.firstOrNull {
                 it.pluginId == state.pluginId && it.scopeType == ReminderScopeType.Exam
             }
             CourseDetailDialog(
-                courses = detailCourses,
+                courses = request.courses,
                 timingProfile = state.timingProfile,
                 visibleWeekNumber = visibleWeekNumber,
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
                 examReminderEnabled = examRule?.enabled == true,
                 mutedExamCourseIds = examRule?.mutedCourseIds.orEmpty().toSet(),
-                onDismiss = { detailCourses = emptyList() },
+                targetDate = request.targetDate,
+                isTemporarilyCancelled = { c ->
+                    matchingTemporaryCancelRule(c, request.targetDate, temporaryScheduleOverrides) != null
+                },
+                onTemporaryCancel = { c ->
+                    onUpsertTemporaryScheduleOverride(
+                        TemporaryScheduleOverride(
+                            id = UUID.randomUUID().toString(),
+                            type = TemporaryScheduleOverrideType.CancelCourse,
+                            targetDate = request.targetDate.toString(),
+                            cancelStartNode = c.time.startNode,
+                            cancelEndNode = c.time.endNode,
+                            cancelCourseId = c.id,
+                        ),
+                    )
+                    detailRequest = null
+                },
+                onRestoreTemporaryCancel = { c ->
+                    matchingTemporaryCancelRule(c, request.targetDate, temporaryScheduleOverrides)?.let {
+                        onRemoveTemporaryScheduleOverride(it.id)
+                    }
+                    detailRequest = null
+                },
+                onDismiss = { detailRequest = null },
                 onSetReminder = { c ->
                     pendingReminderCourse = c
-                    detailCourses = emptyList()
+                    detailRequest = null
                 },
                 onMuteExamReminder = { c -> onMuteExamReminder(c.id) },
                 onRestoreExamReminder = { c -> onRestoreExamReminder(c.id) },
                 onDelete = { c ->
                     onRemoveManualCourse(c.id)
-                    detailCourses = detailCourses.filterNot { it.id == c.id }
+                    val remaining = request.courses.filterNot { it.id == c.id }
+                    detailRequest = remaining.takeIf { it.isNotEmpty() }?.let {
+                        request.copy(courses = it)
+                    }
                 },
             )
         }
@@ -791,7 +828,7 @@ private fun WeeklyScheduleSection(
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
-    onCellClick: (List<CourseItem>) -> Unit,
+    onCellClick: (List<CourseItem>, LocalDate) -> Unit,
     onCourseLongClick: (String) -> Unit,
     onWeekOffsetChange: (Int) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
@@ -963,7 +1000,7 @@ private fun DailyScheduleSection(
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
     dayOffset: Int,
-    onCellClick: (List<CourseItem>) -> Unit,
+    onCellClick: (List<CourseItem>, LocalDate) -> Unit,
     onCourseLongClick: (String) -> Unit,
     onPrevDay: () -> Unit,
     onNextDay: () -> Unit,
@@ -1022,11 +1059,12 @@ private fun DailyScheduleSection(
                 val active = allCourses
                     .filter { it.time.dayOfWeek == targetDayOfWeek }
                     .filter { it.isActiveInWeek(sourceWeekNumber) }
-                    .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
                     .sortedBy { it.time.startNode }
                 DayList(
                     slots = slots,
                     courses = active,
+                    targetDate = targetDate,
+                    temporaryScheduleOverrides = temporaryScheduleOverrides,
                     uiSchema = uiSchema,
                     reminderRules = reminderRules,
                     selectedCourseId = selectedCourseId,
@@ -1103,12 +1141,14 @@ private fun DailyHeaderRow(
 private fun DayList(
     slots: List<DisplaySlot>,
     courses: List<CourseItem>,
+    targetDate: LocalDate,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
-    onCellClick: (List<CourseItem>) -> Unit,
+    onCellClick: (List<CourseItem>, LocalDate) -> Unit,
     onCourseLongClick: (String) -> Unit,
     onPrevDay: () -> Unit,
     onNextDay: () -> Unit,
@@ -1149,6 +1189,8 @@ private fun DayList(
             DayRow(
                 slot = slot,
                 courses = starting,
+                targetDate = targetDate,
+                temporaryScheduleOverrides = temporaryScheduleOverrides,
                 uiSchema = uiSchema,
                 reminderRules = reminderRules,
                 selectedCourseId = selectedCourseId,
@@ -1178,12 +1220,14 @@ private fun DayList(
 private fun DayRow(
     slot: DisplaySlot,
     courses: List<CourseItem>,
+    targetDate: LocalDate,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.kebiao.viewer.core.reminder.model.ReminderRule>,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
-    onCellClick: (List<CourseItem>) -> Unit,
+    onCellClick: (List<CourseItem>, LocalDate) -> Unit,
     onCourseLongClick: (String) -> Unit,
 ) {
     val accents = com.kebiao.viewer.feature.schedule.theme.LocalScheduleAccents.current
@@ -1222,6 +1266,11 @@ private fun DayRow(
             courses.forEach { course ->
                 val palette = courseColor(course.title, accents.coursePalette)
                 val isExam = course.category == CourseCategory.Exam
+                val temporarilyCancelled = isCourseTemporarilyCancelled(
+                    date = targetDate,
+                    course = course,
+                    overrides = temporaryScheduleOverrides,
+                )
                 val containerColor = if (isExam) MaterialTheme.colorScheme.errorContainer else palette.container
                 val onColor = if (isExam) MaterialTheme.colorScheme.onErrorContainer else palette.onContainer
                 val isSelected = course.id == selectedCourseId
@@ -1247,8 +1296,28 @@ private fun DayRow(
                             ),
                             RoundedCornerShape(10.dp),
                         )
+                        .drawWithContent {
+                            drawContent()
+                            if (temporarilyCancelled) {
+                                val strokeWidth = 2.dp.toPx()
+                                drawLine(
+                                    color = onColor.copy(alpha = 0.78f),
+                                    start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                                    end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+                                    strokeWidth = strokeWidth,
+                                    cap = StrokeCap.Round,
+                                )
+                                drawLine(
+                                    color = onColor.copy(alpha = 0.78f),
+                                    start = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                                    end = androidx.compose.ui.geometry.Offset(0f, size.height),
+                                    strokeWidth = strokeWidth,
+                                    cap = StrokeCap.Round,
+                                )
+                            }
+                        }
                         .combinedClickable(
-                            onClick = { onCellClick(listOf(course)) },
+                            onClick = { onCellClick(listOf(course), targetDate) },
                             onLongClick = { onCourseLongClick(course.id) },
                         ),
                 ) {
@@ -1487,7 +1556,7 @@ private fun ScheduleGrid(
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
-    onCellClick: (List<CourseItem>) -> Unit,
+    onCellClick: (List<CourseItem>, LocalDate) -> Unit,
     onCourseLongClick: (String) -> Unit,
     currentWeekIndex: Int = 1,
     onAddManualCourse: (CourseItem) -> Unit = {},
@@ -1618,6 +1687,7 @@ private fun ScheduleGrid(
                                 hasReminder = hasReminderForCourse(course, reminderRules),
                                 selected = course.id == selectedCourseId,
                                 inactive = mainEntry.inactive,
+                                temporarilyCancelled = mainEntry.temporarilyCancelled,
                                 cellCount = count,
                                 multiSelectMode = multiSelectMode,
                                 multiSelected = isMultiSelected,
@@ -1625,7 +1695,12 @@ private fun ScheduleGrid(
                                 height = courseHeight,
                                 offsetX = dayColumnWidth * placement.dayIndex + 1.5.dp,
                                 offsetY = slotHeight * placement.rowIndex + 1.5.dp,
-                                onClick = { onCellClick(sortedCourses) },
+                                onClick = {
+                                    onCellClick(
+                                        sortedCourses,
+                                        week.weekStart.plusDays(placement.dayIndex.toLong()),
+                                    )
+                                },
                                 onLongClick = { onCourseLongClick(course.id) },
                             )
                         }
@@ -1843,6 +1918,7 @@ private fun CourseBlock(
     hasReminder: Boolean,
     selected: Boolean,
     inactive: Boolean,
+    temporarilyCancelled: Boolean,
     cellCount: Int,
     multiSelectMode: Boolean,
     multiSelected: Boolean,
@@ -1891,6 +1967,26 @@ private fun CourseBlock(
                 .clip(RoundedCornerShape(8.dp))
                 .background(containerColor)
                 .border(BorderStroke(borderWidth, borderColor), RoundedCornerShape(8.dp))
+                .drawWithContent {
+                    drawContent()
+                    if (temporarilyCancelled) {
+                        val strokeWidth = 2.dp.toPx()
+                        drawLine(
+                            color = onColor.copy(alpha = 0.78f),
+                            start = androidx.compose.ui.geometry.Offset(0f, 0f),
+                            end = androidx.compose.ui.geometry.Offset(size.width, size.height),
+                            strokeWidth = strokeWidth,
+                            cap = StrokeCap.Round,
+                        )
+                        drawLine(
+                            color = onColor.copy(alpha = 0.78f),
+                            start = androidx.compose.ui.geometry.Offset(size.width, 0f),
+                            end = androidx.compose.ui.geometry.Offset(0f, size.height),
+                            strokeWidth = strokeWidth,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                }
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
@@ -3308,7 +3404,21 @@ internal data class CourseRenderEntry(
     val course: CourseItem,
     val placement: CoursePlacement,
     val inactive: Boolean,
+    val temporarilyCancelled: Boolean = false,
 )
+
+private data class CourseDetailRequest(
+    val courses: List<CourseItem>,
+    val targetDate: LocalDate,
+)
+
+private fun matchingTemporaryCancelRule(
+    course: CourseItem,
+    targetDate: LocalDate,
+    overrides: List<TemporaryScheduleOverride>,
+): TemporaryScheduleOverride? {
+    return overrides.asReversed().firstOrNull { it.cancelsCourseOn(targetDate, course) }
+}
 
 @Composable
 private fun MultiSelectActionBar(
@@ -3549,7 +3659,12 @@ internal fun buildWeekRenderEntries(
     termStart: LocalDate? = null,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
 ): List<CourseRenderEntry> {
-    data class Resolved(val course: CourseItem, val placement: CoursePlacement, val sourceWeekIndex: Int)
+    data class Resolved(
+        val course: CourseItem,
+        val placement: CoursePlacement,
+        val sourceWeekIndex: Int,
+        val temporarilyCancelled: Boolean,
+    )
 
     val resolved = if (weekStart != null && temporaryScheduleOverrides.isNotEmpty()) {
         (0..6).flatMap { dayIndex ->
@@ -3564,10 +3679,18 @@ internal fun buildWeekRenderEntries(
             }
             source
                 .filter { it.time.dayOfWeek == sourceDayOfWeek }
-                .filterNot { isCourseTemporarilyCancelled(actualDate, it, temporaryScheduleOverrides) }
                 .mapNotNull { course ->
                     val placement = coursePlacement(course, slots, dayIndex) ?: return@mapNotNull null
-                    Resolved(course, placement, sourceWeekIndex)
+                    Resolved(
+                        course = course,
+                        placement = placement,
+                        sourceWeekIndex = sourceWeekIndex,
+                        temporarilyCancelled = isCourseTemporarilyCancelled(
+                            date = actualDate,
+                            course = course,
+                            overrides = temporaryScheduleOverrides,
+                        ),
+                    )
                 }
         }
     } else {
@@ -3579,7 +3702,12 @@ internal fun buildWeekRenderEntries(
         source
             .mapNotNull { course ->
                 val placement = coursePlacement(course, slots) ?: return@mapNotNull null
-                Resolved(course, placement, weekIndex)
+                Resolved(
+                    course = course,
+                    placement = placement,
+                    sourceWeekIndex = weekIndex,
+                    temporarilyCancelled = false,
+                )
             }
     }
     val grouped = resolved.groupBy { it.placement.dayIndex to it.placement.rowIndex }
@@ -3600,6 +3728,7 @@ internal fun buildWeekRenderEntries(
                     course = it.course,
                     placement = it.placement,
                     inactive = !it.course.isActiveInWeek(it.sourceWeekIndex),
+                    temporarilyCancelled = it.temporarilyCancelled,
                 )
         }
     }
