@@ -8,6 +8,7 @@ import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TermTimingProfile
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverrideType
 import com.kebiao.viewer.core.reminder.model.FirstCourseCandidateScope
 import com.kebiao.viewer.core.reminder.model.ReminderAction
 import com.kebiao.viewer.core.reminder.model.ReminderActionType
@@ -224,6 +225,59 @@ class ReminderPlannerTest {
 
         assertEquals(1, plans.size)
         assertEquals(true, plans.single().message.startsWith("2月28日"))
+    }
+
+    @Test
+    fun temporaryCancelSuppressesMatchingCourseReminder() {
+        val schedule = TermSchedule(
+            termId = "2026-spring",
+            updatedAt = "2026-04-27T08:00:00+08:00",
+            dailySchedules = listOf(
+                DailySchedule(
+                    dayOfWeek = 1,
+                    courses = listOf(
+                        CourseItem(
+                            id = "math",
+                            title = "高等数学",
+                            weeks = listOf(1),
+                            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val profile = TermTimingProfile(
+            termStartDate = "2026-02-23",
+            slotTimes = listOf(ClassSlotTime(1, 2, "08:00", "09:35")),
+        )
+        val rule = ReminderRule(
+            ruleId = "r1",
+            pluginId = "demo",
+            scopeType = ReminderScopeType.SingleCourse,
+            courseId = "math",
+            advanceMinutes = 15,
+            createdAt = "2026-02-23T00:00:00+08:00",
+            updatedAt = "2026-02-23T00:00:00+08:00",
+        )
+
+        val plans = planner.expandRule(
+            rule = rule,
+            schedule = schedule,
+            timingProfile = profile,
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+            temporaryScheduleOverrides = listOf(
+                TemporaryScheduleOverride(
+                    id = "cancel",
+                    type = TemporaryScheduleOverrideType.CancelCourse,
+                    targetDate = "2026-02-23",
+                    cancelStartNode = 1,
+                    cancelEndNode = 2,
+                    cancelCourseId = "math",
+                ),
+            ),
+        )
+
+        assertEquals(0, plans.size)
     }
 
     @Test
