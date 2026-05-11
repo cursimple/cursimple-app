@@ -5,6 +5,7 @@ import com.kebiao.viewer.core.kernel.model.CourseTimeSlot
 import com.kebiao.viewer.core.kernel.model.DailySchedule
 import com.kebiao.viewer.core.kernel.model.TermSchedule
 import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverride
+import com.kebiao.viewer.core.kernel.model.TemporaryScheduleOverrideType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
@@ -217,6 +218,34 @@ class ScheduleValidationTest {
 
         assertTrue(entries.any { it.course.id == "source-week" && it.placement.dayIndex == 2 && !it.inactive })
         assertFalse(entries.any { it.course.id == "target-week" && it.placement.dayIndex == 2 })
+    }
+
+    @Test
+    fun `temporary cancelled course remains rendered with cancelled flag`() {
+        val math = course(id = "math", weeks = listOf(4)).copy(
+            time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
+        )
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(math),
+            slots = listOf(testSlot()),
+            weekIndex = 4,
+            weekStart = LocalDate.of(2026, 5, 4),
+            temporaryScheduleOverrides = listOf(
+                TemporaryScheduleOverride(
+                    id = "cancel",
+                    type = TemporaryScheduleOverrideType.CancelCourse,
+                    targetDate = "2026-05-06",
+                    cancelStartNode = 1,
+                    cancelEndNode = 2,
+                    cancelCourseId = "math",
+                ),
+            ),
+        )
+
+        assertEquals(listOf("math"), entries.map { it.course.id })
+        assertEquals(2, entries.single().placement.dayIndex)
+        assertTrue(entries.single().temporarilyCancelled)
     }
 
     private fun testSlot(): DisplaySlot = DisplaySlot(
