@@ -24,8 +24,8 @@ class UserPreferencesTest {
         assertEquals(false, prefs.scheduleTextStyle.todayHeaderBackgroundColorCustomized)
         assertEquals(10, prefs.scheduleCardStyle.courseCornerRadiusDp)
         assertEquals(100, prefs.scheduleCardStyle.courseCardHeightDp)
-        assertEquals(100, prefs.scheduleCardStyle.scheduleOpacityPercent)
-        assertEquals(100, prefs.scheduleCardStyle.inactiveCourseOpacityPercent)
+        assertEquals(0, prefs.scheduleCardStyle.scheduleOpacityPercent)
+        assertEquals(50, prefs.scheduleCardStyle.inactiveCourseOpacityPercent)
         assertEquals(100, prefs.scheduleCardStyle.gridBorderOpacityPercent)
         assertEquals(ScheduleBackgroundType.Color, prefs.scheduleBackground.type)
         assertEquals(0xFFFFFFFFL, prefs.scheduleBackground.colorArgb)
@@ -51,6 +51,7 @@ class UserPreferencesTest {
         assertTrue(display.weekendVisible)
         assertTrue(display.locationVisible)
         assertTrue(display.locationPrefixAtEnabled)
+        assertTrue(display.teacherVisible)
         assertTrue(display.totalScheduleDisplayEnabled)
     }
 

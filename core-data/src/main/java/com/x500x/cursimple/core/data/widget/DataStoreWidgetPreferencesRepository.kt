@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.data.widget
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -49,6 +50,7 @@ class DataStoreWidgetPreferencesRepository(
                 ?.let { runCatching { WidgetBackgroundMode.valueOf(it) }.getOrNull() }
                 ?: WidgetBackgroundMode.Theme,
             backgroundImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]?.takeIf(String::isNotBlank),
+            openAppOnDoubleClickEnabled = preferences[KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK] ?: false,
         )
     }
 
@@ -152,6 +154,24 @@ class DataStoreWidgetPreferencesRepository(
         releasePersistedReadPermission(previousImageUri)
     }
 
+    override suspend fun setWidgetOpenAppOnDoubleClickEnabled(enabled: Boolean) {
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK] = enabled
+        }
+    }
+
+    override suspend fun resetWidgetThemePreferences() {
+        var previousImageUri: String? = null
+        store.edit { preferences ->
+            previousImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]
+            preferences.remove(KEY_WIDGET_THEME_ACCENT)
+            preferences.remove(KEY_WIDGET_BACKGROUND_MODE)
+            preferences.remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
+            preferences.remove(KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK)
+        }
+        releasePersistedReadPermission(previousImageUri)
+    }
+
     private fun releasePersistedReadPermission(uriString: String?) {
         if (uriString.isNullOrBlank()) return
         runCatching {
@@ -169,6 +189,7 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_THEME_ACCENT = stringPreferencesKey("widget_theme_accent")
         val KEY_WIDGET_BACKGROUND_MODE = stringPreferencesKey("widget_background_mode")
         val KEY_WIDGET_BACKGROUND_IMAGE_URI = stringPreferencesKey("widget_background_image_uri")
+        val KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK = booleanPreferencesKey("widget_open_app_on_double_click")
         const val MIN_OFFSET = -3650
         const val MAX_OFFSET = 3650
 

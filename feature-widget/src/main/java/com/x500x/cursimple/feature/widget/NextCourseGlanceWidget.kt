@@ -72,6 +72,7 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_next_course)
             views.applyWidgetBackground(context, R.id.next_course_root, data.widgetTheme)
+            views.applyOpenAppOnDoubleClick(context, R.id.next_course_root, appWidgetId, data.widgetTheme)
             views.setTextViewText(R.id.next_course_title, data.headerLabel)
             if (data.badgeText != null) {
                 views.setViewVisibility(R.id.next_course_badge, View.VISIBLE)

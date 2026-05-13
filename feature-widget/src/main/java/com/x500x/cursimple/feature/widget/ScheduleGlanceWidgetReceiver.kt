@@ -100,6 +100,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_schedule_today)
 
             views.applyWidgetBackground(context, R.id.widget_root, dayData.widgetTheme)
+            views.applyOpenAppOnDoubleClick(context, R.id.widget_root, appWidgetId, dayData.widgetTheme)
 
             views.setTextViewText(
                 R.id.widget_title,

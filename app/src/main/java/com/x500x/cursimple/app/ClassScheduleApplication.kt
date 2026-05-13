@@ -70,5 +70,15 @@ class ClassScheduleApplication : Application() {
                     appContainer.refreshWidgets()
                 }
         }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            appContainer.widgetPreferencesRepository.themePreferencesFlow
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    appContainer.refreshWidgets()
+                }
+        }
     }
 }
