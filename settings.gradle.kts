@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Class-Schedule-Viewer"
+rootProject.name = "CurSimple"
 
 include(
     ":app",

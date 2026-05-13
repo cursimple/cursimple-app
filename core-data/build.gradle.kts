@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kebiao.viewer.core.data"
+    namespace = "com.x500x.cursimple.core.data"
     compileSdk = 36
 
     defaultConfig {

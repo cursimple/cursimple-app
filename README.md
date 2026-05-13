@@ -1,6 +1,6 @@
-# 课表查看（Class Schedule Viewer）
+# 课简（CurSimple）
 
-一个基于 Kotlin 的 Android 课表查看应用，采用微内核架构，支持：
+一个基于 Kotlin 的 Android 课表应用「课简」，采用微内核架构，支持：
 
 - Android 7.0（API 24）到 Android 16（targetSdk 36）
 - `armeabi-v7a`、`arm64-v8a`、`universal` 多 ABI 构建
@@ -62,7 +62,7 @@ CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
 ./gradlew assembleDebug
 ```
 
-Debug/CI 包的 `applicationId` 是 `com.kebiao.viewer.ci`，可与 Release 包 `com.kebiao.viewer` 共存安装；两者仍使用同一套签名材料。
+Debug/CI 包的 `applicationId` 是 `com.x500x.cursimple.ci`，可与 Release 包 `com.x500x.cursimple` 共存安装；两者仍使用同一套签名材料。
 
 ### 4) 构建 Release（含 v7a/v8a/universal）
 
@@ -158,7 +158,7 @@ function Set-GhSecretValue {
         [string]$Value
     )
 
-    gh secret set $Name --repo x500x/ClassScheduleViewer --body $Value
+    gh secret set $Name --repo cursimple/cursimple-app --body $Value
 }
 
 Set-GhSecretValue -Name 'CLASS_VIEWER_KEYSTORE_BASE64' -Value ([Convert]::ToBase64String([IO.File]::ReadAllBytes($props.CLASS_VIEWER_KEYSTORE_FILE)))

@@ -1,6 +1,6 @@
 # JS 插件系统说明（当前实现）
 
-本文档描述 `Class Schedule Viewer` 里“插件”这件事在当前代码里的真实设计，目标读者是要理解、维护、编写插件的人，而不是只想看一句协议摘要的人。
+本文档描述 `CurSimple` 里“插件”这件事在当前代码里的真实设计，目标读者是要理解、维护、编写插件的人，而不是只想看一句协议摘要的人。
 
 ## 1. 先说结论
 
@@ -349,7 +349,7 @@ function normalize(raw) { ... }
   "method": "GET",
   "url": "https://example.edu/api/schedule",
   "headers": {
-    "User-Agent": "ClassScheduleViewer"
+    "User-Agent": "CurSimple"
   },
   "body": null,
   "contentType": null,

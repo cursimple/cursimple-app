@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.ClassScheduleViewer" parent="@android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.CurSimple" parent="@android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowContentOverlay">@null</item>
@@ -9,7 +9,7 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
-    <style name="Theme.ClassScheduleViewer.AlarmRinging" parent="@android:style/Theme.Material.NoActionBar">
+    <style name="Theme.CurSimple.AlarmRinging" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
