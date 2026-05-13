@@ -34,7 +34,7 @@ class ReminderPlanner {
         customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
     ): List<ReminderPlan> {
         if (rule.scopeType == ReminderScopeType.FirstCourseOfPeriod) {
-            val zone = ZoneId.of(timingProfile.timezone)
+            val zone = ZoneId.systemDefault()
             return firstCourseEvaluator.expand(
                 rule = rule,
                 schedule = schedule,
@@ -81,7 +81,7 @@ class ReminderPlanner {
     ): List<ReminderPlan> {
         val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: return emptyList()
         val termStart = timingProfile.termStartLocalDate()
-        val zone = ZoneId.of(timingProfile.timezone)
+        val zone = ZoneId.systemDefault()
         return courseOccurrenceDates(
             course = course,
             termStart = termStart,

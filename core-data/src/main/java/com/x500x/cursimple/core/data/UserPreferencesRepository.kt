@@ -19,6 +19,9 @@ data class ScheduleTextStylePreferences(
     val examTextColorArgb: Long = DEFAULT_TEXT_COLOR_ARGB,
     val headerTextSizeSp: Int = DEFAULT_HEADER_TEXT_SIZE_SP,
     val headerTextColorArgb: Long = DEFAULT_HEADER_TEXT_COLOR_ARGB,
+    val headerTextColorCustomized: Boolean = false,
+    val todayHeaderBackgroundColorArgb: Long = DEFAULT_TODAY_HEADER_BACKGROUND_COLOR_ARGB,
+    val todayHeaderBackgroundColorCustomized: Boolean = false,
     val horizontalCenter: Boolean = false,
     val verticalCenter: Boolean = false,
     val fullCenter: Boolean = false,
@@ -28,7 +31,10 @@ data class ScheduleTextStylePreferences(
         const val DEFAULT_EXAM_TEXT_SIZE_SP = 13
         const val DEFAULT_HEADER_TEXT_SIZE_SP = 12
         const val DEFAULT_TEXT_COLOR_ARGB = 0xFFFFFFFFL
-        const val DEFAULT_HEADER_TEXT_COLOR_ARGB = 0xFF263238L
+        const val DEFAULT_HEADER_TEXT_COLOR_ARGB = 0xFF000000L
+        const val DEFAULT_DARK_HEADER_TEXT_COLOR_ARGB = 0xFFFFFFFFL
+        const val DEFAULT_TODAY_HEADER_BACKGROUND_COLOR_ARGB = 0xFF000000L
+        const val DEFAULT_DARK_TODAY_HEADER_BACKGROUND_COLOR_ARGB = 0xFFFFFFFFL
         const val MIN_TEXT_SIZE_SP = 8
         const val MAX_TEXT_SIZE_SP = 32
 
@@ -51,9 +57,9 @@ data class ScheduleCardStylePreferences(
         const val DEFAULT_COURSE_CORNER_RADIUS_DP = 10
         const val DEFAULT_COURSE_CARD_HEIGHT_DP = 100
         const val DEFAULT_SCHEDULE_OPACITY_PERCENT = 100
-        const val DEFAULT_INACTIVE_COURSE_OPACITY_PERCENT = 45
+        const val DEFAULT_INACTIVE_COURSE_OPACITY_PERCENT = 100
         const val DEFAULT_GRID_BORDER_COLOR_ARGB = 0xFFCFD8DCL
-        const val DEFAULT_GRID_BORDER_OPACITY_PERCENT = 45
+        const val DEFAULT_GRID_BORDER_OPACITY_PERCENT = 100
         const val DEFAULT_GRID_BORDER_WIDTH_DP = 0.5f
         const val MIN_CORNER_RADIUS_DP = 0
         const val MAX_CORNER_RADIUS_DP = 32
@@ -130,6 +136,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleExamTextColorArgb(argb: Long)
     suspend fun setScheduleHeaderTextSizeSp(sizeSp: Int)
     suspend fun setScheduleHeaderTextColorArgb(argb: Long)
+    suspend fun setScheduleTodayHeaderBackgroundColorArgb(argb: Long)
     suspend fun setScheduleTextHorizontalCenter(enabled: Boolean)
     suspend fun setScheduleTextVerticalCenter(enabled: Boolean)
     suspend fun setScheduleTextFullCenter(enabled: Boolean)

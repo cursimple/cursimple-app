@@ -304,8 +304,8 @@ class AppContainer(
             runCatching { LocalDate.parse(value) }.getOrNull()
     }
 
-    private fun shouldSyncNextDayAfterAlarm(timingProfile: TermTimingProfile, nowMillis: Long): Boolean {
-        val zone = ZoneId.of(timingProfile.timezone)
+    private fun shouldSyncNextDayAfterAlarm(_timingProfile: TermTimingProfile, nowMillis: Long): Boolean {
+        val zone = ZoneId.systemDefault()
         val localTime = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalTime()
         return !localTime.isBefore(NEXT_DAY_SYNC_START_TIME)
     }

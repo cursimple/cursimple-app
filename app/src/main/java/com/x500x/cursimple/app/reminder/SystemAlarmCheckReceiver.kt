@@ -70,7 +70,7 @@ object SystemAlarmCheckScheduler {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ) {
-        val zone = ZoneId.of(timingProfile.timezone)
+        val zone = ZoneId.systemDefault()
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDateTime()
         var target = LocalDateTime.of(now.toLocalDate(), DAILY_CHECK_TIME)
         if (!target.isAfter(now)) {
@@ -90,7 +90,7 @@ object SystemAlarmCheckScheduler {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ) {
-        val zone = ZoneId.of(timingProfile.timezone)
+        val zone = ZoneId.systemDefault()
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
         val slotEndTimes = timingProfile.slotTimes
             .mapNotNull { runCatching { it.endLocalTime() }.getOrNull() }

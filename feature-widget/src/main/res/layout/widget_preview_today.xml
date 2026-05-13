@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?android:colorBackground"
+    android:background="@drawable/widget_bg_card"
     android:orientation="vertical"
     android:padding="14dp">
 
@@ -16,7 +16,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="‹"
-            android:textColor="?android:textColorPrimary"
+            android:textColor="#20242A"
             android:textSize="22sp" />
 
         <TextView
@@ -25,7 +25,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="每日课程"
-            android:textColor="?android:textColorPrimary"
+            android:textColor="#20242A"
             android:textSize="16sp"
             android:textStyle="bold" />
 
@@ -33,7 +33,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="›"
-            android:textColor="?android:textColorPrimary"
+            android:textColor="#20242A"
             android:textSize="22sp" />
     </LinearLayout>
 
@@ -42,7 +42,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:text="08:00–09:35  算法与数据结构"
-        android:textColor="?android:textColorPrimary"
+        android:textColor="#20242A"
         android:textSize="12sp" />
 
     <TextView
@@ -50,7 +50,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:text="10:05–11:40  毛泽东思想…"
-        android:textColor="?android:textColorSecondary"
+        android:textColor="#66707F"
         android:textSize="12sp" />
 
     <TextView
@@ -58,6 +58,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:text="14:00–15:35  电子技术基础"
-        android:textColor="?android:textColorSecondary"
+        android:textColor="#66707F"
         android:textSize="12sp" />
 </LinearLayout>

@@ -117,6 +117,13 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_HEADER_TEXT_COLOR_ARGB] = ScheduleTextStylePreferences.coerceArgb(argb) }
     }
 
+    override suspend fun setScheduleTodayHeaderBackgroundColorArgb(argb: Long) {
+        store.edit { prefs ->
+            prefs[KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB] =
+                ScheduleTextStylePreferences.coerceArgb(argb)
+        }
+    }
+
     override suspend fun setScheduleTextHorizontalCenter(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER] = enabled }
     }
@@ -367,6 +374,13 @@ class DataStoreUserPreferencesRepository(
             headerTextColorArgb = ScheduleTextStylePreferences.coerceArgb(
                 this[KEY_SCHEDULE_HEADER_TEXT_COLOR_ARGB] ?: ScheduleTextStylePreferences.DEFAULT_HEADER_TEXT_COLOR_ARGB,
             ),
+            headerTextColorCustomized = this.contains(KEY_SCHEDULE_HEADER_TEXT_COLOR_ARGB),
+            todayHeaderBackgroundColorArgb = ScheduleTextStylePreferences.coerceArgb(
+                this[KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB]
+                    ?: ScheduleTextStylePreferences.DEFAULT_TODAY_HEADER_BACKGROUND_COLOR_ARGB,
+            ),
+            todayHeaderBackgroundColorCustomized =
+                this.contains(KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB),
             horizontalCenter = this[KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER] ?: false,
             verticalCenter = this[KEY_SCHEDULE_TEXT_VERTICAL_CENTER] ?: false,
             fullCenter = this[KEY_SCHEDULE_TEXT_FULL_CENTER] ?: false,
@@ -448,6 +462,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_EXAM_TEXT_COLOR_ARGB = longPreferencesKey("schedule_exam_text_color_argb")
         val KEY_SCHEDULE_HEADER_TEXT_SIZE_SP = intPreferencesKey("schedule_header_text_size_sp")
         val KEY_SCHEDULE_HEADER_TEXT_COLOR_ARGB = longPreferencesKey("schedule_header_text_color_argb")
+        val KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB =
+            longPreferencesKey("schedule_today_header_background_color_argb")
         val KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER = booleanPreferencesKey("schedule_text_horizontal_center")
         val KEY_SCHEDULE_TEXT_VERTICAL_CENTER = booleanPreferencesKey("schedule_text_vertical_center")
         val KEY_SCHEDULE_TEXT_FULL_CENTER = booleanPreferencesKey("schedule_text_full_center")

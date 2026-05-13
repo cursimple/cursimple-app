@@ -65,6 +65,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleHeaderTextColorArgb(argb) }
     }
 
+    fun setScheduleTodayHeaderBackgroundColorArgb(argb: Long) {
+        viewModelScope.launch { repository.setScheduleTodayHeaderBackgroundColorArgb(argb) }
+    }
+
     fun setScheduleTextHorizontalCenter(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleTextHorizontalCenter(enabled) }
     }

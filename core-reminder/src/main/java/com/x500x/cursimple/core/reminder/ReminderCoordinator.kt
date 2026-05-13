@@ -446,8 +446,8 @@ class ReminderCoordinator(
             dismissFailedCount = expiredAppDismissal.failedCount,
         )
         val settings = alarmSettingsProvider()
-        val zone = ZoneId.of(profile.timezone)
-        val systemClockZone = ZoneId.systemDefault()
+        val zone = ZoneId.systemDefault()
+        val systemClockZone = zone
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
         val customOccupancies = repository.getCustomOccupancies(pluginId)
         cleanupExpiredExamMutes(
@@ -896,7 +896,7 @@ object ReminderSyncWindows {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ): ReminderSyncWindow {
-        val zone = ZoneId.of(timingProfile.timezone)
+        val zone = ZoneId.systemDefault()
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
         return ReminderSyncWindow(
             startMillis = nowMillis,
@@ -908,7 +908,7 @@ object ReminderSyncWindows {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ): ReminderSyncWindow {
-        val zone = ZoneId.of(timingProfile.timezone)
+        val zone = ZoneId.systemDefault()
         val nextDay = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate().plusDays(1)
         return ReminderSyncWindow(
             startMillis = nextDay.atStartOfDay(zone).toInstant().toEpochMilli(),

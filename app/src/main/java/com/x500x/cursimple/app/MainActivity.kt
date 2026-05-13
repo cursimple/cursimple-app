@@ -633,6 +633,8 @@ class MainActivity : ComponentActivity() {
                                         onScheduleExamTextColorArgbChange = prefsViewModel::setScheduleExamTextColorArgb,
                                         onScheduleHeaderTextSizeSpChange = prefsViewModel::setScheduleHeaderTextSizeSp,
                                         onScheduleHeaderTextColorArgbChange = prefsViewModel::setScheduleHeaderTextColorArgb,
+                                        onScheduleTodayHeaderBackgroundColorArgbChange =
+                                            prefsViewModel::setScheduleTodayHeaderBackgroundColorArgb,
                                         onScheduleTextHorizontalCenterChange = prefsViewModel::setScheduleTextHorizontalCenter,
                                         onScheduleTextVerticalCenterChange = prefsViewModel::setScheduleTextVerticalCenter,
                                         onScheduleTextFullCenterChange = prefsViewModel::setScheduleTextFullCenter,
