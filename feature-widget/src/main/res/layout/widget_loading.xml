@@ -2,7 +2,7 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?android:colorBackground"
+    android:background="@drawable/widget_bg_card"
     android:padding="12dp">
 
     <TextView
@@ -12,5 +12,5 @@
         android:text="课简"
         android:textSize="14sp"
         android:textStyle="bold"
-        android:textColor="?android:textColorPrimary" />
+        android:textColor="#20242A" />
 </FrameLayout>

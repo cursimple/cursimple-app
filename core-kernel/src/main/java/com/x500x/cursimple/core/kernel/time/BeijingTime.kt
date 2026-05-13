@@ -8,8 +8,8 @@ import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicReference
 
 object BeijingTime {
-    const val DEFAULT_ZONE_ID: String = "Asia/Shanghai"
-    val zone: ZoneId = ZoneId.of(DEFAULT_ZONE_ID)
+    val zone: ZoneId
+        get() = ZoneId.systemDefault()
 
     private val forcedDateTime = AtomicReference<LocalDateTime?>(null)
 
@@ -26,20 +26,26 @@ object BeijingTime {
 
     fun forcedToday(): LocalDate? = forcedDateTime.get()?.toLocalDate()
 
-    fun today(): LocalDate = forcedDateTime.get()?.toLocalDate() ?: LocalDate.now(zone)
+    fun today(): LocalDate = forcedDateTime.get()?.toLocalDate() ?: LocalDate.now()
 
-    fun today(zone: ZoneId): LocalDate = forcedDateTime.get()?.toLocalDate() ?: LocalDate.now(zone)
+    @Suppress("UNUSED_PARAMETER")
+    fun today(zone: ZoneId): LocalDate = today()
 
-    fun todayIn(zone: ZoneId): LocalDate = forcedDateTime.get()?.toLocalDate() ?: LocalDate.now(zone)
+    @Suppress("UNUSED_PARAMETER")
+    fun todayIn(zone: ZoneId): LocalDate = today()
 
-    fun nowTimeIn(zone: ZoneId): LocalTime = forcedDateTime.get()?.toLocalTime() ?: LocalTime.now(zone)
+    @Suppress("UNUSED_PARAMETER")
+    fun nowTimeIn(zone: ZoneId): LocalTime = forcedDateTime.get()?.toLocalTime() ?: LocalTime.now()
 
-    fun nowDateTimeIn(zone: ZoneId): LocalDateTime = forcedDateTime.get() ?: LocalDateTime.now(zone)
+    @Suppress("UNUSED_PARAMETER")
+    fun nowDateTimeIn(zone: ZoneId): LocalDateTime = forcedDateTime.get() ?: LocalDateTime.now()
 
+    @Suppress("UNUSED_PARAMETER")
     fun nowMillis(zone: ZoneId): Long {
         val forced = forcedDateTime.get() ?: return System.currentTimeMillis()
-        return forced.atZone(zone).toInstant().toEpochMilli()
+        return forced.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
     }
 
-    fun dayOfWeek(zone: ZoneId = BeijingTime.zone): DayOfWeek = todayIn(zone).dayOfWeek
+    @Suppress("UNUSED_PARAMETER")
+    fun dayOfWeek(zone: ZoneId = BeijingTime.zone): DayOfWeek = today().dayOfWeek
 }

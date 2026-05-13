@@ -65,7 +65,7 @@ object ScheduleMetadataExporter {
         return JSONObject()
             .put("exportedAt", timestamp)
             .putNullable("termStartDate", snapshot.termStartDate?.toString())
-            .put("timeZone", "Asia/Shanghai")
+            .put("timeZone", JSONObject.NULL)
             .put("currentWeekIndex", snapshot.currentWeekIndex)
             .put("displayedWeekIndex", snapshot.displayedWeekIndex)
             .put("isSyncing", snapshot.isSyncing)
@@ -130,7 +130,7 @@ private fun CourseTimeSlot.toJson(): JSONObject {
 
 private fun TermTimingProfile.toJson(): JSONObject {
     return JSONObject()
-        .put("timezone", timezone)
+        .put("timezone", JSONObject.NULL)
         .put("slotTimes", JSONArray().also { array ->
             slotTimes.forEach { slot ->
                 array.put(

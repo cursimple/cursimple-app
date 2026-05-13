@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -1721,6 +1722,7 @@ private fun ScheduleGrid(
                             slot = slot,
                             height = slotHeight,
                             showTime = scheduleDisplay.nodeColumnTimeEnabled,
+                            scheduleTextStyle = scheduleTextStyle,
                         )
                     }
                 }
@@ -1903,8 +1905,10 @@ private fun DayHeader(
     width: androidx.compose.ui.unit.Dp,
     scheduleTextStyle: ScheduleTextStylePreferences,
 ) {
-    val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
-    val headerColor = colorFromArgb(scheduleTextStyle.headerTextColorArgb)
+    val darkTheme = isDarkColorScheme()
+    val headerColor = scheduleTextStyle.resolvedHeaderTextColor(darkTheme)
+    val todayContainer = scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme)
+    val todayContent = readableContentColor(todayContainer)
     val headerSize = scheduleTextStyle.headerTextSizeSp.sp
     val columnModifier = Modifier
         .width(width)
@@ -1912,7 +1916,7 @@ private fun DayHeader(
         .let {
             if (day.isToday) {
                 it.clip(RoundedCornerShape(10.dp))
-                    .background(accents.todayContainer)
+                    .background(todayContainer)
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             } else {
                 it
@@ -1927,7 +1931,7 @@ private fun DayHeader(
             text = day.weekdayLabel,
             fontSize = headerSize,
             fontWeight = FontWeight.SemiBold,
-            color = headerColor.copy(alpha = if (day.isToday) 1f else 0.88f),
+            color = if (day.isToday) todayContent else headerColor.copy(alpha = 0.88f),
             maxLines = 1,
             softWrap = false,
         )
@@ -1935,7 +1939,7 @@ private fun DayHeader(
             text = day.dateLabel,
             fontSize = headerSize,
             fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium,
-            color = headerColor,
+            color = if (day.isToday) todayContent else headerColor,
             maxLines = 1,
             softWrap = false,
         )
@@ -1944,7 +1948,7 @@ private fun DayHeader(
                 text = day.overrideLabel,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (day.isToday) accents.todayOnContainer else MaterialTheme.colorScheme.primary,
+                color = if (day.isToday) todayContent else MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 softWrap = false,
             )
@@ -1958,7 +1962,7 @@ private fun MonthCornerCell(
     width: androidx.compose.ui.unit.Dp,
     scheduleTextStyle: ScheduleTextStylePreferences,
 ) {
-    val muted = colorFromArgb(scheduleTextStyle.headerTextColorArgb).copy(alpha = 0.82f)
+    val muted = scheduleTextStyle.resolvedHeaderTextColor(isDarkColorScheme()).copy(alpha = 0.82f)
     val headerSize = scheduleTextStyle.headerTextSizeSp.sp
     Column(
         modifier = Modifier
@@ -1994,7 +1998,10 @@ private fun TimeCell(
     slot: DisplaySlot,
     height: androidx.compose.ui.unit.Dp,
     showTime: Boolean,
+    scheduleTextStyle: ScheduleTextStylePreferences,
 ) {
+    val headerColor = scheduleTextStyle.resolvedHeaderTextColor(isDarkColorScheme())
+    val headerSize = scheduleTextStyle.headerTextSizeSp.sp
     Column(
         modifier = Modifier
             .height(height)
@@ -2004,17 +2011,17 @@ private fun TimeCell(
     ) {
         Text(
             text = slot.label,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontSize = 11.sp,
+            color = headerColor,
+            fontSize = headerSize,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
         )
         if (showTime) {
             Text(
                 text = slotTimeRange(slot),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 8.sp,
-                lineHeight = 8.sp,
+                color = headerColor.copy(alpha = 0.72f),
+                fontSize = (scheduleTextStyle.headerTextSizeSp - 3).coerceAtLeast(8).sp,
+                lineHeight = (scheduleTextStyle.headerTextSizeSp - 3).coerceAtLeast(8).sp,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
             )
@@ -3485,8 +3492,7 @@ private fun computeNextTrigger(
     }.getOrNull().orEmpty()
     val nowMs = System.currentTimeMillis()
     val nextPlan = plans.firstOrNull { it.triggerAtMillis >= nowMs } ?: return null
-    val zone = runCatching { java.time.ZoneId.of(profile.timezone) }
-        .getOrDefault(java.time.ZoneId.systemDefault())
+    val zone = java.time.ZoneId.systemDefault()
     val trigger = java.time.Instant.ofEpochMilli(nextPlan.triggerAtMillis).atZone(zone)
     val date = "${trigger.monthValue}月${trigger.dayOfMonth}日"
     val weekday = weekdayLabel(trigger.dayOfWeek.value)
@@ -3633,7 +3639,35 @@ private fun ScheduleGridBackground(
 
 private fun colorFromArgb(argb: Long): Color = Color(argb and 0xFFFF_FFFFL)
 
-private fun Int.asAlpha(): Float = coerceIn(0, 100) / 100f
+@Composable
+private fun isDarkColorScheme(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+private fun ScheduleTextStylePreferences.resolvedHeaderTextColor(darkTheme: Boolean): Color =
+    colorFromArgb(
+        if (headerTextColorCustomized) {
+            headerTextColorArgb
+        } else if (darkTheme) {
+            ScheduleTextStylePreferences.DEFAULT_DARK_HEADER_TEXT_COLOR_ARGB
+        } else {
+            ScheduleTextStylePreferences.DEFAULT_HEADER_TEXT_COLOR_ARGB
+        },
+    )
+
+private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColor(darkTheme: Boolean): Color =
+    colorFromArgb(
+        if (todayHeaderBackgroundColorCustomized) {
+            todayHeaderBackgroundColorArgb
+        } else if (darkTheme) {
+            ScheduleTextStylePreferences.DEFAULT_DARK_TODAY_HEADER_BACKGROUND_COLOR_ARGB
+        } else {
+            ScheduleTextStylePreferences.DEFAULT_TODAY_HEADER_BACKGROUND_COLOR_ARGB
+        },
+    )
+
+private fun readableContentColor(background: Color): Color =
+    if (background.luminance() < 0.5f) Color.White else Color.Black
+
+private fun Int.asAlpha(): Float = 1f - (coerceIn(0, 100) / 100f)
 
 private fun Color.withOpacityPercent(percent: Int): Color = copy(alpha = alpha * percent.asAlpha())
 
@@ -3703,7 +3737,7 @@ private fun MultiSelectActionBar(
 private fun buildWeekModel(
     weekOffset: Int,
     termStart: LocalDate? = null,
-    zone: ZoneId = ZoneId.of("Asia/Shanghai"),
+    zone: ZoneId = ZoneId.systemDefault(),
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)

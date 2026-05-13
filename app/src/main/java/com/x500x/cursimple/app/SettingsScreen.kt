@@ -59,6 +59,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -76,6 +77,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -110,6 +112,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlin.math.roundToInt
 
 private enum class SettingsDestination {
     Root,
@@ -119,6 +122,7 @@ private enum class SettingsDestination {
     ScheduleSettings,
     ScheduleAppearance,
     ScheduleTextStyle,
+    ScheduleHeaderStyle,
     ScheduleCardStyle,
     ScheduleBackground,
     ScheduleDisplay,
@@ -134,6 +138,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.ScheduleSettings -> "课表设置"
     SettingsDestination.ScheduleAppearance -> "外观"
     SettingsDestination.ScheduleTextStyle -> "文字样式"
+    SettingsDestination.ScheduleHeaderStyle -> "表头"
     SettingsDestination.ScheduleCardStyle -> "卡片样式"
     SettingsDestination.ScheduleBackground -> "课表背景"
     SettingsDestination.ScheduleDisplay -> "显示"
@@ -173,6 +178,7 @@ fun AppSettingsRoute(
     onScheduleExamTextColorArgbChange: (Long) -> Unit,
     onScheduleHeaderTextSizeSpChange: (Int) -> Unit,
     onScheduleHeaderTextColorArgbChange: (Long) -> Unit,
+    onScheduleTodayHeaderBackgroundColorArgbChange: (Long) -> Unit,
     onScheduleTextHorizontalCenterChange: (Boolean) -> Unit,
     onScheduleTextVerticalCenterChange: (Boolean) -> Unit,
     onScheduleTextFullCenterChange: (Boolean) -> Unit,
@@ -254,6 +260,7 @@ fun AppSettingsRoute(
             }
         }
     }
+    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
     Column(
         modifier = modifier
@@ -290,7 +297,7 @@ fun AppSettingsRoute(
 
         when (destination) {
             SettingsDestination.Root -> {
-                SettingsActionRow(Icons.Rounded.Palette, "应用", "主题、外观和应用更新", { navigate(SettingsDestination.Application) })
+                SettingsActionRow(Icons.Rounded.Palette, "应用", "主题和外观", { navigate(SettingsDestination.Application) })
                 SettingsActionRow(Icons.Rounded.CalendarMonth, "课表数据", "开学日期和当前周", { navigate(SettingsDestination.ScheduleData) })
                 SettingsActionRow(Icons.Rounded.EventRepeat, "临时调课", temporaryOverridesSubtitle(temporaryScheduleOverrides), {
                     navigate(SettingsDestination.TemporaryOverrides)
@@ -304,6 +311,13 @@ fun AppSettingsRoute(
                 SettingsActionRow(Icons.Rounded.Notifications, "权限", "通知、闹钟、相机和安装权限", {
                     navigate(SettingsDestination.Permissions)
                 })
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                UpdateCheckSection(
+                    autoCheckEnabled = autoUpdateEnabled,
+                    ignoredUpdateVersionCode = ignoredUpdateVersionCode,
+                    onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
+                    onIgnoreUpdateVersion = onIgnoreUpdateVersion,
+                )
             }
 
             SettingsDestination.Application -> {
@@ -325,12 +339,6 @@ fun AppSettingsRoute(
                         ThemeMode.Dark -> "暗色"
                     },
                     onClick = onPickThemeMode,
-                )
-                UpdateCheckSection(
-                    autoCheckEnabled = autoUpdateEnabled,
-                    ignoredUpdateVersionCode = ignoredUpdateVersionCode,
-                    onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
-                    onIgnoreUpdateVersion = onIgnoreUpdateVersion,
                 )
             }
 
@@ -393,8 +401,11 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleAppearance -> {
-                SettingsActionRow(Icons.Rounded.Palette, "文字样式", "课程、考试和表头文字", {
+                SettingsActionRow(Icons.Rounded.Palette, "文字样式", "课程和考试文字", {
                     navigate(SettingsDestination.ScheduleTextStyle)
+                })
+                SettingsActionRow(Icons.Rounded.CalendarMonth, "表头", "表头文字和当前天背景", {
+                    navigate(SettingsDestination.ScheduleHeaderStyle)
                 })
                 SettingsActionRow(Icons.Rounded.Tune, "卡片样式", "圆角、高度、透明度和边框", {
                     navigate(SettingsDestination.ScheduleCardStyle)
@@ -409,18 +420,30 @@ fun AppSettingsRoute(
                 ColorAlphaRow("课程文字颜色", scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
                 NumberStepperRow("考试文字大小", scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
                 ColorAlphaRow("考试文字颜色", scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
-                NumberStepperRow("表头文字大小", scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
-                ColorAlphaRow("表头文字颜色", scheduleTextStyle.headerTextColorArgb, onScheduleHeaderTextColorArgbChange)
                 SettingsSwitchRow(Icons.Rounded.Tune, "格子文字水平居中", "课程卡片文字水平居中", scheduleTextStyle.horizontalCenter, onScheduleTextHorizontalCenterChange)
                 SettingsSwitchRow(Icons.Rounded.Tune, "格子文字竖直居中", "课程卡片内容竖直居中", scheduleTextStyle.verticalCenter, onScheduleTextVerticalCenterChange)
                 SettingsSwitchRow(Icons.Rounded.Tune, "格子文字完全居中", "同时启用水平与竖直居中", scheduleTextStyle.fullCenter, onScheduleTextFullCenterChange)
+            }
+
+            SettingsDestination.ScheduleHeaderStyle -> {
+                NumberStepperRow("表头文字大小", scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
+                ColorAlphaRow(
+                    "表头文字颜色",
+                    scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme),
+                    onScheduleHeaderTextColorArgbChange,
+                )
+                ColorAlphaRow(
+                    "当前天表头背景颜色",
+                    scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme),
+                    onScheduleTodayHeaderBackgroundColorArgbChange,
+                )
             }
 
             SettingsDestination.ScheduleCardStyle -> {
                 NumberStepperRow("课程卡片圆角半径", scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
                 NumberStepperRow("课程卡片高度", scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
                 NumberStepperRow("课表透明度", scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
-                NumberStepperRow("非本周课程不透明度", scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
+                NumberStepperRow("非本周课程透明度", scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
                 ColorAlphaRow("格子边框颜色", scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
                 NumberStepperRow("格子边框透明度", scheduleCardStyle.gridBorderOpacityPercent, "%", 0, 100, 5, onScheduleGridBorderOpacityPercentChange)
                 FloatStepperRow("格子边框粗细", scheduleCardStyle.gridBorderWidthDp, "dp", 0f, 4f, 0.5f, onScheduleGridBorderWidthDpChange)
@@ -620,11 +643,12 @@ private fun ColorAlphaRow(
     argb: Long,
     onValueChange: (Long) -> Unit,
 ) {
+    var showPicker by rememberSaveable { mutableStateOf(false) }
     SettingsActionRow(
         icon = Icons.Rounded.Palette,
         title = title,
-        subtitle = "${formatArgb(argb)} · alpha ${argbAlphaPercent(argb)}%",
-        onClick = { onValueChange(nextPresetColor(argb)) },
+        subtitle = "${formatArgb(argb)} · 透明度 ${argbTransparencyPercent(argb)}%",
+        onClick = { showPicker = true },
         trailing = {
             Surface(
                 modifier = Modifier.size(28.dp),
@@ -634,6 +658,128 @@ private fun ColorAlphaRow(
             ) {}
         },
     )
+    if (showPicker) {
+        ColorPickerDialog(
+            title = title,
+            initialArgb = argb,
+            onDismiss = { showPicker = false },
+            onConfirm = { value ->
+                onValueChange(value)
+                showPicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun ColorPickerDialog(
+    title: String,
+    initialArgb: Long,
+    onDismiss: () -> Unit,
+    onConfirm: (Long) -> Unit,
+) {
+    val normalized = initialArgb and 0xFFFF_FFFFL
+    var alpha by rememberSaveable(normalized) { mutableStateOf(argbAlphaByte(normalized)) }
+    var red by rememberSaveable(normalized) { mutableStateOf(argbRedByte(normalized)) }
+    var green by rememberSaveable(normalized) { mutableStateOf(argbGreenByte(normalized)) }
+    var blue by rememberSaveable(normalized) { mutableStateOf(argbBlueByte(normalized)) }
+    var hexText by rememberSaveable(normalized) { mutableStateOf(formatArgb(normalized)) }
+
+    fun currentArgb(): Long = argbFromComponents(alpha, red, green, blue)
+    fun syncHex() {
+        hexText = formatArgb(currentArgb())
+    }
+    fun applyParsed(value: Long) {
+        val color = value and 0xFFFF_FFFFL
+        alpha = argbAlphaByte(color)
+        red = argbRedByte(color)
+        green = argbGreenByte(color)
+        blue = argbBlueByte(color)
+        hexText = formatArgb(color)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp),
+                    color = Color(currentArgb()),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {}
+                OutlinedTextField(
+                    value = hexText,
+                    onValueChange = { value ->
+                        hexText = value
+                        parseArgbInput(value, alpha)?.let(::applyParsed)
+                    },
+                    label = { Text("ARGB") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                ColorComponentSlider("红色", red, 255) {
+                    red = it
+                    syncHex()
+                }
+                ColorComponentSlider("绿色", green, 255) {
+                    green = it
+                    syncHex()
+                }
+                ColorComponentSlider("蓝色", blue, 255) {
+                    blue = it
+                    syncHex()
+                }
+                ColorComponentSlider("透明度", alphaToTransparencyPercent(alpha), 100) {
+                    alpha = transparencyPercentToAlpha(it)
+                    syncHex()
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(currentArgb()) }) { Text("应用") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
+
+@Composable
+private fun ColorComponentSlider(
+    label: String,
+    value: Int,
+    max: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = if (max == 100) "$value%" else value.toString(),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.roundToInt().coerceIn(0, max)) },
+            valueRange = 0f..max.toFloat(),
+        )
+    }
 }
 
 @Composable
@@ -753,27 +899,68 @@ private fun PermissionsSection(
     )
 }
 
-private val colorPresets = listOf(
-    0xFFFFFFFFL,
-    0xFF263238L,
-    0xFF1B5E20L,
-    0xFF0D47A1L,
-    0xFF880E4FL,
-    0xCCFFFFFFL,
-    0xB3000000L,
-)
-
-private fun nextPresetColor(current: Long): Long {
-    val normalized = current and 0xFFFF_FFFFL
-    val index = colorPresets.indexOf(normalized)
-    return colorPresets[(index + 1).floorMod(colorPresets.size)]
-}
-
-private fun Int.floorMod(other: Int): Int = ((this % other) + other) % other
-
 private fun formatArgb(argb: Long): String = "#%08X".format(argb and 0xFFFF_FFFFL)
 
 private fun argbAlphaPercent(argb: Long): Int = (((argb ushr 24) and 0xFF) * 100 / 255).toInt()
+
+private fun argbTransparencyPercent(argb: Long): Int = 100 - argbAlphaPercent(argb)
+
+private fun argbAlphaByte(argb: Long): Int = ((argb ushr 24) and 0xFF).toInt()
+
+private fun argbRedByte(argb: Long): Int = ((argb ushr 16) and 0xFF).toInt()
+
+private fun argbGreenByte(argb: Long): Int = ((argb ushr 8) and 0xFF).toInt()
+
+private fun argbBlueByte(argb: Long): Int = (argb and 0xFF).toInt()
+
+private fun alphaToTransparencyPercent(alpha: Int): Int =
+    100 - (alpha.coerceIn(0, 255) * 100 / 255)
+
+private fun transparencyPercentToAlpha(transparencyPercent: Int): Int =
+    ((100 - transparencyPercent.coerceIn(0, 100)) * 255 / 100).coerceIn(0, 255)
+
+private fun argbFromComponents(alpha: Int, red: Int, green: Int, blue: Int): Long =
+    ((alpha.coerceIn(0, 255).toLong() shl 24) or
+        (red.coerceIn(0, 255).toLong() shl 16) or
+        (green.coerceIn(0, 255).toLong() shl 8) or
+        blue.coerceIn(0, 255).toLong()) and 0xFFFF_FFFFL
+
+private fun parseArgbInput(input: String, fallbackAlpha: Int): Long? {
+    val raw = input.trim()
+        .removePrefix("#")
+        .removePrefix("0x")
+        .removePrefix("0X")
+    if (raw.length != 6 && raw.length != 8) return null
+    val value = raw.toLongOrNull(16) ?: return null
+    return if (raw.length == 6) {
+        argbFromComponents(
+            alpha = fallbackAlpha,
+            red = ((value ushr 16) and 0xFF).toInt(),
+            green = ((value ushr 8) and 0xFF).toInt(),
+            blue = (value and 0xFF).toInt(),
+        )
+    } else {
+        value and 0xFFFF_FFFFL
+    }
+}
+
+private fun ScheduleTextStylePreferences.resolvedHeaderTextColorArgb(darkTheme: Boolean): Long =
+    if (headerTextColorCustomized) {
+        headerTextColorArgb
+    } else if (darkTheme) {
+        ScheduleTextStylePreferences.DEFAULT_DARK_HEADER_TEXT_COLOR_ARGB
+    } else {
+        ScheduleTextStylePreferences.DEFAULT_HEADER_TEXT_COLOR_ARGB
+    }
+
+private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColorArgb(darkTheme: Boolean): Long =
+    if (todayHeaderBackgroundColorCustomized) {
+        todayHeaderBackgroundColorArgb
+    } else if (darkTheme) {
+        ScheduleTextStylePreferences.DEFAULT_DARK_TODAY_HEADER_BACKGROUND_COLOR_ARGB
+    } else {
+        ScheduleTextStylePreferences.DEFAULT_TODAY_HEADER_BACKGROUND_COLOR_ARGB
+    }
 
 private fun formatFloat(value: Float): String =
     if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)

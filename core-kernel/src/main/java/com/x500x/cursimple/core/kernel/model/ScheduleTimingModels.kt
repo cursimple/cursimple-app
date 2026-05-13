@@ -18,7 +18,7 @@ data class ClassSlotTime(
 data class TermTimingProfile(
     @SerialName("termStartDate") val termStartDate: String,
     @SerialName("slotTimes") val slotTimes: List<ClassSlotTime>,
-    @SerialName("timezone") val timezone: String = "Asia/Shanghai",
+    @SerialName("timezone") val timezone: String = "",
 )
 
 fun TermTimingProfile.termStartLocalDate(): LocalDate = LocalDate.parse(termStartDate)
