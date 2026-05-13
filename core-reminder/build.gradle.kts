@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kebiao.viewer.core.reminder"
+    namespace = "com.x500x.cursimple.core.reminder"
     compileSdk = 36
 
     defaultConfig {

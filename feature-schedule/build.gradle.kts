@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kebiao.viewer.feature.schedule"
+    namespace = "com.x500x.cursimple.feature.schedule"
     compileSdk = 36
 
     defaultConfig {

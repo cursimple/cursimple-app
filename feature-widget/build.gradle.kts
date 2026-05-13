@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "com.kebiao.viewer.feature.widget"
+    namespace = "com.x500x.cursimple.feature.widget"
     compileSdk = 36
 
     defaultConfig {
