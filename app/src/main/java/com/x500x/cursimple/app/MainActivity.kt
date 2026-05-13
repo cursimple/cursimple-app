@@ -649,6 +649,8 @@ class MainActivity : ComponentActivity() {
                                         onScheduleBackgroundColorArgbChange = prefsViewModel::setScheduleBackgroundColorArgb,
                                         onScheduleBackgroundImageUriChange = prefsViewModel::setScheduleBackgroundImageUri,
                                         onClearScheduleBackgroundImage = prefsViewModel::clearScheduleBackgroundImage,
+                                        onScheduleBackgroundUseHeaderColor =
+                                            prefsViewModel::setScheduleBackgroundUseHeaderColor,
                                         onScheduleNodeColumnTimeEnabledChange = prefsViewModel::setScheduleNodeColumnTimeEnabled,
                                         onScheduleSaturdayVisibleChange = prefsViewModel::setScheduleSaturdayVisible,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
@@ -667,10 +669,18 @@ class MainActivity : ComponentActivity() {
                                         onPickWidgetThemeAccent = { showWidgetThemeAccentDialog = true },
                                         onWidgetBackgroundImageUriChange = widgetPrefsViewModel::setWidgetBackgroundImageUri,
                                         onClearWidgetBackgroundImage = widgetPrefsViewModel::clearWidgetBackgroundImage,
+                                        onWidgetOpenAppOnDoubleClickChange =
+                                            widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
                                         onSetDeveloperMode = prefsViewModel::setDeveloperModeEnabled,
                                         onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
+                                        onResetScheduleAppearanceAndDisplay =
+                                            prefsViewModel::resetScheduleAppearanceAndDisplay,
+                                        onResetAllSettings = {
+                                            prefsViewModel.resetAllSettings()
+                                            widgetPrefsViewModel.resetWidgetThemePreferences()
+                                        },
                                         onExportScheduleMetadata = {
                                             scope.launch {
                                                 val snapshot = ScheduleMetadataExportSnapshot(

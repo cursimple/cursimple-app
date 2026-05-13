@@ -193,6 +193,7 @@ fun AppSettingsRoute(
     onScheduleBackgroundColorArgbChange: (Long) -> Unit,
     onScheduleBackgroundImageUriChange: (String) -> Unit,
     onClearScheduleBackgroundImage: () -> Unit,
+    onScheduleBackgroundUseHeaderColor: () -> Unit,
     onScheduleNodeColumnTimeEnabledChange: (Boolean) -> Unit,
     onScheduleSaturdayVisibleChange: (Boolean) -> Unit,
     onScheduleWeekendVisibleChange: (Boolean) -> Unit,
@@ -211,11 +212,14 @@ fun AppSettingsRoute(
     onPickWidgetThemeAccent: () -> Unit,
     onWidgetBackgroundImageUriChange: (String) -> Unit,
     onClearWidgetBackgroundImage: () -> Unit,
+    onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
     onSetDeveloperMode: (Boolean) -> Unit,
     onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
     onExportScheduleMetadata: () -> Unit,
+    onResetScheduleAppearanceAndDisplay: () -> Unit,
+    onResetAllSettings: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -230,6 +234,8 @@ fun AppSettingsRoute(
     }
     var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
     var showAlarmBackendDialog by rememberSaveable { mutableStateOf(false) }
+    var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
+    var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         Toast.makeText(context, if (granted) "通知权限已开启" else "通知权限未开启", Toast.LENGTH_SHORT).show()
     }
@@ -311,6 +317,12 @@ fun AppSettingsRoute(
                 SettingsActionRow(Icons.Rounded.Notifications, "权限", "通知、闹钟、相机和安装权限", {
                     navigate(SettingsDestination.Permissions)
                 })
+                SettingsActionRow(
+                    icon = Icons.Rounded.Restore,
+                    title = "恢复所有设置",
+                    subtitle = "恢复应用、课表外观显示和小组件设置",
+                    onClick = { showResetAllSettingsConfirm = true },
+                )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 UpdateCheckSection(
                     autoCheckEnabled = autoUpdateEnabled,
@@ -398,6 +410,12 @@ fun AppSettingsRoute(
                 SettingsActionRow(Icons.AutoMirrored.Rounded.MenuBook, "显示", "列、地点、老师和总课表", {
                     navigate(SettingsDestination.ScheduleDisplay)
                 })
+                SettingsActionRow(
+                    icon = Icons.Rounded.Restore,
+                    title = "恢复课表外观/显示默认值",
+                    subtitle = "恢复文字、表头、卡片、背景和显示选项",
+                    onClick = { showResetScheduleAppearanceConfirm = true },
+                )
             }
 
             SettingsDestination.ScheduleAppearance -> {
@@ -452,6 +470,16 @@ fun AppSettingsRoute(
 
             SettingsDestination.ScheduleBackground -> {
                 ColorAlphaRow("背景颜色", scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
+                SettingsActionRow(
+                    icon = Icons.Rounded.CalendarMonth,
+                    title = "与表头背景一致",
+                    subtitle = if (scheduleBackground.type == ScheduleBackgroundType.Header) {
+                        "当前已跟随当前天表头背景"
+                    } else {
+                        "使用当前天表头背景作为课表背景"
+                    },
+                    onClick = onScheduleBackgroundUseHeaderColor,
+                )
                 SettingsActionRow(
                     icon = Icons.Rounded.Download,
                     title = "背景图片",
@@ -516,6 +544,13 @@ fun AppSettingsRoute(
                     subtitle = "添加课表、下一节课或课程提醒",
                     onClick = onOpenWidgetPicker,
                 )
+                SettingsSwitchRow(
+                    icon = Icons.Rounded.Schedule,
+                    title = "双击小组件打开 App",
+                    subtitle = "开启后双击小组件主体进入应用",
+                    checked = widgetThemePreferences.openAppOnDoubleClickEnabled,
+                    onCheckedChange = onWidgetOpenAppOnDoubleClickChange,
+                )
                 SettingsActionRow(
                     icon = Icons.Rounded.Download,
                     title = "背景选择",
@@ -540,6 +575,42 @@ fun AppSettingsRoute(
                     cameraLauncher = cameraLauncher::launch,
                 )
             }
+        }
+
+        if (showResetScheduleAppearanceConfirm) {
+            AlertDialog(
+                onDismissRequest = { showResetScheduleAppearanceConfirm = false },
+                title = { Text("恢复课表外观/显示") },
+                text = { Text("将恢复文字、表头、卡片、背景和显示选项默认值，不会清除课程数据。确定继续？") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        onResetScheduleAppearanceAndDisplay()
+                        showResetScheduleAppearanceConfirm = false
+                        Toast.makeText(context, "课表外观/显示已恢复默认", Toast.LENGTH_SHORT).show()
+                    }) { Text("恢复") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetScheduleAppearanceConfirm = false }) { Text("取消") }
+                },
+            )
+        }
+
+        if (showResetAllSettingsConfirm) {
+            AlertDialog(
+                onDismissRequest = { showResetAllSettingsConfirm = false },
+                title = { Text("恢复所有设置") },
+                text = { Text("将恢复应用、课表外观显示、小组件、提醒运行参数和更新设置，不会清除课表数据。确定继续？") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        onResetAllSettings()
+                        showResetAllSettingsConfirm = false
+                        Toast.makeText(context, "所有设置已恢复默认", Toast.LENGTH_SHORT).show()
+                    }) { Text("恢复") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showResetAllSettingsConfirm = false }) { Text("取消") }
+                },
+            )
         }
 
         if (developerModeEnabled && destination == SettingsDestination.Root) {
@@ -968,6 +1039,7 @@ private fun formatFloat(value: Float): String =
 private fun backgroundSubtitle(background: ScheduleBackgroundPreferences): String = when (background.type) {
     ScheduleBackgroundType.Color -> "颜色 ${formatArgb(background.colorArgb)}"
     ScheduleBackgroundType.Image -> background.imageUri?.let { "图片背景" } ?: "图片未选择"
+    ScheduleBackgroundType.Header -> "与表头背景一致"
 }
 
 private fun widgetThemeLabel(preferences: WidgetThemePreferences): String =

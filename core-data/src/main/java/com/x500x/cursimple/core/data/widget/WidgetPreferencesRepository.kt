@@ -15,6 +15,7 @@ data class WidgetThemePreferences(
     val themeAccent: ThemeAccent = ThemeAccent.Green,
     val backgroundMode: WidgetBackgroundMode = WidgetBackgroundMode.Theme,
     val backgroundImageUri: String? = null,
+    val openAppOnDoubleClickEnabled: Boolean = false,
 ) {
     fun selectTheme(accent: ThemeAccent): WidgetThemePreferences =
         copy(themeAccent = accent, backgroundMode = WidgetBackgroundMode.Theme, backgroundImageUri = null)
@@ -58,4 +59,8 @@ interface WidgetPreferencesRepository {
     suspend fun setWidgetBackgroundImageUri(uri: String)
 
     suspend fun clearWidgetBackgroundImage()
+
+    suspend fun setWidgetOpenAppOnDoubleClickEnabled(enabled: Boolean)
+
+    suspend fun resetWidgetThemePreferences()
 }

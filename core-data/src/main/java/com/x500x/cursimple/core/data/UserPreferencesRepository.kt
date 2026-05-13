@@ -10,7 +10,7 @@ enum class ThemeMode { System, Light, Dark }
 
 enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
 
-enum class ScheduleBackgroundType { Color, Image }
+enum class ScheduleBackgroundType { Color, Image, Header }
 
 data class ScheduleTextStylePreferences(
     val courseTextSizeSp: Int = DEFAULT_COURSE_TEXT_SIZE_SP,
@@ -56,8 +56,8 @@ data class ScheduleCardStylePreferences(
     companion object {
         const val DEFAULT_COURSE_CORNER_RADIUS_DP = 10
         const val DEFAULT_COURSE_CARD_HEIGHT_DP = 100
-        const val DEFAULT_SCHEDULE_OPACITY_PERCENT = 100
-        const val DEFAULT_INACTIVE_COURSE_OPACITY_PERCENT = 100
+        const val DEFAULT_SCHEDULE_OPACITY_PERCENT = 0
+        const val DEFAULT_INACTIVE_COURSE_OPACITY_PERCENT = 50
         const val DEFAULT_GRID_BORDER_COLOR_ARGB = 0xFFCFD8DCL
         const val DEFAULT_GRID_BORDER_OPACITY_PERCENT = 100
         const val DEFAULT_GRID_BORDER_WIDTH_DP = 0.5f
@@ -95,7 +95,7 @@ data class ScheduleDisplayPreferences(
     val weekendVisible: Boolean = true,
     val locationVisible: Boolean = true,
     val locationPrefixAtEnabled: Boolean = true,
-    val teacherVisible: Boolean = false,
+    val teacherVisible: Boolean = true,
     val totalScheduleDisplayEnabled: Boolean = true,
 )
 
@@ -151,6 +151,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleBackgroundColorArgb(argb: Long)
     suspend fun setScheduleBackgroundImageUri(uri: String)
     suspend fun clearScheduleBackgroundImage()
+    suspend fun setScheduleBackgroundUseHeaderColor()
     suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean)
     suspend fun setScheduleSaturdayVisible(visible: Boolean)
     suspend fun setScheduleWeekendVisible(visible: Boolean)
@@ -173,4 +174,6 @@ interface UserPreferencesRepository {
     suspend fun tryClaimAlarmPoll(nowMillis: Long, minIntervalMillis: Long): Boolean
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
+    suspend fun resetScheduleAppearanceAndDisplay()
+    suspend fun resetAllSettings()
 }

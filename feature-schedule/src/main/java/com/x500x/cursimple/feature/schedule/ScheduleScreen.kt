@@ -1735,6 +1735,7 @@ private fun ScheduleGrid(
                 ) {
                     ScheduleGridBackground(
                         scheduleBackground = scheduleBackground,
+                        scheduleTextStyle = scheduleTextStyle,
                         scheduleCardStyle = scheduleCardStyle,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -3581,11 +3582,17 @@ private data class ScheduleBackgroundImageState(
 @Composable
 private fun ScheduleGridBackground(
     scheduleBackground: ScheduleBackgroundPreferences,
+    scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     modifier: Modifier = Modifier,
 ) {
-    val backgroundColor = colorFromArgb(scheduleBackground.colorArgb)
-        .withOpacityPercent(scheduleCardStyle.scheduleOpacityPercent)
+    val darkTheme = isDarkColorScheme()
+    val baseBackgroundColor = when (scheduleBackground.type) {
+        ScheduleBackgroundType.Header -> scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme)
+        ScheduleBackgroundType.Color,
+        ScheduleBackgroundType.Image -> colorFromArgb(scheduleBackground.colorArgb)
+    }
+    val backgroundColor = baseBackgroundColor.withOpacityPercent(scheduleCardStyle.scheduleOpacityPercent)
     Box(modifier = modifier.background(backgroundColor)) {
         val imageUri = scheduleBackground.imageUri?.takeIf(String::isNotBlank)
         if (scheduleBackground.type == ScheduleBackgroundType.Image && imageUri != null) {

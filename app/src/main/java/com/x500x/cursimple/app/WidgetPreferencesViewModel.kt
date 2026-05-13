@@ -38,6 +38,20 @@ class WidgetPreferencesViewModel(
             refreshWidgets()
         }
     }
+
+    fun setWidgetOpenAppOnDoubleClickEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setWidgetOpenAppOnDoubleClickEnabled(enabled)
+            refreshWidgets()
+        }
+    }
+
+    fun resetWidgetThemePreferences() {
+        viewModelScope.launch {
+            repository.resetWidgetThemePreferences()
+            refreshWidgets()
+        }
+    }
 }
 
 class WidgetPreferencesViewModelFactory(

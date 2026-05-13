@@ -14,6 +14,7 @@ class WidgetPreferencesTest {
         assertEquals(ThemeAccent.Green, prefs.themeAccent)
         assertEquals(WidgetBackgroundMode.Theme, prefs.backgroundMode)
         assertNull(prefs.backgroundImageUri)
+        assertEquals(false, prefs.openAppOnDoubleClickEnabled)
     }
 
     @Test
@@ -29,5 +30,16 @@ class WidgetPreferencesTest {
         assertEquals(ThemeAccent.Purple, theme.themeAccent)
         assertEquals(WidgetBackgroundMode.Theme, theme.backgroundMode)
         assertNull(theme.backgroundImageUri)
+        assertEquals(false, theme.openAppOnDoubleClickEnabled)
+    }
+
+    @Test
+    fun `widget open app setting survives theme and image switches`() {
+        val prefs = WidgetThemePreferences(openAppOnDoubleClickEnabled = true)
+        val image = prefs.selectBackgroundImage("content://image")
+        val theme = image.selectTheme(ThemeAccent.Blue)
+
+        assertEquals(true, image.openAppOnDoubleClickEnabled)
+        assertEquals(true, theme.openAppOnDoubleClickEnabled)
     }
 }

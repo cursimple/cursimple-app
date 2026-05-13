@@ -126,6 +126,7 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_reminder)
             views.applyWidgetBackground(context, R.id.reminder_root, data.widgetTheme)
+            views.applyOpenAppOnDoubleClick(context, R.id.reminder_root, appWidgetId, data.widgetTheme)
             if (data.totalCount > 0) {
                 views.setViewVisibility(R.id.reminder_badge, View.VISIBLE)
                 views.setTextViewText(R.id.reminder_badge, "${data.totalCount} 条")

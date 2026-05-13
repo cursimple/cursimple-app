@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -201,6 +202,16 @@ class DataStoreUserPreferencesRepository(
         releasePersistedReadPermission(previousImageUri)
     }
 
+    override suspend fun setScheduleBackgroundUseHeaderColor() {
+        var previousImageUri: String? = null
+        store.edit { prefs ->
+            previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
+            prefs[KEY_SCHEDULE_BACKGROUND_TYPE] = ScheduleBackgroundType.Header.name
+            prefs.remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
+        }
+        releasePersistedReadPermission(previousImageUri)
+    }
+
     override suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED] = enabled }
     }
@@ -310,6 +321,36 @@ class DataStoreUserPreferencesRepository(
                 prefs[KEY_IGNORED_UPDATE_VERSION_CODE] = versionCode
             }
         }
+    }
+
+    override suspend fun resetScheduleAppearanceAndDisplay() {
+        var previousImageUri: String? = null
+        store.edit { prefs ->
+            previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
+            prefs.removeScheduleAppearanceAndDisplay()
+        }
+        releasePersistedReadPermission(previousImageUri)
+    }
+
+    override suspend fun resetAllSettings() {
+        var previousImageUri: String? = null
+        store.edit { prefs ->
+            previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
+            prefs.remove(KEY_THEME_MODE)
+            prefs.remove(KEY_THEME_ACCENT)
+            prefs.remove(KEY_DEVELOPER_MODE)
+            prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
+            prefs.remove(KEY_DEBUG_FORCED_DATETIME)
+            prefs.remove(KEY_ALARM_BACKEND)
+            prefs.remove(KEY_ALARM_RING_DURATION_SECONDS)
+            prefs.remove(KEY_ALARM_REPEAT_INTERVAL_SECONDS)
+            prefs.remove(KEY_ALARM_REPEAT_COUNT)
+            prefs.remove(KEY_LAST_ALARM_POLL_AT_MILLIS)
+            prefs.remove(KEY_AUTO_UPDATE_ENABLED)
+            prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
+            prefs.removeScheduleAppearanceAndDisplay()
+        }
+        releasePersistedReadPermission(previousImageUri)
     }
 
     override suspend fun seedEnabledPlugins(pluginIds: Set<String>) {
@@ -436,9 +477,40 @@ class DataStoreUserPreferencesRepository(
             weekendVisible = this[KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE] ?: true,
             locationVisible = this[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] ?: true,
             locationPrefixAtEnabled = this[KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED] ?: true,
-            teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: false,
+            teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
             totalScheduleDisplayEnabled = this[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
         )
+    }
+
+    private fun MutablePreferences.removeScheduleAppearanceAndDisplay() {
+        remove(KEY_SCHEDULE_COURSE_TEXT_SIZE_SP)
+        remove(KEY_SCHEDULE_COURSE_TEXT_COLOR_ARGB)
+        remove(KEY_SCHEDULE_EXAM_TEXT_SIZE_SP)
+        remove(KEY_SCHEDULE_EXAM_TEXT_COLOR_ARGB)
+        remove(KEY_SCHEDULE_HEADER_TEXT_SIZE_SP)
+        remove(KEY_SCHEDULE_HEADER_TEXT_COLOR_ARGB)
+        remove(KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB)
+        remove(KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER)
+        remove(KEY_SCHEDULE_TEXT_VERTICAL_CENTER)
+        remove(KEY_SCHEDULE_TEXT_FULL_CENTER)
+        remove(KEY_SCHEDULE_COURSE_CORNER_RADIUS_DP)
+        remove(KEY_SCHEDULE_COURSE_CARD_HEIGHT_DP)
+        remove(KEY_SCHEDULE_OPACITY_PERCENT)
+        remove(KEY_SCHEDULE_INACTIVE_COURSE_OPACITY_PERCENT)
+        remove(KEY_SCHEDULE_GRID_BORDER_COLOR_ARGB)
+        remove(KEY_SCHEDULE_GRID_BORDER_OPACITY_PERCENT)
+        remove(KEY_SCHEDULE_GRID_BORDER_WIDTH_DP)
+        remove(KEY_SCHEDULE_GRID_BORDER_DASHED)
+        remove(KEY_SCHEDULE_BACKGROUND_TYPE)
+        remove(KEY_SCHEDULE_BACKGROUND_COLOR_ARGB)
+        remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
+        remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
+        remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
+        remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
+        remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
+        remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
+        remove(KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE)
+        remove(KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED)
     }
 
     private fun releasePersistedReadPermission(uriString: String?) {

@@ -125,6 +125,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.clearScheduleBackgroundImage() }
     }
 
+    fun setScheduleBackgroundUseHeaderColor() {
+        viewModelScope.launch { repository.setScheduleBackgroundUseHeaderColor() }
+    }
+
     fun setScheduleNodeColumnTimeEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleNodeColumnTimeEnabled(enabled) }
     }
@@ -221,6 +225,18 @@ class AppPreferencesViewModel(
 
     fun setIgnoredUpdateVersionCode(versionCode: Int?) {
         viewModelScope.launch { repository.setIgnoredUpdateVersionCode(versionCode) }
+    }
+
+    fun resetScheduleAppearanceAndDisplay() {
+        viewModelScope.launch { repository.resetScheduleAppearanceAndDisplay() }
+    }
+
+    fun resetAllSettings() {
+        BeijingTime.setForcedNow(null)
+        viewModelScope.launch {
+            repository.resetAllSettings()
+            refreshScheduleOutputs()
+        }
     }
 }
 
