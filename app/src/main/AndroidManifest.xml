@@ -30,7 +30,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.ClassScheduleViewer">
+        android:theme="@style/Theme.CurSimple">
         <!-- Vendor opt-ins so MIUI / vivo / HONOR launchers index our widgets in their pickers. -->
         <meta-data android:name="miuiWidgetVersion" android:value="1" />
         <meta-data android:name="vivoWidgetVersion" android:value="1" />
@@ -50,7 +50,7 @@
             android:exported="false"
             android:launchMode="singleTop"
             android:showWhenLocked="true"
-            android:theme="@style/Theme.ClassScheduleViewer.AlarmRinging"
+            android:theme="@style/Theme.CurSimple.AlarmRinging"
             android:turnScreenOn="true" />
 
         <provider
@@ -80,7 +80,7 @@
             android:name=".app.reminder.AppAlarmReceiver"
             android:exported="false">
             <intent-filter>
-                <action android:name="com.kebiao.viewer.action.APP_ALARM_TRIGGER" />
+                <action android:name="com.x500x.cursimple.action.APP_ALARM_TRIGGER" />
             </intent-filter>
         </receiver>
 

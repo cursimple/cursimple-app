@@ -31,15 +31,15 @@ val classViewerKeyAlias = requireSigningValue("CLASS_VIEWER_KEY_ALIAS")
 val classViewerKeyPassword = requireSigningValue("CLASS_VIEWER_KEY_PASSWORD")
 
 android {
-    namespace = "com.kebiao.viewer"
+    namespace = "com.x500x.cursimple"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.kebiao.viewer"
+        applicationId = "com.x500x.cursimple"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 5
+        versionName = "0.5.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

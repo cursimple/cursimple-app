@@ -6,7 +6,7 @@
       {
         "pluginId": "demo-campus-v2",
         "name": "演示课表插件 V2",
-        "publisher": "Class Schedule Viewer",
+        "publisher": "CurSimple",
         "version": "2.0.0",
         "downloadUrl": "https://example.com/plugins/demo-campus-v2.csvplugin",
         "description": "示例索引项，展示远程市场字段结构。"

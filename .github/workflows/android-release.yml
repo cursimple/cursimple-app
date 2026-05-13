@@ -42,10 +42,11 @@ jobs:
           $content = Get-Content -Raw -LiteralPath $buildFile
           $current = 'include("armeabi-v7a", "arm64-v8a")'
           $target = 'include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")'
-          if (-not $content.Contains($current)) {
+          if ($content.Contains($current)) {
+            $content.Replace($current, $target) | Set-Content -NoNewline -LiteralPath $buildFile
+          } elseif (-not $content.Contains($target)) {
             throw "Expected ABI split declaration was not found."
           }
-          $content.Replace($current, $target) | Set-Content -NoNewline -LiteralPath $buildFile
 
       - name: Build release (4 ABIs + universal)
         run: ./gradlew assembleRelease
@@ -68,7 +69,7 @@ jobs:
               throw "Expected exactly one APK for $($target.Abi), found $($matches.Count)."
             }
 
-            Move-Item -LiteralPath $matches[0].FullName -Destination (Join-Path $releaseDir "ClassScheduleViewer-$($target.Abi).apk") -Force
+            Move-Item -LiteralPath $matches[0].FullName -Destination (Join-Path $releaseDir "CurSimple-$($target.Abi).apk") -Force
           }
 
       - name: Generate update manifest
@@ -87,9 +88,9 @@ jobs:
           $versionName = $Matches[1]
           $tagName = $env:GITHUB_REF_NAME
           $repo = $env:GITHUB_REPOSITORY
-          $assets = @(Get-ChildItem -LiteralPath $releaseDir -Filter "ClassScheduleViewer-*.apk" | Sort-Object Name | ForEach-Object {
+          $assets = @(Get-ChildItem -LiteralPath $releaseDir -Filter "CurSimple-*.apk" | Sort-Object Name | ForEach-Object {
             $fileName = $_.Name
-            $abi = $fileName -replace "^ClassScheduleViewer-", "" -replace "\.apk$", ""
+            $abi = $fileName -replace "^CurSimple-", "" -replace "\.apk$", ""
             [ordered]@{
               abi = $abi
               fileName = $fileName
@@ -111,7 +112,7 @@ jobs:
         with:
           name: release-apk-${{ github.sha }}
           path: |
-            app/build/outputs/apk/release/ClassScheduleViewer-*.apk
+            app/build/outputs/apk/release/CurSimple-*.apk
             app/build/outputs/apk/release/update.json
           if-no-files-found: error
 
@@ -119,6 +120,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/release/ClassScheduleViewer-*.apk
+            app/build/outputs/apk/release/CurSimple-*.apk
             app/build/outputs/apk/release/update.json
           generate_release_notes: true
