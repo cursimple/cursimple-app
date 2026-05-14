@@ -419,6 +419,8 @@ class AppContainer(
 
 private fun UserPreferences.toReminderAlarmSettings(): ReminderAlarmSettings = ReminderAlarmSettings(
     backend = alarmBackend,
+    ringtoneUri = alarmRingtoneUri,
+    alertMode = alarmAlertMode,
     ringDurationSeconds = alarmRingDurationSeconds,
     repeatIntervalSeconds = alarmRepeatIntervalSeconds,
     repeatCount = alarmRepeatCount,

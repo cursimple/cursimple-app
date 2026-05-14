@@ -1,5 +1,6 @@
 package com.x500x.cursimple.core.data
 
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
@@ -65,6 +66,8 @@ class UserPreferencesTest {
         val prefs = UserPreferences()
 
         assertEquals(ReminderAlarmBackend.AppAlarmClock, prefs.alarmBackend)
+        assertEquals(null, prefs.alarmRingtoneUri)
+        assertEquals(AlarmAlertMode.RingAndVibrate, prefs.alarmAlertMode)
         assertEquals(2 * 60, prefs.alarmRingDurationSeconds)
         assertEquals(60 * 5, prefs.alarmRepeatIntervalSeconds)
         assertEquals(5, prefs.alarmRepeatCount)

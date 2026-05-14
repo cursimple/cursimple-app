@@ -101,6 +101,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.feature.schedule.ScheduleSettingsRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
@@ -1796,25 +1797,37 @@ private fun SettingsSwitchRow(
 fun SettingsRoute(
     viewModel: ScheduleViewModel,
     alarmBackend: ReminderAlarmBackend,
+    alarmRingtoneUri: String?,
+    alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
     onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
+    onAlarmRingtoneUriChange: (String?) -> Unit,
+    onAlarmAlertModeChange: (AlarmAlertMode) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
+    onPickSystemRingtone: ((String?) -> Unit) -> Unit,
+    onPickLocalAudio: ((String?) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     ScheduleSettingsRoute(
         viewModel = viewModel,
         alarmBackend = alarmBackend,
+        alarmRingtoneUri = alarmRingtoneUri,
+        alarmAlertMode = alarmAlertMode,
         alarmRingDurationSeconds = alarmRingDurationSeconds,
         alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
         alarmRepeatCount = alarmRepeatCount,
         onAlarmBackendChange = onAlarmBackendChange,
+        onAlarmRingtoneUriChange = onAlarmRingtoneUriChange,
+        onAlarmAlertModeChange = onAlarmAlertModeChange,
         onAlarmRingDurationSecondsChange = onAlarmRingDurationSecondsChange,
         onAlarmRepeatIntervalSecondsChange = onAlarmRepeatIntervalSecondsChange,
         onAlarmRepeatCountChange = onAlarmRepeatCountChange,
+        onPickSystemRingtone = onPickSystemRingtone,
+        onPickLocalAudio = onPickLocalAudio,
         modifier = modifier,
     )
 }
