@@ -260,11 +260,15 @@ enum class AppAlarmOperationMode {
     SnoozeForegroundService,
 }
 
+const val DEFAULT_APP_ALARM_RING_DURATION_SECONDS = 2 * 60
+const val DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS = 60 * 5
+const val DEFAULT_APP_ALARM_REPEAT_COUNT = 5
+
 data class ReminderAlarmSettings(
     val backend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
-    val ringDurationSeconds: Int = 60,
-    val repeatIntervalSeconds: Int = 120,
-    val repeatCount: Int = 1,
+    val ringDurationSeconds: Int = DEFAULT_APP_ALARM_RING_DURATION_SECONDS,
+    val repeatIntervalSeconds: Int = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
+    val repeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
 )
 
 data class EditableAppAlarmSettings(

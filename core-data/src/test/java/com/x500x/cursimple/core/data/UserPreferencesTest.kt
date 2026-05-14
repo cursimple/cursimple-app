@@ -65,9 +65,9 @@ class UserPreferencesTest {
         val prefs = UserPreferences()
 
         assertEquals(ReminderAlarmBackend.AppAlarmClock, prefs.alarmBackend)
-        assertEquals(60, prefs.alarmRingDurationSeconds)
-        assertEquals(120, prefs.alarmRepeatIntervalSeconds)
-        assertEquals(1, prefs.alarmRepeatCount)
+        assertEquals(2 * 60, prefs.alarmRingDurationSeconds)
+        assertEquals(60 * 5, prefs.alarmRepeatIntervalSeconds)
+        assertEquals(5, prefs.alarmRepeatCount)
         assertEquals(0L, prefs.lastAlarmPollAtMillis)
     }
 }

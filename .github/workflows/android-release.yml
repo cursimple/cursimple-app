@@ -76,16 +76,29 @@ jobs:
         shell: pwsh
         run: |
           $releaseDir = "app/build/outputs/apk/release"
-          $buildFile = "app/build.gradle.kts"
-          $buildText = Get-Content -Raw -LiteralPath $buildFile
-          if ($buildText -notmatch "versionCode\s*=\s*(\d+)") {
-            throw "versionCode was not found."
+          $propertiesFile = "gradle.properties"
+          $properties = @{}
+          foreach ($rawLine in Get-Content -LiteralPath $propertiesFile) {
+            $line = $rawLine.Trim()
+            if ($line -eq "" -or $line.StartsWith("#")) {
+              continue
+            }
+            $separator = $line.IndexOf("=")
+            if ($separator -lt 1) {
+              continue
+            }
+            $key = $line.Substring(0, $separator).Trim()
+            $value = $line.Substring($separator + 1).Trim()
+            $properties[$key] = $value
           }
-          $versionCode = [int]$Matches[1]
-          if ($buildText -notmatch "versionName\s*=\s*`"([^`"]+)`"") {
-            throw "versionName was not found."
+          if (-not $properties.ContainsKey("app.versionCode")) {
+            throw "app.versionCode was not found."
           }
-          $versionName = $Matches[1]
+          if (-not $properties.ContainsKey("app.versionName")) {
+            throw "app.versionName was not found."
+          }
+          $versionCode = [int]$properties["app.versionCode"]
+          $versionName = $properties["app.versionName"]
           $tagName = $env:GITHUB_REF_NAME
           $repo = $env:GITHUB_REPOSITORY
           $assets = @(Get-ChildItem -LiteralPath $releaseDir -Filter "CurSimple-*.apk" | Sort-Object Name | ForEach-Object {

@@ -13,6 +13,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -173,6 +178,7 @@ internal fun ReminderRuleEditorDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ConditionRow(
     condition: ReminderLabelCondition,
@@ -187,33 +193,27 @@ private fun ConditionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        LabelCycleButton(
+        LabelDropdown(
             label = condition.slotLabel,
             labels = labels,
             modifier = Modifier.weight(1f),
             onSelected = { onChange(condition.copy(slotLabel = it)) },
         )
-        OutlinedButton(
-            onClick = {
-                onChange(
-                    condition.copy(
-                        presence = if (condition.presence == ReminderLabelPresence.Exists) {
-                            ReminderLabelPresence.Absent
-                        } else {
-                            ReminderLabelPresence.Exists
-                        },
-                    ),
-                )
-            },
-        ) {
-            Text(if (condition.presence == ReminderLabelPresence.Exists) "存在" else "不存在")
-        }
+        EnumDropdown(
+            value = condition.presence,
+            options = ReminderLabelPresence.entries,
+            label = "条件",
+            optionLabel = { it.conditionLabel() },
+            modifier = Modifier.weight(0.8f),
+            onSelected = { onChange(condition.copy(presence = it)) },
+        )
         IconButton(onClick = onDelete) {
             Icon(Icons.Rounded.Delete, contentDescription = "删除条件")
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActionRow(
     action: ReminderLabelAction,
@@ -228,50 +228,116 @@ private fun ActionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        LabelCycleButton(
+        LabelDropdown(
             label = action.slotLabel,
             labels = labels,
             modifier = Modifier.weight(1f),
             onSelected = { onChange(action.copy(slotLabel = it)) },
         )
-        OutlinedButton(
-            onClick = {
-                onChange(
-                    action.copy(
-                        action = if (action.action == ReminderLabelActionType.Remind) {
-                            ReminderLabelActionType.Skip
-                        } else {
-                            ReminderLabelActionType.Remind
-                        },
-                    ),
-                )
-            },
-        ) {
-            Text(if (action.action == ReminderLabelActionType.Remind) "提醒" else "跳过")
-        }
+        EnumDropdown(
+            value = action.action,
+            options = ReminderLabelActionType.entries,
+            label = "动作",
+            optionLabel = { it.actionLabel() },
+            modifier = Modifier.weight(0.8f),
+            onSelected = { onChange(action.copy(action = it)) },
+        )
         IconButton(onClick = onDelete) {
             Icon(Icons.Rounded.Delete, contentDescription = "删除动作")
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LabelCycleButton(
+private fun LabelDropdown(
     label: String,
     labels: List<String>,
     modifier: Modifier,
     onSelected: (String) -> Unit,
 ) {
-    OutlinedButton(
-        onClick = {
-            val current = labels.indexOf(label)
-            val next = labels[(current + 1).floorMod(labels.size)]
-            onSelected(next)
-        },
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
         modifier = modifier,
     ) {
-        Text(label.ifBlank { "无可选 label" })
+        OutlinedTextField(
+            value = label.ifBlank { "无可选 label" },
+            onValueChange = {},
+            readOnly = true,
+            label = { Text("课程 label") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                .fillMaxWidth(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            labels.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.ifBlank { "无可选 label" }) },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 
-private fun Int.floorMod(size: Int): Int = if (size <= 0) 0 else ((this % size) + size) % size
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> EnumDropdown(
+    value: T,
+    options: List<T>,
+    label: String,
+    optionLabel: (T) -> String,
+    modifier: Modifier,
+    onSelected: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        modifier = modifier,
+    ) {
+        OutlinedTextField(
+            value = optionLabel(value),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                .fillMaxWidth(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel(option)) },
+                    onClick = {
+                        onSelected(option)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+private fun ReminderLabelPresence.conditionLabel(): String = when (this) {
+    ReminderLabelPresence.Exists -> "存在"
+    ReminderLabelPresence.Absent -> "不存在"
+}
+
+private fun ReminderLabelActionType.actionLabel(): String = when (this) {
+    ReminderLabelActionType.Remind -> "提醒"
+    ReminderLabelActionType.Skip -> "跳过"
+}
