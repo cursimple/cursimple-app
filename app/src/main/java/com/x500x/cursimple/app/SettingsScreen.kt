@@ -474,9 +474,9 @@ fun AppSettingsRoute(
                     icon = Icons.Rounded.CalendarMonth,
                     title = "与表头背景一致",
                     subtitle = if (scheduleBackground.type == ScheduleBackgroundType.Header) {
-                        "当前已跟随当前天表头背景"
+                        "当前已使用表头区域的深浅模式底色"
                     } else {
-                        "使用当前天表头背景作为课表背景"
+                        "使用表头区域的深浅模式底色作为课表背景"
                     },
                     onClick = onScheduleBackgroundUseHeaderColor,
                 )
@@ -1039,7 +1039,7 @@ private fun formatFloat(value: Float): String =
 private fun backgroundSubtitle(background: ScheduleBackgroundPreferences): String = when (background.type) {
     ScheduleBackgroundType.Color -> "颜色 ${formatArgb(background.colorArgb)}"
     ScheduleBackgroundType.Image -> background.imageUri?.let { "图片背景" } ?: "图片未选择"
-    ScheduleBackgroundType.Header -> "与表头背景一致"
+    ScheduleBackgroundType.Header -> "与表头区域背景一致"
 }
 
 private fun widgetThemeLabel(preferences: WidgetThemePreferences): String =

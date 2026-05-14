@@ -461,7 +461,7 @@ class DataStoreUserPreferencesRepository(
         return ScheduleBackgroundPreferences(
             type = this[KEY_SCHEDULE_BACKGROUND_TYPE]
                 ?.let { runCatching { ScheduleBackgroundType.valueOf(it) }.getOrNull() }
-                ?: ScheduleBackgroundType.Color,
+                ?: ScheduleBackgroundPreferences.DEFAULT_BACKGROUND_TYPE,
             colorArgb = ScheduleBackgroundPreferences.coerceArgb(
                 this[KEY_SCHEDULE_BACKGROUND_COLOR_ARGB]
                     ?: ScheduleBackgroundPreferences.DEFAULT_BACKGROUND_COLOR_ARGB,
