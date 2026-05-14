@@ -445,7 +445,7 @@ class MainActivity : ComponentActivity() {
                                                 ) {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         Text(
-                                                            text = if (scheduleViewMode == ScheduleViewMode.Week) "日" else "周",
+                                                            text = if (scheduleViewMode == ScheduleViewMode.Week) "周" else "日",
                                                             style = MaterialTheme.typography.titleSmall,
                                                             fontWeight = FontWeight.Bold,
                                                             color = MaterialTheme.colorScheme.onSurfaceVariant,

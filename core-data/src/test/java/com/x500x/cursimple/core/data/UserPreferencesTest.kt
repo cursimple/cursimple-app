@@ -27,7 +27,7 @@ class UserPreferencesTest {
         assertEquals(0, prefs.scheduleCardStyle.scheduleOpacityPercent)
         assertEquals(50, prefs.scheduleCardStyle.inactiveCourseOpacityPercent)
         assertEquals(100, prefs.scheduleCardStyle.gridBorderOpacityPercent)
-        assertEquals(ScheduleBackgroundType.Color, prefs.scheduleBackground.type)
+        assertEquals(ScheduleBackgroundType.Header, prefs.scheduleBackground.type)
         assertEquals(0xFFFFFFFFL, prefs.scheduleBackground.colorArgb)
     }
 
