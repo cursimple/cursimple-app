@@ -29,6 +29,14 @@ val classViewerKeystoreFile = requireSigningValue("CLASS_VIEWER_KEYSTORE_FILE")
 val classViewerKeystorePassword = requireSigningValue("CLASS_VIEWER_KEYSTORE_PASSWORD")
 val classViewerKeyAlias = requireSigningValue("CLASS_VIEWER_KEY_ALIAS")
 val classViewerKeyPassword = requireSigningValue("CLASS_VIEWER_KEY_PASSWORD")
+val appVersionCode = providers.gradleProperty("app.versionCode")
+    .orNull
+    ?.toIntOrNull()
+    ?: throw GradleException("缺少或无效的 app.versionCode，请在根目录 gradle.properties 配置。")
+val appVersionName = providers.gradleProperty("app.versionName")
+    .orNull
+    ?.takeIf { it.isNotBlank() }
+    ?: throw GradleException("缺少或无效的 app.versionName，请在根目录 gradle.properties 配置。")
 
 android {
     namespace = "com.x500x.cursimple"
@@ -38,8 +46,8 @@ android {
         applicationId = "com.x500x.cursimple"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

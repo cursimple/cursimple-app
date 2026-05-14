@@ -61,6 +61,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
 import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
@@ -372,9 +375,9 @@ private fun AlarmRecordRow(
             Text(
                 listOf(
                     record.displayMessage ?: record.message,
-                    "响铃 ${record.ringDurationSeconds ?: 60} 秒",
-                    "间隔 ${record.repeatIntervalSeconds ?: 120} 秒",
-                    "${record.repeatCount ?: 1} 次",
+                    "响铃 ${record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS} 秒",
+                    "间隔 ${record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS} 秒",
+                    "${record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT} 次",
                     if (record.ringtoneUriOverride.isNullOrBlank()) "默认铃声" else "自定义铃声",
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
