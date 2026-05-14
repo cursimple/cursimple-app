@@ -108,7 +108,9 @@ import com.x500x.cursimple.core.kernel.model.cancelsCourseOn
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.isTemporaryScheduleOverridden
+import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -391,6 +393,7 @@ fun ScheduleScreen(
         if (showBulkReminder) {
             val selectedCourses = remember(selectedIds, state.schedule, state.manualCourses) {
                 (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+                    .visibleScheduleCourses()
                     .filter { it.id in selectedIds }
             }
             val containsExam = selectedCourses.any { it.category == CourseCategory.Exam }
@@ -873,7 +876,7 @@ private fun WeeklyScheduleSection(
         displaySlots(schedule, timingProfile, manualCourses)
     }
     val allCourses = remember(schedule, manualCourses) {
-        schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+        (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
     }
     val visibleDayIndices = remember(scheduleDisplay.saturdayVisible, scheduleDisplay.weekendVisible) {
         visibleDayIndices(scheduleDisplay)
@@ -1005,6 +1008,7 @@ private fun WeeklyScheduleSection(
                             week = pageWeek,
                             slots = slots,
                             activeEntries = active,
+                            timingProfile = timingProfile,
                             uiSchema = uiSchema,
                             reminderRules = reminderRules,
                             visibleDayIndices = visibleDayIndices,
@@ -1056,7 +1060,7 @@ private fun DailyScheduleSection(
         displaySlots(schedule, timingProfile, manualCourses)
     }
     val allCourses = remember(schedule, manualCourses) {
-        schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+        (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
     }
     val today = LocalAppZone.current.today()
     val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, temporaryScheduleOverrides)
@@ -1109,6 +1113,7 @@ private fun DailyScheduleSection(
                 DayList(
                     slots = slots,
                     courses = active,
+                    timingProfile = timingProfile,
                     targetDate = targetDate,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
                     uiSchema = uiSchema,
@@ -1190,6 +1195,7 @@ private fun DailyHeaderRow(
 private fun DayList(
     slots: List<DisplaySlot>,
     courses: List<CourseItem>,
+    timingProfile: TermTimingProfile?,
     targetDate: LocalDate,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     uiSchema: PluginUiSchema,
@@ -1241,6 +1247,7 @@ private fun DayList(
             DayRow(
                 slot = slot,
                 courses = starting,
+                timingProfile = timingProfile,
                 targetDate = targetDate,
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
                 uiSchema = uiSchema,
@@ -1275,6 +1282,7 @@ private fun DayList(
 private fun DayRow(
     slot: DisplaySlot,
     courses: List<CourseItem>,
+    timingProfile: TermTimingProfile?,
     targetDate: LocalDate,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     uiSchema: PluginUiSchema,
@@ -1447,7 +1455,7 @@ private fun DayRow(
                             color = onColor,
                             fontSize = 12.sp,
                         )
-                        if (hasReminderForCourse(course, reminderRules)) {
+                        if (hasReminderForCourse(course, reminderRules, timingProfile)) {
                             Icon(
                                 imageVector = Icons.Rounded.Notifications,
                                 contentDescription = null,
@@ -1627,6 +1635,7 @@ private fun ScheduleGrid(
     week: WeekModel,
     slots: List<DisplaySlot>,
     activeEntries: List<CourseRenderEntry>,
+    timingProfile: TermTimingProfile?,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
     visibleDayIndices: List<Int>,
@@ -1796,7 +1805,7 @@ private fun ScheduleGrid(
                             CourseBlock(
                                 course = course,
                                 badges = badgesForCourse(course, uiSchema.courseBadges),
-                                hasReminder = hasReminderForCourse(course, reminderRules),
+                                hasReminder = hasReminderForCourse(course, reminderRules, timingProfile),
                                 selected = course.id == selectedCourseId,
                                 inactive = mainEntry.inactive,
                                 temporarilyCancelled = mainEntry.temporarilyCancelled,
@@ -3473,6 +3482,24 @@ private fun describeReminderRule(
                 actionSummary(rule),
             ).joinToString(" · ")
         }
+        ReminderScopeType.LabelRule -> {
+            title = rule.displayName ?: "提醒规则"
+            val conditions = rule.labelConditions.joinToString("，") { condition ->
+                val presence = when (condition.presence) {
+                    com.x500x.cursimple.core.reminder.model.ReminderLabelPresence.Exists -> "存在"
+                    com.x500x.cursimple.core.reminder.model.ReminderLabelPresence.Absent -> "不存在"
+                }
+                "${condition.slotLabel} $presence"
+            }.ifBlank { "无条件" }
+            val actions = rule.labelActions.joinToString("，") { action ->
+                val type = when (action.action) {
+                    com.x500x.cursimple.core.reminder.model.ReminderLabelActionType.Remind -> "提醒"
+                    com.x500x.cursimple.core.reminder.model.ReminderLabelActionType.Skip -> "跳过"
+                }
+                "${action.slotLabel} $type"
+            }.ifBlank { "无动作" }
+            timing = "如果 $conditions · 就 $actions"
+        }
     }
     val ringtone = if (rule.ringtoneUri.isNullOrBlank()) "系统默认铃声" else "自定义铃声"
     val options = "提前 ${rule.advanceMinutes} 分钟 · $ringtone"
@@ -3893,6 +3920,7 @@ private fun badgesForCourse(course: CourseItem, rules: List<CourseBadgeRule>): L
 private fun hasReminderForCourse(
     course: CourseItem,
     rules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
+    timingProfile: TermTimingProfile?,
 ): Boolean {
     return rules.any { rule ->
         when (rule.scopeType) {
@@ -3902,6 +3930,12 @@ private fun hasReminderForCourse(
             ReminderScopeType.Exam ->
                 rule.enabled && course.category == CourseCategory.Exam && course.id !in rule.mutedCourseIds
             ReminderScopeType.FirstCourseOfPeriod -> false
+            ReminderScopeType.LabelRule -> rule.enabled &&
+                timingProfile != null &&
+                rule.labelActions.any { action ->
+                    action.action == com.x500x.cursimple.core.reminder.model.ReminderLabelActionType.Remind &&
+                        course.reminderSlotLabel(timingProfile) == action.slotLabel
+                }
         }
     }
 }
@@ -3921,7 +3955,7 @@ internal fun CourseItem.isActiveInWeek(weekNumber: Int): Boolean {
 }
 
 internal fun activeCoursesForWeek(courses: List<CourseItem>, weekNumber: Int): List<CourseItem> {
-    return courses.filter { it.isActiveInWeek(weekNumber) }
+    return courses.visibleScheduleCourses().filter { it.isActiveInWeek(weekNumber) }
 }
 
 internal fun buildWeekRenderEntries(
@@ -3946,6 +3980,7 @@ internal fun buildWeekRenderEntries(
         .mapIndexed { columnIndex, dayIndex -> dayIndex to columnIndex }
         .toMap()
 
+    val displayCourses = allCourses.visibleScheduleCourses()
     val resolved = if (weekStart != null && temporaryScheduleOverrides.isNotEmpty()) {
         visibleColumns.keys.sorted().flatMap { dayIndex ->
             val actualDate = weekStart.plusDays(dayIndex.toLong())
@@ -3953,9 +3988,9 @@ internal fun buildWeekRenderEntries(
             val sourceDayOfWeek = sourceDate.dayOfWeek.value
             val sourceWeekIndex = termStart?.let { computeWeekNumberForDate(it, sourceDate) } ?: weekIndex
             val source = if (totalScheduleDisplayEnabled) {
-                allCourses
+                displayCourses
             } else {
-                activeCoursesForWeek(allCourses, sourceWeekIndex)
+                activeCoursesForWeek(displayCourses, sourceWeekIndex)
             }
             source
                 .filter { it.time.dayOfWeek == sourceDayOfWeek }
@@ -3976,9 +4011,9 @@ internal fun buildWeekRenderEntries(
         }
     } else {
         val source = if (totalScheduleDisplayEnabled) {
-            allCourses
+            displayCourses
         } else {
-            activeCoursesForWeek(allCourses, weekIndex)
+            activeCoursesForWeek(displayCourses, weekIndex)
         }
         source
             .mapNotNull { course ->

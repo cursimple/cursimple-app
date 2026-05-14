@@ -28,6 +28,10 @@ data class CourseItem(
     @SerialName("weeks") val weeks: List<Int> = emptyList(),
     @SerialName("category") val category: CourseCategory = CourseCategory.Course,
     @SerialName("time") val time: CourseTimeSlot,
+    @SerialName("reminderOnly") val reminderOnly: Boolean = false,
+    @SerialName("slotLabelOverride") val slotLabelOverride: String? = null,
+    @SerialName("reminderStartTime") val reminderStartTime: String? = null,
+    @SerialName("reminderEndTime") val reminderEndTime: String? = null,
 )
 
 @Serializable
@@ -46,4 +50,9 @@ data class TermSchedule(
 fun TermSchedule.coursesOfDay(dayOfWeek: Int): List<CourseItem> {
     return dailySchedules.firstOrNull { it.dayOfWeek == dayOfWeek }?.courses.orEmpty()
 }
+
+fun CourseItem.isReminderOnly(): Boolean = reminderOnly
+
+fun List<CourseItem>.visibleScheduleCourses(): List<CourseItem> =
+    filterNot { it.reminderOnly }
 

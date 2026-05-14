@@ -3,6 +3,7 @@ package com.x500x.cursimple.app.reminder
 import android.content.Context
 import com.x500x.cursimple.app.ClassScheduleApplication
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
+import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 
 object AlarmRuntimeMaintenance {
     suspend fun onAlarmStarted(context: Context) {
@@ -13,7 +14,11 @@ object AlarmRuntimeMaintenance {
         }
         runCatching {
             app.appContainer.ensureAlarmRuntimeHealth()
-            app.appContainer.runAlarmFollowUpSync(clearExpiredRecords = false)
+            app.appContainer.runSharedAlarmIntegrityCheck(
+                reason = ReminderSyncReason.AlarmRuntime,
+                includeTomorrow = true,
+                clearExpiredRecords = false,
+            )
         }.onFailure { error ->
             ReminderLogger.warn(
                 "reminder.app_alarm_clock.runtime_maintenance.started.failure",
@@ -30,7 +35,10 @@ object AlarmRuntimeMaintenance {
             return
         }
         runCatching {
-            app.appContainer.runAlarmFollowUpSync()
+            app.appContainer.runSharedAlarmIntegrityCheck(
+                reason = ReminderSyncReason.AlarmRuntime,
+                includeTomorrow = true,
+            )
             app.appContainer.refreshWidgets()
         }.onFailure { error ->
             ReminderLogger.warn(

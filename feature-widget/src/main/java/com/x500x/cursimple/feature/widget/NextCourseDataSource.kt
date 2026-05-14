@@ -14,6 +14,7 @@ import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
@@ -71,6 +72,7 @@ internal object NextCourseDataSource {
                     manualCourses.filter { it.time.dayOfWeek == dayOfWeek },
                 overrides = userPrefs.temporaryScheduleOverrides,
             )
+                .visibleScheduleCourses()
                 .filter { it.activeOnWeek(weekIndex) }
                 .sortedBy { it.time.startNode }
             return Triple(targetDate, sourceDate, courses)
