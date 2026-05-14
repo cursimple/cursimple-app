@@ -16,6 +16,7 @@ import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
 import com.x500x.cursimple.core.reminder.model.AppAlarmOperationMode
+import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.FirstCourseCandidateScope
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
@@ -25,6 +26,9 @@ import com.x500x.cursimple.core.reminder.model.ReminderConditionMode
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
+import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
+import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
+import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
@@ -70,6 +74,70 @@ class ReminderCoordinator(
 
     suspend fun saveRule(rule: ReminderRule) {
         repository.saveReminderRule(rule)
+    }
+
+    suspend fun upsertLabelRule(rule: ReminderRule): ReminderRule {
+        val now = OffsetDateTime.now().toString()
+        val next = rule.copy(
+            scopeType = ReminderScopeType.LabelRule,
+            labelConditions = rule.labelConditions.normalizedLabelConditions(),
+            labelActions = rule.labelActions.normalizedLabelActions(),
+            createdAt = rule.createdAt.ifBlank { now },
+            updatedAt = now,
+        )
+        repository.saveReminderRule(next)
+        return next
+    }
+
+    suspend fun upsertLabelRule(
+        pluginId: String,
+        ruleId: String? = null,
+        displayName: String,
+        enabled: Boolean,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+        labelConditions: List<ReminderLabelCondition>,
+        labelActions: List<ReminderLabelAction>,
+    ): ReminderRule {
+        val now = OffsetDateTime.now().toString()
+        val existing = ruleId?.let { id ->
+            repository.getReminderRules().firstOrNull {
+                it.ruleId == id && it.pluginId == pluginId && it.scopeType == ReminderScopeType.LabelRule
+            }
+        }
+        val rule = (existing ?: ReminderRule(
+            ruleId = UUID.randomUUID().toString(),
+            pluginId = pluginId,
+            scopeType = ReminderScopeType.LabelRule,
+            advanceMinutes = advanceMinutes,
+            ringtoneUri = ringtoneUri,
+            enabled = enabled,
+            createdAt = now,
+            updatedAt = now,
+        )).copy(
+            displayName = displayName.takeIf { it.isNotBlank() },
+            enabled = enabled,
+            advanceMinutes = advanceMinutes.coerceIn(0, 720),
+            ringtoneUri = ringtoneUri,
+            labelConditions = labelConditions.normalizedLabelConditions(),
+            labelActions = labelActions.normalizedLabelActions(),
+            updatedAt = now,
+        )
+        repository.saveReminderRule(rule)
+        if (!enabled) {
+            dismissRecords(repository.getSystemAlarmRecords().filter { it.ruleId == rule.ruleId })
+        }
+        return rule
+    }
+
+    suspend fun setRuleEnabled(ruleId: String, enabled: Boolean): ReminderRule? = SYSTEM_ALARM_LOCK.withLock {
+        val existing = repository.getReminderRules().firstOrNull { it.ruleId == ruleId } ?: return@withLock null
+        val rule = existing.copy(enabled = enabled, updatedAt = OffsetDateTime.now().toString())
+        repository.saveReminderRule(rule)
+        if (!enabled) {
+            dismissRecords(repository.getSystemAlarmRecords().filter { it.ruleId == ruleId })
+        }
+        rule
     }
 
     suspend fun createRule(
@@ -374,6 +442,106 @@ class ReminderCoordinator(
         result
     }
 
+    suspend fun setAppAlarmEnabled(
+        alarmKey: String,
+        enabled: Boolean,
+    ): AlarmDismissResult = SYSTEM_ALARM_LOCK.withLock {
+        val record = repository.getSystemAlarmRecords()
+            .firstOrNull { it.alarmKey == alarmKey && it.backend == ReminderAlarmBackend.AppAlarmClock }
+            ?: return@withLock AlarmDismissResult(alarmKey, true, "闹钟登记已不存在")
+        if (!enabled) {
+            val result = appDismisser.dismiss(record)
+            if (result.succeeded) {
+                repository.saveSystemAlarmRecord(record.copy(enabled = false))
+            }
+            return@withLock result
+        }
+        val plan = record.toReminderPlan()
+        val result = appDispatcher.dispatch(plan)
+        if (result.succeeded) {
+            repository.saveSystemAlarmRecord(
+                record.copy(
+                    enabled = true,
+                    requestCode = plan.appAlarmRequestCode(),
+                    operationMode = CURRENT_APP_ALARM_OPERATION_MODE,
+                ),
+            )
+        }
+        AlarmDismissResult(
+            alarmKey = alarmKey,
+            succeeded = result.succeeded,
+            message = result.message,
+        )
+    }
+
+    suspend fun updateAppAlarmSettings(
+        alarmKey: String,
+        settings: EditableAppAlarmSettings,
+    ): AlarmDispatchResult = SYSTEM_ALARM_LOCK.withLock {
+        val record = repository.getSystemAlarmRecords()
+            .firstOrNull { it.alarmKey == alarmKey && it.backend == ReminderAlarmBackend.AppAlarmClock }
+            ?: return@withLock AlarmDispatchResult(
+                channel = AlarmDispatchChannel.AppAlarmClock,
+                succeeded = false,
+                message = "闹钟登记已不存在",
+            )
+        val next = record.copy(
+            ringtoneUriOverride = settings.ringtoneUriOverride?.takeIf { it.isNotBlank() },
+            ringDurationSeconds = settings.ringDurationSeconds?.coerceIn(5, 600),
+            repeatIntervalSeconds = settings.repeatIntervalSeconds?.coerceIn(5, 3600),
+            repeatCount = settings.repeatCount?.coerceIn(1, 10),
+        )
+        val plan = next.toReminderPlan()
+        appDismisser.dismiss(record)
+        val result = appDispatcher.dispatch(plan)
+        if (result.succeeded) {
+            repository.removeSystemAlarmRecord(record.alarmKey, record.backend)
+            repository.saveSystemAlarmRecord(
+                next.copy(
+                    alarmKey = plan.systemAlarmKey(),
+                    requestCode = plan.appAlarmRequestCode(),
+                    operationMode = CURRENT_APP_ALARM_OPERATION_MODE,
+                    enabled = true,
+                ),
+            )
+        }
+        result
+    }
+
+    suspend fun createManualAppAlarm(
+        pluginId: String,
+        triggerAtMillis: Long,
+        title: String,
+        message: String,
+        settings: EditableAppAlarmSettings,
+    ): AlarmDispatchResult = SYSTEM_ALARM_LOCK.withLock {
+        val plan = ReminderPlan(
+            planId = "manual-${UUID.randomUUID()}",
+            ruleId = "manual-app-alarm",
+            pluginId = pluginId.ifBlank { "manual" },
+            title = title.ifBlank { "手动闹钟" },
+            message = message.ifBlank { "手动创建的提醒" },
+            triggerAtMillis = triggerAtMillis,
+            ringtoneUri = settings.ringtoneUriOverride?.takeIf { it.isNotBlank() },
+            courseId = null,
+            ringDurationSeconds = settings.ringDurationSeconds?.coerceIn(5, 600),
+            repeatIntervalSeconds = settings.repeatIntervalSeconds?.coerceIn(5, 3600),
+            repeatCount = settings.repeatCount?.coerceIn(1, 10),
+        )
+        val result = appDispatcher.dispatch(plan)
+        if (result.succeeded) {
+            val record = plan.toAppAlarmRecord(
+                operationMode = CURRENT_APP_ALARM_OPERATION_MODE,
+            )
+            repository.saveSystemAlarmRecord(
+                record.copy(
+                    manualAlarm = true,
+                ),
+            )
+        }
+        result
+    }
+
     suspend fun consumeTriggeredAppAlarm(
         alarmKey: String,
         ruleId: String,
@@ -449,26 +617,19 @@ class ReminderCoordinator(
         val zone = ZoneId.systemDefault()
         val systemClockZone = zone
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
-        val customOccupancies = repository.getCustomOccupancies(pluginId)
-        cleanupExpiredExamMutes(
-            pluginId = pluginId,
+        val rules = repository.getReminderRules()
+            .filter {
+                it.enabled &&
+                    it.pluginId == pluginId &&
+                    it.scopeType == ReminderScopeType.LabelRule
+            }
+        val plans = planner.expandRules(
+            rules = rules,
             schedule = schedule,
             timingProfile = profile,
             fromDate = Instant.ofEpochMilli(window.startMillis).atZone(zone).toLocalDate(),
             temporaryScheduleOverrides = temporaryScheduleOverrides,
-        )
-        val rules = repository.getReminderRules()
-            .filter { it.enabled && it.pluginId == pluginId }
-        val plans = rules.flatMap { rule ->
-            planner.expandRule(
-                rule = rule,
-                schedule = schedule,
-                timingProfile = profile,
-                fromDate = Instant.ofEpochMilli(window.startMillis).atZone(zone).toLocalDate(),
-                temporaryScheduleOverrides = temporaryScheduleOverrides,
-                customOccupancies = customOccupancies,
-            )
-        }.asSequence()
+        ).asSequence()
             .filter { it.triggerAtMillis in window.startMillis..window.endMillis }
             .distinctBy { it.systemAlarmKey() }
             .sortedBy { it.triggerAtMillis }
@@ -491,6 +652,7 @@ class ReminderCoordinator(
         val existingKeys = runCatching {
             repository.getSystemAlarmRecords()
                 .filter { it.backend == settings.backend }
+                .filter { it.enabled }
                 .filter { settings.backend != ReminderAlarmBackend.AppAlarmClock || it.operationMode == CURRENT_APP_ALARM_OPERATION_MODE }
                 .mapTo(mutableSetOf()) { it.alarmKey }
         }.getOrElse { error ->
@@ -571,6 +733,19 @@ class ReminderCoordinator(
                             },
                             displayTitle = plan.title,
                             displayMessage = plan.message,
+                            enabled = true,
+                            ringDurationSeconds = settings.ringDurationSeconds.takeIf {
+                                settings.backend == ReminderAlarmBackend.AppAlarmClock
+                            },
+                            repeatIntervalSeconds = settings.repeatIntervalSeconds.takeIf {
+                                settings.backend == ReminderAlarmBackend.AppAlarmClock
+                            },
+                            repeatCount = settings.repeatCount.takeIf {
+                                settings.backend == ReminderAlarmBackend.AppAlarmClock
+                            },
+                            ringtoneUriOverride = plan.ringtoneUri.takeIf {
+                                settings.backend == ReminderAlarmBackend.AppAlarmClock
+                            },
                             createdAtMillis = System.currentTimeMillis(),
                         ),
                     )
@@ -957,4 +1132,33 @@ private fun ReminderRule.hasSameDefinition(
 private fun String?.normalizeRingtoneUri(): String? = takeUnless { it.isNullOrBlank() }
 
 private fun ReminderRule.shouldDeleteAfterAppAlarmRing(): Boolean =
-    scopeType != ReminderScopeType.FirstCourseOfPeriod && scopeType != ReminderScopeType.Exam
+    scopeType != ReminderScopeType.LabelRule
+
+private fun List<ReminderLabelCondition>.normalizedLabelConditions(): List<ReminderLabelCondition> =
+    mapNotNull { condition ->
+        condition.slotLabel.trim().takeIf { it.isNotBlank() }?.let {
+            condition.copy(slotLabel = it)
+        }
+    }.distinct()
+
+private fun List<ReminderLabelAction>.normalizedLabelActions(): List<ReminderLabelAction> =
+    mapNotNull { action ->
+        action.slotLabel.trim().takeIf { it.isNotBlank() }?.let {
+            action.copy(slotLabel = it)
+        }
+    }.distinct()
+
+private fun SystemAlarmRecord.toReminderPlan(): ReminderPlan =
+    ReminderPlan(
+        planId = planId,
+        ruleId = ruleId,
+        pluginId = pluginId,
+        title = displayTitle ?: alarmLabel ?: message,
+        message = displayMessage ?: message,
+        triggerAtMillis = triggerAtMillis,
+        ringtoneUri = ringtoneUriOverride,
+        courseId = courseId,
+        ringDurationSeconds = ringDurationSeconds,
+        repeatIntervalSeconds = repeatIntervalSeconds,
+        repeatCount = repeatCount,
+    )

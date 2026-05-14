@@ -104,9 +104,11 @@ class AlarmRingingService : Service() {
         }
         ringJob = serviceScope.launch {
             val prefs = DataStoreUserPreferencesRepository(applicationContext).preferencesFlow.first()
-            val repeatCount = prefs.alarmRepeatCount.coerceIn(1, 10)
-            val durationMillis = prefs.alarmRingDurationSeconds.coerceIn(5, 600) * 1000L
-            val intervalMillis = prefs.alarmRepeatIntervalSeconds.coerceIn(5, 3600) * 1000L
+            val repeatCount = (alarm.repeatCount ?: prefs.alarmRepeatCount).coerceIn(1, 10)
+            val durationMillis = (alarm.ringDurationSeconds ?: prefs.alarmRingDurationSeconds)
+                .coerceIn(5, 600) * 1000L
+            val intervalMillis = (alarm.repeatIntervalSeconds ?: prefs.alarmRepeatIntervalSeconds)
+                .coerceIn(5, 3600) * 1000L
             val delayMillis = System.currentTimeMillis() - alarm.triggerAtMillis
             if (alarm.triggerAtMillis > 0L && delayMillis > MISSED_ALARM_THRESHOLD_MILLIS) {
                 ReminderLogger.warn(
@@ -216,6 +218,9 @@ class AlarmRingingService : Service() {
             triggerAtMillis = triggerAtMillis,
             ringtoneUri = ringtoneUri,
             courseId = courseId,
+            ringDurationSeconds = ringDurationSeconds,
+            repeatIntervalSeconds = repeatIntervalSeconds,
+            repeatCount = repeatCount,
         )
     }
 
@@ -442,6 +447,9 @@ class AlarmRingingService : Service() {
         message = getStringExtra(AppAlarmClockIntents.EXTRA_MESSAGE).orEmpty(),
         ringtoneUri = getStringExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI)?.takeIf { it.isNotBlank() },
         triggerAtMillis = getLongExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, 0L),
+        ringDurationSeconds = getIntExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, -1).takeIf { it > 0 },
+        repeatIntervalSeconds = getIntExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, -1).takeIf { it > 0 },
+        repeatCount = getIntExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT, -1).takeIf { it > 0 },
     )
 
     private fun Intent.putAlarmExtras(alarm: ActiveAlarm): Intent = apply {
@@ -454,6 +462,9 @@ class AlarmRingingService : Service() {
         putExtra(AppAlarmClockIntents.EXTRA_TITLE, alarm.title)
         putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, alarm.message)
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, alarm.ringtoneUri)
+        alarm.ringDurationSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, it) }
+        alarm.repeatIntervalSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, it) }
+        alarm.repeatCount?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT, it) }
     }
 
     private data class ActiveAlarm(
@@ -466,6 +477,9 @@ class AlarmRingingService : Service() {
         val message: String,
         val ringtoneUri: String?,
         val triggerAtMillis: Long,
+        val ringDurationSeconds: Int?,
+        val repeatIntervalSeconds: Int?,
+        val repeatCount: Int?,
     )
 
     companion object {

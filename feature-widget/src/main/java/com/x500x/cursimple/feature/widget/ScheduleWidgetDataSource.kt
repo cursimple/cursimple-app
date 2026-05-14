@@ -15,6 +15,7 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
+import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.ReminderRule
@@ -141,6 +142,7 @@ internal object ScheduleWidgetDataSource {
             courses = importedCourses + manualCourses,
             overrides = temporaryScheduleOverrides,
         )
+            .visibleScheduleCourses()
             .filter { it.activeOnWeek(weekIndex) }
             .sortedBy { it.time.startNode }
         val rows = courses.map { it.toRow(timingProfile, reminderRules) }
@@ -203,6 +205,10 @@ internal object ScheduleWidgetDataSource {
         ReminderScopeType.Exam ->
             course.category == CourseCategory.Exam && course.id !in mutedCourseIds
         ReminderScopeType.FirstCourseOfPeriod -> false
+        ReminderScopeType.LabelRule -> labelActions.any {
+            it.action == com.x500x.cursimple.core.reminder.model.ReminderLabelActionType.Remind &&
+                it.slotLabel == course.slotLabelOverride
+        }
     }
 
     private fun parseIsoDate(value: String): LocalDate? =

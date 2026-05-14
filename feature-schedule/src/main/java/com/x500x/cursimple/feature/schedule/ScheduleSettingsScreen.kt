@@ -3,35 +3,36 @@ package com.x500x.cursimple.feature.schedule
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
-import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.IntentCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -43,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,18 +55,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.x500x.cursimple.core.reminder.model.FirstCourseCandidateScope
-import com.x500x.cursimple.core.reminder.model.ReminderAction
+import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
-import com.x500x.cursimple.core.reminder.model.ReminderCondition
-import com.x500x.cursimple.core.reminder.model.ReminderConditionMode
-import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
-import com.x500x.cursimple.core.reminder.model.ReminderTimeRange
+import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
+import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
+import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
+import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
+import com.x500x.cursimple.core.reminder.model.ReminderRule
+import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import java.time.Instant
 import java.time.LocalDate
@@ -87,16 +91,6 @@ fun ScheduleSettingsRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleSettingsScreen(
         state = state,
-        onSelectTimeSlot = viewModel::selectTimeSlot,
-        onClearSelection = viewModel::clearSelection,
-        onCreateReminder = viewModel::createReminderForSelection,
-        onSaveFirstCourseReminder = viewModel::saveFlexibleFirstCourseReminder,
-        onSaveCustomOccupancy = viewModel::saveCustomOccupancy,
-        onRemoveCustomOccupancy = viewModel::removeCustomOccupancy,
-        onSaveExamReminder = viewModel::saveExamReminder,
-        onRemoveReminderRule = viewModel::removeReminderRule,
-        onRemoveAlarmRecord = viewModel::removeAlarmRecord,
-        onRefreshReminderAlarms = viewModel::refreshReminderAlarmsNow,
         alarmBackend = alarmBackend,
         alarmRingDurationSeconds = alarmRingDurationSeconds,
         alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
@@ -105,6 +99,17 @@ fun ScheduleSettingsRoute(
         onAlarmRingDurationSecondsChange = onAlarmRingDurationSecondsChange,
         onAlarmRepeatIntervalSecondsChange = onAlarmRepeatIntervalSecondsChange,
         onAlarmRepeatCountChange = onAlarmRepeatCountChange,
+        onSaveRule = viewModel::saveLabelReminderRule,
+        onSetRuleEnabled = viewModel::setReminderRuleEnabled,
+        onRemoveRule = viewModel::removeReminderRule,
+        onSavePlaceholder = viewModel::savePlaceholderCourse,
+        onDeletePlaceholder = viewModel::deletePlaceholderCourse,
+        onSaveExamReminder = viewModel::saveExamReminder,
+        onRefreshAlarms = viewModel::refreshReminderAlarmsNow,
+        onDeleteAlarm = viewModel::removeAlarmRecord,
+        onSetAppAlarmEnabled = viewModel::setAppAlarmEnabled,
+        onUpdateAppAlarm = viewModel::updateAppAlarmSettings,
+        onCreateManualAlarm = viewModel::createManualAppAlarm,
         modifier = modifier,
     )
 }
@@ -112,35 +117,6 @@ fun ScheduleSettingsRoute(
 @Composable
 fun ScheduleSettingsScreen(
     state: ScheduleUiState,
-    onSelectTimeSlot: (Int, Int) -> Unit,
-    onClearSelection: () -> Unit,
-    onCreateReminder: (Int, String?) -> Unit,
-    onSaveFirstCourseReminder: (
-        String?,
-        String,
-        Boolean,
-        Int,
-        String?,
-        FirstCourseCandidateScope,
-        ReminderConditionMode,
-        List<ReminderCondition>,
-        List<ReminderAction>,
-    ) -> Unit,
-    onSaveCustomOccupancy: (
-        String?,
-        String,
-        ReminderTimeRange,
-        List<Int>,
-        List<Int>,
-        List<String>,
-        List<String>,
-        ReminderNodeRange?,
-    ) -> Unit,
-    onRemoveCustomOccupancy: (String) -> Unit,
-    onSaveExamReminder: (Boolean, Int, String?) -> Unit,
-    onRemoveReminderRule: (String) -> Unit,
-    onRemoveAlarmRecord: (String, ReminderAlarmBackend) -> Unit,
-    onRefreshReminderAlarms: () -> Unit,
     alarmBackend: ReminderAlarmBackend,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
@@ -149,22 +125,45 @@ fun ScheduleSettingsScreen(
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
+    onSaveRule: (String?, String, Boolean, Int, String?, List<ReminderLabelCondition>, List<ReminderLabelAction>) -> Unit,
+    onSetRuleEnabled: (String, Boolean) -> Unit,
+    onRemoveRule: (String) -> Unit,
+    onSavePlaceholder: (String?, String, String, String, List<Int>, List<Int>, String?) -> Unit,
+    onDeletePlaceholder: (String) -> Unit,
+    onSaveExamReminder: (Boolean, Int, String?) -> Unit,
+    onRefreshAlarms: () -> Unit,
+    onDeleteAlarm: (String, ReminderAlarmBackend) -> Unit,
+    onSetAppAlarmEnabled: (String, Boolean) -> Unit,
+    onUpdateAppAlarm: (String, EditableAppAlarmSettings) -> Unit,
+    onCreateManualAlarm: (Long, String, String, EditableAppAlarmSettings) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
-    var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
-    var showAlarmBackendDialog by rememberSaveable { mutableStateOf(false) }
-    val selectedCourse = remember(state.selectionState, state.schedule) {
-        selectedCourseFromState(state.selectionState, state.schedule)
+    var showBackendDialog by rememberSaveable { mutableStateOf(false) }
+    var editingRule by remember { mutableStateOf<ReminderRule?>(null) }
+    var showRuleEditor by rememberSaveable { mutableStateOf(false) }
+    var showPlaceholderDialog by rememberSaveable { mutableStateOf(false) }
+    var editingPlaceholder by remember { mutableStateOf<PlaceholderCourseGroup?>(null) }
+    var editingAlarm by remember { mutableStateOf<SystemAlarmRecord?>(null) }
+    var showManualAlarmDialog by rememberSaveable { mutableStateOf(false) }
+    val slotLabels = remember(state.timingProfile, state.manualCourses) {
+        (state.timingProfile?.slotTimes.orEmpty().map { it.label } +
+            state.manualCourses.mapNotNull { it.slotLabelOverride })
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinct()
     }
-    val scrollState = rememberScrollState()
-
-    val context = LocalContext.current
-    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.let {
-            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
-        }
-        ringtoneUri = uri?.toString()
+    val placeholderCourses = remember(state.manualCourses) {
+        state.manualCourses
+            .filter { it.reminderOnly }
+            .groupBy { it.id.placeholderGroupId() }
+            .values
+            .map { PlaceholderCourseGroup(it.sortedBy { course -> course.time.dayOfWeek }) }
+            .sortedWith(
+                compareBy<PlaceholderCourseGroup>(
+                    { it.representative.slotLabelOverride ?: it.representative.title },
+                    { it.representative.reminderStartTime.orEmpty() },
+                ),
+            )
     }
 
     Box(
@@ -175,14 +174,43 @@ fun ScheduleSettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(scrollState)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             AlarmManagementCard(
                 alarmRecords = state.systemAlarmRecords,
-                onRefresh = onRefreshReminderAlarms,
-                onRemoveAlarmRecord = onRemoveAlarmRecord,
+                onRefresh = onRefreshAlarms,
+                onCreate = { showManualAlarmDialog = true },
+                onEdit = { editingAlarm = it },
+                onDelete = { onDeleteAlarm(it.alarmKey, it.backend) },
+                onSetAppAlarmEnabled = onSetAppAlarmEnabled,
+            )
+
+            SectionHeader("规则设置", "按 slotTimes.label 的条件和动作生成提醒")
+            RuleManagementCard(
+                rules = state.reminderRules.filter { it.scopeType == ReminderScopeType.LabelRule },
+                slotLabels = slotLabels,
+                placeholders = placeholderCourses,
+                onAddRule = {
+                    editingRule = null
+                    showRuleEditor = true
+                },
+                onEditRule = {
+                    editingRule = it
+                    showRuleEditor = true
+                },
+                onSetRuleEnabled = onSetRuleEnabled,
+                onRemoveRule = onRemoveRule,
+                onAddPlaceholder = {
+                    editingPlaceholder = null
+                    showPlaceholderDialog = true
+                },
+                onEditPlaceholder = {
+                    editingPlaceholder = it
+                    showPlaceholderDialog = true
+                },
+                onDeletePlaceholder = onDeletePlaceholder,
             )
 
             ReminderDefaultsCard(
@@ -190,81 +218,271 @@ fun ScheduleSettingsScreen(
                 alarmRingDurationSeconds = alarmRingDurationSeconds,
                 alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
                 alarmRepeatCount = alarmRepeatCount,
-                onPickBackend = { showAlarmBackendDialog = true },
+                onPickBackend = { showBackendDialog = true },
                 onRingDurationChange = onAlarmRingDurationSecondsChange,
                 onRepeatIntervalChange = onAlarmRepeatIntervalSecondsChange,
                 onRepeatCountChange = onAlarmRepeatCountChange,
             )
 
-            if (state.alarmRecommendations.isNotEmpty()) {
-                MessageCard(
-                    title = "提醒建议",
-                    lines = state.alarmRecommendations.map { "建议提前 ${it.advanceMinutes} 分钟：${it.note}" },
-                )
-            }
-
-            FirstCourseReminderSettingsCard(
-                reminderRules = state.reminderRules,
-                customOccupancies = state.customOccupancies,
-                pluginId = state.pluginId,
-                onSaveRule = onSaveFirstCourseReminder,
-                onSaveOccupancy = onSaveCustomOccupancy,
-                onRemoveOccupancy = onRemoveCustomOccupancy,
-                onRemoveRule = onRemoveReminderRule,
-            )
-
-            ExamReminderSettingsCard(
-                reminderRules = state.reminderRules,
-                pluginId = state.pluginId,
+            ExamReminderCard(
+                rules = state.reminderRules,
+                alarmRingDurationSeconds = alarmRingDurationSeconds,
+                alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
+                alarmRepeatCount = alarmRepeatCount,
                 onSave = onSaveExamReminder,
+                onOpenRules = {
+                    editingRule = null
+                    showRuleEditor = true
+                },
             )
-
-            if (state.selectionState != null) {
-                ReminderComposerCard(
-                    selectedCourse = selectedCourse,
-                    selectionState = state.selectionState,
-                    advanceMinutesText = advanceMinutesText,
-                    ringtoneUri = ringtoneUri,
-                    onAdvanceMinutesChange = { advanceMinutesText = it.filter(Char::isDigit) },
-                    onPickRingtone = {
-                        launchAlarmRingtonePicker(context) { intent ->
-                            ringtoneLauncher.launch(intent)
-                        }
-                    },
-                    onCreateReminder = {
-                        onCreateReminder(advanceMinutesText.toIntOrNull() ?: 20, ringtoneUri)
-                    },
-                    onSelectSameSlot = {
-                        selectedCourse?.let { course ->
-                            onSelectTimeSlot(course.time.startNode, course.time.endNode)
-                        }
-                    },
-                    onClearSelection = onClearSelection,
-                )
-            }
-
-            if (state.reminderRules.isNotEmpty()) {
-                ReminderRulesSection(
-                    reminderRules = state.reminderRules,
-                    schedule = state.schedule,
-                    timingProfile = state.timingProfile,
-                    manualCourses = state.manualCourses,
-                    onRemoveReminderRule = onRemoveReminderRule,
-                )
-            }
         }
-
     }
 
-    if (showAlarmBackendDialog) {
+    if (showBackendDialog) {
         AlarmBackendDialog(
             selected = alarmBackend,
             onSelect = {
                 onAlarmBackendChange(it)
-                showAlarmBackendDialog = false
+                showBackendDialog = false
             },
-            onDismiss = { showAlarmBackendDialog = false },
+            onDismiss = { showBackendDialog = false },
         )
+    }
+
+    if (showRuleEditor) {
+        ReminderRuleEditorDialog(
+            rule = editingRule,
+            slotLabels = slotLabels,
+            onDismiss = { showRuleEditor = false },
+            onSave = { ruleId, name, enabled, advance, ringtone, conditions, actions ->
+                onSaveRule(ruleId, name, enabled, advance, ringtone, conditions, actions)
+                showRuleEditor = false
+            },
+        )
+    }
+
+    if (showPlaceholderDialog) {
+        PlaceholderCourseDialog(
+            course = editingPlaceholder?.representative,
+            daysOfWeek = editingPlaceholder?.daysOfWeek.orEmpty(),
+            slotLabels = slotLabels,
+            onDismiss = { showPlaceholderDialog = false },
+            onSave = { id, label, start, end, weeks, days, title ->
+                onSavePlaceholder(id, label, start, end, weeks, days, title)
+                showPlaceholderDialog = false
+            },
+        )
+    }
+
+    editingAlarm?.let { alarm ->
+        AppAlarmEditorDialog(
+            record = alarm,
+            onDismiss = { editingAlarm = null },
+            onSave = { settings ->
+                onUpdateAppAlarm(alarm.alarmKey, settings)
+                editingAlarm = null
+            },
+        )
+    }
+
+    if (showManualAlarmDialog) {
+        ManualAppAlarmDialog(
+            onDismiss = { showManualAlarmDialog = false },
+            onCreate = { triggerAtMillis, title, message, settings ->
+                onCreateManualAlarm(triggerAtMillis, title, message, settings)
+                showManualAlarmDialog = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String, subtitle: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun AlarmManagementCard(
+    alarmRecords: List<SystemAlarmRecord>,
+    onRefresh: () -> Unit,
+    onCreate: () -> Unit,
+    onEdit: (SystemAlarmRecord) -> Unit,
+    onDelete: (SystemAlarmRecord) -> Unit,
+    onSetAppAlarmEnabled: (String, Boolean) -> Unit,
+) {
+    val context = LocalContext.current
+    val nowMillis = System.currentTimeMillis()
+    val appRecords = remember(alarmRecords, nowMillis) {
+        alarmRecords
+            .filter { it.backend == ReminderAlarmBackend.AppAlarmClock && it.triggerAtMillis >= nowMillis }
+            .sortedBy { it.triggerAtMillis }
+    }
+    CardSurface {
+        HeaderRow(
+            icon = Icons.Rounded.Alarm,
+            title = "闹钟管理",
+            subtitle = if (appRecords.isEmpty()) "暂无 APP 自管闹钟" else "APP 自管闹钟 ${appRecords.size} 个",
+            trailing = {
+                TextButton(onClick = onRefresh) {
+                    Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("刷新")
+                }
+            },
+        )
+        if (!canScheduleExactAlarms(context)) {
+            AlarmPermissionRow { launchExactAlarmSettings(context) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = onCreate) { Text("新建闹钟") }
+        }
+        if (appRecords.isEmpty()) {
+            EmptySurface("没有等待触发的 APP 自管闹钟")
+        } else {
+            appRecords.forEach { record ->
+                AlarmRecordRow(
+                    record = record,
+                    onEdit = { onEdit(record) },
+                    onDelete = { onDelete(record) },
+                    onSetEnabled = { onSetAppAlarmEnabled(record.alarmKey, it) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlarmRecordRow(
+    record: SystemAlarmRecord,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onSetEnabled: (Boolean) -> Unit,
+) {
+    val zone = ZoneId.systemDefault()
+    SurfaceRow {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(formatAlarmTime(record.triggerAtMillis, zone), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(formatAlarmDay(record.triggerAtMillis, zone), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(record.displayTitle ?: record.alarmLabel ?: record.message, fontWeight = FontWeight.SemiBold)
+            Text(
+                listOf(
+                    record.displayMessage ?: record.message,
+                    "响铃 ${record.ringDurationSeconds ?: 60} 秒",
+                    "间隔 ${record.repeatIntervalSeconds ?: 120} 秒",
+                    "${record.repeatCount ?: 1} 次",
+                    if (record.ringtoneUriOverride.isNullOrBlank()) "默认铃声" else "自定义铃声",
+                ).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = record.enabled, onCheckedChange = onSetEnabled)
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Rounded.Edit, contentDescription = "编辑闹钟")
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Rounded.Delete, contentDescription = "删除闹钟")
+        }
+    }
+}
+
+@Composable
+private fun RuleManagementCard(
+    rules: List<ReminderRule>,
+    slotLabels: List<String>,
+    placeholders: List<PlaceholderCourseGroup>,
+    onAddRule: () -> Unit,
+    onEditRule: (ReminderRule) -> Unit,
+    onSetRuleEnabled: (String, Boolean) -> Unit,
+    onRemoveRule: (String) -> Unit,
+    onAddPlaceholder: () -> Unit,
+    onEditPlaceholder: (PlaceholderCourseGroup) -> Unit,
+    onDeletePlaceholder: (String) -> Unit,
+) {
+    CardSurface {
+        HeaderRow(
+            icon = Icons.Rounded.Notifications,
+            title = "规则管理",
+            subtitle = "可选 label ${slotLabels.size} 个",
+            trailing = { Button(onClick = onAddRule) { Text("新建规则") } },
+        )
+        if (rules.isEmpty()) {
+            EmptySurface("还没有 label 规则")
+        } else {
+            rules.forEach { rule ->
+                RuleRow(
+                    rule = rule,
+                    onEdit = { onEditRule(rule) },
+                    onSetEnabled = { onSetRuleEnabled(rule.ruleId, it) },
+                    onDelete = { onRemoveRule(rule.ruleId) },
+                )
+            }
+        }
+        HeaderRow(
+            icon = Icons.Rounded.Event,
+            title = "占位课",
+            subtitle = if (placeholders.isEmpty()) "暂无隐藏占位课" else "隐藏占位课 ${placeholders.size} 个",
+            trailing = { OutlinedButton(onClick = onAddPlaceholder) { Text("新增占位课") } },
+        )
+        placeholders.forEach { group ->
+            val course = group.representative
+            SurfaceRow {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(course.slotLabelOverride ?: course.title, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "周${group.daysOfWeek.joinToString(",")} · ${course.reminderStartTime ?: "--:--"}-${course.reminderEndTime ?: "--:--"} · ${course.weeks.ifEmpty { listOf(0) }.joinToString(",").replace("0", "全部周")}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = { onEditPlaceholder(group) }) { Text("编辑") }
+                TextButton(onClick = { onDeletePlaceholder(course.id) }) { Text("删除") }
+            }
+        }
+    }
+}
+
+private data class PlaceholderCourseGroup(
+    val courses: List<CourseItem>,
+) {
+    val representative: CourseItem = courses.first()
+    val daysOfWeek: List<Int> = courses.map { it.time.dayOfWeek }.distinct().sorted()
+}
+
+@Composable
+private fun RuleRow(
+    rule: ReminderRule,
+    onEdit: () -> Unit,
+    onSetEnabled: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+) {
+    SurfaceRow {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(rule.displayName ?: "未命名规则", fontWeight = FontWeight.SemiBold)
+            Text(
+                "如果 ${rule.conditionSummary()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                "就 ${rule.actionSummary()}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("提前 ${rule.advanceMinutes} 分钟", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+        Switch(checked = rule.enabled, onCheckedChange = onSetEnabled)
+        IconButton(onClick = onEdit) {
+            Icon(Icons.Rounded.Edit, contentDescription = "编辑规则")
+        }
+        IconButton(onClick = onDelete) {
+            Icon(Icons.Rounded.Delete, contentDescription = "删除规则")
+        }
     }
 }
 
@@ -279,95 +497,153 @@ private fun ReminderDefaultsCard(
     onRepeatIntervalChange: (Int) -> Unit,
     onRepeatCountChange: (Int) -> Unit,
 ) {
+    CardSurface {
+        HeaderRow(Icons.Rounded.Settings, "默认闹钟设置", "规则未单独设置时使用这里的参数")
+        SettingRow("闹钟通道", alarmBackendFullLabel(alarmBackend), onClick = onPickBackend)
+        NumberSettingRow("响铃时长", alarmRingDurationSeconds, "秒", 5, 600, 5, onRingDurationChange)
+        NumberSettingRow("响铃间隔", alarmRepeatIntervalSeconds, "秒", 5, 3600, 5, onRepeatIntervalChange)
+        NumberSettingRow("响铃次数", alarmRepeatCount, "次", 1, 10, 1, onRepeatCountChange)
+    }
+}
+
+@Composable
+private fun ExamReminderCard(
+    rules: List<ReminderRule>,
+    alarmRingDurationSeconds: Int,
+    alarmRepeatIntervalSeconds: Int,
+    alarmRepeatCount: Int,
+    onSave: (Boolean, Int, String?) -> Unit,
+    onOpenRules: () -> Unit,
+) {
+    val enabled = rules.any {
+        it.scopeType == ReminderScopeType.LabelRule &&
+            it.displayName?.startsWith("考试提醒：") == true &&
+            it.enabled
+    }
+    var showConfirm by rememberSaveable { mutableStateOf(false) }
+    CardSurface {
+        HeaderRow(Icons.Rounded.Event, "考试提醒", if (enabled) "所有考试前提醒已开启" else "默认关闭")
+        SurfaceRow {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("所有考试前提醒", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "响铃 $alarmRingDurationSeconds 秒 · 间隔 $alarmRepeatIntervalSeconds 秒 · $alarmRepeatCount 次",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(
+                checked = enabled,
+                onCheckedChange = { checked ->
+                    if (checked) showConfirm = true else onSave(false, 40, null)
+                },
+            )
+        }
+        TextButton(onClick = onOpenRules) { Text("进入规则管理编辑考试规则") }
+    }
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("确认考试提醒参数") },
+            text = { Text("将按默认闹钟设置为所有考试 label 创建提醒规则。") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onSave(true, 40, null)
+                    showConfirm = false
+                }) { Text("确认开启") }
+            },
+            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("取消") } },
+        )
+    }
+}
+
+@Composable
+private fun CardSurface(content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Rounded.Alarm,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp),
-                )
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text("提醒配置", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = "默认响铃与闹钟通道",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            ReminderActionRow(
-                title = "闹钟通道",
-                subtitle = alarmBackendFullLabel(alarmBackend),
-                onClick = onPickBackend,
-            )
-            ReminderNumberSettingRow(
-                title = "响铃时长",
-                value = alarmRingDurationSeconds,
-                unit = "秒",
-                min = 5,
-                max = 600,
-                step = 5,
-                onValueChange = onRingDurationChange,
-            )
-            ReminderNumberSettingRow(
-                title = "响铃间隔",
-                value = alarmRepeatIntervalSeconds,
-                unit = "秒",
-                min = 5,
-                max = 3600,
-                step = 5,
-                onValueChange = onRepeatIntervalChange,
-            )
-            ReminderNumberSettingRow(
-                title = "响铃次数",
-                value = alarmRepeatCount,
-                unit = "次",
-                min = 1,
-                max = 10,
-                step = 1,
-                onValueChange = onRepeatCountChange,
-            )
-        }
+            content = content,
+        )
     }
 }
 
 @Composable
-private fun ReminderActionRow(
+private fun SurfaceRow(content: @Composable RowScope.() -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun HeaderRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
-    onClick: () -> Unit,
+    trailing: @Composable (() -> Unit)? = null,
 ) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        trailing?.invoke()
+    }
+}
+
+@Composable
+private fun EmptySurface(text: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 14.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun SettingRow(title: String, subtitle: String, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(8.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun ReminderNumberSettingRow(
+private fun NumberSettingRow(
     title: String,
     value: Int,
     unit: String,
@@ -376,35 +652,21 @@ private fun ReminderNumberSettingRow(
     step: Int,
     onValueChange: (Int) -> Unit,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                Text(
-                    text = "$value $unit",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            OutlinedButton(
-                onClick = { onValueChange((value - step).coerceAtLeast(min)) },
-                enabled = value > min,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            ) { Text("-") }
-            Spacer(Modifier.width(8.dp))
-            OutlinedButton(
-                onClick = { onValueChange((value + step).coerceAtMost(max)) },
-                enabled = value < max,
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-            ) { Text("+") }
+    SurfaceRow {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text("$value $unit", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        OutlinedButton(
+            onClick = { onValueChange((value - step).coerceAtLeast(min)) },
+            enabled = value > min,
+            contentPadding = PaddingValues(horizontal = 10.dp),
+        ) { Text("-") }
+        OutlinedButton(
+            onClick = { onValueChange((value + step).coerceAtMost(max)) },
+            enabled = value < max,
+            contentPadding = PaddingValues(horizontal = 10.dp),
+        ) { Text("+") }
     }
 }
 
@@ -423,23 +685,16 @@ private fun AlarmBackendDialog(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .clickable { onSelect(backend) }
                             .padding(horizontal = 8.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(
-                            selected = backend == selected,
-                            onClick = { onSelect(backend) },
-                        )
+                        RadioButton(selected = backend == selected, onClick = { onSelect(backend) })
                         Spacer(Modifier.width(8.dp))
                         Column {
-                            Text(alarmBackendFullLabel(backend), style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                alarmBackendDescription(backend),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                            Text(alarmBackendFullLabel(backend))
+                            Text(alarmBackendDescription(backend), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -450,212 +705,41 @@ private fun AlarmBackendDialog(
 }
 
 @Composable
-private fun AlarmManagementCard(
-    alarmRecords: List<SystemAlarmRecord>,
-    onRefresh: () -> Unit,
-    onRemoveAlarmRecord: (String, ReminderAlarmBackend) -> Unit,
-) {
-    val context = LocalContext.current
-    val nowMillis = System.currentTimeMillis()
-    val upcomingRecords = remember(alarmRecords, nowMillis) {
-        alarmRecords
-            .filter { it.triggerAtMillis >= nowMillis }
-            .sortedBy { it.triggerAtMillis }
-    }
-    val exactAlarmEnabled = canScheduleExactAlarms(context)
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Rounded.Alarm,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text("闹钟管理", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            text = if (upcomingRecords.isEmpty()) "暂无已设置闹钟" else "已设置 ${upcomingRecords.size} 个闹钟",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                TextButton(onClick = onRefresh) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("刷新")
-                }
-            }
-
-            if (!exactAlarmEnabled) {
-                AlarmPermissionRow(
-                    onOpenSettings = { launchExactAlarmSettings(context) },
-                )
-            }
-
-            if (upcomingRecords.isEmpty()) {
-                EmptyAlarmRow()
-            } else {
-                upcomingRecords.take(MAX_VISIBLE_ALARM_ROWS).forEach { record ->
-                    AlarmRecordRow(
-                        record = record,
-                        onRemove = { onRemoveAlarmRecord(record.alarmKey, record.backend) },
-                    )
-                }
-                if (upcomingRecords.size > MAX_VISIBLE_ALARM_ROWS) {
-                    Text(
-                        text = "还有 ${upcomingRecords.size - MAX_VISIBLE_ALARM_ROWS} 个稍后的闹钟",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AlarmPermissionRow(
-    onOpenSettings: () -> Unit,
-) {
+private fun AlarmPermissionRow(onOpenSettings: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.errorContainer,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Icon(
-                imageVector = Icons.Rounded.Warning,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(20.dp),
-            )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "精确闹钟权限未开启",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-                Text(
-                    text = "App 自管闹钟无法提交到系统",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-            }
-            Button(onClick = onOpenSettings) {
-                Text("去开启")
-            }
+            Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+            Text("精确闹钟权限未开启", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
+            Button(onClick = onOpenSettings) { Text("去开启") }
         }
     }
 }
 
-@Composable
-private fun EmptyAlarmRow() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(
-                text = "没有等待触发的闹钟",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = "创建课程提醒后会显示在这里",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+private fun ReminderRule.conditionSummary(): String =
+    labelConditions.joinToString("，") { condition ->
+        val presence = when (condition.presence) {
+            ReminderLabelPresence.Exists -> "存在"
+            ReminderLabelPresence.Absent -> "不存在"
         }
-    }
-}
+        "${condition.slotLabel} $presence"
+    }.ifBlank { "无条件" }
 
-@Composable
-private fun AlarmRecordRow(
-    record: SystemAlarmRecord,
-    onRemove: () -> Unit,
-) {
-    val zone = ZoneId.systemDefault()
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = formatAlarmTime(record.triggerAtMillis, zone),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = formatAlarmDay(record.triggerAtMillis, zone),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = record.alarmLabel ?: record.message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = "${alarmBackendLabel(record.backend)} · ${formatAlarmDate(record.triggerAtMillis, zone)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            IconButton(onClick = onRemove) {
-                Icon(
-                    imageVector = Icons.Rounded.Delete,
-                    contentDescription = "取消本次闹钟",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+private fun ReminderRule.actionSummary(): String =
+    labelActions.joinToString("，") { action ->
+        val type = when (action.action) {
+            ReminderLabelActionType.Remind -> "提醒"
+            ReminderLabelActionType.Skip -> "跳过"
         }
-    }
-}
+        "${action.slotLabel} $type"
+    }.ifBlank { "无动作" }
 
 private fun canScheduleExactAlarms(context: Context): Boolean {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -676,22 +760,9 @@ private fun launchExactAlarmSettings(context: Context) {
     }
     runCatching {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }.onFailure {
-        runCatching {
-            context.startActivity(
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                    .setData(Uri.parse("package:${context.packageName}"))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }.onFailure { error ->
-            Toast.makeText(context, "无法打开设置：${error.message}", Toast.LENGTH_SHORT).show()
-        }
+    }.onFailure { error ->
+        Toast.makeText(context, "无法打开设置：${error.message}", Toast.LENGTH_SHORT).show()
     }
-}
-
-private fun alarmBackendLabel(backend: ReminderAlarmBackend): String = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> "App 自管"
-    ReminderAlarmBackend.SystemClockApp -> "系统时钟"
 }
 
 private fun alarmBackendFullLabel(backend: ReminderAlarmBackend): String = when (backend) {
@@ -716,23 +787,3 @@ private fun formatAlarmDay(millis: Long, zone: ZoneId): String {
         else -> "${date.monthValue}/${date.dayOfMonth}"
     }
 }
-
-private fun formatAlarmDate(millis: Long, zone: ZoneId): String {
-    val dateTime = Instant.ofEpochMilli(millis).atZone(zone)
-    val date = dateTime.toLocalDate()
-    val day = formatAlarmDay(millis, zone)
-    return "$day ${weekdayShortLabel(date.dayOfWeek.value)}"
-}
-
-private fun weekdayShortLabel(dayOfWeek: Int): String = when (dayOfWeek) {
-    1 -> "周一"
-    2 -> "周二"
-    3 -> "周三"
-    4 -> "周四"
-    5 -> "周五"
-    6 -> "周六"
-    7 -> "周日"
-    else -> "周$dayOfWeek"
-}
-
-private const val MAX_VISIBLE_ALARM_ROWS = 6

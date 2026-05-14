@@ -24,6 +24,29 @@ import java.time.ZoneId
 
 class ReminderPlanner {
     private val firstCourseEvaluator = FirstCourseRuleEvaluator()
+    private val labelEvaluator = LabelReminderRuleEvaluator()
+
+    fun expandRules(
+        rules: List<ReminderRule>,
+        schedule: TermSchedule,
+        timingProfile: TermTimingProfile,
+        fromDate: LocalDate = BeijingTime.today(),
+        temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    ): List<ReminderPlan> {
+        val labelRules = rules.filter {
+            it.enabled &&
+                it.scopeType == ReminderScopeType.LabelRule &&
+                it.labelActions.isNotEmpty()
+        }
+        if (labelRules.isEmpty()) return emptyList()
+        return labelEvaluator.expandAll(
+            rules = labelRules,
+            schedule = schedule,
+            timingProfile = timingProfile,
+            fromDate = fromDate,
+            temporaryScheduleOverrides = temporaryScheduleOverrides,
+        )
+    }
 
     fun expandRule(
         rule: ReminderRule,
@@ -33,6 +56,15 @@ class ReminderPlanner {
         temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
         customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
     ): List<ReminderPlan> {
+        if (rule.scopeType == ReminderScopeType.LabelRule) {
+            return labelEvaluator.expand(
+                rule = rule,
+                schedule = schedule,
+                timingProfile = timingProfile,
+                fromDate = fromDate,
+                temporaryScheduleOverrides = temporaryScheduleOverrides,
+            )
+        }
         if (rule.scopeType == ReminderScopeType.FirstCourseOfPeriod) {
             val zone = ZoneId.systemDefault()
             return firstCourseEvaluator.expand(
@@ -196,6 +228,7 @@ class ReminderPlanner {
             }
             ReminderScopeType.Exam -> course.category == CourseCategory.Exam && course.id !in mutedCourseIds
             ReminderScopeType.FirstCourseOfPeriod -> false
+            ReminderScopeType.LabelRule -> false
         }
     }
 

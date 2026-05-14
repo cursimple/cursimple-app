@@ -4,11 +4,13 @@ import android.content.Context
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.reminder.ReminderPlanner
 import kotlinx.coroutines.flow.first
 import java.time.Duration
@@ -43,11 +45,13 @@ internal object ReminderDataSource {
         val appContext = context.applicationContext
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
+        val manualCourseRepository = DataStoreManualCourseRepository(appContext, termProfileRepository)
         val reminderRepository = DataStoreReminderRepository(appContext)
         val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(appContext)
         val userPreferencesRepository = DataStoreUserPreferencesRepository(appContext)
 
         val schedule = scheduleRepository.scheduleFlow.first()
+        val manualCourses = manualCourseRepository.manualCoursesFlow.first()
         val rules = reminderRepository.reminderRulesFlow.first().filter { it.enabled }
         val alarmRecords = reminderRepository.systemAlarmRecordsFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
@@ -59,18 +63,18 @@ internal object ReminderDataSource {
         val now = BeijingTime.nowMillis(zone)
         val today = BeijingTime.todayIn(zone)
         val planner = ReminderPlanner()
-        val plans = if (schedule != null && timingProfile != null) {
-            rules.flatMap { rule ->
-                runCatching {
-                    planner.expandRule(
-                        rule = rule,
-                        schedule = schedule,
-                        timingProfile = timingProfile,
-                        fromDate = today,
-                        temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
-                    )
-                }.getOrDefault(emptyList())
-            }.filter { it.triggerAtMillis >= now }
+        val reminderSchedule = mergeManualCourses(schedule, manualCourses)
+        val plans = if (reminderSchedule != null && timingProfile != null) {
+            runCatching {
+                planner.expandRules(
+                    rules = rules,
+                    schedule = reminderSchedule,
+                    timingProfile = timingProfile,
+                    fromDate = today,
+                    temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+                )
+            }.getOrDefault(emptyList())
+                .filter { it.triggerAtMillis >= now }
                 .sortedBy { it.triggerAtMillis }
         } else emptyList()
 
@@ -132,5 +136,24 @@ internal object ReminderDataSource {
                 "${days}天后"
             }
         }
+    }
+
+    private fun mergeManualCourses(
+        schedule: com.x500x.cursimple.core.kernel.model.TermSchedule?,
+        manualCourses: List<com.x500x.cursimple.core.kernel.model.CourseItem>,
+    ): com.x500x.cursimple.core.kernel.model.TermSchedule? {
+        if (schedule == null && manualCourses.isEmpty()) return null
+        val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+        val dailySchedules = allCourses
+            .groupBy { it.time.dayOfWeek }
+            .toSortedMap()
+            .map { (day, courses) ->
+                DailySchedule(dayOfWeek = day, courses = courses.sortedBy { it.time.startNode })
+            }
+        return com.x500x.cursimple.core.kernel.model.TermSchedule(
+            termId = schedule?.termId ?: "manual",
+            updatedAt = schedule?.updatedAt ?: "",
+            dailySchedules = dailySchedules,
+        )
     }
 }
