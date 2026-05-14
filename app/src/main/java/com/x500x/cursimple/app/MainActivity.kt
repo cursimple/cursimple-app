@@ -1,6 +1,13 @@
 package com.x500x.cursimple.app
 
+import android.app.Activity
+import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
+import android.widget.Toast
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -86,6 +93,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.app.util.ScheduleMetadataExportSnapshot
 import com.x500x.cursimple.app.util.ScheduleMetadataExporter
+import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.plugin.BundledPluginCatalogEntry
@@ -241,6 +249,57 @@ class MainActivity : ComponentActivity() {
                     var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.Week) }
                     var showWeekMenu by remember { mutableStateOf(false) }
                     var syncWasActive by rememberSaveable { mutableStateOf(false) }
+                    var pendingSystemRingtoneResult by remember {
+                        mutableStateOf<((String?) -> Unit)?>(null)
+                    }
+                    var pendingLocalAudioResult by remember {
+                        mutableStateOf<((String?) -> Unit)?>(null)
+                    }
+                    val systemRingtoneLauncher = rememberLauncherForActivityResult(
+                        ActivityResultContracts.StartActivityForResult(),
+                    ) { result ->
+                        val callback = pendingSystemRingtoneResult
+                        pendingSystemRingtoneResult = null
+                        if (result.resultCode == Activity.RESULT_OK) {
+                            val uri = result.data?.pickedRingtoneUri()
+                            callback?.invoke(uri?.toString())
+                        }
+                    }
+                    val localAudioLauncher = rememberLauncherForActivityResult(
+                        ActivityResultContracts.OpenDocument(),
+                    ) { uri ->
+                        val callback = pendingLocalAudioResult
+                        pendingLocalAudioResult = null
+                        if (uri != null) {
+                            val persisted = runCatching {
+                                contentResolver.takePersistableUriPermission(
+                                    uri,
+                                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                                )
+                            }.isSuccess
+                            if (persisted) {
+                                callback?.invoke(uri.toString())
+                            } else {
+                                Toast.makeText(this, "音频授权失败，请重新选择", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    fun pickSystemRingtone(onPicked: (String?) -> Unit) {
+                        pendingSystemRingtoneResult = onPicked
+                        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, false)
+                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+                            prefs.alarmRingtoneUri?.let {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, android.net.Uri.parse(it))
+                            }
+                        }
+                        systemRingtoneLauncher.launch(intent)
+                    }
+                    fun pickLocalAudio(onPicked: (String?) -> Unit) {
+                        pendingLocalAudioResult = onPicked
+                        localAudioLauncher.launch(arrayOf("audio/*"))
+                    }
                     androidx.compose.runtime.LaunchedEffect(
                         scheduleState.isSyncing,
                         scheduleState.pendingWebSession,
@@ -318,6 +377,7 @@ class MainActivity : ComponentActivity() {
                                 currentScreen = currentScreen,
                                 termStartDate = prefs.termStartDate,
                                 currentWeekIndex = currentWeekIndex,
+                                appVersionName = BuildConfig.VERSION_NAME,
                                 onSelectScreen = {
                                     currentScreen = it
                                     scope.launch { drawerState.close() }
@@ -593,13 +653,19 @@ class MainActivity : ComponentActivity() {
                                     AppScreen.Reminders -> SettingsRoute(
                                         viewModel = scheduleViewModel,
                                         alarmBackend = prefs.alarmBackend,
+                                        alarmRingtoneUri = prefs.alarmRingtoneUri,
+                                        alarmAlertMode = prefs.alarmAlertMode,
                                         alarmRingDurationSeconds = prefs.alarmRingDurationSeconds,
                                         alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
                                         alarmRepeatCount = prefs.alarmRepeatCount,
                                         onAlarmBackendChange = prefsViewModel::setAlarmBackend,
+                                        onAlarmRingtoneUriChange = prefsViewModel::setAlarmRingtoneUri,
+                                        onAlarmAlertModeChange = prefsViewModel::setAlarmAlertMode,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
                                         onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
                                         onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
+                                        onPickSystemRingtone = ::pickSystemRingtone,
+                                        onPickLocalAudio = ::pickLocalAudio,
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -1012,11 +1078,20 @@ class MainActivity : ComponentActivity() {
     enum class SubScreen { TermManagement, ImportExport }
 }
 
+private fun Intent.pickedRingtoneUri(): Uri? =
+    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+        getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+    }
+
 @Composable
 private fun AppDrawer(
     currentScreen: MainActivity.AppScreen,
     termStartDate: LocalDate?,
     currentWeekIndex: Int,
+    appVersionName: String,
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
 ) {
     ModalDrawerSheet(
@@ -1077,7 +1152,7 @@ private fun AppDrawer(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "课简 · v0.1.0",
+                text = "课简 · v$appVersionName",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

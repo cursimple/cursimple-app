@@ -487,6 +487,7 @@ class ReminderCoordinator(
             )
         val next = record.copy(
             ringtoneUriOverride = settings.ringtoneUriOverride?.takeIf { it.isNotBlank() },
+            alertModeOverride = settings.alertModeOverride,
             ringDurationSeconds = settings.ringDurationSeconds?.coerceIn(5, 600),
             repeatIntervalSeconds = settings.repeatIntervalSeconds?.coerceIn(5, 3600),
             repeatCount = settings.repeatCount?.coerceIn(1, 10),
@@ -523,6 +524,7 @@ class ReminderCoordinator(
             message = message.ifBlank { "手动创建的提醒" },
             triggerAtMillis = triggerAtMillis,
             ringtoneUri = settings.ringtoneUriOverride?.takeIf { it.isNotBlank() },
+            alertMode = settings.alertModeOverride,
             courseId = null,
             ringDurationSeconds = settings.ringDurationSeconds?.coerceIn(5, 600),
             repeatIntervalSeconds = settings.repeatIntervalSeconds?.coerceIn(5, 3600),
@@ -631,6 +633,7 @@ class ReminderCoordinator(
             temporaryScheduleOverrides = temporaryScheduleOverrides,
         ).asSequence()
             .filter { it.triggerAtMillis in window.startMillis..window.endMillis }
+            .map { it.withAlarmSettings(settings) }
             .distinctBy { it.systemAlarmKey() }
             .sortedBy { it.triggerAtMillis }
             .toList()
@@ -734,16 +737,19 @@ class ReminderCoordinator(
                             displayTitle = plan.title,
                             displayMessage = plan.message,
                             enabled = true,
-                            ringDurationSeconds = settings.ringDurationSeconds.takeIf {
+                            ringDurationSeconds = plan.ringDurationSeconds.takeIf {
                                 settings.backend == ReminderAlarmBackend.AppAlarmClock
                             },
-                            repeatIntervalSeconds = settings.repeatIntervalSeconds.takeIf {
+                            repeatIntervalSeconds = plan.repeatIntervalSeconds.takeIf {
                                 settings.backend == ReminderAlarmBackend.AppAlarmClock
                             },
-                            repeatCount = settings.repeatCount.takeIf {
+                            repeatCount = plan.repeatCount.takeIf {
                                 settings.backend == ReminderAlarmBackend.AppAlarmClock
                             },
                             ringtoneUriOverride = plan.ringtoneUri.takeIf {
+                                settings.backend == ReminderAlarmBackend.AppAlarmClock
+                            },
+                            alertModeOverride = plan.alertMode.takeIf {
                                 settings.backend == ReminderAlarmBackend.AppAlarmClock
                             },
                             createdAtMillis = System.currentTimeMillis(),
@@ -1157,8 +1163,18 @@ private fun SystemAlarmRecord.toReminderPlan(): ReminderPlan =
         message = displayMessage ?: message,
         triggerAtMillis = triggerAtMillis,
         ringtoneUri = ringtoneUriOverride,
+        alertMode = alertModeOverride,
         courseId = courseId,
         ringDurationSeconds = ringDurationSeconds,
         repeatIntervalSeconds = repeatIntervalSeconds,
         repeatCount = repeatCount,
+    )
+
+private fun ReminderPlan.withAlarmSettings(settings: ReminderAlarmSettings): ReminderPlan =
+    copy(
+        ringtoneUri = ringtoneUri ?: settings.ringtoneUri,
+        alertMode = alertMode ?: settings.alertMode,
+        ringDurationSeconds = ringDurationSeconds ?: settings.ringDurationSeconds,
+        repeatIntervalSeconds = repeatIntervalSeconds ?: settings.repeatIntervalSeconds,
+        repeatCount = repeatCount ?: settings.repeatCount,
     )

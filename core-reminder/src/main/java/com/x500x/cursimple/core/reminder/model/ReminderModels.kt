@@ -260,12 +260,26 @@ enum class AppAlarmOperationMode {
     SnoozeForegroundService,
 }
 
+@Serializable
+enum class AlarmAlertMode {
+    @SerialName("ring_only")
+    RingOnly,
+
+    @SerialName("vibrate_only")
+    VibrateOnly,
+
+    @SerialName("ring_and_vibrate")
+    RingAndVibrate,
+}
+
 const val DEFAULT_APP_ALARM_RING_DURATION_SECONDS = 2 * 60
 const val DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS = 60 * 5
 const val DEFAULT_APP_ALARM_REPEAT_COUNT = 5
 
 data class ReminderAlarmSettings(
     val backend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
+    val ringtoneUri: String? = null,
+    val alertMode: AlarmAlertMode = AlarmAlertMode.RingAndVibrate,
     val ringDurationSeconds: Int = DEFAULT_APP_ALARM_RING_DURATION_SECONDS,
     val repeatIntervalSeconds: Int = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
     val repeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
@@ -273,6 +287,7 @@ data class ReminderAlarmSettings(
 
 data class EditableAppAlarmSettings(
     val ringtoneUriOverride: String? = null,
+    val alertModeOverride: AlarmAlertMode? = null,
     val ringDurationSeconds: Int? = null,
     val repeatIntervalSeconds: Int? = null,
     val repeatCount: Int? = null,
@@ -286,6 +301,7 @@ data class ReminderPlan(
     val message: String,
     val triggerAtMillis: Long,
     val ringtoneUri: String?,
+    val alertMode: AlarmAlertMode? = null,
     val courseId: String?,
     val ringDurationSeconds: Int? = null,
     val repeatIntervalSeconds: Int? = null,
@@ -338,6 +354,7 @@ data class SystemAlarmRecord(
     @SerialName("repeatIntervalSeconds") val repeatIntervalSeconds: Int? = null,
     @SerialName("repeatCount") val repeatCount: Int? = null,
     @SerialName("ringtoneUriOverride") val ringtoneUriOverride: String? = null,
+    @SerialName("alertModeOverride") val alertModeOverride: AlarmAlertMode? = null,
     @SerialName("manualAlarm") val manualAlarm: Boolean = false,
     @SerialName("createdAtMillis") val createdAtMillis: Long,
 )
@@ -357,7 +374,17 @@ data class SystemAlarmSyncSummary(
 }
 
 fun ReminderPlan.systemAlarmKey(): String =
-    listOf(pluginId, triggerAtMillis.toString(), title, message, ringtoneUri.orEmpty()).joinToString("|")
+    listOf(
+        pluginId,
+        triggerAtMillis.toString(),
+        title,
+        message,
+        ringtoneUri.orEmpty(),
+        alertMode?.name.orEmpty(),
+        ringDurationSeconds?.toString().orEmpty(),
+        repeatIntervalSeconds?.toString().orEmpty(),
+        repeatCount?.toString().orEmpty(),
+    ).joinToString("|")
 
 fun ReminderPlan.appAlarmRequestCode(): Int = systemAlarmKey().hashCode() and Int.MAX_VALUE
 
@@ -384,6 +411,7 @@ fun ReminderPlan.toAppAlarmRecord(
         repeatIntervalSeconds = repeatIntervalSeconds,
         repeatCount = repeatCount,
         ringtoneUriOverride = ringtoneUri,
+        alertModeOverride = alertMode,
         createdAtMillis = createdAtMillis,
     )
 }

@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.data.UserPreferences
 import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -160,6 +161,20 @@ class AppPreferencesViewModel(
     fun setAlarmBackend(backend: ReminderAlarmBackend) {
         viewModelScope.launch {
             repository.setAlarmBackend(backend)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun setAlarmRingtoneUri(uri: String?) {
+        viewModelScope.launch {
+            repository.setAlarmRingtoneUri(uri)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun setAlarmAlertMode(mode: AlarmAlertMode) {
+        viewModelScope.launch {
+            repository.setAlarmAlertMode(mode)
             refreshScheduleOutputs()
         }
     }

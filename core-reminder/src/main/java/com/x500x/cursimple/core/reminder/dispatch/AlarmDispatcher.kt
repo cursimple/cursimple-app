@@ -40,6 +40,7 @@ object AppAlarmClockIntents {
     const val EXTRA_TITLE = "com.x500x.cursimple.extra.TITLE"
     const val EXTRA_MESSAGE = "com.x500x.cursimple.extra.MESSAGE"
     const val EXTRA_RINGTONE_URI = "com.x500x.cursimple.extra.RINGTONE_URI"
+    const val EXTRA_ALERT_MODE = "com.x500x.cursimple.extra.ALERT_MODE"
     const val EXTRA_RING_DURATION_SECONDS = "com.x500x.cursimple.extra.RING_DURATION_SECONDS"
     const val EXTRA_REPEAT_INTERVAL_SECONDS = "com.x500x.cursimple.extra.REPEAT_INTERVAL_SECONDS"
     const val EXTRA_REPEAT_COUNT = "com.x500x.cursimple.extra.REPEAT_COUNT"
@@ -267,6 +268,7 @@ private fun appAlarmServiceIntent(
         putExtra(AppAlarmClockIntents.EXTRA_TITLE, plan.title)
         putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, plan.message)
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, plan.ringtoneUri)
+        plan.alertMode?.let { putExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE, it.name) }
         plan.ringDurationSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, it) }
         plan.repeatIntervalSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, it) }
         plan.repeatCount?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT, it) }
@@ -287,6 +289,7 @@ private fun appAlarmServiceIntent(
         putExtra(AppAlarmClockIntents.EXTRA_TITLE, record.displayTitle.orEmpty())
         putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, record.message)
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, record.ringtoneUriOverride)
+        record.alertModeOverride?.let { putExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE, it.name) }
         record.ringDurationSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, it) }
         record.repeatIntervalSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, it) }
         record.repeatCount?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT, it) }
