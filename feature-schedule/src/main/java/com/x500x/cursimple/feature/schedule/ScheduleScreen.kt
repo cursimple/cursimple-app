@@ -1735,7 +1735,6 @@ private fun ScheduleGrid(
                 ) {
                     ScheduleGridBackground(
                         scheduleBackground = scheduleBackground,
-                        scheduleTextStyle = scheduleTextStyle,
                         scheduleCardStyle = scheduleCardStyle,
                         modifier = Modifier.fillMaxSize(),
                     )
@@ -3582,13 +3581,12 @@ private data class ScheduleBackgroundImageState(
 @Composable
 private fun ScheduleGridBackground(
     scheduleBackground: ScheduleBackgroundPreferences,
-    scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     modifier: Modifier = Modifier,
 ) {
-    val darkTheme = isDarkColorScheme()
+    val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     val baseBackgroundColor = when (scheduleBackground.type) {
-        ScheduleBackgroundType.Header -> scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme)
+        ScheduleBackgroundType.Header -> accents.gridBackground
         ScheduleBackgroundType.Color,
         ScheduleBackgroundType.Image -> colorFromArgb(scheduleBackground.colorArgb)
     }

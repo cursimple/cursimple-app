@@ -79,11 +79,12 @@ data class ScheduleCardStylePreferences(
 }
 
 data class ScheduleBackgroundPreferences(
-    val type: ScheduleBackgroundType = ScheduleBackgroundType.Color,
+    val type: ScheduleBackgroundType = DEFAULT_BACKGROUND_TYPE,
     val colorArgb: Long = DEFAULT_BACKGROUND_COLOR_ARGB,
     val imageUri: String? = null,
 ) {
     companion object {
+        val DEFAULT_BACKGROUND_TYPE = ScheduleBackgroundType.Header
         const val DEFAULT_BACKGROUND_COLOR_ARGB = 0xFFFFFFFFL
         fun coerceArgb(value: Long): Long = value and 0xFFFF_FFFFL
     }
