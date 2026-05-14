@@ -2,6 +2,9 @@ package com.x500x.cursimple.core.data
 
 import kotlinx.coroutines.flow.Flow
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -115,9 +118,9 @@ data class UserPreferences(
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
     val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
-    val alarmRingDurationSeconds: Int = 60,
-    val alarmRepeatIntervalSeconds: Int = 120,
-    val alarmRepeatCount: Int = 1,
+    val alarmRingDurationSeconds: Int = DEFAULT_APP_ALARM_RING_DURATION_SECONDS,
+    val alarmRepeatIntervalSeconds: Int = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
+    val alarmRepeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
     val lastAlarmPollAtMillis: Long = 0L,
     val autoUpdateEnabled: Boolean = false,
     val ignoredUpdateVersionCode: Int? = null,

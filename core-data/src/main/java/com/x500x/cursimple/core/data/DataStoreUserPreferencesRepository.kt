@@ -15,6 +15,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -573,9 +576,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
 
-        const val DEFAULT_RING_DURATION_SECONDS = 60
-        const val DEFAULT_REPEAT_INTERVAL_SECONDS = 120
-        const val DEFAULT_REPEAT_COUNT = 1
+        const val DEFAULT_RING_DURATION_SECONDS = DEFAULT_APP_ALARM_RING_DURATION_SECONDS
+        const val DEFAULT_REPEAT_INTERVAL_SECONDS = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
+        const val DEFAULT_REPEAT_COUNT = DEFAULT_APP_ALARM_REPEAT_COUNT
         const val MIN_RING_DURATION_SECONDS = 5
         const val MAX_RING_DURATION_SECONDS = 600
         const val MIN_REPEAT_INTERVAL_SECONDS = 5

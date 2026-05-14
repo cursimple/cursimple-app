@@ -18,6 +18,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
+import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
 import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import java.time.LocalDate
@@ -34,9 +37,9 @@ internal fun AppAlarmEditorDialog(
     AlarmSettingsDialogContent(
         title = "编辑闹钟",
         initialRingtone = record.ringtoneUriOverride.orEmpty(),
-        initialDuration = (record.ringDurationSeconds ?: 60).toString(),
-        initialInterval = (record.repeatIntervalSeconds ?: 120).toString(),
-        initialCount = (record.repeatCount ?: 1).toString(),
+        initialDuration = (record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS).toString(),
+        initialInterval = (record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS).toString(),
+        initialCount = (record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT).toString(),
         onDismiss = onDismiss,
         onSave = onSave,
     )
@@ -52,9 +55,9 @@ internal fun ManualAppAlarmDialog(
     var title by rememberSaveable { mutableStateOf("手动闹钟") }
     var message by rememberSaveable { mutableStateOf("手动创建的提醒") }
     var ringtone by rememberSaveable { mutableStateOf("") }
-    var duration by rememberSaveable { mutableStateOf("60") }
-    var interval by rememberSaveable { mutableStateOf("120") }
-    var count by rememberSaveable { mutableStateOf("1") }
+    var duration by rememberSaveable { mutableStateOf(DEFAULT_APP_ALARM_RING_DURATION_SECONDS.toString()) }
+    var interval by rememberSaveable { mutableStateOf(DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS.toString()) }
+    var count by rememberSaveable { mutableStateOf(DEFAULT_APP_ALARM_REPEAT_COUNT.toString()) }
     val date = runCatching { LocalDate.parse(dateText) }.getOrNull()
     val time = runCatching { LocalTime.parse(timeText) }.getOrNull()
     val settings = editableSettings(ringtone, duration, interval, count)
