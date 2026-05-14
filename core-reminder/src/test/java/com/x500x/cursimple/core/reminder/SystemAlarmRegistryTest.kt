@@ -14,6 +14,10 @@ import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
 import com.x500x.cursimple.core.reminder.model.AppAlarmOperationMode
+import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
+import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
+import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
+import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
@@ -419,7 +423,7 @@ class SystemAlarmRegistryTest {
             .copy(alarmKey = "fired", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1001)
         val future = sampleRecord(triggerAtMillis = futureMillis())
             .copy(alarmKey = "future", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1002)
-        val repository = FakeReminderRepository(rules = listOf(sampleRule())).apply {
+        val repository = FakeReminderRepository(rules = listOf(sampleSingleCourseRule())).apply {
             records.value = listOf(fired, future)
         }
         val appDismisser = FakeAlarmDismisser(succeeded = true)
@@ -438,7 +442,7 @@ class SystemAlarmRegistryTest {
 
     @Test
     fun `consuming first course app alarm keeps recurring rule`() = runBlocking {
-        val rule = sampleRule().copy(scopeType = ReminderScopeType.FirstCourseOfPeriod)
+        val rule = sampleRule()
         val fired = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
             .copy(alarmKey = "fired", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1001)
         val future = sampleRecord(triggerAtMillis = futureMillis())
@@ -488,16 +492,17 @@ class SystemAlarmRegistryTest {
             action = TriggeredAppAlarmFinishAction.Snooze(snoozePlan),
         )
 
-        val record = repository.records.value.single()
+        val record = repository.records.value.single { it.alarmKey == snoozePlan.systemAlarmKey() }
         assertEquals(true, result.consumed)
         assertEquals(true, result.snoozeCreated)
-        assertEquals(emptyList<ReminderRule>(), repository.getReminderRules())
+        assertEquals(listOf(sampleRule()), repository.getReminderRules())
+        assertEquals(listOf("future", snoozePlan.systemAlarmKey()).sorted(), repository.records.value.map { it.alarmKey }.sorted())
         assertEquals(snoozePlan.systemAlarmKey(), record.alarmKey)
         assertEquals(AppAlarmOperationMode.SnoozeForegroundService, record.operationMode)
         assertEquals("高等数学", record.displayTitle)
         assertEquals("已延后 5 分钟", record.displayMessage)
         assertEquals(1, appDispatcher.dispatchCount)
-        assertEquals(1, appDismisser.dismissCount)
+        assertEquals(0, appDismisser.dismissCount)
     }
 
     @Test
@@ -525,7 +530,7 @@ class SystemAlarmRegistryTest {
 
         assertEquals(true, result.consumed)
         assertEquals(false, result.snoozeCreated)
-        assertEquals(emptyList<ReminderRule>(), repository.getReminderRules())
+        assertEquals(listOf(sampleRule()), repository.getReminderRules())
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
         assertEquals(1, appDispatcher.dispatchCount)
     }
@@ -580,7 +585,7 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
-    fun `exam reminder sync clears expired muted exam ids and keeps future ones`() = runBlocking {
+    fun `legacy exam mute data is not mutated by label rule sync`() = runBlocking {
         val rule = ReminderRule(
             ruleId = "exam-rule",
             pluginId = "demo",
@@ -613,7 +618,7 @@ class SystemAlarmRegistryTest {
         )
 
         val updatedRule = repository.getReminderRules().single()
-        assertEquals(listOf("future-exam"), updatedRule.mutedCourseIds)
+        assertEquals(listOf("past-exam", "future-exam"), updatedRule.mutedCourseIds)
     }
 
     @Test
@@ -626,7 +631,7 @@ class SystemAlarmRegistryTest {
             createdAt = "2026-02-23T00:00:00+08:00",
             updatedAt = "2026-02-23T00:00:00+08:00",
         )
-        val singleRule = sampleRule().copy(ruleId = "single-rule", courseId = "future-exam")
+        val singleRule = sampleSingleCourseRule().copy(ruleId = "single-rule", courseId = "future-exam")
         val examRecord = sampleRecord(triggerAtMillis = futureMillis()).copy(
             alarmKey = "exam-alarm",
             ruleId = "exam-rule",
@@ -656,6 +661,18 @@ class SystemAlarmRegistryTest {
     }
 
     private fun sampleRule(): ReminderRule = ReminderRule(
+        ruleId = "rule",
+        pluginId = "demo",
+        scopeType = ReminderScopeType.LabelRule,
+        displayName = "提醒第一节课",
+        labelConditions = listOf(ReminderLabelCondition("第一节课", ReminderLabelPresence.Exists)),
+        labelActions = listOf(ReminderLabelAction("第一节课", ReminderLabelActionType.Remind)),
+        advanceMinutes = 15,
+        createdAt = "2026-02-23T00:00:00+08:00",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+    )
+
+    private fun sampleSingleCourseRule(): ReminderRule = ReminderRule(
         ruleId = "rule",
         pluginId = "demo",
         scopeType = ReminderScopeType.SingleCourse,
@@ -713,7 +730,7 @@ class SystemAlarmRegistryTest {
         termStartDate = "2026-02-23",
         timezone = ZoneId.systemDefault().id,
         slotTimes = listOf(
-            ClassSlotTime(1, 2, "08:00", "09:35"),
+            ClassSlotTime(1, 2, "08:00", "09:35", "第一节课"),
         ),
     )
 

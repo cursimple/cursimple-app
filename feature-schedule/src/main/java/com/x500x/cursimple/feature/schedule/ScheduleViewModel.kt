@@ -6,9 +6,12 @@ import androidx.lifecycle.viewModelScope
 import com.x500x.cursimple.core.data.ManualCourseRepository
 import com.x500x.cursimple.core.data.ScheduleRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.findSlot
+import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.plugin.PluginManager
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
@@ -34,6 +37,11 @@ import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.model.ReminderTimeRange
 import com.x500x.cursimple.core.reminder.model.SystemAlarmSyncSummary
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
+import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
+import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
+import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
+import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
+import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +53,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.OffsetDateTime
+import java.util.Locale
+import java.util.UUID
 
 sealed interface ScheduleSelectionState {
     data class SingleCourse(val courseId: String) : ScheduleSelectionState
@@ -306,28 +316,13 @@ class ScheduleViewModel(
         val selection = state.selectionState ?: return
         val schedule = reminderSchedule(state) ?: return
         viewModelScope.launch {
-            val rule = when (selection) {
-                is ScheduleSelectionState.SingleCourse -> reminderCoordinator.createRule(
-                    pluginId = state.pluginId,
-                    courseId = selection.courseId,
-                    dayOfWeek = null,
-                    startNode = null,
-                    endNode = null,
-                    scopeType = ReminderScopeType.SingleCourse,
-                    advanceMinutes = advanceMinutes,
-                    ringtoneUri = ringtoneUri,
-                )
-
-                is ScheduleSelectionState.TimeSlot -> reminderCoordinator.createRule(
-                    pluginId = state.pluginId,
-                    courseId = null,
-                    dayOfWeek = null,
-                    startNode = selection.startNode,
-                    endNode = selection.endNode,
-                    scopeType = ReminderScopeType.TimeSlot,
-                    advanceMinutes = advanceMinutes,
-                    ringtoneUri = ringtoneUri,
-                )
+            val rule = createLabelRuleForSelection(
+                state = state,
+                selection = selection,
+                advanceMinutes = advanceMinutes,
+                ringtoneUri = ringtoneUri,
+            ) ?: return@launch _uiState.update {
+                it.copy(statusMessage = "所选课程或节次没有可用的 slotTimes.label，无法创建提醒")
             }
             val dispatchSummary = syncTodaySystemClockAlarms(
                 pluginId = state.pluginId,
@@ -359,16 +354,14 @@ class ScheduleViewModel(
             return
         }
         viewModelScope.launch {
-            val rule = reminderCoordinator.createRule(
-                pluginId = state.pluginId,
+            val rule = createLabelRuleForCourse(
+                state = _uiState.value,
                 courseId = courseId,
-                dayOfWeek = null,
-                startNode = null,
-                endNode = null,
-                scopeType = ReminderScopeType.SingleCourse,
                 advanceMinutes = advanceMinutes.coerceIn(0, 720),
                 ringtoneUri = ringtoneUri,
-            )
+            ) ?: return@launch _uiState.update {
+                it.copy(statusMessage = "该课程没有可用的 slotTimes.label，无法创建提醒")
+            }
             val dispatchSummary = syncTodaySystemClockAlarms(
                 pluginId = state.pluginId,
                 schedule = schedule,
@@ -430,14 +423,10 @@ class ScheduleViewModel(
         val state = _uiState.value
         viewModelScope.launch {
             courseIds.forEach { id ->
-                reminderCoordinator.createRule(
-                    pluginId = state.pluginId,
+                createLabelRuleForCourse(
+                    state = _uiState.value,
                     courseId = id,
-                    dayOfWeek = null,
-                    startNode = null,
-                    endNode = null,
-                    scopeType = ReminderScopeType.SingleCourse,
-                    advanceMinutes = advanceMinutes,
+                    advanceMinutes = advanceMinutes.coerceIn(0, 720),
                     ringtoneUri = ringtoneUri,
                 )
             }
@@ -563,18 +552,46 @@ class ScheduleViewModel(
             return
         }
         viewModelScope.launch {
-            reminderCoordinator.upsertExamReminder(
-                pluginId = pluginId,
-                enabled = enabled,
-                advanceMinutes = advanceMinutes.coerceIn(0, 720),
-                ringtoneUri = ringtoneUri,
-            )
             val schedule = currentReminderSchedule()
+            val timingProfile = _uiState.value.timingProfile ?: resolveTimingProfile()
+            val existingExamRules = reminderCoordinator.getRules().filter {
+                it.pluginId == pluginId &&
+                    it.scopeType == ReminderScopeType.LabelRule &&
+                    it.displayName?.startsWith(EXAM_RULE_PREFIX) == true
+            }
+            if (!enabled) {
+                existingExamRules.forEach { reminderCoordinator.setRuleEnabled(it.ruleId, false) }
+            } else if (schedule != null && timingProfile != null) {
+                val examLabels = schedule.dailySchedules
+                    .flatMap { it.courses }
+                    .filter { it.category == com.x500x.cursimple.core.kernel.model.CourseCategory.Exam }
+                    .mapNotNull { it.reminderSlotLabel(timingProfile)?.takeIf(String::isNotBlank) }
+                    .distinct()
+                if (examLabels.isEmpty()) {
+                    _uiState.update { it.copy(statusMessage = "当前考试没有可用的 slotTimes.label，无法开启考试提醒") }
+                    return@launch
+                }
+                val existingByLabel = existingExamRules.associateBy {
+                    it.labelActions.firstOrNull()?.slotLabel ?: it.displayName?.removePrefix(EXAM_RULE_PREFIX).orEmpty()
+                }
+                examLabels.forEach { label ->
+                    reminderCoordinator.upsertLabelRule(
+                        pluginId = pluginId,
+                        ruleId = existingByLabel[label]?.ruleId,
+                        displayName = "$EXAM_RULE_PREFIX$label",
+                        enabled = true,
+                        advanceMinutes = advanceMinutes.coerceIn(0, 720),
+                        ringtoneUri = ringtoneUri,
+                        labelConditions = listOf(ReminderLabelCondition(label, ReminderLabelPresence.Exists)),
+                        labelActions = listOf(ReminderLabelAction(label, ReminderLabelActionType.Remind)),
+                    )
+                }
+            }
             if (schedule != null) {
                 val dispatchSummary = syncTodaySystemClockAlarms(
                     pluginId = pluginId,
                     schedule = schedule,
-                    timingProfile = _uiState.value.timingProfile,
+                    timingProfile = timingProfile,
                     reason = ReminderSyncReason.RuleCreatedToday,
                 )
                 _uiState.update {
@@ -604,6 +621,45 @@ class ScheduleViewModel(
             val result = reminderCoordinator.deleteAlarmRecord(alarmKey, backend)
             _uiState.update {
                 it.copy(statusMessage = if (result.succeeded) result.message else "闹钟取消失败：${result.message}")
+            }
+        }
+    }
+
+    fun setAppAlarmEnabled(alarmKey: String, enabled: Boolean) {
+        viewModelScope.launch {
+            val result = reminderCoordinator.setAppAlarmEnabled(alarmKey, enabled)
+            _uiState.update {
+                it.copy(statusMessage = if (result.succeeded) result.message else "闹钟状态更新失败：${result.message}")
+            }
+        }
+    }
+
+    fun updateAppAlarmSettings(alarmKey: String, settings: EditableAppAlarmSettings) {
+        viewModelScope.launch {
+            val result = reminderCoordinator.updateAppAlarmSettings(alarmKey, settings)
+            _uiState.update {
+                it.copy(statusMessage = if (result.succeeded) "已更新闹钟设置" else "闹钟设置失败：${result.message}")
+            }
+        }
+    }
+
+    fun createManualAppAlarm(
+        triggerAtMillis: Long,
+        title: String,
+        message: String,
+        settings: EditableAppAlarmSettings,
+    ) {
+        val pluginId = _uiState.value.pluginId.ifBlank { "manual" }
+        viewModelScope.launch {
+            val result = reminderCoordinator.createManualAppAlarm(
+                pluginId = pluginId,
+                triggerAtMillis = triggerAtMillis,
+                title = title,
+                message = message,
+                settings = settings,
+            )
+            _uiState.update {
+                it.copy(statusMessage = if (result.succeeded) "已创建手动闹钟" else "手动闹钟创建失败：${result.message}")
             }
         }
     }
@@ -726,6 +782,122 @@ class ScheduleViewModel(
             }
             _uiState.update {
                 it.copy(statusMessage = if (enabled) "已开启$label" else "已关闭$label")
+            }
+        }
+    }
+
+    fun saveLabelReminderRule(
+        ruleId: String?,
+        displayName: String,
+        enabled: Boolean,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+        conditions: List<ReminderLabelCondition>,
+        actions: List<ReminderLabelAction>,
+    ) {
+        val state = _uiState.value
+        val pluginId = state.pluginId
+        if (pluginId.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先选择插件后再保存提醒规则") }
+            return
+        }
+        viewModelScope.launch {
+            val rule = reminderCoordinator.upsertLabelRule(
+                pluginId = pluginId,
+                ruleId = ruleId,
+                displayName = displayName,
+                enabled = enabled,
+                advanceMinutes = advanceMinutes.coerceIn(0, 720),
+                ringtoneUri = ringtoneUri,
+                labelConditions = conditions,
+                labelActions = actions,
+            )
+            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.RuleCreatedToday)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已保存规则：${rule.displayName ?: rule.ruleId.take(8)}",
+                        summary = summary,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun setReminderRuleEnabled(ruleId: String, enabled: Boolean) {
+        viewModelScope.launch {
+            reminderCoordinator.setRuleEnabled(ruleId, enabled)
+            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = if (enabled) "已启用提醒规则" else "已关闭提醒规则",
+                        summary = summary,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun savePlaceholderCourse(
+        courseId: String?,
+        label: String,
+        startTime: String,
+        endTime: String,
+        weeks: List<Int>,
+        daysOfWeek: List<Int>,
+        title: String?,
+    ) {
+        val normalizedLabel = label.trim()
+        if (normalizedLabel.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "占位课 label 不能为空") }
+            return
+        }
+        val id = courseId ?: "placeholder-${UUID.randomUUID()}"
+        val groupId = id.placeholderGroupId()
+        val days = daysOfWeek.filter { it in 1..7 }.distinct().sorted().ifEmpty { (1..5).toList() }
+        viewModelScope.launch {
+            val existing = manualCourseRepository.manualCoursesFlow.first()
+                .filterNot { it.id.placeholderGroupId() == groupId }
+            val placeholders = days.map { day ->
+                CourseItem(
+                    id = if (days.size == 1) groupId else "$groupId-$day",
+                    title = title?.takeIf { it.isNotBlank() } ?: normalizedLabel,
+                    weeks = weeks.distinct().sorted(),
+                    time = CourseTimeSlot(dayOfWeek = day, startNode = 1, endNode = 1),
+                    reminderOnly = true,
+                    slotLabelOverride = normalizedLabel,
+                    reminderStartTime = startTime,
+                    reminderEndTime = endTime,
+                )
+            }
+            manualCourseRepository.replaceAll(existing + placeholders)
+            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已保存占位课：$normalizedLabel",
+                        summary = summary,
+                    ),
+                )
+            }
+        }
+    }
+
+    fun deletePlaceholderCourse(courseId: String) {
+        viewModelScope.launch {
+            val groupId = courseId.placeholderGroupId()
+            val next = manualCourseRepository.manualCoursesFlow.first()
+                .filterNot { it.id.placeholderGroupId() == groupId }
+            manualCourseRepository.replaceAll(next)
+            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = "已删除占位课",
+                        summary = summary,
+                    ),
+                )
             }
         }
     }
@@ -1050,6 +1222,56 @@ class ScheduleViewModel(
         }
     }
 
+    private suspend fun createLabelRuleForSelection(
+        state: ScheduleUiState,
+        selection: ScheduleSelectionState,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+    ): ReminderRule? {
+        val timingProfile = state.timingProfile ?: return null
+        val allCourses = state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses
+        val label = when (selection) {
+            is ScheduleSelectionState.SingleCourse -> allCourses
+                .firstOrNull { it.id == selection.courseId }
+                ?.reminderSlotLabel(timingProfile)
+
+            is ScheduleSelectionState.TimeSlot -> timingProfile
+                .findSlot(selection.startNode, selection.endNode)
+                ?.label
+        }?.takeIf { it.isNotBlank() } ?: return null
+        return reminderCoordinator.upsertLabelRule(
+            pluginId = state.pluginId,
+            displayName = "提醒 $label",
+            enabled = true,
+            advanceMinutes = advanceMinutes.coerceIn(0, 720),
+            ringtoneUri = ringtoneUri,
+            labelConditions = listOf(ReminderLabelCondition(label, ReminderLabelPresence.Exists)),
+            labelActions = listOf(ReminderLabelAction(label, ReminderLabelActionType.Remind)),
+        )
+    }
+
+    private suspend fun createLabelRuleForCourse(
+        state: ScheduleUiState,
+        courseId: String,
+        advanceMinutes: Int,
+        ringtoneUri: String?,
+    ): ReminderRule? {
+        val timingProfile = state.timingProfile ?: return null
+        val course = (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+            .firstOrNull { it.id == courseId }
+            ?: return null
+        val label = course.reminderSlotLabel(timingProfile)?.takeIf { it.isNotBlank() } ?: return null
+        return reminderCoordinator.upsertLabelRule(
+            pluginId = state.pluginId,
+            displayName = "提醒 ${course.title}",
+            enabled = true,
+            advanceMinutes = advanceMinutes,
+            ringtoneUri = ringtoneUri,
+            labelConditions = listOf(ReminderLabelCondition(label, ReminderLabelPresence.Exists)),
+            labelActions = listOf(ReminderLabelAction(label, ReminderLabelActionType.Remind)),
+        )
+    }
+
     private data class KernelSnapshot(
         val schedule: TermSchedule?,
         val pluginId: String,
@@ -1127,6 +1349,11 @@ private fun emptySystemAlarmSyncSummary(): SystemAlarmSyncSummary = SystemAlarmS
     skippedUnrepresentableCount = 0,
     results = emptyList(),
 )
+
+internal fun String.placeholderGroupId(): String =
+    replace(Regex("""(?:-[1-7])+$"""), "").lowercase(Locale.ROOT)
+
+private const val EXAM_RULE_PREFIX = "考试提醒："
 
 class ScheduleViewModelFactory(
     private val scheduleRepository: ScheduleRepository,

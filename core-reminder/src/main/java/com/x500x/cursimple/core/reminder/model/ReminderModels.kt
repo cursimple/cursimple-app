@@ -21,6 +21,8 @@ data class ReminderRule(
     @SerialName("conditionMode") val conditionMode: ReminderConditionMode = ReminderConditionMode.All,
     @SerialName("conditions") val conditions: List<ReminderCondition> = emptyList(),
     @SerialName("actions") val actions: List<ReminderAction> = emptyList(),
+    @SerialName("labelConditions") val labelConditions: List<ReminderLabelCondition> = emptyList(),
+    @SerialName("labelActions") val labelActions: List<ReminderLabelAction> = emptyList(),
     @SerialName("courseId") val courseId: String? = null,
     @SerialName("dayOfWeek") val dayOfWeek: Int? = null,
     @SerialName("startNode") val startNode: Int? = null,
@@ -46,7 +48,40 @@ enum class ReminderScopeType {
 
     @SerialName("first_course_of_period")
     FirstCourseOfPeriod,
+
+    @SerialName("label_rule")
+    LabelRule,
 }
+
+@Serializable
+enum class ReminderLabelPresence {
+    @SerialName("exists")
+    Exists,
+
+    @SerialName("absent")
+    Absent,
+}
+
+@Serializable
+data class ReminderLabelCondition(
+    @SerialName("slotLabel") val slotLabel: String,
+    @SerialName("presence") val presence: ReminderLabelPresence,
+)
+
+@Serializable
+enum class ReminderLabelActionType {
+    @SerialName("remind")
+    Remind,
+
+    @SerialName("skip")
+    Skip,
+}
+
+@Serializable
+data class ReminderLabelAction(
+    @SerialName("slotLabel") val slotLabel: String,
+    @SerialName("action") val action: ReminderLabelActionType,
+)
 
 @Serializable
 data class ReminderNodeRange(
@@ -232,6 +267,13 @@ data class ReminderAlarmSettings(
     val repeatCount: Int = 1,
 )
 
+data class EditableAppAlarmSettings(
+    val ringtoneUriOverride: String? = null,
+    val ringDurationSeconds: Int? = null,
+    val repeatIntervalSeconds: Int? = null,
+    val repeatCount: Int? = null,
+)
+
 data class ReminderPlan(
     val planId: String,
     val ruleId: String,
@@ -241,6 +283,9 @@ data class ReminderPlan(
     val triggerAtMillis: Long,
     val ringtoneUri: String?,
     val courseId: String?,
+    val ringDurationSeconds: Int? = null,
+    val repeatIntervalSeconds: Int? = null,
+    val repeatCount: Int? = null,
 )
 
 sealed interface TriggeredAppAlarmFinishAction {
@@ -266,6 +311,7 @@ enum class ReminderSyncReason {
     AfterClassToday,
     ScheduleChanged,
     WidgetRefresh,
+    AlarmRuntime,
 }
 
 @Serializable
@@ -283,6 +329,12 @@ data class SystemAlarmRecord(
     @SerialName("operationMode") val operationMode: AppAlarmOperationMode = AppAlarmOperationMode.LegacyBroadcast,
     @SerialName("displayTitle") val displayTitle: String? = null,
     @SerialName("displayMessage") val displayMessage: String? = null,
+    @SerialName("enabled") val enabled: Boolean = true,
+    @SerialName("ringDurationSeconds") val ringDurationSeconds: Int? = null,
+    @SerialName("repeatIntervalSeconds") val repeatIntervalSeconds: Int? = null,
+    @SerialName("repeatCount") val repeatCount: Int? = null,
+    @SerialName("ringtoneUriOverride") val ringtoneUriOverride: String? = null,
+    @SerialName("manualAlarm") val manualAlarm: Boolean = false,
     @SerialName("createdAtMillis") val createdAtMillis: Long,
 )
 
@@ -324,6 +376,10 @@ fun ReminderPlan.toAppAlarmRecord(
         operationMode = operationMode,
         displayTitle = title,
         displayMessage = message,
+        ringDurationSeconds = ringDurationSeconds,
+        repeatIntervalSeconds = repeatIntervalSeconds,
+        repeatCount = repeatCount,
+        ringtoneUriOverride = ringtoneUri,
         createdAtMillis = createdAtMillis,
     )
 }

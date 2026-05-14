@@ -17,6 +17,10 @@ import com.x500x.cursimple.core.reminder.model.ReminderConditionMode
 import com.x500x.cursimple.core.reminder.model.ReminderConditionType
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
+import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
+import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
+import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
+import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
@@ -26,6 +30,105 @@ import org.junit.Test
 
 class ReminderPlannerTest {
     private val planner = ReminderPlanner()
+
+    @Test
+    fun labelRuleRunsActionsWhenAllConditionsMatch() {
+        val plans = planner.expandRule(
+            rule = labelRule(
+                conditions = listOf(ReminderLabelCondition("第一节课", ReminderLabelPresence.Exists)),
+                actions = listOf(ReminderLabelAction("第二节课", ReminderLabelActionType.Remind)),
+            ),
+            schedule = labelSchedule(),
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(listOf("physics"), plans.map { it.courseId })
+    }
+
+    @Test
+    fun labelRuleDoesNotRunWhenAnyConditionFails() {
+        val plans = planner.expandRule(
+            rule = labelRule(
+                conditions = listOf(
+                    ReminderLabelCondition("第一节课", ReminderLabelPresence.Exists),
+                    ReminderLabelCondition("第二节课", ReminderLabelPresence.Absent),
+                ),
+                actions = listOf(ReminderLabelAction("第一节课", ReminderLabelActionType.Remind)),
+            ),
+            schedule = labelSchedule(),
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(emptyList<String>(), plans.map { it.courseId })
+    }
+
+    @Test
+    fun labelRulesAreOrRelatedAndSkipWins() {
+        val remindFirst = labelRule(
+            ruleId = "remind-first",
+            conditions = listOf(ReminderLabelCondition("第一节课", ReminderLabelPresence.Exists)),
+            actions = listOf(ReminderLabelAction("第一节课", ReminderLabelActionType.Remind)),
+        )
+        val skipFirst = labelRule(
+            ruleId = "skip-first",
+            conditions = listOf(ReminderLabelCondition("第二节课", ReminderLabelPresence.Exists)),
+            actions = listOf(ReminderLabelAction("第一节课", ReminderLabelActionType.Skip)),
+        )
+
+        val plans = planner.expandRules(
+            rules = listOf(remindFirst, skipFirst),
+            schedule = labelSchedule(),
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(emptyList<String>(), plans.map { it.courseId })
+    }
+
+    @Test
+    fun placeholderCourseCanSatisfyConditionAndBeReminderTarget() {
+        val schedule = labelSchedule(
+            CourseItem(
+                id = "placeholder",
+                title = "早自习",
+                weeks = listOf(1),
+                time = CourseTimeSlot(dayOfWeek = 1, startNode = 9, endNode = 9),
+                reminderOnly = true,
+                slotLabelOverride = "早自习",
+                reminderStartTime = "07:10",
+                reminderEndTime = "07:50",
+            ),
+        )
+        val plans = planner.expandRule(
+            rule = labelRule(
+                conditions = listOf(ReminderLabelCondition("早自习", ReminderLabelPresence.Exists)),
+                actions = listOf(ReminderLabelAction("早自习", ReminderLabelActionType.Remind)),
+            ),
+            schedule = schedule,
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(listOf("placeholder"), plans.map { it.courseId })
+        assertEquals(true, plans.single().message.contains("07:10-07:50"))
+    }
+
+    @Test
+    fun duplicateLabelRemindersAreDeduplicated() {
+        val plans = planner.expandRules(
+            rules = listOf(
+                labelRule(ruleId = "a"),
+                labelRule(ruleId = "b"),
+            ),
+            schedule = labelSchedule(),
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(1, plans.count { it.courseId == "math" })
+    }
 
     @Test
     fun examRuleExpandsOnlyExamCourses() {
@@ -601,5 +704,53 @@ class ReminderPlannerTest {
         advanceMinutes = 15,
         createdAt = "2026-02-23T00:00:00+08:00",
         updatedAt = "2026-02-23T00:00:00+08:00",
+    )
+
+    private fun labelRule(
+        ruleId: String = "label-rule",
+        conditions: List<ReminderLabelCondition> = listOf(ReminderLabelCondition("第一节课", ReminderLabelPresence.Exists)),
+        actions: List<ReminderLabelAction> = listOf(ReminderLabelAction("第一节课", ReminderLabelActionType.Remind)),
+    ): ReminderRule = ReminderRule(
+        ruleId = ruleId,
+        pluginId = "demo",
+        scopeType = ReminderScopeType.LabelRule,
+        displayName = "Label rule",
+        labelConditions = conditions,
+        labelActions = actions,
+        advanceMinutes = 15,
+        createdAt = "2026-02-23T00:00:00+08:00",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+    )
+
+    private fun labelSchedule(vararg extraCourses: CourseItem): TermSchedule = TermSchedule(
+        termId = "2026-spring",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+        dailySchedules = listOf(
+            DailySchedule(
+                dayOfWeek = 1,
+                courses = listOf(
+                    CourseItem(
+                        id = "math",
+                        title = "高等数学",
+                        weeks = listOf(1),
+                        time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                    ),
+                    CourseItem(
+                        id = "physics",
+                        title = "大学物理",
+                        weeks = listOf(1),
+                        time = CourseTimeSlot(dayOfWeek = 1, startNode = 3, endNode = 4),
+                    ),
+                ) + extraCourses,
+            ),
+        ),
+    )
+
+    private fun labelProfile(): TermTimingProfile = TermTimingProfile(
+        termStartDate = "2026-02-23",
+        slotTimes = listOf(
+            ClassSlotTime(1, 2, "08:00", "09:35", "第一节课"),
+            ClassSlotTime(3, 4, "10:00", "11:35", "第二节课"),
+        ),
     )
 }

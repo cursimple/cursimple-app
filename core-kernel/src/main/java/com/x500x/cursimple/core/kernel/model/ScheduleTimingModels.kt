@@ -30,3 +30,13 @@ fun ClassSlotTime.endLocalTime(): LocalTime = LocalTime.parse(endTime)
 fun TermTimingProfile.findSlot(startNode: Int, endNode: Int): ClassSlotTime? {
     return slotTimes.firstOrNull { it.startNode == startNode && it.endNode == endNode }
 }
+
+fun TermTimingProfile.findSlotByLabel(label: String): ClassSlotTime? {
+    val normalized = label.trim()
+    if (normalized.isBlank()) return null
+    return slotTimes.firstOrNull { it.label == normalized }
+}
+
+fun CourseItem.reminderSlotLabel(timingProfile: TermTimingProfile): String? =
+    slotLabelOverride?.takeIf { it.isNotBlank() }
+        ?: timingProfile.findSlot(time.startNode, time.endNode)?.label?.takeIf { it.isNotBlank() }
