@@ -348,7 +348,7 @@ internal fun AlarmAlertModeSelector(
 
 internal fun alarmRingtoneLabel(ringtoneUri: String?): String {
     val uri = ringtoneUri?.takeIf { it.isNotBlank() } ?: return "默认铃声"
-    return if (uri.contains("/document/", ignoreCase = true)) {
+    return if (isLocalAudioRingtoneUri(uri)) {
         "本地音频"
     } else {
         "系统铃声"

@@ -48,6 +48,8 @@ import com.x500x.cursimple.core.reminder.model.ReminderRule
 internal fun ReminderRuleEditorDialog(
     rule: ReminderRule?,
     slotLabels: List<String>,
+    onPickSystemRingtone: ((String?) -> Unit) -> Unit,
+    onPickLocalAudio: ((String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String?, String, Boolean, Int, String?, List<ReminderLabelCondition>, List<ReminderLabelAction>) -> Unit,
 ) {
@@ -57,7 +59,7 @@ internal fun ReminderRuleEditorDialog(
     }
     var enabled by rememberSaveable(rule?.ruleId) { mutableStateOf(rule?.enabled ?: true) }
     var advanceText by rememberSaveable(rule?.ruleId) { mutableStateOf((rule?.advanceMinutes ?: 20).toString()) }
-    var ringtoneText by rememberSaveable(rule?.ruleId) { mutableStateOf(rule?.ringtoneUri.orEmpty()) }
+    var ringtoneUri by rememberSaveable(rule?.ruleId) { mutableStateOf(rule?.ringtoneUri) }
     var conditions by remember(rule?.ruleId) {
         mutableStateOf(
             rule?.labelConditions?.takeIf { it.isNotEmpty() }
@@ -108,12 +110,11 @@ internal fun ReminderRuleEditorDialog(
                     modifier = Modifier.fillMaxWidth(),
                     isError = advanceText.isNotBlank() && (advance == null || advance !in 0..720),
                 )
-                OutlinedTextField(
-                    value = ringtoneText,
-                    onValueChange = { ringtoneText = it.take(240) },
-                    label = { Text("铃声 URI") },
-                    placeholder = { Text("可空，使用默认铃声") },
-                    modifier = Modifier.fillMaxWidth(),
+                AlarmRingtoneSelector(
+                    ringtoneUri = ringtoneUri,
+                    onUseDefault = { ringtoneUri = null },
+                    onPickSystem = { onPickSystemRingtone { ringtoneUri = it } },
+                    onPickLocal = { onPickLocalAudio { ringtoneUri = it } },
                 )
 
                 Text("如果", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -164,7 +165,7 @@ internal fun ReminderRuleEditorDialog(
                         name.trim(),
                         enabled,
                         advance ?: 20,
-                        ringtoneText.takeIf { it.isNotBlank() },
+                        ringtoneUri?.takeIf { it.isNotBlank() },
                         conditions,
                         actions,
                     )

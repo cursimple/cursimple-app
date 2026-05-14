@@ -1,16 +1,10 @@
 package com.x500x.cursimple.feature.schedule
 
-import android.media.RingtoneManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.IntentCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -40,13 +34,19 @@ fun BulkReminderDialog(
     var advanceMinutesText by rememberSaveable(defaultAdvanceMinutes) { mutableStateOf(defaultAdvanceMinutes.toString()) }
     var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
-    val ringtoneLauncher = rememberLauncherForActivityResult(
+    val systemRingtoneLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) { result ->
-        val uri = result.data?.let {
-            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
+        result.data?.pickedAlarmRingtoneUri()?.let { ringtoneUri = it.toString() }
+    }
+    val localAudioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            if (takePersistableAudioReadPermission(context, uri)) {
+                ringtoneUri = uri.toString()
+            } else {
+                showAudioPermissionFailedToast(context)
+            }
         }
-        ringtoneUri = uri?.toString()
     }
     val advance = advanceMinutesText.toIntOrNull()
     val canSave = advance != null && advance in 0..720
@@ -74,19 +74,16 @@ fun BulkReminderDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Button(onClick = {
-                        launchAlarmRingtonePicker(context) { intent ->
-                            ringtoneLauncher.launch(intent)
+                AlarmRingtoneSelector(
+                    ringtoneUri = ringtoneUri,
+                    onUseDefault = { ringtoneUri = null },
+                    onPickSystem = {
+                        launchAlarmRingtonePicker(context, ringtoneUri) { intent ->
+                            systemRingtoneLauncher.launch(intent)
                         }
-                    }) { Text("选择铃声") }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = if (ringtoneUri.isNullOrBlank()) "默认铃声" else "已选择",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                    },
+                    onPickLocal = { localAudioLauncher.launch(arrayOf("audio/*")) },
+                )
             }
         },
         confirmButton = {
