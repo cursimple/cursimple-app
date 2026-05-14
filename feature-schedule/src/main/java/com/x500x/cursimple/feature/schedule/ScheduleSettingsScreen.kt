@@ -291,6 +291,8 @@ fun ScheduleSettingsScreen(
         ReminderRuleEditorDialog(
             rule = editingRule,
             slotLabels = slotLabels,
+            onPickSystemRingtone = onPickSystemRingtone,
+            onPickLocalAudio = onPickLocalAudio,
             onDismiss = { showRuleEditor = false },
             onSave = { ruleId, name, enabled, advance, ringtone, conditions, actions ->
                 onSaveRule(ruleId, name, enabled, advance, ringtone, conditions, actions)
@@ -417,7 +419,7 @@ private fun AlarmRecordRow(
                     "响铃 ${record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS} 秒",
                     "间隔 ${record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS} 秒",
                     "${record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT} 次",
-                    if (record.ringtoneUriOverride.isNullOrBlank()) "默认铃声" else "自定义铃声",
+                    alarmRingtoneLabel(record.ringtoneUriOverride),
                     alarmAlertModeLabel(record.alertModeOverride),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
@@ -518,6 +520,11 @@ private fun RuleRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("提前 ${rule.advanceMinutes} 分钟", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(
+                alarmRingtoneLabel(rule.ringtoneUri),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Switch(checked = rule.enabled, onCheckedChange = onSetEnabled)
         IconButton(onClick = onEdit) {

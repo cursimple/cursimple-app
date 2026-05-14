@@ -1,11 +1,9 @@
 package com.x500x.cursimple.feature.schedule
 
 import android.graphics.BitmapFactory
-import android.media.RingtoneManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.IntentCompat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -259,7 +257,6 @@ fun ScheduleScreen(
 ) {
     var showSyncSettings by rememberSaveable { mutableStateOf(state.schedule == null) }
     var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
-    var ringtoneUri by rememberSaveable { mutableStateOf<String?>(null) }
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
@@ -274,13 +271,6 @@ fun ScheduleScreen(
     val scrollState = rememberScrollState()
     val selectedCourse = remember(state.selectionState, state.schedule) {
         selectedCourseFromState(state.selectionState, state.schedule)
-    }
-
-    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.let {
-            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
-        }
-        ringtoneUri = uri?.toString()
     }
 
     Box(
@@ -2301,7 +2291,9 @@ internal fun ReminderComposerCard(
     advanceMinutesText: String,
     ringtoneUri: String?,
     onAdvanceMinutesChange: (String) -> Unit,
-    onPickRingtone: () -> Unit,
+    onUseDefaultRingtone: () -> Unit,
+    onPickSystemRingtone: () -> Unit,
+    onPickLocalAudio: () -> Unit,
     onCreateReminder: () -> Unit,
     onSelectSameSlot: () -> Unit,
     onClearSelection: () -> Unit,
@@ -2340,23 +2332,19 @@ internal fun ReminderComposerCard(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
+            AlarmRingtoneSelector(
+                ringtoneUri = ringtoneUri,
+                onUseDefault = onUseDefaultRingtone,
+                onPickSystem = onPickSystemRingtone,
+                onPickLocal = onPickLocalAudio,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = onPickRingtone) {
-                    Text("选择铃声")
-                }
                 Button(onClick = onCreateReminder) {
                     Text("保存提醒")
                 }
                 TextButton(onClick = onClearSelection) {
                     Text("取消")
                 }
-            }
-            if (!ringtoneUri.isNullOrBlank()) {
-                Text(
-                    text = "已选择铃声：$ringtoneUri",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
@@ -3138,11 +3126,17 @@ internal fun ExamReminderSettingsCard(
     }
     var ringtoneUri by rememberSaveable(rule?.ruleId, rule?.updatedAt) { mutableStateOf(rule?.ringtoneUri) }
     val context = LocalContext.current
-    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.let {
-            IntentCompat.getParcelableExtra(it, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, android.net.Uri::class.java)
+    val systemRingtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        result.data?.pickedAlarmRingtoneUri()?.let { ringtoneUri = it.toString() }
+    }
+    val localAudioLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            if (takePersistableAudioReadPermission(context, uri)) {
+                ringtoneUri = uri.toString()
+            } else {
+                showAudioPermissionFailedToast(context)
+            }
         }
-        ringtoneUri = uri?.toString()
     }
     val advance = advanceMinutesText.toIntOrNull()
     val canSave = advance != null && advance in 0..720
@@ -3204,26 +3198,17 @@ internal fun ExamReminderSettingsCard(
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Button(
-                    onClick = {
-                        launchAlarmRingtonePicker(context) { intent ->
-                            ringtoneLauncher.launch(intent)
-                        }
-                    },
-                ) {
-                    Text("选择铃声")
-                }
-                Text(
-                    text = if (ringtoneUri.isNullOrBlank()) "系统默认铃声" else "已选择铃声",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.weight(1f),
-                )
+            AlarmRingtoneSelector(
+                ringtoneUri = ringtoneUri,
+                onUseDefault = { ringtoneUri = null },
+                onPickSystem = {
+                    launchAlarmRingtonePicker(context, ringtoneUri) { intent ->
+                        systemRingtoneLauncher.launch(intent)
+                    }
+                },
+                onPickLocal = { localAudioLauncher.launch(arrayOf("audio/*")) },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = { save() },
                     enabled = canSave,
@@ -3501,7 +3486,7 @@ private fun describeReminderRule(
             timing = "如果 $conditions · 就 $actions"
         }
     }
-    val ringtone = if (rule.ringtoneUri.isNullOrBlank()) "系统默认铃声" else "自定义铃声"
+    val ringtone = alarmRingtoneLabel(rule.ringtoneUri)
     val options = "提前 ${rule.advanceMinutes} 分钟 · $ringtone"
     return ReminderRuleDisplay(title = title, timing = timing, options = options, nextTrigger = nextTrigger)
 }
