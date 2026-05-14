@@ -3,11 +3,19 @@ package com.x500x.cursimple.feature.schedule
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -15,12 +23,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import java.time.LocalDate
@@ -31,15 +43,20 @@ import java.time.ZoneId
 @Composable
 internal fun AppAlarmEditorDialog(
     record: SystemAlarmRecord,
+    onPickSystemRingtone: ((String?) -> Unit) -> Unit,
+    onPickLocalAudio: ((String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onSave: (EditableAppAlarmSettings) -> Unit,
 ) {
     AlarmSettingsDialogContent(
         title = "编辑闹钟",
-        initialRingtone = record.ringtoneUriOverride.orEmpty(),
+        initialRingtone = record.ringtoneUriOverride,
+        initialAlertMode = record.alertModeOverride,
         initialDuration = (record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS).toString(),
         initialInterval = (record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS).toString(),
         initialCount = (record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT).toString(),
+        onPickSystemRingtone = onPickSystemRingtone,
+        onPickLocalAudio = onPickLocalAudio,
         onDismiss = onDismiss,
         onSave = onSave,
     )
@@ -47,6 +64,8 @@ internal fun AppAlarmEditorDialog(
 
 @Composable
 internal fun ManualAppAlarmDialog(
+    onPickSystemRingtone: ((String?) -> Unit) -> Unit,
+    onPickLocalAudio: ((String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onCreate: (Long, String, String, EditableAppAlarmSettings) -> Unit,
 ) {
@@ -54,13 +73,14 @@ internal fun ManualAppAlarmDialog(
     var timeText by rememberSaveable { mutableStateOf(LocalTime.now().plusHours(1).withSecond(0).withNano(0).toString()) }
     var title by rememberSaveable { mutableStateOf("手动闹钟") }
     var message by rememberSaveable { mutableStateOf("手动创建的提醒") }
-    var ringtone by rememberSaveable { mutableStateOf("") }
+    var ringtone by rememberSaveable { mutableStateOf<String?>(null) }
+    var alertMode by rememberSaveable { mutableStateOf<AlarmAlertMode?>(null) }
     var duration by rememberSaveable { mutableStateOf(DEFAULT_APP_ALARM_RING_DURATION_SECONDS.toString()) }
     var interval by rememberSaveable { mutableStateOf(DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS.toString()) }
     var count by rememberSaveable { mutableStateOf(DEFAULT_APP_ALARM_REPEAT_COUNT.toString()) }
     val date = runCatching { LocalDate.parse(dateText) }.getOrNull()
     val time = runCatching { LocalTime.parse(timeText) }.getOrNull()
-    val settings = editableSettings(ringtone, duration, interval, count)
+    val settings = editableSettings(ringtone, alertMode, duration, interval, count)
     val canSave = date != null && time != null && settings != null && title.isNotBlank()
 
     AlertDialog(
@@ -98,10 +118,14 @@ internal fun ManualAppAlarmDialog(
                 )
                 AlarmSettingsFields(
                     ringtone = ringtone,
+                    alertMode = alertMode,
                     duration = duration,
                     interval = interval,
                     count = count,
-                    onRingtone = { ringtone = it },
+                    onUseDefaultRingtone = { ringtone = null },
+                    onPickSystemRingtone = { onPickSystemRingtone { ringtone = it } },
+                    onPickLocalAudio = { onPickLocalAudio { ringtone = it } },
+                    onAlertMode = { alertMode = it },
                     onDuration = { duration = it },
                     onInterval = { interval = it },
                     onCount = { count = it },
@@ -127,18 +151,22 @@ internal fun ManualAppAlarmDialog(
 @Composable
 private fun AlarmSettingsDialogContent(
     title: String,
-    initialRingtone: String,
+    initialRingtone: String?,
+    initialAlertMode: AlarmAlertMode?,
     initialDuration: String,
     initialInterval: String,
     initialCount: String,
+    onPickSystemRingtone: ((String?) -> Unit) -> Unit,
+    onPickLocalAudio: ((String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onSave: (EditableAppAlarmSettings) -> Unit,
 ) {
     var ringtone by rememberSaveable { mutableStateOf(initialRingtone) }
+    var alertMode by rememberSaveable { mutableStateOf(initialAlertMode) }
     var duration by rememberSaveable { mutableStateOf(initialDuration) }
     var interval by rememberSaveable { mutableStateOf(initialInterval) }
     var count by rememberSaveable { mutableStateOf(initialCount) }
-    val settings = editableSettings(ringtone, duration, interval, count)
+    val settings = editableSettings(ringtone, alertMode, duration, interval, count)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -146,10 +174,14 @@ private fun AlarmSettingsDialogContent(
         text = {
             AlarmSettingsFields(
                 ringtone = ringtone,
+                alertMode = alertMode,
                 duration = duration,
                 interval = interval,
                 count = count,
-                onRingtone = { ringtone = it },
+                onUseDefaultRingtone = { ringtone = null },
+                onPickSystemRingtone = { onPickSystemRingtone { ringtone = it } },
+                onPickLocalAudio = { onPickLocalAudio { ringtone = it } },
+                onAlertMode = { alertMode = it },
                 onDuration = { duration = it },
                 onInterval = { interval = it },
                 onCount = { count = it },
@@ -167,22 +199,30 @@ private fun AlarmSettingsDialogContent(
 
 @Composable
 private fun AlarmSettingsFields(
-    ringtone: String,
+    ringtone: String?,
+    alertMode: AlarmAlertMode?,
     duration: String,
     interval: String,
     count: String,
-    onRingtone: (String) -> Unit,
+    onUseDefaultRingtone: () -> Unit,
+    onPickSystemRingtone: () -> Unit,
+    onPickLocalAudio: () -> Unit,
+    onAlertMode: (AlarmAlertMode?) -> Unit,
     onDuration: (String) -> Unit,
     onInterval: (String) -> Unit,
     onCount: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        OutlinedTextField(
-            value = ringtone,
-            onValueChange = { onRingtone(it.take(240)) },
-            label = { Text("铃声 URI") },
-            placeholder = { Text("可空，使用默认铃声") },
-            modifier = Modifier.fillMaxWidth(),
+        AlarmRingtoneSelector(
+            ringtoneUri = ringtone,
+            onUseDefault = onUseDefaultRingtone,
+            onPickSystem = onPickSystemRingtone,
+            onPickLocal = onPickLocalAudio,
+        )
+        AlarmAlertModeSelector(
+            selected = alertMode,
+            includeDefault = true,
+            onSelect = onAlertMode,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
             NumberField("时长秒", duration, 5..600, onDuration, Modifier.weight(1f))
@@ -212,7 +252,8 @@ private fun NumberField(
 }
 
 private fun editableSettings(
-    ringtone: String,
+    ringtone: String?,
+    alertMode: AlarmAlertMode?,
     duration: String,
     interval: String,
     count: String,
@@ -224,9 +265,99 @@ private fun editableSettings(
     if (intervalValue == null || intervalValue !in 5..3600) return null
     if (countValue == null || countValue !in 1..10) return null
     return EditableAppAlarmSettings(
-        ringtoneUriOverride = ringtone.takeIf { it.isNotBlank() },
+        ringtoneUriOverride = ringtone?.takeIf { it.isNotBlank() },
+        alertModeOverride = alertMode,
         ringDurationSeconds = durationValue,
         repeatIntervalSeconds = intervalValue,
         repeatCount = countValue,
     )
+}
+
+@Composable
+internal fun AlarmRingtoneSelector(
+    ringtoneUri: String?,
+    onUseDefault: () -> Unit,
+    onPickSystem: () -> Unit,
+    onPickLocal: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("铃声", fontWeight = FontWeight.SemiBold)
+                Text(
+                    alarmRingtoneLabel(ringtoneUri),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onUseDefault) { Text("默认铃声") }
+                TextButton(onClick = onPickSystem) { Text("系统铃声") }
+                TextButton(onClick = onPickLocal) { Text("本地音频") }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AlarmAlertModeSelector(
+    selected: AlarmAlertMode?,
+    includeDefault: Boolean,
+    onSelect: (AlarmAlertMode?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val options = buildList {
+        if (includeDefault) add(null)
+        addAll(AlarmAlertMode.entries)
+    }
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("提醒方式", fontWeight = FontWeight.SemiBold)
+            options.forEach { mode ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onSelect(mode) }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
+                    Spacer(Modifier.width(6.dp))
+                    Text(alarmAlertModeLabel(mode))
+                }
+            }
+        }
+    }
+}
+
+internal fun alarmRingtoneLabel(ringtoneUri: String?): String {
+    val uri = ringtoneUri?.takeIf { it.isNotBlank() } ?: return "默认铃声"
+    return if (uri.contains("/document/", ignoreCase = true)) {
+        "本地音频"
+    } else {
+        "系统铃声"
+    }
+}
+
+internal fun alarmAlertModeLabel(mode: AlarmAlertMode?): String = when (mode) {
+    null -> "跟随默认"
+    AlarmAlertMode.RingOnly -> "仅响铃"
+    AlarmAlertMode.VibrateOnly -> "仅震动"
+    AlarmAlertMode.RingAndVibrate -> "响铃并震动"
 }

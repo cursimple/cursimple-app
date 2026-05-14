@@ -5,6 +5,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -118,6 +119,8 @@ data class UserPreferences(
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
     val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
+    val alarmRingtoneUri: String? = null,
+    val alarmAlertMode: AlarmAlertMode = AlarmAlertMode.RingAndVibrate,
     val alarmRingDurationSeconds: Int = DEFAULT_APP_ALARM_RING_DURATION_SECONDS,
     val alarmRepeatIntervalSeconds: Int = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
     val alarmRepeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
@@ -171,6 +174,8 @@ interface UserPreferencesRepository {
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
     suspend fun setAlarmBackend(backend: ReminderAlarmBackend)
+    suspend fun setAlarmRingtoneUri(uri: String?)
+    suspend fun setAlarmAlertMode(mode: AlarmAlertMode)
     suspend fun setAlarmRingDurationSeconds(seconds: Int)
     suspend fun setAlarmRepeatIntervalSeconds(seconds: Int)
     suspend fun setAlarmRepeatCount(count: Int)

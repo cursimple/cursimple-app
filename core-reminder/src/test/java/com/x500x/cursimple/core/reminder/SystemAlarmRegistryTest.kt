@@ -13,7 +13,9 @@ import com.x500x.cursimple.core.reminder.dispatch.AlarmDismisser
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.AppAlarmOperationMode
+import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
 import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
 import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
@@ -172,6 +174,97 @@ class SystemAlarmRegistryTest {
         assertEquals(AppAlarmOperationMode.ForegroundService, record.operationMode)
         assertTrue(record.displayTitle.orEmpty().contains("高等数学"))
         assertTrue(record.displayMessage.orEmpty().contains("08:00-09:35"))
+    }
+
+    @Test
+    fun `app managed alarm dispatch applies default ringtone and alert mode`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = {
+                ReminderAlarmSettings(
+                    backend = ReminderAlarmBackend.AppAlarmClock,
+                    ringtoneUri = "content://alarm/default",
+                    alertMode = AlarmAlertMode.VibrateOnly,
+                    ringDurationSeconds = 45,
+                    repeatIntervalSeconds = 90,
+                    repeatCount = 3,
+                )
+            },
+            appDispatcher = dispatcher,
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+
+        coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile, nowMillis),
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+
+        val record = repository.records.value.single()
+        assertEquals("content://alarm/default", record.ringtoneUriOverride)
+        assertEquals(AlarmAlertMode.VibrateOnly, record.alertModeOverride)
+        assertEquals(45, record.ringDurationSeconds)
+        assertEquals(90, record.repeatIntervalSeconds)
+        assertEquals(3, record.repeatCount)
+        assertEquals(AlarmAlertMode.VibrateOnly, dispatcher.lastPlan?.alertMode)
+    }
+
+    @Test
+    fun `edited app alarm settings persist ringtone and alert mode`() = runBlocking {
+        val initialRecord = sampleRecord(triggerAtMillis = futureMillis()).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1001,
+            ringtoneUriOverride = "content://alarm/old",
+            alertModeOverride = AlarmAlertMode.RingAndVibrate,
+            ringDurationSeconds = 120,
+            repeatIntervalSeconds = 300,
+            repeatCount = 5,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(initialRecord)
+        }
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDispatcher = dispatcher,
+            appDismisser = FakeAlarmDismisser(succeeded = true),
+        )
+
+        val result = coordinator.updateAppAlarmSettings(
+            alarmKey = initialRecord.alarmKey,
+            settings = EditableAppAlarmSettings(
+                ringtoneUriOverride = "content://alarm/new",
+                alertModeOverride = AlarmAlertMode.RingOnly,
+                ringDurationSeconds = 60,
+                repeatIntervalSeconds = 180,
+                repeatCount = 2,
+            ),
+        )
+
+        val updated = repository.records.value.single()
+        assertEquals(true, result.succeeded)
+        assertEquals("content://alarm/new", updated.ringtoneUriOverride)
+        assertEquals(AlarmAlertMode.RingOnly, updated.alertModeOverride)
+        assertEquals(60, updated.ringDurationSeconds)
+        assertEquals(180, updated.repeatIntervalSeconds)
+        assertEquals(2, updated.repeatCount)
+        assertEquals(AlarmAlertMode.RingOnly, dispatcher.lastPlan?.alertMode)
     }
 
     @Test
@@ -770,9 +863,11 @@ class SystemAlarmRegistryTest {
         private val channel: AlarmDispatchChannel = AlarmDispatchChannel.SystemClockApp,
     ) : AlarmDispatcher {
         var dispatchCount: Int = 0
+        var lastPlan: ReminderPlan? = null
 
         override suspend fun dispatch(plan: ReminderPlan): AlarmDispatchResult {
             dispatchCount += 1
+            lastPlan = plan
             return AlarmDispatchResult(
                 channel = channel,
                 succeeded = succeeded,

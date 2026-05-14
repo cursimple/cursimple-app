@@ -18,6 +18,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -62,6 +63,10 @@ class DataStoreUserPreferencesRepository(
             alarmBackend = prefs[KEY_ALARM_BACKEND]
                 ?.let { runCatching { ReminderAlarmBackend.valueOf(it) }.getOrNull() }
                 ?: ReminderAlarmBackend.AppAlarmClock,
+            alarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]?.takeIf { it.isNotBlank() },
+            alarmAlertMode = prefs[KEY_ALARM_ALERT_MODE]
+                ?.let { runCatching { AlarmAlertMode.valueOf(it) }.getOrNull() }
+                ?: AlarmAlertMode.RingAndVibrate,
             alarmRingDurationSeconds = (prefs[KEY_ALARM_RING_DURATION_SECONDS] ?: DEFAULT_RING_DURATION_SECONDS)
                 .coerceIn(MIN_RING_DURATION_SECONDS, MAX_RING_DURATION_SECONDS),
             alarmRepeatIntervalSeconds = (prefs[KEY_ALARM_REPEAT_INTERVAL_SECONDS] ?: DEFAULT_REPEAT_INTERVAL_SECONDS)
@@ -271,6 +276,26 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_ALARM_BACKEND] = backend.name }
     }
 
+    override suspend fun setAlarmRingtoneUri(uri: String?) {
+        var previousUri: String? = null
+        store.edit { prefs ->
+            previousUri = prefs[KEY_ALARM_RINGTONE_URI]
+            val normalized = uri?.takeIf { it.isNotBlank() }
+            if (normalized == null) {
+                prefs.remove(KEY_ALARM_RINGTONE_URI)
+            } else {
+                prefs[KEY_ALARM_RINGTONE_URI] = normalized
+            }
+        }
+        if (previousUri != uri) {
+            releasePersistedReadPermission(previousUri)
+        }
+    }
+
+    override suspend fun setAlarmAlertMode(mode: AlarmAlertMode) {
+        store.edit { prefs -> prefs[KEY_ALARM_ALERT_MODE] = mode.name }
+    }
+
     override suspend fun setAlarmRingDurationSeconds(seconds: Int) {
         store.edit { prefs ->
             prefs[KEY_ALARM_RING_DURATION_SECONDS] = seconds.coerceIn(
@@ -337,14 +362,18 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun resetAllSettings() {
         var previousImageUri: String? = null
+        var previousAlarmRingtoneUri: String? = null
         store.edit { prefs ->
             previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
+            previousAlarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]
             prefs.remove(KEY_THEME_MODE)
             prefs.remove(KEY_THEME_ACCENT)
             prefs.remove(KEY_DEVELOPER_MODE)
             prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
             prefs.remove(KEY_DEBUG_FORCED_DATETIME)
             prefs.remove(KEY_ALARM_BACKEND)
+            prefs.remove(KEY_ALARM_RINGTONE_URI)
+            prefs.remove(KEY_ALARM_ALERT_MODE)
             prefs.remove(KEY_ALARM_RING_DURATION_SECONDS)
             prefs.remove(KEY_ALARM_REPEAT_INTERVAL_SECONDS)
             prefs.remove(KEY_ALARM_REPEAT_COUNT)
@@ -354,6 +383,7 @@ class DataStoreUserPreferencesRepository(
             prefs.removeScheduleAppearanceAndDisplay()
         }
         releasePersistedReadPermission(previousImageUri)
+        releasePersistedReadPermission(previousAlarmRingtoneUri)
     }
 
     override suspend fun seedEnabledPlugins(pluginIds: Set<String>) {
@@ -569,6 +599,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")
         val KEY_ALARM_BACKEND = stringPreferencesKey("alarm_backend")
+        val KEY_ALARM_RINGTONE_URI = stringPreferencesKey("alarm_ringtone_uri")
+        val KEY_ALARM_ALERT_MODE = stringPreferencesKey("alarm_alert_mode")
         val KEY_ALARM_RING_DURATION_SECONDS = intPreferencesKey("alarm_ring_duration_seconds")
         val KEY_ALARM_REPEAT_INTERVAL_SECONDS = intPreferencesKey("alarm_repeat_interval_seconds")
         val KEY_ALARM_REPEAT_COUNT = intPreferencesKey("alarm_repeat_count")

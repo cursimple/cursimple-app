@@ -26,6 +26,7 @@ import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockIntents
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.TriggeredAppAlarmFinishAction
 import kotlinx.coroutines.CoroutineScope
@@ -109,6 +110,8 @@ class AlarmRingingService : Service() {
                 .coerceIn(5, 600) * 1000L
             val intervalMillis = (alarm.repeatIntervalSeconds ?: prefs.alarmRepeatIntervalSeconds)
                 .coerceIn(5, 3600) * 1000L
+            val alertMode = alarm.alertMode ?: prefs.alarmAlertMode
+            val ringtoneUri = alarm.ringtoneUri ?: prefs.alarmRingtoneUri
             val delayMillis = System.currentTimeMillis() - alarm.triggerAtMillis
             if (alarm.triggerAtMillis > 0L && delayMillis > MISSED_ALARM_THRESHOLD_MILLIS) {
                 ReminderLogger.warn(
@@ -123,8 +126,12 @@ class AlarmRingingService : Service() {
                     mapOf("alarmKey" to alarm.alarmKey, "round" to round, "repeatCount" to repeatCount),
                 )
                 acquireWakeLock(durationMillis + WAKE_LOCK_EXTRA_MILLIS)
-                startTone(alarm.ringtoneUri)
-                vibrate(durationMillis)
+                if (alertMode != AlarmAlertMode.VibrateOnly) {
+                    startTone(ringtoneUri)
+                }
+                if (alertMode != AlarmAlertMode.RingOnly) {
+                    vibrate(durationMillis)
+                }
                 delay(durationMillis)
                 stopPlayback()
                 ReminderLogger.info(
@@ -217,6 +224,7 @@ class AlarmRingingService : Service() {
             message = "已延后 5 分钟",
             triggerAtMillis = triggerAtMillis,
             ringtoneUri = ringtoneUri,
+            alertMode = alertMode,
             courseId = courseId,
             ringDurationSeconds = ringDurationSeconds,
             repeatIntervalSeconds = repeatIntervalSeconds,
@@ -446,6 +454,8 @@ class AlarmRingingService : Service() {
         title = getStringExtra(AppAlarmClockIntents.EXTRA_TITLE).orEmpty(),
         message = getStringExtra(AppAlarmClockIntents.EXTRA_MESSAGE).orEmpty(),
         ringtoneUri = getStringExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI)?.takeIf { it.isNotBlank() },
+        alertMode = getStringExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE)
+            ?.let { runCatching { AlarmAlertMode.valueOf(it) }.getOrNull() },
         triggerAtMillis = getLongExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, 0L),
         ringDurationSeconds = getIntExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, -1).takeIf { it > 0 },
         repeatIntervalSeconds = getIntExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, -1).takeIf { it > 0 },
@@ -462,6 +472,7 @@ class AlarmRingingService : Service() {
         putExtra(AppAlarmClockIntents.EXTRA_TITLE, alarm.title)
         putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, alarm.message)
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, alarm.ringtoneUri)
+        alarm.alertMode?.let { putExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE, it.name) }
         alarm.ringDurationSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, it) }
         alarm.repeatIntervalSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, it) }
         alarm.repeatCount?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT, it) }
@@ -476,6 +487,7 @@ class AlarmRingingService : Service() {
         val title: String,
         val message: String,
         val ringtoneUri: String?,
+        val alertMode: AlarmAlertMode?,
         val triggerAtMillis: Long,
         val ringDurationSeconds: Int?,
         val repeatIntervalSeconds: Int?,

@@ -64,6 +64,7 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
@@ -82,26 +83,38 @@ import java.time.format.DateTimeFormatter
 fun ScheduleSettingsRoute(
     viewModel: ScheduleViewModel,
     alarmBackend: ReminderAlarmBackend,
+    alarmRingtoneUri: String?,
+    alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
     onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
+    onAlarmRingtoneUriChange: (String?) -> Unit,
+    onAlarmAlertModeChange: (AlarmAlertMode) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
+    onPickSystemRingtone: ((String?) -> Unit) -> Unit,
+    onPickLocalAudio: ((String?) -> Unit) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleSettingsScreen(
         state = state,
         alarmBackend = alarmBackend,
+        alarmRingtoneUri = alarmRingtoneUri,
+        alarmAlertMode = alarmAlertMode,
         alarmRingDurationSeconds = alarmRingDurationSeconds,
         alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
         alarmRepeatCount = alarmRepeatCount,
         onAlarmBackendChange = onAlarmBackendChange,
+        onAlarmRingtoneUriChange = onAlarmRingtoneUriChange,
+        onAlarmAlertModeChange = onAlarmAlertModeChange,
         onAlarmRingDurationSecondsChange = onAlarmRingDurationSecondsChange,
         onAlarmRepeatIntervalSecondsChange = onAlarmRepeatIntervalSecondsChange,
         onAlarmRepeatCountChange = onAlarmRepeatCountChange,
+        onPickSystemRingtone = onPickSystemRingtone,
+        onPickLocalAudio = onPickLocalAudio,
         onSaveRule = viewModel::saveLabelReminderRule,
         onSetRuleEnabled = viewModel::setReminderRuleEnabled,
         onRemoveRule = viewModel::removeReminderRule,
@@ -121,13 +134,19 @@ fun ScheduleSettingsRoute(
 fun ScheduleSettingsScreen(
     state: ScheduleUiState,
     alarmBackend: ReminderAlarmBackend,
+    alarmRingtoneUri: String?,
+    alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
     onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
+    onAlarmRingtoneUriChange: (String?) -> Unit,
+    onAlarmAlertModeChange: (AlarmAlertMode) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
+    onPickSystemRingtone: ((String?) -> Unit) -> Unit,
+    onPickLocalAudio: ((String?) -> Unit) -> Unit,
     onSaveRule: (String?, String, Boolean, Int, String?, List<ReminderLabelCondition>, List<ReminderLabelAction>) -> Unit,
     onSetRuleEnabled: (String, Boolean) -> Unit,
     onRemoveRule: (String) -> Unit,
@@ -218,10 +237,24 @@ fun ScheduleSettingsScreen(
 
             ReminderDefaultsCard(
                 alarmBackend = alarmBackend,
+                alarmRingtoneUri = alarmRingtoneUri,
+                alarmAlertMode = alarmAlertMode,
                 alarmRingDurationSeconds = alarmRingDurationSeconds,
                 alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
                 alarmRepeatCount = alarmRepeatCount,
                 onPickBackend = { showBackendDialog = true },
+                onUseDefaultRingtone = { onAlarmRingtoneUriChange(null) },
+                onPickSystemRingtone = {
+                    onPickSystemRingtone { uri ->
+                        onAlarmRingtoneUriChange(uri)
+                    }
+                },
+                onPickLocalAudio = {
+                    onPickLocalAudio { uri ->
+                        onAlarmRingtoneUriChange(uri)
+                    }
+                },
+                onAlertModeChange = onAlarmAlertModeChange,
                 onRingDurationChange = onAlarmRingDurationSecondsChange,
                 onRepeatIntervalChange = onAlarmRepeatIntervalSecondsChange,
                 onRepeatCountChange = onAlarmRepeatCountChange,
@@ -229,6 +262,8 @@ fun ScheduleSettingsScreen(
 
             ExamReminderCard(
                 rules = state.reminderRules,
+                alarmRingtoneUri = alarmRingtoneUri,
+                alarmAlertMode = alarmAlertMode,
                 alarmRingDurationSeconds = alarmRingDurationSeconds,
                 alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
                 alarmRepeatCount = alarmRepeatCount,
@@ -280,6 +315,8 @@ fun ScheduleSettingsScreen(
     editingAlarm?.let { alarm ->
         AppAlarmEditorDialog(
             record = alarm,
+            onPickSystemRingtone = onPickSystemRingtone,
+            onPickLocalAudio = onPickLocalAudio,
             onDismiss = { editingAlarm = null },
             onSave = { settings ->
                 onUpdateAppAlarm(alarm.alarmKey, settings)
@@ -290,6 +327,8 @@ fun ScheduleSettingsScreen(
 
     if (showManualAlarmDialog) {
         ManualAppAlarmDialog(
+            onPickSystemRingtone = onPickSystemRingtone,
+            onPickLocalAudio = onPickLocalAudio,
             onDismiss = { showManualAlarmDialog = false },
             onCreate = { triggerAtMillis, title, message, settings ->
                 onCreateManualAlarm(triggerAtMillis, title, message, settings)
@@ -379,6 +418,7 @@ private fun AlarmRecordRow(
                     "间隔 ${record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS} 秒",
                     "${record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT} 次",
                     if (record.ringtoneUriOverride.isNullOrBlank()) "默认铃声" else "自定义铃声",
+                    alarmAlertModeLabel(record.alertModeOverride),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -492,10 +532,16 @@ private fun RuleRow(
 @Composable
 private fun ReminderDefaultsCard(
     alarmBackend: ReminderAlarmBackend,
+    alarmRingtoneUri: String?,
+    alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
     onPickBackend: () -> Unit,
+    onUseDefaultRingtone: () -> Unit,
+    onPickSystemRingtone: () -> Unit,
+    onPickLocalAudio: () -> Unit,
+    onAlertModeChange: (AlarmAlertMode) -> Unit,
     onRingDurationChange: (Int) -> Unit,
     onRepeatIntervalChange: (Int) -> Unit,
     onRepeatCountChange: (Int) -> Unit,
@@ -503,6 +549,17 @@ private fun ReminderDefaultsCard(
     CardSurface {
         HeaderRow(Icons.Rounded.Settings, "默认闹钟设置", "规则未单独设置时使用这里的参数")
         SettingRow("闹钟通道", alarmBackendFullLabel(alarmBackend), onClick = onPickBackend)
+        AlarmRingtoneSelector(
+            ringtoneUri = alarmRingtoneUri,
+            onUseDefault = onUseDefaultRingtone,
+            onPickSystem = onPickSystemRingtone,
+            onPickLocal = onPickLocalAudio,
+        )
+        AlarmAlertModeSelector(
+            selected = alarmAlertMode,
+            includeDefault = false,
+            onSelect = { mode -> mode?.let(onAlertModeChange) },
+        )
         NumberSettingRow("响铃时长", alarmRingDurationSeconds, "秒", 5, 600, 5, onRingDurationChange)
         NumberSettingRow("响铃间隔", alarmRepeatIntervalSeconds, "秒", 5, 3600, 5, onRepeatIntervalChange)
         NumberSettingRow("响铃次数", alarmRepeatCount, "次", 1, 10, 1, onRepeatCountChange)
@@ -512,6 +569,8 @@ private fun ReminderDefaultsCard(
 @Composable
 private fun ExamReminderCard(
     rules: List<ReminderRule>,
+    alarmRingtoneUri: String?,
+    alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
@@ -530,7 +589,7 @@ private fun ExamReminderCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text("所有考试前提醒", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "响铃 $alarmRingDurationSeconds 秒 · 间隔 $alarmRepeatIntervalSeconds 秒 · $alarmRepeatCount 次",
+                    "${alarmRingtoneLabel(alarmRingtoneUri)} · ${alarmAlertModeLabel(alarmAlertMode)} · 响铃 $alarmRingDurationSeconds 秒 · 间隔 $alarmRepeatIntervalSeconds 秒 · $alarmRepeatCount 次",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -548,7 +607,18 @@ private fun ExamReminderCard(
         AlertDialog(
             onDismissRequest = { showConfirm = false },
             title = { Text("确认考试提醒参数") },
-            text = { Text("将按默认闹钟设置为所有考试 label 创建提醒规则。") },
+            text = {
+                Text(
+                    listOf(
+                        "将按默认闹钟设置为所有考试 label 创建提醒规则。",
+                        "铃声：${alarmRingtoneLabel(alarmRingtoneUri)}",
+                        "提醒方式：${alarmAlertModeLabel(alarmAlertMode)}",
+                        "响铃时长：$alarmRingDurationSeconds 秒",
+                        "响铃间隔：$alarmRepeatIntervalSeconds 秒",
+                        "响铃次数：$alarmRepeatCount 次",
+                    ).joinToString("\n"),
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     onSave(true, 40, null)
