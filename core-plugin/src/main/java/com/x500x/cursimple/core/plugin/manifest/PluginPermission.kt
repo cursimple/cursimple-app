@@ -17,6 +17,9 @@ enum class PluginPermission(val id: String) {
     @SerialName("web.inject_script")
     WebInjectScript("web.inject_script"),
 
+    @SerialName("web.capture_packet")
+    WebCapturePacket("web.capture_packet"),
+
     @SerialName("network.fetch")
     NetworkFetch("network.fetch"),
 

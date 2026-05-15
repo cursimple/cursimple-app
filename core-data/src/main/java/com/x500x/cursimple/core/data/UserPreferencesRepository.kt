@@ -16,6 +16,12 @@ enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
 
 enum class ScheduleBackgroundType { Color, Image, Header }
 
+const val DEFAULT_PLUGIN_MARKET_INDEX_URL =
+    "https://raw.githubusercontent.com/cursimple/cursimple-plugins/refs/heads/main/manifest.json"
+
+const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
+    "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
+
 data class ScheduleTextStylePreferences(
     val courseTextSizeSp: Int = DEFAULT_COURSE_TEXT_SIZE_SP,
     val courseTextColorArgb: Long = DEFAULT_TEXT_COLOR_ARGB,
@@ -127,6 +133,8 @@ data class UserPreferences(
     val lastAlarmPollAtMillis: Long = 0L,
     val autoUpdateEnabled: Boolean = false,
     val ignoredUpdateVersionCode: Int? = null,
+    val pluginMarketIndexUrl: String = DEFAULT_PLUGIN_MARKET_INDEX_URL,
+    val componentMarketIndexUrl: String = DEFAULT_COMPONENT_MARKET_INDEX_URL,
     /** True once the persisted prefs have been read at least once. False = still loading. */
     val loaded: Boolean = false,
 )
@@ -183,6 +191,8 @@ interface UserPreferencesRepository {
     suspend fun tryClaimAlarmPoll(nowMillis: Long, minIntervalMillis: Long): Boolean
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
+    suspend fun setPluginMarketIndexUrl(url: String)
+    suspend fun setComponentMarketIndexUrl(url: String)
     suspend fun resetScheduleAppearanceAndDisplay()
     suspend fun resetAllSettings()
 }

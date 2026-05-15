@@ -194,6 +194,7 @@ class MainActivity : ComponentActivity() {
                             repository = container.pluginComponentRepository,
                             installer = container.pluginComponentInstaller,
                             downloadPackage = container::downloadPluginComponentPackage,
+                            fetchComponentIndex = container::fetchPluginComponentMarket,
                         ),
                     )
                     fun setActiveTermStartDate(date: LocalDate?) {
@@ -643,6 +644,8 @@ class MainActivity : ComponentActivity() {
                                     AppScreen.Plugins -> PluginMarketRoute(
                                         pluginMarketViewModel = pluginMarketViewModel,
                                         componentMarketViewModel = componentMarketViewModel,
+                                        pluginMarketIndexUrl = prefs.pluginMarketIndexUrl,
+                                        componentMarketIndexUrl = prefs.componentMarketIndexUrl,
                                         enabledPluginIds = prefs.enabledPluginIds,
                                         syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
                                         syncStatusMessage = scheduleState.statusMessage,
@@ -691,6 +694,8 @@ class MainActivity : ComponentActivity() {
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         autoUpdateEnabled = prefs.autoUpdateEnabled,
                                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
+                                        pluginMarketIndexUrl = prefs.pluginMarketIndexUrl,
+                                        componentMarketIndexUrl = prefs.componentMarketIndexUrl,
                                         advancedToolsEnabled = prefs.advancedToolsEnabled,
                                         debugForcedDateTime = prefs.debugForcedDateTime,
                                         onPickThemeMode = { showThemeSheet = true },
@@ -744,6 +749,8 @@ class MainActivity : ComponentActivity() {
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
+                                        onPluginMarketIndexUrlChange = prefsViewModel::setPluginMarketIndexUrl,
+                                        onComponentMarketIndexUrlChange = prefsViewModel::setComponentMarketIndexUrl,
                                         onSetAdvancedTools = prefsViewModel::setAdvancedToolsEnabled,
                                         onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
                                         onResetScheduleAppearanceAndDisplay =

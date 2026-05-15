@@ -6,10 +6,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,7 +18,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,8 +34,7 @@ import com.x500x.cursimple.core.plugin.component.PluginComponentType
 fun ComponentMarketScreen(
     uiState: ComponentMarketUiState,
     onPickLocalPackage: () -> Unit,
-    onRemotePackageUrlChange: (String) -> Unit,
-    onInstallRemoteUrl: () -> Unit,
+    onRefreshMarket: () -> Unit,
     onInstallRemoteEntry: (ComponentMarketEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -55,7 +51,9 @@ fun ComponentMarketScreen(
             item {
                 ComponentHeader(
                     installedCount = uiState.installedComponents.size,
+                    remoteCount = uiState.knownComponents.size,
                     onPickLocalPackage = onPickLocalPackage,
+                    onRefreshMarket = onRefreshMarket,
                     isLoading = uiState.isLoading,
                 )
             }
@@ -64,15 +62,6 @@ fun ComponentMarketScreen(
                 item {
                     StatusCard(message = message)
                 }
-            }
-
-            item {
-                RemoteComponentUrlCard(
-                    url = uiState.remotePackageUrl,
-                    isLoading = uiState.isLoading,
-                    onUrlChange = onRemotePackageUrlChange,
-                    onInstall = onInstallRemoteUrl,
-                )
             }
 
             item {
@@ -100,7 +89,7 @@ fun ComponentMarketScreen(
                 item {
                     EmptyStateCard(
                         title = "暂无远程组件索引",
-                        subtitle = "当前阶段支持本地组件包导入，也可输入组件包 URL 通过镜像下载后安装。",
+                        subtitle = "点击刷新后会从设置中的组件市场索引加载远程组件。",
                     )
                 }
             } else {
@@ -119,8 +108,10 @@ fun ComponentMarketScreen(
 @Composable
 private fun ComponentHeader(
     installedCount: Int,
+    remoteCount: Int,
     isLoading: Boolean,
     onPickLocalPackage: () -> Unit,
+    onRefreshMarket: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -138,61 +129,28 @@ private fun ComponentHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = "$installedCount",
+                    text = "$installedCount / $remoteCount",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "已安装",
+                    text = "已安装 / 远程",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            OutlinedButton(
-                onClick = onPickLocalPackage,
-                enabled = !isLoading,
-            ) {
-                Text("导入组件包")
-            }
-        }
-    }
-}
-
-@Composable
-private fun RemoteComponentUrlCard(
-    url: String,
-    isLoading: Boolean,
-    onUrlChange: (String) -> Unit,
-    onInstall: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = "组件包 URL",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = onUrlChange,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    label = { Text("https://...") },
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = onInstall,
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onPickLocalPackage,
                     enabled = !isLoading,
                 ) {
-                    Text(if (isLoading) "处理中" else "安装")
+                    Text("导入 ZIP")
+                }
+                Button(
+                    onClick = onRefreshMarket,
+                    enabled = !isLoading,
+                ) {
+                    Text(if (isLoading) "加载中" else "刷新")
                 }
             }
         }

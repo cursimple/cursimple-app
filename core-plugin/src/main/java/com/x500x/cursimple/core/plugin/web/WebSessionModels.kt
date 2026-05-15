@@ -1,6 +1,7 @@
 package com.x500x.cursimple.core.plugin.web
 
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
+import com.x500x.cursimple.core.plugin.manifest.PluginNetworkCaptureSpec
 import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -23,6 +24,7 @@ data class WebSessionRequest(
     @SerialName("userAgent") val userAgent: String? = null,
     @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
     @SerialName("capturePackets") val capturePackets: List<WebSessionCaptureSpec> = emptyList(),
+    @SerialName("networkCaptures") val networkCaptures: List<PluginNetworkCaptureSpec> = emptyList(),
     @SerialName("extractCookies") val extractCookies: Boolean = true,
     @SerialName("extractLocalStorage") val extractLocalStorage: Boolean = true,
     @SerialName("extractSessionStorage") val extractSessionStorage: Boolean = true,
@@ -67,6 +69,22 @@ data class WebSessionPacket(
     @SerialName("htmlDigest") val htmlDigest: String = "",
     @SerialName("capturedFields") val capturedFields: Map<String, String> = emptyMap(),
     @SerialName("capturedPackets") val capturedPackets: Map<String, WebCapturedPacket> = emptyMap(),
+    @SerialName("networkPackets") val networkPackets: Map<String, List<WebNetworkPacket>> = emptyMap(),
     @SerialName("scheduleDraftJson") val scheduleDraftJson: String? = null,
+    @SerialName("timestamp") val timestamp: String,
+)
+
+@Serializable
+data class WebNetworkPacket(
+    @SerialName("captureId") val captureId: String,
+    @SerialName("url") val url: String,
+    @SerialName("method") val method: String,
+    @SerialName("requestHeaders") val requestHeaders: Map<String, String> = emptyMap(),
+    @SerialName("requestBody") val requestBody: String? = null,
+    @SerialName("statusCode") val statusCode: Int? = null,
+    @SerialName("reasonPhrase") val reasonPhrase: String? = null,
+    @SerialName("mimeType") val mimeType: String? = null,
+    @SerialName("responseHeaders") val responseHeaders: Map<String, String> = emptyMap(),
+    @SerialName("responseBody") val responseBody: String? = null,
     @SerialName("timestamp") val timestamp: String,
 )

@@ -46,14 +46,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
+import com.x500x.cursimple.core.plugin.manifest.PluginNetworkCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebCapturedPacket
+import com.x500x.cursimple.core.plugin.web.WebNetworkPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import kotlinx.coroutines.delay
 import org.json.JSONObject
+import java.io.ByteArrayInputStream
 import java.security.MessageDigest
 import java.time.OffsetDateTime
+import java.util.Locale
 
 private const val MAX_CAPTURE_SELECTOR_COUNT = 64
 private const val MAX_CAPTURE_SELECTOR_LENGTH = 2048
@@ -63,6 +67,7 @@ private const val MAX_STORAGE_ENTRY_COUNT = 256
 private const val MAX_STORAGE_VALUE_LENGTH = 8192
 private const val MAX_HTML_CAPTURE_CHARS = 524288
 private const val MAX_ENTRY_SCRIPT_CHARS = 1048576
+private const val MAX_NETWORK_BODY_BYTES = 262144
 
 private enum class UploadStage(
     val label: String,
@@ -94,6 +99,12 @@ fun PluginWebSessionScreen(
     val popupWebViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val consoleError = remember(request.token) { mutableStateOf<String?>(null) }
     val capturedPackets = remember(request.token) { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
+    val networkPacketStore = remember(request.token) {
+        WebNetworkPacketStore(
+            captures = request.networkCaptures,
+            allowedHosts = request.allowedHosts,
+        )
+    }
     val uploadStage = remember(request.token) { mutableStateOf<UploadStage?>(null) }
     val pendingCompletion = remember(request.token) {
         mutableStateOf<Pair<WebSessionPacket, Map<String, WebCapturedPacket>>?>(null)
@@ -192,7 +203,12 @@ fun PluginWebSessionScreen(
         }
         isFinishing.value = true
         uploadStage.value = UploadStage.Packing
-        val finalPacket = aggregateWebSessionPacket(request, packet, packets)
+        val finalPacket = aggregateWebSessionPacket(
+            request = request,
+            latestPacket = packet,
+            packets = packets,
+            networkPackets = networkPacketStore.snapshot(),
+        )
         uploadStage.value = UploadStage.Writing
         PluginLogger.info(
             "plugin.web_session.capture.complete",
@@ -302,6 +318,7 @@ fun PluginWebSessionScreen(
             webView = webView,
             request = request,
             currentUrl = target,
+            networkPackets = networkPacketStore.snapshot(),
             force = true,
         ) {
             probeWebSession(webView, target, forceFinish = true)
@@ -542,6 +559,7 @@ fun PluginWebSessionScreen(
             isForegroundWebView = ::isForegroundWebView,
             handleNavigation = ::handleNavigation,
             handleAutoNavigation = ::handleAutoNavigation,
+            networkPacketStore = networkPacketStore,
             probeWebSession = { view, target -> probeWebSession(view, target) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -586,6 +604,7 @@ private fun PluginWebViewHost(
     isForegroundWebView: (WebView?) -> Boolean,
     handleNavigation: (WebView?, String) -> Boolean,
     handleAutoNavigation: (WebView?, String) -> Boolean,
+    networkPacketStore: WebNetworkPacketStore,
     probeWebSession: (WebView?, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -632,6 +651,7 @@ private fun PluginWebViewHost(
                     probeWebSession = probeWebSession,
                     handleNavigation = handleNavigation,
                     handleAutoNavigation = handleAutoNavigation,
+                    networkPacketStore = networkPacketStore,
                 )
             }
         }.getOrElse { error ->
@@ -716,6 +736,7 @@ private fun WebView.configurePluginWebView(
     probeWebSession: (WebView?, String) -> Unit,
     handleNavigation: (WebView?, String) -> Boolean,
     handleAutoNavigation: (WebView?, String) -> Boolean,
+    networkPacketStore: WebNetworkPacketStore,
 ) {
     applyPluginBrowserSettings(request)
     val hostWebView = this
@@ -779,6 +800,7 @@ private fun WebView.configurePluginWebView(
                         probeWebSession = probeWebSession,
                         handleNavigation = handleNavigation,
                         handleAutoNavigation = handleAutoNavigation,
+                        networkPacketStore = networkPacketStore,
                     )
                 }
             }.getOrElse { error ->
@@ -837,6 +859,18 @@ private fun WebView.configurePluginWebView(
             webRequest: WebResourceRequest?,
         ): Boolean {
             return handleNavigation(view, webRequest?.url?.toString().orEmpty())
+        }
+
+        override fun shouldInterceptRequest(
+            view: WebView?,
+            webRequest: WebResourceRequest?,
+        ): WebResourceResponse? {
+            if (webRequest == null || webRequest.isForMainFrame) {
+                return super.shouldInterceptRequest(view, webRequest)
+            }
+            val packetResponse = networkPacketStore.capture(webRequest)
+                ?: return super.shouldInterceptRequest(view, webRequest)
+            return packetResponse
         }
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -928,6 +962,7 @@ private fun WebView.configurePluginWebView(
                 webView = webView,
                 request = request,
                 currentUrl = target,
+                networkPackets = networkPacketStore.snapshot(),
             ) {
                 probeWebSession(webView, target)
             }
@@ -1140,10 +1175,159 @@ private fun emptyWebSessionPacket(
     )
 }
 
+class WebNetworkPacketStore(
+    private val captures: List<PluginNetworkCaptureSpec>,
+    private val allowedHosts: List<String>,
+) {
+    private val packetsByCaptureId = linkedMapOf<String, MutableList<WebNetworkPacket>>()
+
+    fun capture(request: WebResourceRequest): WebResourceResponse? {
+        if (captures.isEmpty()) {
+            return null
+        }
+        val url = request.url?.toString().orEmpty()
+        if (url.isBlank() || !isAllowedHost(url, allowedHosts)) {
+            return null
+        }
+        val method = request.method.orEmpty().ifBlank { "GET" }.uppercase(Locale.ROOT)
+        if (method !in setOf("GET", "HEAD")) {
+            return null
+        }
+        val spec = captures.firstOrNull { it.matchesNetworkRequest(url, method) } ?: return null
+        val response = runCatching {
+            java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        }.getOrNull() ?: return null
+        return runCatching {
+            response.instanceFollowRedirects = false
+            response.requestMethod = method
+            request.requestHeaders.forEach { (key, value) ->
+                if (!key.equals("host", ignoreCase = true)) {
+                    response.setRequestProperty(key, value)
+                }
+            }
+            response.connect()
+            val statusCode = response.responseCode
+            val reason = response.responseMessage.orEmpty()
+            val mimeType = response.contentType?.substringBefore(";")?.trim().orEmpty()
+            val encoding = response.contentEncoding ?: "utf-8"
+            val rawBody = runCatching<ByteArray> {
+                val stream = if (statusCode >= 400) response.errorStream else response.inputStream
+                stream?.use { it.readBytes() } ?: ByteArray(0)
+            }.getOrDefault(ByteArray(0))
+            val boundedBody = rawBody.takeBytes(spec.safeMaxBodyBytes())
+            val responseHeaders = response.headerFields.orEmpty().mapNotNull { (key, values) ->
+                key?.let { it to values.joinToString("; ") }
+            }.toMap()
+            val packet = WebNetworkPacket(
+                captureId = spec.id,
+                url = url,
+                method = method,
+                requestHeaders = request.requestHeaders.filterAllowedHeaders(spec.requestHeaders),
+                statusCode = statusCode,
+                reasonPhrase = reason,
+                mimeType = mimeType,
+                responseHeaders = responseHeaders.filterAllowedHeaders(spec.responseHeaders),
+                responseBody = if (spec.shouldCaptureBody(mimeType)) {
+                    String(boundedBody, Charsets.UTF_8)
+                } else {
+                    null
+                },
+                timestamp = OffsetDateTime.now().toString(),
+            )
+            record(spec, packet)
+            val webResponse = WebResourceResponse(
+                mimeType.ifBlank { "application/octet-stream" },
+                encoding,
+                statusCode,
+                reason.ifBlank { "OK" },
+                responseHeaders,
+                ByteArrayInputStream(rawBody),
+            )
+            response.disconnect()
+            webResponse
+        }.getOrElse {
+            response.disconnect()
+            null
+        }
+    }
+
+    @Synchronized
+    fun snapshot(): Map<String, List<WebNetworkPacket>> {
+        return packetsByCaptureId.mapValues { it.value.toList() }
+    }
+
+    @Synchronized
+    private fun record(spec: PluginNetworkCaptureSpec, packet: WebNetworkPacket) {
+        val maxPackets = spec.maxPackets.coerceIn(1, 32)
+        val packets = packetsByCaptureId.getOrPut(spec.id) { mutableListOf() }
+        packets += packet
+        while (packets.size > maxPackets) {
+            packets.removeAt(0)
+        }
+    }
+}
+
+fun PluginNetworkCaptureSpec.matchesNetworkRequest(url: String, method: String): Boolean {
+    if (id.isBlank()) {
+        return false
+    }
+    val expectedMethod = this.method?.trim().orEmpty()
+    if (expectedMethod.isNotBlank() && !expectedMethod.equals(method, ignoreCase = true)) {
+        return false
+    }
+    val urlContainsValue = urlContains?.trim().orEmpty()
+    if (urlContainsValue.isNotBlank() && !url.contains(urlContainsValue, ignoreCase = true)) {
+        return false
+    }
+    val host = urlHost?.trim().orEmpty()
+    if (host.isNotBlank() && !urlHostMatches(url, host)) {
+        return false
+    }
+    val path = urlPathContains?.trim().orEmpty()
+    if (path.isNotBlank() && !urlPathContains(url, path)) {
+        return false
+    }
+    return true
+}
+
+fun PluginNetworkCaptureSpec.safeMaxBodyBytes(): Int {
+    return maxBodyBytes.coerceIn(0, MAX_NETWORK_BODY_BYTES)
+}
+
+fun PluginNetworkCaptureSpec.shouldCaptureBody(mimeType: String): Boolean {
+    if (!captureResponseBody || safeMaxBodyBytes() <= 0) {
+        return false
+    }
+    val normalized = mimeType.lowercase(Locale.ROOT)
+    return responseBodyMimeTypes
+        .map { it.lowercase(Locale.ROOT).trim() }
+        .filter(String::isNotBlank)
+        .any { allowed -> normalized == allowed || normalized.startsWith("$allowed;") }
+}
+
+private fun Map<String, String>.filterAllowedHeaders(allowedHeaders: List<String>): Map<String, String> {
+    val allowed = allowedHeaders
+        .map { it.lowercase(Locale.ROOT).trim() }
+        .filter(String::isNotBlank)
+        .toSet()
+    if (allowed.isEmpty()) {
+        return emptyMap()
+    }
+    return filterKeys { it.lowercase(Locale.ROOT) in allowed }
+}
+
+private fun ByteArray.takeBytes(limit: Int): ByteArray {
+    if (limit <= 0) {
+        return ByteArray(0)
+    }
+    return if (size <= limit) this else copyOf(limit)
+}
+
 private fun injectPluginRuntime(
     webView: WebView,
     request: WebSessionRequest,
     currentUrl: String,
+    networkPackets: Map<String, List<WebNetworkPacket>>,
     force: Boolean = false,
     onComplete: () -> Unit,
 ) {
@@ -1152,7 +1336,7 @@ private fun injectPluginRuntime(
         return
     }
     val runtimeScript = runCatching {
-        buildPluginRuntimeScript(request, currentUrl, force)
+        buildPluginRuntimeScript(request, currentUrl, networkPackets, force)
     }.getOrElse { error ->
         PluginLogger.error(
             "plugin.web_session.runtime_script.build_failure",
@@ -1198,6 +1382,7 @@ private fun injectPluginRuntime(
 internal fun buildPluginRuntimeScript(
     request: WebSessionRequest,
     currentUrl: String,
+    networkPackets: Map<String, List<WebNetworkPacket>> = emptyMap(),
     force: Boolean = false,
 ): String {
     require(request.entryScript.length <= MAX_ENTRY_SCRIPT_CHARS) { "插件入口脚本超过注入长度限制" }
@@ -1209,6 +1394,9 @@ internal fun buildPluginRuntimeScript(
     val termIdLiteral = request.termId.toJsStringLiteral()
     val permissionLiteral = request.permissions.map { it.id }.toJsStringArrayLiteral()
     val allowedHostsLiteral = request.allowedHosts.toJsStringArrayLiteral()
+    val networkPacketLiteral = networkPackets.toNetworkPacketJsonLiteral()
+    val networkCaptureLiteral = request.networkCaptures.toNetworkCaptureJsonLiteral()
+    val networkCaptureIdsLiteral = request.networkCaptures.map { it.id }.toJsStringArrayLiteral()
     val maxOutputBytes = request.limits.maxOutputBytes
     return """
         (() => {
@@ -1219,6 +1407,9 @@ internal fun buildPluginRuntimeScript(
           const termId = $termIdLiteral;
           const permissions = new Set($permissionLiteral);
           const allowedHosts = $allowedHostsLiteral.map((host) => (host || "").toLowerCase());
+          const networkCaptureIds = new Set($networkCaptureIdsLiteral);
+          const networkCaptures = $networkCaptureLiteral;
+          const networkPackets = $networkPacketLiteral;
           const forceRun = $force;
           const maxOutputBytes = $maxOutputBytes;
           const runKey = sessionId + "@" + currentUrl;
@@ -1245,6 +1436,192 @@ internal fun buildPluginRuntimeScript(
             }
             return url;
           };
+          const normalizeHeaderMap = (headers) => {
+            const output = {};
+            try {
+              if (!headers) return output;
+              if (headers instanceof Headers) {
+                headers.forEach((value, key) => output[(key || "").toLowerCase()] = (value ?? "") + "");
+                return output;
+              }
+              if (Array.isArray(headers)) {
+                headers.forEach((entry) => {
+                  if (Array.isArray(entry) && entry.length >= 2) {
+                    output[((entry[0] ?? "") + "").toLowerCase()] = (entry[1] ?? "") + "";
+                  }
+                });
+                return output;
+              }
+              Object.keys(headers).forEach((key) => output[(key || "").toLowerCase()] = (headers[key] ?? "") + "");
+            } catch (error) {}
+            return output;
+          };
+          const filterHeaders = (headers, allowedNames) => {
+            const allowed = new Set((allowedNames || []).map((item) => (item || "").toLowerCase()));
+            if (!allowed.size) return {};
+            const normalized = normalizeHeaderMap(headers);
+            const output = {};
+            Object.keys(normalized).forEach((key) => {
+              if (allowed.has(key)) output[key] = normalized[key];
+            });
+            return output;
+          };
+          const parseRawHeaders = (raw) => {
+            const output = {};
+            ((raw || "") + "").split(/\r?\n/).forEach((line) => {
+              const index = line.indexOf(":");
+              if (index > 0) {
+                const key = line.slice(0, index).trim().toLowerCase();
+                const value = line.slice(index + 1).trim();
+                if (key) output[key] = value;
+              }
+            });
+            return output;
+          };
+          const urlPathContains = (url, expected) => {
+            try { return (new URL(url, window.location.href).pathname || "").toLowerCase().includes((expected || "").toLowerCase()); }
+            catch (error) { return false; }
+          };
+          const hostMatches = (url, expected) => {
+            try {
+              const host = (new URL(url, window.location.href).hostname || "").toLowerCase();
+              const target = (expected || "").toLowerCase();
+              return !!target && (host === target || host.endsWith("." + target));
+            } catch (error) {
+              return false;
+            }
+          };
+          const findNetworkCapture = (url, method) => {
+            return networkCaptures.find((spec) => {
+              if (!spec || !spec.id) return false;
+              if (spec.method && spec.method.toLowerCase() !== (method || "").toLowerCase()) return false;
+              if (spec.urlContains && !((url || "").toLowerCase().includes(spec.urlContains.toLowerCase()))) return false;
+              if (spec.urlHost && !hostMatches(url, spec.urlHost)) return false;
+              if (spec.urlPathContains && !urlPathContains(url, spec.urlPathContains)) return false;
+              return true;
+            }) || null;
+          };
+          const bodyAllowedForSpec = (spec, mimeType) => {
+            if (!spec || !spec.captureResponseBody || spec.maxBodyBytes <= 0) return false;
+            const normalized = (mimeType || "").split(";")[0].trim().toLowerCase();
+            return (spec.responseBodyMimeTypes || [])
+              .map((item) => (item || "").toLowerCase().trim())
+              .filter(Boolean)
+              .some((item) => normalized === item);
+          };
+          const pushNetworkPacket = (spec, packet) => {
+            if (!spec || !packet) return;
+            window.__CURSIMPLE_NETWORK_PACKETS = window.__CURSIMPLE_NETWORK_PACKETS || {};
+            const id = spec.id;
+            const list = window.__CURSIMPLE_NETWORK_PACKETS[id] || [];
+            list.push(packet);
+            const maxPackets = Math.max(1, Math.min(spec.maxPackets || 8, 32));
+            while (list.length > maxPackets) list.shift();
+            window.__CURSIMPLE_NETWORK_PACKETS[id] = list;
+          };
+          const installNetworkHooks = () => {
+            if (!permissions.has("web.capture_packet") || !networkCaptures.length || window.__CURSIMPLE_NETWORK_HOOKS_INSTALLED) {
+              return;
+            }
+            window.__CURSIMPLE_NETWORK_HOOKS_INSTALLED = true;
+            const originalFetch = window.fetch;
+            if (typeof originalFetch === "function") {
+              window.fetch = async function(input, init) {
+                const method = ((init && init.method) || (input && input.method) || "GET") + "";
+                const url = ((typeof input === "string" || input instanceof URL) ? input.toString() : (input && input.url)) || window.location.href;
+                const spec = findNetworkCapture(url, method);
+                const requestHeaders = filterHeaders((init && init.headers) || (input && input.headers), spec ? spec.requestHeaders : []);
+                const requestBody = spec && spec.captureRequestBody && init && init.body && typeof init.body === "string"
+                  ? init.body.slice(0, spec.maxBodyBytes || 0)
+                  : null;
+                const response = await originalFetch.apply(this, arguments);
+                if (spec) {
+                  const clone = response.clone();
+                  const mimeType = clone.headers.get("content-type") || "";
+                  let responseBody = null;
+                  if (bodyAllowedForSpec(spec, mimeType)) {
+                    try {
+                      responseBody = (await clone.text()).slice(0, spec.maxBodyBytes || 0);
+                    } catch (error) {}
+                  }
+                  pushNetworkPacket(spec, {
+                    captureId: spec.id,
+                    url,
+                    method: method.toUpperCase(),
+                    requestHeaders,
+                    requestBody,
+                    statusCode: response.status,
+                    reasonPhrase: response.statusText || "",
+                    mimeType: mimeType.split(";")[0].trim(),
+                    responseHeaders: filterHeaders(response.headers, spec.responseHeaders),
+                    responseBody,
+                    timestamp: new Date().toISOString()
+                  });
+                }
+                return response;
+              };
+            }
+            const OriginalXHR = window.XMLHttpRequest;
+            if (typeof OriginalXHR === "function") {
+              window.XMLHttpRequest = function() {
+                const xhr = new OriginalXHR();
+                let xhrMethod = "GET";
+                let xhrUrl = "";
+                const xhrRequestHeaders = {};
+                const originalOpen = xhr.open;
+                const originalSetRequestHeader = xhr.setRequestHeader;
+                const originalSend = xhr.send;
+                xhr.open = function(method, url) {
+                  xhrMethod = ((method || "GET") + "").toUpperCase();
+                  xhrUrl = (url || window.location.href) + "";
+                  return originalOpen.apply(xhr, arguments);
+                };
+                xhr.setRequestHeader = function(name, value) {
+                  xhrRequestHeaders[((name || "") + "").toLowerCase()] = (value ?? "") + "";
+                  return originalSetRequestHeader.apply(xhr, arguments);
+                };
+                xhr.send = function(body) {
+                  const absoluteUrl = (() => {
+                    try { return new URL(xhrUrl, window.location.href).href; }
+                    catch (error) { return xhrUrl || window.location.href; }
+                  })();
+                  const spec = findNetworkCapture(absoluteUrl, xhrMethod);
+                  if (spec) {
+                    const requestBody = spec.captureRequestBody && typeof body === "string"
+                      ? body.slice(0, spec.maxBodyBytes || 0)
+                      : null;
+                    xhr.addEventListener("loadend", () => {
+                      const mimeType = xhr.getResponseHeader("content-type") || "";
+                      let responseBody = null;
+                      if (bodyAllowedForSpec(spec, mimeType)) {
+                        try {
+                          if (!xhr.responseType || xhr.responseType === "text") {
+                            responseBody = ((xhr.responseText || "") + "").slice(0, spec.maxBodyBytes || 0);
+                          }
+                        } catch (error) {}
+                      }
+                      pushNetworkPacket(spec, {
+                        captureId: spec.id,
+                        url: absoluteUrl,
+                        method: xhrMethod,
+                        requestHeaders: filterHeaders(xhrRequestHeaders, spec.requestHeaders),
+                        requestBody,
+                        statusCode: xhr.status,
+                        reasonPhrase: xhr.statusText || "",
+                        mimeType: mimeType.split(";")[0].trim(),
+                        responseHeaders: filterHeaders(parseRawHeaders(xhr.getAllResponseHeaders()), spec.responseHeaders),
+                        responseBody,
+                        timestamp: new Date().toISOString()
+                      });
+                    });
+                  }
+                  return originalSend.apply(xhr, arguments);
+                };
+                return xhr;
+              };
+            }
+          };
+          installNetworkHooks();
           const scheduleCourses = [];
           const scheduleApi = {
             addCourse(course) {
@@ -1272,7 +1649,7 @@ internal fun buildPluginRuntimeScript(
               return draft;
             }
           };
-          const webApi = {
+        const webApi = {
             open(url) {
               ensurePermission("web.navigate");
               const next = ensureAllowedUrl(url);
@@ -1314,6 +1691,19 @@ internal fun buildPluginRuntimeScript(
             cookies() {
               ensurePermission("web.read_cookies");
               return document.cookie || "";
+            },
+            packets(id) {
+              ensurePermission("web.capture_packet");
+              if (!networkCaptureIds.has(id)) {
+                throw new Error("插件未声明数据包: " + id);
+              }
+              const livePackets = (window.__CURSIMPLE_NETWORK_PACKETS && window.__CURSIMPLE_NETWORK_PACKETS[id]) || null;
+              const packets = livePackets || networkPackets[id];
+              return Array.isArray(packets) ? packets.slice() : [];
+            },
+            packet(id) {
+              const packets = webApi.packets(id);
+              return packets.length > 0 ? packets[packets.length - 1] : null;
             }
           };
           const ctx = {
@@ -1513,10 +1903,8 @@ fun aggregateWebSessionPacket(
     request: WebSessionRequest,
     latestPacket: WebSessionPacket,
     packets: Map<String, WebCapturedPacket>,
+    networkPackets: Map<String, List<WebNetworkPacket>> = emptyMap(),
 ): WebSessionPacket {
-    if (packets.isEmpty()) {
-        return latestPacket
-    }
     val orderedPackets = effectiveCaptureSpecs(request)
         .mapNotNull { spec -> packets[spec.id]?.let { spec.id to it } }
         .toMap() + packets.filterKeys { id -> effectiveCaptureSpecs(request).none { it.id == id } }
@@ -1543,6 +1931,7 @@ fun aggregateWebSessionPacket(
         sessionStorageSnapshot = mergedSessionStorage,
         capturedFields = mergedFields,
         capturedPackets = orderedPackets,
+        networkPackets = networkPackets,
     )
 }
 
@@ -1674,6 +2063,143 @@ internal fun List<String>.toCaptureSelectorArrayScript(): String {
 
 private fun List<String>.toJsStringArrayLiteral(): String {
     return joinToString(prefix = "[", postfix = "]") { it.toJsStringLiteral() }
+}
+
+private fun Map<String, List<WebNetworkPacket>>.toNetworkPacketJsonLiteral(): String {
+    return buildString {
+        append('{')
+        this@toNetworkPacketJsonLiteral.entries.forEachIndexed { index, entry ->
+            if (index > 0) append(',')
+            append(entry.key.toJsStringLiteral())
+            append(':')
+            append('[')
+            entry.value.forEachIndexed { packetIndex, packet ->
+                if (packetIndex > 0) append(',')
+                append(packet.toJsonLiteral())
+            }
+            append(']')
+        }
+        append('}')
+    }
+}
+
+private fun List<PluginNetworkCaptureSpec>.toNetworkCaptureJsonLiteral(): String {
+    return buildString {
+        append('[')
+        this@toNetworkCaptureJsonLiteral.forEachIndexed { index, spec ->
+            if (index > 0) append(',')
+            append(spec.toJsonLiteral())
+        }
+        append(']')
+    }
+}
+
+private fun PluginNetworkCaptureSpec.toJsonLiteral(): String {
+    return buildString {
+        append('{')
+        appendJsonField("id", id)
+        append(',')
+        append("\"required\":").append(required)
+        method?.let {
+            append(',')
+            appendJsonField("method", it)
+        }
+        urlContains?.let {
+            append(',')
+            appendJsonField("urlContains", it)
+        }
+        urlHost?.let {
+            append(',')
+            appendJsonField("urlHost", it)
+        }
+        urlPathContains?.let {
+            append(',')
+            appendJsonField("urlPathContains", it)
+        }
+        append(',')
+        appendJsonArrayField("requestHeaders", requestHeaders)
+        append(',')
+        appendJsonArrayField("responseHeaders", responseHeaders)
+        append(',')
+        append("\"captureRequestBody\":").append(captureRequestBody)
+        append(',')
+        append("\"captureResponseBody\":").append(captureResponseBody)
+        append(',')
+        appendJsonArrayField("responseBodyMimeTypes", responseBodyMimeTypes)
+        append(',')
+        append("\"maxBodyBytes\":").append(safeMaxBodyBytes())
+        append(',')
+        append("\"maxPackets\":").append(maxPackets.coerceIn(1, 32))
+        append('}')
+    }
+}
+
+private fun WebNetworkPacket.toJsonLiteral(): String {
+    return buildString {
+        append('{')
+        appendJsonField("captureId", captureId)
+        append(',')
+        appendJsonField("url", url)
+        append(',')
+        appendJsonField("method", method)
+        append(',')
+        appendJsonObjectField("requestHeaders", requestHeaders)
+        requestBody?.let {
+            append(',')
+            appendJsonField("requestBody", it)
+        }
+        statusCode?.let {
+            append(',')
+            append("\"statusCode\":").append(it)
+        }
+        reasonPhrase?.let {
+            append(',')
+            appendJsonField("reasonPhrase", it)
+        }
+        mimeType?.let {
+            append(',')
+            appendJsonField("mimeType", it)
+        }
+        append(',')
+        appendJsonObjectField("responseHeaders", responseHeaders)
+        responseBody?.let {
+            append(',')
+            appendJsonField("responseBody", it)
+        }
+        append(',')
+        appendJsonField("timestamp", timestamp)
+        append('}')
+    }
+}
+
+private fun StringBuilder.appendJsonField(name: String, value: String) {
+    append(name.toJsStringLiteral())
+    append(':')
+    append(value.toJsStringLiteral())
+}
+
+private fun StringBuilder.appendJsonObjectField(name: String, values: Map<String, String>) {
+    append(name.toJsStringLiteral())
+    append(':')
+    append('{')
+    values.entries.forEachIndexed { index, entry ->
+        if (index > 0) append(',')
+        append(entry.key.toJsStringLiteral())
+        append(':')
+        append(entry.value.toJsStringLiteral())
+    }
+    append('}')
+}
+
+private fun StringBuilder.appendJsonArrayField(name: String, values: List<String>) {
+    append(name.toJsStringLiteral())
+    append(':')
+    append('[')
+    values.forEachIndexed { index, value ->
+        if (index > 0) append(',')
+        append(value.toJsStringLiteral())
+    }
+    append(']')
 }
 
 private fun String.toJsStringLiteral(maxLength: Int = Int.MAX_VALUE): String {
