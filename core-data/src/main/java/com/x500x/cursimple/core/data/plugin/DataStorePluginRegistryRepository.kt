@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.core.plugin.install.PluginCompatibilityStatus
 import com.x500x.cursimple.core.plugin.install.PluginRegistryRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -66,7 +67,27 @@ class DataStorePluginRegistryRepository(
         return this[KEY_INSTALLED_PLUGINS]?.let { raw ->
             runCatching {
                 json.decodeFromString(ListSerializer(InstalledPluginRecord.serializer()), raw)
+                    .map { record -> record.normalizeCompatibility() }
             }.getOrDefault(emptyList())
         }.orEmpty()
+    }
+
+    private fun InstalledPluginRecord.normalizeCompatibility(): InstalledPluginRecord {
+        if (compatibilityStatus == PluginCompatibilityStatus.Incompatible) {
+            return this
+        }
+        val incompatibleReason = when {
+            apiVersion <= 0 -> "旧版插件记录缺少 API 版本"
+            entry.isBlank() -> "旧版插件记录缺少 JS 入口文件"
+            else -> null
+        }
+        return if (incompatibleReason == null) {
+            this
+        } else {
+            copy(
+                compatibilityStatus = PluginCompatibilityStatus.Incompatible,
+                compatibilityMessage = incompatibleReason,
+            )
+        }
     }
 }

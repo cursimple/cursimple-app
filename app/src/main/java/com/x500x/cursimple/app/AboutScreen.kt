@@ -253,7 +253,7 @@ private fun ProjectCard(
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "微内核架构的 Android 课表应用「课简」，使用 QuickJS 运行可热更新的学校插件。",
+                text = "微内核架构的 Android 课表应用「课简」，使用 manifest 和 WebView 会话运行可热更新的学校插件。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -279,7 +279,7 @@ private fun TechStackCard() {
             "DataStore" to "1.2.1（偏好/课表）",
             "Kotlinx Coroutines" to "1.10.2",
             "Kotlinx Serialization" to "1.11.0",
-            "QuickJS" to "0.9.2（插件 JS 执行）",
+            "Android WebView" to "系统 WebView（插件会话）",
             "OkHttp" to "5.3.2（网络）",
         )
     }

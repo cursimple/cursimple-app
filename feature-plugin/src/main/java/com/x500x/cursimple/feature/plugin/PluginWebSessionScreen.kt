@@ -62,6 +62,7 @@ private const val MAX_CAPTURED_FIELD_LENGTH = 4096
 private const val MAX_STORAGE_ENTRY_COUNT = 256
 private const val MAX_STORAGE_VALUE_LENGTH = 8192
 private const val MAX_HTML_CAPTURE_CHARS = 524288
+private const val MAX_ENTRY_SCRIPT_CHARS = 1048576
 
 private enum class UploadStage(
     val label: String,
@@ -297,7 +298,14 @@ fun PluginWebSessionScreen(
             ),
         )
         val target = webView.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
-        probeWebSession(webView, target, forceFinish = true)
+        injectPluginRuntime(
+            webView = webView,
+            request = request,
+            currentUrl = target,
+            force = true,
+        ) {
+            probeWebSession(webView, target, forceFinish = true)
+        }
     }
 
     LaunchedEffect(request.token) {
@@ -915,7 +923,14 @@ private fun WebView.configurePluginWebView(
             if (handleAutoNavigation(view, target)) {
                 return
             }
-            probeWebSession(view, target)
+            val webView = view ?: return
+            injectPluginRuntime(
+                webView = webView,
+                request = request,
+                currentUrl = target,
+            ) {
+                probeWebSession(webView, target)
+            }
         }
     }
 }
@@ -986,9 +1001,18 @@ private fun captureWebSessionPacket(
             const MAX_STORAGE_VALUE_LENGTH = $MAX_STORAGE_VALUE_LENGTH;
             const MAX_CAPTURED_FIELD_LENGTH = $MAX_CAPTURED_FIELD_LENGTH;
             const MAX_HTML_CAPTURE_CHARS = $MAX_HTML_CAPTURE_CHARS;
+            const MAX_OUTPUT_BYTES = ${request.limits.maxOutputBytes};
             const truncate = (value, limit) => {
               const text = (value ?? "") + "";
               return text.length > limit ? text.slice(0, limit) : text;
+            };
+            const byteLength = (value) => {
+              const text = (value ?? "") + "";
+              try {
+                return new TextEncoder().encode(text).length;
+              } catch (error) {
+                return text.length;
+              }
             };
             const readStorage = (name) => {
               const snapshot = {};
@@ -1027,7 +1051,13 @@ private fun captureWebSessionPacket(
                 html,
                 localStorageSnapshot: shouldCaptureLocalStorage ? readStorage("localStorage") : {},
                 sessionStorageSnapshot: shouldCaptureSessionStorage ? readStorage("sessionStorage") : {},
-                capturedFields: fields
+                capturedFields: fields,
+                scheduleDraftJson: (() => {
+                  const draft = window.__CURSIMPLE_SCHEDULE_DRAFT_JSON;
+                  if (!draft) return null;
+                  const text = draft + "";
+                  return byteLength(text) <= MAX_OUTPUT_BYTES ? text : null;
+                })()
               });
             } catch (error) {
               return "{}";
@@ -1057,6 +1087,8 @@ private fun captureWebSessionPacket(
                         ""
                     },
                     capturedFields = payload.optJSONObject("capturedFields").toStringMap(),
+                    scheduleDraftJson = payload.optString("scheduleDraftJson")
+                        .takeIf { payload.has("scheduleDraftJson") && it.isNotBlank() },
                     timestamp = OffsetDateTime.now().toString(),
                 )
             }.getOrDefault(fallbackPacket)
@@ -1103,8 +1135,259 @@ private fun emptyWebSessionPacket(
         htmlDigest = if (request.extractHtmlDigest) sha256("") else "",
         capturedFields = captureSelectorsForRequest(request).associateWith { "" },
         capturedPackets = emptyMap(),
+        scheduleDraftJson = null,
         timestamp = OffsetDateTime.now().toString(),
     )
+}
+
+private fun injectPluginRuntime(
+    webView: WebView,
+    request: WebSessionRequest,
+    currentUrl: String,
+    force: Boolean = false,
+    onComplete: () -> Unit,
+) {
+    if (request.entryScript.isBlank() || currentUrl.isBlank() || !isAllowedHost(currentUrl, request.allowedHosts)) {
+        onComplete()
+        return
+    }
+    val runtimeScript = runCatching {
+        buildPluginRuntimeScript(request, currentUrl, force)
+    }.getOrElse { error ->
+        PluginLogger.error(
+            "plugin.web_session.runtime_script.build_failure",
+            mapOf(
+                "pluginId" to request.pluginId,
+                "sessionId" to request.sessionId,
+                "url" to PluginLogger.sanitizeUrl(currentUrl),
+            ),
+            error,
+        )
+        onComplete()
+        return
+    }
+    webView.evaluateJavascript(runtimeScript) { raw ->
+        val payload = decodeJavascriptPayload(raw)
+        if (!payload.optBoolean("ok", false)) {
+            PluginLogger.warn(
+                "plugin.web_session.runtime_script.failure",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "url" to PluginLogger.sanitizeUrl(currentUrl),
+                    "error" to payload.optString("error"),
+                ),
+            )
+        } else {
+            PluginLogger.info(
+                "plugin.web_session.runtime_script.complete",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "url" to PluginLogger.sanitizeUrl(currentUrl),
+                    "skipped" to payload.optBoolean("skipped", false),
+                    "started" to payload.optBoolean("started", false),
+                    "committed" to payload.optBoolean("committed", false),
+                ),
+            )
+        }
+        onComplete()
+    }
+}
+
+internal fun buildPluginRuntimeScript(
+    request: WebSessionRequest,
+    currentUrl: String,
+    force: Boolean = false,
+): String {
+    require(request.entryScript.length <= MAX_ENTRY_SCRIPT_CHARS) { "插件入口脚本超过注入长度限制" }
+    val normalizedEntry = normalizePluginEntryScriptForWebView(request.entryScript)
+    val entryLiteral = normalizedEntry.toJsStringLiteral()
+    val tokenLiteral = request.token.toJsStringLiteral()
+    val sessionLiteral = request.sessionId.toJsStringLiteral()
+    val currentUrlLiteral = currentUrl.toJsStringLiteral()
+    val termIdLiteral = request.termId.toJsStringLiteral()
+    val permissionLiteral = request.permissions.map { it.id }.toJsStringArrayLiteral()
+    val allowedHostsLiteral = request.allowedHosts.toJsStringArrayLiteral()
+    val maxOutputBytes = request.limits.maxOutputBytes
+    return """
+        (() => {
+          const pluginSource = $entryLiteral;
+          const token = $tokenLiteral;
+          const sessionId = $sessionLiteral;
+          const currentUrl = $currentUrlLiteral;
+          const termId = $termIdLiteral;
+          const permissions = new Set($permissionLiteral);
+          const allowedHosts = $allowedHostsLiteral.map((host) => (host || "").toLowerCase());
+          const forceRun = $force;
+          const maxOutputBytes = $maxOutputBytes;
+          const runKey = sessionId + "@" + currentUrl;
+          window.__CURSIMPLE_PLUGIN_RUN_KEYS = window.__CURSIMPLE_PLUGIN_RUN_KEYS || {};
+          const byteLength = (value) => {
+            const text = (value ?? "") + "";
+            try {
+              return new TextEncoder().encode(text).length;
+            } catch (error) {
+              return text.length;
+            }
+          };
+          const ensurePermission = (permission) => {
+            if (!permissions.has(permission)) {
+              throw new Error("插件未声明权限: " + permission);
+            }
+          };
+          const ensureAllowedUrl = (value) => {
+            const url = new URL(value, window.location.href);
+            const host = (url.hostname || "").toLowerCase();
+            const allowed = allowedHosts.some((item) => host === item || host.endsWith("." + item));
+            if (!allowed) {
+              throw new Error("URL 不在 allowedHosts 中: " + host);
+            }
+            return url;
+          };
+          const scheduleCourses = [];
+          const scheduleApi = {
+            addCourse(course) {
+              ensurePermission("schedule.write");
+              if (!course || typeof course !== "object") {
+                throw new Error("课程必须是对象");
+              }
+              scheduleCourses.push(course);
+              return course;
+            },
+            commit(input) {
+              ensurePermission("schedule.write");
+              const source = input && typeof input === "object" ? input : {};
+              const courses = Array.isArray(source.courses) ? source.courses : scheduleCourses;
+              const draft = {
+                termId: source.termId || termId || "",
+                courses,
+                updatedAt: source.updatedAt || new Date().toISOString()
+              };
+              const json = JSON.stringify(draft);
+              if (byteLength(json) > maxOutputBytes) {
+                throw new Error("课程草稿超过输出大小限制");
+              }
+              window.__CURSIMPLE_SCHEDULE_DRAFT_JSON = json;
+              return draft;
+            }
+          };
+          const webApi = {
+            open(url) {
+              ensurePermission("web.navigate");
+              const next = ensureAllowedUrl(url);
+              window.location.href = next.href;
+              return new Promise(() => {});
+            },
+            fill(selector, value) {
+              ensurePermission("web.inject_script");
+              const node = document.querySelector(selector);
+              if (!node) return false;
+              node.value = value ?? "";
+              node.dispatchEvent(new Event("input", { bubbles: true }));
+              node.dispatchEvent(new Event("change", { bubbles: true }));
+              return true;
+            },
+            click(selector) {
+              ensurePermission("web.inject_script");
+              const node = document.querySelector(selector);
+              if (!node) return false;
+              node.click();
+              return true;
+            },
+            text(selector) {
+              ensurePermission("web.read_dom");
+              const node = document.querySelector(selector);
+              return node ? (node.textContent || "").trim() : "";
+            },
+            query(selector, mapper) {
+              ensurePermission("web.read_dom");
+              const node = document.querySelector(selector);
+              if (!node) return null;
+              return typeof mapper === "function" ? mapper(node) : node;
+            },
+            queryAll(selector, mapper) {
+              ensurePermission("web.read_dom");
+              const nodes = Array.from(document.querySelectorAll(selector));
+              return typeof mapper === "function" ? nodes.map((node) => mapper(node)) : nodes;
+            },
+            cookies() {
+              ensurePermission("web.read_cookies");
+              return document.cookie || "";
+            }
+          };
+          const ctx = {
+            token,
+            term: { id: termId || "" },
+            permissions: Array.from(permissions),
+            allowedHosts,
+            web: webApi,
+            schedule: scheduleApi,
+            network: {
+              fetch(url, options) {
+                ensurePermission("network.fetch");
+                const next = ensureAllowedUrl(url);
+                return fetch(next.href, options || {});
+              }
+            },
+            log: {
+              info(...args) { console.log("[CurSimple plugin]", ...args); },
+              warn(...args) { console.warn("[CurSimple plugin]", ...args); },
+              error(...args) { console.error("[CurSimple plugin]", ...args); }
+            }
+          };
+          try {
+            if (!forceRun && window.__CURSIMPLE_PLUGIN_RUN_KEYS[runKey]) {
+              return JSON.stringify({
+                ok: true,
+                skipped: true,
+                committed: !!window.__CURSIMPLE_SCHEDULE_DRAFT_JSON
+              });
+            }
+            window.__CURSIMPLE_PLUGIN_RUN_KEYS[runKey] = true;
+            const runFactory = new Function(pluginSource + "\n; return (typeof run === 'function' ? run : null);");
+            const run = runFactory();
+            if (typeof run !== "function") {
+              throw new Error("插件入口缺少 run(ctx)");
+            }
+            Promise.resolve(run(ctx))
+              .then((result) => {
+                if (result && typeof result === "object" && Array.isArray(result.courses)) {
+                  scheduleApi.commit(result);
+                }
+              })
+              .catch((error) => {
+                window.__CURSIMPLE_PLUGIN_RUNTIME_ERROR = (error && error.message) ? error.message : String(error);
+              });
+            return JSON.stringify({ ok: true, started: true, committed: !!window.__CURSIMPLE_SCHEDULE_DRAFT_JSON });
+          } catch (error) {
+            return JSON.stringify({ ok: false, error: (error && error.message) ? error.message : String(error) });
+          }
+        })();
+    """.trimIndent()
+}
+
+internal fun normalizePluginEntryScriptForWebView(source: String): String {
+    return source
+        .replace(Regex("""\bexport\s+default\s+async\s+function\s+run\s*\(""")) {
+            "async function run("
+        }
+        .replace(Regex("""\bexport\s+default\s+function\s+run\s*\(""")) {
+            "function run("
+        }
+        .replace(Regex("""\bexport\s+default\s+async\s+function\s*\(""")) {
+            "async function run("
+        }
+        .replace(Regex("""\bexport\s+default\s+function\s*\(""")) {
+            "function run("
+        }
+        .replace(Regex("""\bexport\s+async\s+function\s+run\s*\(""")) {
+            "async function run("
+        }
+        .replace(Regex("""\bexport\s+function\s+run\s*\(""")) {
+            "function run("
+        }
+        .replace(Regex("""(?m)^\s*export\s*\{\s*run\s*\}\s*;?\s*$"""), "")
 }
 
 private fun collectCookies(
@@ -1375,7 +1658,7 @@ internal fun List<String>.toCaptureSelectorArrayScript(): String {
         if (hasSelector) {
             builder.append(',')
         }
-        if (!builder.appendQuotedJsString(selector)) {
+        if (!builder.appendQuotedJsString(selector, MAX_CAPTURE_SELECTOR_LENGTH)) {
             builder.setLength(checkpoint)
             continue
         }
@@ -1389,8 +1672,18 @@ internal fun List<String>.toCaptureSelectorArrayScript(): String {
     return builder.toString()
 }
 
-private fun StringBuilder.appendQuotedJsString(value: String): Boolean {
-    if (value.isBlank() || value.length > MAX_CAPTURE_SELECTOR_LENGTH) {
+private fun List<String>.toJsStringArrayLiteral(): String {
+    return joinToString(prefix = "[", postfix = "]") { it.toJsStringLiteral() }
+}
+
+private fun String.toJsStringLiteral(maxLength: Int = Int.MAX_VALUE): String {
+    val builder = StringBuilder()
+    require(builder.appendQuotedJsString(this, maxLength)) { "字符串无法编码为 JS 字符串" }
+    return builder.toString()
+}
+
+private fun StringBuilder.appendQuotedJsString(value: String, maxLength: Int): Boolean {
+    if (value.length > maxLength) {
         return false
     }
     append('"')

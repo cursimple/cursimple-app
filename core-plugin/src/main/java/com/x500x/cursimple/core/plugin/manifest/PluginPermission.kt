@@ -4,28 +4,35 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class PluginPermission {
-    @SerialName("network")
-    Network,
+enum class PluginPermission(val id: String) {
+    @SerialName("web.navigate")
+    WebNavigate("web.navigate"),
 
-    @SerialName("web_session")
-    WebSession,
+    @SerialName("web.read_dom")
+    WebReadDom("web.read_dom"),
 
-    @SerialName("schedule_read")
-    ScheduleRead,
+    @SerialName("web.read_cookies")
+    WebReadCookies("web.read_cookies"),
 
-    @SerialName("schedule_write")
-    ScheduleWrite,
+    @SerialName("web.inject_script")
+    WebInjectScript("web.inject_script"),
 
-    @SerialName("ui_contribution")
-    UiContribution,
+    @SerialName("network.fetch")
+    NetworkFetch("network.fetch"),
 
-    @SerialName("alarm_manage")
-    AlarmManage,
+    @SerialName("schedule.write")
+    ScheduleWrite("schedule.write"),
 
-    @SerialName("storage_plugin")
-    StoragePlugin,
+    @SerialName("storage.plugin")
+    StoragePlugin("storage.plugin"),
 
-    @SerialName("notify")
-    Notify,
+    @SerialName("component.use")
+    ComponentUse("component.use"),
+
+    ;
+
+    companion object {
+        val Network: PluginPermission = NetworkFetch
+        val WebSession: PluginPermission = WebNavigate
+    }
 }

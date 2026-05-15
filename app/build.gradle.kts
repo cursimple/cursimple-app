@@ -115,7 +115,6 @@ tasks.withType<KotlinJvmCompile>().configureEach {
 
 dependencies {
     implementation(project(":core-kernel"))
-    implementation(project(":core-js"))
     implementation(project(":core-data"))
     implementation(project(":core-plugin"))
     implementation(project(":core-reminder"))

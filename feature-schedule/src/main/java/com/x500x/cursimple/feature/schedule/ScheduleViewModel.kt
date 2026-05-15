@@ -13,6 +13,7 @@ import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.plugin.PluginManager
+import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.runtime.AlarmRecommendation
@@ -81,6 +82,7 @@ data class ScheduleUiState(
     val selectionState: ScheduleSelectionState? = null,
     val timingProfile: TermTimingProfile? = null,
     val messages: List<String> = emptyList(),
+    val missingComponents: List<PluginComponentRequirement> = emptyList(),
     val manualCourses: List<CourseItem> = emptyList(),
 )
 
@@ -205,6 +207,7 @@ class ScheduleViewModel(
                     pluginId = pluginId,
                     isSyncing = true,
                     statusMessage = "正在打开登录取数流程...",
+                    missingComponents = emptyList(),
                 )
             }
             val result = runCatching {
@@ -1174,7 +1177,34 @@ class ScheduleViewModel(
                         timingProfile = syncedTimingProfile,
                         alarmRecommendations = result.recommendations,
                         messages = result.messages,
+                        missingComponents = emptyList(),
                         statusMessage = "同步完成，已更新课表",
+                    )
+                }
+            }
+
+            is WorkflowExecutionResult.NeedsComponents -> {
+                val componentIds = result.components.joinToString { it.id }
+                PluginLogger.warn(
+                    "plugin.schedule.result.needs_components",
+                    mapOf(
+                        "pluginId" to result.pluginId,
+                        "componentCount" to result.components.size,
+                        "componentIds" to componentIds,
+                        "elapsedMs" to (System.currentTimeMillis() - startedAt),
+                    ),
+                )
+                _uiState.update {
+                    it.copy(
+                        isSyncing = false,
+                        pendingWebSession = null,
+                        missingComponents = result.components,
+                        messages = listOf(result.message),
+                        statusMessage = if (componentIds.isBlank()) {
+                            result.message
+                        } else {
+                            "${result.message}：$componentIds"
+                        },
                     )
                 }
             }
@@ -1197,6 +1227,7 @@ class ScheduleViewModel(
                         pendingWebSession = result.request,
                         uiSchema = result.uiSchema,
                         messages = result.messages,
+                        missingComponents = emptyList(),
                         statusMessage = "请在当前插件页完成登录",
                     )
                 }
@@ -1215,6 +1246,7 @@ class ScheduleViewModel(
                     it.copy(
                         isSyncing = false,
                         pendingWebSession = null,
+                        missingComponents = emptyList(),
                         statusMessage = "同步失败：${result.message}",
                     )
                 }
