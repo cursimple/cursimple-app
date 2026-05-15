@@ -6,6 +6,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.x500x.cursimple.core.data.AppBackupStores
+import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.exportSnapshot
+import com.x500x.cursimple.core.data.restoreSnapshot
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -117,6 +121,13 @@ class DataStoreTermProfileRepository(
             }
         }
         return resolved
+    }
+
+    suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
+        store.exportSnapshot(AppBackupStores.TERM_PROFILES)
+
+    suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
+        store.restoreSnapshot(snapshot)
     }
 
     private fun readTerms(prefs: Preferences): List<TermProfile> =

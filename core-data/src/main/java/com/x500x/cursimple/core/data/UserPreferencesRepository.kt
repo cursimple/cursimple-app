@@ -1,12 +1,26 @@
 package com.x500x.cursimple.core.data
 
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.doublePreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -207,4 +221,165 @@ interface UserPreferencesRepository {
     suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String)
     suspend fun resetScheduleAppearanceAndDisplay()
     suspend fun resetAllSettings()
+}
+
+@Serializable
+data class AppBackupPayload(
+    @SerialName("version") val version: Int = CURRENT_VERSION,
+    @SerialName("createdAt") val createdAt: Long = System.currentTimeMillis(),
+    @SerialName("stores") val stores: List<PreferencesStoreSnapshot> = emptyList(),
+) {
+    fun store(name: String): PreferencesStoreSnapshot? = stores.firstOrNull { it.storeName == name }
+
+    companion object {
+        const val CURRENT_VERSION = 1
+        const val FILE_EXTENSION = ".json"
+    }
+}
+
+object AppBackupStores {
+    const val USER_PREFERENCES = "user_preferences"
+    const val SCHEDULE = "schedule_store"
+    const val MANUAL_COURSES = "manual_courses_store"
+    const val TERM_PROFILES = "term_profiles"
+    const val WIDGET_PREFERENCES = "widget_preferences"
+    const val REMINDERS = "reminder_store"
+    const val PLUGIN_REGISTRY = "plugin_registry_store"
+    const val PLUGIN_COMPONENTS = "plugin_component_store"
+}
+
+@Serializable
+data class PreferencesStoreSnapshot(
+    @SerialName("store") val storeName: String,
+    @SerialName("entries") val entries: List<PreferencesBackupEntry>,
+)
+
+@Serializable
+data class PreferencesBackupEntry(
+    @SerialName("name") val name: String,
+    @SerialName("type") val type: PreferencesBackupValueType,
+    @SerialName("string") val stringValue: String? = null,
+    @SerialName("strings") val stringSetValue: Set<String>? = null,
+    @SerialName("int") val intValue: Int? = null,
+    @SerialName("long") val longValue: Long? = null,
+    @SerialName("float") val floatValue: Float? = null,
+    @SerialName("double") val doubleValue: Double? = null,
+    @SerialName("boolean") val booleanValue: Boolean? = null,
+)
+
+@Serializable
+enum class PreferencesBackupValueType {
+    @SerialName("string")
+    String,
+
+    @SerialName("string_set")
+    StringSet,
+
+    @SerialName("int")
+    Int,
+
+    @SerialName("long")
+    Long,
+
+    @SerialName("float")
+    Float,
+
+    @SerialName("double")
+    Double,
+
+    @SerialName("boolean")
+    Boolean,
+}
+
+suspend fun DataStore<Preferences>.exportSnapshot(storeName: String): PreferencesStoreSnapshot {
+    val entries = data.first()
+        .asMap()
+        .mapNotNull { (key, value) -> value.toBackupEntry(key.name) }
+        .sortedBy { it.name }
+    return PreferencesStoreSnapshot(storeName = storeName, entries = entries)
+}
+
+suspend fun DataStore<Preferences>.restoreSnapshot(snapshot: PreferencesStoreSnapshot) {
+    edit { preferences ->
+        preferences.clear()
+        snapshot.entries.forEach(preferences::restoreEntry)
+    }
+}
+
+private fun Any.toBackupEntry(name: String): PreferencesBackupEntry? = when (this) {
+    is String -> PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.String,
+        stringValue = this,
+    )
+
+    is Set<*> -> PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.StringSet,
+        stringSetValue = filterIsInstance<String>().toSet(),
+    )
+
+    is Int -> PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.Int,
+        intValue = this,
+    )
+
+    is Long -> PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.Long,
+        longValue = this,
+    )
+
+    is Float -> PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.Float,
+        floatValue = this,
+    )
+
+    is Double -> PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.Double,
+        doubleValue = this,
+    )
+
+    is Boolean -> PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.Boolean,
+        booleanValue = this,
+    )
+
+    else -> null
+}
+
+private fun MutablePreferences.restoreEntry(entry: PreferencesBackupEntry) {
+    when (entry.type) {
+        PreferencesBackupValueType.String -> entry.stringValue?.let {
+            this[stringPreferencesKey(entry.name)] = it
+        }
+
+        PreferencesBackupValueType.StringSet -> {
+            this[stringSetPreferencesKey(entry.name)] = entry.stringSetValue.orEmpty()
+        }
+
+        PreferencesBackupValueType.Int -> entry.intValue?.let {
+            this[intPreferencesKey(entry.name)] = it
+        }
+
+        PreferencesBackupValueType.Long -> entry.longValue?.let {
+            this[longPreferencesKey(entry.name)] = it
+        }
+
+        PreferencesBackupValueType.Float -> entry.floatValue?.let {
+            this[floatPreferencesKey(entry.name)] = it
+        }
+
+        PreferencesBackupValueType.Double -> entry.doubleValue?.let {
+            this[doublePreferencesKey(entry.name)] = it
+        }
+
+        PreferencesBackupValueType.Boolean -> entry.booleanValue?.let {
+            this[booleanPreferencesKey(entry.name)] = it
+        }
+    }
 }

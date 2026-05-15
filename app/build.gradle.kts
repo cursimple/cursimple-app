@@ -131,6 +131,11 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.okhttp)
+    implementation(libs.sardine.android) {
+        exclude(group = "xpp3", module = "xpp3")
+        exclude(group = "stax", module = "stax")
+        exclude(group = "stax", module = "stax-api")
+    }
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

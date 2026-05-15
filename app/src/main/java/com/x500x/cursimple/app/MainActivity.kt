@@ -166,6 +166,7 @@ class MainActivity : ComponentActivity() {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
+                    var settingsReturnTarget by rememberSaveable { mutableStateOf<SettingsReturnTargetKey?>(null) }
                     var showAddMenu by remember { mutableStateOf(false) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
@@ -786,6 +787,13 @@ class MainActivity : ComponentActivity() {
                                         },
                                         openDestination = openSettingsDestination,
                                         onOpenDestinationConsumed = { openSettingsDestination = null },
+                                        returnTarget = settingsReturnTarget,
+                                        onReturnTargetReady = {
+                                            currentScreen = AppScreen.Schedule
+                                            subScreen = MainActivity.SubScreen.ImportExport
+                                            settingsReturnTarget = null
+                                            openSettingsDestination = null
+                                        },
                                         onExportScheduleMetadata = {
                                             scope.launch {
                                                 val snapshot = ScheduleMetadataExportSnapshot(
@@ -887,10 +895,19 @@ class MainActivity : ComponentActivity() {
                                 ),
                                 aiImportClient = aiImportClient,
                                 onApplyImport = scheduleViewModel::applyImportedSchedule,
+                                onCreateAppBackup = container::exportAppBackup,
+                                onRestoreAppBackup = container::restoreAppBackup,
+                                onOpenWebDavSettings = {
+                                    currentScreen = AppScreen.Settings
+                                    subScreen = null
+                                    openSettingsDestination = SettingsDestinationKey.WebDav
+                                    settingsReturnTarget = SettingsReturnTargetKey.ImportExport
+                                },
                                 onOpenAiImportSettings = {
                                     currentScreen = AppScreen.Settings
                                     subScreen = null
                                     openSettingsDestination = SettingsDestinationKey.AiImport
+                                    settingsReturnTarget = SettingsReturnTargetKey.ImportExport
                                 },
                                 onBack = { subScreen = null },
                                 modifier = Modifier.fillMaxSize(),

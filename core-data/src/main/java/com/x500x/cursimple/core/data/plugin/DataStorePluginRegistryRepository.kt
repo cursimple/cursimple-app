@@ -5,6 +5,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.x500x.cursimple.core.data.AppBackupStores
+import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.exportSnapshot
+import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginCompatibilityStatus
 import com.x500x.cursimple.core.plugin.install.PluginRegistryRepository
@@ -57,6 +61,13 @@ class DataStorePluginRegistryRepository(
                 next,
             )
         }
+    }
+
+    suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
+        store.exportSnapshot(AppBackupStores.PLUGIN_REGISTRY)
+
+    suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
+        store.restoreSnapshot(snapshot)
     }
 
     private companion object {
