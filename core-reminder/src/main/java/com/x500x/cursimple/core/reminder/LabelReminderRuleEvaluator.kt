@@ -102,8 +102,7 @@ internal class LabelReminderRuleEvaluator {
             .mapNotNull { course ->
                 val label = course.reminderSlotLabel(timingProfile)?.trim()?.takeIf { it.isNotBlank() }
                     ?: return@mapNotNull null
-                val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode)
-                    ?: placeholderSlot(course, label)
+                val slot = reminderSlot(course, timingProfile, label)
                     ?: return@mapNotNull null
                 DailyReminderObject(
                     slotLabel = label,
@@ -219,6 +218,19 @@ internal class LabelReminderRuleEvaluator {
         val nodes = "第${daily.course.time.startNode}-${daily.course.time.endNode}节"
         val location = daily.course.location.ifBlank { "待定教室" }
         return "$date $weekday $timeRange · $nodes · $location"
+    }
+
+    private fun reminderSlot(
+        course: CourseItem,
+        timingProfile: TermTimingProfile,
+        label: String,
+    ): ClassSlotTime? {
+        val placeholder = placeholderSlot(course, label)
+        return if (course.reminderOnly) {
+            placeholder ?: timingProfile.findSlot(course.time.startNode, course.time.endNode)
+        } else {
+            timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: placeholder
+        }
     }
 
     private fun placeholderSlot(course: CourseItem, label: String): ClassSlotTime? {

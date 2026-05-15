@@ -291,6 +291,7 @@ data class EditableAppAlarmSettings(
     val ringDurationSeconds: Int? = null,
     val repeatIntervalSeconds: Int? = null,
     val repeatCount: Int? = null,
+    val triggerAtMillis: Long? = null,
 )
 
 data class ReminderPlan(
