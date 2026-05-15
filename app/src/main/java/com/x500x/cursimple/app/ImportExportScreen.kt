@@ -22,6 +22,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ImageSearch
+import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Upload
@@ -71,11 +74,13 @@ import com.x500x.cursimple.app.ai.AiScheduleImportClient
 import com.x500x.cursimple.app.webdav.WebDavBackupFile
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.app.webdav.WebDavConfig
+import com.x500x.cursimple.core.data.AppBackupPayload
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -92,6 +97,9 @@ fun ImportExportScreen(
     aiImportConfig: AiImportConfig,
     aiImportClient: AiScheduleImportClient,
     onApplyImport: (TermSchedule?, List<CourseItem>, (Result<Pair<Int, Int>>) -> Unit) -> Unit,
+    onCreateAppBackup: suspend () -> AppBackupPayload,
+    onRestoreAppBackup: suspend (AppBackupPayload) -> Unit,
+    onOpenWebDavSettings: () -> Unit,
     onOpenAiImportSettings: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -107,6 +115,12 @@ fun ImportExportScreen(
     var webDavBusy by remember { mutableStateOf(false) }
     var remoteBackups by remember { mutableStateOf<List<WebDavBackupFile>>(emptyList()) }
     var aiBusy by remember { mutableStateOf(false) }
+    val appBackupJson = remember {
+        Json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
+    }
     var aiCameraUri by remember { mutableStateOf<Uri?>(null) }
 
     fun consumeScannedText(text: String) {
@@ -308,20 +322,19 @@ fun ImportExportScreen(
                 onUpload = {
                     if (!webDavConfig.isComplete) {
                         Toast.makeText(context, "请先在设置页配置 WebDAV", Toast.LENGTH_SHORT).show()
+                        onOpenWebDavSettings()
                         return@WebDavPanel
                     }
-                    val payload = ScheduleSharePayload(
-                        termName = termName,
-                        termStartDate = termStartDate?.toString(),
-                        schedule = schedule,
-                        manualCourses = manualCourses,
-                    )
-                    val encoded = ScheduleShareCodec.encode(payload).toByteArray(Charsets.UTF_8)
-                    val fileName = "schedule-${DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now())}.csv1"
+                    val fileName = "cursimple-backup-${DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now())}${AppBackupPayload.FILE_EXTENSION}"
                     webDavBusy = true
                     scope.launch {
                         withContext(Dispatchers.IO) {
-                            runCatching { webDavClient.uploadBackup(webDavConfig, fileName, encoded) }
+                            runCatching {
+                                val payload = onCreateAppBackup()
+                                val encoded = appBackupJson.encodeToString(AppBackupPayload.serializer(), payload)
+                                    .toByteArray(Charsets.UTF_8)
+                                webDavClient.uploadBackup(webDavConfig, fileName, encoded)
+                            }
                         }.onSuccess {
                             Toast.makeText(context, "WebDAV 备份已上传：${it.name}", Toast.LENGTH_SHORT).show()
                             remoteBackups = withContext(Dispatchers.IO) {
@@ -336,6 +349,7 @@ fun ImportExportScreen(
                 onRefresh = {
                     if (!webDavConfig.isComplete) {
                         Toast.makeText(context, "请先在设置页配置 WebDAV", Toast.LENGTH_SHORT).show()
+                        onOpenWebDavSettings()
                         return@WebDavPanel
                     }
                     webDavBusy = true
@@ -358,10 +372,16 @@ fun ImportExportScreen(
                         withContext(Dispatchers.IO) {
                             runCatching {
                                 val text = webDavClient.download(webDavConfig, backup.href).toString(Charsets.UTF_8)
-                                ScheduleShareCodec.decode(text).getOrThrow()
+                                appBackupJson.decodeFromString(AppBackupPayload.serializer(), text)
                             }
                         }.onSuccess {
-                            pendingImport = it
+                            runCatching {
+                                withContext(Dispatchers.IO) { onRestoreAppBackup(it) }
+                            }.onSuccess {
+                                Toast.makeText(context, "WebDAV 备份已恢复", Toast.LENGTH_SHORT).show()
+                            }.onFailure { error ->
+                                Toast.makeText(context, "恢复失败：${error.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                            }
                         }.onFailure {
                             Toast.makeText(context, "恢复失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
                         }
@@ -549,7 +569,7 @@ private fun AiImportPanel(
             }
             Text(
                 text = if (configured) {
-                    "选择课表截图或拍照，使用设置页配置的 AI 识别并生成当前课表。"
+                    "从相册选择课表截图，或直接拍照识别并生成当前课表。"
                 } else {
                     "请先在设置页配置 API URL 和 Key。"
                 },
@@ -557,25 +577,95 @@ private fun AiImportPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onPickImage,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.Rounded.ImageSearch, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text(if (enabled) "选择图片" else "识别中")
-                }
-                OutlinedButton(
-                    onClick = onTakePhoto,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.Rounded.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text("拍照")
+                if (!configured) {
+                    Button(
+                        onClick = onPickImage,
+                        enabled = enabled,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp),
+                    ) {
+                        Text("去配置")
+                    }
+                } else {
+                    AiImportActionCard(
+                        icon = Icons.Rounded.PhotoLibrary,
+                        title = if (enabled) "相册导入" else "识别中",
+                        body = "选择已有课表截图",
+                        enabled = enabled,
+                        onClick = onPickImage,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 118.dp),
+                    )
+                    AiImportActionCard(
+                        icon = Icons.Rounded.PhotoCamera,
+                        title = "拍照导入",
+                        body = "需要相机权限",
+                        enabled = enabled,
+                        onClick = onTakePhoto,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 118.dp),
+                    )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun AiImportActionCard(
+    icon: ImageVector,
+    title: String,
+    body: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(14.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 118.dp)
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) {
+                    MaterialTheme.colorScheme.onSurface
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -622,7 +712,7 @@ private fun WebDavPanel(
             }
             Text(
                 text = if (configured) {
-                    "将当前课表上传到 WebDAV，或从远端备份恢复。已加载 $backupCount 个备份。"
+                    "同步范围包含课表数据、学期、提醒、插件记录与用户设置。远端目录：cursimple/backups。已加载 $backupCount 个备份。"
                 } else {
                     "请先在设置页配置 WebDAV URL、账号和密码。"
                 },
@@ -630,23 +720,33 @@ private fun WebDavPanel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onUpload,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text(if (enabled) "上传备份" else "处理中")
-                }
-                OutlinedButton(
-                    onClick = onRefresh,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(6.dp))
-                    Text("远端备份")
+                if (!configured) {
+                    Button(
+                        onClick = onUpload,
+                        enabled = enabled,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("去配置")
+                    }
+                } else {
+                    Button(
+                        onClick = onUpload,
+                        enabled = enabled,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text(if (enabled) "上传备份" else "处理中")
+                    }
+                    OutlinedButton(
+                        onClick = onRefresh,
+                        enabled = enabled,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text("远端备份")
+                    }
                 }
             }
             backups.take(5).forEach { backup ->

@@ -5,6 +5,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.x500x.cursimple.core.data.AppBackupStores
+import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.exportSnapshot
+import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.plugin.component.InstalledPluginComponentRecord
 import com.x500x.cursimple.core.plugin.component.PluginComponentRepository
 import kotlinx.coroutines.flow.Flow
@@ -55,6 +59,13 @@ class DataStorePluginComponentRepository(
                 next,
             )
         }
+    }
+
+    suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
+        store.exportSnapshot(AppBackupStores.PLUGIN_COMPONENTS)
+
+    suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
+        store.restoreSnapshot(snapshot)
     }
 
     private fun Preferences.decodeInstalledComponents(): List<InstalledPluginComponentRecord> {

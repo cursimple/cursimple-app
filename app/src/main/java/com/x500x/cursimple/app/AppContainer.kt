@@ -18,6 +18,8 @@ import com.x500x.cursimple.core.data.ManualCourseRepository
 import com.x500x.cursimple.core.data.ScheduleRepository
 import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.data.UserPreferences
+import com.x500x.cursimple.core.data.AppBackupPayload
+import com.x500x.cursimple.core.data.AppBackupStores
 import com.x500x.cursimple.core.data.plugin.DataStorePluginComponentRepository
 import com.x500x.cursimple.core.data.plugin.DataStorePluginRegistryRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
@@ -122,6 +124,46 @@ class AppContainer(
     }
 
     private suspend fun awaitBootstrap() = bootstrapJob.join()
+
+    suspend fun exportAppBackup(): AppBackupPayload {
+        awaitBootstrap()
+        return AppBackupPayload(
+            stores = listOf(
+                (userPreferencesRepository as DataStoreUserPreferencesRepository).exportBackupSnapshot(),
+                scheduleStore.exportBackupSnapshot(),
+                manualStore.exportBackupSnapshot(),
+                (termProfileRepository as DataStoreTermProfileRepository).exportBackupSnapshot(),
+                widgetPreferencesRepository.exportBackupSnapshot(),
+                reminderRepository.exportBackupSnapshot(),
+                pluginRegistryRepository.exportBackupSnapshot(),
+                pluginComponentRepository.exportBackupSnapshot(),
+            ),
+        )
+    }
+
+    suspend fun restoreAppBackup(payload: AppBackupPayload) {
+        awaitBootstrap()
+        require(payload.version <= AppBackupPayload.CURRENT_VERSION) {
+            "备份版本过新，请先升级应用后再恢复"
+        }
+        payload.store(AppBackupStores.USER_PREFERENCES)
+            ?.let { (userPreferencesRepository as DataStoreUserPreferencesRepository).restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.TERM_PROFILES)
+            ?.let { (termProfileRepository as DataStoreTermProfileRepository).restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.SCHEDULE)
+            ?.let { scheduleStore.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.MANUAL_COURSES)
+            ?.let { manualStore.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.WIDGET_PREFERENCES)
+            ?.let { widgetPreferencesRepository.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.REMINDERS)
+            ?.let { reminderRepository.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.PLUGIN_REGISTRY)
+            ?.let { pluginRegistryRepository.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.PLUGIN_COMPONENTS)
+            ?.let { pluginComponentRepository.restoreBackupSnapshot(it) }
+        refreshScheduleOutputs()
+    }
 
     suspend fun downloadPluginComponentPackage(url: String): ByteArray {
         return downloadBytesViaMirrors(url)
