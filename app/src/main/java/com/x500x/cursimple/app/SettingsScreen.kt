@@ -128,6 +128,7 @@ private enum class SettingsDestination {
     ScheduleBackground,
     ScheduleDisplay,
     WidgetSettings,
+    Plugins,
     Permissions,
 }
 
@@ -144,6 +145,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.ScheduleBackground -> "课表背景"
     SettingsDestination.ScheduleDisplay -> "显示"
     SettingsDestination.WidgetSettings -> "小组件设置"
+    SettingsDestination.Plugins -> "插件"
     SettingsDestination.Permissions -> "权限"
 }
 
@@ -166,6 +168,8 @@ fun AppSettingsRoute(
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     autoUpdateEnabled: Boolean,
     ignoredUpdateVersionCode: Int?,
+    pluginMarketIndexUrl: String,
+    componentMarketIndexUrl: String,
     developerModeEnabled: Boolean,
     debugForcedDateTime: LocalDateTime?,
     onPickThemeMode: () -> Unit,
@@ -216,6 +220,8 @@ fun AppSettingsRoute(
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
+    onPluginMarketIndexUrlChange: (String) -> Unit,
+    onComponentMarketIndexUrlChange: (String) -> Unit,
     onSetDeveloperMode: (Boolean) -> Unit,
     onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
     onExportScheduleMetadata: () -> Unit,
@@ -314,6 +320,9 @@ fun AppSettingsRoute(
                 })
                 SettingsActionRow(Icons.Rounded.Widgets, "小组件设置", "主题、桌面小组件和背景", {
                     navigate(SettingsDestination.WidgetSettings)
+                })
+                SettingsActionRow(Icons.Rounded.Code, "插件", "市场索引和组件索引", {
+                    navigate(SettingsDestination.Plugins)
                 })
                 SettingsActionRow(Icons.Rounded.Notifications, "权限", "通知、闹钟、相机和安装权限", {
                     navigate(SettingsDestination.Permissions)
@@ -568,6 +577,15 @@ fun AppSettingsRoute(
                         onClick = onClearWidgetBackgroundImage,
                     )
                 }
+            }
+
+            SettingsDestination.Plugins -> {
+                PluginSettingsSection(
+                    pluginMarketIndexUrl = pluginMarketIndexUrl,
+                    componentMarketIndexUrl = componentMarketIndexUrl,
+                    onPluginMarketIndexUrlChange = onPluginMarketIndexUrlChange,
+                    onComponentMarketIndexUrlChange = onComponentMarketIndexUrlChange,
+                )
             }
 
             SettingsDestination.Permissions -> {
@@ -1509,6 +1527,81 @@ private fun formatLongDate(date: LocalDate): String =
 
 private fun parseIsoDate(value: String): LocalDate? =
     runCatching { LocalDate.parse(value) }.getOrNull()
+
+@Composable
+private fun PluginSettingsSection(
+    pluginMarketIndexUrl: String,
+    componentMarketIndexUrl: String,
+    onPluginMarketIndexUrlChange: (String) -> Unit,
+    onComponentMarketIndexUrlChange: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    var pluginUrlDraft by rememberSaveable(pluginMarketIndexUrl) {
+        mutableStateOf(pluginMarketIndexUrl)
+    }
+    var componentUrlDraft by rememberSaveable(componentMarketIndexUrl) {
+        mutableStateOf(componentMarketIndexUrl)
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        MarketIndexUrlEditor(
+            title = "插件市场索引",
+            value = pluginUrlDraft,
+            onValueChange = { pluginUrlDraft = it },
+            onSave = {
+                onPluginMarketIndexUrlChange(pluginUrlDraft)
+                Toast.makeText(context, "插件市场索引已保存", Toast.LENGTH_SHORT).show()
+            },
+        )
+        MarketIndexUrlEditor(
+            title = "组件市场索引",
+            value = componentUrlDraft,
+            onValueChange = { componentUrlDraft = it },
+            onSave = {
+                onComponentMarketIndexUrlChange(componentUrlDraft)
+                Toast.makeText(context, "组件市场索引已保存", Toast.LENGTH_SHORT).show()
+            },
+        )
+    }
+}
+
+@Composable
+private fun MarketIndexUrlEditor(
+    title: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onSave: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("manifest.json") },
+            )
+            Button(
+                onClick = onSave,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("保存")
+            }
+        }
+    }
+}
 
 @Composable
 private fun DeveloperDebugSection(

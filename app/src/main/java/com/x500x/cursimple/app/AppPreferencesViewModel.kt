@@ -242,6 +242,14 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setIgnoredUpdateVersionCode(versionCode) }
     }
 
+    fun setPluginMarketIndexUrl(url: String) {
+        viewModelScope.launch { repository.setPluginMarketIndexUrl(url) }
+    }
+
+    fun setComponentMarketIndexUrl(url: String) {
+        viewModelScope.launch { repository.setComponentMarketIndexUrl(url) }
+    }
+
     fun resetScheduleAppearanceAndDisplay() {
         viewModelScope.launch { repository.resetScheduleAppearanceAndDisplay() }
     }

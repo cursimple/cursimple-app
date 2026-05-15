@@ -54,4 +54,43 @@ class PluginManifestTest {
         assertEquals(manifest.apiVersion, manifest.targetApiVersion)
         assertEquals(manifest.permissions, manifest.declaredPermissions)
     }
+
+    @Test
+    fun `manifest decodes scoped network capture specs`() {
+        val manifest = json.decodeFromString<PluginManifest>(
+            """
+            {
+              "id": "edu.demo",
+              "name": "Demo",
+              "version": "1.0.0",
+              "versionCode": 1,
+              "entry": "main.js",
+              "permissions": ["web.capture_packet"],
+              "networkCaptures": [
+                {
+                  "id": "course-json",
+                  "required": true,
+                  "method": "POST",
+                  "urlHost": "jw.school.edu.cn",
+                  "urlPathContains": "/api/course",
+                  "requestHeaders": ["content-type"],
+                  "responseHeaders": ["content-type"],
+                  "captureResponseBody": true,
+                  "responseBodyMimeTypes": ["application/json"],
+                  "maxBodyBytes": 4096
+                }
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        val capture = manifest.networkCaptures.single()
+
+        assertEquals(PluginPermission.WebCapturePacket, manifest.permissions.single())
+        assertEquals("course-json", capture.id)
+        assertEquals(true, capture.required)
+        assertEquals("POST", capture.method)
+        assertEquals(true, capture.captureResponseBody)
+        assertEquals(4096, capture.maxBodyBytes)
+    }
 }

@@ -127,6 +127,9 @@ class AppContainer(
         return downloadBytesViaMirrors(url)
     }
 
+    suspend fun fetchPluginComponentMarket(url: String) =
+        pluginManager.fetchComponentMarketIndex(url).components
+
     private suspend fun downloadTextViaMirrors(url: String): String {
         return when (val result = sharedDownloader.downloadText(
             request = downloadRequestFor(url),

@@ -31,4 +31,34 @@ class MarketIndexRepositoryTest {
 
         assertArrayEquals(expected, repository.downloadPackage("https://example.test/plugin.zip"))
     }
+
+    @Test
+    fun `component market manifest decodes components`() = runBlocking {
+        val repository = MarketIndexRepository(
+            fetchText = {
+                """
+                {
+                  "indexId": "components",
+                  "generatedAt": "2026-05-15T00:00:00Z",
+                  "components": [
+                    {
+                      "id": "engine.chromium.android",
+                      "name": "Chromium",
+                      "type": "engine_chromium",
+                      "version": "1.0.0",
+                      "downloadUrl": "https://example.test/chromium.zip"
+                    }
+                  ]
+                }
+                """.trimIndent()
+            },
+            downloadBytes = { ByteArray(0) },
+        )
+
+        val payload = repository.fetchComponentIndex("https://example.test/components.json")
+
+        assertEquals("components", payload.indexId)
+        assertEquals(1, payload.components.size)
+        assertEquals("engine.chromium.android", payload.components.single().id)
+    }
 }

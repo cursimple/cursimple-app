@@ -37,7 +37,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -66,6 +65,8 @@ import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 fun PluginMarketRoute(
     pluginMarketViewModel: PluginMarketViewModel,
     componentMarketViewModel: ComponentMarketViewModel,
+    pluginMarketIndexUrl: String,
+    componentMarketIndexUrl: String,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
     syncStatusMessage: String?,
@@ -116,8 +117,7 @@ fun PluginMarketRoute(
         pendingWebSession = pendingWebSession,
         onSelectTab = { selectedTab = it },
         onPickLocalPlugin = { pluginPackageLauncher.launch(PACKAGE_MIME_TYPES) },
-        onRemoteIndexUrlChange = pluginMarketViewModel::onRemoteIndexUrlChange,
-        onRefreshMarket = pluginMarketViewModel::loadRemoteMarket,
+        onRefreshMarket = { pluginMarketViewModel.loadRemoteMarket(pluginMarketIndexUrl) },
         onPreviewRemotePlugin = pluginMarketViewModel::previewRemotePackage,
         onConfirmInstall = pluginMarketViewModel::confirmInstall,
         onDismissInstallPreview = pluginMarketViewModel::dismissInstallPreview,
@@ -125,8 +125,7 @@ fun PluginMarketRoute(
         onSetPluginEnabled = onSetPluginEnabled,
         onSyncPlugin = onSyncPlugin,
         onPickLocalComponent = { componentPackageLauncher.launch(PACKAGE_MIME_TYPES) },
-        onRemoteComponentUrlChange = componentMarketViewModel::onRemotePackageUrlChange,
-        onInstallRemoteComponentUrl = componentMarketViewModel::installRemoteUrl,
+        onRefreshComponentMarket = { componentMarketViewModel.loadRemoteMarket(componentMarketIndexUrl) },
         onInstallRemoteComponentEntry = componentMarketViewModel::installRemoteEntry,
         onCompleteWebSession = onCompleteWebSession,
         onCancelWebSession = onCancelWebSession,
@@ -146,7 +145,6 @@ private fun PluginMarketScreen(
     pendingWebSession: WebSessionRequest?,
     onSelectTab: (PluginPlatformTab) -> Unit,
     onPickLocalPlugin: () -> Unit,
-    onRemoteIndexUrlChange: (String) -> Unit,
     onRefreshMarket: () -> Unit,
     onPreviewRemotePlugin: (MarketPluginEntry) -> Unit,
     onConfirmInstall: () -> Unit,
@@ -155,8 +153,7 @@ private fun PluginMarketScreen(
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
     onPickLocalComponent: () -> Unit,
-    onRemoteComponentUrlChange: (String) -> Unit,
-    onInstallRemoteComponentUrl: () -> Unit,
+    onRefreshComponentMarket: () -> Unit,
     onInstallRemoteComponentEntry: (ComponentMarketEntry) -> Unit,
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
@@ -182,7 +179,6 @@ private fun PluginMarketScreen(
                     missingComponents = missingComponents,
                     onOpenComponents = { onSelectTab(PluginPlatformTab.Components) },
                     onPickLocalPlugin = onPickLocalPlugin,
-                    onRemoteIndexUrlChange = onRemoteIndexUrlChange,
                     onRefreshMarket = onRefreshMarket,
                     onPreviewRemotePlugin = onPreviewRemotePlugin,
                     onRemovePlugin = onRemovePlugin,
@@ -194,8 +190,7 @@ private fun PluginMarketScreen(
                 PluginPlatformTab.Components -> ComponentMarketScreen(
                     uiState = componentUiState,
                     onPickLocalPackage = onPickLocalComponent,
-                    onRemotePackageUrlChange = onRemoteComponentUrlChange,
-                    onInstallRemoteUrl = onInstallRemoteComponentUrl,
+                    onRefreshMarket = onRefreshComponentMarket,
                     onInstallRemoteEntry = onInstallRemoteComponentEntry,
                     modifier = Modifier.weight(1f),
                 )
@@ -230,7 +225,6 @@ private fun PluginListContent(
     missingComponents: List<PluginComponentRequirement>,
     onOpenComponents: () -> Unit,
     onPickLocalPlugin: () -> Unit,
-    onRemoteIndexUrlChange: (String) -> Unit,
     onRefreshMarket: () -> Unit,
     onPreviewRemotePlugin: (MarketPluginEntry) -> Unit,
     onRemovePlugin: (String) -> Unit,
@@ -269,6 +263,7 @@ private fun PluginListContent(
                 totalCount = uiState.installedPlugins.size,
                 isLoading = uiState.isLoading,
                 onPickLocalPlugin = onPickLocalPlugin,
+                onRefreshMarket = onRefreshMarket,
             )
         }
 
@@ -291,15 +286,6 @@ private fun PluginListContent(
             item {
                 StatusCard(message = message)
             }
-        }
-
-        item {
-            MarketRefreshCard(
-                url = uiState.remoteIndexUrl,
-                isLoading = uiState.isLoading,
-                onUrlChange = onRemoteIndexUrlChange,
-                onRefresh = onRefreshMarket,
-            )
         }
 
         item {
@@ -422,6 +408,7 @@ private fun PluginCountHeader(
     totalCount: Int,
     isLoading: Boolean,
     onPickLocalPlugin: () -> Unit,
+    onRefreshMarket: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -449,17 +436,31 @@ private fun PluginCountHeader(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            OutlinedButton(
-                onClick = onPickLocalPlugin,
-                enabled = !isLoading,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("导入 ZIP")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = onPickLocalPlugin,
+                    enabled = !isLoading,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("导入 ZIP")
+                }
+                Button(
+                    onClick = onRefreshMarket,
+                    enabled = !isLoading,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(if (isLoading) "加载中" else "刷新")
+                }
             }
         }
     }
@@ -492,53 +493,6 @@ private fun MissingComponentsCard(
             )
             Button(onClick = onOpenComponents) {
                 Text("查看组件")
-            }
-        }
-    }
-}
-
-@Composable
-private fun MarketRefreshCard(
-    url: String,
-    isLoading: Boolean,
-    onUrlChange: (String) -> Unit,
-    onRefresh: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = "市场索引",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = onUrlChange,
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    label = { Text("manifest.json") },
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = onRefresh,
-                    enabled = !isLoading,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isLoading) "加载中" else "刷新")
-                }
             }
         }
     }
