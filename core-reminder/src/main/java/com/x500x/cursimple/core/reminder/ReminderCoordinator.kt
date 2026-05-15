@@ -486,6 +486,7 @@ class ReminderCoordinator(
                 message = "闹钟登记已不存在",
             )
         val next = record.copy(
+            triggerAtMillis = settings.triggerAtMillis ?: record.triggerAtMillis,
             ringtoneUriOverride = settings.ringtoneUriOverride?.takeIf { it.isNotBlank() },
             alertModeOverride = settings.alertModeOverride,
             ringDurationSeconds = settings.ringDurationSeconds?.coerceIn(5, 600),

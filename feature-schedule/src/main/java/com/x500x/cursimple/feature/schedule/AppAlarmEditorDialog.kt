@@ -35,10 +35,12 @@ import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_S
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
 internal fun AppAlarmEditorDialog(
@@ -48,8 +50,12 @@ internal fun AppAlarmEditorDialog(
     onDismiss: () -> Unit,
     onSave: (EditableAppAlarmSettings) -> Unit,
 ) {
+    val zone = ZoneId.systemDefault()
+    val trigger = Instant.ofEpochMilli(record.triggerAtMillis).atZone(zone).toLocalDateTime()
     AlarmSettingsDialogContent(
         title = "编辑闹钟",
+        initialDate = trigger.toLocalDate().toString(),
+        initialTime = DateTimeFormatter.ofPattern("HH:mm").format(trigger.toLocalTime()),
         initialRingtone = record.ringtoneUriOverride,
         initialAlertMode = record.alertModeOverride,
         initialDuration = (record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS).toString(),
@@ -151,6 +157,8 @@ internal fun ManualAppAlarmDialog(
 @Composable
 private fun AlarmSettingsDialogContent(
     title: String,
+    initialDate: String,
+    initialTime: String,
     initialRingtone: String?,
     initialAlertMode: AlarmAlertMode?,
     initialDuration: String,
@@ -161,36 +169,65 @@ private fun AlarmSettingsDialogContent(
     onDismiss: () -> Unit,
     onSave: (EditableAppAlarmSettings) -> Unit,
 ) {
+    var dateText by rememberSaveable { mutableStateOf(initialDate) }
+    var timeText by rememberSaveable { mutableStateOf(initialTime) }
     var ringtone by rememberSaveable { mutableStateOf(initialRingtone) }
     var alertMode by rememberSaveable { mutableStateOf(initialAlertMode) }
     var duration by rememberSaveable { mutableStateOf(initialDuration) }
     var interval by rememberSaveable { mutableStateOf(initialInterval) }
     var count by rememberSaveable { mutableStateOf(initialCount) }
+    val date = runCatching { LocalDate.parse(dateText) }.getOrNull()
+    val time = runCatching { LocalTime.parse(timeText) }.getOrNull()
     val settings = editableSettings(ringtone, alertMode, duration, interval, count)
+    val canSave = date != null && time != null && settings != null
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            AlarmSettingsFields(
-                ringtone = ringtone,
-                alertMode = alertMode,
-                duration = duration,
-                interval = interval,
-                count = count,
-                onUseDefaultRingtone = { ringtone = null },
-                onPickSystemRingtone = { onPickSystemRingtone { ringtone = it } },
-                onPickLocalAudio = { onPickLocalAudio { ringtone = it } },
-                onAlertMode = { alertMode = it },
-                onDuration = { duration = it },
-                onInterval = { interval = it },
-                onCount = { count = it },
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = dateText,
+                        onValueChange = { dateText = it.take(10) },
+                        label = { Text("日期") },
+                        modifier = Modifier.weight(1f),
+                        isError = dateText.isNotBlank() && date == null,
+                    )
+                    OutlinedTextField(
+                        value = timeText,
+                        onValueChange = { timeText = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
+                        label = { Text("时间") },
+                        modifier = Modifier.weight(1f),
+                        isError = timeText.isNotBlank() && time == null,
+                    )
+                }
+                AlarmSettingsFields(
+                    ringtone = ringtone,
+                    alertMode = alertMode,
+                    duration = duration,
+                    interval = interval,
+                    count = count,
+                    onUseDefaultRingtone = { ringtone = null },
+                    onPickSystemRingtone = { onPickSystemRingtone { ringtone = it } },
+                    onPickLocalAudio = { onPickLocalAudio { ringtone = it } },
+                    onAlertMode = { alertMode = it },
+                    onDuration = { duration = it },
+                    onInterval = { interval = it },
+                    onCount = { count = it },
+                )
+            }
         },
         confirmButton = {
             Button(
-                enabled = settings != null,
-                onClick = { onSave(settings ?: EditableAppAlarmSettings()) },
+                enabled = canSave,
+                onClick = {
+                    val millis = LocalDateTime.of(date, time)
+                        .atZone(ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli()
+                    onSave(settings?.copy(triggerAtMillis = millis) ?: EditableAppAlarmSettings())
+                },
             ) { Text("保存") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
