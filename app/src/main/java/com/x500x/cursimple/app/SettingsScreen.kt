@@ -16,6 +16,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,10 +42,13 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.EventRepeat
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
@@ -92,8 +96,10 @@ import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.DEFAULT_WEBDAV_URL
 import com.x500x.cursimple.app.reminder.AlarmPermissionIntents
 import com.x500x.cursimple.app.util.LogExporter
+import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
@@ -129,7 +135,19 @@ private enum class SettingsDestination {
     ScheduleDisplay,
     WidgetSettings,
     Plugins,
+    WebDav,
+    AiImport,
     Permissions,
+}
+
+enum class SettingsDestinationKey {
+    WebDav,
+    AiImport,
+}
+
+private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (this) {
+    SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
+    SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
 }
 
 private fun SettingsDestination.title(): String = when (this) {
@@ -146,6 +164,8 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.ScheduleDisplay -> "显示"
     SettingsDestination.WidgetSettings -> "小组件设置"
     SettingsDestination.Plugins -> "插件"
+    SettingsDestination.WebDav -> "WebDAV"
+    SettingsDestination.AiImport -> "AI 识图导入"
     SettingsDestination.Permissions -> "权限"
 }
 
@@ -170,6 +190,13 @@ fun AppSettingsRoute(
     ignoredUpdateVersionCode: Int?,
     pluginMarketIndexUrl: String,
     componentMarketIndexUrl: String,
+    privateFilesProviderEnabled: Boolean,
+    webDavUrl: String,
+    webDavUsername: String,
+    webDavPassword: String,
+    aiImportApiUrl: String,
+    aiImportApiKey: String,
+    aiImportModel: String,
     developerModeEnabled: Boolean,
     debugForcedDateTime: LocalDateTime?,
     onPickThemeMode: () -> Unit,
@@ -222,11 +249,17 @@ fun AppSettingsRoute(
     onIgnoreUpdateVersion: (Int?) -> Unit,
     onPluginMarketIndexUrlChange: (String) -> Unit,
     onComponentMarketIndexUrlChange: (String) -> Unit,
+    onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
+    onWebDavSettingsChange: (String, String, String) -> Unit,
+    onTestWebDavSettings: suspend (WebDavConfig) -> Result<Unit>,
+    onAiImportSettingsChange: (String, String, String) -> Unit,
     onSetDeveloperMode: (Boolean) -> Unit,
     onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
     onExportScheduleMetadata: () -> Unit,
     onResetScheduleAppearanceAndDisplay: () -> Unit,
     onResetAllSettings: () -> Unit,
+    openDestination: SettingsDestinationKey? = null,
+    onOpenDestinationConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -238,6 +271,11 @@ fun AppSettingsRoute(
     }
     fun goBack() {
         if (backStack.size > 1) backStack = backStack.dropLast(1)
+    }
+    androidx.compose.runtime.LaunchedEffect(openDestination) {
+        val requested = openDestination?.toDestination() ?: return@LaunchedEffect
+        backStack = listOf(SettingsDestination.Root.name, requested.name)
+        onOpenDestinationConsumed()
     }
     var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
     var showAlarmBackendDialog by rememberSaveable { mutableStateOf(false) }
@@ -323,6 +361,12 @@ fun AppSettingsRoute(
                 })
                 SettingsActionRow(Icons.Rounded.Code, "插件", "市场索引和组件索引", {
                     navigate(SettingsDestination.Plugins)
+                })
+                SettingsActionRow(Icons.Rounded.Storage, "WebDAV", webDavSettingsSubtitle(webDavUrl, webDavUsername), {
+                    navigate(SettingsDestination.WebDav)
+                })
+                SettingsActionRow(Icons.Rounded.ImageSearch, "AI 识图导入", aiImportSettingsSubtitle(aiImportApiUrl, aiImportModel), {
+                    navigate(SettingsDestination.AiImport)
                 })
                 SettingsActionRow(Icons.Rounded.Notifications, "权限", "通知、闹钟、相机和安装权限", {
                     navigate(SettingsDestination.Permissions)
@@ -588,6 +632,25 @@ fun AppSettingsRoute(
                 )
             }
 
+            SettingsDestination.WebDav -> {
+                WebDavSettingsSection(
+                    webDavUrl = webDavUrl,
+                    webDavUsername = webDavUsername,
+                    webDavPassword = webDavPassword,
+                    onSave = onWebDavSettingsChange,
+                    onTest = onTestWebDavSettings,
+                )
+            }
+
+            SettingsDestination.AiImport -> {
+                AiImportSettingsSection(
+                    apiUrl = aiImportApiUrl,
+                    apiKey = aiImportApiKey,
+                    model = aiImportModel,
+                    onSave = onAiImportSettingsChange,
+                )
+            }
+
             SettingsDestination.Permissions -> {
                 PermissionsSection(
                     notificationLauncher = notificationLauncher::launch,
@@ -636,7 +699,9 @@ fun AppSettingsRoute(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             DeveloperDebugSection(
                 debugForcedDateTime = debugForcedDateTime,
+                privateFilesProviderEnabled = privateFilesProviderEnabled,
                 onSetDeveloperMode = onSetDeveloperMode,
+                onPrivateFilesProviderEnabledChange = onPrivateFilesProviderEnabledChange,
                 onSetDebugForcedDateTime = onSetDebugForcedDateTime,
                 onExportScheduleMetadata = onExportScheduleMetadata,
             )
@@ -1528,6 +1593,23 @@ private fun formatLongDate(date: LocalDate): String =
 private fun parseIsoDate(value: String): LocalDate? =
     runCatching { LocalDate.parse(value) }.getOrNull()
 
+private fun webDavSettingsSubtitle(url: String, username: String): String {
+    val hasAccount = username.isNotBlank()
+    return if (hasAccount) {
+        "${url.ifBlank { DEFAULT_WEBDAV_URL }} · 已配置账号"
+    } else {
+        "${url.ifBlank { DEFAULT_WEBDAV_URL }} · 未配置账号"
+    }
+}
+
+private fun aiImportSettingsSubtitle(apiUrl: String, model: String): String {
+    return when {
+        apiUrl.isBlank() -> "未配置 API URL 和 Key"
+        model.isNotBlank() -> "$model · 已配置 API"
+        else -> "已配置 API"
+    }
+}
+
 @Composable
 private fun PluginSettingsSection(
     pluginMarketIndexUrl: String,
@@ -1604,9 +1686,151 @@ private fun MarketIndexUrlEditor(
 }
 
 @Composable
+private fun WebDavSettingsSection(
+    webDavUrl: String,
+    webDavUsername: String,
+    webDavPassword: String,
+    onSave: (String, String, String) -> Unit,
+    onTest: suspend (WebDavConfig) -> Result<Unit>,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var urlDraft by rememberSaveable(webDavUrl) { mutableStateOf(webDavUrl.ifBlank { DEFAULT_WEBDAV_URL }) }
+    var usernameDraft by rememberSaveable(webDavUsername) { mutableStateOf(webDavUsername) }
+    var passwordDraft by rememberSaveable(webDavPassword) { mutableStateOf(webDavPassword) }
+    var testing by rememberSaveable { mutableStateOf(false) }
+
+    SettingsEditorPanel(title = "WebDAV 连接") {
+        OutlinedTextField(
+            value = urlDraft,
+            onValueChange = { urlDraft = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("URL") },
+        )
+        OutlinedTextField(
+            value = usernameDraft,
+            onValueChange = { usernameDraft = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("账号") },
+        )
+        OutlinedTextField(
+            value = passwordDraft,
+            onValueChange = { passwordDraft = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("密码") },
+        )
+        Button(
+            onClick = {
+                onSave(urlDraft, usernameDraft, passwordDraft)
+                Toast.makeText(context, "WebDAV 设置已保存", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("保存")
+        }
+        OutlinedButton(
+            enabled = !testing,
+            onClick = {
+                testing = true
+                scope.launch {
+                    onTest(WebDavConfig(urlDraft, usernameDraft, passwordDraft))
+                        .onSuccess { Toast.makeText(context, "WebDAV 连接正常", Toast.LENGTH_SHORT).show() }
+                        .onFailure {
+                            Toast.makeText(
+                                context,
+                                "WebDAV 连接失败：${it.message ?: "未知错误"}",
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    testing = false
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(if (testing) "测试中..." else "测试连接")
+        }
+    }
+}
+
+@Composable
+private fun AiImportSettingsSection(
+    apiUrl: String,
+    apiKey: String,
+    model: String,
+    onSave: (String, String, String) -> Unit,
+) {
+    val context = LocalContext.current
+    var apiUrlDraft by rememberSaveable(apiUrl) { mutableStateOf(apiUrl) }
+    var apiKeyDraft by rememberSaveable(apiKey) { mutableStateOf(apiKey) }
+    var modelDraft by rememberSaveable(model) { mutableStateOf(model) }
+
+    SettingsEditorPanel(title = "AI 识图导入") {
+        OutlinedTextField(
+            value = apiUrlDraft,
+            onValueChange = { apiUrlDraft = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("API URL") },
+        )
+        OutlinedTextField(
+            value = apiKeyDraft,
+            onValueChange = { apiKeyDraft = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("Key") },
+        )
+        OutlinedTextField(
+            value = modelDraft,
+            onValueChange = { modelDraft = it },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("模型（可选）") },
+        )
+        Button(
+            onClick = {
+                onSave(apiUrlDraft, apiKeyDraft, modelDraft)
+                Toast.makeText(context, "AI 识图导入设置已保存", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("保存")
+        }
+    }
+}
+
+@Composable
+private fun SettingsEditorPanel(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            content()
+        }
+    }
+}
+
+@Composable
 private fun DeveloperDebugSection(
     debugForcedDateTime: LocalDateTime?,
+    privateFilesProviderEnabled: Boolean,
     onSetDeveloperMode: (Boolean) -> Unit,
+    onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
     onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
     onExportScheduleMetadata: () -> Unit,
 ) {
@@ -1632,9 +1856,20 @@ private fun DeveloperDebugSection(
             )
         }
         Text(
-            text = "调试时间、导出日志与课表元数据。",
+            text = "调试时间、导出日志、课表元数据与私有目录访问。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SettingsSwitchRow(
+            icon = Icons.Rounded.FolderOpen,
+            title = "允许文件管理器访问私有目录",
+            subtitle = if (privateFilesProviderEnabled) {
+                "已开启，文件管理器可通过系统文档入口访问"
+            } else {
+                "默认关闭，仅开发调试时手动开启"
+            },
+            checked = privateFilesProviderEnabled,
+            onCheckedChange = onPrivateFilesProviderEnabledChange,
         )
         DeveloperActionRow(
             icon = Icons.Rounded.CalendarMonth,

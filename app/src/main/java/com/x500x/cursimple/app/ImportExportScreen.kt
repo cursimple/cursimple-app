@@ -28,7 +28,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.ImageSearch
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.AlertDialog
@@ -62,12 +66,19 @@ import com.x500x.cursimple.app.util.QrCodeCodec
 import com.x500x.cursimple.app.util.QrScannerView
 import com.x500x.cursimple.app.util.ScheduleShareCodec
 import com.x500x.cursimple.app.util.ScheduleSharePayload
+import com.x500x.cursimple.app.ai.AiImportConfig
+import com.x500x.cursimple.app.ai.AiScheduleImportClient
+import com.x500x.cursimple.app.webdav.WebDavBackupFile
+import com.x500x.cursimple.app.webdav.WebDavClient
+import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,7 +87,12 @@ fun ImportExportScreen(
     manualCourses: List<CourseItem>,
     termName: String?,
     termStartDate: LocalDate?,
+    webDavConfig: WebDavConfig,
+    webDavClient: WebDavClient,
+    aiImportConfig: AiImportConfig,
+    aiImportClient: AiScheduleImportClient,
     onApplyImport: (TermSchedule?, List<CourseItem>, (Result<Pair<Int, Int>>) -> Unit) -> Unit,
+    onOpenAiImportSettings: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -88,6 +104,10 @@ fun ImportExportScreen(
     var pendingImport by remember { mutableStateOf<ScheduleSharePayload?>(null) }
     var importing by remember { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
+    var webDavBusy by remember { mutableStateOf(false) }
+    var remoteBackups by remember { mutableStateOf<List<WebDavBackupFile>>(emptyList()) }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiCameraUri by remember { mutableStateOf<Uri?>(null) }
 
     fun consumeScannedText(text: String) {
         ScheduleShareCodec.decode(text)
@@ -95,6 +115,30 @@ fun ImportExportScreen(
             .onFailure { error ->
                 Toast.makeText(context, error.message ?: "无法识别二维码", Toast.LENGTH_SHORT).show()
             }
+    }
+
+    fun runAiImport(uri: Uri) {
+        if (!aiImportConfig.isComplete) {
+            Toast.makeText(context, "请先配置 AI 识图导入", Toast.LENGTH_SHORT).show()
+            onOpenAiImportSettings()
+            return
+        }
+        aiBusy = true
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { aiImportClient.importFromImage(context, uri, aiImportConfig) }
+            }.onSuccess { payload ->
+                pendingImport = ScheduleSharePayload(
+                    termName = termName,
+                    termStartDate = termStartDate?.toString(),
+                    schedule = payload.schedule,
+                    manualCourses = payload.manualCourses,
+                )
+            }.onFailure {
+                Toast.makeText(context, "AI 导入失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+            }
+            aiBusy = false
+        }
     }
 
     val pickImageLauncher = rememberLauncherForActivityResult(
@@ -110,6 +154,17 @@ fun ImportExportScreen(
         }
     }
 
+    val aiImagePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { uri: Uri? ->
+        if (uri != null) runAiImport(uri)
+    }
+
+    val aiCameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { saved ->
+        val uri = aiCameraUri
+        if (saved && uri != null) runAiImport(uri)
+    }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -118,6 +173,18 @@ fun ImportExportScreen(
         } else {
             Toast.makeText(context, "未授予相机权限，无法扫码", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    val aiCameraPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(context, "未授予相机权限，无法拍照导入", Toast.LENGTH_SHORT).show()
+            return@rememberLauncherForActivityResult
+        }
+        val uri = createAiCameraUri(context)
+        aiCameraUri = uri
+        aiCameraLauncher.launch(uri)
     }
 
     fun openScanner() {
@@ -129,6 +196,25 @@ fun ImportExportScreen(
             showScanner = true
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    fun openAiCamera() {
+        if (!aiImportConfig.isComplete) {
+            Toast.makeText(context, "请先配置 AI 识图导入", Toast.LENGTH_SHORT).show()
+            onOpenAiImportSettings()
+            return
+        }
+        val granted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CAMERA,
+        ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            val uri = createAiCameraUri(context)
+            aiCameraUri = uri
+            aiCameraLauncher.launch(uri)
+        } else {
+            aiCameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
@@ -213,6 +299,91 @@ fun ImportExportScreen(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                     )
                 },
+            )
+
+            WebDavPanel(
+                enabled = !webDavBusy,
+                configured = webDavConfig.isComplete,
+                backupCount = remoteBackups.size,
+                onUpload = {
+                    if (!webDavConfig.isComplete) {
+                        Toast.makeText(context, "请先在设置页配置 WebDAV", Toast.LENGTH_SHORT).show()
+                        return@WebDavPanel
+                    }
+                    val payload = ScheduleSharePayload(
+                        termName = termName,
+                        termStartDate = termStartDate?.toString(),
+                        schedule = schedule,
+                        manualCourses = manualCourses,
+                    )
+                    val encoded = ScheduleShareCodec.encode(payload).toByteArray(Charsets.UTF_8)
+                    val fileName = "schedule-${DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now())}.csv1"
+                    webDavBusy = true
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            runCatching { webDavClient.uploadBackup(webDavConfig, fileName, encoded) }
+                        }.onSuccess {
+                            Toast.makeText(context, "WebDAV 备份已上传：${it.name}", Toast.LENGTH_SHORT).show()
+                            remoteBackups = withContext(Dispatchers.IO) {
+                                runCatching { webDavClient.listBackups(webDavConfig) }.getOrDefault(remoteBackups)
+                            }
+                        }.onFailure {
+                            Toast.makeText(context, "上传失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                        }
+                        webDavBusy = false
+                    }
+                },
+                onRefresh = {
+                    if (!webDavConfig.isComplete) {
+                        Toast.makeText(context, "请先在设置页配置 WebDAV", Toast.LENGTH_SHORT).show()
+                        return@WebDavPanel
+                    }
+                    webDavBusy = true
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            runCatching { webDavClient.listBackups(webDavConfig) }
+                        }.onSuccess {
+                            remoteBackups = it
+                            Toast.makeText(context, "已找到 ${it.size} 个备份", Toast.LENGTH_SHORT).show()
+                        }.onFailure {
+                            Toast.makeText(context, "获取备份失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                        }
+                        webDavBusy = false
+                    }
+                },
+                backups = remoteBackups,
+                onRestore = { backup ->
+                    webDavBusy = true
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            runCatching {
+                                val text = webDavClient.download(webDavConfig, backup.href).toString(Charsets.UTF_8)
+                                ScheduleShareCodec.decode(text).getOrThrow()
+                            }
+                        }.onSuccess {
+                            pendingImport = it
+                        }.onFailure {
+                            Toast.makeText(context, "恢复失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                        }
+                        webDavBusy = false
+                    }
+                },
+            )
+
+            AiImportPanel(
+                enabled = !aiBusy,
+                configured = aiImportConfig.isComplete,
+                onPickImage = {
+                    if (!aiImportConfig.isComplete) {
+                        Toast.makeText(context, "请先配置 AI 识图导入", Toast.LENGTH_SHORT).show()
+                        onOpenAiImportSettings()
+                    } else {
+                        aiImagePickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    }
+                },
+                onTakePhoto = { openAiCamera() },
             )
 
             Spacer(Modifier.height(4.dp))
@@ -336,6 +507,172 @@ fun ImportExportScreen(
                 ) { Text("取消") }
             },
         )
+    }
+}
+
+@Composable
+private fun AiImportPanel(
+    enabled: Boolean,
+    configured: Boolean,
+    onPickImage: () -> Unit,
+    onTakePhoto: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp)),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ImageSearch,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.size(12.dp))
+                Text(
+                    text = "AI 识图导入",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                text = if (configured) {
+                    "选择课表截图或拍照，使用设置页配置的 AI 识别并生成当前课表。"
+                } else {
+                    "请先在设置页配置 API URL 和 Key。"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onPickImage,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Rounded.ImageSearch, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text(if (enabled) "选择图片" else "识别中")
+                }
+                OutlinedButton(
+                    onClick = onTakePhoto,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Rounded.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text("拍照")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WebDavPanel(
+    enabled: Boolean,
+    configured: Boolean,
+    backupCount: Int,
+    backups: List<WebDavBackupFile>,
+    onUpload: () -> Unit,
+    onRefresh: () -> Unit,
+    onRestore: (WebDavBackupFile) -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp)),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.CloudUpload,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.size(12.dp))
+                Text(
+                    text = "WebDAV 备份 / 恢复",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Text(
+                text = if (configured) {
+                    "将当前课表上传到 WebDAV，或从远端备份恢复。已加载 $backupCount 个备份。"
+                } else {
+                    "请先在设置页配置 WebDAV URL、账号和密码。"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = onUpload,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text(if (enabled) "上传备份" else "处理中")
+                }
+                OutlinedButton(
+                    onClick = onRefresh,
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(6.dp))
+                    Text("远端备份")
+                }
+            }
+            backups.take(5).forEach { backup ->
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(enabled = enabled) { onRestore(backup) },
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                        Text(
+                            text = backup.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            text = backup.lastModified ?: "${backup.size} bytes",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -522,4 +859,14 @@ private fun decodeQrFromUri(
     } ?: error("图片格式不支持")
     val text = QrCodeCodec.decodeBitmap(bitmap) ?: error("图片中没有可识别的二维码")
     ScheduleShareCodec.decode(text).getOrThrow()
+}
+
+private fun createAiCameraUri(context: android.content.Context): Uri {
+    val file = java.io.File(context.cacheDir, "ai-import/capture-${System.currentTimeMillis()}.jpg")
+    file.parentFile?.mkdirs()
+    return androidx.core.content.FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file,
+    )
 }

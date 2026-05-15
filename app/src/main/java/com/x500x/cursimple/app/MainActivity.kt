@@ -91,8 +91,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
+import com.x500x.cursimple.app.ai.AiImportConfig
+import com.x500x.cursimple.app.ai.AiScheduleImportClient
 import com.x500x.cursimple.app.util.ScheduleMetadataExportSnapshot
 import com.x500x.cursimple.app.util.ScheduleMetadataExporter
+import com.x500x.cursimple.app.webdav.WebDavConfig
+import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
@@ -109,8 +113,10 @@ import com.x500x.cursimple.feature.schedule.ScheduleViewModel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.schedule.ScheduleViewModelFactory
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -159,6 +165,7 @@ class MainActivity : ComponentActivity() {
                     androidx.compose.runtime.CompositionLocalProvider(LocalAppZone provides appZone) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
+                    var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
                     var showAddMenu by remember { mutableStateOf(false) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
@@ -257,6 +264,8 @@ class MainActivity : ComponentActivity() {
                     var showClearManualConfirm by rememberSaveable { mutableStateOf(false) }
                     var showWidgetPicker by rememberSaveable { mutableStateOf(false) }
                     var showClearSheet by rememberSaveable { mutableStateOf(false) }
+                    val webDavClient = remember { WebDavClient() }
+                    val aiImportClient = remember { AiScheduleImportClient() }
                     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
                     var weekOffset by rememberSaveable { mutableIntStateOf(0) }
                     var dayOffset by rememberSaveable { mutableIntStateOf(0) }
@@ -696,6 +705,13 @@ class MainActivity : ComponentActivity() {
                                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
                                         pluginMarketIndexUrl = prefs.pluginMarketIndexUrl,
                                         componentMarketIndexUrl = prefs.componentMarketIndexUrl,
+                                        privateFilesProviderEnabled = prefs.privateFilesProviderEnabled,
+                                        webDavUrl = prefs.webDavUrl,
+                                        webDavUsername = prefs.webDavUsername,
+                                        webDavPassword = prefs.webDavPassword,
+                                        aiImportApiUrl = prefs.aiImportApiUrl,
+                                        aiImportApiKey = prefs.aiImportApiKey,
+                                        aiImportModel = prefs.aiImportModel,
                                         developerModeEnabled = prefs.developerModeEnabled,
                                         debugForcedDateTime = prefs.debugForcedDateTime,
                                         onPickThemeMode = { showThemeSheet = true },
@@ -751,6 +767,15 @@ class MainActivity : ComponentActivity() {
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
                                         onPluginMarketIndexUrlChange = prefsViewModel::setPluginMarketIndexUrl,
                                         onComponentMarketIndexUrlChange = prefsViewModel::setComponentMarketIndexUrl,
+                                        onPrivateFilesProviderEnabledChange =
+                                            prefsViewModel::setPrivateFilesProviderEnabled,
+                                        onWebDavSettingsChange = prefsViewModel::setWebDavSettings,
+                                        onTestWebDavSettings = { config ->
+                                            withContext(Dispatchers.IO) {
+                                                runCatching { webDavClient.test(config) }
+                                            }
+                                        },
+                                        onAiImportSettingsChange = prefsViewModel::setAiImportSettings,
                                         onSetDeveloperMode = prefsViewModel::setDeveloperModeEnabled,
                                         onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
                                         onResetScheduleAppearanceAndDisplay =
@@ -759,6 +784,8 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel.resetAllSettings()
                                             widgetPrefsViewModel.resetWidgetThemePreferences()
                                         },
+                                        openDestination = openSettingsDestination,
+                                        onOpenDestinationConsumed = { openSettingsDestination = null },
                                         onExportScheduleMetadata = {
                                             scope.launch {
                                                 val snapshot = ScheduleMetadataExportSnapshot(
@@ -847,7 +874,24 @@ class MainActivity : ComponentActivity() {
                                 manualCourses = scheduleState.manualCourses,
                                 termName = activeTermProfile?.name,
                                 termStartDate = prefs.termStartDate,
+                                webDavConfig = WebDavConfig(
+                                    url = prefs.webDavUrl,
+                                    username = prefs.webDavUsername,
+                                    password = prefs.webDavPassword,
+                                ),
+                                webDavClient = webDavClient,
+                                aiImportConfig = AiImportConfig(
+                                    apiUrl = prefs.aiImportApiUrl,
+                                    apiKey = prefs.aiImportApiKey,
+                                    model = prefs.aiImportModel,
+                                ),
+                                aiImportClient = aiImportClient,
                                 onApplyImport = scheduleViewModel::applyImportedSchedule,
+                                onOpenAiImportSettings = {
+                                    currentScreen = AppScreen.Settings
+                                    subScreen = null
+                                    openSettingsDestination = SettingsDestinationKey.AiImport
+                                },
                                 onBack = { subScreen = null },
                                 modifier = Modifier.fillMaxSize(),
                             )
