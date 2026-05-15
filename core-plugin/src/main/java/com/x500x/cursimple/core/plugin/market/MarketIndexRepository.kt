@@ -41,6 +41,18 @@ class MarketIndexRepository(
             }
     }
 
+    suspend fun fetchComponentIndex(url: String): ComponentMarketIndexPayload = withContext(Dispatchers.IO) {
+        val raw = fetchText(url)
+        runCatching { json.decodeFromString<ComponentMarketIndexPayload>(raw) }
+            .getOrElse {
+                ComponentMarketIndexPayload(
+                    indexId = "unsupported",
+                    generatedAt = "",
+                    components = emptyList(),
+                )
+            }
+    }
+
     suspend fun downloadPackage(url: String): ByteArray = withContext(Dispatchers.IO) {
         downloadBytes(url)
     }

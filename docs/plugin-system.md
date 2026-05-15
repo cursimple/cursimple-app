@@ -71,12 +71,40 @@ models/
 | `web.read_dom` | 允许读取 DOM 文本、查询元素和采集 HTML 摘要 |
 | `web.read_cookies` | 允许读取白名单域名 Cookie |
 | `web.inject_script` | 允许填表、点击等页面脚本操作 |
+| `web.capture_packet` | 允许读取 manifest 精确声明的 WebView 请求/响应数据包 |
 | `network.fetch` | 允许通过页面 `fetch` 请求白名单 URL |
 | `schedule.write` | 允许写入课程草稿 |
 | `storage.plugin` | 允许采集或使用插件私有存储相关数据 |
 | `component.use` | 允许使用已安装组件 |
 
 权限不足时运行时会抛出错误，不做隐式降级。
+
+`web.capture_packet` 只打开数据包采集能力，不代表插件可以读取全部页面流量。插件还必须在 `manifest.json` 中声明 `networkCaptures`，宿主只采集命中规则的数据包，并且只返回规则允许的 header/body 字段：
+
+```json
+{
+  "permissions": ["web.capture_packet"],
+  "networkCaptures": [
+    {
+      "id": "course-table-json",
+      "required": true,
+      "method": "GET",
+      "urlHost": "jw.school.edu.cn",
+      "urlPathContains": "/api/course/table",
+      "requestHeaders": ["accept"],
+      "responseHeaders": ["content-type"],
+      "captureResponseBody": true,
+      "responseBodyMimeTypes": ["application/json"],
+      "maxBodyBytes": 65536,
+      "maxPackets": 4
+    }
+  ]
+}
+```
+
+插件入口可通过 `ctx.web.packet("course-table-json")` 获取最新一条，或通过 `ctx.web.packets("course-table-json")` 获取该规则捕获到的列表。访问未声明 ID 或缺少权限都会抛错。
+
+Android WebView 原生拦截能稳定采集 URL、method、部分请求头、响应状态、响应头和响应体。页面内 `fetch` 和 `XMLHttpRequest` 请求会安装受控 hook，因此可以在规则允许时采集文本请求体和响应体。普通表单 POST 与其他非 JS 发起请求的请求 body 不是 WebView 原生接口稳定可得的字段，宿主不会伪造该字段。
 
 ## JS 入口
 

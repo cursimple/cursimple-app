@@ -17,6 +17,7 @@ import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
 import com.x500x.cursimple.core.plugin.manifest.PluginWebEngineRequirement
+import com.x500x.cursimple.core.plugin.market.ComponentMarketIndexPayload
 import com.x500x.cursimple.core.plugin.market.MarketIndexPayload
 import com.x500x.cursimple.core.plugin.market.MarketIndexRepository
 import com.x500x.cursimple.core.plugin.runtime.PluginSyncInput
@@ -120,6 +121,35 @@ class PluginManager(
         } catch (error: Throwable) {
             PluginLogger.error(
                 "plugin.market.fetch.failure",
+                mapOf("url" to PluginLogger.sanitizeUrl(url), "elapsedMs" to elapsedSince(startedAt)),
+                error,
+            )
+            throw error
+        }
+    }
+
+    suspend fun fetchComponentMarketIndex(url: String): ComponentMarketIndexPayload {
+        val startedAt = System.currentTimeMillis()
+        PluginLogger.info(
+            "plugin.component_market.fetch.start",
+            mapOf("url" to PluginLogger.sanitizeUrl(url)),
+        )
+        return try {
+            val payload = marketIndexRepository.fetchComponentIndex(url)
+            PluginLogger.info(
+                "plugin.component_market.fetch.success",
+                mapOf(
+                    "url" to PluginLogger.sanitizeUrl(url),
+                    "componentCount" to payload.components.size,
+                    "elapsedMs" to elapsedSince(startedAt),
+                ),
+            )
+            payload
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            PluginLogger.error(
+                "plugin.component_market.fetch.failure",
                 mapOf("url" to PluginLogger.sanitizeUrl(url), "elapsedMs" to elapsedSince(startedAt)),
                 error,
             )
@@ -270,6 +300,11 @@ class PluginManager(
                     entryScript = entryScript,
                     permissions = manifest.permissions,
                     limits = manifest.limits,
+                    networkCaptures = if (PluginPermission.WebCapturePacket in manifest.permissions) {
+                        manifest.networkCaptures
+                    } else {
+                        emptyList()
+                    },
                     extractCookies = PluginPermission.WebReadCookies in manifest.permissions,
                     extractLocalStorage = PluginPermission.StoragePlugin in manifest.permissions,
                     extractSessionStorage = PluginPermission.StoragePlugin in manifest.permissions,

@@ -15,16 +15,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class PluginMarketUiState(
-    val remoteIndexUrl: String = DEFAULT_MARKET_INDEX_URL,
     val marketPlugins: List<MarketPluginEntry> = emptyList(),
     val installedPlugins: List<InstalledPluginRecord> = emptyList(),
     val installPreview: PluginInstallPreview? = null,
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
 )
-
-private const val DEFAULT_MARKET_INDEX_URL =
-    "https://raw.githubusercontent.com/cursimple/cursimple-plugins/refs/heads/main/manifest.json"
 
 class PluginMarketViewModel(
     private val pluginManager: PluginManager,
@@ -45,18 +41,14 @@ class PluginMarketViewModel(
         }
     }
 
-    fun onRemoteIndexUrlChange(value: String) {
-        _uiState.update { it.copy(remoteIndexUrl = value) }
-    }
-
     fun setStatusMessage(message: String?) {
         _uiState.update { it.copy(statusMessage = message) }
     }
 
-    fun loadRemoteMarket() {
-        val url = _uiState.value.remoteIndexUrl.trim()
+    fun loadRemoteMarket(indexUrl: String) {
+        val url = indexUrl.trim()
         if (url.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请输入远程市场索引 URL") }
+            _uiState.update { it.copy(statusMessage = "请先在设置-插件中配置插件市场索引 URL") }
             return
         }
         viewModelScope.launch {

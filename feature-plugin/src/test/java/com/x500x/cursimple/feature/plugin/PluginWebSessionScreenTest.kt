@@ -2,6 +2,8 @@ package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.core.plugin.web.WebCapturedPacket
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
+import com.x500x.cursimple.core.plugin.manifest.PluginNetworkCaptureSpec
+import com.x500x.cursimple.core.plugin.web.WebNetworkPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
@@ -268,6 +270,72 @@ class PluginWebSessionScreenTest {
         assertTrue(script.contains("__CURSIMPLE_SCHEDULE_DRAFT_JSON"))
         assertTrue(script.contains("2026-spring"))
         assertFalse(script.contains("android.webkit"))
+    }
+
+    @Test
+    fun `network capture spec matches only scoped packet`() {
+        val spec = PluginNetworkCaptureSpec(
+            id = "course-json",
+            method = "POST",
+            urlHost = "jw.school.edu.cn",
+            urlPathContains = "/api/course",
+        )
+
+        assertTrue(spec.matchesNetworkRequest("https://jw.school.edu.cn/api/course/table", "POST"))
+        assertFalse(spec.matchesNetworkRequest("https://jw.school.edu.cn/api/user", "POST"))
+        assertFalse(spec.matchesNetworkRequest("https://evil.school.edu.cn/api/course/table", "POST"))
+        assertFalse(spec.matchesNetworkRequest("https://jw.school.edu.cn/api/course/table", "GET"))
+    }
+
+    @Test
+    fun `aggregate web session packet includes network packets`() {
+        val request = webRequest()
+        val latest = webPacket(finalUrl = "https://atrust.yangtzeu.edu.cn/portal")
+        val networkPacket = WebNetworkPacket(
+            captureId = "course-json",
+            url = "https://atrust.yangtzeu.edu.cn/api/course",
+            method = "GET",
+            responseHeaders = mapOf("content-type" to "application/json"),
+            responseBody = """{"ok":true}""",
+            timestamp = "2026-05-02T12:00:00+08:00",
+        )
+
+        val aggregate = aggregateWebSessionPacket(
+            request = request,
+            latestPacket = latest,
+            packets = emptyMap(),
+            networkPackets = mapOf("course-json" to listOf(networkPacket)),
+        )
+
+        assertEquals("""{"ok":true}""", aggregate.networkPackets["course-json"]?.single()?.responseBody)
+    }
+
+    @Test
+    fun `plugin runtime exposes only declared network packet ids`() {
+        val request = webRequest().copy(
+            permissions = listOf(PluginPermission.WebCapturePacket),
+            networkCaptures = listOf(PluginNetworkCaptureSpec(id = "course-json")),
+        )
+        val networkPacket = WebNetworkPacket(
+            captureId = "course-json",
+            url = "https://atrust.yangtzeu.edu.cn/api/course",
+            method = "GET",
+            responseBody = """{"ok":true}""",
+            timestamp = "2026-05-02T12:00:00+08:00",
+        )
+
+        val script = buildPluginRuntimeScript(
+            request = request,
+            currentUrl = "https://atrust.yangtzeu.edu.cn/portal",
+            networkPackets = mapOf("course-json" to listOf(networkPacket)),
+        )
+
+        assertTrue(script.contains("web.capture_packet"))
+        assertTrue(script.contains("course-json"))
+        assertTrue(script.contains("packets(id)"))
+        assertTrue(script.contains("installNetworkHooks"))
+        assertTrue(script.contains("XMLHttpRequest"))
+        assertTrue(script.contains("""{\"ok\":true}""") || script.contains("""{"ok":true}"""))
     }
 
     private fun webRequest(

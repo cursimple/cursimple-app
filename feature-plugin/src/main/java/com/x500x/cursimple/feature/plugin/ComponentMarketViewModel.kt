@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.plugin.component.PluginComponentInstallResult
 import com.x500x.cursimple.core.plugin.component.PluginComponentInstaller
 import com.x500x.cursimple.core.plugin.component.PluginComponentRepository
 import com.x500x.cursimple.core.plugin.component.PluginComponentType
+import com.x500x.cursimple.core.plugin.market.ComponentMarketIndexEntry
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -26,7 +27,6 @@ data class ComponentMarketEntry(
 data class ComponentMarketUiState(
     val installedComponents: List<InstalledPluginComponentRecord> = emptyList(),
     val knownComponents: List<ComponentMarketEntry> = emptyList(),
-    val remotePackageUrl: String = "",
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
 )
@@ -35,6 +35,7 @@ class ComponentMarketViewModel(
     private val repository: PluginComponentRepository,
     private val installer: PluginComponentInstaller,
     private val downloadPackage: suspend (String) -> ByteArray,
+    private val fetchComponentIndex: suspend (String) -> List<ComponentMarketIndexEntry>,
     knownComponents: List<ComponentMarketEntry> = emptyList(),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ComponentMarketUiState(knownComponents = knownComponents))
@@ -50,12 +51,37 @@ class ComponentMarketViewModel(
         }
     }
 
-    fun onRemotePackageUrlChange(value: String) {
-        _uiState.update { it.copy(remotePackageUrl = value) }
-    }
-
     fun setStatusMessage(message: String?) {
         _uiState.update { it.copy(statusMessage = message) }
+    }
+
+    fun loadRemoteMarket(indexUrl: String) {
+        val url = indexUrl.trim()
+        if (url.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先在设置-插件中配置组件市场索引 URL") }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载远程组件...") }
+            runCatching { fetchComponentIndex(url) }
+                .onSuccess { entries ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            knownComponents = entries.map(ComponentMarketIndexEntry::toMarketEntry),
+                            statusMessage = "已加载 ${entries.size} 个组件",
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = error.message ?: "加载远程组件失败",
+                        )
+                    }
+                }
+        }
     }
 
     fun installLocalPackage(bytes: ByteArray) {
@@ -63,15 +89,6 @@ class ComponentMarketViewModel(
             _uiState.update { it.copy(isLoading = true, statusMessage = "正在安装本地组件...") }
             handleInstallResult(installer.installLocalPackage(bytes))
         }
-    }
-
-    fun installRemoteUrl() {
-        val url = _uiState.value.remotePackageUrl.trim()
-        if (url.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请输入组件包 URL") }
-            return
-        }
-        installRemotePackage(url)
     }
 
     fun installRemoteEntry(entry: ComponentMarketEntry) {
@@ -129,6 +146,7 @@ class ComponentMarketViewModelFactory(
     private val repository: PluginComponentRepository,
     private val installer: PluginComponentInstaller,
     private val downloadPackage: suspend (String) -> ByteArray,
+    private val fetchComponentIndex: suspend (String) -> List<ComponentMarketIndexEntry>,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ComponentMarketViewModel::class.java)) {
@@ -137,8 +155,21 @@ class ComponentMarketViewModelFactory(
                 repository = repository,
                 installer = installer,
                 downloadPackage = downloadPackage,
+                fetchComponentIndex = fetchComponentIndex,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
+}
+
+private fun ComponentMarketIndexEntry.toMarketEntry(): ComponentMarketEntry {
+    return ComponentMarketEntry(
+        id = id,
+        name = name,
+        type = type,
+        version = version,
+        abi = abi,
+        downloadUrl = downloadUrl,
+        description = description,
+    )
 }

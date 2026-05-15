@@ -73,4 +73,12 @@ class UserPreferencesTest {
         assertEquals(5, prefs.alarmRepeatCount)
         assertEquals(0L, prefs.lastAlarmPollAtMillis)
     }
+
+    @Test
+    fun `market index urls use explicit defaults`() {
+        val prefs = UserPreferences()
+
+        assertEquals(DEFAULT_PLUGIN_MARKET_INDEX_URL, prefs.pluginMarketIndexUrl)
+        assertEquals(DEFAULT_COMPONENT_MARKET_INDEX_URL, prefs.componentMarketIndexUrl)
+    }
 }

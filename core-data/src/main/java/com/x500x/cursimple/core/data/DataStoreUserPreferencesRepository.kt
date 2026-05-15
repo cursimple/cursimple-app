@@ -76,6 +76,12 @@ class DataStoreUserPreferencesRepository(
             lastAlarmPollAtMillis = prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] ?: 0L,
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,
             ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
+            pluginMarketIndexUrl = prefs[KEY_PLUGIN_MARKET_INDEX_URL]
+                ?.takeIf(String::isNotBlank)
+                ?: DEFAULT_PLUGIN_MARKET_INDEX_URL,
+            componentMarketIndexUrl = prefs[KEY_COMPONENT_MARKET_INDEX_URL]
+                ?.takeIf(String::isNotBlank)
+                ?: DEFAULT_COMPONENT_MARKET_INDEX_URL,
             loaded = true,
         )
     }
@@ -351,6 +357,14 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
+    override suspend fun setPluginMarketIndexUrl(url: String) {
+        store.edit { prefs -> prefs[KEY_PLUGIN_MARKET_INDEX_URL] = url.trim() }
+    }
+
+    override suspend fun setComponentMarketIndexUrl(url: String) {
+        store.edit { prefs -> prefs[KEY_COMPONENT_MARKET_INDEX_URL] = url.trim() }
+    }
+
     override suspend fun resetScheduleAppearanceAndDisplay() {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -380,6 +394,8 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_LAST_ALARM_POLL_AT_MILLIS)
             prefs.remove(KEY_AUTO_UPDATE_ENABLED)
             prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
+            prefs.remove(KEY_PLUGIN_MARKET_INDEX_URL)
+            prefs.remove(KEY_COMPONENT_MARKET_INDEX_URL)
             prefs.removeScheduleAppearanceAndDisplay()
         }
         releasePersistedReadPermission(previousImageUri)
@@ -607,6 +623,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_LAST_ALARM_POLL_AT_MILLIS = longPreferencesKey("last_alarm_poll_at_millis")
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
+        val KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
+        val KEY_COMPONENT_MARKET_INDEX_URL = stringPreferencesKey("component_market_index_url")
 
         const val DEFAULT_RING_DURATION_SECONDS = DEFAULT_APP_ALARM_RING_DURATION_SECONDS
         const val DEFAULT_REPEAT_INTERVAL_SECONDS = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS

@@ -18,6 +18,7 @@ data class PluginManifest(
     @SerialName("components") val components: List<PluginComponentRequirement> = emptyList(),
     @SerialName("limits") val limits: PluginRuntimeLimits = PluginRuntimeLimits(),
     @SerialName("allowedHosts") val allowedHosts: List<String> = emptyList(),
+    @SerialName("networkCaptures") val networkCaptures: List<PluginNetworkCaptureSpec> = emptyList(),
     @SerialName("description") val description: String = "",
     @SerialName("minHostVersion") val minHostVersion: String = "0.1.0",
     @SerialName("homepage") val homepage: String? = null,
@@ -47,6 +48,23 @@ data class PluginComponentRequirement(
     @SerialName("required") val required: Boolean = true,
     @SerialName("version") val version: String? = null,
     @SerialName("abi") val abi: String? = null,
+)
+
+@Serializable
+data class PluginNetworkCaptureSpec(
+    @SerialName("id") val id: String,
+    @SerialName("required") val required: Boolean = false,
+    @SerialName("method") val method: String? = null,
+    @SerialName("urlContains") val urlContains: String? = null,
+    @SerialName("urlHost") val urlHost: String? = null,
+    @SerialName("urlPathContains") val urlPathContains: String? = null,
+    @SerialName("requestHeaders") val requestHeaders: List<String> = emptyList(),
+    @SerialName("responseHeaders") val responseHeaders: List<String> = emptyList(),
+    @SerialName("captureRequestBody") val captureRequestBody: Boolean = false,
+    @SerialName("captureResponseBody") val captureResponseBody: Boolean = false,
+    @SerialName("responseBodyMimeTypes") val responseBodyMimeTypes: List<String> = emptyList(),
+    @SerialName("maxBodyBytes") val maxBodyBytes: Int = 65_536,
+    @SerialName("maxPackets") val maxPackets: Int = 8,
 )
 
 @Serializable
