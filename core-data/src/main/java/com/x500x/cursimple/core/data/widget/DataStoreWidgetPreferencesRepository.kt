@@ -8,6 +8,10 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.x500x.cursimple.core.data.AppBackupStores
+import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.exportSnapshot
+import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import kotlinx.coroutines.flow.Flow
@@ -169,6 +173,18 @@ class DataStoreWidgetPreferencesRepository(
             preferences.remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
             preferences.remove(KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK)
         }
+        releasePersistedReadPermission(previousImageUri)
+    }
+
+    suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
+        store.exportSnapshot(AppBackupStores.WIDGET_PREFERENCES)
+
+    suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
+        var previousImageUri: String? = null
+        store.edit { preferences ->
+            previousImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]
+        }
+        store.restoreSnapshot(snapshot)
         releasePersistedReadPermission(previousImageUri)
     }
 

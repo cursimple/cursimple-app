@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -145,6 +146,10 @@ enum class SettingsDestinationKey {
     AiImport,
 }
 
+enum class SettingsReturnTargetKey {
+    ImportExport,
+}
+
 private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (this) {
     SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
@@ -260,22 +265,44 @@ fun AppSettingsRoute(
     onResetAllSettings: () -> Unit,
     openDestination: SettingsDestinationKey? = null,
     onOpenDestinationConsumed: () -> Unit = {},
+    returnTarget: SettingsReturnTargetKey? = null,
+    onReturnTargetReady: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
     var backStack by rememberSaveable { mutableStateOf(listOf(SettingsDestination.Root.name)) }
+    var settingsReturnReady by rememberSaveable { mutableStateOf(false) }
     val destination = SettingsDestination.valueOf(backStack.last())
     fun navigate(next: SettingsDestination) {
         backStack = backStack + next.name
     }
+    fun savedDestinationConfigComplete(): Boolean = when (destination) {
+        SettingsDestination.WebDav -> WebDavConfig(webDavUrl, webDavUsername, webDavPassword).isComplete
+        SettingsDestination.AiImport -> aiImportApiUrl.isNotBlank() && aiImportApiKey.isNotBlank()
+        else -> false
+    }
     fun goBack() {
         if (backStack.size > 1) backStack = backStack.dropLast(1)
+    }
+    fun handleBack() {
+        if (
+            returnTarget == SettingsReturnTargetKey.ImportExport &&
+            (settingsReturnReady || savedDestinationConfigComplete())
+        ) {
+            onReturnTargetReady()
+        } else {
+            goBack()
+        }
     }
     androidx.compose.runtime.LaunchedEffect(openDestination) {
         val requested = openDestination?.toDestination() ?: return@LaunchedEffect
         backStack = listOf(SettingsDestination.Root.name, requested.name)
+        settingsReturnReady = false
         onOpenDestinationConsumed()
+    }
+    BackHandler(enabled = destination != SettingsDestination.Root) {
+        handleBack()
     }
     var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
     var showAlarmBackendDialog by rememberSaveable { mutableStateOf(false) }
@@ -331,7 +358,7 @@ fun AppSettingsRoute(
                 )
                 Spacer(modifier = Modifier.width(10.dp))
             } else {
-                IconButton(onClick = ::goBack, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = ::handleBack, modifier = Modifier.size(36.dp)) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                         contentDescription = "返回",
@@ -639,6 +666,7 @@ fun AppSettingsRoute(
                     webDavPassword = webDavPassword,
                     onSave = onWebDavSettingsChange,
                     onTest = onTestWebDavSettings,
+                    onSaved = { complete -> settingsReturnReady = complete },
                 )
             }
 
@@ -648,6 +676,7 @@ fun AppSettingsRoute(
                     apiKey = aiImportApiKey,
                     model = aiImportModel,
                     onSave = onAiImportSettingsChange,
+                    onSaved = { complete -> settingsReturnReady = complete },
                 )
             }
 
@@ -1692,6 +1721,7 @@ private fun WebDavSettingsSection(
     webDavPassword: String,
     onSave: (String, String, String) -> Unit,
     onTest: suspend (WebDavConfig) -> Result<Unit>,
+    onSaved: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1725,6 +1755,7 @@ private fun WebDavSettingsSection(
         Button(
             onClick = {
                 onSave(urlDraft, usernameDraft, passwordDraft)
+                onSaved(WebDavConfig(urlDraft.trim().ifBlank { DEFAULT_WEBDAV_URL }, usernameDraft.trim(), passwordDraft).isComplete)
                 Toast.makeText(context, "WebDAV 设置已保存", Toast.LENGTH_SHORT).show()
             },
             modifier = Modifier.fillMaxWidth(),
@@ -1761,6 +1792,7 @@ private fun AiImportSettingsSection(
     apiKey: String,
     model: String,
     onSave: (String, String, String) -> Unit,
+    onSaved: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     var apiUrlDraft by rememberSaveable(apiUrl) { mutableStateOf(apiUrl) }
@@ -1792,6 +1824,7 @@ private fun AiImportSettingsSection(
         Button(
             onClick = {
                 onSave(apiUrlDraft, apiKeyDraft, modelDraft)
+                onSaved(apiUrlDraft.isNotBlank() && apiKeyDraft.isNotBlank())
                 Toast.makeText(context, "AI 识图导入设置已保存", Toast.LENGTH_SHORT).show()
             },
             modifier = Modifier.fillMaxWidth(),
@@ -1864,9 +1897,9 @@ private fun DeveloperDebugSection(
             icon = Icons.Rounded.FolderOpen,
             title = "允许文件管理器访问私有目录",
             subtitle = if (privateFilesProviderEnabled) {
-                "已开启，文件管理器可通过系统文档入口访问"
+                "已开启，系统文件管理器左侧栏会显示本应用入口"
             } else {
-                "默认关闭，仅开发调试时手动开启"
+                "关闭后会从系统文件管理器左侧栏隐藏"
             },
             checked = privateFilesProviderEnabled,
             onCheckedChange = onPrivateFilesProviderEnabledChange,

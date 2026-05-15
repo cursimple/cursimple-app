@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.data
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
@@ -14,6 +15,10 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.x500x.cursimple.core.data.AppBackupStores
+import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.exportSnapshot
+import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
@@ -21,6 +26,7 @@ import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_S
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -115,6 +121,11 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setDeveloperModeEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_DEVELOPER_MODE] = enabled }
+        if (!enabled) {
+            store.edit { prefs -> prefs[KEY_PRIVATE_FILES_PROVIDER_ENABLED] = false }
+            mirrorPrivateFilesProviderEnabled(false)
+            notifyPrivateFilesProviderRootsChanged()
+        }
     }
 
     override suspend fun setScheduleCourseTextSizeSp(sizeSp: Int) {
@@ -376,6 +387,8 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setPrivateFilesProviderEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_PRIVATE_FILES_PROVIDER_ENABLED] = enabled }
+        mirrorPrivateFilesProviderEnabled(enabled)
+        notifyPrivateFilesProviderRootsChanged()
     }
 
     override suspend fun setWebDavSettings(url: String, username: String, password: String) {
@@ -450,6 +463,26 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_AI_IMPORT_MODEL)
             prefs.removeScheduleAppearanceAndDisplay()
         }
+        releasePersistedReadPermission(previousImageUri)
+        releasePersistedReadPermission(previousAlarmRingtoneUri)
+        mirrorPrivateFilesProviderEnabled(false)
+        notifyPrivateFilesProviderRootsChanged()
+    }
+
+    suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
+        store.exportSnapshot(AppBackupStores.USER_PREFERENCES)
+
+    suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
+        var previousImageUri: String? = null
+        var previousAlarmRingtoneUri: String? = null
+        store.edit { prefs ->
+            previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
+            previousAlarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]
+        }
+        store.restoreSnapshot(snapshot)
+        val privateFilesProviderEnabled = store.data.first()[KEY_PRIVATE_FILES_PROVIDER_ENABLED] ?: false
+        mirrorPrivateFilesProviderEnabled(privateFilesProviderEnabled)
+        notifyPrivateFilesProviderRootsChanged()
         releasePersistedReadPermission(previousImageUri)
         releasePersistedReadPermission(previousAlarmRingtoneUri)
     }
@@ -624,6 +657,21 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
+    private fun notifyPrivateFilesProviderRootsChanged() {
+        val authority = "${appContext.packageName}.privatefiles.documents"
+        appContext.contentResolver.notifyChange(
+            DocumentsContract.buildRootsUri(authority),
+            null,
+        )
+    }
+
+    private fun mirrorPrivateFilesProviderEnabled(enabled: Boolean) {
+        appContext.getSharedPreferences(PRIVATE_FILES_PROVIDER_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_PRIVATE_FILES_PROVIDER_ENABLED.name, enabled)
+            .apply()
+    }
+
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_THEME_ACCENT = stringPreferencesKey("theme_accent")
@@ -694,5 +742,6 @@ class DataStoreUserPreferencesRepository(
         const val MAX_REPEAT_INTERVAL_SECONDS = 3600
         const val MIN_REPEAT_COUNT = 1
         const val MAX_REPEAT_COUNT = 10
+        const val PRIVATE_FILES_PROVIDER_PREFS = "private_files_provider"
     }
 }
