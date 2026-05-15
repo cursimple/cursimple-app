@@ -3,4 +3,5 @@
     <cache-path name="exported-logs" path="logs/" />
     <cache-path name="exported-metadata" path="metadata/" />
     <cache-path name="update-apks" path="updates/" />
+    <cache-path name="ai-import" path="ai-import/" />
 </paths>
