@@ -6,6 +6,10 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.x500x.cursimple.core.data.AppBackupStores
+import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.exportSnapshot
+import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.data.term.TermProfileRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import kotlinx.coroutines.flow.Flow
@@ -70,6 +74,13 @@ class DataStoreManualCourseRepository(
             }
             prefs.remove(KEY_LEGACY_COURSES_JSON)
         }
+    }
+
+    suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
+        store.exportSnapshot(AppBackupStores.MANUAL_COURSES)
+
+    suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
+        store.restoreSnapshot(snapshot)
     }
 
     private fun decode(prefs: Preferences, termId: String): List<CourseItem> {
