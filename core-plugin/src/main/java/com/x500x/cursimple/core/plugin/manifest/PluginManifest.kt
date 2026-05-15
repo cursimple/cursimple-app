@@ -6,18 +6,54 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class PluginManifest(
-    @SerialName("pluginId") val pluginId: String,
+    @SerialName("id") val id: String,
     @SerialName("name") val name: String,
-    @SerialName("publisher") val publisher: String,
+    @SerialName("publisher") val publisher: String = "",
     @SerialName("version") val version: String,
     @SerialName("versionCode") val versionCode: Long,
+    @SerialName("apiVersion") val apiVersion: Int = PluginApiVersion.CURRENT,
+    @SerialName("entry") val entry: String,
+    @SerialName("permissions") val permissions: List<PluginPermission> = emptyList(),
+    @SerialName("webEngine") val webEngine: PluginWebEngineRequirement = PluginWebEngineRequirement(),
+    @SerialName("components") val components: List<PluginComponentRequirement> = emptyList(),
+    @SerialName("limits") val limits: PluginRuntimeLimits = PluginRuntimeLimits(),
+    @SerialName("allowedHosts") val allowedHosts: List<String> = emptyList(),
     @SerialName("description") val description: String = "",
     @SerialName("minHostVersion") val minHostVersion: String = "0.1.0",
-    @SerialName("targetApiVersion") val targetApiVersion: Int = PluginApiVersion.CURRENT,
-    @SerialName("entryWorkflow") val entryWorkflow: String = "sync-schedule",
     @SerialName("homepage") val homepage: String? = null,
     @SerialName("supportUrl") val supportUrl: String? = null,
-    @SerialName("declaredPermissions") val declaredPermissions: List<PluginPermission> = emptyList(),
-    @SerialName("allowedHosts") val allowedHosts: List<String> = emptyList(),
-    @SerialName("dataPackVersion") val dataPackVersion: String = "1",
+) {
+    val pluginId: String get() = id
+    val targetApiVersion: Int get() = apiVersion
+    val declaredPermissions: List<PluginPermission> get() = permissions
+}
+
+@Serializable
+data class PluginWebEngineRequirement(
+    @SerialName("preferred") val preferred: String = ENGINE_SYSTEM_WEBVIEW,
+    @SerialName("allowChromium") val allowChromium: Boolean = false,
+    @SerialName("chromiumComponent") val chromiumComponent: String? = null,
+) {
+    companion object {
+        const val ENGINE_SYSTEM_WEBVIEW = "system_webview"
+        const val ENGINE_CHROMIUM = "chromium"
+    }
+}
+
+@Serializable
+data class PluginComponentRequirement(
+    @SerialName("id") val id: String,
+    @SerialName("type") val type: String,
+    @SerialName("required") val required: Boolean = true,
+    @SerialName("version") val version: String? = null,
+    @SerialName("abi") val abi: String? = null,
+)
+
+@Serializable
+data class PluginRuntimeLimits(
+    @SerialName("timeoutMs") val timeoutMs: Long = 60_000,
+    @SerialName("maxCourses") val maxCourses: Int = 1_000,
+    @SerialName("maxStorageBytes") val maxStorageBytes: Long = 1_048_576,
+    @SerialName("maxCapturedTextBytes") val maxCapturedTextBytes: Int = 524_288,
+    @SerialName("maxOutputBytes") val maxOutputBytes: Int = 1_048_576,
 )

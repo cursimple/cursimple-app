@@ -96,8 +96,11 @@ import com.x500x.cursimple.app.util.ScheduleMetadataExporter
 import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
-import com.x500x.cursimple.feature.plugin.BundledPluginCatalogEntry
+import com.x500x.cursimple.feature.plugin.ComponentMarketViewModel
+import com.x500x.cursimple.feature.plugin.ComponentMarketViewModelFactory
 import com.x500x.cursimple.feature.plugin.PluginMarketRoute
+import com.x500x.cursimple.feature.plugin.PluginMarketViewModel
+import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
 import com.x500x.cursimple.feature.schedule.AddCourseDialog
 import com.x500x.cursimple.feature.schedule.ManageScheduleSheet
 import com.x500x.cursimple.feature.schedule.ScheduleRoute
@@ -183,6 +186,16 @@ class MainActivity : ComponentActivity() {
                         ),
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
+                    val pluginMarketViewModel: PluginMarketViewModel = viewModel(
+                        factory = PluginMarketViewModelFactory(container.pluginManager),
+                    )
+                    val componentMarketViewModel: ComponentMarketViewModel = viewModel(
+                        factory = ComponentMarketViewModelFactory(
+                            repository = container.pluginComponentRepository,
+                            installer = container.pluginComponentInstaller,
+                            downloadPackage = container::downloadPluginComponentPackage,
+                        ),
+                    )
                     fun setActiveTermStartDate(date: LocalDate?) {
                         val activeTermId = termProfileState.activeTermId
                         if (activeTermId.isNotBlank()) {
@@ -628,23 +641,15 @@ class MainActivity : ComponentActivity() {
                                     )
 
                                     AppScreen.Plugins -> PluginMarketRoute(
-                                        installedPlugins = scheduleState.installedPlugins,
+                                        pluginMarketViewModel = pluginMarketViewModel,
+                                        componentMarketViewModel = componentMarketViewModel,
                                         enabledPluginIds = prefs.enabledPluginIds,
                                         syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
                                         syncStatusMessage = scheduleState.statusMessage,
+                                        missingComponents = scheduleState.missingComponents,
                                         pendingWebSession = scheduleState.pendingWebSession,
-                                        bundledCatalog = container.bundledPluginCatalog.map {
-                                            BundledPluginCatalogEntry(
-                                                pluginId = it.pluginId,
-                                                name = it.name,
-                                                description = it.description,
-                                            )
-                                        },
                                         onSetPluginEnabled = prefsViewModel::setPluginEnabled,
                                         onSyncPlugin = scheduleViewModel::syncSchedule,
-                                        onAddBundledPlugin = { id ->
-                                            scope.launch { container.installBundledPlugin(id) }
-                                        },
                                         onCompleteWebSession = scheduleViewModel::completeWebSession,
                                         onCancelWebSession = scheduleViewModel::cancelWebSession,
                                         modifier = Modifier.fillMaxSize(),

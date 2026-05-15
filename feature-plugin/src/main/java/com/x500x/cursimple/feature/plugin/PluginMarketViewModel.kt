@@ -15,13 +15,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class PluginMarketUiState(
-    val remoteIndexUrl: String = "",
+    val remoteIndexUrl: String = DEFAULT_MARKET_INDEX_URL,
     val marketPlugins: List<MarketPluginEntry> = emptyList(),
     val installedPlugins: List<InstalledPluginRecord> = emptyList(),
     val installPreview: PluginInstallPreview? = null,
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
 )
+
+private const val DEFAULT_MARKET_INDEX_URL =
+    "https://raw.githubusercontent.com/cursimple/cursimple-plugins/refs/heads/main/manifest.json"
 
 class PluginMarketViewModel(
     private val pluginManager: PluginManager,
@@ -46,6 +49,10 @@ class PluginMarketViewModel(
         _uiState.update { it.copy(remoteIndexUrl = value) }
     }
 
+    fun setStatusMessage(message: String?) {
+        _uiState.update { it.copy(statusMessage = message) }
+    }
+
     fun loadRemoteMarket() {
         val url = _uiState.value.remoteIndexUrl.trim()
         if (url.isBlank()) {
@@ -56,11 +63,16 @@ class PluginMarketViewModel(
             _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载远程市场...") }
             runCatching { pluginManager.fetchMarketIndex(url) }
                 .onSuccess { payload ->
+                    val message = if (payload.plugins.isEmpty()) {
+                        "当前市场格式暂不支持或没有可安装插件"
+                    } else {
+                        "已加载 ${payload.plugins.size} 个插件"
+                    }
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             marketPlugins = payload.plugins,
-                            statusMessage = "已加载 ${payload.plugins.size} 个插件",
+                            statusMessage = message,
                         )
                     }
                 }

@@ -1,7 +1,7 @@
 package com.x500x.cursimple.core.plugin.install
 
-import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
+import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageReader
 import com.x500x.cursimple.core.plugin.security.PluginChecksumVerifier
@@ -13,10 +13,10 @@ import java.time.OffsetDateTime
 class PluginInstaller(
     private val registryRepository: PluginRegistryRepository,
     private val fileStore: PluginFileStore,
-    private val packageReader: PluginPackageReader = PluginPackageReader(),
+    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
+    private val packageReader: PluginPackageReader = PluginPackageReader(json),
     private val checksumVerifier: PluginChecksumVerifier = PluginChecksumVerifier(),
     private val signatureVerifier: PluginSignatureVerifier = PluginSignatureVerifier(),
-    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
 ) {
     fun previewPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallPreview {
         val startedAt = System.currentTimeMillis()
@@ -100,43 +100,6 @@ class PluginInstaller(
         }
     }
 
-    suspend fun installBundledAssetDirectory(assetRoot: String): InstalledPluginRecord {
-        val startedAt = System.currentTimeMillis()
-        PluginLogger.info(
-            "plugin.install.bundled.start",
-            mapOf("assetRoot" to assetRoot),
-        )
-        return try {
-            val targetDir = fileStore.copyBundledAssetDirectory(assetRoot)
-            val manifest = json.decodeFromString<PluginManifest>(fileStore.loadAssetText("$assetRoot/manifest.json"))
-            val record = manifest.toInstalledRecord(
-                source = PluginInstallSource.Bundled,
-                storagePath = targetDir.absolutePath,
-                bundled = true,
-            )
-            registryRepository.saveInstalledPlugin(record)
-            PluginLogger.info(
-                "plugin.install.bundled.success",
-                mapOf(
-                    "assetRoot" to assetRoot,
-                    "pluginId" to record.pluginId,
-                    "version" to record.version,
-                    "versionCode" to record.versionCode,
-                    "storagePathPresent" to record.storagePath.isNotBlank(),
-                    "elapsedMs" to elapsedSince(startedAt),
-                ),
-            )
-            record
-        } catch (error: Throwable) {
-            PluginLogger.error(
-                "plugin.install.bundled.failure",
-                mapOf("assetRoot" to assetRoot, "elapsedMs" to elapsedSince(startedAt)),
-                error,
-            )
-            throw error
-        }
-    }
-
     private fun verifyLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
         val preview = previewPackageFromLayout(layout, source)
         require(preview.checksumVerified) { "插件摘要校验失败" }
@@ -167,11 +130,17 @@ class PluginInstaller(
             publisher = publisher,
             version = version,
             versionCode = versionCode,
+            apiVersion = apiVersion,
+            entry = entry,
             storagePath = storagePath,
             installedAt = OffsetDateTime.now().toString(),
             source = source,
-            declaredPermissions = declaredPermissions,
+            permissions = permissions,
             allowedHosts = allowedHosts,
+            webEngine = webEngine,
+            components = components,
+            compatibilityStatus = PluginCompatibilityStatus.Compatible,
+            compatibilityMessage = null,
             isBundled = bundled,
         )
     }

@@ -1,5 +1,7 @@
 package com.x500x.cursimple.core.plugin.web
 
+import com.x500x.cursimple.core.plugin.manifest.PluginPermission
+import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -10,7 +12,11 @@ data class WebSessionRequest(
     @SerialName("sessionId") val sessionId: String,
     @SerialName("title") val title: String,
     @SerialName("startUrl") val startUrl: String,
+    @SerialName("termId") val termId: String = "",
     @SerialName("allowedHosts") val allowedHosts: List<String>,
+    @SerialName("entryScript") val entryScript: String = "",
+    @SerialName("permissions") val permissions: List<PluginPermission> = emptyList(),
+    @SerialName("limits") val limits: PluginRuntimeLimits = PluginRuntimeLimits(),
     @SerialName("completionUrlContains") val completionUrlContains: String? = null,
     @SerialName("autoNavigateOnUrlContains") val autoNavigateOnUrlContains: String? = null,
     @SerialName("autoNavigateToUrl") val autoNavigateToUrl: String? = null,
@@ -61,5 +67,6 @@ data class WebSessionPacket(
     @SerialName("htmlDigest") val htmlDigest: String = "",
     @SerialName("capturedFields") val capturedFields: Map<String, String> = emptyMap(),
     @SerialName("capturedPackets") val capturedPackets: Map<String, WebCapturedPacket> = emptyMap(),
+    @SerialName("scheduleDraftJson") val scheduleDraftJson: String? = null,
     @SerialName("timestamp") val timestamp: String,
 )

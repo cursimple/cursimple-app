@@ -155,11 +155,31 @@ private fun List<InstalledPluginRecord>.toPluginJsonArray(enabledPluginIds: Set<
                     .put("publisher", plugin.publisher)
                     .put("version", plugin.version)
                     .put("versionCode", plugin.versionCode)
+                    .put("apiVersion", plugin.apiVersion)
+                    .put("entry", plugin.entry)
                     .put("source", plugin.source.name)
-                    .put("isBundled", plugin.isBundled)
                     .put("isEnabled", plugin.pluginId in enabledPluginIds)
-                    .put("declaredPermissions", plugin.declaredPermissions.map { it.name }.toJsonArray())
-                    .put("allowedHosts", plugin.allowedHosts.toJsonArray()),
+                    .put("compatibilityStatus", plugin.compatibilityStatus.name)
+                    .putNullable("compatibilityMessage", plugin.compatibilityMessage)
+                    .put("permissions", plugin.permissions.map { it.id }.toJsonArray())
+                    .put("allowedHosts", plugin.allowedHosts.toJsonArray())
+                    .put("webEngine", JSONObject()
+                        .put("preferred", plugin.webEngine.preferred)
+                        .put("allowChromium", plugin.webEngine.allowChromium)
+                        .putNullable("chromiumComponent", plugin.webEngine.chromiumComponent),
+                    )
+                    .put("components", JSONArray().also { components ->
+                        plugin.components.forEach { component ->
+                            components.put(
+                                JSONObject()
+                                    .put("id", component.id)
+                                    .put("type", component.type)
+                                    .put("required", component.required)
+                                    .putNullable("version", component.version)
+                                    .putNullable("abi", component.abi),
+                            )
+                        }
+                    }),
             )
         }
     }
