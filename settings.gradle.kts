@@ -19,7 +19,6 @@ rootProject.name = "CurSimple"
 include(
     ":app",
     ":core-kernel",
-    ":core-js",
     ":core-data",
     ":core-plugin",
     ":core-reminder",

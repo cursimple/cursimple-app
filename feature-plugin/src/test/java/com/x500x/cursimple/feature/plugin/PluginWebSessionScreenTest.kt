@@ -1,6 +1,7 @@
 package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.core.plugin.web.WebCapturedPacket
+import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.web.WebSessionCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
@@ -218,6 +219,55 @@ class PluginWebSessionScreenTest {
         assertEquals(setOf("login", "eams"), aggregate.capturedPackets.keys)
         assertEquals("ok", aggregate.cookies["JSESSIONID"])
         assertEquals("课表", aggregate.capturedFields["eams.title"])
+    }
+
+    @Test
+    fun `aggregate web session packet preserves schedule draft json`() {
+        val request = webRequest(
+            capturePackets = listOf(WebSessionCaptureSpec(id = "login")),
+        )
+        val latest = webPacket(
+            finalUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+        ).copy(scheduleDraftJson = """{"termId":"2026","courses":[]}""")
+        val login = webPacket(
+            finalUrl = "https://atrust.yangtzeu.edu.cn/portal",
+        ).toCapturedPacket("login")
+
+        val aggregate = aggregateWebSessionPacket(request, latest, mapOf("login" to login))
+
+        assertEquals("""{"termId":"2026","courses":[]}""", aggregate.scheduleDraftJson)
+    }
+
+    @Test
+    fun `plugin entry normalization accepts esm run export`() {
+        val normalized = normalizePluginEntryScriptForWebView(
+            "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }",
+        )
+
+        assertTrue(normalized.contains("async function run(ctx)"))
+        assertFalse(normalized.contains("export async function"))
+    }
+
+    @Test
+    fun `plugin runtime script includes gated context and schedule draft writer`() {
+        val request = webRequest().copy(
+            termId = "2026-spring",
+            entryScript = "export async function run(ctx) { ctx.schedule.addCourse({ title: 'A' }); return ctx.schedule.commit({ termId: ctx.term.id }); }",
+            permissions = listOf(
+                PluginPermission.WebReadDom,
+                PluginPermission.ScheduleWrite,
+            ),
+        )
+
+        val script = buildPluginRuntimeScript(
+            request = request,
+            currentUrl = "https://atrust.yangtzeu.edu.cn/portal",
+        )
+
+        assertTrue(script.contains("schedule.write"))
+        assertTrue(script.contains("__CURSIMPLE_SCHEDULE_DRAFT_JSON"))
+        assertTrue(script.contains("2026-spring"))
+        assertFalse(script.contains("android.webkit"))
     }
 
     private fun webRequest(
