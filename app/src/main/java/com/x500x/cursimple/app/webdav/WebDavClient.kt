@@ -1,12 +1,13 @@
 package com.x500x.cursimple.app.webdav
 
-import com.thegrizzlylabs.sardineandroid.DavResource
-import com.thegrizzlylabs.sardineandroid.impl.OkHttpSardine
-import com.thegrizzlylabs.sardineandroid.impl.SardineException
+import com.xayah.libsardine.DavResource
+import com.xayah.libsardine.impl.OkHttpSardine
+import com.xayah.libsardine.impl.SardineException
 import okhttp3.OkHttpClient
 import java.io.IOException
 import java.net.URI
 import java.time.Duration
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
@@ -26,18 +27,14 @@ class WebDavClient(
         require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
         return runWebDav {
             val dav = webDav(config)
-            val appDir = config.url.directoryUrl().resolveDirectory(APP_DIR)
-            val backupDir = appDir.resolveDirectory(BACKUP_DIR)
-            dav.createDirectoryIfMissing(appDir)
-            dav.createDirectoryIfMissing(backupDir)
-            backupDir
+            ensureBackupCollectionWith(dav, config)
         }
     }
 
     fun uploadBackup(config: WebDavConfig, name: String, bytes: ByteArray): WebDavBackupFile {
         return runWebDav {
             val dav = webDav(config)
-            val backupDir = ensureBackupCollection(config)
+            val backupDir = ensureBackupCollectionWith(dav, config)
             val target = backupDir.resolveFile(name)
             dav.put(target, bytes, BACKUP_MEDIA_TYPE)
             WebDavBackupFile(name = name, href = target, size = bytes.size.toLong(), lastModified = null)
@@ -47,7 +44,7 @@ class WebDavClient(
     fun listBackups(config: WebDavConfig): List<WebDavBackupFile> {
         return runWebDav {
             val dav = webDav(config)
-            val backupDir = ensureBackupCollection(config)
+            val backupDir = ensureBackupCollectionWith(dav, config)
             dav.list(backupDir, 1)
                 .asSequence()
                 .filterNot(DavResource::isDirectory)
@@ -74,11 +71,18 @@ class WebDavClient(
         }
     }
 
+    private fun ensureBackupCollectionWith(dav: OkHttpSardine, config: WebDavConfig): String {
+        require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
+        val appDir = config.url.directoryUrl().resolveDirectory(APP_DIR)
+        val backupDir = appDir.resolveDirectory(BACKUP_DIR)
+        dav.createDirectoryIfMissing(appDir)
+        dav.createDirectoryIfMissing(backupDir)
+        return backupDir
+    }
+
     private fun OkHttpSardine.createDirectoryIfMissing(url: String) {
         try {
-            if (!exists(url)) {
-                createDirectory(url)
-            }
+            createDirectory(url)
         } catch (error: SardineException) {
             if (error.statusCode != HTTP_METHOD_NOT_ALLOWED) throw error
         }
@@ -125,16 +129,16 @@ class WebDavClient(
     }
 
     private fun Date.formatWebDavDate(): String {
-        return DateTimeFormatter.RFC_1123_DATE_TIME.format(toInstant().atZone(java.time.ZoneOffset.UTC))
+        return DateTimeFormatter.RFC_1123_DATE_TIME.format(toInstant().atZone(ZoneOffset.UTC))
     }
 
     private fun IOException.toReadableException(): IOException {
         if (message?.startsWith("WebDAV 请求失败：") == true) return this
         if (this is SardineException) {
             val hint = when (statusCode) {
-                HTTP_BAD_REQUEST -> "请检查 WebDAV URL 是否为服务商提供的目录地址，并确保以 / 结尾"
-                HTTP_UNAUTHORIZED -> "请检查账号、密码或应用专用密码"
-                HTTP_FORBIDDEN -> "账号无权访问或写入该 WebDAV 目录，请换成可写目录"
+                HTTP_BAD_REQUEST -> "请检查 WebDAV URL 是否为服务商提供的目录地址，并确保以 / 结尾；坚果云通常是 https://dav.jianguoyun.com/dav/"
+                HTTP_UNAUTHORIZED -> "请检查账号、密码或应用专用密码；坚果云需要使用第三方应用管理里生成的应用密码"
+                HTTP_FORBIDDEN -> "账号无权访问或写入该 WebDAV 目录；若使用坚果云且账号密码正确，请检查可写目录、上传流量或账号状态"
                 HTTP_NOT_FOUND -> "WebDAV 目录不存在或 URL 写错"
                 else -> null
             }
