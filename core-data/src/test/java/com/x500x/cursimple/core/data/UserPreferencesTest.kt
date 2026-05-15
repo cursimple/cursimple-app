@@ -81,4 +81,17 @@ class UserPreferencesTest {
         assertEquals(DEFAULT_PLUGIN_MARKET_INDEX_URL, prefs.pluginMarketIndexUrl)
         assertEquals(DEFAULT_COMPONENT_MARKET_INDEX_URL, prefs.componentMarketIndexUrl)
     }
+
+    @Test
+    fun `data access integrations are disabled or empty by default`() {
+        val prefs = UserPreferences()
+
+        assertEquals(false, prefs.privateFilesProviderEnabled)
+        assertEquals(DEFAULT_WEBDAV_URL, prefs.webDavUrl)
+        assertEquals("", prefs.webDavUsername)
+        assertEquals("", prefs.webDavPassword)
+        assertEquals("", prefs.aiImportApiUrl)
+        assertEquals("", prefs.aiImportApiKey)
+        assertEquals("", prefs.aiImportModel)
+    }
 }
