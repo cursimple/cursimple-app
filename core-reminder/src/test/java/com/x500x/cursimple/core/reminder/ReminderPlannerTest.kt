@@ -116,6 +116,42 @@ class ReminderPlannerTest {
     }
 
     @Test
+    fun placeholderCourseReminderUsesCustomTimeBeforeMatchingSlotTime() {
+        val schedule = labelSchedule(
+            CourseItem(
+                id = "early-study",
+                title = "早自习",
+                weeks = listOf(1),
+                time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                reminderOnly = true,
+                slotLabelOverride = "早自习",
+                reminderStartTime = "07:00",
+                reminderEndTime = "07:40",
+            ),
+        )
+        val plans = planner.expandRule(
+            rule = labelRule(
+                conditions = listOf(ReminderLabelCondition("早自习", ReminderLabelPresence.Exists)),
+                actions = listOf(ReminderLabelAction("早自习", ReminderLabelActionType.Remind)),
+            ).copy(advanceMinutes = 20),
+            schedule = schedule,
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(listOf("early-study"), plans.map { it.courseId })
+        assertEquals(true, plans.single().title.contains("07:00"))
+        assertEquals(true, plans.single().message.contains("07:00-07:40"))
+        assertEquals(
+            java.time.LocalDateTime.of(2026, 2, 23, 6, 40)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toInstant()
+                .toEpochMilli(),
+            plans.single().triggerAtMillis,
+        )
+    }
+
+    @Test
     fun duplicateLabelRemindersAreDeduplicated() {
         val plans = planner.expandRules(
             rules = listOf(

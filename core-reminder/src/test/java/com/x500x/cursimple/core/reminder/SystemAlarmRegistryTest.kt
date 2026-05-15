@@ -268,6 +268,55 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
+    fun `edited app alarm settings can move trigger time`() = runBlocking {
+        val oldTrigger = futureMillis()
+        val newTrigger = oldTrigger + 30 * 60 * 1000
+        val initialRecord = sampleRecord(triggerAtMillis = oldTrigger).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1001,
+            ringtoneUriOverride = "content://alarm/old",
+            alertModeOverride = AlarmAlertMode.RingAndVibrate,
+            ringDurationSeconds = 120,
+            repeatIntervalSeconds = 300,
+            repeatCount = 5,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(initialRecord)
+        }
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDispatcher = dispatcher,
+            appDismisser = dismisser,
+        )
+
+        val result = coordinator.updateAppAlarmSettings(
+            alarmKey = initialRecord.alarmKey,
+            settings = EditableAppAlarmSettings(
+                triggerAtMillis = newTrigger,
+                ringtoneUriOverride = "content://alarm/new",
+                alertModeOverride = AlarmAlertMode.RingOnly,
+                ringDurationSeconds = 60,
+                repeatIntervalSeconds = 180,
+                repeatCount = 2,
+            ),
+        )
+
+        val updated = repository.records.value.single()
+        assertEquals(true, result.succeeded)
+        assertEquals(1, dismisser.dismissCount)
+        assertEquals(newTrigger, dispatcher.lastPlan?.triggerAtMillis)
+        assertEquals(newTrigger, updated.triggerAtMillis)
+        assertEquals(newTrigger.toString(), updated.alarmKey.split("|")[1])
+        assertEquals("content://alarm/new", updated.ringtoneUriOverride)
+    }
+
+    @Test
     fun `app managed sync migrates legacy broadcast operation before recreating alarm`() = runBlocking {
         val repository = FakeReminderRepository(
             rules = listOf(sampleRule()),
