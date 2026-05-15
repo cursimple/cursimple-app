@@ -22,6 +22,8 @@ const val DEFAULT_PLUGIN_MARKET_INDEX_URL =
 const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
     "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
 
+const val DEFAULT_WEBDAV_URL = "https://dav.jianguoyun.com/dav/"
+
 data class ScheduleTextStylePreferences(
     val courseTextSizeSp: Int = DEFAULT_COURSE_TEXT_SIZE_SP,
     val courseTextColorArgb: Long = DEFAULT_TEXT_COLOR_ARGB,
@@ -135,6 +137,13 @@ data class UserPreferences(
     val ignoredUpdateVersionCode: Int? = null,
     val pluginMarketIndexUrl: String = DEFAULT_PLUGIN_MARKET_INDEX_URL,
     val componentMarketIndexUrl: String = DEFAULT_COMPONENT_MARKET_INDEX_URL,
+    val privateFilesProviderEnabled: Boolean = false,
+    val webDavUrl: String = DEFAULT_WEBDAV_URL,
+    val webDavUsername: String = "",
+    val webDavPassword: String = "",
+    val aiImportApiUrl: String = "",
+    val aiImportApiKey: String = "",
+    val aiImportModel: String = "",
     /** True once the persisted prefs have been read at least once. False = still loading. */
     val loaded: Boolean = false,
 )
@@ -193,6 +202,9 @@ interface UserPreferencesRepository {
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
     suspend fun setPluginMarketIndexUrl(url: String)
     suspend fun setComponentMarketIndexUrl(url: String)
+    suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)
+    suspend fun setWebDavSettings(url: String, username: String, password: String)
+    suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String)
     suspend fun resetScheduleAppearanceAndDisplay()
     suspend fun resetAllSettings()
 }

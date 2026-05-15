@@ -250,6 +250,18 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setComponentMarketIndexUrl(url) }
     }
 
+    fun setPrivateFilesProviderEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setPrivateFilesProviderEnabled(enabled) }
+    }
+
+    fun setWebDavSettings(url: String, username: String, password: String) {
+        viewModelScope.launch { repository.setWebDavSettings(url, username, password) }
+    }
+
+    fun setAiImportSettings(apiUrl: String, apiKey: String, model: String) {
+        viewModelScope.launch { repository.setAiImportSettings(apiUrl, apiKey, model) }
+    }
+
     fun resetScheduleAppearanceAndDisplay() {
         viewModelScope.launch { repository.resetScheduleAppearanceAndDisplay() }
     }

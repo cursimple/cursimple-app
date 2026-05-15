@@ -82,6 +82,15 @@ class DataStoreUserPreferencesRepository(
             componentMarketIndexUrl = prefs[KEY_COMPONENT_MARKET_INDEX_URL]
                 ?.takeIf(String::isNotBlank)
                 ?: DEFAULT_COMPONENT_MARKET_INDEX_URL,
+            privateFilesProviderEnabled = prefs[KEY_PRIVATE_FILES_PROVIDER_ENABLED] ?: false,
+            webDavUrl = prefs[KEY_WEBDAV_URL]
+                ?.takeIf(String::isNotBlank)
+                ?: DEFAULT_WEBDAV_URL,
+            webDavUsername = prefs[KEY_WEBDAV_USERNAME].orEmpty(),
+            webDavPassword = prefs[KEY_WEBDAV_PASSWORD].orEmpty(),
+            aiImportApiUrl = prefs[KEY_AI_IMPORT_API_URL].orEmpty(),
+            aiImportApiKey = prefs[KEY_AI_IMPORT_API_KEY].orEmpty(),
+            aiImportModel = prefs[KEY_AI_IMPORT_MODEL].orEmpty(),
             loaded = true,
         )
     }
@@ -365,6 +374,42 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_COMPONENT_MARKET_INDEX_URL] = url.trim() }
     }
 
+    override suspend fun setPrivateFilesProviderEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_PRIVATE_FILES_PROVIDER_ENABLED] = enabled }
+    }
+
+    override suspend fun setWebDavSettings(url: String, username: String, password: String) {
+        store.edit { prefs ->
+            val normalizedUrl = url.trim().ifBlank { DEFAULT_WEBDAV_URL }
+            prefs[KEY_WEBDAV_URL] = normalizedUrl
+            prefs[KEY_WEBDAV_USERNAME] = username.trim()
+            prefs[KEY_WEBDAV_PASSWORD] = password
+        }
+    }
+
+    override suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String) {
+        store.edit { prefs ->
+            val normalizedApiUrl = apiUrl.trim()
+            if (normalizedApiUrl.isBlank()) {
+                prefs.remove(KEY_AI_IMPORT_API_URL)
+            } else {
+                prefs[KEY_AI_IMPORT_API_URL] = normalizedApiUrl
+            }
+            val normalizedApiKey = apiKey.trim()
+            if (normalizedApiKey.isBlank()) {
+                prefs.remove(KEY_AI_IMPORT_API_KEY)
+            } else {
+                prefs[KEY_AI_IMPORT_API_KEY] = normalizedApiKey
+            }
+            val normalizedModel = model.trim()
+            if (normalizedModel.isBlank()) {
+                prefs.remove(KEY_AI_IMPORT_MODEL)
+            } else {
+                prefs[KEY_AI_IMPORT_MODEL] = normalizedModel
+            }
+        }
+    }
+
     override suspend fun resetScheduleAppearanceAndDisplay() {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -396,6 +441,13 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
             prefs.remove(KEY_PLUGIN_MARKET_INDEX_URL)
             prefs.remove(KEY_COMPONENT_MARKET_INDEX_URL)
+            prefs.remove(KEY_PRIVATE_FILES_PROVIDER_ENABLED)
+            prefs.remove(KEY_WEBDAV_URL)
+            prefs.remove(KEY_WEBDAV_USERNAME)
+            prefs.remove(KEY_WEBDAV_PASSWORD)
+            prefs.remove(KEY_AI_IMPORT_API_URL)
+            prefs.remove(KEY_AI_IMPORT_API_KEY)
+            prefs.remove(KEY_AI_IMPORT_MODEL)
             prefs.removeScheduleAppearanceAndDisplay()
         }
         releasePersistedReadPermission(previousImageUri)
@@ -625,6 +677,13 @@ class DataStoreUserPreferencesRepository(
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
         val KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
         val KEY_COMPONENT_MARKET_INDEX_URL = stringPreferencesKey("component_market_index_url")
+        val KEY_PRIVATE_FILES_PROVIDER_ENABLED = booleanPreferencesKey("private_files_provider_enabled")
+        val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
+        val KEY_WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
+        val KEY_WEBDAV_PASSWORD = stringPreferencesKey("webdav_password")
+        val KEY_AI_IMPORT_API_URL = stringPreferencesKey("ai_import_api_url")
+        val KEY_AI_IMPORT_API_KEY = stringPreferencesKey("ai_import_api_key")
+        val KEY_AI_IMPORT_MODEL = stringPreferencesKey("ai_import_model")
 
         const val DEFAULT_RING_DURATION_SECONDS = DEFAULT_APP_ALARM_RING_DURATION_SECONDS
         const val DEFAULT_REPEAT_INTERVAL_SECONDS = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
