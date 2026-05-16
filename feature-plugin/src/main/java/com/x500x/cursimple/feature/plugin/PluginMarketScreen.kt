@@ -830,7 +830,7 @@ private fun InstallPreviewDialog(
     onConfirm: () -> Unit,
 ) {
     val manifest = preview.manifest
-    val canInstall = preview.checksumVerified && preview.signatureVerified
+    val canInstall = preview.checksumVerified && (!preview.signatureRequired || preview.signatureVerified)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("安装插件") },
@@ -850,14 +850,25 @@ private fun InstallPreviewDialog(
                 DetailRow("API", manifest.apiVersion.toString())
                 DetailRow("入口", manifest.entry)
                 DetailRow("摘要", if (preview.checksumVerified) "通过" else "未通过")
-                DetailRow("签名", if (preview.signatureVerified) "通过" else "未通过")
+                DetailRow(
+                    "签名",
+                    when {
+                        !preview.signatureRequired -> "本地导入不校验"
+                        preview.signatureVerified -> "通过"
+                        else -> "未通过"
+                    },
+                )
                 DetailRow(
                     "权限",
                     manifest.permissions.joinToString { it.id }.ifBlank { "无" },
                 )
                 if (!canInstall) {
                     Text(
-                        text = "摘要或签名未通过，不能安装。",
+                        text = if (preview.signatureRequired) {
+                            "摘要或签名未通过，不能安装。"
+                        } else {
+                            "摘要未通过，不能安装。"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
