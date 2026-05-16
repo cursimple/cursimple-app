@@ -1,3 +1,15 @@
+const ATRUST_ENTRY_URL = "https://atrust.yangtzeu.edu.cn:4443/";
+const COURSE_HOME_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action";
+const COURSE_DETAIL_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action?sf_request_type=ajax";
+
+const AJAX_HEADERS = {
+  "X-Requested-With": "XMLHttpRequest",
+  "Accept-Language": "zh-CN,zh;q=0.9",
+};
+
+const DETAIL_RETRY_LIMIT = 3;
+const DETAIL_RETRY_DELAY_MS = 400;
+
 const eamsSlotNodeByLabel = {
   "第一节": 1,
   "第二节": 2,
@@ -20,8 +32,127 @@ const defaultSlotNodeByIndex = {
   7: 6,
 };
 
-function extractMeta(input) {
-  const html = input.context?.courseHome || input.html || "";
+export async function run(ctx) {
+  assertRuntime(ctx);
+
+  await ctx.web.open(ATRUST_ENTRY_URL);
+  await ctx.web.open(COURSE_HOME_URL);
+
+  const courseHomeHtml = await requestCourseHome(ctx);
+  const courseMeta = extractMeta(courseHomeHtml);
+  const detailHtmlParts = [];
+
+  for (let week = 1; week <= courseMeta.maxWeek; week += 1) {
+    detailHtmlParts.push(await requestCourseDetail(ctx, courseMeta, week));
+  }
+
+  const schedule = buildSchedule({
+    meta: courseMeta,
+    detailHtml: detailHtmlParts.join("\n"),
+    termId: courseMeta.semesterId,
+    updatedAt: new Date().toISOString(),
+  });
+
+  for (const dailySchedule of schedule.dailySchedules) {
+    for (const course of dailySchedule.courses) {
+      ctx.schedule.addCourse(toScheduleDraftCourse(course));
+    }
+  }
+
+  return ctx.schedule.commit({ termId: schedule.termId });
+}
+
+function assertRuntime(ctx) {
+  requireFunction(ctx?.web?.open, "ctx.web.open");
+  requireFunction(ctx?.schedule?.addCourse, "ctx.schedule.addCourse");
+  requireFunction(ctx?.schedule?.commit, "ctx.schedule.commit");
+}
+
+function requireFunction(value, name) {
+  if (typeof value !== "function") {
+    throw new Error(`插件运行时缺少必要能力: ${name}`);
+  }
+}
+
+async function requestCourseHome(ctx) {
+  return requestTextInPage(ctx, {
+    url: `${COURSE_HOME_URL}?_=${Date.now()}&sf_request_type=ajax`,
+    method: "GET",
+    headers: {
+      ...AJAX_HEADERS,
+      Referer: COURSE_HOME_URL,
+    },
+  });
+}
+
+async function requestCourseDetail(ctx, meta, week) {
+  const body = new URLSearchParams({
+    ignoreHead: "1",
+    "setting.kind": "std",
+    startWeek: String(week),
+    "project.id": String(meta.projectId),
+    "semester.id": String(meta.semesterId),
+    ids: String(meta.ids),
+  }).toString();
+
+  for (let attempt = 1; attempt <= DETAIL_RETRY_LIMIT; attempt += 1) {
+    const html = await requestTextInPage(ctx, {
+      url: COURSE_DETAIL_URL,
+      method: "POST",
+      headers: {
+        ...AJAX_HEADERS,
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        Origin: "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+        Referer: COURSE_DETAIL_URL,
+      },
+      body,
+    });
+
+    if (!html.includes("请不要过快点击") || attempt === DETAIL_RETRY_LIMIT) {
+      return html;
+    }
+
+    await delay(DETAIL_RETRY_DELAY_MS);
+  }
+
+  throw new Error(`第 ${week} 周课表请求未返回有效内容`);
+}
+
+async function requestTextInPage(ctx, request) {
+  const response = await fetch(request.url, {
+    method: request.method,
+    credentials: "include",
+    headers: request.headers,
+    body: request.body || undefined,
+  });
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`EAMS request failed: ${response.status} ${responseText.slice(0, 120)}`);
+  }
+
+  if (typeof responseText !== "string" || responseText.trim().length === 0) {
+    throw new Error("EAMS 页面请求返回了空内容");
+  }
+
+  return responseText;
+}
+
+function toScheduleDraftCourse(course) {
+  return {
+    id: course.id,
+    title: course.title,
+    teacher: course.teacher,
+    location: course.location,
+    weeks: course.weeks,
+    dayOfWeek: course.time.dayOfWeek,
+    startNode: course.time.startNode,
+    endNode: course.time.endNode,
+    category: course.category,
+  };
+}
+
+function extractMeta(html) {
   const weekValues = [];
   for (const match of html.matchAll(/<option value="(\d+)">第\d+周<\/option>/g)) {
     weekValues.push(Number(match[1]));
@@ -39,8 +170,8 @@ function extractMeta(input) {
 }
 
 function buildSchedule(input) {
-  const meta = input.context?.courseMeta || input.meta;
-  const detailHtml = input.context?.courseDetail || input.detailHtml || "";
+  const meta = input.meta;
+  const detailHtml = input.detailHtml || "";
   if (!meta) {
     throw new Error("未找到 EAMS 元数据");
   }
@@ -55,7 +186,7 @@ function buildSchedule(input) {
   }
   return {
     termId: input.termId || meta.semesterId,
-    updatedAt: input.updatedAt || input.nowIso,
+    updatedAt: input.updatedAt,
     dailySchedules: Object.keys(grouped)
       .map(Number)
       .sort((a, b) => a - b)
@@ -233,4 +364,10 @@ function firstGroup(value, regex, message) {
 function firstGroupOrNull(value, regex) {
   const match = regex.exec(value);
   return match ? match[1] : null;
+}
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
