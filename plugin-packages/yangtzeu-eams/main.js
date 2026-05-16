@@ -3,6 +3,8 @@ const COURSE_HOME_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/e
 const COURSE_DETAIL_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action?sf_request_type=ajax";
 const COURSE_HOST = "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn";
 const COURSE_HOME_PATH = "/eams/courseTableForStd.action";
+const COURSE_HOME_CAPTURE_ID = "course-home-html";
+const COURSE_DETAIL_CAPTURE_ID = "course-detail-html";
 const WEBVIEW_USER_AGENT = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36";
 
 const AJAX_HEADERS = {
@@ -56,12 +58,21 @@ export async function run(ctx) {
     };
   }
 
-  const courseHomeHtml = await requestCourseHome(ctx);
+  const courseHome = await readCourseHome(ctx);
+  if (courseHome.status !== "ready") {
+    return handlePendingWebResponse(ctx, courseHome, currentUrl);
+  }
+
+  const courseHomeHtml = courseHome.html;
   const courseMeta = extractMeta(courseHomeHtml);
-  const detailHtmlParts = [];
+  const detailHtmlParts = await readCapturedCourseDetailHtml(ctx);
 
   for (let week = 1; week <= courseMeta.maxWeek; week += 1) {
-    detailHtmlParts.push(await requestCourseDetail(ctx, courseMeta, week));
+    const detail = await requestCourseDetail(ctx, courseMeta, week);
+    if (detail.status !== "ready") {
+      return handlePendingWebResponse(ctx, detail, currentUrl);
+    }
+    detailHtmlParts.push(detail.html);
   }
 
   const schedule = buildSchedule({
@@ -126,6 +137,13 @@ function isAuthenticationPage(value) {
   return false;
 }
 
+function isAtrustVerifyPage(value) {
+  const url = parseUrl(value);
+  return !!url &&
+    url.hostname.toLowerCase() === "atrust.yangtzeu.edu.cn" &&
+    url.pathname.toLowerCase().startsWith("/controller/v1/public/verify");
+}
+
 function isCourseHomePage(value) {
   const url = parseUrl(value);
   return !!url &&
@@ -148,8 +166,13 @@ function parseUrl(value) {
   }
 }
 
-async function requestCourseHome(ctx) {
-  return requestTextInPage(ctx, {
+async function readCourseHome(ctx) {
+  const captured = await readCapturedCourseHome(ctx);
+  if (captured) {
+    return captured;
+  }
+
+  const html = await requestTextInPage(ctx, {
     url: `${COURSE_HOME_URL}?_=${Date.now()}&sf_request_type=ajax`,
     method: "GET",
     headers: {
@@ -157,6 +180,7 @@ async function requestCourseHome(ctx) {
       Referer: COURSE_HOME_URL,
     },
   });
+  return classifyCourseHomeResponse(html, "fetch");
 }
 
 async function requestCourseDetail(ctx, meta, week) {
@@ -181,9 +205,10 @@ async function requestCourseDetail(ctx, meta, week) {
       },
       body,
     });
+    const detail = classifyCourseDetailResponse(html, `fetch-week-${week}`, week);
 
-    if (!html.includes("请不要过快点击") || attempt === DETAIL_RETRY_LIMIT) {
-      return html;
+    if (detail.status !== "waiting-rate-limit" || attempt === DETAIL_RETRY_LIMIT) {
+      return detail;
     }
 
     await delay(DETAIL_RETRY_DELAY_MS);
@@ -202,6 +227,9 @@ async function requestTextInPage(ctx, request) {
 
   const responseText = await response.text();
   if (!response.ok) {
+    if (isWebSessionTransitionHtml(responseText)) {
+      return responseText;
+    }
     throw new Error(`EAMS request failed: ${response.status} ${responseText.slice(0, 120)}`);
   }
 
@@ -210,6 +238,206 @@ async function requestTextInPage(ctx, request) {
   }
 
   return responseText;
+}
+
+async function readCapturedCourseHome(ctx) {
+  const responseTexts = await readCapturedResponseTexts(ctx, COURSE_HOME_CAPTURE_ID);
+  for (let index = responseTexts.length - 1; index >= 0; index -= 1) {
+    const classified = classifyCourseHomeResponse(responseTexts[index], "packet");
+    if (classified.status === "ready") {
+      return classified;
+    }
+  }
+  return null;
+}
+
+async function readCapturedCourseDetailHtml(ctx) {
+  const responseTexts = await readCapturedResponseTexts(ctx, COURSE_DETAIL_CAPTURE_ID);
+  const readyHtml = [];
+  const seen = new Set();
+  for (const text of responseTexts) {
+    const classified = classifyCourseDetailResponse(text, "packet", null);
+    if (classified.status !== "ready" || seen.has(classified.html)) {
+      continue;
+    }
+    seen.add(classified.html);
+    readyHtml.push(classified.html);
+  }
+  return readyHtml;
+}
+
+async function readCapturedResponseTexts(ctx, captureId) {
+  const web = ctx?.web;
+  const packets = [];
+  if (typeof web?.packets === "function") {
+    const value = await web.packets(captureId);
+    if (Array.isArray(value)) {
+      packets.push(...value);
+    }
+  }
+  if (typeof web?.packet === "function") {
+    const value = await web.packet(captureId);
+    if (value) {
+      packets.push(value);
+    }
+  }
+  return packets
+    .map(packetResponseBody)
+    .filter((value) => typeof value === "string" && value.trim().length > 0);
+}
+
+function packetResponseBody(packet) {
+  if (!packet || typeof packet !== "object") {
+    return "";
+  }
+  const candidates = [
+    packet.responseBody,
+    packet.responseText,
+    packet.body,
+    packet.text,
+    packet.response?.body,
+    packet.response?.bodyText,
+    packet.response?.text,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") {
+      return candidate;
+    }
+  }
+  return "";
+}
+
+function classifyCourseHomeResponse(html, source) {
+  return classifyWebResponse(html, source, (value) => {
+    if (hasCourseHomeMeta(value)) {
+      return {
+        status: "ready",
+        source,
+        html: value,
+      };
+    }
+    return {
+      status: "waiting-course-home-data",
+      source,
+      reason: "课程首页尚未返回 EAMS 课表元数据",
+    };
+  });
+}
+
+function classifyCourseDetailResponse(html, source, week) {
+  return classifyWebResponse(html, source, (value) => {
+    if (value.includes("请不要过快点击")) {
+      return {
+        status: "waiting-rate-limit",
+        source,
+        week,
+        retryAfterMs: DETAIL_RETRY_DELAY_MS,
+      };
+    }
+    if (!looksLikeCourseDetailHtml(value)) {
+      return {
+        status: "waiting-course-detail-data",
+        source,
+        week,
+        reason: "课程详情接口尚未返回 EAMS 课表数据",
+      };
+    }
+    return {
+      status: "ready",
+      source,
+      week,
+      html: value,
+    };
+  });
+}
+
+function classifyWebResponse(html, source, readyClassifier) {
+  const value = typeof html === "string" ? html.trim() : "";
+  if (value.length === 0) {
+    return {
+      status: "empty",
+      source,
+      reason: "响应内容为空",
+    };
+  }
+
+  const atrustVerifyUrl = extractAtrustVerifyUrl(value);
+  if (atrustVerifyUrl) {
+    return {
+      status: "navigating-atrust-verification",
+      source,
+      to: atrustVerifyUrl,
+    };
+  }
+
+  if (looksLikeAuthenticationHtml(value)) {
+    return {
+      status: "waiting-authentication",
+      source,
+      reason: "当前响应仍是统一认证页面",
+    };
+  }
+
+  return readyClassifier(value);
+}
+
+function handlePendingWebResponse(ctx, state, currentUrl) {
+  if (state.status === "navigating-atrust-verification" && state.to && typeof ctx?.web?.open === "function") {
+    ctx.web.open(state.to);
+  }
+  return {
+    status: state.status,
+    source: state.source,
+    url: currentUrl,
+    to: state.to,
+    week: state.week,
+    retryAfterMs: state.retryAfterMs,
+    reason: state.reason,
+  };
+}
+
+function isWebSessionTransitionHtml(html) {
+  return !!extractAtrustVerifyUrl(html) || looksLikeAuthenticationHtml(html);
+}
+
+function extractAtrustVerifyUrl(html) {
+  const raw = firstGroupOrNull(html, /locationUrl\s*=\s*["']([^"']+)["']/);
+  if (!raw) {
+    return null;
+  }
+  const url = parseUrl(decodeJsString(raw));
+  if (!url) {
+    return null;
+  }
+  if (url.hostname.toLowerCase() !== "atrust.yangtzeu.edu.cn") {
+    return null;
+  }
+  if (!url.pathname.toLowerCase().startsWith("/controller/v1/public/verify")) {
+    return null;
+  }
+  return url.href;
+}
+
+function looksLikeAuthenticationHtml(html) {
+  const lower = html.toLowerCase();
+  return lower.includes("authserver.yangtzeu.edu.cn") ||
+    lower.includes("cas.yangtzeu.edu.cn") ||
+    lower.includes("/passport/") ||
+    html.includes("统一身份认证") ||
+    html.includes("用户登录") ||
+    html.includes("扫码登录");
+}
+
+function hasCourseHomeMeta(html) {
+  return /semesterCalendar\(\{/.test(html) &&
+    /bg\.form\.addInput\(form,"ids","[^"]+"\)/.test(html) &&
+    /<option value="\d+">第\d+周<\/option>/.test(html);
+}
+
+function looksLikeCourseDetailHtml(html) {
+  return /var unitCount = \d+;/.test(html) ||
+    /activity = new TaskActivity\(/.test(html) ||
+    /table\d+\.activities\[index]/.test(html);
 }
 
 function toScheduleDraftCourse(course) {

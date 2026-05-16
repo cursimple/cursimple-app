@@ -2,16 +2,48 @@
   "id": "yangtzeu-eams-js-v1",
   "name": "长江大学教务插件 JS v1",
   "publisher": "Class Schedule Viewer",
-  "version": "1.0.1",
-  "versionCode": 1001,
+  "version": "1.0.5",
+  "versionCode": 1005,
   "apiVersion": 2,
   "entry": "main.js",
   "startUrl": "https://atrust.yangtzeu.edu.cn:4443/",
   "description": "通过 ATrust + EAMS 页面会话抓取长江大学课表，并在 WebView 插件运行时生成课程草稿。",
   "permissions": [
     "web.navigate",
+    "web.capture_packet",
     "network.fetch",
     "schedule.write"
+  ],
+  "webSession": {
+    "completionStableDelayMs": 1800,
+    "autoCompleteOnScheduleDraft": true
+  },
+  "networkCaptures": [
+    {
+      "id": "course-home-html",
+      "required": false,
+      "method": "GET",
+      "urlHost": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+      "urlPathContains": "/eams/courseTableForStd.action",
+      "responseHeaders": ["content-type"],
+      "captureResponseBody": true,
+      "responseBodyMimeTypes": ["text/html"],
+      "maxBodyBytes": 262144,
+      "maxPackets": 8
+    },
+    {
+      "id": "course-detail-html",
+      "required": false,
+      "method": "POST",
+      "urlHost": "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+      "urlPathContains": "/eams/courseTableForStd!courseTable.action",
+      "requestHeaders": ["content-type", "x-requested-with"],
+      "responseHeaders": ["content-type"],
+      "captureResponseBody": true,
+      "responseBodyMimeTypes": ["text/html"],
+      "maxBodyBytes": 1048576,
+      "maxPackets": 64
+    }
   ],
   "allowedHosts": [
     "cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn",
