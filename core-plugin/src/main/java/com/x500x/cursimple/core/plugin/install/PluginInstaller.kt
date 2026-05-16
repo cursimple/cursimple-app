@@ -28,11 +28,12 @@ class PluginInstaller(
             val layout = packageReader.read(bytes)
             val manifest = layout.decodeManifest(json)
             val checksums = layout.decodeChecksums(json)
-            val signatureInfo = layout.decodeSignatureInfo(json)
+            val signatureRequired = source.requiresSignatureVerification()
             val preview = PluginInstallPreview(
                 manifest = manifest,
                 checksumVerified = checksumVerifier.verify(layout, checksums),
-                signatureVerified = signatureVerifier.verify(layout, signatureInfo),
+                signatureVerified = if (signatureRequired) verifySignature(layout) else false,
+                signatureRequired = signatureRequired,
                 source = source,
             )
             PluginLogger.info(
@@ -103,20 +104,31 @@ class PluginInstaller(
     private fun verifyLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
         val preview = previewPackageFromLayout(layout, source)
         require(preview.checksumVerified) { "插件摘要校验失败" }
-        require(preview.signatureVerified) { "插件签名校验失败" }
+        if (preview.signatureRequired) {
+            require(preview.signatureVerified) { "插件签名校验失败" }
+        }
         return preview
     }
 
     private fun previewPackageFromLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
         val manifest = layout.decodeManifest(json)
         val checksums = layout.decodeChecksums(json)
-        val signatureInfo = layout.decodeSignatureInfo(json)
+        val signatureRequired = source.requiresSignatureVerification()
         return PluginInstallPreview(
             manifest = manifest,
             checksumVerified = checksumVerifier.verify(layout, checksums),
-            signatureVerified = signatureVerifier.verify(layout, signatureInfo),
+            signatureVerified = if (signatureRequired) verifySignature(layout) else false,
+            signatureRequired = signatureRequired,
             source = source,
         )
+    }
+
+    private fun verifySignature(layout: PluginPackageLayout): Boolean {
+        return signatureVerifier.verify(layout, layout.decodeSignatureInfo(json))
+    }
+
+    private fun PluginInstallSource.requiresSignatureVerification(): Boolean {
+        return this != PluginInstallSource.Local
     }
 
     private fun PluginManifest.toInstalledRecord(
