@@ -22,6 +22,8 @@ data class WebSessionRequest(
     @SerialName("autoNavigateOnUrlContains") val autoNavigateOnUrlContains: String? = null,
     @SerialName("autoNavigateToUrl") val autoNavigateToUrl: String? = null,
     @SerialName("userAgent") val userAgent: String? = null,
+    @SerialName("completionStableDelayMs") val completionStableDelayMs: Long = 1_200,
+    @SerialName("autoCompleteOnScheduleDraft") val autoCompleteOnScheduleDraft: Boolean = true,
     @SerialName("captureSelectors") val captureSelectors: List<String> = emptyList(),
     @SerialName("capturePackets") val capturePackets: List<WebSessionCaptureSpec> = emptyList(),
     @SerialName("networkCaptures") val networkCaptures: List<PluginNetworkCaptureSpec> = emptyList(),
