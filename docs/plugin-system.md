@@ -27,7 +27,7 @@ models/
   "versionCode": 1,
   "apiVersion": 2,
   "entry": "main.js",
-  "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+  "startUrl": "https://jw.school.edu.cn/",
   "permissions": [
     "web.navigate",
     "web.read_dom",
@@ -62,7 +62,7 @@ models/
 
 安装器会拒绝绝对路径、`..` 路径穿越、Windows 盘符路径、重复规范化路径、缺失 `manifest.json`、缺失入口文件、文件数过多或解压体积过大的包。
 
-`userAgent` 为空或缺失时使用 WebView 默认 UA；插件显式声明后，宿主会在创建 WebView 会话时设置 `settings.userAgentString`，页面导航和页面内请求共享同一个 UA。
+`startUrl` 可声明带路径或端口的 WebView 起始地址；未声明时宿主才会使用第一个 `allowedHosts` 拼出默认 `https://host`。`userAgent` 仍保留兼容，但推荐插件在 JS 中调用 `await ctx.web.setUserAgent(ua)`，让入口脚本按学校站点状态自行决定 UA；设置成功后，同一 WebView 后续导航和页面内请求共享该 UA。
 
 ## 权限
 

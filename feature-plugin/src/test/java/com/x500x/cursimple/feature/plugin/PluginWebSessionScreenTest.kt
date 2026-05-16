@@ -338,6 +338,28 @@ class PluginWebSessionScreenTest {
         assertTrue(script.contains("""{\"ok\":true}""") || script.contains("""{"ok":true}"""))
     }
 
+    @Test
+    fun `plugin runtime exposes user agent setter through web api`() {
+        val request = webRequest().copy(
+            entryScript = "export async function run(ctx) { ctx.web.setUserAgent('Custom UA'); }",
+        )
+
+        val script = buildPluginRuntimeScript(
+            request = request,
+            currentUrl = "https://atrust.yangtzeu.edu.cn/portal",
+        )
+
+        assertTrue(script.contains("setUserAgent(userAgent)"))
+        assertTrue(script.contains("CurSimplePluginBridge"))
+    }
+
+    @Test
+    fun `plugin user agent normalization rejects invalid values`() {
+        assertEquals("Mozilla Test", normalizePluginUserAgent(" Mozilla\r\nTest "))
+        assertEquals(null, normalizePluginUserAgent(""))
+        assertEquals(null, normalizePluginUserAgent("x".repeat(513)))
+    }
+
     private fun webRequest(
         capturePackets: List<WebSessionCaptureSpec> = emptyList(),
         autoNavigateOnUrlContains: String? = null,

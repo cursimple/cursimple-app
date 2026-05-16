@@ -428,45 +428,11 @@ class PluginManager(
     }
 
     private fun resolveStartUrl(request: PluginSyncInput, manifest: PluginManifest): String {
-        val explicitUrl = request.baseUrl.trim()
-        if (explicitUrl.isNotBlank()) {
-            val uri = parseHttpUri(explicitUrl)
-            val host = uri.host?.lowercase().orEmpty()
-            require(host.isNotBlank()) { "插件起始地址缺少域名" }
-            require(isAllowedHost(host, manifest.allowedHosts)) { "插件起始地址不在 allowedHosts 中: $host" }
-            return uri.toString()
-        }
-
-        val firstHost = manifest.allowedHosts.firstOrNull { it.isNotBlank() }
-            ?: throw IllegalArgumentException("插件缺少可打开的起始地址")
-        val normalizedHost = normalizeAllowedHost(firstHost)
-        return "https://$normalizedHost"
-    }
-
-    private fun parseHttpUri(value: String): URI {
-        val uri = runCatching { URI(value) }
-            .getOrElse { throw IllegalArgumentException("插件起始地址无效: $value") }
-        require(uri.scheme == "http" || uri.scheme == "https") { "插件起始地址必须使用 http 或 https" }
-        return uri
-    }
-
-    private fun isAllowedHost(host: String, allowedHosts: List<String>): Boolean {
-        return allowedHosts.any { allowed ->
-            val normalized = normalizeAllowedHost(allowed)
-            host == normalized || host.endsWith(".$normalized")
-        }
-    }
-
-    private fun normalizeAllowedHost(rawHost: String): String {
-        val host = rawHost.trim().lowercase()
-        require(host.isNotBlank()) { "插件 allowedHosts 包含空域名" }
-        require(!host.contains("://")) { "插件 allowedHosts 只能声明域名: $rawHost" }
-        require(!host.contains('/')) { "插件 allowedHosts 只能声明域名: $rawHost" }
-        val uri = runCatching { URI("https://$host") }
-            .getOrElse { throw IllegalArgumentException("插件 allowedHosts 域名无效: $rawHost") }
-        val normalized = uri.host?.lowercase().orEmpty()
-        require(normalized.isNotBlank()) { "插件 allowedHosts 域名无效: $rawHost" }
-        return normalized
+        return resolveWebSessionStartUrl(
+            requestBaseUrl = request.baseUrl,
+            manifestStartUrl = manifest.startUrl,
+            allowedHosts = manifest.allowedHosts,
+        )
     }
 
     private suspend fun requirePlugin(pluginId: String): InstalledPluginRecord {
@@ -583,4 +549,59 @@ internal fun buildWebSessionRequest(
         extractSessionStorage = PluginPermission.StoragePlugin in manifest.permissions,
         extractHtmlDigest = PluginPermission.WebReadDom in manifest.permissions,
     )
+}
+
+internal fun resolveWebSessionStartUrl(
+    requestBaseUrl: String,
+    manifestStartUrl: String?,
+    allowedHosts: List<String>,
+): String {
+    val explicitUrl = requestBaseUrl.trim()
+    if (explicitUrl.isNotBlank()) {
+        return validateStartUrl(explicitUrl, allowedHosts, "插件起始地址")
+    }
+
+    val declaredStartUrl = manifestStartUrl?.trim().orEmpty()
+    if (declaredStartUrl.isNotBlank()) {
+        return validateStartUrl(declaredStartUrl, allowedHosts, "插件 manifest startUrl")
+    }
+
+    val firstHost = allowedHosts.firstOrNull { it.isNotBlank() }
+        ?: throw IllegalArgumentException("插件缺少可打开的起始地址")
+    val normalizedHost = normalizeAllowedHost(firstHost)
+    return "https://$normalizedHost"
+}
+
+private fun validateStartUrl(value: String, allowedHosts: List<String>, label: String): String {
+    val uri = parseHttpUri(value)
+    val host = uri.host?.lowercase().orEmpty()
+    require(host.isNotBlank()) { "$label 缺少域名" }
+    require(isAllowedHost(host, allowedHosts)) { "$label 不在 allowedHosts 中: $host" }
+    return uri.toString()
+}
+
+private fun parseHttpUri(value: String): URI {
+    val uri = runCatching { URI(value) }
+        .getOrElse { throw IllegalArgumentException("插件起始地址无效: $value") }
+    require(uri.scheme == "http" || uri.scheme == "https") { "插件起始地址必须使用 http 或 https" }
+    return uri
+}
+
+private fun isAllowedHost(host: String, allowedHosts: List<String>): Boolean {
+    return allowedHosts.any { allowed ->
+        val normalized = normalizeAllowedHost(allowed)
+        host == normalized || host.endsWith(".$normalized")
+    }
+}
+
+private fun normalizeAllowedHost(rawHost: String): String {
+    val host = rawHost.trim().lowercase()
+    require(host.isNotBlank()) { "插件 allowedHosts 包含空域名" }
+    require(!host.contains("://")) { "插件 allowedHosts 只能声明域名: $rawHost" }
+    require(!host.contains('/')) { "插件 allowedHosts 只能声明域名: $rawHost" }
+    val uri = runCatching { URI("https://$host") }
+        .getOrElse { throw IllegalArgumentException("插件 allowedHosts 域名无效: $rawHost") }
+    val normalized = uri.host?.lowercase().orEmpty()
+    require(normalized.isNotBlank()) { "插件 allowedHosts 域名无效: $rawHost" }
+    return normalized
 }
