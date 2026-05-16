@@ -20,6 +20,7 @@ data class PluginManifest(
     @SerialName("allowedHosts") val allowedHosts: List<String> = emptyList(),
     @SerialName("startUrl") val startUrl: String? = null,
     @SerialName("userAgent") val userAgent: String? = null,
+    @SerialName("webSession") val webSession: PluginWebSessionOptions = PluginWebSessionOptions(),
     @SerialName("networkCaptures") val networkCaptures: List<PluginNetworkCaptureSpec> = emptyList(),
     @SerialName("description") val description: String = "",
     @SerialName("minHostVersion") val minHostVersion: String = "0.1.0",
@@ -50,6 +51,12 @@ data class PluginComponentRequirement(
     @SerialName("required") val required: Boolean = true,
     @SerialName("version") val version: String? = null,
     @SerialName("abi") val abi: String? = null,
+)
+
+@Serializable
+data class PluginWebSessionOptions(
+    @SerialName("completionStableDelayMs") val completionStableDelayMs: Long = 1_200,
+    @SerialName("autoCompleteOnScheduleDraft") val autoCompleteOnScheduleDraft: Boolean = true,
 )
 
 @Serializable

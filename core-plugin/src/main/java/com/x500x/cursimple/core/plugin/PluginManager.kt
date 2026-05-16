@@ -539,6 +539,8 @@ internal fun buildWebSessionRequest(
         permissions = manifest.permissions,
         limits = manifest.limits,
         userAgent = manifest.userAgent,
+        completionStableDelayMs = manifest.webSession.completionStableDelayMs,
+        autoCompleteOnScheduleDraft = manifest.webSession.autoCompleteOnScheduleDraft,
         networkCaptures = if (PluginPermission.WebCapturePacket in manifest.permissions) {
             manifest.networkCaptures
         } else {
