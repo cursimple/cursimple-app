@@ -1,6 +1,6 @@
 # 插件平台说明
 
-本文档描述当前插件平台的正式方向：插件以 zip 包安装，用 `manifest.json` 声明身份、入口、权限、组件依赖和运行限制，由系统 WebView 执行插件入口 JS，并通过受控 `ctx` 对象产出课程草稿。旧 QuickJS 与 `workflow.json` 运行模型已停止使用。
+本文档描述当前插件平台的正式方向：插件以 zip 包安装，用 `manifest.json` 声明身份、入口、权限、可选 UA、组件依赖和运行限制，由系统 WebView 执行插件入口 JS，并通过受控 `ctx` 对象产出课程草稿。旧 QuickJS 与 `workflow.json` 运行模型已停止使用。
 
 本次重构不内置示例插件，也不会在启动时自动安装旧 assets 插件。旧插件记录如果缺少新版 manifest 关键字段，会被标记为不兼容，用户可以移除后安装新版插件包。
 
@@ -27,6 +27,7 @@ models/
   "versionCode": 1,
   "apiVersion": 2,
   "entry": "main.js",
+  "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
   "permissions": [
     "web.navigate",
     "web.read_dom",
@@ -60,6 +61,8 @@ models/
 ```
 
 安装器会拒绝绝对路径、`..` 路径穿越、Windows 盘符路径、重复规范化路径、缺失 `manifest.json`、缺失入口文件、文件数过多或解压体积过大的包。
+
+`userAgent` 为空或缺失时使用 WebView 默认 UA；插件显式声明后，宿主会在创建 WebView 会话时设置 `settings.userAgentString`，页面导航和页面内请求共享同一个 UA。
 
 ## 权限
 
