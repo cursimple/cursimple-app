@@ -27,12 +27,28 @@ class PluginPackageReader(
                 zip.closeEntry()
             }
         }
-        val layout = PluginPackageLayout(files)
+        val layout = PluginPackageLayout(normalizePackageRoot(files))
         val manifest = layout.decodeManifest(json)
         require(manifest.entry.isNotBlank()) { "插件 manifest 缺少 entry" }
         val entryPath = normalizeEntryPath(manifest.entry)
-        require(entryPath in files) { "插件包缺少入口文件: ${manifest.entry}" }
+        require(entryPath in layout.files) { "插件包缺少入口文件: ${manifest.entry}" }
         return layout
+    }
+
+    private fun normalizePackageRoot(files: Map<String, ByteArray>): Map<String, ByteArray> {
+        if (PluginPackageLayout.MANIFEST_FILE in files) {
+            return files
+        }
+        val rootNames = files.keys.map { it.substringBefore('/') }.toSet()
+        if (rootNames.size != 1) {
+            return files
+        }
+        val rootPrefix = "${rootNames.single()}/"
+        val rootManifest = "$rootPrefix${PluginPackageLayout.MANIFEST_FILE}"
+        if (rootManifest !in files) {
+            return files
+        }
+        return files.mapKeys { (path, _) -> path.removePrefix(rootPrefix) }
     }
 
     private fun normalizeEntryPath(rawPath: String): String {

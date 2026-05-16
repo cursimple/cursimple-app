@@ -10,10 +10,17 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 class PluginFileStore(
-    private val context: Context,
+    private val rootDir: File,
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
 ) {
-    private val rootDir: File = File(context.filesDir, "plugins-v3").apply { mkdirs() }
+    constructor(
+        context: Context,
+        json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
+    ) : this(File(context.filesDir, "plugins-v3"), json)
+
+    init {
+        rootDir.mkdirs()
+    }
 
     fun writeLayout(manifest: PluginManifest, layout: PluginPackageLayout): File {
         val targetDir = File(rootDir, "${manifest.id}-${manifest.versionCode}").apply {
