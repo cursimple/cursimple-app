@@ -1,6 +1,8 @@
 const ATRUST_ENTRY_URL = "https://atrust.yangtzeu.edu.cn:4443/";
 const COURSE_HOME_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action";
 const COURSE_DETAIL_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action?sf_request_type=ajax";
+const COURSE_HOST = "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn";
+const COURSE_HOME_PATH = "/eams/courseTableForStd.action";
 
 const AJAX_HEADERS = {
   "X-Requested-With": "XMLHttpRequest",
@@ -35,8 +37,22 @@ const defaultSlotNodeByIndex = {
 export async function run(ctx) {
   assertRuntime(ctx);
 
-  await ctx.web.open(ATRUST_ENTRY_URL);
-  await ctx.web.open(COURSE_HOME_URL);
+  const currentUrl = currentPageUrl();
+  if (isAuthenticationPage(currentUrl)) {
+    return {
+      status: "waiting-authentication",
+      url: currentUrl,
+    };
+  }
+
+  if (!isCourseHomePage(currentUrl)) {
+    ctx.web.open(COURSE_HOME_URL);
+    return {
+      status: "opening-course-home",
+      from: currentUrl,
+      to: COURSE_HOME_URL,
+    };
+  }
 
   const courseHomeHtml = await requestCourseHome(ctx);
   const courseMeta = extractMeta(courseHomeHtml);
@@ -71,6 +87,56 @@ function assertRuntime(ctx) {
 function requireFunction(value, name) {
   if (typeof value !== "function") {
     throw new Error(`插件运行时缺少必要能力: ${name}`);
+  }
+}
+
+function currentPageUrl() {
+  return String(globalThis.location?.href || "");
+}
+
+function isAuthenticationPage(value) {
+  const url = parseUrl(value);
+  if (!url) {
+    return true;
+  }
+  const host = url.hostname.toLowerCase();
+  const path = url.pathname.toLowerCase();
+  if (
+    host === "cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn" ||
+    host === "authserver.yangtzeu.edu.cn" ||
+    host === "cas.yangtzeu.edu.cn" ||
+    host === "ids.yangtzeu.edu.cn" ||
+    host === "lp-open-weixin-qq-com.atrust.yangtzeu.edu.cn" ||
+    host === "open-weixin-qq-com-s.atrust.yangtzeu.edu.cn" ||
+    host === "res-wx-qq-com-s.atrust.yangtzeu.edu.cn"
+  ) {
+    return true;
+  }
+  if (host === "atrust.yangtzeu.edu.cn" && path.startsWith("/passport/")) {
+    return true;
+  }
+  return false;
+}
+
+function isCourseHomePage(value) {
+  const url = parseUrl(value);
+  return !!url &&
+    url.hostname.toLowerCase() === COURSE_HOST &&
+    url.pathname === COURSE_HOME_PATH;
+}
+
+function parseUrl(value) {
+  try {
+    const url = new URL(value, ATRUST_ENTRY_URL);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return null;
+    }
+    if (!url.hostname) {
+      return null;
+    }
+    return url;
+  } catch (error) {
+    return null;
   }
 }
 

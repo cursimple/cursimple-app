@@ -1,10 +1,10 @@
 {
   "algorithm": "SHA-256",
   "files": {
-    "manifest.json": "21a38a90c8cc2566e489f6d84122e0f3e766780fcf9cac7273e3c88fa9640a87",
-    "main.js": "28c4f0f824042f4e8f2cde4231558fd4840da218feed7ef5b244b2d3a93c8855",
-    "assets/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-    "models/.gitkeep": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "manifest.json": "6b57f87cc3d516669c152959c7908878b8957e542d81daf758d6186ffddbe76a",
+    "main.js": "4491d1d7088b07750f07e05d6e36351f828668692253888d9be94a03bda5013b",
+    "assets/.gitkeep": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
+    "models/.gitkeep": "7eb70257593da06f682a3ddda54a9d260d4fc514f645237f5ca74b08f8da61a6",
     "ui/schedule.json": "ea56b7e5047dcc5dec776e2c1ce56bfe6cce7d6978bb72eb52c6fe4f665790fe",
     "datapack/timing.json": "090c3e7bbb5a7a6f8de7b7726edeb73e395b817ced818446bcd4248e9b087c26"
   }
