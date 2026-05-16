@@ -6,7 +6,7 @@
   "versionCode": 1001,
   "apiVersion": 2,
   "entry": "main.js",
-  "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+  "startUrl": "https://atrust.yangtzeu.edu.cn:4443/",
   "description": "通过 ATrust + EAMS 页面会话抓取长江大学课表，并在 WebView 插件运行时生成课程草稿。",
   "permissions": [
     "web.navigate",

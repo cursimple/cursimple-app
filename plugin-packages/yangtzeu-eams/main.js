@@ -3,6 +3,7 @@ const COURSE_HOME_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/e
 const COURSE_DETAIL_URL = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd!courseTable.action?sf_request_type=ajax";
 const COURSE_HOST = "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn";
 const COURSE_HOME_PATH = "/eams/courseTableForStd.action";
+const WEBVIEW_USER_AGENT = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36";
 
 const AJAX_HEADERS = {
   "X-Requested-With": "XMLHttpRequest",
@@ -36,6 +37,7 @@ const defaultSlotNodeByIndex = {
 
 export async function run(ctx) {
   assertRuntime(ctx);
+  await applyUserAgent(ctx);
 
   const currentUrl = currentPageUrl();
   if (isAuthenticationPage(currentUrl)) {
@@ -82,6 +84,12 @@ function assertRuntime(ctx) {
   requireFunction(ctx?.web?.open, "ctx.web.open");
   requireFunction(ctx?.schedule?.addCourse, "ctx.schedule.addCourse");
   requireFunction(ctx?.schedule?.commit, "ctx.schedule.commit");
+}
+
+async function applyUserAgent(ctx) {
+  if (typeof ctx?.web?.setUserAgent === "function") {
+    await ctx.web.setUserAgent(WEBVIEW_USER_AGENT);
+  }
 }
 
 function requireFunction(value, name) {
