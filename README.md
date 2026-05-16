@@ -97,7 +97,7 @@ export async function run(ctx) {
 }
 ```
 
-插件通过 `manifest.json` 声明 `permissions`、`allowedHosts`、`entry`、可选 `userAgent`、`webEngine`、`components` 和运行限制。运行时默认使用系统 WebView，只暴露受控 JS `ctx` 对象，不暴露 Android 原生对象。
+插件通过 `manifest.json` 声明 `permissions`、`allowedHosts`、`entry`、可选 `startUrl`/`userAgent`、`webEngine`、`components` 和运行限制。运行时默认使用系统 WebView，只暴露受控 JS `ctx` 对象；入口脚本可用 `ctx.web.setUserAgent()` 自行决定当前会话 UA。
 
 当前版本不再内置示例插件，也不会启动时自动安装旧 assets 插件。
 

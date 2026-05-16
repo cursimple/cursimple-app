@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.plugin.manifest
 import com.x500x.cursimple.core.plugin.buildWebSessionRequest
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
+import com.x500x.cursimple.core.plugin.resolveWebSessionStartUrl
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,6 +22,7 @@ class PluginManifestTest {
               "version": "1.0.0",
               "versionCode": 1,
               "entry": "main.js",
+              "startUrl": "https://atrust.yangtzeu.edu.cn:4443/",
               "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
               "permissions": ["web.navigate", "web.read_dom", "schedule.write"]
             }
@@ -29,6 +31,7 @@ class PluginManifestTest {
 
         assertEquals("edu.demo", manifest.id)
         assertEquals("main.js", manifest.entry)
+        assertEquals("https://atrust.yangtzeu.edu.cn:4443/", manifest.startUrl)
         assertEquals(PluginWebEngineRequirement.ENGINE_SYSTEM_WEBVIEW, manifest.webEngine.preferred)
         assertEquals(
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
@@ -149,5 +152,19 @@ class PluginManifestTest {
         assertEquals(userAgent, request.userAgent)
         assertEquals(manifest.allowedHosts, request.allowedHosts)
         assertFalse(request.extractCookies)
+    }
+
+    @Test
+    fun `manifest start url takes priority over first allowed host`() {
+        val startUrl = resolveWebSessionStartUrl(
+            requestBaseUrl = "",
+            manifestStartUrl = "https://atrust.yangtzeu.edu.cn:4443/",
+            allowedHosts = listOf(
+                "cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn",
+                "atrust.yangtzeu.edu.cn",
+            ),
+        )
+
+        assertEquals("https://atrust.yangtzeu.edu.cn:4443/", startUrl)
     }
 }
