@@ -496,52 +496,45 @@ fun PluginWebSessionScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            val animated by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = activeUploadStage.progress,
-                label = "upload-progress",
-            )
-            LinearProgressIndicator(
-                progress = { animated },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp),
-            )
-        } else if (requiredPacketCount > 0) {
-            val captured = capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }
-            val progress = (captured.toFloat() / requiredPacketCount).coerceIn(0f, 1f)
-            val animated by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = progress,
-                label = "capture-progress",
-            )
-            LinearProgressIndicator(
-                progress = { animated },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp),
-            )
-        } else if (loadProgress.value in 1..99) {
-            val animated by androidx.compose.animation.core.animateFloatAsState(
-                targetValue = loadProgress.value / 100f,
-                label = "page-progress",
-            )
-            LinearProgressIndicator(
-                progress = { animated },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp),
-            )
+        }
+        val progressTarget = when {
+            activeUploadStage != null -> activeUploadStage.progress
+            requiredPacketCount > 0 -> {
+                val captured = capturedPackets.value.count { it.value.id in requiredCapturePacketIds(request) }
+                (captured.toFloat() / requiredPacketCount).coerceIn(0f, 1f)
+            }
+            loadProgress.value in 1..99 -> loadProgress.value / 100f
+            else -> null
+        }
+        val animatedProgress by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = progressTarget ?: 0f,
+            label = "web-session-progress",
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp),
+        ) {
+            if (progressTarget != null) {
+                LinearProgressIndicator(
+                    progress = { animatedProgress },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
         }
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(36.dp),
+                .height(24.dp),
         ) {
             Text(
                 text = statusText.value,
+                modifier = Modifier.align(Alignment.CenterStart),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                softWrap = false,
             )
         }
         PluginWebViewHost(
