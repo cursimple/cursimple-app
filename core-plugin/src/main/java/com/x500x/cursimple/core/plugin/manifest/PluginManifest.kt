@@ -18,6 +18,7 @@ data class PluginManifest(
     @SerialName("components") val components: List<PluginComponentRequirement> = emptyList(),
     @SerialName("limits") val limits: PluginRuntimeLimits = PluginRuntimeLimits(),
     @SerialName("allowedHosts") val allowedHosts: List<String> = emptyList(),
+    @SerialName("userAgent") val userAgent: String? = null,
     @SerialName("networkCaptures") val networkCaptures: List<PluginNetworkCaptureSpec> = emptyList(),
     @SerialName("description") val description: String = "",
     @SerialName("minHostVersion") val minHostVersion: String = "0.1.0",
