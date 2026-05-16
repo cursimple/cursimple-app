@@ -11,6 +11,7 @@ import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
@@ -68,6 +69,7 @@ private const val MAX_STORAGE_VALUE_LENGTH = 8192
 private const val MAX_HTML_CAPTURE_CHARS = 524288
 private const val MAX_ENTRY_SCRIPT_CHARS = 1048576
 private const val MAX_NETWORK_BODY_BYTES = 262144
+private const val MAX_PLUGIN_USER_AGENT_LENGTH = 512
 
 private enum class UploadStage(
     val label: String,
@@ -98,6 +100,7 @@ fun PluginWebSessionScreen(
     val popupUrl = remember(request.token) { mutableStateOf<String?>(null) }
     val popupWebViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val consoleError = remember(request.token) { mutableStateOf<String?>(null) }
+    val pluginUserAgent = remember(request.token) { mutableStateOf(request.userAgent.orEmpty()) }
     val capturedPackets = remember(request.token) { mutableStateOf<Map<String, WebCapturedPacket>>(emptyMap()) }
     val networkPacketStore = remember(request.token) {
         WebNetworkPacketStore(
@@ -549,6 +552,7 @@ fun PluginWebSessionScreen(
             loadProgress = loadProgress,
             popupUrl = popupUrl,
             consoleError = consoleError,
+            pluginUserAgent = pluginUserAgent,
             isForegroundWebView = ::isForegroundWebView,
             handleNavigation = ::handleNavigation,
             handleAutoNavigation = ::handleAutoNavigation,
@@ -594,6 +598,7 @@ private fun PluginWebViewHost(
     loadProgress: androidx.compose.runtime.MutableState<Int>,
     popupUrl: androidx.compose.runtime.MutableState<String?>,
     consoleError: androidx.compose.runtime.MutableState<String?>,
+    pluginUserAgent: androidx.compose.runtime.MutableState<String>,
     isForegroundWebView: (WebView?) -> Boolean,
     handleNavigation: (WebView?, String) -> Boolean,
     handleAutoNavigation: (WebView?, String) -> Boolean,
@@ -626,6 +631,7 @@ private fun PluginWebViewHost(
                     loadProgress = loadProgress,
                     popupUrl = popupUrl,
                     consoleError = consoleError,
+                    pluginUserAgent = pluginUserAgent,
                     onPopupWebViewCreated = { popupWebView ->
                         popupWebViewState.value = popupWebView
                     },
@@ -724,6 +730,7 @@ private fun WebView.configurePluginWebView(
     loadProgress: androidx.compose.runtime.MutableState<Int>,
     popupUrl: androidx.compose.runtime.MutableState<String?>,
     consoleError: androidx.compose.runtime.MutableState<String?>,
+    pluginUserAgent: androidx.compose.runtime.MutableState<String>,
     onPopupWebViewCreated: (WebView) -> Unit,
     onPopupWebViewClosed: (WebView) -> Unit,
     probeWebSession: (WebView?, String) -> Unit,
@@ -731,7 +738,15 @@ private fun WebView.configurePluginWebView(
     handleAutoNavigation: (WebView?, String) -> Boolean,
     networkPacketStore: WebNetworkPacketStore,
 ) {
-    applyPluginBrowserSettings(request)
+    applyPluginBrowserSettings(request, pluginUserAgent.value)
+    addJavascriptInterface(
+        PluginWebSessionBridge(
+            request = request,
+            webView = this,
+            pluginUserAgent = pluginUserAgent,
+        ),
+        "CurSimplePluginBridge",
+    )
     val hostWebView = this
     webChromeClient = object : WebChromeClient() {
         override fun onProgressChanged(view: WebView?, newProgress: Int) {
@@ -788,6 +803,7 @@ private fun WebView.configurePluginWebView(
                         loadProgress = loadProgress,
                         popupUrl = popupUrl,
                         consoleError = consoleError,
+                        pluginUserAgent = pluginUserAgent,
                         onPopupWebViewCreated = onPopupWebViewCreated,
                         onPopupWebViewClosed = onPopupWebViewClosed,
                         probeWebSession = probeWebSession,
@@ -963,7 +979,7 @@ private fun WebView.configurePluginWebView(
     }
 }
 
-private fun WebView.applyPluginBrowserSettings(request: WebSessionRequest) {
+private fun WebView.applyPluginBrowserSettings(request: WebSessionRequest, userAgent: String) {
     settings.javaScriptEnabled = true
     settings.javaScriptCanOpenWindowsAutomatically = true
     settings.domStorageEnabled = true
@@ -980,13 +996,43 @@ private fun WebView.applyPluginBrowserSettings(request: WebSessionRequest) {
     settings.textZoom = 100
     settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
     settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-    request.userAgent?.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
+    userAgent.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
     isVerticalScrollBarEnabled = true
     isHorizontalScrollBarEnabled = true
     scrollBarStyle = View.SCROLLBARS_INSIDE_OVERLAY
     overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
     CookieManager.getInstance().setAcceptCookie(true)
     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+}
+
+private class PluginWebSessionBridge(
+    private val request: WebSessionRequest,
+    private val webView: WebView,
+    private val pluginUserAgent: androidx.compose.runtime.MutableState<String>,
+) {
+    @JavascriptInterface
+    fun setUserAgent(operationId: String?, value: String?): Boolean {
+        val id = operationId.orEmpty().take(80)
+        val nextUserAgent = normalizePluginUserAgent(value) ?: return false
+        webView.post {
+            pluginUserAgent.value = nextUserAgent
+            webView.settings.userAgentString = nextUserAgent
+            webView.evaluateJavascript(
+                "window.__CURSIMPLE_PLUGIN_USER_AGENT_ACK && " +
+                    "window.__CURSIMPLE_PLUGIN_USER_AGENT_ACK(${id.toJsStringLiteral()}, true, \"\");",
+                null,
+            )
+            PluginLogger.info(
+                "plugin.web_session.user_agent.set",
+                mapOf(
+                    "pluginId" to request.pluginId,
+                    "sessionId" to request.sessionId,
+                    "userAgentHash" to PluginLogger.sha256(nextUserAgent),
+                ),
+            )
+        }
+        return true
+    }
 }
 
 private fun captureWebSessionPacket(
@@ -1685,6 +1731,28 @@ internal fun buildPluginRuntimeScript(
               ensurePermission("web.read_cookies");
               return document.cookie || "";
             },
+            setUserAgent(userAgent) {
+              if (!window.CurSimplePluginBridge || typeof window.CurSimplePluginBridge.setUserAgent !== "function") {
+                throw new Error("当前运行时不支持设置 User-Agent");
+              }
+              const operationId = "ua-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2);
+              window.__CURSIMPLE_PLUGIN_USER_AGENT_WAITERS = window.__CURSIMPLE_PLUGIN_USER_AGENT_WAITERS || {};
+              window.__CURSIMPLE_PLUGIN_USER_AGENT_ACK = function(id, ok, message) {
+                const waiter = window.__CURSIMPLE_PLUGIN_USER_AGENT_WAITERS && window.__CURSIMPLE_PLUGIN_USER_AGENT_WAITERS[id];
+                if (!waiter) return;
+                delete window.__CURSIMPLE_PLUGIN_USER_AGENT_WAITERS[id];
+                if (ok) waiter.resolve(true);
+                else waiter.reject(new Error(message || "User-Agent 无效"));
+              };
+              return new Promise((resolve, reject) => {
+                window.__CURSIMPLE_PLUGIN_USER_AGENT_WAITERS[operationId] = { resolve, reject };
+                const accepted = window.CurSimplePluginBridge.setUserAgent(operationId, (userAgent ?? "") + "");
+                if (!accepted) {
+                  delete window.__CURSIMPLE_PLUGIN_USER_AGENT_WAITERS[operationId];
+                  reject(new Error("User-Agent 无效"));
+                }
+              });
+            },
             packets(id) {
               ensurePermission("web.capture_packet");
               if (!networkCaptureIds.has(id)) {
@@ -1955,7 +2023,8 @@ private fun urlPathContains(url: String, expectedPathPart: String): Boolean {
 fun isAllowedHost(url: String, allowedHosts: List<String>): Boolean {
     return runCatching { java.net.URL(url).host.lowercase() }.getOrNull()?.let { host ->
         allowedHosts.any { allowed ->
-            host == allowed.lowercase() || host.endsWith(".${allowed.lowercase()}")
+            val normalizedAllowed = allowed.trim().lowercase()
+            host == normalizedAllowed || host.endsWith(".$normalizedAllowed")
         }
     } ?: false
 }
@@ -2008,6 +2077,16 @@ fun shouldSurfaceConsoleError(message: String?): Boolean {
         "bg is not defined",
     )
     return knownEamsNoise.none { normalized.contains(it, ignoreCase = true) }
+}
+
+fun normalizePluginUserAgent(value: String?): String? {
+    val normalized = value.orEmpty()
+        .replace(Regex("[\\r\\n\\t\\u0000-\\u001F\\u007F]"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim()
+    return normalized
+        .takeIf { it.isNotBlank() }
+        ?.takeIf { it.length <= MAX_PLUGIN_USER_AGENT_LENGTH }
 }
 
 private fun rawCaptureSelectorsForRequest(request: WebSessionRequest): List<String> {
