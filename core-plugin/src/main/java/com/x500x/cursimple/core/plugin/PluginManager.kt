@@ -289,26 +289,14 @@ class PluginManager(
             pendingSessions[token] = session
 
             WorkflowExecutionResult.AwaitingWebSession(
-                request = WebSessionRequest(
+                request = buildWebSessionRequest(
                     token = token,
-                    pluginId = record.pluginId,
+                    record = record,
                     sessionId = sessionId,
-                    title = record.name,
                     startUrl = startUrl,
                     termId = request.termId,
-                    allowedHosts = manifest.allowedHosts,
                     entryScript = entryScript,
-                    permissions = manifest.permissions,
-                    limits = manifest.limits,
-                    networkCaptures = if (PluginPermission.WebCapturePacket in manifest.permissions) {
-                        manifest.networkCaptures
-                    } else {
-                        emptyList()
-                    },
-                    extractCookies = PluginPermission.WebReadCookies in manifest.permissions,
-                    extractLocalStorage = PluginPermission.StoragePlugin in manifest.permissions,
-                    extractSessionStorage = PluginPermission.StoragePlugin in manifest.permissions,
-                    extractHtmlDigest = PluginPermission.WebReadDom in manifest.permissions,
+                    manifest = manifest,
                 ),
                 uiSchema = uiSchema,
                 messages = messages,
@@ -561,5 +549,38 @@ class PluginManager(
         val uiSchema: PluginUiSchema,
         val timingProfile: TermTimingProfile?,
         val messages: List<String>,
+    )
+}
+
+internal fun buildWebSessionRequest(
+    token: String,
+    record: InstalledPluginRecord,
+    sessionId: String,
+    startUrl: String,
+    termId: String,
+    entryScript: String,
+    manifest: PluginManifest,
+): WebSessionRequest {
+    return WebSessionRequest(
+        token = token,
+        pluginId = record.pluginId,
+        sessionId = sessionId,
+        title = record.name,
+        startUrl = startUrl,
+        termId = termId,
+        allowedHosts = manifest.allowedHosts,
+        entryScript = entryScript,
+        permissions = manifest.permissions,
+        limits = manifest.limits,
+        userAgent = manifest.userAgent,
+        networkCaptures = if (PluginPermission.WebCapturePacket in manifest.permissions) {
+            manifest.networkCaptures
+        } else {
+            emptyList()
+        },
+        extractCookies = PluginPermission.WebReadCookies in manifest.permissions,
+        extractLocalStorage = PluginPermission.StoragePlugin in manifest.permissions,
+        extractSessionStorage = PluginPermission.StoragePlugin in manifest.permissions,
+        extractHtmlDigest = PluginPermission.WebReadDom in manifest.permissions,
     )
 }
