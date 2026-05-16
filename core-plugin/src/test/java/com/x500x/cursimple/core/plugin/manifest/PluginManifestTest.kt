@@ -24,6 +24,10 @@ class PluginManifestTest {
               "entry": "main.js",
               "startUrl": "https://atrust.yangtzeu.edu.cn:4443/",
               "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
+              "webSession": {
+                "completionStableDelayMs": 2000,
+                "autoCompleteOnScheduleDraft": false
+              },
               "permissions": ["web.navigate", "web.read_dom", "schedule.write"]
             }
             """.trimIndent(),
@@ -37,6 +41,8 @@ class PluginManifestTest {
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
             manifest.userAgent,
         )
+        assertEquals(2000L, manifest.webSession.completionStableDelayMs)
+        assertFalse(manifest.webSession.autoCompleteOnScheduleDraft)
         assertFalse(manifest.webEngine.allowChromium)
         assertEquals(60_000, manifest.limits.timeoutMs)
         assertEquals(1_000, manifest.limits.maxCourses)
@@ -150,8 +156,55 @@ class PluginManifestTest {
         )
 
         assertEquals(userAgent, request.userAgent)
+        assertEquals(1200L, request.completionStableDelayMs)
+        assertEquals(true, request.autoCompleteOnScheduleDraft)
         assertEquals(manifest.allowedHosts, request.allowedHosts)
         assertFalse(request.extractCookies)
+    }
+
+    @Test
+    fun `manifest web session options flow into request`() {
+        val manifest = PluginManifest(
+            id = "yangtzeu-eams-js-v1",
+            name = "长江大学教务插件 JS v1",
+            version = "1.0.1",
+            versionCode = 1001,
+            entry = "main.js",
+            permissions = listOf(PluginPermission.ScheduleWrite),
+            allowedHosts = listOf("atrust.yangtzeu.edu.cn"),
+            webSession = PluginWebSessionOptions(
+                completionStableDelayMs = 2500,
+                autoCompleteOnScheduleDraft = false,
+            ),
+        )
+        val record = InstalledPluginRecord(
+            pluginId = manifest.id,
+            name = manifest.name,
+            version = manifest.version,
+            versionCode = manifest.versionCode,
+            apiVersion = manifest.apiVersion,
+            entry = manifest.entry,
+            storagePath = "/tmp/plugin",
+            installedAt = "2026-05-16T00:00:00+08:00",
+            source = PluginInstallSource.Local,
+            permissions = manifest.permissions,
+            allowedHosts = manifest.allowedHosts,
+            webEngine = manifest.webEngine,
+            components = manifest.components,
+        )
+
+        val request = buildWebSessionRequest(
+            token = "token",
+            record = record,
+            sessionId = "session",
+            startUrl = "https://atrust.yangtzeu.edu.cn/",
+            termId = "2026-spring",
+            entryScript = "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }",
+            manifest = manifest,
+        )
+
+        assertEquals(2500L, request.completionStableDelayMs)
+        assertFalse(request.autoCompleteOnScheduleDraft)
     }
 
     @Test

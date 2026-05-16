@@ -49,6 +49,8 @@ class PluginWebSessionScreenTest {
     fun `console error filter ignores known eams beangle noise`() {
         assertFalse(shouldSurfaceConsoleError("Uncaught ReferenceError: beangle is not defined"))
         assertFalse(shouldSurfaceConsoleError("Uncaught ReferenceError: jQuery is not defined"))
+        assertFalse(shouldSurfaceConsoleError("Uncaught (in promise) undefined"))
+        assertFalse(shouldSurfaceConsoleError("Uncaught (in promise) null"))
         assertTrue(shouldSurfaceConsoleError("Uncaught TypeError: cannot read properties of null"))
     }
 
@@ -351,6 +353,39 @@ class PluginWebSessionScreenTest {
 
         assertTrue(script.contains("setUserAgent(userAgent)"))
         assertTrue(script.contains("CurSimplePluginBridge"))
+    }
+
+    @Test
+    fun `completion page stability ignores query-only changes`() {
+        assertTrue(
+            isCompletionPageStable(
+                capturedUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+                activeUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action?_=${System.currentTimeMillis()}",
+            ),
+        )
+        assertTrue(
+            isCompletionPageStable(
+                capturedUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+                activeUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn:443/eams/courseTableForStd.action",
+            ),
+        )
+    }
+
+    @Test
+    fun `completion page stability rejects redirected page`() {
+        assertFalse(
+            isCompletionPageStable(
+                capturedUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+                activeUrl = "https://atrust.yangtzeu.edu.cn:4443/portal/shortcut.html?appUrl=https%3A%2F%2Fjwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn%2Feams%2FcourseTableForStd.action",
+            ),
+        )
+    }
+
+    @Test
+    fun `completion stable delay clamps invalid values to default`() {
+        assertEquals(1200L, 0L.normalizedCompletionStableDelayMs())
+        assertEquals(800L, 800L.normalizedCompletionStableDelayMs())
+        assertEquals(10000L, 20000L.normalizedCompletionStableDelayMs())
     }
 
     @Test

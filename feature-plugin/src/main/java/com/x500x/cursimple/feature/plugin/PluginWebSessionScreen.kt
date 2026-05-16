@@ -70,6 +70,8 @@ private const val MAX_HTML_CAPTURE_CHARS = 524288
 private const val MAX_ENTRY_SCRIPT_CHARS = 1048576
 private const val MAX_NETWORK_BODY_BYTES = 262144
 private const val MAX_PLUGIN_USER_AGENT_LENGTH = 512
+private const val DEFAULT_COMPLETION_STABLE_DELAY_MS = 1200L
+private const val MAX_COMPLETION_STABLE_DELAY_MS = 10000L
 
 private enum class UploadStage(
     val label: String,
@@ -80,6 +82,14 @@ private enum class UploadStage(
     Packing("整理会话数据", 2, 0.66f),
     Writing("写入课表数据", 3, 0.9f),
 }
+
+private data class WebSessionCompletionCandidate(
+    val packet: WebSessionPacket,
+    val packets: Map<String, WebCapturedPacket>,
+    val navigationVersion: Long,
+    val createdAtMs: Long,
+    val requiresUserConfirmation: Boolean,
+)
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -110,9 +120,10 @@ fun PluginWebSessionScreen(
     }
     val uploadStage = remember(request.token) { mutableStateOf<UploadStage?>(null) }
     val pendingCompletion = remember(request.token) {
-        mutableStateOf<Pair<WebSessionPacket, Map<String, WebCapturedPacket>>?>(null)
+        mutableStateOf<WebSessionCompletionCandidate?>(null)
     }
     val autoNavigatedUrls = remember(request.token) { mutableStateOf<Set<String>>(emptySet()) }
+    val pageNavigationVersion = remember(request.token) { mutableStateOf(0L) }
     val webViewInitFailed = remember(request.token) { mutableStateOf(false) }
     val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
     val sessionStartedAt = remember(request.token) { System.currentTimeMillis() }
@@ -139,8 +150,9 @@ fun PluginWebSessionScreen(
             pageError.value != null -> "页面加载失败：${pageError.value}"
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
             popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
-            consoleError.value != null -> "页面脚本提示：${consoleError.value}"
+            pendingCompletion.value != null -> "数据已就绪，等待页面停止跳转…（已用 $elapsedLabel）"
             isCapturing.value -> "正在采集会话凭据…（已用 $elapsedLabel）"
+            consoleError.value != null -> "页面脚本提示：${consoleError.value}"
             requiredPacketCount > 0 -> {
                 val captured = packets.count { it.value.id in requiredCapturePacketIds(request) }
                 buildString {
@@ -170,6 +182,11 @@ fun PluginWebSessionScreen(
 
     fun foregroundWebView(): WebView? = popupWebViewState.value ?: webViewState.value
 
+    fun markNavigationChanged() {
+        pageNavigationVersion.value += 1
+        pendingCompletion.value = null
+    }
+
     fun handleNavigation(view: WebView?, target: String): Boolean {
         if (target.isBlank() || isInternalWebViewUrl(target)) {
             return false
@@ -178,6 +195,7 @@ fun PluginWebSessionScreen(
             return false
         }
         if (!isAllowedHost(target, request.allowedHosts)) {
+            markNavigationChanged()
             currentUrl.value = target
             blockedUrl.value = target
             popupUrl.value = null
@@ -192,6 +210,7 @@ fun PluginWebSessionScreen(
             )
             return true
         }
+        markNavigationChanged()
         currentUrl.value = target
         blockedUrl.value = null
         popupUrl.value = null
@@ -204,6 +223,7 @@ fun PluginWebSessionScreen(
         if (isFinishing.value) {
             return
         }
+        pendingCompletion.value = null
         isFinishing.value = true
         uploadStage.value = UploadStage.Packing
         val finalPacket = aggregateWebSessionPacket(
@@ -226,6 +246,23 @@ fun PluginWebSessionScreen(
         onFinish(finalPacket)
     }
 
+    fun requestStableCompletion(
+        packet: WebSessionPacket,
+        packets: Map<String, WebCapturedPacket>,
+        requiresUserConfirmation: Boolean,
+    ) {
+        if (isFinishing.value) {
+            return
+        }
+        pendingCompletion.value = WebSessionCompletionCandidate(
+            packet = packet,
+            packets = packets,
+            navigationVersion = pageNavigationVersion.value,
+            createdAtMs = System.currentTimeMillis(),
+            requiresUserConfirmation = requiresUserConfirmation,
+        )
+    }
+
     fun handleCapturedSnapshot(packet: WebSessionPacket, forceFinish: Boolean) {
         val newPackets = readyCaptureSpecs(request, packet)
             .filterNot { capturedPackets.value.containsKey(it.id) }
@@ -246,16 +283,29 @@ fun PluginWebSessionScreen(
         }
         if (forceFinish) {
             finishWithPacket(packet, updatedPackets)
+        } else if (request.autoCompleteOnScheduleDraft && !packet.scheduleDraftJson.isNullOrBlank()) {
+            requestStableCompletion(
+                packet = packet,
+                packets = updatedPackets,
+                requiresUserConfirmation = false,
+            )
         } else if (hasAllRequiredCapturePackets(request, updatedPackets)) {
-            if (pendingCompletion.value == null && !isFinishing.value) {
-                pendingCompletion.value = packet to updatedPackets
-            }
+            requestStableCompletion(
+                packet = packet,
+                packets = updatedPackets,
+                requiresUserConfirmation = true,
+            )
         }
     }
 
     fun probeWebSession(view: WebView?, target: String, forceFinish: Boolean = false) {
         val webView = view ?: return
-        if (!forceFinish && effectiveCaptureSpecs(request).isEmpty()) {
+        val canAutoCompleteDraft = request.autoCompleteOnScheduleDraft && request.entryScript.isNotBlank()
+        val hasCaptureSpecs = effectiveCaptureSpecs(request).isNotEmpty()
+        if (!forceFinish && !hasCaptureSpecs && !canAutoCompleteDraft) {
+            return
+        }
+        if (!forceFinish && pendingCompletion.value != null) {
             return
         }
         if (!forceFinish && hasAllRequiredCapturePackets(request, capturedPackets.value)) {
@@ -325,6 +375,42 @@ fun PluginWebSessionScreen(
             force = true,
         ) {
             probeWebSession(webView, target, forceFinish = true)
+        }
+    }
+
+    LaunchedEffect(request.token, pendingCompletion.value, pageNavigationVersion.value) {
+        val candidate = pendingCompletion.value ?: return@LaunchedEffect
+        val stableDelay = request.completionStableDelayMs.normalizedCompletionStableDelayMs()
+        val elapsed = System.currentTimeMillis() - candidate.createdAtMs
+        if (elapsed < stableDelay) {
+            delay(stableDelay - elapsed)
+        }
+        val currentCandidate = pendingCompletion.value ?: return@LaunchedEffect
+        if (currentCandidate !== candidate) {
+            return@LaunchedEffect
+        }
+        if (currentCandidate.navigationVersion != pageNavigationVersion.value) {
+            return@LaunchedEffect
+        }
+        val webView = foregroundWebView()
+        val activeUrl = webView?.url?.toString()?.takeIf(String::isNotBlank) ?: currentUrl.value
+        if (!isCompletionPageStable(currentCandidate.packet.finalUrl, activeUrl)) {
+            pendingCompletion.value = null
+            return@LaunchedEffect
+        }
+        PluginLogger.info(
+            "plugin.web_session.completion.stable",
+            mapOf(
+                "pluginId" to request.pluginId,
+                "sessionId" to request.sessionId,
+                "finalUrl" to PluginLogger.sanitizeUrl(currentCandidate.packet.finalUrl),
+                "activeUrl" to PluginLogger.sanitizeUrl(activeUrl),
+                "stableDelayMs" to stableDelay,
+                "requiresUserConfirmation" to currentCandidate.requiresUserConfirmation,
+            ),
+        )
+        if (!currentCandidate.requiresUserConfirmation) {
+            finishWithPacket(currentCandidate.packet, currentCandidate.packets)
         }
     }
 
@@ -557,6 +643,7 @@ fun PluginWebSessionScreen(
             handleNavigation = ::handleNavigation,
             handleAutoNavigation = ::handleAutoNavigation,
             networkPacketStore = networkPacketStore,
+            onPageNavigation = ::markNavigationChanged,
             probeWebSession = { view, target -> probeWebSession(view, target) },
             modifier = Modifier
                 .fillMaxWidth()
@@ -565,15 +652,15 @@ fun PluginWebSessionScreen(
         )
     }
 
-    pendingCompletion.value?.let { (packet, packets) ->
+    pendingCompletion.value?.takeIf { it.requiresUserConfirmation }?.let { candidate ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { pendingCompletion.value = null },
             title = { Text("课表数据已就绪") },
-            text = { Text("已成功捕获本次同步所需数据，是否关闭插件页并写入课表？") },
+            text = { Text("页面已停止跳转，并已捕获本次同步所需数据，是否关闭插件页并写入课表？") },
             confirmButton = {
                 Button(onClick = {
                     pendingCompletion.value = null
-                    finishWithPacket(packet, packets)
+                    finishWithPacket(candidate.packet, candidate.packets)
                 }) { Text("关闭并写入") }
             },
             dismissButton = {
@@ -603,6 +690,7 @@ private fun PluginWebViewHost(
     handleNavigation: (WebView?, String) -> Boolean,
     handleAutoNavigation: (WebView?, String) -> Boolean,
     networkPacketStore: WebNetworkPacketStore,
+    onPageNavigation: () -> Unit,
     probeWebSession: (WebView?, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -651,6 +739,7 @@ private fun PluginWebViewHost(
                     handleNavigation = handleNavigation,
                     handleAutoNavigation = handleAutoNavigation,
                     networkPacketStore = networkPacketStore,
+                    onPageNavigation = onPageNavigation,
                 )
             }
         }.getOrElse { error ->
@@ -737,6 +826,7 @@ private fun WebView.configurePluginWebView(
     handleNavigation: (WebView?, String) -> Boolean,
     handleAutoNavigation: (WebView?, String) -> Boolean,
     networkPacketStore: WebNetworkPacketStore,
+    onPageNavigation: () -> Unit,
 ) {
     applyPluginBrowserSettings(request, pluginUserAgent.value)
     addJavascriptInterface(
@@ -810,6 +900,7 @@ private fun WebView.configurePluginWebView(
                         handleNavigation = handleNavigation,
                         handleAutoNavigation = handleAutoNavigation,
                         networkPacketStore = networkPacketStore,
+                        onPageNavigation = onPageNavigation,
                     )
                 }
             }.getOrElse { error ->
@@ -886,6 +977,7 @@ private fun WebView.configurePluginWebView(
             if (!isForegroundWebView(view)) {
                 return
             }
+            onPageNavigation()
             val target = url.orEmpty()
             currentUrl.value = target
             popupUrl.value = null
@@ -2059,6 +2151,37 @@ fun autoNavigateTargetForRequest(
     return target
 }
 
+fun Long.normalizedCompletionStableDelayMs(): Long {
+    return coerceIn(0L, MAX_COMPLETION_STABLE_DELAY_MS)
+        .takeIf { it > 0L }
+        ?: DEFAULT_COMPLETION_STABLE_DELAY_MS
+}
+
+fun isCompletionPageStable(capturedUrl: String, activeUrl: String): Boolean {
+    if (capturedUrl.isBlank() || activeUrl.isBlank()) {
+        return false
+    }
+    val captured = runCatching { java.net.URI(capturedUrl).normalize() }.getOrNull() ?: return false
+    val active = runCatching { java.net.URI(activeUrl).normalize() }.getOrNull() ?: return false
+    val capturedHost = captured.host.orEmpty()
+    val activeHost = active.host.orEmpty()
+    return captured.scheme.equals(active.scheme, ignoreCase = true) &&
+        capturedHost.equals(activeHost, ignoreCase = true) &&
+        effectiveUriPort(captured) == effectiveUriPort(active) &&
+        captured.rawPath.orEmpty() == active.rawPath.orEmpty()
+}
+
+private fun effectiveUriPort(uri: java.net.URI): Int {
+    if (uri.port >= 0) {
+        return uri.port
+    }
+    return when (uri.scheme?.lowercase(Locale.ROOT)) {
+        "http" -> 80
+        "https" -> 443
+        else -> -1
+    }
+}
+
 private fun isInternalWebViewUrl(url: String): Boolean {
     return url.startsWith("about:", ignoreCase = true) ||
         url.startsWith("javascript:", ignoreCase = true) ||
@@ -2075,6 +2198,8 @@ fun shouldSurfaceConsoleError(message: String?): Boolean {
         "beangle is not defined",
         "jQuery is not defined",
         "bg is not defined",
+        "uncaught (in promise) undefined",
+        "uncaught (in promise) null",
     )
     return knownEamsNoise.none { normalized.contains(it, ignoreCase = true) }
 }
