@@ -6,11 +6,11 @@ import org.junit.Test
 
 class WidgetAlarmGuardSchedulerTest {
     @Test
-    fun `guard plan prearms three five-minute slots`() {
+    fun `guard plan creates three five-minute guard slots`() {
         val now = 12_345L
         val plan = WidgetAlarmGuardScheduler.schedulePlan(nowElapsedRealtime = now)
 
-        assertEquals(WidgetAlarmGuardScheduler.PREARM_COUNT, plan.size)
+        assertEquals(WidgetAlarmGuardScheduler.GUARD_COUNT, plan.size)
         assertEquals(
             listOf(
                 now + WidgetAlarmGuardScheduler.GUARD_INTERVAL_MILLIS,
@@ -33,7 +33,7 @@ class WidgetAlarmGuardSchedulerTest {
     }
 
     @Test
-    fun `prearmed guard slots use distinct request codes`() {
+    fun `guard slots use distinct request codes`() {
         val plan = WidgetAlarmGuardScheduler.schedulePlan(
             nowElapsedRealtime = WidgetAlarmGuardScheduler.GUARD_INTERVAL_MILLIS * 42,
         )
