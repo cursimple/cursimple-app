@@ -48,6 +48,15 @@ internal object WidgetLifecycleRefresher {
                 error,
             )
         }
+        runCatching {
+            WidgetAlarmGuardScheduler.ensureScheduled(appContext)
+        }.onFailure { error ->
+            ReminderLogger.warn(
+                "widget.lifecycle.alarm_guard_schedule.failure",
+                mapOf("reason" to reason),
+                error,
+            )
+        }
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             if (refreshWidgets) {
                 runCatching {

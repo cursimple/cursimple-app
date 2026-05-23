@@ -18,6 +18,10 @@
             android:name=".ScheduleWidgetRefreshReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".WidgetAlarmGuardReceiver"
+            android:exported="false" />
+
         <service
             android:name=".ScheduleWidgetRemoteViewsService"
             android:exported="false"
