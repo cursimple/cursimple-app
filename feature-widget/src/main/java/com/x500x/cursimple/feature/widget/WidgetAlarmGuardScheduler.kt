@@ -55,7 +55,7 @@ internal object WidgetAlarmGuardScheduler {
     }
 
     internal fun schedulePlan(nowElapsedRealtime: Long): List<WidgetAlarmGuardSlot> {
-        return (0 until PREARM_COUNT).map { index ->
+        return (0 until GUARD_COUNT).map { index ->
             WidgetAlarmGuardSlot(
                 index = index,
                 triggerElapsedRealtime = nowElapsedRealtime + GUARD_INTERVAL_MILLIS * (index + 1L),
@@ -109,7 +109,7 @@ internal object WidgetAlarmGuardScheduler {
     const val ACTION_GUARD_TICK = "com.x500x.cursimple.feature.widget.action.ALARM_GUARD_TICK"
 
     internal const val GUARD_INTERVAL_MILLIS = 5L * 60L * 1000L
-    internal const val PREARM_COUNT = 3
+    internal const val GUARD_COUNT = 3
     internal const val REQUEST_CODE_BASE = 6405
 
     private const val EXTRA_INDEX = "com.x500x.cursimple.feature.widget.extra.ALARM_GUARD_INDEX"
