@@ -3,11 +3,8 @@ package com.x500x.cursimple.feature.widget
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
@@ -45,36 +42,27 @@ object ScheduleWidgetWorkScheduler {
             ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
-        ScheduleWidgetRefreshAlarmScheduler.scheduleNext(context)
+        ScheduleWidgetRefreshAlarmScheduler.cancel(context)
+        WidgetAlarmGuardScheduler.ensureScheduled(context)
     }
 
     private const val UNIQUE_WORK_NAME = "schedule_widget_refresh"
 }
 
 object ScheduleWidgetRefreshAlarmScheduler {
-    fun scheduleNext(context: Context) {
+    fun cancel(context: Context) {
         val app = context.applicationContext
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pendingIntent = refreshPendingIntent(app)
-        val triggerAtMillis = System.currentTimeMillis() + REFRESH_INTERVAL_MILLIS
+        val pendingIntent = refreshPendingIntent(app, PendingIntent.FLAG_NO_CREATE) ?: return
         runCatching {
-            when {
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms() -> {
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-                }
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
-                    alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-                }
-                else -> {
-                    alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
-                }
-            }
+            alarmManager.cancel(pendingIntent)
+            pendingIntent.cancel()
         }.onFailure { error ->
-            ReminderLogger.warn("widget.refresh_alarm.schedule.failure", emptyMap(), error)
+            ReminderLogger.warn("widget.refresh_alarm.cancel.failure", emptyMap(), error)
         }
     }
 
-    private fun refreshPendingIntent(context: Context): PendingIntent {
+    private fun refreshPendingIntent(context: Context, extraFlags: Int = 0): PendingIntent? {
         val intent = Intent(context, ScheduleWidgetRefreshReceiver::class.java).apply {
             action = ACTION_REFRESH
             setPackage(context.packageName)
@@ -83,13 +71,12 @@ object ScheduleWidgetRefreshAlarmScheduler {
             context,
             REQUEST_CODE,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            PendingIntent.FLAG_IMMUTABLE or extraFlags,
         )
     }
 
     const val ACTION_REFRESH = "com.x500x.cursimple.feature.widget.action.REFRESH_WIDGETS"
     private const val REQUEST_CODE = 5305
-    private const val REFRESH_INTERVAL_MILLIS = 5L * 60L * 1000L
 }
 
 class ScheduleWidgetRefreshReceiver : BroadcastReceiver() {
@@ -100,12 +87,14 @@ class ScheduleWidgetRefreshReceiver : BroadcastReceiver() {
             try {
                 val app = context.applicationContext
                 runCatching {
-                    ScheduleWidgetUpdater.refreshAll(app)
-                    WidgetSystemAlarmSynchronizer.reconcileToday(app)
+                    WidgetAlarmGuardRunner.run(
+                        context = app,
+                        reason = "legacy_refresh_alarm",
+                    )
                 }.onFailure { error ->
                     ReminderLogger.warn("widget.refresh_alarm.run.failure", emptyMap(), error)
                 }
-                ScheduleWidgetRefreshAlarmScheduler.scheduleNext(app)
+                ScheduleWidgetRefreshAlarmScheduler.cancel(app)
             } finally {
                 pending.finish()
             }
@@ -120,9 +109,11 @@ class ScheduleWidgetRefreshWorker(
 
     override suspend fun doWork(): Result {
         return runCatching {
-            ScheduleWidgetUpdater.refreshAll(applicationContext)
-            WidgetSystemAlarmSynchronizer.reconcileToday(applicationContext)
-            ScheduleWidgetRefreshAlarmScheduler.scheduleNext(applicationContext)
+            ScheduleWidgetRefreshAlarmScheduler.cancel(applicationContext)
+            WidgetAlarmGuardRunner.run(
+                context = applicationContext,
+                reason = "periodic_worker",
+            )
             Result.success()
         }.getOrElse {
             Result.retry()
