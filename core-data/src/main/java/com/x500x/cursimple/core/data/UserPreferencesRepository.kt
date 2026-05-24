@@ -23,6 +23,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.LocalDate
 import java.time.LocalDateTime
+import kotlin.math.pow
 
 enum class ThemeMode { System, Light, Dark }
 
@@ -126,6 +127,53 @@ data class ScheduleDisplayPreferences(
     val totalScheduleDisplayEnabled: Boolean = true,
 )
 
+fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
+    adaptScheduleCustomColorArgb(
+        argb = argb,
+        shouldInvert = enabled && if (darkTheme) {
+            argbLuminance(argb) < COLOR_POLARITY_THRESHOLD
+        } else {
+            argbLuminance(argb) >= COLOR_POLARITY_THRESHOLD
+        },
+    )
+
+fun adaptScheduleBackgroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
+    adaptScheduleCustomColorArgb(
+        argb = argb,
+        shouldInvert = enabled && if (darkTheme) {
+            argbLuminance(argb) >= COLOR_POLARITY_THRESHOLD
+        } else {
+            argbLuminance(argb) < COLOR_POLARITY_THRESHOLD
+        },
+    )
+
+private const val COLOR_POLARITY_THRESHOLD = 0.5
+
+private fun adaptScheduleCustomColorArgb(argb: Long, shouldInvert: Boolean): Long {
+    val normalized = argb and 0xFFFF_FFFFL
+    if (!shouldInvert) return normalized
+    val alpha = normalized and 0xFF00_0000L
+    val invertedRgb = (normalized xor 0x00FF_FFFFL) and 0x00FF_FFFFL
+    return alpha or invertedRgb
+}
+
+private fun argbLuminance(argb: Long): Double {
+    val normalized = argb and 0xFFFF_FFFFL
+    val red = srgbChannelToLinear(((normalized ushr 16) and 0xFF).toInt())
+    val green = srgbChannelToLinear(((normalized ushr 8) and 0xFF).toInt())
+    val blue = srgbChannelToLinear((normalized and 0xFF).toInt())
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+}
+
+private fun srgbChannelToLinear(channelByte: Int): Double {
+    val channel = channelByte.coerceIn(0, 255) / 255.0
+    return if (channel <= 0.03928) {
+        channel / 12.92
+    } else {
+        ((channel + 0.055) / 1.055).pow(2.4)
+    }
+}
+
 data class UserPreferences(
     val themeMode: ThemeMode = ThemeMode.Light,
     val themeAccent: ThemeAccent = ThemeAccent.Green,
@@ -135,6 +183,7 @@ data class UserPreferences(
     val scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     val scheduleBackground: ScheduleBackgroundPreferences = ScheduleBackgroundPreferences(),
     val scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
+    val scheduleCustomColorsAdaptToTheme: Boolean = false,
     val enabledPluginIds: Set<String> = emptySet(),
     val pluginsSeeded: Boolean = false,
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
@@ -190,6 +239,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleBackgroundImageUri(uri: String)
     suspend fun clearScheduleBackgroundImage()
     suspend fun setScheduleBackgroundUseHeaderColor()
+    suspend fun setScheduleCustomColorsAdaptToTheme(enabled: Boolean)
     suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean)
     suspend fun setScheduleSaturdayVisible(visible: Boolean)
     suspend fun setScheduleWeekendVisible(visible: Boolean)
