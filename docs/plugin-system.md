@@ -151,13 +151,25 @@ WebView 会在白名单页面加载完成后注入入口脚本。宿主不会把
 
 ## 市场和下载
 
-插件市场默认索引地址：
+插件市场以 GitHub 仓库作为注册表，默认指向 `cursimple/cursimple-plugins`。设置中的字段名为 `pluginRegistryRepo`，格式为 `owner/repo`。
 
-```text
-https://raw.githubusercontent.com/cursimple/cursimple-plugins/refs/heads/main/manifest.json
+注册表本身是仓库根目录的 `plugins.json`：
+
+```json
+[
+  "cursimple/YangtzU_course_plugin",
+  "another-owner/another-plugin-repo"
+]
 ```
 
-市场格式后续再定；当前实现保留加载、空状态、错误状态和刷新能力。
+App 拉取流程：
+
+1. 从 `https://raw.githubusercontent.com/<registry>/main/plugins.json` 读取仓库列表。
+2. 并行调用 `https://api.github.com/repos/<owner>/<repo>` 拿名称、stars、作者、描述。
+3. 并行调用 `https://api.github.com/repos/<owner>/<repo>/releases/latest` 拿最新 release tag 与 zip 资产 URL。
+4. 网格展示 + 详情页"安装"按钮调用既有的远程包下载预检流程。没有 release 时按钮显示"未找到版本"。
+
+注册表的增删通过 Pages 静态页 [https://cursimple.github.io/cursimple-plugins/](https://cursimple.github.io/cursimple-plugins/) 完成，源码位于 [cursimple-plugins/docs/](https://github.com/cursimple/cursimple-plugins/tree/main/docs)。
 
 下载镜像按用途建模：
 
