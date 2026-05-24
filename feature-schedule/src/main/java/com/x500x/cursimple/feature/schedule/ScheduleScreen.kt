@@ -475,6 +475,198 @@ fun ScheduleScreen(
 }
 
 @Composable
+fun ScheduleAppearancePreview(
+    scheduleTextStyle: ScheduleTextStylePreferences,
+    scheduleCardStyle: ScheduleCardStylePreferences,
+    scheduleBackground: ScheduleBackgroundPreferences,
+    scheduleDisplay: ScheduleDisplayPreferences,
+    customColorsAdaptToTheme: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val previewWeek = remember { appearancePreviewWeek() }
+    val previewSlots = remember { appearancePreviewSlots() }
+    val previewCourses = remember { appearancePreviewCourses() }
+    val visibleDayIndices = remember(scheduleDisplay.saturdayVisible, scheduleDisplay.weekendVisible) {
+        visibleDayIndices(scheduleDisplay)
+    }
+    val activeEntries = remember(
+        previewCourses,
+        previewSlots,
+        scheduleDisplay.totalScheduleDisplayEnabled,
+        visibleDayIndices,
+    ) {
+        buildWeekRenderEntries(
+            allCourses = previewCourses,
+            slots = previewSlots,
+            weekIndex = previewWeek.weekIndex,
+            totalScheduleDisplayEnabled = scheduleDisplay.totalScheduleDisplayEnabled,
+            weekStart = previewWeek.weekStart,
+            termStart = previewWeek.weekStart,
+            visibleDayIndices = visibleDayIndices,
+        )
+    }
+    val slotHeight = scheduleCardStyle.courseCardHeightDp.dp.coerceIn(56.dp, 120.dp)
+    val dayHeaderHeight = 52.dp
+    val previewHeight = dayHeaderHeight + slotHeight * previewSlots.size + 16.dp
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(previewHeight)
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surface),
+    ) {
+        val cellGroups = remember(activeEntries) {
+            activeEntries
+                .groupBy { it.placement.dayIndex to it.placement.rowIndex }
+                .map { (_, list) ->
+                    val main = list.first()
+                    val sorted = list.map { it.course }.distinctBy { it.id }
+                    Triple(main, sorted, sorted.size)
+                }
+        }
+        val visibleDays = remember(previewWeek.days, visibleDayIndices) {
+            visibleDayIndices.mapNotNull { previewWeek.days.getOrNull(it) }
+        }
+        val availableWidth = (maxWidth - 8.dp).coerceAtLeast(0.dp)
+        val dayColumnCount = visibleDays.size.coerceAtLeast(1)
+        val timeColumnWidth = when {
+            availableWidth < 360.dp -> 44.dp
+            availableWidth < 420.dp -> 48.dp
+            else -> 52.dp
+        }
+        val gridWidth = (availableWidth - timeColumnWidth).coerceAtLeast(0.dp)
+        val dayColumnWidth = (gridWidth / dayColumnCount).coerceAtLeast(36.dp)
+        val gridHeight = slotHeight * previewSlots.size
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 4.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Row(
+                modifier = Modifier.height(dayHeaderHeight),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                MonthCornerCell(
+                    monthLabel = previewWeek.days.firstOrNull()?.monthLabel.orEmpty(),
+                    width = timeColumnWidth,
+                    scheduleTextStyle = scheduleTextStyle,
+                    customColorsAdaptToTheme = customColorsAdaptToTheme,
+                )
+                visibleDays.forEach { day ->
+                    DayHeader(
+                        day = day,
+                        width = dayColumnWidth,
+                        scheduleTextStyle = scheduleTextStyle,
+                        customColorsAdaptToTheme = customColorsAdaptToTheme,
+                    )
+                }
+            }
+
+            Row(verticalAlignment = Alignment.Top) {
+                Column(
+                    modifier = Modifier.width(timeColumnWidth),
+                ) {
+                    previewSlots.forEach { slot ->
+                        TimeCell(
+                            slot = slot,
+                            height = slotHeight,
+                            showTime = scheduleDisplay.nodeColumnTimeEnabled,
+                            scheduleTextStyle = scheduleTextStyle,
+                            customColorsAdaptToTheme = customColorsAdaptToTheme,
+                        )
+                    }
+                }
+
+                val darkTheme = isDarkColorScheme()
+                Box(
+                    modifier = Modifier
+                        .width(dayColumnWidth * dayColumnCount)
+                        .height(gridHeight)
+                        .clip(RoundedCornerShape(16.dp)),
+                ) {
+                    ScheduleGridBackground(
+                        scheduleBackground = scheduleBackground,
+                        scheduleCardStyle = scheduleCardStyle,
+                        customColorsAdaptToTheme = customColorsAdaptToTheme,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .drawBehind {
+                                val lineColor = colorFromArgb(
+                                    scheduleCardStyle.gridBorderColorArgb,
+                                    darkTheme = darkTheme,
+                                    adaptToTheme = customColorsAdaptToTheme,
+                                    role = ScheduleCustomColorRole.Foreground,
+                                ).withOpacityPercent(scheduleCardStyle.gridBorderOpacityPercent)
+                                val strokeWidth = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
+                                if (strokeWidth <= 0f) return@drawBehind
+                                val pathEffect = if (scheduleCardStyle.gridBorderDashed) {
+                                    PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()), 0f)
+                                } else {
+                                    null
+                                }
+                                for (i in 1 until previewSlots.size) {
+                                    val y = slotHeight.toPx() * i
+                                    drawLine(
+                                        color = lineColor,
+                                        start = androidx.compose.ui.geometry.Offset(0f, y),
+                                        end = androidx.compose.ui.geometry.Offset(size.width, y),
+                                        strokeWidth = strokeWidth,
+                                        pathEffect = pathEffect,
+                                    )
+                                }
+                                for (i in 1 until dayColumnCount) {
+                                    val x = dayColumnWidth.toPx() * i
+                                    drawLine(
+                                        color = lineColor,
+                                        start = androidx.compose.ui.geometry.Offset(x, 0f),
+                                        end = androidx.compose.ui.geometry.Offset(x, size.height),
+                                        strokeWidth = strokeWidth,
+                                        pathEffect = pathEffect,
+                                    )
+                                }
+                            },
+                    ) {
+                        cellGroups.forEach { (mainEntry, _, count) ->
+                            val placement = mainEntry.placement
+                            val course = mainEntry.course
+                            val courseHeight = (slotHeight * placement.rowSpan) - 3.dp
+                            CourseBlock(
+                                course = course,
+                                badges = emptyList(),
+                                hasReminder = false,
+                                selected = false,
+                                inactive = mainEntry.inactive,
+                                temporarilyCancelled = false,
+                                cellCount = count,
+                                multiSelectMode = false,
+                                multiSelected = false,
+                                scheduleTextStyle = scheduleTextStyle,
+                                scheduleCardStyle = scheduleCardStyle,
+                                scheduleDisplay = scheduleDisplay,
+                                customColorsAdaptToTheme = customColorsAdaptToTheme,
+                                width = dayColumnWidth - 3.dp,
+                                height = courseHeight,
+                                offsetX = dayColumnWidth * placement.dayIndex + 1.5.dp,
+                                offsetY = slotHeight * placement.rowIndex + 1.5.dp,
+                                interactive = false,
+                                onClick = {},
+                                onLongClick = {},
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ScheduleHeroSection(
     week: WeekModel,
     schedule: TermSchedule?,
@@ -2094,6 +2286,7 @@ private fun CourseBlock(
     height: androidx.compose.ui.unit.Dp,
     offsetX: androidx.compose.ui.unit.Dp,
     offsetY: androidx.compose.ui.unit.Dp,
+    interactive: Boolean = true,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -2177,9 +2370,15 @@ private fun CourseBlock(
                         )
                     }
                 }
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick,
+                .then(
+                    if (interactive) {
+                        Modifier.combinedClickable(
+                            onClick = onClick,
+                            onLongClick = onLongClick,
+                        )
+                    } else {
+                        Modifier
+                    },
                 ),
         ) {
             // 左侧深色竖条
@@ -3859,6 +4058,90 @@ private fun buildWeekModel(
         days = days,
     )
 }
+
+private fun appearancePreviewWeek(): WeekModel = WeekModel(
+    weekIndex = 2,
+    weekStart = LocalDate.of(2026, 3, 2),
+    days = listOf(
+        DayHeaderModel(monthLabel = "3月", weekdayLabel = "周一", dateLabel = "2", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabel = "周二", dateLabel = "3", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabel = "周三", dateLabel = "4", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabel = "周四", dateLabel = "5", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabel = "周五", dateLabel = "6", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabel = "周六", dateLabel = "7", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabel = "周日", dateLabel = "8", isToday = false),
+    ),
+)
+
+private fun appearancePreviewSlots(): List<DisplaySlot> = listOf(
+    DisplaySlot(startNode = 1, endNode = 1, label = "1", startTime = "08:00", endTime = "08:50"),
+    DisplaySlot(startNode = 2, endNode = 2, label = "2", startTime = "09:00", endTime = "09:50"),
+    DisplaySlot(startNode = 3, endNode = 3, label = "3", startTime = "10:10", endTime = "11:00"),
+    DisplaySlot(startNode = 4, endNode = 4, label = "4", startTime = "11:10", endTime = "12:00"),
+)
+
+private fun appearancePreviewCourses(): List<CourseItem> = listOf(
+    CourseItem(
+        id = "preview-math",
+        title = "高等数学",
+        teacher = "小浩",
+        location = "理工楼110",
+        weeks = listOf(2),
+        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
+            dayOfWeek = 1,
+            startNode = 1,
+            endNode = 2,
+        ),
+    ),
+    CourseItem(
+        id = "preview-english",
+        title = "大学英语",
+        teacher = "Louis",
+        location = "逸夫楼201",
+        weeks = listOf(1),
+        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
+            dayOfWeek = 2,
+            startNode = 2,
+            endNode = 4,
+        ),
+    ),
+    CourseItem(
+        id = "preview-computer",
+        title = "计算机基础",
+        teacher = "老陈",
+        location = "文成楼125",
+        weeks = listOf(2),
+        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
+            dayOfWeek = 3,
+            startNode = 1,
+            endNode = 3,
+        ),
+    ),
+    CourseItem(
+        id = "preview-linear",
+        title = "线性代数",
+        teacher = "小邱",
+        location = "东教学楼502",
+        weeks = listOf(2),
+        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
+            dayOfWeek = 4,
+            startNode = 2,
+            endNode = 4,
+        ),
+    ),
+    CourseItem(
+        id = "preview-mechanics",
+        title = "理论力学",
+        teacher = "小刘",
+        location = "文思楼202",
+        weeks = listOf(2),
+        time = com.x500x.cursimple.core.kernel.model.CourseTimeSlot(
+            dayOfWeek = 7,
+            startNode = 1,
+            endNode = 2,
+        ),
+    ),
+)
 
 private fun displaySlots(
     schedule: TermSchedule?,
