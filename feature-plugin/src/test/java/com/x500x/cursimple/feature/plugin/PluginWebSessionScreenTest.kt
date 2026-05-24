@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -43,6 +44,19 @@ class PluginWebSessionScreenTest {
         val payload = normalizeJavascriptPayload("\"{\\\"html\\\":\\\"<main>ok</main>\\\"}\"")
 
         assertEquals("{\"html\":\"<main>ok</main>\"}", payload)
+    }
+
+    @Test
+    fun `schedule draft json ignores null payload values`() {
+        assertNull(normalizeNullablePayloadString(null))
+        assertNull(normalizeNullablePayloadString("null"))
+        assertNull(normalizeNullablePayloadString(" NULL "))
+        assertNull(normalizeNullablePayloadString(""))
+
+        assertEquals(
+            """{"termId":"2026","courses":[]}""",
+            normalizeNullablePayloadString("""{"termId":"2026","courses":[]}"""),
+        )
     }
 
     @Test
