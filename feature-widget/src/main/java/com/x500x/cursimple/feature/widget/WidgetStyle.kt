@@ -5,7 +5,9 @@ package com.x500x.cursimple.feature.widget
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
 import android.net.Uri
+import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 import androidx.compose.runtime.Composable
@@ -78,6 +80,32 @@ internal fun RemoteViews.applyWidgetBackground(
 
 private fun loadWidgetBackgroundBitmap(context: Context, uriString: String): Bitmap? {
     val uri = runCatching { Uri.parse(uriString) }.getOrNull() ?: return null
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        decodeWidgetBackgroundWithImageDecoder(context, uri)?.let { return it }
+    }
+    return decodeWidgetBackgroundWithBitmapFactory(context, uri)
+}
+
+private fun decodeWidgetBackgroundWithImageDecoder(context: Context, uri: Uri): Bitmap? =
+    runCatching {
+        val source = ImageDecoder.createSource(context.contentResolver, uri)
+        ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+            val (targetWidth, targetHeight) = scaledWidgetBackgroundSize(
+                info.size.width,
+                info.size.height,
+            )
+            decoder.setTargetSize(targetWidth, targetHeight)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            } else {
+                @Suppress("DEPRECATION")
+                decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            }
+            decoder.setMemorySizePolicy(ImageDecoder.MEMORY_POLICY_LOW_RAM)
+        }
+    }.getOrNull()
+
+private fun decodeWidgetBackgroundWithBitmapFactory(context: Context, uri: Uri): Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     runCatching {
         context.contentResolver.openInputStream(uri).use { input ->
@@ -87,11 +115,13 @@ private fun loadWidgetBackgroundBitmap(context: Context, uriString: String): Bit
     }.getOrNull()
     val decodeOptions = BitmapFactory.Options().apply {
         inSampleSize = calculateWidgetBackgroundSampleSize(bounds.outWidth, bounds.outHeight)
+        inPreferredConfig = Bitmap.Config.RGB_565
     }
     return runCatching {
         context.contentResolver.openInputStream(uri).use { input ->
             if (input == null) return null
             BitmapFactory.decodeStream(input, null, decodeOptions)
+                ?.scaleDownForWidgetBackground()
         }
     }.getOrNull()
 }
@@ -103,6 +133,27 @@ private fun calculateWidgetBackgroundSampleSize(width: Int, height: Int): Int {
         sampleSize *= 2
     }
     return sampleSize
+}
+
+private fun scaledWidgetBackgroundSize(width: Int, height: Int): Pair<Int, Int> {
+    if (width <= 0 || height <= 0) return WIDGET_BACKGROUND_MAX_EDGE to WIDGET_BACKGROUND_MAX_EDGE
+    val maxEdge = maxOf(width, height)
+    if (maxEdge <= WIDGET_BACKGROUND_MAX_EDGE) return width to height
+    val targetWidth = (width.toLong() * WIDGET_BACKGROUND_MAX_EDGE / maxEdge)
+        .toInt()
+        .coerceAtLeast(1)
+    val targetHeight = (height.toLong() * WIDGET_BACKGROUND_MAX_EDGE / maxEdge)
+        .toInt()
+        .coerceAtLeast(1)
+    return targetWidth to targetHeight
+}
+
+private fun Bitmap.scaleDownForWidgetBackground(): Bitmap {
+    val (targetWidth, targetHeight) = scaledWidgetBackgroundSize(width, height)
+    if (targetWidth == width && targetHeight == height) return this
+    return Bitmap.createScaledBitmap(this, targetWidth, targetHeight, true).also {
+        if (it != this) recycle()
+    }
 }
 
 private const val WIDGET_BACKGROUND_MAX_EDGE = 384

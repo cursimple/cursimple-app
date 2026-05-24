@@ -47,17 +47,6 @@ class WidgetOpenAppReceiver : BroadcastReceiver() {
             appWidgetId: Int,
             fillInTemplate: Boolean = false,
         ): PendingIntent {
-            val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-            if (launchIntent != null) {
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                return PendingIntent.getActivity(
-                    context,
-                    (if (fillInTemplate) REQUEST_CODE_TEMPLATE_BASE else REQUEST_CODE_BASE) + appWidgetId,
-                    launchIntent,
-                    pendingIntentFlags(fillInTemplate),
-                )
-            }
-
             val intent = Intent(context, WidgetOpenAppReceiver::class.java).apply {
                 action = ACTION_OPEN_APP
                 setPackage(context.packageName)
@@ -65,7 +54,7 @@ class WidgetOpenAppReceiver : BroadcastReceiver() {
             }
             return PendingIntent.getBroadcast(
                 context,
-                REQUEST_CODE_BASE + appWidgetId,
+                (if (fillInTemplate) REQUEST_CODE_TEMPLATE_BASE else REQUEST_CODE_BASE) + appWidgetId,
                 intent,
                 pendingIntentFlags(fillInTemplate),
             )
@@ -87,34 +76,31 @@ internal fun RemoteViews.applyOpenAppClick(
     context: Context,
     viewId: Int,
     appWidgetId: Int,
+    @Suppress("UNUSED_PARAMETER")
     theme: WidgetThemePreferences,
 ) {
-    if (theme.openAppOnDoubleClickEnabled) {
-        setOnClickPendingIntent(viewId, WidgetOpenAppReceiver.pendingIntent(context, appWidgetId))
-    }
+    setOnClickPendingIntent(viewId, WidgetOpenAppReceiver.pendingIntent(context, appWidgetId))
 }
 
 internal fun RemoteViews.applyOpenAppListTemplate(
     context: Context,
     listId: Int,
     appWidgetId: Int,
+    @Suppress("UNUSED_PARAMETER")
     theme: WidgetThemePreferences,
 ) {
-    if (theme.openAppOnDoubleClickEnabled) {
-        setPendingIntentTemplate(
-            listId,
-            WidgetOpenAppReceiver.pendingIntent(context, appWidgetId, fillInTemplate = true),
-        )
-    }
+    setPendingIntentTemplate(
+        listId,
+        WidgetOpenAppReceiver.pendingIntent(context, appWidgetId, fillInTemplate = true),
+    )
 }
 
 internal fun RemoteViews.applyOpenAppFillInIntent(
     viewId: Int,
+    @Suppress("UNUSED_PARAMETER")
     theme: WidgetThemePreferences,
 ) {
-    if (theme.openAppOnDoubleClickEnabled) {
-        setOnClickFillInIntent(viewId, Intent())
-    }
+    setOnClickFillInIntent(viewId, Intent())
 }
 
 private fun openLaunchActivity(context: Context) {
