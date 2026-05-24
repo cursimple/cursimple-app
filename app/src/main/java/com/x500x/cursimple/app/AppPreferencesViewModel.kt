@@ -246,8 +246,8 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setIgnoredUpdateVersionCode(versionCode) }
     }
 
-    fun setPluginMarketIndexUrl(url: String) {
-        viewModelScope.launch { repository.setPluginMarketIndexUrl(url) }
+    fun setPluginRegistryRepo(repo: String) {
+        viewModelScope.launch { repository.setPluginRegistryRepo(repo) }
     }
 
     fun setComponentMarketIndexUrl(url: String) {
