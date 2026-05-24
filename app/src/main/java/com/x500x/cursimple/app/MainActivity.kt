@@ -195,7 +195,10 @@ class MainActivity : ComponentActivity() {
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
                     val pluginMarketViewModel: PluginMarketViewModel = viewModel(
-                        factory = PluginMarketViewModelFactory(container.pluginManager),
+                        factory = PluginMarketViewModelFactory(
+                            pluginManager = container.pluginManager,
+                            gitHubRegistryRepository = container.gitHubRegistryRepository,
+                        ),
                     )
                     val componentMarketViewModel: ComponentMarketViewModel = viewModel(
                         factory = ComponentMarketViewModelFactory(
@@ -655,7 +658,7 @@ class MainActivity : ComponentActivity() {
                                     AppScreen.Plugins -> PluginMarketRoute(
                                         pluginMarketViewModel = pluginMarketViewModel,
                                         componentMarketViewModel = componentMarketViewModel,
-                                        pluginMarketIndexUrl = prefs.pluginMarketIndexUrl,
+                                        pluginRegistryRepo = prefs.pluginRegistryRepo,
                                         componentMarketIndexUrl = prefs.componentMarketIndexUrl,
                                         enabledPluginIds = prefs.enabledPluginIds,
                                         syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
@@ -707,7 +710,7 @@ class MainActivity : ComponentActivity() {
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         autoUpdateEnabled = prefs.autoUpdateEnabled,
                                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
-                                        pluginMarketIndexUrl = prefs.pluginMarketIndexUrl,
+                                        pluginRegistryRepo = prefs.pluginRegistryRepo,
                                         componentMarketIndexUrl = prefs.componentMarketIndexUrl,
                                         privateFilesProviderEnabled = prefs.privateFilesProviderEnabled,
                                         webDavUrl = prefs.webDavUrl,
@@ -771,7 +774,7 @@ class MainActivity : ComponentActivity() {
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
-                                        onPluginMarketIndexUrlChange = prefsViewModel::setPluginMarketIndexUrl,
+                                        onPluginRegistryRepoChange = prefsViewModel::setPluginRegistryRepo,
                                         onComponentMarketIndexUrlChange = prefsViewModel::setComponentMarketIndexUrl,
                                         onPrivateFilesProviderEnabledChange =
                                             prefsViewModel::setPrivateFilesProviderEnabled,
