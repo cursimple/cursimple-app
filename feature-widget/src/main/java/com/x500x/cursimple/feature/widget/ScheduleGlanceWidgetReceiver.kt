@@ -20,7 +20,14 @@ import java.time.format.DateTimeFormatter
 open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         reconcileSystemAlarmsFromWidget(context)
-        updateWidgets(context.applicationContext, appWidgetIds)
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext, appWidgetIds)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -31,7 +38,14 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
         reconcileSystemAlarmsFromWidget(context)
-        updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -51,21 +65,19 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
 
     companion object {
         @Suppress("DEPRECATION")
-        fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
+        suspend fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
             val appContext = context.applicationContext
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                val manager = AppWidgetManager.getInstance(appContext)
-                val ids = appWidgetIds ?: scheduleWidgetIds(appContext, manager)
-                if (ids.isEmpty()) return@launch
-                ids.forEach { appWidgetId ->
-                    val sizeClass = sizeClassForWidget(manager, appWidgetId)
-                    val dayData = ScheduleWidgetDataSource.loadDay(appContext, appWidgetId)
-                    manager.updateAppWidget(
-                        appWidgetId,
-                        buildScheduleViews(appContext, appWidgetId, sizeClass, dayData),
-                    )
-                    manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.widget_course_list)
-                }
+            val manager = AppWidgetManager.getInstance(appContext)
+            val ids = appWidgetIds ?: scheduleWidgetIds(appContext, manager)
+            if (ids.isEmpty()) return
+            ids.forEach { appWidgetId ->
+                val sizeClass = sizeClassForWidget(manager, appWidgetId)
+                val dayData = ScheduleWidgetDataSource.loadDay(appContext, appWidgetId)
+                manager.updateAppWidget(
+                    appWidgetId,
+                    buildScheduleViews(appContext, appWidgetId, sizeClass, dayData),
+                )
+                manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.widget_course_list)
             }
         }
 
@@ -100,7 +112,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_schedule_today)
 
             views.applyWidgetBackground(context, R.id.widget_root, dayData.widgetTheme)
-            views.applyOpenAppOnDoubleClick(context, R.id.widget_root, appWidgetId, dayData.widgetTheme)
+            views.applyOpenAppClick(context, R.id.widget_root, appWidgetId, dayData.widgetTheme)
 
             views.setTextViewText(
                 R.id.widget_title,
@@ -148,10 +160,12 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             )
 
             views.setRemoteAdapter(R.id.widget_course_list, courseListIntent(context, appWidgetId))
+            views.applyOpenAppListTemplate(context, R.id.widget_course_list, appWidgetId, dayData.widgetTheme)
             views.setEmptyView(R.id.widget_course_list, R.id.widget_empty)
             val hasRows = dayData.rows.isNotEmpty()
             views.setViewVisibility(R.id.widget_course_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
+            views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme)
             views.setInt(R.id.widget_empty, "setBackgroundResource", widgetRowVariantBackground(dayData.themeAccent))
             views.setTextViewText(R.id.widget_empty, WidgetDayLabels.empty(dayData.offset))
             return views

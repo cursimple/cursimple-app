@@ -6,6 +6,7 @@ import android.content.Intent
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
@@ -25,6 +26,7 @@ private class NextCourseListFactory(
 ) : RemoteViewsService.RemoteViewsFactory {
     private var rows: List<NextCourseRow> = emptyList()
     private var themeAccent: ThemeAccent = ThemeAccent.Green
+    private var widgetTheme: WidgetThemePreferences = WidgetThemePreferences()
 
     override fun onCreate() = Unit
 
@@ -36,6 +38,7 @@ private class NextCourseListFactory(
         }.onSuccess { data ->
             rows = data.rows
             themeAccent = data.themeAccent
+            widgetTheme = data.widgetTheme
         }
     }
 
@@ -54,6 +57,7 @@ private class NextCourseListFactory(
             widgetRowBackground(themeAccent)
         }
         row.setInt(R.id.next_course_row_root, "setBackgroundResource", backgroundRes)
+        row.applyOpenAppFillInIntent(R.id.next_course_row_root, widgetTheme)
         row.setTextViewText(R.id.next_course_label, data.label)
         row.setTextViewText(R.id.next_course_period, data.period)
         row.setTextViewText(R.id.next_course_name, data.title)

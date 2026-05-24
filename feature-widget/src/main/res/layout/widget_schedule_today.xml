@@ -13,11 +13,12 @@
         android:scaleType="centerCrop"
         android:visibility="gone" />
 
-    <View
+    <TextView
         android:id="@+id/widget_background_scrim"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="#CCFFFFFF"
+        android:text=""
         android:visibility="gone" />
 
     <LinearLayout
