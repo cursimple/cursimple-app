@@ -1220,9 +1220,9 @@ private fun captureWebSessionPacket(
                 capturedFields: fields,
                 scheduleDraftJson: (() => {
                   const draft = window.__CURSIMPLE_SCHEDULE_DRAFT_JSON;
-                  if (!draft) return null;
+                  if (!draft) return "";
                   const text = draft + "";
-                  return byteLength(text) <= MAX_OUTPUT_BYTES ? text : null;
+                  return byteLength(text) <= MAX_OUTPUT_BYTES ? text : "";
                 })()
               });
             } catch (error) {
@@ -1253,8 +1253,7 @@ private fun captureWebSessionPacket(
                         ""
                     },
                     capturedFields = payload.optJSONObject("capturedFields").toStringMap(),
-                    scheduleDraftJson = payload.optString("scheduleDraftJson")
-                        .takeIf { payload.has("scheduleDraftJson") && it.isNotBlank() },
+                    scheduleDraftJson = payload.optNullableString("scheduleDraftJson"),
                     timestamp = OffsetDateTime.now().toString(),
                 )
             }.getOrDefault(fallbackPacket)
@@ -2468,4 +2467,16 @@ private fun JSONObject?.toStringMap(): Map<String, String> {
         result[key] = optString(key, "")
     }
     return result
+}
+
+fun JSONObject.optNullableString(name: String): String? {
+    if (!has(name) || isNull(name)) {
+        return null
+    }
+    return normalizeNullablePayloadString(optString(name))
+}
+
+fun normalizeNullablePayloadString(raw: String?): String? {
+    val value = raw.orEmpty().trim()
+    return value.takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
 }
