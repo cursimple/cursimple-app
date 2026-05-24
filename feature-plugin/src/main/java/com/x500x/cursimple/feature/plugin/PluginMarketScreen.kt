@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Refresh
@@ -137,6 +138,7 @@ fun PluginMarketRoute(
         onPickLocalPlugin = { pluginPackageLauncher.launch(PACKAGE_MIME_TYPES) },
         onRefreshMarket = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
         onOpenRepo = { url -> context.openExternalUrl(url) },
+        onInstallFromGitHub = pluginMarketViewModel::installFromGitHub,
         onConfirmInstall = pluginMarketViewModel::confirmInstall,
         onDismissInstallPreview = pluginMarketViewModel::dismissInstallPreview,
         onRemovePlugin = pluginMarketViewModel::removePlugin,
@@ -166,6 +168,7 @@ private fun PluginMarketScreen(
     onPickLocalPlugin: () -> Unit,
     onRefreshMarket: () -> Unit,
     onOpenRepo: (String) -> Unit,
+    onInstallFromGitHub: (GitHubRepoSummary) -> Unit,
     onConfirmInstall: () -> Unit,
     onDismissInstallPreview: () -> Unit,
     onRemovePlugin: (String) -> Unit,
@@ -201,6 +204,7 @@ private fun PluginMarketScreen(
                     onPickLocalPlugin = onPickLocalPlugin,
                     onRefreshMarket = onRefreshMarket,
                     onOpenRepo = onOpenRepo,
+                    onInstallFromGitHub = onInstallFromGitHub,
                     onRemovePlugin = onRemovePlugin,
                     onSetPluginEnabled = onSetPluginEnabled,
                     onSyncPlugin = onSyncPlugin,
@@ -248,6 +252,7 @@ private fun PluginListContent(
     onPickLocalPlugin: () -> Unit,
     onRefreshMarket: () -> Unit,
     onOpenRepo: (String) -> Unit,
+    onInstallFromGitHub: (GitHubRepoSummary) -> Unit,
     onRemovePlugin: (String) -> Unit,
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
@@ -277,8 +282,10 @@ private fun PluginListContent(
     if (detailRepo != null) {
         GitHubRepoDetailScreen(
             repo = detailRepo,
+            isLoading = uiState.isLoading,
             onBack = { detailRepoSlug = null },
             onOpenRepo = { onOpenRepo(detailRepo.htmlUrl) },
+            onInstall = { onInstallFromGitHub(detailRepo) },
             modifier = modifier,
         )
         return
@@ -469,15 +476,39 @@ private fun GitHubRepoCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                repo.language?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                VersionPill(tag = repo.latestRelease?.tagName)
             }
         }
+    }
+}
+
+@Composable
+private fun VersionPill(tag: String?) {
+    val text = tag?.takeIf { it.isNotBlank() } ?: "未找到版本"
+    val hasVersion = tag?.isNotBlank() == true
+    val container = if (hasVersion) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (hasVersion) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = container,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -514,8 +545,10 @@ private fun OwnerAvatar(owner: String, size: Dp) {
 @Composable
 private fun GitHubRepoDetailScreen(
     repo: GitHubRepoSummary,
+    isLoading: Boolean,
     onBack: () -> Unit,
     onOpenRepo: () -> Unit,
+    onInstall: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -587,15 +620,37 @@ private fun GitHubRepoDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            Spacer(modifier = Modifier.weight(1f))
+                            VersionPill(tag = repo.latestRelease?.tagName)
                         }
-                        Button(onClick = onOpenRepo) {
-                            Icon(
-                                imageVector = Icons.Rounded.OpenInBrowser,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("在 GitHub 查看")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val hasRelease = repo.latestRelease != null
+                            Button(
+                                onClick = onInstall,
+                                enabled = hasRelease && !isLoading,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                val label = when {
+                                    isLoading -> "处理中..."
+                                    !hasRelease -> "未找到版本"
+                                    else -> "安装 ${repo.latestRelease!!.tagName}"
+                                }
+                                Text(label)
+                            }
+                            OutlinedButton(onClick = onOpenRepo) {
+                                Icon(
+                                    imageVector = Icons.Rounded.OpenInBrowser,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("在 GitHub 查看")
+                            }
                         }
                     }
                 }

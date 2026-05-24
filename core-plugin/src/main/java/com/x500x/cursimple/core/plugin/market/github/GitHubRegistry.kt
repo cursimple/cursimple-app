@@ -28,6 +28,7 @@ data class GitHubRepoSummary(
     val homepageUrl: String?,
     val pushedAt: String?,
     val isFresh: Boolean,
+    val latestRelease: GitHubReleaseAsset? = null,
 ) {
     val displayTitle: String get() = name.ifBlank { fullName }
 }
@@ -51,6 +52,27 @@ private data class GitHubOwnerApi(
     @SerialName("login") val login: String = "",
     @SerialName("avatar_url") val avatarUrl: String = "",
     @SerialName("html_url") val htmlUrl: String = "",
+)
+
+@Serializable
+private data class GitHubReleaseApi(
+    @SerialName("tag_name") val tagName: String = "",
+    @SerialName("name") val name: String = "",
+    @SerialName("assets") val assets: List<GitHubReleaseAssetApi> = emptyList(),
+)
+
+@Serializable
+private data class GitHubReleaseAssetApi(
+    @SerialName("name") val name: String = "",
+    @SerialName("browser_download_url") val browserDownloadUrl: String = "",
+    @SerialName("size") val size: Long = 0,
+)
+
+data class GitHubReleaseAsset(
+    val tagName: String,
+    val assetName: String,
+    val downloadUrl: String,
+    val sizeBytes: Long,
 )
 
 class GitHubRegistryRepository(
@@ -97,12 +119,38 @@ class GitHubRegistryRepository(
         }.getOrNull()
     }
 
-    /** Fetches the registry and enriches every entry in parallel. Unreachable entries fall back to a placeholder. */
+    /**
+     * Returns the first `.zip` asset of the repo's latest release, or `null` if no release / no zip asset.
+     * Convention: a plugin repo publishes a Release whose first ZIP asset is the installable plugin package.
+     */
+    suspend fun fetchLatestReleaseAsset(repoSlug: String): GitHubReleaseAsset? = withContext(Dispatchers.IO) {
+        runCatching {
+            val raw = fetchText("https://api.github.com/repos/$repoSlug/releases/latest")
+            val release = json.decodeFromString<GitHubReleaseApi>(raw)
+            val asset = release.assets.firstOrNull { it.name.endsWith(".zip", ignoreCase = true) }
+                ?: return@runCatching null
+            GitHubReleaseAsset(
+                tagName = release.tagName,
+                assetName = asset.name,
+                downloadUrl = asset.browserDownloadUrl,
+                sizeBytes = asset.size,
+            )
+        }.getOrNull()
+    }
+
+    /**
+     * Fetches the registry and enriches every entry in parallel. For each repo we fan out into
+     * (1) repo summary call and (2) latest-release call. Unreachable entries fall back to a placeholder.
+     */
     suspend fun fetchAll(registryRepo: String, branch: String = "main"): List<GitHubRepoSummary> =
         coroutineScope {
             val slugs = fetchRegistry(registryRepo, branch)
             slugs.map { slug ->
-                async { fetchRepoSummary(slug) ?: placeholderSummary(slug) }
+                async {
+                    val summary = async { fetchRepoSummary(slug) ?: placeholderSummary(slug) }
+                    val release = async { fetchLatestReleaseAsset(slug) }
+                    summary.await().copy(latestRelease = release.await())
+                }
             }.awaitAll()
         }
 
