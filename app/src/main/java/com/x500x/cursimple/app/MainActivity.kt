@@ -645,6 +645,7 @@ class MainActivity : ComponentActivity() {
                                         scheduleCardStyle = prefs.scheduleCardStyle,
                                         scheduleBackground = prefs.scheduleBackground,
                                         scheduleDisplay = prefs.scheduleDisplay,
+                                        customColorsAdaptToTheme = prefs.scheduleCustomColorsAdaptToTheme,
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         onUpsertTemporaryScheduleOverride = prefsViewModel::upsertTemporaryScheduleOverride,
                                         onRemoveTemporaryScheduleOverride = prefsViewModel::removeTemporaryScheduleOverride,
@@ -695,6 +696,8 @@ class MainActivity : ComponentActivity() {
                                         scheduleCardStyle = prefs.scheduleCardStyle,
                                         scheduleBackground = prefs.scheduleBackground,
                                         scheduleDisplay = prefs.scheduleDisplay,
+                                        scheduleCustomColorsAdaptToTheme =
+                                            prefs.scheduleCustomColorsAdaptToTheme,
                                         widgetThemePreferences = widgetPrefs,
                                         currentWeekIndex = currentWeekIndex,
                                         alarmBackend = prefs.alarmBackend,
@@ -744,6 +747,8 @@ class MainActivity : ComponentActivity() {
                                         onClearScheduleBackgroundImage = prefsViewModel::clearScheduleBackgroundImage,
                                         onScheduleBackgroundUseHeaderColor =
                                             prefsViewModel::setScheduleBackgroundUseHeaderColor,
+                                        onScheduleCustomColorsAdaptToThemeChange =
+                                            prefsViewModel::setScheduleCustomColorsAdaptToTheme,
                                         onScheduleNodeColumnTimeEnabledChange = prefsViewModel::setScheduleNodeColumnTimeEnabled,
                                         onScheduleSaturdayVisibleChange = prefsViewModel::setScheduleSaturdayVisible,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,

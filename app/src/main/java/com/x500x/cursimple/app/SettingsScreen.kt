@@ -98,6 +98,8 @@ import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.DEFAULT_WEBDAV_URL
+import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
+import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import com.x500x.cursimple.app.reminder.AlarmPermissionIntents
 import com.x500x.cursimple.app.util.LogExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
@@ -184,6 +186,7 @@ fun AppSettingsRoute(
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleBackground: ScheduleBackgroundPreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
+    scheduleCustomColorsAdaptToTheme: Boolean,
     widgetThemePreferences: WidgetThemePreferences,
     currentWeekIndex: Int,
     alarmBackend: ReminderAlarmBackend,
@@ -231,6 +234,7 @@ fun AppSettingsRoute(
     onScheduleBackgroundImageUriChange: (String) -> Unit,
     onClearScheduleBackgroundImage: () -> Unit,
     onScheduleBackgroundUseHeaderColor: () -> Unit,
+    onScheduleCustomColorsAdaptToThemeChange: (Boolean) -> Unit,
     onScheduleNodeColumnTimeEnabledChange: (Boolean) -> Unit,
     onScheduleSaturdayVisibleChange: (Boolean) -> Unit,
     onScheduleWeekendVisibleChange: (Boolean) -> Unit,
@@ -500,6 +504,17 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleAppearance -> {
+                SettingsSwitchRow(
+                    Icons.Rounded.Brightness4,
+                    "自定义颜色适应亮暗主题",
+                    if (scheduleCustomColorsAdaptToTheme) {
+                        "按当前亮暗主题调整课表自定义颜色"
+                    } else {
+                        "自定义颜色保持原样"
+                    },
+                    scheduleCustomColorsAdaptToTheme,
+                    onScheduleCustomColorsAdaptToThemeChange,
+                )
                 SettingsActionRow(Icons.Rounded.Palette, "文字样式", "课程和考试文字", {
                     navigate(SettingsDestination.ScheduleTextStyle)
                 })
@@ -517,8 +532,20 @@ fun AppSettingsRoute(
             SettingsDestination.ScheduleTextStyle -> {
                 NumberStepperRow("课程文字大小", scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
                 ColorAlphaRow("课程文字颜色", scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
+                if (scheduleCustomColorsAdaptToTheme) {
+                    ColorPreviewRow(
+                        "当前主题显示为",
+                        scheduleTextStyle.courseTextColorArgb.adaptForegroundForPreview(darkTheme),
+                    )
+                }
                 NumberStepperRow("考试文字大小", scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
                 ColorAlphaRow("考试文字颜色", scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
+                if (scheduleCustomColorsAdaptToTheme) {
+                    ColorPreviewRow(
+                        "当前主题显示为",
+                        scheduleTextStyle.examTextColorArgb.adaptForegroundForPreview(darkTheme),
+                    )
+                }
                 SettingsSwitchRow(Icons.Rounded.Tune, "格子文字水平居中", "课程卡片文字水平居中", scheduleTextStyle.horizontalCenter, onScheduleTextHorizontalCenterChange)
                 SettingsSwitchRow(Icons.Rounded.Tune, "格子文字竖直居中", "课程卡片内容竖直居中", scheduleTextStyle.verticalCenter, onScheduleTextVerticalCenterChange)
                 SettingsSwitchRow(Icons.Rounded.Tune, "格子文字完全居中", "同时启用水平与竖直居中", scheduleTextStyle.fullCenter, onScheduleTextFullCenterChange)
@@ -528,14 +555,26 @@ fun AppSettingsRoute(
                 NumberStepperRow("表头文字大小", scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
                 ColorAlphaRow(
                     "表头文字颜色",
-                    scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme),
+                    scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, false),
                     onScheduleHeaderTextColorArgbChange,
                 )
+                if (scheduleCustomColorsAdaptToTheme) {
+                    ColorPreviewRow(
+                        "当前主题显示为",
+                        scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, true),
+                    )
+                }
                 ColorAlphaRow(
                     "当前天表头背景颜色",
-                    scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme),
+                    scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, false),
                     onScheduleTodayHeaderBackgroundColorArgbChange,
                 )
+                if (scheduleCustomColorsAdaptToTheme) {
+                    ColorPreviewRow(
+                        "当前主题显示为",
+                        scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, true),
+                    )
+                }
             }
 
             SettingsDestination.ScheduleCardStyle -> {
@@ -544,6 +583,12 @@ fun AppSettingsRoute(
                 NumberStepperRow("课表透明度", scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
                 NumberStepperRow("非本周课程透明度", scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
                 ColorAlphaRow("格子边框颜色", scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
+                if (scheduleCustomColorsAdaptToTheme) {
+                    ColorPreviewRow(
+                        "当前主题显示为",
+                        scheduleCardStyle.gridBorderColorArgb.adaptForegroundForPreview(darkTheme),
+                    )
+                }
                 NumberStepperRow("格子边框透明度", scheduleCardStyle.gridBorderOpacityPercent, "%", 0, 100, 5, onScheduleGridBorderOpacityPercentChange)
                 FloatStepperRow("格子边框粗细", scheduleCardStyle.gridBorderWidthDp, "dp", 0f, 4f, 0.5f, onScheduleGridBorderWidthDpChange)
                 SettingsSwitchRow(Icons.Rounded.Tune, "格子边框虚线", "关闭时使用实线", scheduleCardStyle.gridBorderDashed, onScheduleGridBorderDashedChange)
@@ -551,6 +596,12 @@ fun AppSettingsRoute(
 
             SettingsDestination.ScheduleBackground -> {
                 ColorAlphaRow("背景颜色", scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
+                if (scheduleCustomColorsAdaptToTheme) {
+                    ColorPreviewRow(
+                        "当前主题显示为",
+                        scheduleBackground.colorArgb.adaptBackgroundForPreview(darkTheme),
+                    )
+                }
                 SettingsActionRow(
                     icon = Icons.Rounded.CalendarMonth,
                     title = "与表头背景一致",
@@ -1089,6 +1140,46 @@ private fun argbAlphaPercent(argb: Long): Int = (((argb ushr 24) and 0xFF) * 100
 
 private fun argbTransparencyPercent(argb: Long): Int = 100 - argbAlphaPercent(argb)
 
+@Composable
+private fun ColorPreviewRow(title: String, argb: Long) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Brightness7,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "${formatArgb(argb)} · 透明度 ${argbTransparencyPercent(argb)}%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Surface(
+                modifier = Modifier.size(28.dp),
+                color = Color(argb),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            ) {}
+        }
+    }
+}
+
 private fun argbAlphaByte(argb: Long): Int = ((argb ushr 24) and 0xFF).toInt()
 
 private fun argbRedByte(argb: Long): Int = ((argb ushr 16) and 0xFF).toInt()
@@ -1128,18 +1219,34 @@ private fun parseArgbInput(input: String, fallbackAlpha: Int): Long? {
     }
 }
 
-private fun ScheduleTextStylePreferences.resolvedHeaderTextColorArgb(darkTheme: Boolean): Long =
+private fun Long.adaptForegroundForPreview(darkTheme: Boolean): Long =
+    adaptScheduleForegroundColorArgb(this, darkTheme, true)
+
+private fun Long.adaptBackgroundForPreview(darkTheme: Boolean): Long =
+    adaptScheduleBackgroundColorArgb(this, darkTheme, true)
+
+private fun ScheduleTextStylePreferences.resolvedHeaderTextColorArgb(
+    darkTheme: Boolean,
+    customColorsAdaptToTheme: Boolean,
+): Long =
     if (headerTextColorCustomized) {
-        headerTextColorArgb
+        adaptScheduleForegroundColorArgb(headerTextColorArgb, darkTheme, customColorsAdaptToTheme)
     } else if (darkTheme) {
         ScheduleTextStylePreferences.DEFAULT_DARK_HEADER_TEXT_COLOR_ARGB
     } else {
         ScheduleTextStylePreferences.DEFAULT_HEADER_TEXT_COLOR_ARGB
     }
 
-private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColorArgb(darkTheme: Boolean): Long =
+private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColorArgb(
+    darkTheme: Boolean,
+    customColorsAdaptToTheme: Boolean,
+): Long =
     if (todayHeaderBackgroundColorCustomized) {
-        todayHeaderBackgroundColorArgb
+        adaptScheduleBackgroundColorArgb(
+            todayHeaderBackgroundColorArgb,
+            darkTheme,
+            customColorsAdaptToTheme,
+        )
     } else if (darkTheme) {
         ScheduleTextStylePreferences.DEFAULT_DARK_TODAY_HEADER_BACKGROUND_COLOR_ARGB
     } else {

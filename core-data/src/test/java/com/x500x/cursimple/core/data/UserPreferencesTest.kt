@@ -30,6 +30,7 @@ class UserPreferencesTest {
         assertEquals(100, prefs.scheduleCardStyle.gridBorderOpacityPercent)
         assertEquals(ScheduleBackgroundType.Header, prefs.scheduleBackground.type)
         assertEquals(0xFFFFFFFFL, prefs.scheduleBackground.colorArgb)
+        assertEquals(false, prefs.scheduleCustomColorsAdaptToTheme)
     }
 
     @Test
@@ -41,6 +42,38 @@ class UserPreferencesTest {
         assertEquals(0, ScheduleCardStylePreferences.coerceOpacityPercent(-50))
         assertEquals(100, ScheduleCardStylePreferences.coerceOpacityPercent(200))
         assertEquals(0x12345678L, ScheduleTextStylePreferences.coerceArgb(0xFF12345678L))
+    }
+
+    @Test
+    fun `schedule custom foreground colors adapt to theme while preserving alpha`() {
+        assertEquals(
+            0x80FFFFFFL,
+            adaptScheduleForegroundColorArgb(0x80000000L, darkTheme = true, enabled = true),
+        )
+        assertEquals(
+            0x80123456L,
+            adaptScheduleForegroundColorArgb(0x80123456L, darkTheme = true, enabled = false),
+        )
+        assertEquals(
+            0x80000000L,
+            adaptScheduleForegroundColorArgb(0x80FFFFFFL, darkTheme = false, enabled = true),
+        )
+    }
+
+    @Test
+    fun `schedule custom background colors adapt to theme while preserving alpha`() {
+        assertEquals(
+            0x80000000L,
+            adaptScheduleBackgroundColorArgb(0x80FFFFFFL, darkTheme = true, enabled = true),
+        )
+        assertEquals(
+            0x80FFFFFFL,
+            adaptScheduleBackgroundColorArgb(0x80000000L, darkTheme = false, enabled = true),
+        )
+        assertEquals(
+            0x80FFFFFFL,
+            adaptScheduleBackgroundColorArgb(0x80FFFFFFL, darkTheme = true, enabled = false),
+        )
     }
 
     @Test

@@ -130,6 +130,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleBackgroundUseHeaderColor() }
     }
 
+    fun setScheduleCustomColorsAdaptToTheme(enabled: Boolean) {
+        viewModelScope.launch { repository.setScheduleCustomColorsAdaptToTheme(enabled) }
+    }
+
     fun setScheduleNodeColumnTimeEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleNodeColumnTimeEnabled(enabled) }
     }
