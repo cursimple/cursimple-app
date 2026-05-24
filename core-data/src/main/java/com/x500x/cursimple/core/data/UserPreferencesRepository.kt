@@ -31,8 +31,9 @@ enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
 
 enum class ScheduleBackgroundType { Color, Image, Header }
 
-const val DEFAULT_PLUGIN_MARKET_INDEX_URL =
-    "https://raw.githubusercontent.com/cursimple/cursimple-plugins/refs/heads/main/manifest.json"
+const val DEFAULT_PLUGIN_REGISTRY_REPO = "cursimple/cursimple-plugins"
+const val DEFAULT_PLUGIN_REGISTRY_BRANCH = "main"
+const val DEFAULT_PLUGIN_REGISTRY_PATH = "plugins.json"
 
 const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
     "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
@@ -198,7 +199,7 @@ data class UserPreferences(
     val lastAlarmPollAtMillis: Long = 0L,
     val autoUpdateEnabled: Boolean = false,
     val ignoredUpdateVersionCode: Int? = null,
-    val pluginMarketIndexUrl: String = DEFAULT_PLUGIN_MARKET_INDEX_URL,
+    val pluginRegistryRepo: String = DEFAULT_PLUGIN_REGISTRY_REPO,
     val componentMarketIndexUrl: String = DEFAULT_COMPONENT_MARKET_INDEX_URL,
     val privateFilesProviderEnabled: Boolean = false,
     val webDavUrl: String = DEFAULT_WEBDAV_URL,
@@ -264,7 +265,7 @@ interface UserPreferencesRepository {
     suspend fun tryClaimAlarmPoll(nowMillis: Long, minIntervalMillis: Long): Boolean
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
-    suspend fun setPluginMarketIndexUrl(url: String)
+    suspend fun setPluginRegistryRepo(repo: String)
     suspend fun setComponentMarketIndexUrl(url: String)
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)
     suspend fun setWebDavSettings(url: String, username: String, password: String)

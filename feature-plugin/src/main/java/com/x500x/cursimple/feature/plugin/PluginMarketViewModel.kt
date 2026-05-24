@@ -8,22 +8,25 @@ import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
 import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
-import com.x500x.cursimple.core.plugin.market.MarketPluginEntry
+import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
+import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class PluginMarketUiState(
-    val marketPlugins: List<MarketPluginEntry> = emptyList(),
+    val marketRepos: List<GitHubRepoSummary> = emptyList(),
     val installedPlugins: List<InstalledPluginRecord> = emptyList(),
     val installPreview: PluginInstallPreview? = null,
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
+    val lastLoadedRegistry: String? = null,
 )
 
 class PluginMarketViewModel(
     private val pluginManager: PluginManager,
+    private val gitHubRegistryRepository: GitHubRegistryRepository,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PluginMarketUiState())
     val uiState: StateFlow<PluginMarketUiState> = _uiState
@@ -45,35 +48,31 @@ class PluginMarketViewModel(
         _uiState.update { it.copy(statusMessage = message) }
     }
 
-    fun loadRemoteMarket(indexUrl: String) {
-        val url = indexUrl.trim()
-        if (url.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先在设置-插件中配置插件市场索引 URL") }
+    fun loadRegistry(registryRepo: String) {
+        val slug = registryRepo.trim()
+        if (slug.isBlank()) {
+            _uiState.update { it.copy(statusMessage = "请先在设置-插件中配置注册表仓库") }
             return
         }
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载远程市场...") }
-            runCatching { pluginManager.fetchMarketIndex(url) }
-                .onSuccess { payload ->
-                    val message = if (payload.plugins.isEmpty()) {
-                        "当前市场格式暂不支持或没有可安装插件"
-                    } else {
-                        "已加载 ${payload.plugins.size} 个插件"
-                    }
+            _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载插件市场...") }
+            runCatching { gitHubRegistryRepository.fetchAll(slug) }
+                .onSuccess { repos ->
+                    val message = if (repos.isEmpty()) "插件市场为空" else "已加载 ${repos.size} 个插件"
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            marketPlugins = payload.plugins,
+                            marketRepos = repos,
+                            lastLoadedRegistry = slug,
                             statusMessage = message,
                         )
                     }
                 }
-                .onFailure {
-                    val errorMessage = it.message ?: "加载远程市场失败"
+                .onFailure { error ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            statusMessage = errorMessage,
+                            statusMessage = error.message ?: "加载插件市场失败",
                         )
                     }
                 }
@@ -82,25 +81,6 @@ class PluginMarketViewModel(
 
     fun previewLocalPackage(bytes: ByteArray) {
         previewPackage(bytes, PluginInstallSource.Local)
-    }
-
-    fun previewRemotePackage(entry: MarketPluginEntry) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在下载插件包...") }
-            runCatching { pluginManager.downloadRemotePackage(entry.downloadUrl) }
-                .onSuccess { bytes ->
-                    previewPackage(bytes, PluginInstallSource.Remote)
-                }
-                .onFailure {
-                    val errorMessage = it.message ?: "下载插件包失败"
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            statusMessage = errorMessage,
-                        )
-                    }
-                }
-        }
     }
 
     fun confirmInstall() {
@@ -182,11 +162,12 @@ class PluginMarketViewModel(
 
 class PluginMarketViewModelFactory(
     private val pluginManager: PluginManager,
+    private val gitHubRegistryRepository: GitHubRegistryRepository,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PluginMarketViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return PluginMarketViewModel(pluginManager) as T
+            return PluginMarketViewModel(pluginManager, gitHubRegistryRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
