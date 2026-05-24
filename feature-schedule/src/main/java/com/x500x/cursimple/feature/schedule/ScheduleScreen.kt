@@ -95,6 +95,8 @@ import com.x500x.cursimple.core.data.ScheduleBackgroundType
 import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
+import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
+import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -165,6 +167,7 @@ fun ScheduleRoute(
     scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     scheduleBackground: ScheduleBackgroundPreferences = ScheduleBackgroundPreferences(),
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
+    customColorsAdaptToTheme: Boolean = false,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
@@ -206,6 +209,7 @@ fun ScheduleRoute(
         scheduleCardStyle = scheduleCardStyle,
         scheduleBackground = scheduleBackground,
         scheduleDisplay = scheduleDisplay,
+        customColorsAdaptToTheme = customColorsAdaptToTheme,
         temporaryScheduleOverrides = temporaryScheduleOverrides,
         onUpsertTemporaryScheduleOverride = onUpsertTemporaryScheduleOverride,
         onRemoveTemporaryScheduleOverride = onRemoveTemporaryScheduleOverride,
@@ -251,6 +255,7 @@ fun ScheduleScreen(
     scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     scheduleBackground: ScheduleBackgroundPreferences = ScheduleBackgroundPreferences(),
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
+    customColorsAdaptToTheme: Boolean = false,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
@@ -327,6 +332,7 @@ fun ScheduleScreen(
                         scheduleCardStyle = scheduleCardStyle,
                         scheduleBackground = scheduleBackground,
                         scheduleDisplay = scheduleDisplay,
+                        customColorsAdaptToTheme = customColorsAdaptToTheme,
                         temporaryScheduleOverrides = temporaryScheduleOverrides,
                     )
 
@@ -352,6 +358,7 @@ fun ScheduleScreen(
                         scheduleTextStyle = scheduleTextStyle,
                         scheduleCardStyle = scheduleCardStyle,
                         scheduleDisplay = scheduleDisplay,
+                        customColorsAdaptToTheme = customColorsAdaptToTheme,
                     )
                 }
             }
@@ -859,6 +866,7 @@ private fun WeeklyScheduleSection(
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleBackground: ScheduleBackgroundPreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
+    customColorsAdaptToTheme: Boolean,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
@@ -1006,6 +1014,7 @@ private fun WeeklyScheduleSection(
                             scheduleCardStyle = scheduleCardStyle,
                             scheduleBackground = scheduleBackground,
                             scheduleDisplay = scheduleDisplay,
+                            customColorsAdaptToTheme = customColorsAdaptToTheme,
                             horizontalScrollState = horizontalScrollState,
                             selectedCourseId = selectedCourseId,
                             multiSelectMode = multiSelectMode,
@@ -1044,6 +1053,7 @@ private fun DailyScheduleSection(
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
+    customColorsAdaptToTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(schedule, timingProfile, manualCourses) {
@@ -1118,6 +1128,7 @@ private fun DailyScheduleSection(
                     scheduleTextStyle = scheduleTextStyle,
                     scheduleCardStyle = scheduleCardStyle,
                     scheduleDisplay = scheduleDisplay,
+                    customColorsAdaptToTheme = customColorsAdaptToTheme,
                 )
             }
         }
@@ -1200,6 +1211,7 @@ private fun DayList(
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
+    customColorsAdaptToTheme: Boolean,
 ) {
     val density = androidx.compose.ui.platform.LocalDensity.current
     val swipeThresholdPx = with(density) { 80.dp.toPx() }
@@ -1250,6 +1262,7 @@ private fun DayList(
                 scheduleTextStyle = scheduleTextStyle,
                 scheduleCardStyle = scheduleCardStyle,
                 scheduleDisplay = scheduleDisplay,
+                customColorsAdaptToTheme = customColorsAdaptToTheme,
             )
         }
         if (courses.isEmpty()) {
@@ -1285,6 +1298,7 @@ private fun DayRow(
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
+    customColorsAdaptToTheme: Boolean,
 ) {
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     Row(
@@ -1340,6 +1354,9 @@ private fun DayRow(
                 }
                 val titleTextColor = colorFromArgb(
                     if (isExam) scheduleTextStyle.examTextColorArgb else scheduleTextStyle.courseTextColorArgb,
+                    darkTheme = isDarkColorScheme(),
+                    adaptToTheme = customColorsAdaptToTheme,
+                    role = ScheduleCustomColorRole.Foreground,
                 )
                 Row(
                     modifier = Modifier
@@ -1633,6 +1650,7 @@ private fun ScheduleGrid(
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleBackground: ScheduleBackgroundPreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
+    customColorsAdaptToTheme: Boolean,
     horizontalScrollState: androidx.compose.foundation.ScrollState,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
@@ -1706,9 +1724,15 @@ private fun ScheduleGrid(
                     monthLabel = week.days.firstOrNull()?.monthLabel.orEmpty(),
                     width = timeColumnWidth,
                     scheduleTextStyle = scheduleTextStyle,
+                    customColorsAdaptToTheme = customColorsAdaptToTheme,
                 )
                 visibleDays.forEach { day ->
-                    DayHeader(day = day, width = dayColumnWidth, scheduleTextStyle = scheduleTextStyle)
+                    DayHeader(
+                        day = day,
+                        width = dayColumnWidth,
+                        scheduleTextStyle = scheduleTextStyle,
+                        customColorsAdaptToTheme = customColorsAdaptToTheme,
+                    )
                 }
             }
 
@@ -1722,6 +1746,7 @@ private fun ScheduleGrid(
                             height = slotHeight,
                             showTime = scheduleDisplay.nodeColumnTimeEnabled,
                             scheduleTextStyle = scheduleTextStyle,
+                            customColorsAdaptToTheme = customColorsAdaptToTheme,
                         )
                     }
                 }
@@ -1735,14 +1760,21 @@ private fun ScheduleGrid(
                     ScheduleGridBackground(
                         scheduleBackground = scheduleBackground,
                         scheduleCardStyle = scheduleCardStyle,
+                        customColorsAdaptToTheme = customColorsAdaptToTheme,
                         modifier = Modifier.fillMaxSize(),
                     )
                     val density = androidx.compose.ui.platform.LocalDensity.current
+                    val darkTheme = isDarkColorScheme()
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .drawBehind {
-                                val lineColor = colorFromArgb(scheduleCardStyle.gridBorderColorArgb)
+                                val lineColor = colorFromArgb(
+                                    scheduleCardStyle.gridBorderColorArgb,
+                                    darkTheme = darkTheme,
+                                    adaptToTheme = customColorsAdaptToTheme,
+                                    role = ScheduleCustomColorRole.Foreground,
+                                )
                                     .withOpacityPercent(scheduleCardStyle.gridBorderOpacityPercent)
                                 val strokeWidth = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
                                 if (strokeWidth <= 0f) return@drawBehind
@@ -1805,6 +1837,7 @@ private fun ScheduleGrid(
                                 scheduleTextStyle = scheduleTextStyle,
                                 scheduleCardStyle = scheduleCardStyle,
                                 scheduleDisplay = scheduleDisplay,
+                                customColorsAdaptToTheme = customColorsAdaptToTheme,
                                 width = dayColumnWidth - 3.dp,
                                 height = courseHeight,
                                 offsetX = dayColumnWidth * placement.dayIndex + 1.5.dp,
@@ -1903,10 +1936,11 @@ private fun DayHeader(
     day: DayHeaderModel,
     width: androidx.compose.ui.unit.Dp,
     scheduleTextStyle: ScheduleTextStylePreferences,
+    customColorsAdaptToTheme: Boolean,
 ) {
     val darkTheme = isDarkColorScheme()
-    val headerColor = scheduleTextStyle.resolvedHeaderTextColor(darkTheme)
-    val todayContainer = scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme)
+    val headerColor = scheduleTextStyle.resolvedHeaderTextColor(darkTheme, customColorsAdaptToTheme)
+    val todayContainer = scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme, customColorsAdaptToTheme)
     val todayContent = readableContentColor(todayContainer)
     val headerSize = scheduleTextStyle.headerTextSizeSp.sp
     val columnModifier = Modifier
@@ -1960,8 +1994,11 @@ private fun MonthCornerCell(
     monthLabel: String,
     width: androidx.compose.ui.unit.Dp,
     scheduleTextStyle: ScheduleTextStylePreferences,
+    customColorsAdaptToTheme: Boolean,
 ) {
-    val muted = scheduleTextStyle.resolvedHeaderTextColor(isDarkColorScheme()).copy(alpha = 0.82f)
+    val muted = scheduleTextStyle
+        .resolvedHeaderTextColor(isDarkColorScheme(), customColorsAdaptToTheme)
+        .copy(alpha = 0.82f)
     val headerSize = scheduleTextStyle.headerTextSizeSp.sp
     Column(
         modifier = Modifier
@@ -1998,8 +2035,9 @@ private fun TimeCell(
     height: androidx.compose.ui.unit.Dp,
     showTime: Boolean,
     scheduleTextStyle: ScheduleTextStylePreferences,
+    customColorsAdaptToTheme: Boolean,
 ) {
-    val headerColor = scheduleTextStyle.resolvedHeaderTextColor(isDarkColorScheme())
+    val headerColor = scheduleTextStyle.resolvedHeaderTextColor(isDarkColorScheme(), customColorsAdaptToTheme)
     val headerSize = scheduleTextStyle.headerTextSizeSp.sp
     Column(
         modifier = Modifier
@@ -2051,6 +2089,7 @@ private fun CourseBlock(
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
+    customColorsAdaptToTheme: Boolean,
     width: androidx.compose.ui.unit.Dp,
     height: androidx.compose.ui.unit.Dp,
     offsetX: androidx.compose.ui.unit.Dp,
@@ -2069,6 +2108,9 @@ private fun CourseBlock(
     }
     val titleColor = colorFromArgb(
         if (isExam) scheduleTextStyle.examTextColorArgb else scheduleTextStyle.courseTextColorArgb,
+        darkTheme = isDarkColorScheme(),
+        adaptToTheme = customColorsAdaptToTheme,
+        role = ScheduleCustomColorRole.Foreground,
     )
     val horizontalCentered = scheduleTextStyle.fullCenter || scheduleTextStyle.horizontalCenter
     val verticalCentered = scheduleTextStyle.fullCenter || scheduleTextStyle.verticalCenter
@@ -3594,13 +3636,19 @@ private data class ScheduleBackgroundImageState(
 private fun ScheduleGridBackground(
     scheduleBackground: ScheduleBackgroundPreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
+    customColorsAdaptToTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     val baseBackgroundColor = when (scheduleBackground.type) {
         ScheduleBackgroundType.Header -> accents.gridBackground
         ScheduleBackgroundType.Color,
-        ScheduleBackgroundType.Image -> colorFromArgb(scheduleBackground.colorArgb)
+        ScheduleBackgroundType.Image -> colorFromArgb(
+            scheduleBackground.colorArgb,
+            darkTheme = isDarkColorScheme(),
+            adaptToTheme = customColorsAdaptToTheme,
+            role = ScheduleCustomColorRole.Background,
+        )
     }
     val backgroundColor = baseBackgroundColor.withOpacityPercent(scheduleCardStyle.scheduleOpacityPercent)
     Box(modifier = modifier.background(backgroundColor)) {
@@ -3654,12 +3702,31 @@ private fun ScheduleGridBackground(
     }
 }
 
-private fun colorFromArgb(argb: Long): Color = Color(argb and 0xFFFF_FFFFL)
+private enum class ScheduleCustomColorRole {
+    Foreground,
+    Background,
+}
+
+private fun colorFromArgb(
+    argb: Long,
+    darkTheme: Boolean = false,
+    adaptToTheme: Boolean = false,
+    role: ScheduleCustomColorRole = ScheduleCustomColorRole.Foreground,
+): Color {
+    val adapted = when (role) {
+        ScheduleCustomColorRole.Foreground -> adaptScheduleForegroundColorArgb(argb, darkTheme, adaptToTheme)
+        ScheduleCustomColorRole.Background -> adaptScheduleBackgroundColorArgb(argb, darkTheme, adaptToTheme)
+    }
+    return Color(adapted and 0xFFFF_FFFFL)
+}
 
 @Composable
 private fun isDarkColorScheme(): Boolean = MaterialTheme.colorScheme.background.luminance() < 0.5f
 
-private fun ScheduleTextStylePreferences.resolvedHeaderTextColor(darkTheme: Boolean): Color =
+private fun ScheduleTextStylePreferences.resolvedHeaderTextColor(
+    darkTheme: Boolean,
+    customColorsAdaptToTheme: Boolean,
+): Color =
     colorFromArgb(
         if (headerTextColorCustomized) {
             headerTextColorArgb
@@ -3668,9 +3735,15 @@ private fun ScheduleTextStylePreferences.resolvedHeaderTextColor(darkTheme: Bool
         } else {
             ScheduleTextStylePreferences.DEFAULT_HEADER_TEXT_COLOR_ARGB
         },
+        darkTheme = darkTheme,
+        adaptToTheme = customColorsAdaptToTheme && headerTextColorCustomized,
+        role = ScheduleCustomColorRole.Foreground,
     )
 
-private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColor(darkTheme: Boolean): Color =
+private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColor(
+    darkTheme: Boolean,
+    customColorsAdaptToTheme: Boolean,
+): Color =
     colorFromArgb(
         if (todayHeaderBackgroundColorCustomized) {
             todayHeaderBackgroundColorArgb
@@ -3679,6 +3752,9 @@ private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColor(dark
         } else {
             ScheduleTextStylePreferences.DEFAULT_TODAY_HEADER_BACKGROUND_COLOR_ARGB
         },
+        darkTheme = darkTheme,
+        adaptToTheme = customColorsAdaptToTheme && todayHeaderBackgroundColorCustomized,
+        role = ScheduleCustomColorRole.Background,
     )
 
 private fun readableContentColor(background: Color): Color =

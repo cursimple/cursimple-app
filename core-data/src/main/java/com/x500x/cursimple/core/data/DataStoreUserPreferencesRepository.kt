@@ -57,6 +57,7 @@ class DataStoreUserPreferencesRepository(
             scheduleCardStyle = prefs.toScheduleCardStyle(),
             scheduleBackground = prefs.toScheduleBackground(),
             scheduleDisplay = prefs.toScheduleDisplay(),
+            scheduleCustomColorsAdaptToTheme = prefs[KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME] ?: false,
             enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
             pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
             temporaryScheduleOverrides = decodeTemporaryScheduleOverrides(
@@ -244,6 +245,10 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
         }
         releasePersistedReadPermission(previousImageUri)
+    }
+
+    override suspend fun setScheduleCustomColorsAdaptToTheme(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME] = enabled }
     }
 
     override suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean) {
@@ -638,6 +643,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_BACKGROUND_TYPE)
         remove(KEY_SCHEDULE_BACKGROUND_COLOR_ARGB)
         remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
+        remove(KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME)
         remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
@@ -699,6 +705,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_BACKGROUND_TYPE = stringPreferencesKey("schedule_background_type")
         val KEY_SCHEDULE_BACKGROUND_COLOR_ARGB = longPreferencesKey("schedule_background_color_argb")
         val KEY_SCHEDULE_BACKGROUND_IMAGE_URI = stringPreferencesKey("schedule_background_image_uri")
+        val KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME =
+            booleanPreferencesKey("schedule_custom_colors_adapt_to_theme")
         val KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED = booleanPreferencesKey("schedule_display_node_column_time_enabled")
         val KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE = booleanPreferencesKey("schedule_display_saturday_visible")
         val KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE = booleanPreferencesKey("schedule_display_weekend_visible")
