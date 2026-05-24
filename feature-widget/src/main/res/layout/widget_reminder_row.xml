@@ -34,10 +34,11 @@
             android:textSize="11sp"
             android:textStyle="bold" />
 
-        <Space
+        <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:text="" />
 
         <TextView
             android:id="@+id/reminder_countdown"
