@@ -83,6 +83,32 @@ class PluginMarketViewModel(
         previewPackage(bytes, PluginInstallSource.Local)
     }
 
+    fun installFromGitHub(repo: GitHubRepoSummary) {
+        val asset = repo.latestRelease
+        if (asset == null) {
+            _uiState.update {
+                it.copy(statusMessage = "${repo.fullName} 还没有带 ZIP 资产的 Release，无法安装。")
+            }
+            return
+        }
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(isLoading = true, statusMessage = "正在下载 ${asset.assetName}（${asset.tagName}）...")
+            }
+            val bytes = runCatching { pluginManager.downloadRemotePackage(asset.downloadUrl) }
+                .getOrElse { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            statusMessage = error.message ?: "下载插件包失败",
+                        )
+                    }
+                    return@launch
+                }
+            previewPackage(bytes, PluginInstallSource.Remote)
+        }
+    }
+
     fun confirmInstall() {
         val bytes = pendingBytes ?: return
         val source = pendingSource ?: PluginInstallSource.Local
