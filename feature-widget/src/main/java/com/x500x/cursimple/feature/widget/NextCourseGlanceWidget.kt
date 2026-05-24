@@ -16,7 +16,14 @@ import kotlinx.coroutines.launch
 open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         reconcileSystemAlarmsFromWidget(context)
-        updateWidgets(context.applicationContext, appWidgetIds)
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext, appWidgetIds)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -27,7 +34,14 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
         reconcileSystemAlarmsFromWidget(context)
-        updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -37,17 +51,15 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
 
     companion object {
         @Suppress("DEPRECATION")
-        fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
+        suspend fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
             val appContext = context.applicationContext
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                val manager = AppWidgetManager.getInstance(appContext)
-                val ids = appWidgetIds ?: collectIds(appContext, manager)
-                if (ids.isEmpty()) return@launch
-                val data = NextCourseDataSource.load(appContext)
-                ids.forEach { appWidgetId ->
-                    manager.updateAppWidget(appWidgetId, buildViews(appContext, appWidgetId, data))
-                    manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.next_course_list)
-                }
+            val manager = AppWidgetManager.getInstance(appContext)
+            val ids = appWidgetIds ?: collectIds(appContext, manager)
+            if (ids.isEmpty()) return
+            val data = NextCourseDataSource.load(appContext)
+            ids.forEach { appWidgetId ->
+                manager.updateAppWidget(appWidgetId, buildViews(appContext, appWidgetId, data))
+                manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.next_course_list)
             }
         }
 
@@ -72,7 +84,7 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_next_course)
             views.applyWidgetBackground(context, R.id.next_course_root, data.widgetTheme)
-            views.applyOpenAppOnDoubleClick(context, R.id.next_course_root, appWidgetId, data.widgetTheme)
+            views.applyOpenAppClick(context, R.id.next_course_root, appWidgetId, data.widgetTheme)
             views.setTextViewText(R.id.next_course_title, data.headerLabel)
             if (data.badgeText != null) {
                 views.setViewVisibility(R.id.next_course_badge, View.VISIBLE)
@@ -82,9 +94,11 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             }
             val hasRows = data.rows.isNotEmpty()
             views.setRemoteAdapter(R.id.next_course_list, listIntent(context, appWidgetId))
+            views.applyOpenAppListTemplate(context, R.id.next_course_list, appWidgetId, data.widgetTheme)
             views.setEmptyView(R.id.next_course_list, R.id.next_course_empty)
             views.setViewVisibility(R.id.next_course_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.next_course_empty, if (hasRows) View.GONE else View.VISIBLE)
+            views.applyOpenAppClick(context, R.id.next_course_empty, appWidgetId, data.widgetTheme)
             views.setInt(R.id.next_course_empty, "setBackgroundResource", widgetRowVariantBackground(data.themeAccent))
             views.setTextViewText(R.id.next_course_empty, data.emptyTitle)
             return views

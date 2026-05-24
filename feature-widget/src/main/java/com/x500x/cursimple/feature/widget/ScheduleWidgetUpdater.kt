@@ -15,17 +15,18 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 object ScheduleWidgetUpdater {
-    suspend fun refreshAll(context: Context) {
+    suspend fun refreshAll(context: Context) = withContext(Dispatchers.Default) {
         val app = context.applicationContext
         ScheduleGlanceWidgetReceiver.updateWidgets(app)
         NextCourseGlanceWidgetReceiver.updateWidgets(app)
         ReminderGlanceWidgetReceiver.updateWidgets(app)
     }
 
-    fun refreshSchedule(context: Context, appWidgetIds: IntArray? = null) {
+    suspend fun refreshSchedule(context: Context, appWidgetIds: IntArray? = null) = withContext(Dispatchers.Default) {
         val app = context.applicationContext
         ScheduleGlanceWidgetReceiver.updateWidgets(app, appWidgetIds)
     }

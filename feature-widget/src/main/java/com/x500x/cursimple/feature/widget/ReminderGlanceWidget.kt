@@ -70,7 +70,14 @@ private fun firstNotBlank(vararg values: String?): String? =
 open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         reconcileSystemAlarmsFromWidget(context)
-        updateWidgets(context.applicationContext, appWidgetIds)
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext, appWidgetIds)
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onAppWidgetOptionsChanged(
@@ -81,7 +88,14 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
         reconcileSystemAlarmsFromWidget(context)
-        updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext, intArrayOf(appWidgetId))
+            } finally {
+                pendingResult.finish()
+            }
+        }
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
@@ -91,17 +105,15 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
 
     companion object {
         @Suppress("DEPRECATION")
-        fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
+        suspend fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
             val appContext = context.applicationContext
-            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
-                val manager = AppWidgetManager.getInstance(appContext)
-                val ids = appWidgetIds ?: collectIds(appContext, manager)
-                if (ids.isEmpty()) return@launch
-                val data = ReminderDataSource.load(appContext)
-                ids.forEach { appWidgetId ->
-                    manager.updateAppWidget(appWidgetId, buildViews(appContext, appWidgetId, data))
-                    manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.reminder_list)
-                }
+            val manager = AppWidgetManager.getInstance(appContext)
+            val ids = appWidgetIds ?: collectIds(appContext, manager)
+            if (ids.isEmpty()) return
+            val data = ReminderDataSource.load(appContext)
+            ids.forEach { appWidgetId ->
+                manager.updateAppWidget(appWidgetId, buildViews(appContext, appWidgetId, data))
+                manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.reminder_list)
             }
         }
 
@@ -126,7 +138,7 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_reminder)
             views.applyWidgetBackground(context, R.id.reminder_root, data.widgetTheme)
-            views.applyOpenAppOnDoubleClick(context, R.id.reminder_root, appWidgetId, data.widgetTheme)
+            views.applyOpenAppClick(context, R.id.reminder_root, appWidgetId, data.widgetTheme)
             if (data.totalCount > 0) {
                 views.setViewVisibility(R.id.reminder_badge, View.VISIBLE)
                 views.setTextViewText(R.id.reminder_badge, "${data.totalCount} 条")
@@ -135,9 +147,11 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
             }
             val hasRows = data.rows.isNotEmpty()
             views.setRemoteAdapter(R.id.reminder_list, listIntent(context, appWidgetId))
+            views.applyOpenAppListTemplate(context, R.id.reminder_list, appWidgetId, data.widgetTheme)
             views.setEmptyView(R.id.reminder_list, R.id.reminder_empty)
             views.setViewVisibility(R.id.reminder_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.reminder_empty, if (hasRows) View.GONE else View.VISIBLE)
+            views.applyOpenAppClick(context, R.id.reminder_empty, appWidgetId, data.widgetTheme)
             views.setInt(R.id.reminder_empty, "setBackgroundResource", widgetRowVariantBackground(data.themeAccent))
             val emptyText = data.emptySubtitle?.let { "${data.emptyTitle}\n$it" } ?: data.emptyTitle
             views.setTextViewText(R.id.reminder_empty, emptyText)
