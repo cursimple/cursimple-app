@@ -6,6 +6,7 @@ import android.content.Intent
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 
@@ -25,6 +26,7 @@ private class ReminderListFactory(
 ) : RemoteViewsService.RemoteViewsFactory {
     private var rows: List<ReminderRowData> = emptyList()
     private var themeAccent: ThemeAccent = ThemeAccent.Green
+    private var widgetTheme: WidgetThemePreferences = WidgetThemePreferences()
 
     override fun onCreate() = Unit
 
@@ -36,6 +38,7 @@ private class ReminderListFactory(
         }.onSuccess { data ->
             rows = data.rows
             themeAccent = data.themeAccent
+            widgetTheme = data.widgetTheme
         }
     }
 
@@ -49,6 +52,7 @@ private class ReminderListFactory(
         val row = RemoteViews(context.packageName, R.layout.widget_reminder_row)
         val data = rows.getOrNull(position) ?: return row
         row.setInt(R.id.reminder_row_root, "setBackgroundResource", widgetRowBackground(themeAccent))
+        row.applyOpenAppFillInIntent(R.id.reminder_row_root, widgetTheme)
         row.setTextViewText(R.id.reminder_date, data.dateLabel)
         row.setTextViewText(R.id.reminder_time, data.timeLabel)
         row.setTextViewText(R.id.reminder_row_title, data.title)

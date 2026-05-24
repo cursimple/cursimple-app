@@ -105,7 +105,7 @@ private fun calculateWidgetBackgroundSampleSize(width: Int, height: Int): Int {
     return sampleSize
 }
 
-private const val WIDGET_BACKGROUND_MAX_EDGE = 768
+private const val WIDGET_BACKGROUND_MAX_EDGE = 384
 
 internal fun widgetBackgroundFor(accent: ThemeAccent): ColorProvider = ColorProvider(
     when (accent) {

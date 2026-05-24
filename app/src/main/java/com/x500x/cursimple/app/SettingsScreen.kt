@@ -627,8 +627,8 @@ fun AppSettingsRoute(
                 )
                 SettingsSwitchRow(
                     icon = Icons.Rounded.Schedule,
-                    title = "双击小组件打开 App",
-                    subtitle = "开启后双击小组件主体进入应用",
+                    title = "点击小组件打开 App",
+                    subtitle = "开启后点击小组件主体进入应用",
                     checked = widgetThemePreferences.openAppOnDoubleClickEnabled,
                     onCheckedChange = onWidgetOpenAppOnDoubleClickChange,
                 )
