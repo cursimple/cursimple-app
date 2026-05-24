@@ -112,6 +112,7 @@ import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
+import com.x500x.cursimple.feature.schedule.ScheduleAppearancePreview
 import com.x500x.cursimple.feature.schedule.ScheduleSettingsRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
 import kotlinx.coroutines.launch
@@ -504,6 +505,13 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleAppearance -> {
+                ScheduleAppearancePreview(
+                    scheduleTextStyle = scheduleTextStyle,
+                    scheduleCardStyle = scheduleCardStyle,
+                    scheduleBackground = scheduleBackground,
+                    scheduleDisplay = scheduleDisplay,
+                    customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
+                )
                 SettingsSwitchRow(
                     Icons.Rounded.Brightness4,
                     "自定义颜色适应亮暗主题",
