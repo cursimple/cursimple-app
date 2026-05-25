@@ -197,7 +197,7 @@ fun AppSettingsRoute(
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     autoUpdateEnabled: Boolean,
     ignoredUpdateVersionCode: Int?,
-    pluginMarketIndexUrl: String,
+    pluginRegistryRepo: String,
     componentMarketIndexUrl: String,
     privateFilesProviderEnabled: Boolean,
     webDavUrl: String,
@@ -257,7 +257,7 @@ fun AppSettingsRoute(
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
-    onPluginMarketIndexUrlChange: (String) -> Unit,
+    onPluginRegistryRepoChange: (String) -> Unit,
     onComponentMarketIndexUrlChange: (String) -> Unit,
     onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
     onWebDavSettingsChange: (String, String, String) -> Unit,
@@ -711,9 +711,9 @@ fun AppSettingsRoute(
 
             SettingsDestination.Plugins -> {
                 PluginSettingsSection(
-                    pluginMarketIndexUrl = pluginMarketIndexUrl,
+                    pluginRegistryRepo = pluginRegistryRepo,
                     componentMarketIndexUrl = componentMarketIndexUrl,
-                    onPluginMarketIndexUrlChange = onPluginMarketIndexUrlChange,
+                    onPluginRegistryRepoChange = onPluginRegistryRepoChange,
                     onComponentMarketIndexUrlChange = onComponentMarketIndexUrlChange,
                 )
             }
@@ -1756,14 +1756,14 @@ private fun aiImportSettingsSubtitle(apiUrl: String, model: String): String {
 
 @Composable
 private fun PluginSettingsSection(
-    pluginMarketIndexUrl: String,
+    pluginRegistryRepo: String,
     componentMarketIndexUrl: String,
-    onPluginMarketIndexUrlChange: (String) -> Unit,
+    onPluginRegistryRepoChange: (String) -> Unit,
     onComponentMarketIndexUrlChange: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    var pluginUrlDraft by rememberSaveable(pluginMarketIndexUrl) {
-        mutableStateOf(pluginMarketIndexUrl)
+    var registryDraft by rememberSaveable(pluginRegistryRepo) {
+        mutableStateOf(pluginRegistryRepo)
     }
     var componentUrlDraft by rememberSaveable(componentMarketIndexUrl) {
         mutableStateOf(componentMarketIndexUrl)
@@ -1771,16 +1771,18 @@ private fun PluginSettingsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         MarketIndexUrlEditor(
-            title = "插件市场索引",
-            value = pluginUrlDraft,
-            onValueChange = { pluginUrlDraft = it },
+            title = "插件注册表仓库",
+            placeholder = "owner/repo",
+            value = registryDraft,
+            onValueChange = { registryDraft = it },
             onSave = {
-                onPluginMarketIndexUrlChange(pluginUrlDraft)
-                Toast.makeText(context, "插件市场索引已保存", Toast.LENGTH_SHORT).show()
+                onPluginRegistryRepoChange(registryDraft)
+                Toast.makeText(context, "已保存插件注册表仓库", Toast.LENGTH_SHORT).show()
             },
         )
         MarketIndexUrlEditor(
             title = "组件市场索引",
+            placeholder = "manifest.json",
             value = componentUrlDraft,
             onValueChange = { componentUrlDraft = it },
             onSave = {
@@ -1794,6 +1796,7 @@ private fun PluginSettingsSection(
 @Composable
 private fun MarketIndexUrlEditor(
     title: String,
+    placeholder: String,
     value: String,
     onValueChange: (String) -> Unit,
     onSave: () -> Unit,
@@ -1817,7 +1820,7 @@ private fun MarketIndexUrlEditor(
                 onValueChange = onValueChange,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("manifest.json") },
+                label = { Text(placeholder) },
             )
             Button(
                 onClick = onSave,

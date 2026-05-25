@@ -1,6 +1,7 @@
 package com.x500x.cursimple.feature.plugin
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,8 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,7 +33,9 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -42,22 +49,27 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
-import com.x500x.cursimple.core.plugin.market.MarketPluginEntry
+import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 
@@ -65,7 +77,7 @@ import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 fun PluginMarketRoute(
     pluginMarketViewModel: PluginMarketViewModel,
     componentMarketViewModel: ComponentMarketViewModel,
-    pluginMarketIndexUrl: String,
+    pluginRegistryRepo: String,
     componentMarketIndexUrl: String,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
@@ -106,6 +118,12 @@ fun PluginMarketRoute(
         }
     }
 
+    LaunchedEffect(pluginRegistryRepo) {
+        if (pluginRegistryRepo.isNotBlank() && pluginUiState.marketRepos.isEmpty()) {
+            pluginMarketViewModel.loadRegistry(pluginRegistryRepo)
+        }
+    }
+
     PluginMarketScreen(
         uiState = pluginUiState,
         componentUiState = componentUiState,
@@ -115,10 +133,12 @@ fun PluginMarketRoute(
         syncStatusMessage = syncStatusMessage,
         missingComponents = missingComponents,
         pendingWebSession = pendingWebSession,
+        pluginRegistryRepo = pluginRegistryRepo,
         onSelectTab = { selectedTab = it },
         onPickLocalPlugin = { pluginPackageLauncher.launch(PACKAGE_MIME_TYPES) },
-        onRefreshMarket = { pluginMarketViewModel.loadRemoteMarket(pluginMarketIndexUrl) },
-        onPreviewRemotePlugin = pluginMarketViewModel::previewRemotePackage,
+        onRefreshMarket = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+        onOpenRepo = { url -> context.openExternalUrl(url) },
+        onInstallFromGitHub = pluginMarketViewModel::installFromGitHub,
         onConfirmInstall = pluginMarketViewModel::confirmInstall,
         onDismissInstallPreview = pluginMarketViewModel::dismissInstallPreview,
         onRemovePlugin = pluginMarketViewModel::removePlugin,
@@ -143,10 +163,12 @@ private fun PluginMarketScreen(
     syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
     pendingWebSession: WebSessionRequest?,
+    pluginRegistryRepo: String,
     onSelectTab: (PluginPlatformTab) -> Unit,
     onPickLocalPlugin: () -> Unit,
     onRefreshMarket: () -> Unit,
-    onPreviewRemotePlugin: (MarketPluginEntry) -> Unit,
+    onOpenRepo: (String) -> Unit,
+    onInstallFromGitHub: (GitHubRepoSummary) -> Unit,
     onConfirmInstall: () -> Unit,
     onDismissInstallPreview: () -> Unit,
     onRemovePlugin: (String) -> Unit,
@@ -177,10 +199,12 @@ private fun PluginMarketScreen(
                     syncingPluginId = syncingPluginId,
                     syncStatusMessage = syncStatusMessage,
                     missingComponents = missingComponents,
+                    pluginRegistryRepo = pluginRegistryRepo,
                     onOpenComponents = { onSelectTab(PluginPlatformTab.Components) },
                     onPickLocalPlugin = onPickLocalPlugin,
                     onRefreshMarket = onRefreshMarket,
-                    onPreviewRemotePlugin = onPreviewRemotePlugin,
+                    onOpenRepo = onOpenRepo,
+                    onInstallFromGitHub = onInstallFromGitHub,
                     onRemovePlugin = onRemovePlugin,
                     onSetPluginEnabled = onSetPluginEnabled,
                     onSyncPlugin = onSyncPlugin,
@@ -223,17 +247,22 @@ private fun PluginListContent(
     syncingPluginId: String?,
     syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
+    pluginRegistryRepo: String,
     onOpenComponents: () -> Unit,
     onPickLocalPlugin: () -> Unit,
     onRefreshMarket: () -> Unit,
-    onPreviewRemotePlugin: (MarketPluginEntry) -> Unit,
+    onOpenRepo: (String) -> Unit,
+    onInstallFromGitHub: (GitHubRepoSummary) -> Unit,
     onRemovePlugin: (String) -> Unit,
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var detailPluginId by rememberSaveable { mutableStateOf<String?>(null) }
+    var detailRepoSlug by rememberSaveable { mutableStateOf<String?>(null) }
     val detailPlugin = detailPluginId?.let { id -> uiState.installedPlugins.firstOrNull { it.pluginId == id } }
+    val detailRepo = detailRepoSlug?.let { slug -> uiState.marketRepos.firstOrNull { it.fullName == slug } }
+
     if (detailPlugin != null) {
         PluginDetailScreen(
             plugin = detailPlugin,
@@ -246,6 +275,17 @@ private fun PluginListContent(
                 onRemovePlugin(detailPlugin.pluginId)
                 detailPluginId = null
             },
+            modifier = modifier,
+        )
+        return
+    }
+    if (detailRepo != null) {
+        GitHubRepoDetailScreen(
+            repo = detailRepo,
+            isLoading = uiState.isLoading,
+            onBack = { detailRepoSlug = null },
+            onOpenRepo = { onOpenRepo(detailRepo.htmlUrl) },
+            onInstall = { onInstallFromGitHub(detailRepo) },
             modifier = modifier,
         )
         return
@@ -289,22 +329,25 @@ private fun PluginListContent(
         }
 
         item {
-            SectionTitle("远程市场")
+            MarketSectionHeader(registryRepo = pluginRegistryRepo)
         }
 
-        if (uiState.marketPlugins.isEmpty()) {
+        if (uiState.marketRepos.isEmpty()) {
             item {
                 EmptyStateCard(
-                    title = "远程市场为空",
-                    subtitle = "刷新后如果仍为空，说明当前索引格式暂不支持或没有发布插件。",
+                    title = if (uiState.isLoading) "正在加载..." else "插件市场为空",
+                    subtitle = if (uiState.isLoading) {
+                        "稍候。"
+                    } else {
+                        "注册表里没有任何插件，或还未刷新成功。打开管理页可以新增。"
+                    },
                 )
             }
         } else {
-            items(uiState.marketPlugins, key = { it.pluginId }) { entry ->
-                MarketPluginCard(
-                    entry = entry,
-                    isLoading = uiState.isLoading,
-                    onPreviewRemotePlugin = { onPreviewRemotePlugin(entry) },
+            item {
+                MarketGrid(
+                    repos = uiState.marketRepos,
+                    onOpenDetail = { repo -> detailRepoSlug = repo.fullName },
                 )
             }
         }
@@ -317,7 +360,7 @@ private fun PluginListContent(
             item {
                 EmptyStateCard(
                     title = "还没有任何插件",
-                    subtitle = "从本地 ZIP 或插件市场安装后会显示在这里。当前版本不再自动安装内置示例插件。",
+                    subtitle = "从本地 ZIP 安装后会显示在这里。当前版本不再自动安装内置示例插件。",
                 )
             }
         } else {
@@ -330,6 +373,308 @@ private fun PluginListContent(
                     onSync = { onSyncPlugin(plugin.pluginId) },
                     onOpenDetail = { detailPluginId = plugin.pluginId },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MarketSectionHeader(registryRepo: String) {
+    Column {
+        SectionTitle("插件市场")
+        Text(
+            text = registryRepo.ifBlank { "未配置注册表仓库" },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun MarketGrid(
+    repos: List<GitHubRepoSummary>,
+    onOpenDetail: (GitHubRepoSummary) -> Unit,
+) {
+    val rows = (repos.size + 1) / 2
+    val rowHeight = 168.dp
+    val totalHeight = rowHeight * rows + 12.dp * (rows - 1).coerceAtLeast(0)
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(totalHeight),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        userScrollEnabled = false,
+    ) {
+        items(repos, key = { it.fullName }) { repo ->
+            GitHubRepoCard(repo = repo, onClick = { onOpenDetail(repo) })
+        }
+    }
+}
+
+@Composable
+private fun GitHubRepoCard(
+    repo: GitHubRepoSummary,
+    onClick: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(168.dp)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OwnerAvatar(owner = repo.owner, size = 32.dp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = repo.displayTitle,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = repo.owner,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Text(
+                text = repo.description.ifBlank { "（无描述）" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Star,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = repo.stars.toString(),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.weight(1f))
+                VersionPill(tag = repo.latestRelease?.tagName)
+            }
+        }
+    }
+}
+
+@Composable
+private fun VersionPill(tag: String?) {
+    val text = tag?.takeIf { it.isNotBlank() } ?: "未找到版本"
+    val hasVersion = tag?.isNotBlank() == true
+    val container = if (hasVersion) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant
+    }
+    val contentColor = if (hasVersion) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = container,
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun OwnerAvatar(owner: String, size: Dp) {
+    val initial = owner.firstOrNull()?.uppercase() ?: "?"
+    val hash = owner.hashCode()
+    val palette = listOf(
+        Color(0xFF5B8DEF),
+        Color(0xFFEF5B8D),
+        Color(0xFF8DEF5B),
+        Color(0xFF5BEFEF),
+        Color(0xFFEF8D5B),
+        Color(0xFFB45BEF),
+    )
+    val color = palette[(hash and 0x7FFFFFFF) % palette.size]
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(color),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initial,
+            color = Color.White,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun GitHubRepoDetailScreen(
+    repo: GitHubRepoSummary,
+    isLoading: Boolean,
+    onBack: () -> Unit,
+    onOpenRepo: () -> Unit,
+    onInstall: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onBack) { Text("返回") }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "插件详情",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            OwnerAvatar(owner = repo.owner, size = 48.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = repo.displayTitle,
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    text = repo.owner,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.Star,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${repo.stars} stars",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            repo.language?.let {
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
+                            VersionPill(tag = repo.latestRelease?.tagName)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            val hasRelease = repo.latestRelease != null
+                            Button(
+                                onClick = onInstall,
+                                enabled = hasRelease && !isLoading,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Download,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                val label = when {
+                                    isLoading -> "处理中..."
+                                    !hasRelease -> "未找到版本"
+                                    else -> "安装 ${repo.latestRelease!!.tagName}"
+                                }
+                                Text(label)
+                            }
+                            OutlinedButton(onClick = onOpenRepo) {
+                                Icon(
+                                    imageVector = Icons.Rounded.OpenInBrowser,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("在 GitHub 查看")
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                DetailSection("描述") {
+                    Text(
+                        text = repo.description.ifBlank { "（无描述）" },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+
+            item {
+                DetailSection("仓库") {
+                    DetailRow("全名", repo.fullName)
+                    repo.homepageUrl?.let { DetailRow("主页", it) }
+                    repo.updatedAt?.let { DetailRow("更新", it) }
+                    if (!repo.isFresh) {
+                        DetailRow("提示", "未能加载最新元信息，已显示降级数据。")
+                    }
+                }
             }
         }
     }
@@ -494,69 +839,6 @@ private fun MissingComponentsCard(
             Button(onClick = onOpenComponents) {
                 Text("查看组件")
             }
-        }
-    }
-}
-
-@Composable
-private fun MarketPluginCard(
-    entry: MarketPluginEntry,
-    isLoading: Boolean,
-    onPreviewRemotePlugin: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = entry.name,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "v${entry.version} · ${entry.publisher}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                OutlinedButton(
-                    onClick = onPreviewRemotePlugin,
-                    enabled = !isLoading,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Download,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("预检")
-                }
-            }
-            if (entry.description.isNotBlank()) {
-                Text(
-                    text = entry.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = entry.pluginId,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }
@@ -1024,6 +1306,14 @@ private fun componentRequirementText(component: PluginComponentRequirement): Str
 private fun Context.readContentBytes(uri: Uri): ByteArray {
     return contentResolver.openInputStream(uri)?.use { it.readBytes() }
         ?: error("无法读取文件内容")
+}
+
+private fun Context.openExternalUrl(url: String) {
+    if (url.isBlank()) return
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    runCatching { startActivity(intent) }
 }
 
 private val PACKAGE_MIME_TYPES = arrayOf(
