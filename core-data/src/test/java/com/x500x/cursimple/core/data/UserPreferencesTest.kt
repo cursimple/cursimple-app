@@ -108,10 +108,10 @@ class UserPreferencesTest {
     }
 
     @Test
-    fun `market index urls use explicit defaults`() {
+    fun `market sources use explicit defaults`() {
         val prefs = UserPreferences()
 
-        assertEquals(DEFAULT_PLUGIN_MARKET_INDEX_URL, prefs.pluginMarketIndexUrl)
+        assertEquals(DEFAULT_PLUGIN_REGISTRY_REPO, prefs.pluginRegistryRepo)
         assertEquals(DEFAULT_COMPONENT_MARKET_INDEX_URL, prefs.componentMarketIndexUrl)
     }
 

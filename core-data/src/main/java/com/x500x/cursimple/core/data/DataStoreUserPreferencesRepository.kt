@@ -83,9 +83,9 @@ class DataStoreUserPreferencesRepository(
             lastAlarmPollAtMillis = prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] ?: 0L,
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,
             ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
-            pluginMarketIndexUrl = prefs[KEY_PLUGIN_MARKET_INDEX_URL]
+            pluginRegistryRepo = prefs[KEY_PLUGIN_REGISTRY_REPO]
                 ?.takeIf(String::isNotBlank)
-                ?: DEFAULT_PLUGIN_MARKET_INDEX_URL,
+                ?: DEFAULT_PLUGIN_REGISTRY_REPO,
             componentMarketIndexUrl = prefs[KEY_COMPONENT_MARKET_INDEX_URL]
                 ?.takeIf(String::isNotBlank)
                 ?: DEFAULT_COMPONENT_MARKET_INDEX_URL,
@@ -382,8 +382,8 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
-    override suspend fun setPluginMarketIndexUrl(url: String) {
-        store.edit { prefs -> prefs[KEY_PLUGIN_MARKET_INDEX_URL] = url.trim() }
+    override suspend fun setPluginRegistryRepo(repo: String) {
+        store.edit { prefs -> prefs[KEY_PLUGIN_REGISTRY_REPO] = repo.trim() }
     }
 
     override suspend fun setComponentMarketIndexUrl(url: String) {
@@ -457,7 +457,8 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_LAST_ALARM_POLL_AT_MILLIS)
             prefs.remove(KEY_AUTO_UPDATE_ENABLED)
             prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
-            prefs.remove(KEY_PLUGIN_MARKET_INDEX_URL)
+            prefs.remove(KEY_PLUGIN_REGISTRY_REPO)
+            prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
             prefs.remove(KEY_COMPONENT_MARKET_INDEX_URL)
             prefs.remove(KEY_PRIVATE_FILES_PROVIDER_ENABLED)
             prefs.remove(KEY_WEBDAV_URL)
@@ -731,7 +732,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_LAST_ALARM_POLL_AT_MILLIS = longPreferencesKey("last_alarm_poll_at_millis")
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
-        val KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
+        val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")
+        val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
         val KEY_COMPONENT_MARKET_INDEX_URL = stringPreferencesKey("component_market_index_url")
         val KEY_PRIVATE_FILES_PROVIDER_ENABLED = booleanPreferencesKey("private_files_provider_enabled")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
