@@ -34,6 +34,7 @@ import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.plugin.PluginManager
 import com.x500x.cursimple.core.plugin.component.PluginComponentInstaller
 import com.x500x.cursimple.core.plugin.market.MarketIndexRepository
+import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
 import com.x500x.cursimple.core.reminder.ReminderSyncWindows
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
@@ -79,6 +80,9 @@ class AppContainer(
     private val marketIndexRepository = MarketIndexRepository(
         fetchText = { url -> downloadTextViaMirrors(url) },
         downloadBytes = { url -> downloadBytesViaMirrors(url) },
+    )
+    val gitHubRegistryRepository = GitHubRegistryRepository(
+        fetchText = { url -> downloadTextViaMirrors(url) },
     )
     val pluginComponentRepository = DataStorePluginComponentRepository(app)
     val pluginComponentInstaller = PluginComponentInstaller(

@@ -3,20 +3,23 @@
 一个基于 Kotlin 的 Android 课表应用「课简」，采用微内核架构，支持：
 
 - Android 7.0（API 24）到 Android 16（targetSdk 36）
-- `armeabi-v7a`、`arm64-v8a`、`universal` 多 ABI 构建
+- `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64` 四种 ABI splits + `universal` 通用包
 - Compose 主界面
 - Glance 桌面小组件
 - 使用 manifest + WebView 的 JS 插件平台完成学校课表采集
+- GitHub 注册表驱动的插件市场（[cursimple-plugins](https://github.com/cursimple/cursimple-plugins)）
+- 课程提醒（系统闹钟 / 应用内闹钟双后端）
 - GitHub Actions CI/CD
 
 ## 模块结构
 
 - `app`：应用壳、依赖组装、入口页面、更新检查与下载镜像
 - `core-kernel`：统一课表模型与核心协议
-- `core-plugin`：插件 manifest、安装、组件、Web 会话模型与运行门面
+- `core-plugin`：插件 manifest、安装、组件、Web 会话模型、GitHub 注册表与运行门面
 - `core-data`：DataStore 仓储
+- `core-reminder`：课程提醒规则、计划与派发后端
 - `feature-schedule`：课表页面与同步逻辑
-- `feature-plugin`：插件管理与 WebView 会话
+- `feature-plugin`：插件市场 UI（GitHub 网格 + 安装）、WebView 会话
 - `feature-widget`：桌面小组件与定时刷新
 
 ## 快速开始
@@ -65,7 +68,7 @@ CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
 
 Debug/CI 包的 `applicationId` 是 `com.x500x.cursimple.ci`，可与 Release 包 `com.x500x.cursimple` 共存安装；两者仍使用同一套签名材料。
 
-### 4) 构建 Release（含 v7a/v8a/universal）
+### 4) 构建 Release（含 v7a/v8a/x86/x86_64/universal）
 
 ```bash
 ./gradlew assembleRelease
@@ -100,6 +103,17 @@ export async function run(ctx) {
 插件通过 `manifest.json` 声明 `permissions`、`allowedHosts`、`entry`、可选 `startUrl`/`userAgent`、`webEngine`、`components` 和运行限制。运行时默认使用系统 WebView，只暴露受控 JS `ctx` 对象；入口脚本可用 `ctx.web.setUserAgent()` 自行决定当前会话 UA。
 
 当前版本不再内置示例插件，也不会启动时自动安装旧 assets 插件。
+
+## 插件市场
+
+插件市场以 GitHub 仓库 [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 作为注册表。注册表本身就是一个 `plugins.json`，内容为 `["owner/repo", ...]` 字符串数组，每个 entry 对应一个独立的插件仓库。
+
+- **应用内浏览**：插件 Tab 顶部的"插件市场"区域，以 2 列网格展示注册表里的所有仓库，显示名称、作者、stars、描述与最新 release 的 tag。点开有详情，可"安装"或"在 GitHub 查看"。
+- **安装约定**：每个插件仓库需在 GitHub 上发布 Release，并上传至少一个 `*.zip` 资产。app 会调用 `/repos/{owner}/{repo}/releases/latest`，下载第一个 zip 并进入既有的本地安装预检流程。没有 release 时按钮显示"未找到版本"灰态。
+- **网页管理**：注册表的增删通过 [cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 仓库 `docs/` 目录下的静态站点 ([https://cursimple.github.io/cursimple-plugins/](https://cursimple.github.io/cursimple-plugins/)) 完成。两种登录路径：
+  - 方式 A：点击"在 GitHub 编辑"按钮，直接跳转 GitHub 网页编辑器，权限完全交给 GitHub（非协作者会进入 fork & PR 流程）。
+  - 方式 B：在页面内粘贴一个 [Fine-grained PAT](https://github.com/settings/personal-access-tokens/new)（仓库 `Contents: Read & Write`），直接增删并 commit。Token 只保存在浏览器 localStorage。
+- 注册表仓库默认为 `cursimple/cursimple-plugins`，可在 应用 → 设置 → 插件 中改为自己 fork 的仓库。
 
 ## GitHub Actions
 
