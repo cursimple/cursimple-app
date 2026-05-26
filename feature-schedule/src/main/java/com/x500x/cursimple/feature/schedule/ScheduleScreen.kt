@@ -1544,12 +1544,19 @@ private fun DayRow(
                 } else {
                     scheduleTextStyle.courseTextSizeSp
                 }
-                val titleTextColor = colorFromArgb(
-                    if (isExam) scheduleTextStyle.examTextColorArgb else scheduleTextStyle.courseTextColorArgb,
-                    darkTheme = isDarkColorScheme(),
-                    adaptToTheme = customColorsAdaptToTheme,
-                    role = ScheduleCustomColorRole.Foreground,
-                )
+                val customTitleArgb =
+                    if (isExam) scheduleTextStyle.examTextColorArgb else scheduleTextStyle.courseTextColorArgb
+                val titleTextColor =
+                    if (customTitleArgb == ScheduleTextStylePreferences.DEFAULT_TEXT_COLOR_ARGB) {
+                        onColor
+                    } else {
+                        colorFromArgb(
+                            customTitleArgb,
+                            darkTheme = isDarkColorScheme(),
+                            adaptToTheme = customColorsAdaptToTheme,
+                            role = ScheduleCustomColorRole.Foreground,
+                        )
+                    }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2299,12 +2306,6 @@ private fun CourseBlock(
     } else {
         scheduleTextStyle.courseTextSizeSp
     }
-    val titleColor = colorFromArgb(
-        if (isExam) scheduleTextStyle.examTextColorArgb else scheduleTextStyle.courseTextColorArgb,
-        darkTheme = isDarkColorScheme(),
-        adaptToTheme = customColorsAdaptToTheme,
-        role = ScheduleCustomColorRole.Foreground,
-    )
     val horizontalCentered = scheduleTextStyle.fullCenter || scheduleTextStyle.horizontalCenter
     val verticalCentered = scheduleTextStyle.fullCenter || scheduleTextStyle.verticalCenter
     val containerColor = when {
@@ -2317,6 +2318,19 @@ private fun CourseBlock(
         isExam -> MaterialTheme.colorScheme.onErrorContainer
         else -> palette.onContainer
     }
+    val customTitleArgb =
+        if (isExam) scheduleTextStyle.examTextColorArgb else scheduleTextStyle.courseTextColorArgb
+    val titleColor =
+        if (customTitleArgb == ScheduleTextStylePreferences.DEFAULT_TEXT_COLOR_ARGB) {
+            onColor
+        } else {
+            colorFromArgb(
+                customTitleArgb,
+                darkTheme = isDarkColorScheme(),
+                adaptToTheme = customColorsAdaptToTheme,
+                role = ScheduleCustomColorRole.Foreground,
+            )
+        }
     val highlight = multiSelected || selected
     val borderColor = when {
         multiSelected -> MaterialTheme.colorScheme.primary
@@ -2432,20 +2446,9 @@ private fun CourseBlock(
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
-                        maxLines = 8,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (scheduleDisplay.teacherVisible && course.teacher.isNotBlank()) {
-                    Text(
-                        text = course.teacher,
-                        color = onColor.copy(alpha = 0.82f),
-                        fontSize = 10.sp,
-                        lineHeight = 12.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
+                        maxLines = Int.MAX_VALUE,
+                        softWrap = true,
+                        overflow = TextOverflow.Visible,
                         textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )
