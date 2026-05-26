@@ -119,8 +119,8 @@ fun PluginMarketRoute(
     }
 
     LaunchedEffect(pluginRegistryRepo) {
-        if (pluginRegistryRepo.isNotBlank() && pluginUiState.marketRepos.isEmpty()) {
-            pluginMarketViewModel.loadRegistry(pluginRegistryRepo)
+        if (pluginRegistryRepo.isNotBlank()) {
+            pluginMarketViewModel.refreshIfStale(pluginRegistryRepo, MARKET_CACHE_TTL_MILLIS)
         }
     }
 
@@ -1315,6 +1315,8 @@ private fun Context.openExternalUrl(url: String) {
     }
     runCatching { startActivity(intent) }
 }
+
+private const val MARKET_CACHE_TTL_MILLIS = 24L * 60L * 60L * 1000L
 
 private val PACKAGE_MIME_TYPES = arrayOf(
     "application/zip",
