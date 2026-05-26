@@ -14,6 +14,7 @@ import okhttp3.Request
 /**
  * One entry from the plugins.json registry, after enrichment with GitHub repo metadata.
  */
+@Serializable
 data class GitHubRepoSummary(
     val fullName: String,
     val owner: String,
@@ -22,11 +23,11 @@ data class GitHubRepoSummary(
     val stars: Int,
     val avatarUrl: String,
     val htmlUrl: String,
-    val language: String?,
-    val updatedAt: String?,
+    val language: String? = null,
+    val updatedAt: String? = null,
     val ownerHtmlUrl: String,
-    val homepageUrl: String?,
-    val pushedAt: String?,
+    val homepageUrl: String? = null,
+    val pushedAt: String? = null,
     val isFresh: Boolean,
     val latestRelease: GitHubReleaseAsset? = null,
 ) {
@@ -68,6 +69,7 @@ private data class GitHubReleaseAssetApi(
     @SerialName("size") val size: Long = 0,
 )
 
+@Serializable
 data class GitHubReleaseAsset(
     val tagName: String,
     val assetName: String,

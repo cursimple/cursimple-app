@@ -3,6 +3,7 @@ package com.x500x.cursimple.feature.plugin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.plugin.PluginManager
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
@@ -12,8 +13,11 @@ import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 data class PluginMarketUiState(
     val marketRepos: List<GitHubRepoSummary> = emptyList(),
@@ -22,11 +26,15 @@ data class PluginMarketUiState(
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
     val lastLoadedRegistry: String? = null,
+    val lastLoadedAtMillis: Long = 0L,
 )
 
 class PluginMarketViewModel(
     private val pluginManager: PluginManager,
     private val gitHubRegistryRepository: GitHubRegistryRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
+    private val nowMillis: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(PluginMarketUiState())
     val uiState: StateFlow<PluginMarketUiState> = _uiState
@@ -42,10 +50,41 @@ class PluginMarketViewModel(
                 }
             }
         }
+        viewModelScope.launch { hydrateFromCache() }
+    }
+
+    private suspend fun hydrateFromCache() {
+        val prefs = userPreferencesRepository.preferencesFlow.first()
+        val cached = decodeCache(prefs.pluginMarketCacheJson)
+        if (cached.isNotEmpty()) {
+            _uiState.update {
+                it.copy(
+                    marketRepos = cached,
+                    lastLoadedAtMillis = prefs.pluginMarketCachedAtMillis,
+                )
+            }
+        }
     }
 
     fun setStatusMessage(message: String?) {
         _uiState.update { it.copy(statusMessage = message) }
+    }
+
+    /**
+     * Network fetch only when cache is older than [maxAgeMillis] or the registry repo changed.
+     * Called on screen entry to satisfy "每天首次进入刷新一次".
+     */
+    fun refreshIfStale(registryRepo: String, maxAgeMillis: Long) {
+        val state = _uiState.value
+        if (state.isLoading) return
+        val now = nowMillis()
+        val sameRegistry = state.lastLoadedRegistry == registryRepo.trim()
+        val fresh = state.lastLoadedAtMillis > 0L &&
+            (now - state.lastLoadedAtMillis) < maxAgeMillis &&
+            sameRegistry &&
+            state.marketRepos.isNotEmpty()
+        if (fresh) return
+        loadRegistry(registryRepo)
     }
 
     fun loadRegistry(registryRepo: String) {
@@ -58,15 +97,19 @@ class PluginMarketViewModel(
             _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载插件市场...") }
             runCatching { gitHubRegistryRepository.fetchAll(slug) }
                 .onSuccess { repos ->
+                    val now = nowMillis()
                     val message = if (repos.isEmpty()) "插件市场为空" else "已加载 ${repos.size} 个插件"
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             marketRepos = repos,
                             lastLoadedRegistry = slug,
+                            lastLoadedAtMillis = now,
                             statusMessage = message,
                         )
                     }
+                    val encoded = runCatching { json.encodeToString(repos) }.getOrNull().orEmpty()
+                    userPreferencesRepository.setPluginMarketCache(encoded, now)
                 }
                 .onFailure { error ->
                     _uiState.update {
@@ -184,16 +227,27 @@ class PluginMarketViewModel(
                 }
         }
     }
+
+    private fun decodeCache(raw: String): List<GitHubRepoSummary> {
+        if (raw.isBlank()) return emptyList()
+        return runCatching { json.decodeFromString<List<GitHubRepoSummary>>(raw) }
+            .getOrDefault(emptyList())
+    }
 }
 
 class PluginMarketViewModelFactory(
     private val pluginManager: PluginManager,
     private val gitHubRegistryRepository: GitHubRegistryRepository,
+    private val userPreferencesRepository: UserPreferencesRepository,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(PluginMarketViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return PluginMarketViewModel(pluginManager, gitHubRegistryRepository) as T
+            return PluginMarketViewModel(
+                pluginManager = pluginManager,
+                gitHubRegistryRepository = gitHubRegistryRepository,
+                userPreferencesRepository = userPreferencesRepository,
+            ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
