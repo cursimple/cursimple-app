@@ -57,7 +57,7 @@ class DataStoreUserPreferencesRepository(
             scheduleCardStyle = prefs.toScheduleCardStyle(),
             scheduleBackground = prefs.toScheduleBackground(),
             scheduleDisplay = prefs.toScheduleDisplay(),
-            scheduleCustomColorsAdaptToTheme = prefs[KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME] ?: false,
+            scheduleCustomColorsAdaptToTheme = prefs[KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME] ?: true,
             enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
             pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
             temporaryScheduleOverrides = decodeTemporaryScheduleOverrides(
@@ -86,6 +86,8 @@ class DataStoreUserPreferencesRepository(
             pluginRegistryRepo = prefs[KEY_PLUGIN_REGISTRY_REPO]
                 ?.takeIf(String::isNotBlank)
                 ?: DEFAULT_PLUGIN_REGISTRY_REPO,
+            pluginMarketCacheJson = prefs[KEY_PLUGIN_MARKET_CACHE_JSON].orEmpty(),
+            pluginMarketCachedAtMillis = prefs[KEY_PLUGIN_MARKET_CACHED_AT_MILLIS] ?: 0L,
             componentMarketIndexUrl = prefs[KEY_COMPONENT_MARKET_INDEX_URL]
                 ?.takeIf(String::isNotBlank)
                 ?: DEFAULT_COMPONENT_MARKET_INDEX_URL,
@@ -386,6 +388,17 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_PLUGIN_REGISTRY_REPO] = repo.trim() }
     }
 
+    override suspend fun setPluginMarketCache(json: String, atMillis: Long) {
+        store.edit { prefs ->
+            if (json.isBlank()) {
+                prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
+            } else {
+                prefs[KEY_PLUGIN_MARKET_CACHE_JSON] = json
+            }
+            prefs[KEY_PLUGIN_MARKET_CACHED_AT_MILLIS] = atMillis.coerceAtLeast(0L)
+        }
+    }
+
     override suspend fun setComponentMarketIndexUrl(url: String) {
         store.edit { prefs -> prefs[KEY_COMPONENT_MARKET_INDEX_URL] = url.trim() }
     }
@@ -459,6 +472,8 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
             prefs.remove(KEY_PLUGIN_REGISTRY_REPO)
             prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
+            prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
+            prefs.remove(KEY_PLUGIN_MARKET_CACHED_AT_MILLIS)
             prefs.remove(KEY_COMPONENT_MARKET_INDEX_URL)
             prefs.remove(KEY_PRIVATE_FILES_PROVIDER_ENABLED)
             prefs.remove(KEY_WEBDAV_URL)
@@ -734,6 +749,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
+        val KEY_PLUGIN_MARKET_CACHE_JSON = stringPreferencesKey("plugin_market_cache_json")
+        val KEY_PLUGIN_MARKET_CACHED_AT_MILLIS = longPreferencesKey("plugin_market_cached_at_millis")
         val KEY_COMPONENT_MARKET_INDEX_URL = stringPreferencesKey("component_market_index_url")
         val KEY_PRIVATE_FILES_PROVIDER_ENABLED = booleanPreferencesKey("private_files_provider_enabled")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")

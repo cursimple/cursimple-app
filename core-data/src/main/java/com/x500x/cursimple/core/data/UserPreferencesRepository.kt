@@ -200,6 +200,8 @@ data class UserPreferences(
     val autoUpdateEnabled: Boolean = false,
     val ignoredUpdateVersionCode: Int? = null,
     val pluginRegistryRepo: String = DEFAULT_PLUGIN_REGISTRY_REPO,
+    val pluginMarketCacheJson: String = "",
+    val pluginMarketCachedAtMillis: Long = 0L,
     val componentMarketIndexUrl: String = DEFAULT_COMPONENT_MARKET_INDEX_URL,
     val privateFilesProviderEnabled: Boolean = false,
     val webDavUrl: String = DEFAULT_WEBDAV_URL,
@@ -266,6 +268,7 @@ interface UserPreferencesRepository {
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
     suspend fun setPluginRegistryRepo(repo: String)
+    suspend fun setPluginMarketCache(json: String, atMillis: Long)
     suspend fun setComponentMarketIndexUrl(url: String)
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)
     suspend fun setWebDavSettings(url: String, username: String, password: String)

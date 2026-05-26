@@ -198,6 +198,7 @@ class MainActivity : ComponentActivity() {
                         factory = PluginMarketViewModelFactory(
                             pluginManager = container.pluginManager,
                             gitHubRegistryRepository = container.gitHubRegistryRepository,
+                            userPreferencesRepository = container.userPreferencesRepository,
                         ),
                     )
                     val componentMarketViewModel: ComponentMarketViewModel = viewModel(
