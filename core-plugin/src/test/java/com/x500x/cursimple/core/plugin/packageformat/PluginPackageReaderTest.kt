@@ -119,59 +119,78 @@ class PluginPackageReaderTest {
     }
 }
 
-class PluginInstallerLocalPackageTest {
+class PluginInstallerPackageTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
     @Test
-    fun `local package skips signature verification`() = runBlocking {
+    fun `local package installs with checksum verification`() = runBlocking {
         val repository = FakePluginRegistryRepository()
         val installer = PluginInstaller(
             registryRepository = repository,
             fileStore = PluginFileStore(temporaryFolder.newFolder("plugins")),
         )
-        val packageBytes = unsignedPluginZip()
+        val packageBytes = pluginZip()
 
         val preview = installer.previewPackage(packageBytes, PluginInstallSource.Local)
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(preview.checksumVerified)
-        assertFalse(preview.signatureRequired)
-        assertFalse(preview.signatureVerified)
         assertTrue(result is PluginInstallResult.Success)
         val record = (result as PluginInstallResult.Success).record
         assertEquals("edu.demo", record.pluginId)
+        assertEquals(PluginInstallSource.Local, record.source)
         assertEquals(record, repository.find("edu.demo"))
     }
 
     @Test
-    fun `remote package still requires signature verification`() = runBlocking {
+    fun `remote package installs with checksum verification`() = runBlocking {
+        val repository = FakePluginRegistryRepository()
         val installer = PluginInstaller(
-            registryRepository = FakePluginRegistryRepository(),
+            registryRepository = repository,
             fileStore = PluginFileStore(temporaryFolder.newFolder("remote-plugins")),
         )
-        val packageBytes = unsignedPluginZip()
+        val packageBytes = pluginZip()
 
-        val previewError = runCatching {
-            installer.previewPackage(packageBytes, PluginInstallSource.Remote)
-        }.exceptionOrNull()
+        val preview = installer.previewPackage(packageBytes, PluginInstallSource.Remote)
         val result = installer.installPackage(packageBytes, PluginInstallSource.Remote)
 
-        assertTrue(previewError?.message.orEmpty().contains("publicKeyPem"))
-        assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("publicKeyPem"))
+        assertTrue(preview.checksumVerified)
+        assertTrue(result is PluginInstallResult.Success)
+        val record = (result as PluginInstallResult.Success).record
+        assertEquals("edu.demo", record.pluginId)
+        assertEquals(PluginInstallSource.Remote, record.source)
+        assertEquals(record, repository.find("edu.demo"))
     }
 
-    private fun unsignedPluginZip(): ByteArray {
+    @Test
+    fun `remote package rejects checksum mismatch`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("bad-checksum-plugins")),
+        )
+        val packageBytes = pluginZip(corruptChecksum = true)
+
+        val preview = installer.previewPackage(packageBytes, PluginInstallSource.Remote)
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Remote)
+
+        assertFalse(preview.checksumVerified)
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("插件摘要校验失败"))
+    }
+
+    private fun pluginZip(corruptChecksum: Boolean = false): ByteArray {
         val mainScript = "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }"
         val files = linkedMapOf(
             "manifest.json" to manifestJson(),
             "main.js" to mainScript,
         )
-        val checksumEntries = files.mapValues { (_, content) -> sha256(content.toByteArray()) }
+        val checksumEntries = files.mapValues { (_, content) -> sha256(content.toByteArray()) }.toMutableMap()
+        if (corruptChecksum) {
+            checksumEntries["main.js"] = "0".repeat(64)
+        }
         val filesWithMetadata = files + mapOf(
             "checksums.json" to checksumsJson(checksumEntries),
-            "signature.json" to unsignedSignatureJson(),
         )
         return zipBytes(filesWithMetadata)
     }
@@ -199,16 +218,6 @@ class PluginInstallerLocalPackageTest {
               "files": {
             $entries
               }
-            }
-        """.trimIndent()
-    }
-
-    private fun unsignedSignatureJson(): String {
-        return """
-            {
-              "scheme": "unsigned-dev-package",
-              "signed": false,
-              "coveredChecksumFile": "checksums.json"
             }
         """.trimIndent()
     }
