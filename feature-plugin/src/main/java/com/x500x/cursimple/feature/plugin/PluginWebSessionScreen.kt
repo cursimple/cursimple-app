@@ -15,6 +15,8 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
@@ -134,9 +137,16 @@ fun PluginWebSessionScreen(
             tickNow.value = System.currentTimeMillis()
         }
     }
+    val pageReadyAtMs = remember(request.token) { mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(pageNavigationVersion.value, request.token) {
+        pageReadyAtMs.value = 0L
+    }
+    androidx.compose.runtime.LaunchedEffect(loadProgress.value, request.token) {
+        if (loadProgress.value >= 100 && pageReadyAtMs.value == 0L) {
+            pageReadyAtMs.value = System.currentTimeMillis()
+        }
+    }
     val statusText = androidx.compose.runtime.derivedStateOf {
-        val elapsedSec = ((tickNow.value - sessionStartedAt) / 1000L).coerceAtLeast(0L)
-        val elapsedLabel = "${elapsedSec}s"
         val packets = capturedPackets.value
         val latestPacket = packets.values.maxByOrNull { it.timestamp }
         val cookieCount = latestPacket?.cookies?.size ?: 0
@@ -145,13 +155,12 @@ fun PluginWebSessionScreen(
         val activeUploadStage = uploadStage.value
         when {
             activeUploadStage != null -> {
-                "上传课表 · ${activeUploadStage.label}（${activeUploadStage.step}/3，已用 $elapsedLabel）"
+                "上传课表 · ${activeUploadStage.label}（${activeUploadStage.step}/3）"
             }
             pageError.value != null -> "页面加载失败：${pageError.value}"
             blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
             popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
-            pendingCompletion.value != null -> "数据已就绪，等待页面停止跳转…（已用 $elapsedLabel）"
-            isCapturing.value -> "正在采集会话凭据…（已用 $elapsedLabel）"
+            pendingCompletion.value != null -> "数据已就绪，等待页面停止跳转…"
             consoleError.value != null -> "页面脚本提示：${consoleError.value}"
             requiredPacketCount > 0 -> {
                 val captured = packets.count { it.value.id in requiredCapturePacketIds(request) }
@@ -160,12 +169,11 @@ fun PluginWebSessionScreen(
                     if (cookieCount > 0) append(" · cookies $cookieCount")
                     if (lsCount > 0) append(" · localStorage $lsCount")
                     if (ssCount > 0) append(" · sessionStorage $ssCount")
-                    append(" · 已用 ").append(elapsedLabel)
                 }
             }
-            packets.isNotEmpty() -> "等待可用会话数据…（已用 $elapsedLabel）"
-            loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%（已用 $elapsedLabel）"
-            pageTitle.value.isNotBlank() -> "已打开：${pageTitle.value}（已用 $elapsedLabel）"
+            packets.isNotEmpty() -> "等待可用会话数据…"
+            loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%"
+            pageTitle.value.isNotBlank() -> "已打开：${pageTitle.value}"
             currentUrl.value.isNotBlank() -> "正在访问：${currentUrl.value}"
             else -> "等待页面加载…"
         }
@@ -430,6 +438,37 @@ fun PluginWebSessionScreen(
         }
     }
 
+    val urlLowerForOverlay = currentUrl.value.lowercase()
+    val onScrapeablePage = urlLowerForOverlay.contains("/eams/") &&
+        !urlLowerForOverlay.contains("login")
+    val rawShowWorkingOverlay = onScrapeablePage &&
+        pageReadyAtMs.value > 0L &&
+        uploadStage.value == null &&
+        pageError.value == null &&
+        blockedUrl.value == null &&
+        consoleError.value == null &&
+        pendingCompletion.value == null &&
+        !isFinishing.value &&
+        (tickNow.value - pageReadyAtMs.value) >= 300L
+    val showWorkingOverlay = remember(request.token) { mutableStateOf(false) }
+    val lastWorkingOverlayChangeMs = remember(request.token) { mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(rawShowWorkingOverlay) {
+        val now = System.currentTimeMillis()
+        if (rawShowWorkingOverlay) {
+            showWorkingOverlay.value = true
+            lastWorkingOverlayChangeMs.value = now
+        } else {
+            val elapsed = now - lastWorkingOverlayChangeMs.value
+            if (elapsed < 2000L) {
+                kotlinx.coroutines.delay(2000L - elapsed)
+            }
+            if (!rawShowWorkingOverlay) {
+                showWorkingOverlay.value = false
+                lastWorkingOverlayChangeMs.value = System.currentTimeMillis()
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -543,7 +582,7 @@ fun PluginWebSessionScreen(
                 }
                 Button(
                     onClick = ::uploadCurrentSession,
-                    enabled = !isFinishing.value && !isCapturing.value,
+                    enabled = !isFinishing.value,
                     modifier = buttonModifier,
                     contentPadding = buttonPadding,
                 ) {
@@ -604,7 +643,7 @@ fun PluginWebSessionScreen(
                 .fillMaxWidth()
                 .height(4.dp),
         ) {
-            if (progressTarget != null) {
+            if (progressTarget != null && !showWorkingOverlay.value) {
                 LinearProgressIndicator(
                     progress = { animatedProgress },
                     modifier = Modifier.fillMaxSize(),
@@ -616,40 +655,49 @@ fun PluginWebSessionScreen(
                 .fillMaxWidth()
                 .height(24.dp),
         ) {
-            Text(
-                text = statusText.value,
-                modifier = Modifier.align(Alignment.CenterStart),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                softWrap = false,
-            )
+            if (!showWorkingOverlay.value) {
+                Text(
+                    text = statusText.value,
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    softWrap = false,
+                )
+            }
         }
-        PluginWebViewHost(
-            request = request,
-            webViewState = webViewState,
-            popupWebViewState = popupWebViewState,
-            webViewInitFailed = webViewInitFailed,
-            currentUrl = currentUrl,
-            blockedUrl = blockedUrl,
-            pageError = pageError,
-            pageTitle = pageTitle,
-            loadProgress = loadProgress,
-            popupUrl = popupUrl,
-            consoleError = consoleError,
-            pluginUserAgent = pluginUserAgent,
-            isForegroundWebView = ::isForegroundWebView,
-            handleNavigation = ::handleNavigation,
-            handleAutoNavigation = ::handleAutoNavigation,
-            networkPacketStore = networkPacketStore,
-            onPageNavigation = ::markNavigationChanged,
-            probeWebSession = { view, target -> probeWebSession(view, target) },
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
                 .padding(top = 2.dp),
-        )
+        ) {
+            PluginWebViewHost(
+                request = request,
+                webViewState = webViewState,
+                popupWebViewState = popupWebViewState,
+                webViewInitFailed = webViewInitFailed,
+                currentUrl = currentUrl,
+                blockedUrl = blockedUrl,
+                pageError = pageError,
+                pageTitle = pageTitle,
+                loadProgress = loadProgress,
+                popupUrl = popupUrl,
+                consoleError = consoleError,
+                pluginUserAgent = pluginUserAgent,
+                isForegroundWebView = ::isForegroundWebView,
+                handleNavigation = ::handleNavigation,
+                handleAutoNavigation = ::handleAutoNavigation,
+                networkPacketStore = networkPacketStore,
+                onPageNavigation = ::markNavigationChanged,
+                probeWebSession = { view, target -> probeWebSession(view, target) },
+                modifier = Modifier.fillMaxSize(),
+            )
+            if (showWorkingOverlay.value) {
+                PluginWorkingOverlay()
+            }
+        }
     }
 
     pendingCompletion.value?.takeIf { it.requiresUserConfirmation }?.let { candidate ->
@@ -669,6 +717,44 @@ fun PluginWebSessionScreen(
                 }
             },
         )
+    }
+}
+
+@Composable
+private fun PluginWorkingOverlay() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(androidx.compose.ui.graphics.Color(0x66000000)),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.material3.Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface,
+            tonalElevation = 6.dp,
+            shadowElevation = 8.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 28.dp, vertical = 22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    strokeWidth = 4.dp,
+                )
+                Text(
+                    text = "正在抓取课表…",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = "请保持页面不要切换",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
     }
 }
 
@@ -1114,16 +1200,57 @@ private class PluginWebSessionBridge(
                     "window.__CURSIMPLE_PLUGIN_USER_AGENT_ACK(${id.toJsStringLiteral()}, true, \"\");",
                 null,
             )
-            PluginLogger.info(
+            PluginLogger.scope(
+                traceId = request.traceId.takeIf(String::isNotBlank),
+                pluginId = request.pluginId,
+                sessionId = request.sessionId,
+            ).info(
                 "plugin.web_session.user_agent.set",
-                mapOf(
-                    "pluginId" to request.pluginId,
-                    "sessionId" to request.sessionId,
-                    "userAgentHash" to PluginLogger.sha256(nextUserAgent),
-                ),
+                mapOf("userAgentHash" to PluginLogger.sha256(nextUserAgent)),
             )
         }
         return true
+    }
+
+    @JavascriptInterface
+    fun logEvent(level: String?, event: String?, fieldsJson: String?) {
+        val name = event.orEmpty().take(120)
+        if (name.isBlank()) return
+        val parsedLevel = when (level.orEmpty().lowercase()) {
+            "warn", "warning" -> com.x500x.cursimple.core.plugin.logging.PluginLogLevel.WARN
+            "error", "err" -> com.x500x.cursimple.core.plugin.logging.PluginLogLevel.ERROR
+            "debug", "trace" -> com.x500x.cursimple.core.plugin.logging.PluginLogLevel.DEBUG
+            else -> com.x500x.cursimple.core.plugin.logging.PluginLogLevel.INFO
+        }
+        val fields = LinkedHashMap<String, Any?>()
+        fields["traceId"] = request.traceId.takeIf(String::isNotBlank)
+        fields["pluginId"] = request.pluginId
+        fields["sessionId"] = request.sessionId
+        runCatching {
+            val obj = org.json.JSONObject(fieldsJson.orEmpty().ifBlank { "{}" })
+            val keys = obj.keys()
+            var count = 0
+            while (keys.hasNext() && count < 32) {
+                val key = keys.next().take(64)
+                if (key.isBlank()) continue
+                val raw = obj.opt(key)
+                val value = when (raw) {
+                    null, org.json.JSONObject.NULL -> null
+                    is Boolean, is Number -> raw
+                    else -> raw.toString().take(512)
+                }
+                if (value != null) {
+                    fields[key] = value
+                    count += 1
+                }
+            }
+        }
+        com.x500x.cursimple.core.plugin.logging.PluginLogger.event(
+            parsedLevel,
+            com.x500x.cursimple.core.plugin.logging.PluginLogSource.PluginJs,
+            name,
+            fields,
+        )
     }
 }
 
@@ -1875,7 +2002,35 @@ internal fun buildPluginRuntimeScript(
             log: {
               info(...args) { console.log("[CurSimple plugin]", ...args); },
               warn(...args) { console.warn("[CurSimple plugin]", ...args); },
-              error(...args) { console.error("[CurSimple plugin]", ...args); }
+              error(...args) { console.error("[CurSimple plugin]", ...args); },
+              event(name, fields) {
+                if (!name || typeof name !== "string") return;
+                const level = (fields && fields.level) || "info";
+                const cleanFields = {};
+                if (fields && typeof fields === "object") {
+                  for (const key of Object.keys(fields)) {
+                    if (key === "level") continue;
+                    if (cleanFields.__count__ === undefined) cleanFields.__count__ = 0;
+                    if (cleanFields.__count__ >= 32) break;
+                    const value = fields[key];
+                    if (value == null) continue;
+                    if (typeof value === "boolean" || typeof value === "number" || typeof value === "string") {
+                      cleanFields[key] = value;
+                      cleanFields.__count__ += 1;
+                    } else {
+                      try { cleanFields[key] = JSON.stringify(value).slice(0, 512); cleanFields.__count__ += 1; } catch (e) {}
+                    }
+                  }
+                  delete cleanFields.__count__;
+                }
+                try {
+                  if (window.CurSimplePluginBridge && typeof window.CurSimplePluginBridge.logEvent === "function") {
+                    window.CurSimplePluginBridge.logEvent(level, name, JSON.stringify(cleanFields));
+                    return;
+                  }
+                } catch (e) {}
+                console.log("[CurSimple plugin]", name, cleanFields);
+              }
             }
           };
           try {

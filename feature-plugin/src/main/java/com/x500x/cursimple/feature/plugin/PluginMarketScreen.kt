@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +40,7 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -760,51 +762,85 @@ private fun PluginCountHeader(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Row(
+        BoxWithConstraints(
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "插件",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = "$enabledCount / $totalCount",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "已启用 / 已安装",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = onPickLocalPlugin,
-                    enabled = !isLoading,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+            val compact = maxWidth < 360.dp
+
+            @Composable
+            fun CountColumn(modifier: Modifier = Modifier) {
+                Column(modifier = modifier) {
+                    Text(
+                        text = "插件",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("导入 ZIP")
+                    Text(
+                        text = "$enabledCount / $totalCount",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = "已启用 / 已安装",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                Button(
-                    onClick = onRefreshMarket,
-                    enabled = !isLoading,
+            }
+
+            @Composable
+            fun ActionButtons(modifier: Modifier = Modifier) {
+                Row(
+                    modifier = modifier,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(if (isLoading) "加载中" else "刷新")
+                    OutlinedButton(
+                        onClick = onPickLocalPlugin,
+                        modifier = if (compact) Modifier.weight(1f) else Modifier,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("导入 ZIP", maxLines = 1, softWrap = false)
+                    }
+                    Button(
+                        onClick = onRefreshMarket,
+                        enabled = !isLoading,
+                        modifier = if (compact) Modifier.weight(1f) else Modifier,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(if (isLoading) "加载中" else "刷新", maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+
+            if (compact) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CountColumn(modifier = Modifier.fillMaxWidth())
+                    ActionButtons(modifier = Modifier.fillMaxWidth())
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CountColumn(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    ActionButtons()
                 }
             }
         }
