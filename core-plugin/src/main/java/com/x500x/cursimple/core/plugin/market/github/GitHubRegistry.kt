@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.time.Duration
 
 /**
  * One entry from the plugins.json registry, after enrichment with GitHub repo metadata.
@@ -78,7 +79,9 @@ data class GitHubReleaseAsset(
 )
 
 class GitHubRegistryRepository(
-    private val client: OkHttpClient = OkHttpClient(),
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .callTimeout(Duration.ofSeconds(15))
+        .build(),
     private val json: Json = Json { ignoreUnknownKeys = true },
     private val fetchText: suspend (String) -> String = { url -> defaultFetchText(client, url) },
 ) {

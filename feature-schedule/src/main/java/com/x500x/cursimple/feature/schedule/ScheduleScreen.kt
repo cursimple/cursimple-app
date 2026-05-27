@@ -2402,11 +2402,17 @@ private fun CourseBlock(
                     .fillMaxHeight()
                     .background(onColor.copy(alpha = if (inactive) 0.4f else 0.9f)),
             )
+            val hasCountBadge = cellCount > 1 && !(multiSelectMode && multiSelected)
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                    .padding(
+                        start = 4.dp,
+                        end = 4.dp,
+                        top = if (hasCountBadge && !verticalCentered) 16.dp else 4.dp,
+                        bottom = 4.dp,
+                    ),
                 verticalArrangement = if (verticalCentered) Arrangement.Center else Arrangement.spacedBy(1.dp),
                 horizontalAlignment = if (horizontalCentered) Alignment.CenterHorizontally else Alignment.Start,
             ) {
@@ -2476,13 +2482,13 @@ private fun CourseBlock(
             }
         }
 
-        // 左上角课程数角标（多个课程占同一格时显示，向外凸出避免遮挡课程名）
+        // 左上角课程数角标（多个课程占同一格时显示，贴角内嵌避免被父级裁切）
         if (cellCount > 1 && !(multiSelectMode && multiSelected)) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .offset(x = (-6).dp, y = (-6).dp)
-                    .size(16.dp)
+                    .padding(top = 2.dp, start = 2.dp)
+                    .size(14.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(MaterialTheme.colorScheme.secondary),
                 contentAlignment = Alignment.Center,

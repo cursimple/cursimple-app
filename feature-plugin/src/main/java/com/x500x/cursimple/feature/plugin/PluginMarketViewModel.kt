@@ -11,6 +11,7 @@ import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -42,6 +43,8 @@ class PluginMarketViewModel(
     private var pendingBytes: ByteArray? = null
     private var pendingSource: PluginInstallSource? = null
 
+    private val hydrationJob: Job = viewModelScope.launch { hydrateFromCache() }
+
     init {
         viewModelScope.launch {
             pluginManager.installedPluginsFlow.collect { installed ->
@@ -50,7 +53,6 @@ class PluginMarketViewModel(
                 }
             }
         }
-        viewModelScope.launch { hydrateFromCache() }
     }
 
     private suspend fun hydrateFromCache() {
@@ -61,6 +63,7 @@ class PluginMarketViewModel(
                 it.copy(
                     marketRepos = cached,
                     lastLoadedAtMillis = prefs.pluginMarketCachedAtMillis,
+                    lastLoadedRegistry = prefs.pluginMarketCachedRegistry.takeIf(String::isNotBlank),
                 )
             }
         }
@@ -75,16 +78,19 @@ class PluginMarketViewModel(
      * Called on screen entry to satisfy "每天首次进入刷新一次".
      */
     fun refreshIfStale(registryRepo: String, maxAgeMillis: Long) {
-        val state = _uiState.value
-        if (state.isLoading) return
-        val now = nowMillis()
-        val sameRegistry = state.lastLoadedRegistry == registryRepo.trim()
-        val fresh = state.lastLoadedAtMillis > 0L &&
-            (now - state.lastLoadedAtMillis) < maxAgeMillis &&
-            sameRegistry &&
-            state.marketRepos.isNotEmpty()
-        if (fresh) return
-        loadRegistry(registryRepo)
+        viewModelScope.launch {
+            hydrationJob.join()
+            val state = _uiState.value
+            if (state.isLoading) return@launch
+            val now = nowMillis()
+            val sameRegistry = state.lastLoadedRegistry == registryRepo.trim()
+            val fresh = state.lastLoadedAtMillis > 0L &&
+                (now - state.lastLoadedAtMillis) < maxAgeMillis &&
+                sameRegistry &&
+                state.marketRepos.isNotEmpty()
+            if (fresh) return@launch
+            loadRegistry(registryRepo)
+        }
     }
 
     fun loadRegistry(registryRepo: String) {
@@ -109,7 +115,7 @@ class PluginMarketViewModel(
                         )
                     }
                     val encoded = runCatching { json.encodeToString(repos) }.getOrNull().orEmpty()
-                    userPreferencesRepository.setPluginMarketCache(encoded, now)
+                    userPreferencesRepository.setPluginMarketCache(encoded, now, slug)
                 }
                 .onFailure { error ->
                     _uiState.update {
