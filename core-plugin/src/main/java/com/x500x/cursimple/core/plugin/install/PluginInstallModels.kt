@@ -55,8 +55,6 @@ enum class PluginInstallSource {
 data class PluginInstallPreview(
     val manifest: PluginManifest,
     val checksumVerified: Boolean,
-    val signatureVerified: Boolean,
-    val signatureRequired: Boolean = true,
     val source: PluginInstallSource,
 )
 

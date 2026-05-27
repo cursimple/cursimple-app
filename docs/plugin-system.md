@@ -12,7 +12,6 @@
 manifest.json
 main.js
 checksums.json
-signature.json
 assets/
 models/
 ```
@@ -60,7 +59,7 @@ models/
 }
 ```
 
-安装器会拒绝绝对路径、`..` 路径穿越、Windows 盘符路径、重复规范化路径、缺失 `manifest.json`、缺失入口文件、文件数过多或解压体积过大的包。
+安装器会拒绝绝对路径、`..` 路径穿越、Windows 盘符路径、重复规范化路径、缺失 `manifest.json`、缺失入口文件、文件数过多或解压体积过大的包。安装预检和正式安装都会读取 `checksums.json`，并校验其中列出的文件摘要；插件包不再要求或校验 `signature.json`。
 
 `startUrl` 可声明带路径或端口的 WebView 起始地址；未声明时宿主才会使用第一个 `allowedHosts` 拼出默认 `https://host`。`userAgent` 仍保留兼容，但推荐插件在 JS 中调用 `await ctx.web.setUserAgent(ua)`，让入口脚本按学校站点状态自行决定 UA；设置成功后，同一 WebView 后续导航和页面内请求共享该 UA。
 
