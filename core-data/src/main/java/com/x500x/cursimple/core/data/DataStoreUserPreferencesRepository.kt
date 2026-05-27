@@ -88,6 +88,7 @@ class DataStoreUserPreferencesRepository(
                 ?: DEFAULT_PLUGIN_REGISTRY_REPO,
             pluginMarketCacheJson = prefs[KEY_PLUGIN_MARKET_CACHE_JSON].orEmpty(),
             pluginMarketCachedAtMillis = prefs[KEY_PLUGIN_MARKET_CACHED_AT_MILLIS] ?: 0L,
+            pluginMarketCachedRegistry = prefs[KEY_PLUGIN_MARKET_CACHED_REGISTRY].orEmpty(),
             componentMarketIndexUrl = prefs[KEY_COMPONENT_MARKET_INDEX_URL]
                 ?.takeIf(String::isNotBlank)
                 ?: DEFAULT_COMPONENT_MARKET_INDEX_URL,
@@ -388,7 +389,7 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_PLUGIN_REGISTRY_REPO] = repo.trim() }
     }
 
-    override suspend fun setPluginMarketCache(json: String, atMillis: Long) {
+    override suspend fun setPluginMarketCache(json: String, atMillis: Long, registry: String) {
         store.edit { prefs ->
             if (json.isBlank()) {
                 prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
@@ -396,6 +397,12 @@ class DataStoreUserPreferencesRepository(
                 prefs[KEY_PLUGIN_MARKET_CACHE_JSON] = json
             }
             prefs[KEY_PLUGIN_MARKET_CACHED_AT_MILLIS] = atMillis.coerceAtLeast(0L)
+            val trimmedRegistry = registry.trim()
+            if (trimmedRegistry.isEmpty()) {
+                prefs.remove(KEY_PLUGIN_MARKET_CACHED_REGISTRY)
+            } else {
+                prefs[KEY_PLUGIN_MARKET_CACHED_REGISTRY] = trimmedRegistry
+            }
         }
     }
 
@@ -474,6 +481,7 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
             prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
             prefs.remove(KEY_PLUGIN_MARKET_CACHED_AT_MILLIS)
+            prefs.remove(KEY_PLUGIN_MARKET_CACHED_REGISTRY)
             prefs.remove(KEY_COMPONENT_MARKET_INDEX_URL)
             prefs.remove(KEY_PRIVATE_FILES_PROVIDER_ENABLED)
             prefs.remove(KEY_WEBDAV_URL)
@@ -751,6 +759,7 @@ class DataStoreUserPreferencesRepository(
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
         val KEY_PLUGIN_MARKET_CACHE_JSON = stringPreferencesKey("plugin_market_cache_json")
         val KEY_PLUGIN_MARKET_CACHED_AT_MILLIS = longPreferencesKey("plugin_market_cached_at_millis")
+        val KEY_PLUGIN_MARKET_CACHED_REGISTRY = stringPreferencesKey("plugin_market_cached_registry")
         val KEY_COMPONENT_MARKET_INDEX_URL = stringPreferencesKey("component_market_index_url")
         val KEY_PRIVATE_FILES_PROVIDER_ENABLED = booleanPreferencesKey("private_files_provider_enabled")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
