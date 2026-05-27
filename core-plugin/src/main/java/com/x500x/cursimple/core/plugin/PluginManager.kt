@@ -236,10 +236,11 @@ class PluginManager(
 
     suspend fun startSync(request: PluginSyncInput): WorkflowExecutionResult {
         val startedAt = System.currentTimeMillis()
-        PluginLogger.info(
+        val traceId = "trace-${UUID.randomUUID().toString().take(12)}"
+        val log = PluginLogger.scope(traceId = traceId, pluginId = request.pluginId)
+        log.info(
             "plugin.sync.start",
             mapOf(
-                "pluginId" to request.pluginId,
                 "usernamePresent" to request.username.isNotBlank(),
                 "termIdPresent" to request.termId.isNotBlank(),
                 "baseUrl" to PluginLogger.sanitizeUrl(request.baseUrl),
@@ -257,7 +258,7 @@ class PluginManager(
             val engineFailure = validateWebEngine(manifest)
             if (engineFailure != null) {
                 return engineFailure.also {
-                    logRuntimeResult("plugin.sync.start.result", request.pluginId, startedAt, it)
+                    logRuntimeResult("plugin.sync.start.result", request.pluginId, startedAt, it, traceId)
                 }
             }
 
@@ -267,7 +268,7 @@ class PluginManager(
                     pluginId = record.pluginId,
                     components = missingComponents,
                 ).also {
-                    logRuntimeResult("plugin.sync.start.result", request.pluginId, startedAt, it)
+                    logRuntimeResult("plugin.sync.start.result", request.pluginId, startedAt, it, traceId)
                 }
             }
 
@@ -285,6 +286,7 @@ class PluginManager(
                 uiSchema = uiSchema,
                 timingProfile = timingProfile,
                 messages = messages,
+                traceId = traceId,
             )
             pendingSessions[token] = session
 
@@ -297,18 +299,19 @@ class PluginManager(
                     termId = request.termId,
                     entryScript = entryScript,
                     manifest = manifest,
+                    traceId = traceId,
                 ),
                 uiSchema = uiSchema,
                 messages = messages,
             ).also {
-                logRuntimeResult("plugin.sync.start.result", request.pluginId, startedAt, it)
+                logRuntimeResult("plugin.sync.start.result", request.pluginId, startedAt, it, traceId)
             }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            PluginLogger.error(
+            log.error(
                 "plugin.sync.start.failure",
-                mapOf("pluginId" to request.pluginId, "elapsedMs" to elapsedSince(startedAt)),
+                mapOf("elapsedMs" to elapsedSince(startedAt)),
                 error,
             )
             WorkflowExecutionResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "插件同步启动失败")
@@ -321,10 +324,11 @@ class PluginManager(
         packet: WebSessionPacket,
     ): WorkflowExecutionResult {
         val startedAt = System.currentTimeMillis()
-        PluginLogger.info(
+        val pendingTraceId = pendingSessions[token]?.traceId
+        val log = PluginLogger.scope(traceId = pendingTraceId, pluginId = pluginId)
+        log.info(
             "plugin.sync.resume.start",
             mapOf(
-                "pluginId" to pluginId,
                 "tokenPrefix" to token.take(8),
                 "finalUrl" to PluginLogger.sanitizeUrl(packet.finalUrl),
                 "cookieCount" to packet.cookies.size,
@@ -363,14 +367,14 @@ class PluginManager(
                 timingProfile = session.timingProfile,
                 messages = session.messages,
             ).also {
-                logRuntimeResult("plugin.sync.resume.result", pluginId, startedAt, it)
+                logRuntimeResult("plugin.sync.resume.result", pluginId, startedAt, it, session.traceId)
             }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            PluginLogger.error(
+            log.error(
                 "plugin.sync.resume.failure",
-                mapOf("pluginId" to pluginId, "tokenPrefix" to token.take(8), "elapsedMs" to elapsedSince(startedAt)),
+                mapOf("tokenPrefix" to token.take(8), "elapsedMs" to elapsedSince(startedAt)),
                 error,
             )
             WorkflowExecutionResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "插件同步恢复失败")
@@ -444,13 +448,15 @@ class PluginManager(
         pluginId: String,
         startedAt: Long,
         result: WorkflowExecutionResult,
+        traceId: String? = null,
     ) {
+        val sessionId = (result as? WorkflowExecutionResult.AwaitingWebSession)?.request?.sessionId
+        val log = PluginLogger.scope(traceId = traceId, pluginId = pluginId, sessionId = sessionId)
         when (result) {
             is WorkflowExecutionResult.Success -> {
-                PluginLogger.info(
+                log.info(
                     event,
                     mapOf(
-                        "pluginId" to pluginId,
                         "result" to "success",
                         "courseCount" to result.schedule.dailySchedules.sumOf { it.courses.size },
                         "dailyScheduleCount" to result.schedule.dailySchedules.size,
@@ -463,10 +469,9 @@ class PluginManager(
             }
 
             is WorkflowExecutionResult.NeedsComponents -> {
-                PluginLogger.info(
+                log.info(
                     event,
                     mapOf(
-                        "pluginId" to pluginId,
                         "result" to "needs_components",
                         "componentCount" to result.components.size,
                         "componentIds" to result.components.joinToString { it.id },
@@ -476,12 +481,10 @@ class PluginManager(
             }
 
             is WorkflowExecutionResult.AwaitingWebSession -> {
-                PluginLogger.info(
+                log.info(
                     event,
                     mapOf(
-                        "pluginId" to pluginId,
                         "result" to "awaiting_web_session",
-                        "sessionId" to result.request.sessionId,
                         "startUrl" to PluginLogger.sanitizeUrl(result.request.startUrl),
                         "allowedHostCount" to result.request.allowedHosts.size,
                         "messageCount" to result.messages.size,
@@ -491,10 +494,9 @@ class PluginManager(
             }
 
             is WorkflowExecutionResult.Failure -> {
-                PluginLogger.warn(
+                log.warn(
                     event,
                     mapOf(
-                        "pluginId" to pluginId,
                         "result" to "failure",
                         "failureMessage" to result.message,
                         "elapsedMs" to elapsedSince(startedAt),
@@ -515,6 +517,7 @@ class PluginManager(
         val uiSchema: PluginUiSchema,
         val timingProfile: TermTimingProfile?,
         val messages: List<String>,
+        val traceId: String,
     )
 }
 
@@ -526,11 +529,13 @@ internal fun buildWebSessionRequest(
     termId: String,
     entryScript: String,
     manifest: PluginManifest,
+    traceId: String = "",
 ): WebSessionRequest {
     return WebSessionRequest(
         token = token,
         pluginId = record.pluginId,
         sessionId = sessionId,
+        traceId = traceId,
         title = record.name,
         startUrl = startUrl,
         termId = termId,

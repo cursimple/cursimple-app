@@ -76,11 +76,12 @@ class PluginLoggerTest {
         }
 
         assertEquals(1, entries.size)
+        val msg = entries.single().message
         assertEquals("PluginDiagnostics", entries.single().tag)
-        assertTrue(entries.single().message.contains("plugin.test.event"))
-        assertTrue(entries.single().message.contains("pluginId=demo"))
-        assertTrue(entries.single().message.contains("password=***"))
-        assertFalse(entries.single().message.contains("secret"))
+        assertTrue(msg.contains("\"ev\":\"plugin.test.event\""))
+        assertTrue(msg.contains("\"plg\":\"demo\""))
+        assertTrue(msg.contains("\"password\":\"***\""))
+        assertFalse(msg.contains("secret"))
     }
 
     @Test
@@ -95,9 +96,10 @@ class PluginLoggerTest {
         }
 
         assertEquals(1, entries.size)
-        assertTrue(entries.single().message.contains("errorType=IllegalStateException"))
-        assertTrue(entries.single().message.contains("token=***"))
-        assertFalse(entries.single().message.contains("token=abc"))
+        val msg = entries.single().message
+        assertTrue(msg.contains("\"errorType\":\"IllegalStateException\""))
+        assertTrue(msg.contains("\"errorMessage\":\"failed with token=***\""))
+        assertFalse(msg.contains("token=abc"))
         assertTrue(entries.single().throwableText.orEmpty().contains("IllegalStateException"))
     }
 
