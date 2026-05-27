@@ -5,7 +5,6 @@ import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageReader
 import com.x500x.cursimple.core.plugin.security.PluginChecksumVerifier
-import com.x500x.cursimple.core.plugin.security.PluginSignatureVerifier
 import com.x500x.cursimple.core.plugin.storage.PluginFileStore
 import kotlinx.serialization.json.Json
 import java.time.OffsetDateTime
@@ -16,7 +15,6 @@ class PluginInstaller(
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
     private val packageReader: PluginPackageReader = PluginPackageReader(json),
     private val checksumVerifier: PluginChecksumVerifier = PluginChecksumVerifier(),
-    private val signatureVerifier: PluginSignatureVerifier = PluginSignatureVerifier(),
 ) {
     fun previewPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallPreview {
         val startedAt = System.currentTimeMillis()
@@ -28,12 +26,9 @@ class PluginInstaller(
             val layout = packageReader.read(bytes)
             val manifest = layout.decodeManifest(json)
             val checksums = layout.decodeChecksums(json)
-            val signatureRequired = source.requiresSignatureVerification()
             val preview = PluginInstallPreview(
                 manifest = manifest,
                 checksumVerified = checksumVerifier.verify(layout, checksums),
-                signatureVerified = if (signatureRequired) verifySignature(layout) else false,
-                signatureRequired = signatureRequired,
                 source = source,
             )
             PluginLogger.info(
@@ -45,7 +40,6 @@ class PluginInstaller(
                     "version" to manifest.version,
                     "versionCode" to manifest.versionCode,
                     "checksumVerified" to preview.checksumVerified,
-                    "signatureVerified" to preview.signatureVerified,
                     "elapsedMs" to elapsedSince(startedAt),
                 ),
             )
@@ -85,7 +79,6 @@ class PluginInstaller(
                     "version" to record.version,
                     "versionCode" to record.versionCode,
                     "checksumVerified" to preview.checksumVerified,
-                    "signatureVerified" to preview.signatureVerified,
                     "storagePathPresent" to record.storagePath.isNotBlank(),
                     "elapsedMs" to elapsedSince(startedAt),
                 ),
@@ -104,31 +97,17 @@ class PluginInstaller(
     private fun verifyLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
         val preview = previewPackageFromLayout(layout, source)
         require(preview.checksumVerified) { "插件摘要校验失败" }
-        if (preview.signatureRequired) {
-            require(preview.signatureVerified) { "插件签名校验失败" }
-        }
         return preview
     }
 
     private fun previewPackageFromLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
         val manifest = layout.decodeManifest(json)
         val checksums = layout.decodeChecksums(json)
-        val signatureRequired = source.requiresSignatureVerification()
         return PluginInstallPreview(
             manifest = manifest,
             checksumVerified = checksumVerifier.verify(layout, checksums),
-            signatureVerified = if (signatureRequired) verifySignature(layout) else false,
-            signatureRequired = signatureRequired,
             source = source,
         )
-    }
-
-    private fun verifySignature(layout: PluginPackageLayout): Boolean {
-        return signatureVerifier.verify(layout, layout.decodeSignatureInfo(json))
-    }
-
-    private fun PluginInstallSource.requiresSignatureVerification(): Boolean {
-        return this != PluginInstallSource.Local
     }
 
     private fun PluginManifest.toInstalledRecord(
