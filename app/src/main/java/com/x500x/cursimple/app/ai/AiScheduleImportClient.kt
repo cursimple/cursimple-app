@@ -35,9 +35,10 @@ class AiScheduleImportClient(
     fun importFromImage(context: Context, imageUri: Uri, config: AiImportConfig): AiScheduleImportPayload {
         require(config.isComplete) { "请先在设置页配置 AI API URL 和 Key" }
         val dataUrl = context.imageDataUrl(imageUri)
-        val requestJson = buildRequestJson(config, dataUrl).toString()
+        val endpoint = normalizeAiEndpoint(config.apiUrl)
+        val requestJson = buildRequestJson(endpoint, config, dataUrl).toString()
         val request = Request.Builder()
-            .url(config.apiUrl.trim())
+            .url(endpoint)
             .header("Authorization", "Bearer ${config.apiKey.trim()}")
             .header("Content-Type", "application/json")
             .post(requestJson.toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -53,9 +54,9 @@ class AiScheduleImportClient(
         return payload
     }
 
-    private fun buildRequestJson(config: AiImportConfig, dataUrl: String): JsonObject {
+    private fun buildRequestJson(endpoint: String, config: AiImportConfig, dataUrl: String): JsonObject {
         val model = config.model.trim().ifBlank { "gpt-4o-mini" }
-        return if (config.apiUrl.contains("/responses", ignoreCase = true)) {
+        return if (endpoint.contains("/responses", ignoreCase = true)) {
             buildJsonObject {
                 put("model", model)
                 put(
@@ -228,4 +229,25 @@ class AiScheduleImportClient(
             不确定教师或地点时填空字符串，不要编造。
         """
     }
+}
+
+private val KNOWN_AI_ENDPOINT_SUFFIXES = listOf(
+    "/chat/completions",
+    "/completions",
+    "/responses",
+    "/messages",
+)
+private val AI_VERSION_SEGMENT = Regex("/v\\d+$", RegexOption.IGNORE_CASE)
+
+internal fun normalizeAiEndpoint(rawUrl: String): String {
+    val trimmedRaw = rawUrl.trim().trimEnd('/')
+    if (trimmedRaw.isEmpty()) return trimmedRaw
+    val trimmed = if (trimmedRaw.contains("://")) trimmedRaw else "https://$trimmedRaw"
+    val schemeEnd = trimmed.indexOf("://") + 3
+    val pathStart = trimmed.indexOf('/', startIndex = schemeEnd)
+    val lowerPath = if (pathStart >= 0) trimmed.substring(pathStart).lowercase() else ""
+    if (KNOWN_AI_ENDPOINT_SUFFIXES.any { lowerPath.endsWith(it) }) return trimmed
+    if (lowerPath.isEmpty() || lowerPath == "/") return "$trimmed/v1/chat/completions"
+    if (AI_VERSION_SEGMENT.containsMatchIn(lowerPath)) return "$trimmed/chat/completions"
+    return "$trimmed/v1/chat/completions"
 }
