@@ -1924,6 +1924,8 @@ private fun AiImportSettingsSection(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             label = { Text("API URL") },
+            placeholder = { Text("https://api.openai.com/v1/chat/completions") },
+            supportingText = { Text("只填到 /v1 或仅域名时，自动补 /chat/completions；如需 Responses API，请写完整 /v1/responses。") },
         )
         OutlinedTextField(
             value = apiKeyDraft,
@@ -1931,6 +1933,7 @@ private fun AiImportSettingsSection(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             label = { Text("Key") },
+            placeholder = { Text("sk-...") },
         )
         OutlinedTextField(
             value = modelDraft,
@@ -1938,6 +1941,7 @@ private fun AiImportSettingsSection(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             label = { Text("模型（可选）") },
+            placeholder = { Text("gpt-4o-mini") },
         )
         Button(
             onClick = {
@@ -2090,6 +2094,28 @@ private fun DeveloperDebugSection(
             subtitle = "导出当前课表、插件与调试状态",
             onClick = onExportScheduleMetadata,
         )
+        var showPluginLog by rememberSaveable { mutableStateOf(false) }
+        DeveloperActionRow(
+            icon = Icons.Rounded.Code,
+            title = "插件日志",
+            subtitle = "实时查看插件运行事件，支持按 trace_id/级别筛选",
+            onClick = { showPluginLog = true },
+        )
+        if (showPluginLog) {
+            androidx.compose.ui.window.Dialog(
+                onDismissRequest = { showPluginLog = false },
+                properties = androidx.compose.ui.window.DialogProperties(
+                    usePlatformDefaultWidth = false,
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = false,
+                ),
+            ) {
+                com.x500x.cursimple.feature.plugin.PluginLogScreen(
+                    onBack = { showPluginLog = false },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
         DeveloperActionRow(
             icon = Icons.Rounded.BugReport,
             title = "关闭开发者模式",
