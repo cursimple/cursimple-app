@@ -11,6 +11,7 @@ data class WebSessionRequest(
     @SerialName("token") val token: String,
     @SerialName("pluginId") val pluginId: String,
     @SerialName("sessionId") val sessionId: String,
+    @SerialName("traceId") val traceId: String = "",
     @SerialName("title") val title: String,
     @SerialName("startUrl") val startUrl: String,
     @SerialName("termId") val termId: String = "",

@@ -13,8 +13,10 @@ interface PluginLogSink {
 object PluginLogger {
     private const val TAG = "PluginDiagnostics"
     private const val MAX_VALUE_LENGTH = 240
+
     @Volatile
     private var sink: PluginLogSink? = null
+    private var buffer: PluginLogBuffer = PluginLogBuffer.instance
 
     private val sensitiveKeys = setOf(
         "authorization",
@@ -34,21 +36,50 @@ object PluginLogger {
         "token",
     )
 
+    private val reservedKeys = setOf("traceId", "pluginId", "sessionId")
+
     fun setSink(sink: PluginLogSink?) {
         this.sink = sink
     }
 
+    /** Test-only: replace the singleton ring buffer. */
+    internal fun setBufferForTest(buffer: PluginLogBuffer) {
+        this.buffer = buffer
+    }
+
     fun info(event: String, fields: Map<String, Any?> = emptyMap()) {
-        log(Log.INFO, event, fields, null)
+        emit(PluginLogLevel.INFO, PluginLogSource.Host, event, fields, null)
     }
 
     fun warn(event: String, fields: Map<String, Any?> = emptyMap(), error: Throwable? = null) {
-        log(Log.WARN, event, fields, error)
+        emit(PluginLogLevel.WARN, PluginLogSource.Host, event, fields, error)
     }
 
     fun error(event: String, fields: Map<String, Any?> = emptyMap(), error: Throwable? = null) {
-        log(Log.ERROR, event, fields, error)
+        emit(PluginLogLevel.ERROR, PluginLogSource.Host, event, fields, error)
     }
+
+    /** Public entry point for emitting structured events with explicit level and source. */
+    fun event(
+        level: PluginLogLevel,
+        source: PluginLogSource,
+        event: String,
+        fields: Map<String, Any?> = emptyMap(),
+        error: Throwable? = null,
+    ) {
+        emit(level, source, event, fields, error)
+    }
+
+    /**
+     * Returns a scope that auto-injects traceId/pluginId/sessionId into every event so call sites
+     * don't have to repeat them. Use [PluginLogger.scope] at flow boundaries (e.g., when a sync
+     * starts and a traceId is minted).
+     */
+    fun scope(
+        traceId: String? = null,
+        pluginId: String? = null,
+        sessionId: String? = null,
+    ): PluginLogScope = PluginLogScope(this, traceId, pluginId, sessionId)
 
     fun sanitizeUrl(url: String?): String {
         val raw = url.orEmpty().trim()
@@ -88,42 +119,110 @@ object PluginLogger {
             .joinToString("") { "%02x".format(it) }
     }
 
-    internal fun renderFieldsForTest(fields: Map<String, Any?>): String = renderFields(fields)
+    internal fun renderFieldsForTest(fields: Map<String, Any?>): String =
+        renderFlatFields(buildFieldStrings(fields))
 
-    private fun log(priority: Int, event: String, fields: Map<String, Any?>, error: Throwable?) {
-        val renderedFields = runCatching { renderFields(fields + errorFields(error)) }.getOrDefault("")
-        val message = buildString {
-            append(event)
-            if (renderedFields.isNotBlank()) {
-                append(' ')
-                append(renderedFields)
-            }
-        }
-        val throwableText = error?.toStackTraceText()
+    internal fun emit(
+        level: PluginLogLevel,
+        source: PluginLogSource,
+        event: String,
+        fields: Map<String, Any?>,
+        error: Throwable?,
+    ) {
+        val timestamp = System.currentTimeMillis()
+        val mergedFields = fields + errorFields(error)
+        val renderedFields = runCatching { buildFieldStrings(mergedFields) }
+            .getOrDefault(emptyMap())
+        val correlation = extractCorrelation(renderedFields)
+        val payloadFields = renderedFields - reservedKeys
+        val stack = error?.toStackTraceText()
+        val entry = PluginLogEntry(
+            sequence = buffer.nextSequence(),
+            timestampMs = timestamp,
+            level = level,
+            event = event,
+            source = source,
+            traceId = correlation.traceId,
+            pluginId = correlation.pluginId,
+            sessionId = correlation.sessionId,
+            fields = payloadFields,
+            errorStack = stack,
+        )
+        buffer.add(entry)
+
+        val message = renderJsonLine(entry)
         runCatching {
-            if (error != null) {
-                Log.println(priority, TAG, message)
-                Log.println(priority, TAG, throwableText.orEmpty())
-            } else {
-                Log.println(priority, TAG, message)
+            Log.println(level.priority, TAG, message)
+            if (stack != null) {
+                Log.println(level.priority, TAG, stack)
             }
         }
         sink?.let { currentSink ->
-            runCatching {
-                currentSink.write(priority, TAG, message, throwableText)
-            }
+            runCatching { currentSink.write(level.priority, TAG, message, stack) }
         }
     }
 
-    private fun renderFields(fields: Map<String, Any?>): String {
-        return fields
-            .filterValues { it != null }
-            .toSortedMap()
-            .map { (key, value) ->
-                val renderedValue = if (isSensitiveKey(key)) "***" else value.toSafeValue()
-                "${key.sanitizeKey()}=$renderedValue"
+    private fun buildFieldStrings(fields: Map<String, Any?>): Map<String, String> {
+        val rendered = LinkedHashMap<String, String>(fields.size)
+        fields.forEach { (rawKey, rawValue) ->
+            if (rawValue == null) return@forEach
+            val key = rawKey.sanitizeKey()
+            val value = if (isSensitiveKey(rawKey)) "***" else rawValue.toSafeValue()
+            rendered[key] = value
+        }
+        return rendered
+    }
+
+    private fun extractCorrelation(fields: Map<String, String>): Correlation {
+        return Correlation(
+            traceId = fields["traceId"]?.takeIf(String::isNotBlank),
+            pluginId = fields["pluginId"]?.takeIf(String::isNotBlank),
+            sessionId = fields["sessionId"]?.takeIf(String::isNotBlank),
+        )
+    }
+
+    private data class Correlation(val traceId: String?, val pluginId: String?, val sessionId: String?)
+
+    private fun renderJsonLine(entry: PluginLogEntry): String {
+        val builder = StringBuilder(128 + entry.fields.size * 24)
+        builder.append('{')
+        builder.appendJsonField("ts", entry.timestampMs)
+        builder.append(',')
+        builder.appendJsonField("lv", entry.level.short)
+        builder.append(',')
+        builder.appendJsonField("src", entry.source.token)
+        builder.append(',')
+        builder.appendJsonField("ev", entry.event)
+        entry.traceId?.let {
+            builder.append(',')
+            builder.appendJsonField("tid", it)
+        }
+        entry.pluginId?.let {
+            builder.append(',')
+            builder.appendJsonField("plg", it)
+        }
+        entry.sessionId?.let {
+            builder.append(',')
+            builder.appendJsonField("sid", it)
+        }
+        if (entry.fields.isNotEmpty()) {
+            builder.append(',')
+            builder.append("\"f\":{")
+            entry.fields.entries.forEachIndexed { index, (key, value) ->
+                if (index > 0) builder.append(',')
+                builder.appendJsonField(key, value)
             }
-            .joinToString(" ")
+            builder.append('}')
+        }
+        builder.append('}')
+        return builder.toString()
+    }
+
+    /** Plain key=value rendering retained for backward compatibility in unit tests. */
+    private fun renderFlatFields(fields: Map<String, String>): String {
+        return fields.toSortedMap()
+            .entries
+            .joinToString(" ") { "${it.key}=${it.value}" }
     }
 
     private fun errorFields(error: Throwable?): Map<String, Any?> {
@@ -180,6 +279,9 @@ object PluginLogger {
         val normalized = runCatching {
             java.net.URLDecoder.decode(key, Charsets.UTF_8.name())
         }.getOrDefault(key).lowercase()
+        if (reservedKeys.any { it.equals(key, ignoreCase = true) }) {
+            return false
+        }
         return sensitiveKeys.any { sensitive -> normalized == sensitive || normalized.contains(sensitive) }
     }
 
@@ -187,5 +289,63 @@ object PluginLogger {
         val writer = StringWriter()
         printStackTrace(PrintWriter(writer))
         return redactInlineSensitiveValues(writer.toString())
+    }
+}
+
+private fun StringBuilder.appendJsonField(key: String, value: Any) {
+    append('"').appendJsonEscaped(key).append('"').append(':')
+    when (value) {
+        is Number, is Boolean -> append(value.toString())
+        else -> append('"').appendJsonEscaped(value.toString()).append('"')
+    }
+}
+
+private fun StringBuilder.appendJsonEscaped(value: String): StringBuilder {
+    for (ch in value) {
+        when (ch) {
+            '\\' -> append("\\\\")
+            '"' -> append("\\\"")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            '\b' -> append("\\b")
+            else -> if (ch.code < 0x20) append("\\u%04x".format(ch.code)) else append(ch)
+        }
+    }
+    return this
+}
+
+class PluginLogScope internal constructor(
+    private val logger: PluginLogger,
+    val traceId: String?,
+    val pluginId: String?,
+    val sessionId: String?,
+) {
+    fun info(event: String, fields: Map<String, Any?> = emptyMap()) {
+        logger.emit(PluginLogLevel.INFO, PluginLogSource.Host, event, withCorrelation(fields), null)
+    }
+
+    fun warn(event: String, fields: Map<String, Any?> = emptyMap(), error: Throwable? = null) {
+        logger.emit(PluginLogLevel.WARN, PluginLogSource.Host, event, withCorrelation(fields), error)
+    }
+
+    fun error(event: String, fields: Map<String, Any?> = emptyMap(), error: Throwable? = null) {
+        logger.emit(PluginLogLevel.ERROR, PluginLogSource.Host, event, withCorrelation(fields), error)
+    }
+
+    fun with(
+        traceId: String? = this.traceId,
+        pluginId: String? = this.pluginId,
+        sessionId: String? = this.sessionId,
+    ): PluginLogScope = PluginLogScope(logger, traceId, pluginId, sessionId)
+
+    private fun withCorrelation(fields: Map<String, Any?>): Map<String, Any?> {
+        if (traceId == null && pluginId == null && sessionId == null) return fields
+        val merged = LinkedHashMap<String, Any?>(fields.size + 3)
+        traceId?.let { merged["traceId"] = it }
+        pluginId?.let { merged["pluginId"] = it }
+        sessionId?.let { merged["sessionId"] = it }
+        merged.putAll(fields)
+        return merged
     }
 }
