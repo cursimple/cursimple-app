@@ -1,164 +1,160 @@
-# 课简（CurSimple）
+[English](README_en.md) | [中文](README.md)
 
-一个基于 Kotlin 的 Android 课表应用「课简」，采用微内核架构，支持：
+# 课简 (CurSimple)
 
-- Android 7.0（API 24）到 Android 16（targetSdk 36）
-- `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64` 四种 ABI splits + `universal` 通用包
-- Compose 主界面
-- Glance 桌面小组件
-- 使用 manifest + WebView 的 JS 插件平台完成学校课表采集
-- GitHub 注册表驱动的插件市场（[cursimple-plugins](https://github.com/cursimple/cursimple-plugins)）
-- 课程提醒（系统闹钟 / 应用内闹钟双后端）
-- GitHub Actions CI/CD
+一个基于 Kotlin 的 Android 课表应用「课简」，帮助你轻松管理课程表。
 
-## 模块结构
+## 功能特性
 
-- `app`：应用壳、依赖组装、入口页面、更新检查与下载镜像
-- `core-kernel`：统一课表模型与核心协议
-- `core-plugin`：插件 manifest、安装、组件、Web 会话模型、GitHub 注册表与运行门面
-- `core-data`：DataStore 仓储
-- `core-reminder`：课程提醒规则、计划与派发后端
-- `feature-schedule`：课表页面与同步逻辑
-- `feature-plugin`：插件市场 UI（GitHub 网格 + 安装）、WebView 会话
-- `feature-widget`：桌面小组件与定时刷新
+- **广泛兼容性**：支持 Android 7.0（API 24）到 Android 16（targetSdk 36）
+- **多架构支持**：提供 `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64` 分包和通用包
+- **现代界面**：使用 Jetpack Compose 构建，提供流畅的现代界面
+- **桌面小组件**：基于 Glance 的小组件，快速查看课程表
+- **插件系统**：使用 manifest + WebView JS 插件完成学校课表采集
+- **插件市场**：从 GitHub 注册表 ([cursimple-plugins](https://github.com/cursimple/cursimple-plugins)) 浏览和安装插件
+- **课程提醒**：双后端提醒（系统闹钟 / 应用内闹钟）
+- **开源免费**：完全开源，使用 GitHub Actions CI/CD
 
 ## 快速开始
 
-### 1) 环境要求
+### 下载安装
 
+1. 访问 [Releases](https://github.com/cursimple/cursimple-app/releases) 页面
+2. 下载适合你设备的 APK：
+   - `app-armeabi-v7a-release.apk`：适用于较旧的 32 位 ARM 设备
+   - `app-arm64-v8a-release.apk`：适用于现代 64 位 ARM 设备（大多数手机）
+   - `app-x86_64-release.apk`：适用于 Intel 架构设备
+   - `app-universal-release.apk`：如果不确定选哪个（兼容所有架构但体积较大）
+3. 安装 APK（可能需要启用"允许安装未知来源应用"）
+
+### 首次启动
+
+1. 打开应用
+2. 系统会引导你设置第一个课程表
+3. 使用插件市场查找并安装适合你学校的插件
+4. 按照插件说明导入你的课程表
+
+## 使用插件
+
+### 插件市场
+
+插件市场由 GitHub 仓库 [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 驱动，提供针对各种学校和机构的插件列表。
+
+1. 进入应用中的 **插件** 标签页
+2. 浏览"插件市场"区域（以 2 列网格显示）
+3. 每个插件显示：名称、作者、星标数、描述和最新 release 标签
+4. 点击插件查看详情，然后选择"安装"或"在 GitHub 查看"
+
+### 安装插件
+
+每个 GitHub 上的插件仓库必须至少有一个 Release，并包含 `*.zip` 资产。应用会：
+1. 通过镜像池访问 GitHub release
+2. 从 release 中下载第一个 `*.zip` 资产
+3. 自动安装插件
+
+注意：GitHub 自动生成的"Source code"压缩包不会被用作插件包。
+
+### 管理插件
+
+- 已安装的插件会出现在插件列表中
+- 可以启用/禁用插件
+- 插件设置可以单独配置
+
+## 功能详解
+
+### 课程提醒
+
+- **系统闹钟**：使用 Android 内置闹钟系统，确保可靠通知
+- **应用内闹钟**：适用于闹钟权限受限设备的替代后端
+- 在 设置 → 提醒 中配置提醒时间
+
+### 桌面小组件
+
+- 将课简小组件添加到主屏幕
+- 小组件显示即将到来的课程，并可自定义
+- 小组件按可配置的时间间隔自动刷新
+
+### 数据管理
+
+- 课程表数据使用 Android DataStore 本地存储
+- 设置中提供备份和恢复功能
+- 插件数据单独存储，便于管理
+
+## 常见问题
+
+### 插件安装失败
+
+- 确保网络连接稳定
+- 检查插件仓库是否有有效的 Release 和 `.zip` 资产
+- 尝试切换网络（Wi-Fi/移动数据）
+
+### 课程表不显示
+
+- 确认插件已安装并启用
+- 检查插件是否已成功导入课程表
+- 尝试手动刷新课程表视图
+
+### 小组件不更新
+
+- 确保应用有后台刷新权限
+- 检查小组件刷新间隔设置
+- 尝试移除并重新添加小组件
+
+## 支持与反馈
+
+- **问题反馈**：通过 [GitHub Issues](https://github.com/cursimple/cursimple-app/issues) 报告错误或请求功能
+- **讨论交流**：在 [GitHub Discussions](https://github.com/cursimple/cursimple-app/discussions) 参与讨论
+- **插件开发**：参见 [插件开发指南](docs/plugin-system.md) 创建自己的插件
+
+## 技术细节
+
+详细的构建说明、模块结构和 CI/CD 配置，请参阅 [开发者文档](README_dev.md)。
+
+<details>
+<summary>快速概览</summary>
+
+### 从源码构建
+
+#### 环境要求
 - JDK 17
 - Android SDK（含 `platforms;android-36`）
 
-### 2) 配置统一签名（本地）
-
-本地推荐使用根目录 `keystore.properties`（已加入 `.gitignore`，不要提交）：
+#### 配置说明
+本地签名配置通过 `keystore.properties`（参见 `keystore.example.properties`）：
 
 ```properties
 CLASS_VIEWER_KEYSTORE_FILE=.signing/class-viewer.jks
-CLASS_VIEWER_KEYSTORE_PASSWORD=replace-with-store-password
-CLASS_VIEWER_KEY_ALIAS=replace-with-key-alias
-CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
+CLASS_VIEWER_KEYSTORE_PASSWORD=替换为仓库密码
+CLASS_VIEWER_KEY_ALIAS=替换为密钥别名
+CLASS_VIEWER_KEY_PASSWORD=替换为密钥密码
 ```
 
-可参考 `keystore.example.properties`。也可以直接设置同名环境变量。Windows 绝对路径请使用 `/`，例如 `E:/keys/class-viewer.jks`，不要在 properties 文件里直接写未转义的 `\`。
-
-若本地只有 base64 形式的 keystore，可先设置：
-
-- `CLASS_VIEWER_KEYSTORE_BASE64`
-- `CLASS_VIEWER_KEYSTORE_PASSWORD`
-- `CLASS_VIEWER_KEY_ALIAS`
-- `CLASS_VIEWER_KEY_PASSWORD`
-
-然后执行：
-
-```pwsh
-. ./scripts/load-signing-env.ps1
-```
-
-脚本只会从当前环境变量解码 keystore，不会调用 `gh` 或访问 GitHub。
-
-> 所有本地构建（Debug/Release）都强制使用这套签名。
-> `.signing/`、`keystore.properties`、`*.jks`、`*.keystore`、`*.p12` 已加入 `.gitignore`，不要提交本地生成的 keystore。
-
-### 3) 构建 Debug
-
+#### 构建命令
 ```bash
+# Debug 构建
 ./gradlew assembleDebug
-```
 
-Debug/CI 包的 `applicationId` 是 `com.x500x.cursimple.ci`，可与 Release 包 `com.x500x.cursimple` 共存安装；两者仍使用同一套签名材料。
-
-### 4) 构建 Release（含 v7a/v8a/x86/x86_64/universal）
-
-```bash
+# Release 构建（所有架构）
 ./gradlew assembleRelease
 ```
 
-构建产物目录：
+### 项目结构
+- `app`：应用壳、依赖组装、入口页面、更新检查
+- `core-kernel`：统一课表模型与核心协议
+- `core-plugin`：插件 manifest、安装、组件、Web 会话模型
+- `core-data`：DataStore 仓储
+- `core-reminder`：提醒规则、计划与派发后端
+- `feature-schedule`：课表页面与同步逻辑
+- `feature-plugin`：插件市场 UI 和 WebView 会话
+- `feature-widget`：桌面小组件与定时刷新
 
-`app/build/outputs/apk/release/`
+### CI/CD
+- GitHub Actions 工作流位于 `.github/workflows/`
+- CI 在 PR 和推送到 `main` 时运行
+- Release 在版本标签（如 `v1.0.0`）时运行
 
-## 插件平台
+</details>
 
-更详细的面向维护者说明见：
+## 开源许可
 
-- [docs/plugin-system.md](docs/plugin-system.md)
-
-插件以 zip 包安装，至少包含 `manifest.json` 和入口 JS。入口推荐导出：
-
-```js
-export async function run(ctx) {
-  ctx.schedule.addCourse({
-    title: "高等数学",
-    dayOfWeek: 1,
-    startNode: 1,
-    endNode: 2,
-    weeks: [1, 2, 3]
-  });
-
-  return ctx.schedule.commit({ termId: ctx.term.id });
-}
-```
-
-插件通过 `manifest.json` 声明 `permissions`、`allowedHosts`、`entry`、可选 `startUrl`/`userAgent`、`webEngine`、`components` 和运行限制。运行时默认使用系统 WebView，只暴露受控 JS `ctx` 对象；入口脚本可用 `ctx.web.setUserAgent()` 自行决定当前会话 UA。
-
-当前版本不再内置示例插件，也不会启动时自动安装旧 assets 插件。
-
-## 插件市场
-
-插件市场以 GitHub 仓库 [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 作为注册表。注册表本身就是一个 `plugins.json`，内容为 `["owner/repo", ...]` 字符串数组，每个 entry 对应一个独立的插件仓库。
-
-- **应用内浏览**：插件 Tab 顶部的"插件市场"区域，以 2 列网格展示注册表里的所有仓库，显示名称、作者、stars、描述与最新 release 的 tag。点开有详情，可"安装"或"在 GitHub 查看"。
-- **安装约定**：每个插件仓库需在 GitHub 上发布 Release，并上传至少一个 `*.zip` 资产。app 会调用 `/repos/{owner}/{repo}/releases/latest`，下载第一个 zip 并进入既有的本地安装预检流程。没有 release 时按钮显示"未找到版本"灰态。
-- **网页管理**：注册表的增删通过 [cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 仓库 `docs/` 目录下的静态站点 ([https://cursimple.github.io/cursimple-plugins/](https://cursimple.github.io/cursimple-plugins/)) 完成。两种登录路径：
-  - 方式 A：点击"在 GitHub 编辑"按钮，直接跳转 GitHub 网页编辑器，权限完全交给 GitHub（非协作者会进入 fork & PR 流程）。
-  - 方式 B：在页面内粘贴一个 [Fine-grained PAT](https://github.com/settings/personal-access-tokens/new)（仓库 `Contents: Read & Write`），直接增删并 commit。Token 只保存在浏览器 localStorage。
-- 注册表仓库默认为 `cursimple/cursimple-plugins`，可在 应用 → 设置 → 插件 中改为自己 fork 的仓库。
-
-## GitHub Actions
-
-工作流文件：
-
-- `.github/workflows/android-ci.yml`
-- `.github/workflows/android-release.yml`
-
-- CI（PR / push `main`）：加载同一套签名材料，执行单测 + `assembleDebug`，上传可共存安装的 CI APK artifact
-- Release（仅 push tag，如 `v1.0.0`）：加载同一套签名材料，执行 `assembleRelease`、上传 APK、发布 GitHub Release
-- push `v*` tag 只触发 Release workflow，不触发 CI workflow
-- 工作流通过 GitHub Actions Secrets 直接注入签名材料，随后用 `scripts/load-signing-env.ps1` 解码到 runner 临时目录
-
-### CI/CD 需预置的仓库配置
-
-- Secrets：
-  - `CLASS_VIEWER_KEYSTORE_BASE64`
-  - `CLASS_VIEWER_KEYSTORE_PASSWORD`
-  - `CLASS_VIEWER_KEY_ALIAS`
-  - `CLASS_VIEWER_KEY_PASSWORD`
-
-GitHub Secrets 中的 keystore 必须和本地 `keystore.properties` 指向的 keystore 是同一份。可在本地用 `pwsh` 从 `keystore.properties` 同步：
-
-```pwsh
-$env:GH_TOKEN = $env:GH_TOKEN_class_viewer
-$props = @{}
-foreach ($line in Get-Content -LiteralPath .\keystore.properties) {
-    if ($line -match '^\s*(?<key>[^#][^=]*)=(?<value>.*)$') {
-        $props[$Matches.key.Trim()] = $Matches.value.Trim()
-    }
-}
-
-function Set-GhSecretValue {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Name,
-        [Parameter(Mandatory = $true)]
-        [string]$Value
-    )
-
-    gh secret set $Name --repo cursimple/cursimple-app --body $Value
-}
-
-Set-GhSecretValue -Name 'CLASS_VIEWER_KEYSTORE_BASE64' -Value ([Convert]::ToBase64String([IO.File]::ReadAllBytes($props.CLASS_VIEWER_KEYSTORE_FILE)))
-Set-GhSecretValue -Name 'CLASS_VIEWER_KEYSTORE_PASSWORD' -Value $props.CLASS_VIEWER_KEYSTORE_PASSWORD
-Set-GhSecretValue -Name 'CLASS_VIEWER_KEY_ALIAS' -Value $props.CLASS_VIEWER_KEY_ALIAS
-Set-GhSecretValue -Name 'CLASS_VIEWER_KEY_PASSWORD' -Value $props.CLASS_VIEWER_KEY_PASSWORD
-```
+本项目为开源项目。详见 [LICENSE](LICENSE) 文件。
