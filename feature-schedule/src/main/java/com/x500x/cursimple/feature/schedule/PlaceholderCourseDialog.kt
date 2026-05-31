@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -22,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import java.time.LocalTime
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun PlaceholderCourseDialog(
     course: CourseItem?,
@@ -50,20 +55,34 @@ internal fun PlaceholderCourseDialog(
         title = { Text(if (course == null) "新增占位课" else "编辑占位课") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
-                    value = label,
-                    onValueChange = { label = it.take(40) },
-                    label = { Text("Label") },
+                var labelExpanded by rememberSaveable(course?.id, slotLabels) { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = labelExpanded,
+                    onExpandedChange = { labelExpanded = it },
                     modifier = Modifier.fillMaxWidth(),
-                )
-                if (slotLabels.isNotEmpty()) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
-                            onClick = {
-                                val index = slotLabels.indexOf(label)
-                                label = slotLabels[(index + 1).floorMod(slotLabels.size)]
-                            },
-                        ) { Text("切换已有 label") }
+                ) {
+                    OutlinedTextField(
+                        value = label,
+                        onValueChange = { label = it.take(40) },
+                        label = { Text("Label") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = labelExpanded) },
+                        modifier = Modifier
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true)
+                            .fillMaxWidth(),
+                    )
+                    ExposedDropdownMenu(
+                        expanded = labelExpanded && slotLabels.isNotEmpty(),
+                        onDismissRequest = { labelExpanded = false },
+                    ) {
+                        slotLabels.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    label = option.take(40)
+                                    labelExpanded = false
+                                },
+                            )
+                        }
                     }
                 }
                 OutlinedTextField(
@@ -136,5 +155,3 @@ internal fun parseIntList(value: String): List<Int> =
         .filter { it > 0 }
         .distinct()
         .sorted()
-
-private fun Int.floorMod(size: Int): Int = if (size <= 0) 0 else ((this % size) + size) % size
