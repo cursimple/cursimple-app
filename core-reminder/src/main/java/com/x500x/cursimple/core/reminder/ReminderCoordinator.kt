@@ -618,7 +618,6 @@ class ReminderCoordinator(
         )
         val settings = alarmSettingsProvider()
         val zone = ZoneId.systemDefault()
-        val systemClockZone = zone
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
         val rules = repository.getReminderRules()
             .filter {
@@ -626,23 +625,118 @@ class ReminderCoordinator(
                     it.pluginId == pluginId &&
                     it.scopeType == ReminderScopeType.LabelRule
             }
-        val plans = planner.expandRules(
+        val plans = expandLabelRulePlans(
             rules = rules,
             schedule = schedule,
-            timingProfile = profile,
-            fromDate = Instant.ofEpochMilli(window.startMillis).atZone(zone).toLocalDate(),
+            profile = profile,
+            window = window,
+            settings = settings,
+            zone = zone,
             temporaryScheduleOverrides = temporaryScheduleOverrides,
-        ).asSequence()
-            .filter { it.triggerAtMillis in window.startMillis..window.endMillis }
-            .map { it.withAlarmSettings(settings) }
-            .distinctBy { it.systemAlarmKey() }
-            .sortedBy { it.triggerAtMillis }
-            .toList()
+        )
+        dispatchPlansForWindowLocked(
+            pluginId = pluginId,
+            settings = settings,
+            plans = plans,
+            window = window,
+            reason = reason,
+            nowMillis = nowMillis,
+            ruleCount = rules.size,
+            expiredRecordClearedCount = expiredRecordClearedCount,
+            expiredAppDismissal = expiredAppDismissal,
+        )
+    }
+
+    suspend fun syncNearestAlarmForRule(
+        pluginId: String,
+        ruleId: String,
+        schedule: TermSchedule,
+        timingProfile: TermTimingProfile?,
+        reason: ReminderSyncReason,
+        nowMillis: Long = System.currentTimeMillis(),
+        clearExpiredRecords: Boolean = true,
+    ): SystemAlarmSyncSummary = SYSTEM_ALARM_LOCK.withLock {
+        val expiredRecordClearedCount = if (clearExpiredRecords) clearExpiredRecordsBefore(nowMillis) else 0
+        val profile = timingProfile ?: return@withLock emptySystemAlarmSyncSummary(
+            expiredRecordClearedCount = expiredRecordClearedCount,
+        )
+        val settings = alarmSettingsProvider()
+        val zone = ZoneId.systemDefault()
+        val window = ReminderSyncWindow(
+            startMillis = nowMillis,
+            endMillis = nowMillis + NEAREST_RULE_ALARM_WINDOW_MILLIS,
+        )
+        val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
+        val rules = repository.getReminderRules()
+            .filter {
+                it.enabled &&
+                    it.ruleId == ruleId &&
+                    it.pluginId == pluginId &&
+                    it.scopeType == ReminderScopeType.LabelRule
+            }
+        val plans = expandLabelRulePlans(
+            rules = rules,
+            schedule = schedule,
+            profile = profile,
+            window = window,
+            settings = settings,
+            zone = zone,
+            temporaryScheduleOverrides = temporaryScheduleOverrides,
+        ).take(1)
+        dispatchPlansForWindowLocked(
+            pluginId = pluginId,
+            settings = settings,
+            plans = plans,
+            window = window,
+            reason = reason,
+            nowMillis = nowMillis,
+            ruleCount = rules.size,
+            expiredRecordClearedCount = expiredRecordClearedCount,
+            expiredAppDismissal = DismissStats(),
+            staleRecordRuleId = ruleId,
+        )
+    }
+
+    private fun expandLabelRulePlans(
+        rules: List<ReminderRule>,
+        schedule: TermSchedule,
+        profile: TermTimingProfile,
+        window: ReminderSyncWindow,
+        settings: ReminderAlarmSettings,
+        zone: ZoneId,
+        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    ): List<ReminderPlan> = planner.expandRules(
+        rules = rules,
+        schedule = schedule,
+        timingProfile = profile,
+        fromDate = Instant.ofEpochMilli(window.startMillis).atZone(zone).toLocalDate(),
+        temporaryScheduleOverrides = temporaryScheduleOverrides,
+    ).asSequence()
+        .filter { it.triggerAtMillis in window.startMillis..window.endMillis }
+        .map { it.withAlarmSettings(settings) }
+        .distinctBy { it.systemAlarmKey() }
+        .sortedBy { it.triggerAtMillis }
+        .toList()
+
+    private suspend fun dispatchPlansForWindowLocked(
+        pluginId: String,
+        settings: ReminderAlarmSettings,
+        plans: List<ReminderPlan>,
+        window: ReminderSyncWindow,
+        reason: ReminderSyncReason,
+        nowMillis: Long,
+        ruleCount: Int,
+        expiredRecordClearedCount: Int,
+        expiredAppDismissal: DismissStats,
+        staleRecordRuleId: String? = null,
+    ): SystemAlarmSyncSummary {
+        val systemClockZone = ZoneId.systemDefault()
         val plannedKeys = plans.mapTo(mutableSetOf()) { it.systemAlarmKey() }
         val outdatedAppOperationDismissal = if (settings.backend == ReminderAlarmBackend.AppAlarmClock) {
             dismissOutdatedAppAlarmOperationRecords(
                 pluginId = pluginId,
                 window = window,
+                ruleId = staleRecordRuleId,
             )
         } else {
             DismissStats()
@@ -652,6 +746,7 @@ class ReminderCoordinator(
             plannedKeys = plannedKeys,
             window = window,
             backend = settings.backend,
+            ruleId = staleRecordRuleId,
         )
         val existingKeys = runCatching {
             repository.getSystemAlarmRecords()
@@ -671,7 +766,7 @@ class ReminderCoordinator(
             "reminder.system_clock.sync.start",
             mapOf(
                 "pluginId" to pluginId,
-                "ruleCount" to rules.size,
+                "ruleCount" to ruleCount,
                 "planCount" to plans.size,
                 "reason" to reason.name,
                 "backend" to settings.backend.name,
@@ -800,7 +895,7 @@ class ReminderCoordinator(
                 "failureCount" to summary.failedCount,
             ),
         )
-        summary
+        return summary
     }
 
     private suspend fun dismissExpiredAppAlarmRecords(nowMillis: Long): DismissStats {
@@ -884,11 +979,13 @@ class ReminderCoordinator(
     private suspend fun dismissOutdatedAppAlarmOperationRecords(
         pluginId: String,
         window: ReminderSyncWindow,
+        ruleId: String? = null,
     ): DismissStats {
         val records = runCatching {
             repository.getSystemAlarmRecords()
                 .filter { record ->
                     record.pluginId == pluginId &&
+                        (ruleId == null || record.ruleId == ruleId) &&
                         record.backend == ReminderAlarmBackend.AppAlarmClock &&
                         record.operationMode != CURRENT_APP_ALARM_OPERATION_MODE &&
                         record.operationMode != AppAlarmOperationMode.SnoozeForegroundService &&
@@ -941,11 +1038,13 @@ class ReminderCoordinator(
         plannedKeys: Set<String>,
         window: ReminderSyncWindow,
         backend: ReminderAlarmBackend,
+        ruleId: String? = null,
     ): DismissStats {
         val records = runCatching {
             repository.getSystemAlarmRecords()
                 .filter { record ->
                     record.pluginId == pluginId &&
+                        (ruleId == null || record.ruleId == ruleId) &&
                         record.backend == backend &&
                         record.triggerAtMillis in window.startMillis..window.endMillis &&
                         (backend != ReminderAlarmBackend.AppAlarmClock ||
@@ -1052,6 +1151,8 @@ class ReminderCoordinator(
 private val SYSTEM_ALARM_LOCK = Mutex()
 
 private val CURRENT_APP_ALARM_OPERATION_MODE = AppAlarmOperationMode.ForegroundService
+
+private const val NEAREST_RULE_ALARM_WINDOW_MILLIS = 2L * 24 * 60 * 60 * 1000
 
 private data class DismissStats(
     val dismissedCount: Int = 0,

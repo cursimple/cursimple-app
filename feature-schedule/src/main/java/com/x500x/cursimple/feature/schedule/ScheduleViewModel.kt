@@ -800,6 +800,7 @@ class ScheduleViewModel(
             _uiState.update { it.copy(statusMessage = "请先选择插件后再保存提醒规则") }
             return
         }
+        val isNewRule = ruleId == null
         viewModelScope.launch {
             val rule = reminderCoordinator.upsertLabelRule(
                 pluginId = pluginId,
@@ -811,7 +812,29 @@ class ScheduleViewModel(
                 labelConditions = conditions,
                 labelActions = actions,
             )
-            val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.RuleCreatedToday)
+            val schedule = currentReminderSchedule()
+            val timingProfile = _uiState.value.timingProfile ?: resolveTimingProfile()
+            val summary = if (schedule != null) {
+                if (isNewRule) {
+                    onAlarmSyncChecked()
+                    reminderCoordinator.syncNearestAlarmForRule(
+                        pluginId = pluginId,
+                        ruleId = rule.ruleId,
+                        schedule = schedule,
+                        timingProfile = timingProfile,
+                        reason = ReminderSyncReason.RuleCreatedToday,
+                    )
+                } else {
+                    syncTodaySystemClockAlarms(
+                        pluginId = pluginId,
+                        schedule = schedule,
+                        timingProfile = timingProfile,
+                        reason = ReminderSyncReason.RuleCreatedToday,
+                    )
+                }
+            } else {
+                emptySystemAlarmSyncSummary()
+            }
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(

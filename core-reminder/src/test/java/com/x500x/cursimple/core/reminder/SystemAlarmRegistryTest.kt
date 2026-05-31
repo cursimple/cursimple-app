@@ -460,6 +460,65 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
+    fun `new rule nearest sync registers only the next alarm within two days`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.SystemClockApp) },
+            systemDispatcher = dispatcher,
+        )
+        val profile = twoDayProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+
+        val summary = coordinator.syncNearestAlarmForRule(
+            pluginId = "demo",
+            ruleId = "rule",
+            schedule = twoDaySchedule(),
+            timingProfile = profile,
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(1, summary.createdCount)
+        assertEquals(1, dispatcher.dispatchCount)
+        assertEquals(1, repository.records.value.size)
+        assertEquals("today", repository.records.value.single().courseId)
+    }
+
+    @Test
+    fun `new rule nearest sync ignores plans outside two days`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.SystemClockApp) },
+            systemDispatcher = dispatcher,
+        )
+        val profile = twoDayProfile()
+        val nowMillis = sampleNowMillis(hour = 10, minute = 0)
+
+        val summary = coordinator.syncNearestAlarmForRule(
+            pluginId = "demo",
+            ruleId = "rule",
+            schedule = afterTwoDaysSchedule(),
+            timingProfile = profile,
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(0, summary.createdCount)
+        assertEquals(0, dispatcher.dispatchCount)
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+    }
+
+    @Test
     fun `stale records in the active window are dismissed`() = runBlocking {
         val profile = sampleProfile()
         val staleRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 10, minute = 0))
@@ -868,11 +927,66 @@ class SystemAlarmRegistryTest {
         ),
     )
 
+    private fun twoDaySchedule(): TermSchedule = TermSchedule(
+        termId = "2026-spring",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+        dailySchedules = listOf(
+            DailySchedule(
+                dayOfWeek = 1,
+                courses = listOf(
+                    CourseItem(
+                        id = "today",
+                        title = "今日高数",
+                        weeks = listOf(1),
+                        time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                    ),
+                ),
+            ),
+            DailySchedule(
+                dayOfWeek = 2,
+                courses = listOf(
+                    CourseItem(
+                        id = "tomorrow",
+                        title = "明日高数",
+                        weeks = listOf(1),
+                        time = CourseTimeSlot(dayOfWeek = 2, startNode = 1, endNode = 2),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    private fun afterTwoDaysSchedule(): TermSchedule = TermSchedule(
+        termId = "2026-spring",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+        dailySchedules = listOf(
+            DailySchedule(
+                dayOfWeek = 4,
+                courses = listOf(
+                    CourseItem(
+                        id = "too-late",
+                        title = "周四高数",
+                        weeks = listOf(1),
+                        time = CourseTimeSlot(dayOfWeek = 4, startNode = 1, endNode = 2),
+                    ),
+                ),
+            ),
+        ),
+    )
+
     private fun sampleProfile(): TermTimingProfile = TermTimingProfile(
         termStartDate = "2026-02-23",
         timezone = ZoneId.systemDefault().id,
         slotTimes = listOf(
             ClassSlotTime(1, 2, "08:00", "09:35", "第一节课"),
+        ),
+    )
+
+    private fun twoDayProfile(): TermTimingProfile = TermTimingProfile(
+        termStartDate = "2026-02-23",
+        timezone = ZoneId.systemDefault().id,
+        slotTimes = listOf(
+            ClassSlotTime(1, 2, "08:30", "09:35", "第一节课"),
         ),
     )
 
