@@ -42,15 +42,16 @@ The plugin marketplace is powered by the GitHub repository [cursimple/cursimple-
 
 1. Go to the **Plugins** tab in the app
 2. Browse the "Plugin Marketplace" section (displayed in a 2-column grid)
-3. Each plugin shows: name, author, stars, description, and latest release tag
+3. Each plugin shows: name, author, stars, description, and latest plugin version
 4. Tap a plugin to view details, then choose "Install" or "View on GitHub"
 
 ### Installing Plugins
 
-Each plugin repository on GitHub must have at least one Release with a `*.zip` asset. The app will:
-1. Access the GitHub release via mirror pool
-2. Download the first `*.zip` asset from the release
-3. Install the plugin automatically
+Each plugin repository on GitHub must have at least one Release with `manifest.json` and the plugin package named by its `filename` field. The app will:
+1. Load the plugin list from `plugin-stars-data/plugins-stars.json`
+2. Read `https://github.com/{owner}/{repo}/releases/latest/download/manifest.json`
+3. Download the plugin package named by `filename`
+4. Install the plugin automatically
 
 Note: GitHub's auto-generated "Source code" archives are not used as plugin packages.
 
