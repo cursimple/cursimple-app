@@ -29,6 +29,7 @@ data class InstalledPluginRecord(
     @SerialName("isBundled") val isBundled: Boolean = false,
 ) {
     val declaredPermissions: List<PluginPermission> get() = permissions
+    val installKey: String get() = pluginInstallKey(pluginId, source)
 }
 
 @Serializable
@@ -52,6 +53,34 @@ enum class PluginInstallSource {
     Remote,
 }
 
+fun pluginInstallKey(pluginId: String, source: PluginInstallSource): String =
+    "${pluginId.trim()}:${source.name.lowercase()}"
+
+fun isPluginInstallEnabled(
+    plugin: InstalledPluginRecord,
+    enabledPluginKeys: Set<String>,
+    installedPlugins: List<InstalledPluginRecord>,
+): Boolean {
+    val siblings = installedPlugins.filter { it.pluginId == plugin.pluginId }
+    val hasSourceAwareKey = siblings.any { it.installKey in enabledPluginKeys }
+    if (hasSourceAwareKey) {
+        return plugin.installKey in enabledPluginKeys
+    }
+    if (plugin.installKey in enabledPluginKeys) {
+        return true
+    }
+    if (plugin.pluginId !in enabledPluginKeys) {
+        return false
+    }
+    if (siblings.size <= 1) {
+        return true
+    }
+    val legacyOwner = siblings.minWithOrNull(
+        compareBy<InstalledPluginRecord> { it.installedAt }.thenBy { it.installKey },
+    )
+    return plugin.installKey == legacyOwner?.installKey
+}
+
 data class PluginInstallPreview(
     val manifest: PluginManifest,
     val checksumVerified: Boolean,
@@ -70,7 +99,11 @@ interface PluginRegistryRepository {
 
     suspend fun find(pluginId: String): InstalledPluginRecord?
 
+    suspend fun findByInstallKey(installKey: String): InstalledPluginRecord?
+
     suspend fun saveInstalledPlugin(record: InstalledPluginRecord)
 
     suspend fun removeInstalledPlugin(pluginId: String)
+
+    suspend fun removeInstalledPluginByKey(installKey: String)
 }

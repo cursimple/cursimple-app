@@ -194,11 +194,11 @@ class PluginMarketViewModel(
         _uiState.update { it.copy(installPreview = null) }
     }
 
-    fun removePlugin(pluginId: String) {
+    fun removePlugin(pluginKey: String) {
         viewModelScope.launch {
-            runCatching { pluginManager.removePlugin(pluginId) }
+            runCatching { pluginManager.removePlugin(pluginKey) }
                 .onSuccess {
-                    _uiState.update { it.copy(statusMessage = "已移除插件：$pluginId") }
+                    _uiState.update { it.copy(statusMessage = "已移除插件：$pluginKey") }
                 }
                 .onFailure { error ->
                     val errorMessage = error.message ?: "移除插件失败"

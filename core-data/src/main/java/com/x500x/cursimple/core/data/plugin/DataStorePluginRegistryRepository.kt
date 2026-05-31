@@ -39,6 +39,10 @@ class DataStorePluginRegistryRepository(
         return getInstalledPlugins().firstOrNull { it.pluginId == pluginId }
     }
 
+    override suspend fun findByInstallKey(installKey: String): InstalledPluginRecord? {
+        return getInstalledPlugins().firstOrNull { it.installKey == installKey }
+    }
+
     override suspend fun saveInstalledPlugin(record: InstalledPluginRecord) {
         store.edit { preferences ->
             val current = preferences.decodeInstalledPlugins()
@@ -46,6 +50,16 @@ class DataStorePluginRegistryRepository(
                 .filterNot { it.pluginId == record.pluginId && it.source == record.source }
                 .plus(record)
                 .sortedBy { it.name }
+            preferences[KEY_INSTALLED_PLUGINS] = json.encodeToString(
+                ListSerializer(InstalledPluginRecord.serializer()),
+                next,
+            )
+        }
+    }
+
+    override suspend fun removeInstalledPluginByKey(installKey: String) {
+        store.edit { preferences ->
+            val next = preferences.decodeInstalledPlugins().filterNot { it.installKey == installKey }
             preferences[KEY_INSTALLED_PLUGINS] = json.encodeToString(
                 ListSerializer(InstalledPluginRecord.serializer()),
                 next,

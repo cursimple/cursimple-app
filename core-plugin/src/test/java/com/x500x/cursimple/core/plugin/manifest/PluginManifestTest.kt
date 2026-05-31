@@ -156,6 +156,7 @@ class PluginManifestTest {
         )
 
         assertEquals(userAgent, request.userAgent)
+        assertEquals(record.installKey, request.installKey)
         assertEquals(1200L, request.completionStableDelayMs)
         assertEquals(true, request.autoCompleteOnScheduleDraft)
         assertEquals(manifest.allowedHosts, request.allowedHosts)

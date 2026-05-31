@@ -216,12 +216,12 @@ class AppPreferencesViewModel(
         }
     }
 
-    fun setPluginEnabled(pluginId: String, enabled: Boolean) {
-        viewModelScope.launch { repository.setPluginEnabled(pluginId, enabled) }
+    fun setPluginEnabled(pluginKey: String, enabled: Boolean) {
+        viewModelScope.launch { repository.setPluginEnabled(pluginKey, enabled) }
     }
 
-    fun seedEnabledPlugins(pluginIds: Set<String>) {
-        viewModelScope.launch { repository.seedEnabledPlugins(pluginIds) }
+    fun seedEnabledPlugins(pluginKeys: Set<String>) {
+        viewModelScope.launch { repository.seedEnabledPlugins(pluginKeys) }
     }
 
     fun setDisclaimerAccepted(accepted: Boolean) {
