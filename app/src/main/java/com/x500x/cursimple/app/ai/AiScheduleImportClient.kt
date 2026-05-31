@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import com.x500x.cursimple.core.data.coerceAiImportTimeoutSeconds
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
@@ -29,9 +30,7 @@ import java.security.MessageDigest
 import java.time.Duration
 
 class AiScheduleImportClient(
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .callTimeout(Duration.ofSeconds(120))
-        .build(),
+    private val client: OkHttpClient = OkHttpClient(),
     private val json: Json = AiImportJson,
 ) {
     fun importFromImage(context: Context, imageUri: Uri, config: AiImportConfig): AiScheduleImportPayload {
@@ -45,7 +44,10 @@ class AiScheduleImportClient(
             .header("Content-Type", "application/json")
             .post(requestJson.toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()
-        val bodyText = client.newCall(request).execute().use { response ->
+        val requestClient = client.newBuilder()
+            .callTimeout(Duration.ofSeconds(coerceAiImportTimeoutSeconds(config.timeoutSeconds).toLong()))
+            .build()
+        val bodyText = requestClient.newCall(request).execute().use { response ->
             check(response.isSuccessful) { "AI 请求失败：HTTP ${response.code}" }
             response.body.string()
         }

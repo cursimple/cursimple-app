@@ -101,6 +101,9 @@ class DataStoreUserPreferencesRepository(
             aiImportApiUrl = prefs[KEY_AI_IMPORT_API_URL].orEmpty(),
             aiImportApiKey = prefs[KEY_AI_IMPORT_API_KEY].orEmpty(),
             aiImportModel = prefs[KEY_AI_IMPORT_MODEL].orEmpty(),
+            aiImportTimeoutSeconds = coerceAiImportTimeoutSeconds(
+                prefs[KEY_AI_IMPORT_TIMEOUT_SECONDS] ?: DEFAULT_AI_IMPORT_TIMEOUT_SECONDS,
+            ),
             loaded = true,
         )
     }
@@ -431,7 +434,7 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
-    override suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String) {
+    override suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String, timeoutSeconds: Int) {
         store.edit { prefs ->
             val normalizedApiUrl = apiUrl.trim()
             if (normalizedApiUrl.isBlank()) {
@@ -451,6 +454,7 @@ class DataStoreUserPreferencesRepository(
             } else {
                 prefs[KEY_AI_IMPORT_MODEL] = normalizedModel
             }
+            prefs[KEY_AI_IMPORT_TIMEOUT_SECONDS] = coerceAiImportTimeoutSeconds(timeoutSeconds)
         }
     }
 
@@ -496,6 +500,7 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_AI_IMPORT_API_URL)
             prefs.remove(KEY_AI_IMPORT_API_KEY)
             prefs.remove(KEY_AI_IMPORT_MODEL)
+            prefs.remove(KEY_AI_IMPORT_TIMEOUT_SECONDS)
             prefs.removeScheduleAppearanceAndDisplay()
         }
         releasePersistedReadPermission(previousImageUri)
@@ -774,6 +779,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_AI_IMPORT_API_URL = stringPreferencesKey("ai_import_api_url")
         val KEY_AI_IMPORT_API_KEY = stringPreferencesKey("ai_import_api_key")
         val KEY_AI_IMPORT_MODEL = stringPreferencesKey("ai_import_model")
+        val KEY_AI_IMPORT_TIMEOUT_SECONDS = intPreferencesKey("ai_import_timeout_seconds")
 
         const val DEFAULT_RING_DURATION_SECONDS = DEFAULT_APP_ALARM_RING_DURATION_SECONDS
         const val DEFAULT_REPEAT_INTERVAL_SECONDS = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS

@@ -262,8 +262,8 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setWebDavSettings(url, username, password) }
     }
 
-    fun setAiImportSettings(apiUrl: String, apiKey: String, model: String) {
-        viewModelScope.launch { repository.setAiImportSettings(apiUrl, apiKey, model) }
+    fun setAiImportSettings(apiUrl: String, apiKey: String, model: String, timeoutSeconds: Int) {
+        viewModelScope.launch { repository.setAiImportSettings(apiUrl, apiKey, model, timeoutSeconds) }
     }
 
     fun resetScheduleAppearanceAndDisplay() {
