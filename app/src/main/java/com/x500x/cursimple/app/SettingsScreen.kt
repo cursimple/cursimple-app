@@ -97,9 +97,13 @@ import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.DEFAULT_AI_IMPORT_TIMEOUT_SECONDS
 import com.x500x.cursimple.core.data.DEFAULT_WEBDAV_URL
+import com.x500x.cursimple.core.data.MAX_AI_IMPORT_TIMEOUT_SECONDS
+import com.x500x.cursimple.core.data.MIN_AI_IMPORT_TIMEOUT_SECONDS
 import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
 import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
+import com.x500x.cursimple.core.data.coerceAiImportTimeoutSeconds
 import com.x500x.cursimple.app.reminder.AlarmPermissionIntents
 import com.x500x.cursimple.app.util.LogExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
@@ -206,6 +210,7 @@ fun AppSettingsRoute(
     aiImportApiUrl: String,
     aiImportApiKey: String,
     aiImportModel: String,
+    aiImportTimeoutSeconds: Int,
     developerModeEnabled: Boolean,
     debugForcedDateTime: LocalDateTime?,
     onPickThemeMode: () -> Unit,
@@ -262,7 +267,7 @@ fun AppSettingsRoute(
     onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
     onWebDavSettingsChange: (String, String, String) -> Unit,
     onTestWebDavSettings: suspend (WebDavConfig) -> Result<Unit>,
-    onAiImportSettingsChange: (String, String, String) -> Unit,
+    onAiImportSettingsChange: (String, String, String, Int) -> Unit,
     onSetDeveloperMode: (Boolean) -> Unit,
     onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
     onExportScheduleMetadata: () -> Unit,
@@ -734,6 +739,7 @@ fun AppSettingsRoute(
                     apiUrl = aiImportApiUrl,
                     apiKey = aiImportApiKey,
                     model = aiImportModel,
+                    timeoutSeconds = aiImportTimeoutSeconds,
                     onSave = onAiImportSettingsChange,
                     onSaved = { complete -> settingsReturnReady = complete },
                 )
@@ -1909,13 +1915,17 @@ private fun AiImportSettingsSection(
     apiUrl: String,
     apiKey: String,
     model: String,
-    onSave: (String, String, String) -> Unit,
+    timeoutSeconds: Int,
+    onSave: (String, String, String, Int) -> Unit,
     onSaved: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     var apiUrlDraft by rememberSaveable(apiUrl) { mutableStateOf(apiUrl) }
     var apiKeyDraft by rememberSaveable(apiKey) { mutableStateOf(apiKey) }
     var modelDraft by rememberSaveable(model) { mutableStateOf(model) }
+    var timeoutDraft by rememberSaveable(timeoutSeconds) {
+        mutableStateOf(coerceAiImportTimeoutSeconds(timeoutSeconds).toString())
+    }
 
     SettingsEditorPanel(title = "AI 识图导入") {
         OutlinedTextField(
@@ -1943,9 +1953,25 @@ private fun AiImportSettingsSection(
             label = { Text("模型（可选）") },
             placeholder = { Text("gpt-4o-mini") },
         )
+        OutlinedTextField(
+            value = timeoutDraft,
+            onValueChange = { timeoutDraft = it.filter(Char::isDigit).take(3) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            label = { Text("超时（秒）") },
+            placeholder = { Text(DEFAULT_AI_IMPORT_TIMEOUT_SECONDS.toString()) },
+            supportingText = {
+                Text("$MIN_AI_IMPORT_TIMEOUT_SECONDS-$MAX_AI_IMPORT_TIMEOUT_SECONDS 秒，留空使用 $DEFAULT_AI_IMPORT_TIMEOUT_SECONDS 秒")
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        )
         Button(
             onClick = {
-                onSave(apiUrlDraft, apiKeyDraft, modelDraft)
+                val normalizedTimeout = coerceAiImportTimeoutSeconds(
+                    timeoutDraft.toIntOrNull() ?: DEFAULT_AI_IMPORT_TIMEOUT_SECONDS,
+                )
+                timeoutDraft = normalizedTimeout.toString()
+                onSave(apiUrlDraft, apiKeyDraft, modelDraft, normalizedTimeout)
                 onSaved(apiUrlDraft.isNotBlank() && apiKeyDraft.isNotBlank())
                 Toast.makeText(context, "AI 识图导入设置已保存", Toast.LENGTH_SHORT).show()
             },

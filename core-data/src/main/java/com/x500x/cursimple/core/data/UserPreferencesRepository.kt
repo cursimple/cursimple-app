@@ -39,6 +39,12 @@ const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
     "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
 
 const val DEFAULT_WEBDAV_URL = "https://dav.jianguoyun.com/dav/"
+const val DEFAULT_AI_IMPORT_TIMEOUT_SECONDS = 120
+const val MIN_AI_IMPORT_TIMEOUT_SECONDS = 10
+const val MAX_AI_IMPORT_TIMEOUT_SECONDS = 600
+
+fun coerceAiImportTimeoutSeconds(seconds: Int): Int =
+    seconds.coerceIn(MIN_AI_IMPORT_TIMEOUT_SECONDS, MAX_AI_IMPORT_TIMEOUT_SECONDS)
 
 data class ScheduleTextStylePreferences(
     val courseTextSizeSp: Int = DEFAULT_COURSE_TEXT_SIZE_SP,
@@ -211,6 +217,7 @@ data class UserPreferences(
     val aiImportApiUrl: String = "",
     val aiImportApiKey: String = "",
     val aiImportModel: String = "",
+    val aiImportTimeoutSeconds: Int = DEFAULT_AI_IMPORT_TIMEOUT_SECONDS,
     /** True once the persisted prefs have been read at least once. False = still loading. */
     val loaded: Boolean = false,
 )
@@ -273,7 +280,7 @@ interface UserPreferencesRepository {
     suspend fun setComponentMarketIndexUrl(url: String)
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)
     suspend fun setWebDavSettings(url: String, username: String, password: String)
-    suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String)
+    suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String, timeoutSeconds: Int)
     suspend fun resetScheduleAppearanceAndDisplay()
     suspend fun resetAllSettings()
 }

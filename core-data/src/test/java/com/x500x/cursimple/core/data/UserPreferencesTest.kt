@@ -126,5 +126,13 @@ class UserPreferencesTest {
         assertEquals("", prefs.aiImportApiUrl)
         assertEquals("", prefs.aiImportApiKey)
         assertEquals("", prefs.aiImportModel)
+        assertEquals(DEFAULT_AI_IMPORT_TIMEOUT_SECONDS, prefs.aiImportTimeoutSeconds)
+    }
+
+    @Test
+    fun `ai import timeout clamps unsafe values`() {
+        assertEquals(MIN_AI_IMPORT_TIMEOUT_SECONDS, coerceAiImportTimeoutSeconds(0))
+        assertEquals(120, coerceAiImportTimeoutSeconds(120))
+        assertEquals(MAX_AI_IMPORT_TIMEOUT_SECONDS, coerceAiImportTimeoutSeconds(999))
     }
 }
