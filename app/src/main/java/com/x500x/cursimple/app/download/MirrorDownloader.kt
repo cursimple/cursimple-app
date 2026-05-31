@@ -9,13 +9,11 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
-import kotlin.random.Random
 import kotlin.system.measureTimeMillis
 
 class MirrorDownloader(
     private val mirrorPool: DownloadMirrorPool = DownloadMirrorPool(),
     private val probeRoundSize: Int = 4,
-    private val random: Random = Random.Default,
     private val userAgent: String = "CurSimple",
 ) {
     suspend fun downloadBytes(
@@ -87,7 +85,6 @@ class MirrorDownloader(
         val failures = mutableListOf<DownloadFailure>()
         while (remaining.isNotEmpty()) {
             val sampled = remaining
-                .shuffled(random)
                 .take(probeRoundSize.coerceAtLeast(1))
             remaining.removeAll(sampled.toSet())
             val measured = sampled

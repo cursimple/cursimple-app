@@ -152,28 +152,38 @@ WebView 会在白名单页面加载完成后注入入口脚本。宿主不会把
 
 插件市场以 GitHub 仓库作为注册表，默认指向 `cursimple/cursimple-plugins`。设置中的字段名为 `pluginRegistryRepo`，格式为 `owner/repo`。
 
-注册表本身是仓库根目录的 `plugins.json`：
+注册表数据来自 `plugin-stars-data` 分支的 `plugins-stars.json`：
 
 ```json
-[
-  "cursimple/YangtzU_course_plugin",
-  "another-owner/another-plugin-repo"
-]
+{
+  "repositories": [
+    {
+      "name": "cursimple/YangtzU_course_plugin",
+      "repo": "YangtzU_course_plugin",
+      "owner": "cursimple",
+      "avatar": "https://avatars.githubusercontent.com/u/283925439?s=80&v=4",
+      "description": "YangtzU course plugin for cursimple.",
+      "star": 0,
+      "language": "JavaScript",
+      "url": "https://github.com/cursimple/YangtzU_course_plugin"
+    }
+  ]
+}
 ```
 
 App 拉取流程：
 
-1. 从 `https://raw.githubusercontent.com/<registry>/main/plugins.json` 读取仓库列表。
-2. 并行调用 `https://api.github.com/repos/<owner>/<repo>` 拿名称、stars、作者、描述。
-3. 并行调用 `https://api.github.com/repos/<owner>/<repo>/releases/latest` 拿最新 release tag 与 zip 资产 URL。
-4. 网格展示 + 详情页"安装"按钮调用既有的远程包下载预检流程。没有 release 时按钮显示"未找到版本"。
+1. 从 `https://raw.githubusercontent.com/<registry>/plugin-stars-data/plugins-stars.json` 读取仓库列表，下载候选优先使用 jsDelivr。
+2. 并行读取 `https://github.com/<owner>/<repo>/releases/latest/download/manifest.json`。
+3. 使用 manifest 的 `version` 展示最新版本，使用 `filename` 拼出 `https://github.com/<owner>/<repo>/releases/latest/download/<filename>`。
+4. 网格展示 + 详情页"安装"按钮调用既有的远程包下载预检流程。没有 manifest 或 filename 时按钮显示"未找到版本"。
 
 注册表的增删通过 Pages 静态页 [https://cursimple.github.io/cursimple-plugins/](https://cursimple.github.io/cursimple-plugins/) 完成，源码位于 [cursimple-plugins/docs/](https://github.com/cursimple/cursimple-plugins/tree/main/docs)。
 
 下载镜像按用途建模：
 
-- `github_release`：GitHub Release 资产，不使用 jsDelivr。
-- `github_raw`：`raw.githubusercontent.com` 文件，可使用 raw 代理和 jsDelivr。
+- `github_release`：GitHub Release 资产，使用镜像池与 GitHub 源站测速下载。
+- `github_raw`：`raw.githubusercontent.com` 文件，优先使用 jsDelivr，再使用 raw 代理、镜像池和 GitHub 源站。
 - `github_repo_file`：仓库文件，可生成 `cdn.jsdelivr.net/gh/user/repo@ref/path`、`fastly.jsdelivr.net` 和 `xget.xi-xu.me/gh/...`。
 - `direct_url`：普通 URL，保留源站候选。
 - `local_file`：本地文件，不走网络。
