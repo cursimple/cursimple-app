@@ -135,15 +135,11 @@ class ScheduleViewModel(
             }.combine(reminderCoordinator.customOccupanciesFlow) { snapshot, customOccupancies ->
                 snapshot.copy(customOccupancies = customOccupancies)
             }.collect { snapshot ->
-                val selectedPluginId = when {
-                    snapshot.installedPlugins.any { it.pluginId == snapshot.pluginId } -> snapshot.pluginId
-                    snapshot.installedPlugins.isNotEmpty() -> snapshot.installedPlugins.first().pluginId
-                    else -> ""
-                }
+                val selectedPluginKey = resolveSelectedPluginKey(snapshot.pluginId, snapshot.installedPlugins)
                 _uiState.update {
                     it.copy(
                         schedule = snapshot.schedule,
-                        pluginId = selectedPluginId,
+                        pluginId = selectedPluginKey,
                         username = if (it.username.isBlank()) snapshot.username else it.username,
                         termId = snapshot.termId,
                         installedPlugins = snapshot.installedPlugins,
@@ -152,8 +148,8 @@ class ScheduleViewModel(
                         systemAlarmRecords = snapshot.systemAlarmRecords,
                     )
                 }
-                if (selectedPluginId.isNotBlank()) {
-                    loadPluginPresentation(selectedPluginId)
+                if (selectedPluginKey.isNotBlank()) {
+                    loadPluginPresentation(selectedPluginKey)
                 }
                 _uiState.update { it.copy(initialized = true) }
             }
@@ -261,7 +257,7 @@ class ScheduleViewModel(
             val result = runCatching {
                 withContext(ioDispatcher) {
                     pluginManager.resumeSync(
-                        pluginId = request.pluginId,
+                        pluginKey = request.installKey.ifBlank { request.pluginId },
                         token = request.token,
                         packet = packet,
                     )
@@ -1321,6 +1317,23 @@ class ScheduleViewModel(
         val username: String,
         val termId: String,
     )
+}
+
+private fun resolveSelectedPluginKey(
+    savedPluginId: String,
+    installedPlugins: List<InstalledPluginRecord>,
+): String {
+    val normalized = savedPluginId.trim()
+    if (normalized.isBlank()) {
+        return installedPlugins.firstOrNull()?.installKey.orEmpty()
+    }
+    installedPlugins.firstOrNull { it.installKey == normalized }?.let {
+        return it.installKey
+    }
+    installedPlugins.firstOrNull { it.pluginId == normalized }?.let {
+        return it.installKey
+    }
+    return normalized
 }
 
 internal fun validatePluginSchedule(schedule: TermSchedule): TermSchedule {

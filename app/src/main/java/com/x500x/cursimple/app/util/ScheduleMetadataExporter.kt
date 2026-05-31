@@ -10,6 +10,7 @@ import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -158,7 +159,8 @@ private fun List<InstalledPluginRecord>.toPluginJsonArray(enabledPluginIds: Set<
                     .put("apiVersion", plugin.apiVersion)
                     .put("entry", plugin.entry)
                     .put("source", plugin.source.name)
-                    .put("isEnabled", plugin.pluginId in enabledPluginIds)
+                    .put("installKey", plugin.installKey)
+                    .put("isEnabled", isPluginInstallEnabled(plugin, enabledPluginIds, this@toPluginJsonArray))
                     .put("compatibilityStatus", plugin.compatibilityStatus.name)
                     .putNullable("compatibilityMessage", plugin.compatibilityMessage)
                     .put("permissions", plugin.permissions.map { it.id }.toJsonArray())
