@@ -265,6 +265,13 @@ private fun PluginListContent(
     val detailPlugin = detailPluginId?.let { id -> uiState.installedPlugins.firstOrNull { it.pluginId == id } }
     val detailRepo = detailRepoSlug?.let { slug -> uiState.marketRepos.firstOrNull { it.fullName == slug } }
 
+    LaunchedEffect(uiState.installPreview, uiState.isLoading) {
+        if (detailRepoSlug != null && uiState.installPreview == null && !uiState.isLoading && uiState.statusMessage != null) {
+            kotlinx.coroutines.delay(300)
+            detailRepoSlug = null
+        }
+    }
+
     if (detailPlugin != null) {
         PluginDetailScreen(
             plugin = detailPlugin,
