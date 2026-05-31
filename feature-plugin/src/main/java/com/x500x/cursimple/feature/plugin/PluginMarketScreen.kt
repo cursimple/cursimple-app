@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
+import com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
@@ -277,13 +278,13 @@ private fun PluginListContent(
     if (detailPlugin != null) {
         PluginDetailScreen(
             plugin = detailPlugin,
-            isEnabled = detailPlugin.pluginId in enabledPluginIds,
-            isSyncing = syncingPluginId == detailPlugin.pluginId,
+            isEnabled = isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins),
+            isSyncing = syncingPluginId == detailPlugin.pluginId || syncingPluginId == detailPlugin.installKey,
             onBack = { detailPluginKey = null },
-            onSetEnabled = { onSetPluginEnabled(detailPlugin.pluginId, it) },
-            onSync = { onSyncPlugin(detailPlugin.pluginId) },
+            onSetEnabled = { onSetPluginEnabled(detailPlugin.installKey, it) },
+            onSync = { onSyncPlugin(detailPlugin.installKey) },
             onRemove = {
-                onRemovePlugin(detailPlugin.pluginId)
+                onRemovePlugin(detailPlugin.installKey)
                 detailPluginKey = null
             },
             modifier = modifier,
@@ -302,7 +303,9 @@ private fun PluginListContent(
         return
     }
 
-    val enabledCount = uiState.installedPlugins.count { it.pluginId in enabledPluginIds }
+    val enabledCount = uiState.installedPlugins.count { plugin ->
+        isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins)
+    }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
@@ -378,10 +381,10 @@ private fun PluginListContent(
             items(uiState.installedPlugins, key = { installedPluginKey(it) }) { plugin ->
                 PluginCard(
                     plugin = plugin,
-                    isEnabled = plugin.pluginId in enabledPluginIds,
-                    isSyncing = syncingPluginId == plugin.pluginId,
-                    onSetEnabled = { onSetPluginEnabled(plugin.pluginId, it) },
-                    onSync = { onSyncPlugin(plugin.pluginId) },
+                    isEnabled = isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins),
+                    isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey,
+                    onSetEnabled = { onSetPluginEnabled(plugin.installKey, it) },
+                    onSync = { onSyncPlugin(plugin.installKey) },
                     onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
                 )
             }
@@ -1328,7 +1331,7 @@ private enum class PluginPlatformTab(
 }
 
 private fun installedPluginKey(plugin: InstalledPluginRecord): String =
-    "${plugin.pluginId}:${plugin.source.name}"
+    plugin.installKey
 
 private fun componentRequirementText(component: PluginComponentRequirement): String = buildString {
     append(component.id)

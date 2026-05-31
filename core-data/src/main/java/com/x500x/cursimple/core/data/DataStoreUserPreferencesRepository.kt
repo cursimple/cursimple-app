@@ -282,10 +282,16 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] = enabled }
     }
 
-    override suspend fun setPluginEnabled(pluginId: String, enabled: Boolean) {
+    override suspend fun setPluginEnabled(pluginKey: String, enabled: Boolean) {
+        val normalizedKey = pluginKey.trim()
+        if (normalizedKey.isBlank()) return
+        val legacyPluginId = normalizedKey.substringBefore(':').takeIf { normalizedKey.contains(':') }
         store.edit { prefs ->
             val current = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toMutableSet()
-            if (enabled) current += pluginId else current -= pluginId
+            if (legacyPluginId != null) {
+                current -= legacyPluginId
+            }
+            if (enabled) current += normalizedKey else current -= normalizedKey
             prefs[KEY_ENABLED_PLUGIN_IDS] = current
         }
     }
@@ -516,11 +522,11 @@ class DataStoreUserPreferencesRepository(
         releasePersistedReadPermission(previousAlarmRingtoneUri)
     }
 
-    override suspend fun seedEnabledPlugins(pluginIds: Set<String>) {
+    override suspend fun seedEnabledPlugins(pluginKeys: Set<String>) {
         store.edit { prefs ->
             if (prefs[KEY_PLUGINS_SEEDED] == true) return@edit
             val current = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toMutableSet()
-            current += pluginIds
+            current += pluginKeys.map { it.trim() }.filter { it.isNotBlank() }
             prefs[KEY_ENABLED_PLUGIN_IDS] = current
             prefs[KEY_PLUGINS_SEEDED] = true
         }

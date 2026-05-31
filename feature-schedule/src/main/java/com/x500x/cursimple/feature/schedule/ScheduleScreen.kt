@@ -821,9 +821,9 @@ private fun PluginSelectorCard(
                 plugins.forEach { plugin ->
                     SelectablePill(
                         title = plugin.name,
-                        subtitle = plugin.version,
-                        selected = plugin.pluginId == selectedPluginId,
-                        onClick = { onPluginIdChange(plugin.pluginId) },
+                        subtitle = "${plugin.version} · ${plugin.source.name.lowercase()}",
+                        selected = plugin.installKey == selectedPluginId || plugin.pluginId == selectedPluginId,
+                        onClick = { onPluginIdChange(plugin.installKey) },
                     )
                 }
             }

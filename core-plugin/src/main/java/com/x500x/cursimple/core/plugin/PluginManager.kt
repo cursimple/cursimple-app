@@ -70,20 +70,40 @@ class PluginManager(
         return installer.installPackage(bytes, source)
     }
 
-    suspend fun removePlugin(pluginId: String) {
+    suspend fun removePlugin(pluginKey: String) {
+        val normalizedKey = pluginKey.trim()
+        val isInstallKey = normalizedKey.contains(':')
+        val logPluginId = normalizedKey.substringBefore(':')
         val startedAt = System.currentTimeMillis()
-        PluginLogger.info("plugin.remove.start", mapOf("pluginId" to pluginId))
+        PluginLogger.info(
+            "plugin.remove.start",
+            mapOf(
+                "pluginId" to logPluginId,
+                "pluginKey" to normalizedKey,
+                "sourceAware" to isInstallKey,
+            ),
+        )
         try {
-            val records = registryRepository.getInstalledPlugins().filter { it.pluginId == pluginId }
+            val records = if (isInstallKey) {
+                registryRepository.findByInstallKey(normalizedKey)?.let(::listOf).orEmpty()
+            } else {
+                registryRepository.getInstalledPlugins().filter { it.pluginId == normalizedKey }
+            }
             records.forEach { record ->
                 File(record.storagePath).deleteRecursively()
             }
-            pendingSessions.entries.removeIf { it.value.record.pluginId == pluginId }
-            registryRepository.removeInstalledPlugin(pluginId)
+            val removedKeys = records.map { it.installKey }.toSet()
+            pendingSessions.entries.removeIf { it.value.record.installKey in removedKeys }
+            if (isInstallKey) {
+                registryRepository.removeInstalledPluginByKey(normalizedKey)
+            } else {
+                registryRepository.removeInstalledPlugin(normalizedKey)
+            }
             PluginLogger.info(
                 "plugin.remove.success",
                 mapOf(
-                    "pluginId" to pluginId,
+                    "pluginId" to logPluginId,
+                    "pluginKey" to normalizedKey,
                     "removedCount" to records.size,
                     "elapsedMs" to elapsedSince(startedAt),
                 ),
@@ -93,7 +113,11 @@ class PluginManager(
         } catch (error: Throwable) {
             PluginLogger.error(
                 "plugin.remove.failure",
-                mapOf("pluginId" to pluginId, "elapsedMs" to elapsedSince(startedAt)),
+                mapOf(
+                    "pluginId" to logPluginId,
+                    "pluginKey" to normalizedKey,
+                    "elapsedMs" to elapsedSince(startedAt),
+                ),
                 error,
             )
         }
@@ -319,16 +343,19 @@ class PluginManager(
     }
 
     suspend fun resumeSync(
-        pluginId: String,
+        pluginKey: String,
         token: String,
         packet: WebSessionPacket,
     ): WorkflowExecutionResult {
         val startedAt = System.currentTimeMillis()
         val pendingTraceId = pendingSessions[token]?.traceId
-        val log = PluginLogger.scope(traceId = pendingTraceId, pluginId = pluginId)
+        val normalizedKey = pluginKey.trim()
+        val logPluginId = normalizedKey.substringBefore(':')
+        val log = PluginLogger.scope(traceId = pendingTraceId, pluginId = logPluginId)
         log.info(
             "plugin.sync.resume.start",
             mapOf(
+                "pluginKey" to normalizedKey,
                 "tokenPrefix" to token.take(8),
                 "finalUrl" to PluginLogger.sanitizeUrl(packet.finalUrl),
                 "cookieCount" to packet.cookies.size,
@@ -342,7 +369,12 @@ class PluginManager(
         return try {
             val session = pendingSessions.remove(token)
                 ?: return WorkflowExecutionResult.Failure("待恢复的 Web 会话不存在")
-            if (session.record.pluginId != pluginId) {
+            val matchesSession = if (normalizedKey.contains(':')) {
+                session.record.installKey == normalizedKey
+            } else {
+                session.record.pluginId == normalizedKey
+            }
+            if (!matchesSession) {
                 return WorkflowExecutionResult.Failure("Web 会话与插件不匹配")
             }
             if (PluginPermission.ScheduleWrite !in session.manifest.permissions) {
@@ -367,7 +399,7 @@ class PluginManager(
                 timingProfile = session.timingProfile,
                 messages = session.messages,
             ).also {
-                logRuntimeResult("plugin.sync.resume.result", pluginId, startedAt, it, session.traceId)
+                logRuntimeResult("plugin.sync.resume.result", logPluginId, startedAt, it, session.traceId)
             }
         } catch (error: CancellationException) {
             throw error
@@ -439,8 +471,14 @@ class PluginManager(
         )
     }
 
-    private suspend fun requirePlugin(pluginId: String): InstalledPluginRecord {
-        return registryRepository.find(pluginId) ?: error("未找到插件: $pluginId")
+    private suspend fun requirePlugin(pluginKey: String): InstalledPluginRecord {
+        val normalizedKey = pluginKey.trim()
+        val record = if (normalizedKey.contains(':')) {
+            registryRepository.findByInstallKey(normalizedKey)
+        } else {
+            registryRepository.find(normalizedKey)
+        }
+        return record ?: error("未找到插件: $pluginKey")
     }
 
     private fun logRuntimeResult(
@@ -534,6 +572,7 @@ internal fun buildWebSessionRequest(
     return WebSessionRequest(
         token = token,
         pluginId = record.pluginId,
+        installKey = record.installKey,
         sessionId = sessionId,
         traceId = traceId,
         title = record.name,
