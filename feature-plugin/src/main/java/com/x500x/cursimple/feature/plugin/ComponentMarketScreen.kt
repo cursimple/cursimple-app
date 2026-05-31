@@ -76,7 +76,7 @@ fun ComponentMarketScreen(
                     )
                 }
             } else {
-                items(uiState.installedComponents, key = { it.id }) { component ->
+                items(uiState.installedComponents, key = { installedComponentKey(it) }) { component ->
                     InstalledComponentCard(component = component)
                 }
             }
@@ -341,6 +341,9 @@ private fun EmptyStateCard(
         }
     }
 }
+
+private fun installedComponentKey(component: InstalledPluginComponentRecord): String =
+    "${component.id}:${component.source.name}"
 
 private fun componentTypeLabel(type: PluginComponentType): String = when (type) {
     PluginComponentType.EngineChromium -> "Chromium 引擎"

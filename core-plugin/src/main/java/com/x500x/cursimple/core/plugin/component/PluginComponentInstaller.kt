@@ -34,7 +34,7 @@ class PluginComponentInstaller(
                 layout.requireFile(MANIFEST_FILE).toString(Charsets.UTF_8),
             )
             validateManifest(manifest, layout)
-            val target = installLayout(manifest, layout)
+            val target = installLayout(manifest, layout, source)
             val record = InstalledPluginComponentRecord(
                 id = manifest.id,
                 type = manifest.type,
@@ -81,12 +81,14 @@ class PluginComponentInstaller(
     private fun installLayout(
         manifest: PluginComponentPackageManifest,
         layout: ComponentPackageLayout,
+        source: PluginComponentSource,
     ): File {
         componentRoot.mkdirs()
         val safeId = manifest.id.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val safeVersion = manifest.version.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val safeAbi = manifest.abi?.replace(Regex("[^A-Za-z0-9._-]"), "_") ?: "any"
-        val targetDir = File(componentRoot, "$safeId-$safeVersion-$safeAbi")
+        val sourceTag = source.name.lowercase()
+        val targetDir = File(componentRoot, "$safeId-$safeVersion-$safeAbi-$sourceTag")
         if (targetDir.exists()) {
             targetDir.deleteRecursively()
         }
