@@ -41,7 +41,7 @@ class DataStorePluginComponentRepository(
     override suspend fun save(record: InstalledPluginComponentRecord) {
         store.edit { preferences ->
             val next = preferences.decodeInstalledComponents()
-                .filterNot { it.id == record.id }
+                .filterNot { it.id == record.id && it.source == record.source }
                 .plus(record)
                 .sortedBy { it.id }
             preferences[KEY_INSTALLED_COMPONENTS] = json.encodeToString(

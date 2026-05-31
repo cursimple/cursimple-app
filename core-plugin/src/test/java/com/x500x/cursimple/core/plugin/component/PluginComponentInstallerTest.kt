@@ -141,7 +141,7 @@ class PluginComponentInstallerTest {
         }
 
         override suspend fun save(record: InstalledPluginComponentRecord) {
-            records.value = records.value.filterNot { it.id == record.id } + record
+            records.value = records.value.filterNot { it.id == record.id && it.source == record.source } + record
         }
 
         override suspend fun remove(componentId: String) {

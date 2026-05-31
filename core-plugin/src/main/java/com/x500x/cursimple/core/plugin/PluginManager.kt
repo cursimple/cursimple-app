@@ -74,9 +74,9 @@ class PluginManager(
         val startedAt = System.currentTimeMillis()
         PluginLogger.info("plugin.remove.start", mapOf("pluginId" to pluginId))
         try {
-            val record = registryRepository.find(pluginId)
-            record?.let {
-                File(it.storagePath).deleteRecursively()
+            val records = registryRepository.getInstalledPlugins().filter { it.pluginId == pluginId }
+            records.forEach { record ->
+                File(record.storagePath).deleteRecursively()
             }
             pendingSessions.entries.removeIf { it.value.record.pluginId == pluginId }
             registryRepository.removeInstalledPlugin(pluginId)
@@ -84,7 +84,7 @@ class PluginManager(
                 "plugin.remove.success",
                 mapOf(
                     "pluginId" to pluginId,
-                    "storagePathPresent" to (record?.storagePath?.isNotBlank() == true),
+                    "removedCount" to records.size,
                     "elapsedMs" to elapsedSince(startedAt),
                 ),
             )

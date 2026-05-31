@@ -43,7 +43,7 @@ class DataStorePluginRegistryRepository(
         store.edit { preferences ->
             val current = preferences.decodeInstalledPlugins()
             val next = current
-                .filterNot { it.pluginId == record.pluginId }
+                .filterNot { it.pluginId == record.pluginId && it.source == record.source }
                 .plus(record)
                 .sortedBy { it.name }
             preferences[KEY_INSTALLED_PLUGINS] = json.encodeToString(
