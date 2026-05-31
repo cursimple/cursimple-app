@@ -180,6 +180,7 @@ class AppContainer(
         return when (val result = sharedDownloader.downloadText(
             request = downloadRequestFor(url),
             accept = "application/json",
+            validate = ::requireJsonLikeText,
         )) {
             is MirrorDownloadResult.Success -> result.value
             is MirrorDownloadResult.Failure -> throw IllegalStateException(result.message)
@@ -207,12 +208,18 @@ class AppContainer(
         val uri = runCatching { URI(url) }.getOrNull() ?: return DownloadPurpose.DirectUrl
         val host = uri.host.orEmpty()
         val path = uri.path.orEmpty()
+        val isGitHubReleaseAsset = path.contains("/releases/download/", ignoreCase = true) ||
+            path.contains("/releases/latest/download/", ignoreCase = true)
         return when {
             host.equals("raw.githubusercontent.com", ignoreCase = true) -> DownloadPurpose.GithubRaw
-            host.equals("github.com", ignoreCase = true) &&
-                path.contains("/releases/download/", ignoreCase = true) -> DownloadPurpose.GithubRelease
+            host.equals("github.com", ignoreCase = true) && isGitHubReleaseAsset -> DownloadPurpose.GithubRelease
             else -> DownloadPurpose.DirectUrl
         }
+    }
+
+    private fun requireJsonLikeText(text: String) {
+        val first = text.firstOrNull { !it.isWhitespace() }
+        require(first == '{' || first == '[') { "响应不是 JSON" }
     }
 
     suspend fun refreshWidgets(timingProfile: TermTimingProfile? = null) {

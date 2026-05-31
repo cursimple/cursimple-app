@@ -42,15 +42,16 @@
 
 1. 进入应用中的 **插件** 标签页
 2. 浏览"插件市场"区域（以 2 列网格显示）
-3. 每个插件显示：名称、作者、星标数、描述和最新 release 标签
+3. 每个插件显示：名称、作者、星标数、描述和最新插件版本
 4. 点击插件查看详情，然后选择"安装"或"在 GitHub 查看"
 
 ### 安装插件
 
-每个 GitHub 上的插件仓库必须至少有一个 Release，并包含 `*.zip` 资产。应用会：
-1. 通过镜像池访问 GitHub release
-2. 从 release 中下载第一个 `*.zip` 资产
-3. 自动安装插件
+每个 GitHub 上的插件仓库必须至少有一个 Release，并上传 `manifest.json` 与其中 `filename` 指向的插件包。应用会：
+1. 从 `plugin-stars-data/plugins-stars.json` 加载插件列表
+2. 读取 `https://github.com/{owner}/{repo}/releases/latest/download/manifest.json`
+3. 按 manifest 的 `filename` 下载插件包
+4. 自动安装插件
 
 注意：GitHub 自动生成的"Source code"压缩包不会被用作插件包。
 

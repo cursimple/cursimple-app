@@ -108,8 +108,8 @@ export async function run(ctx) {
 
 插件市场以 GitHub 仓库 [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 作为注册表。市场列表来自 `plugin-stars-data` 分支的 `plugins-stars.json`，每个 entry 对应一个独立的插件仓库，并携带 stars、描述、头像和语言等展示信息。
 
-- **应用内浏览**：插件 Tab 顶部的"插件市场"区域，以 2 列网格展示注册表里的所有仓库，显示名称、作者、stars、描述与最新 release 的 tag。点开有详情，可"安装"或"在 GitHub 查看"。
-- **安装约定**：每个插件仓库需在 GitHub 上发布 Release，并上传至少一个 `*.zip` 资产。app 会通过 GitHub 镜像池访问 `https://github.com/{owner}/{repo}/releases/latest` 解析真实 release，再从 `releases/expanded_assets/{release}` 中选择第一个 `/releases/download/...zip` 资产；GitHub 源站也参与测速排序。GitHub 自动生成的 Source code 压缩包不会作为插件包。没有 release 资产时按钮显示"未找到版本"灰态。
+- **应用内浏览**：插件 Tab 顶部的"插件市场"区域，以 2 列网格展示注册表里的所有仓库，显示名称、作者、stars、描述与 latest release manifest 声明的版本。点开有详情，可"安装"或"在 GitHub 查看"。
+- **安装约定**：每个插件仓库需在 GitHub 上发布 Release，并上传 `manifest.json` 与 `filename` 指向的插件包。app 先读取 `https://github.com/{owner}/{repo}/releases/latest/download/manifest.json`，再下载 `https://github.com/{owner}/{repo}/releases/latest/download/{filename}`；插件列表优先使用 jsDelivr 读取，镜像池和 GitHub 源站按测速结果作为后续候选。GitHub 自动生成的 Source code 压缩包不会作为插件包。没有 manifest 或 filename 时按钮显示"未找到版本"灰态。
 - **网页管理**：注册表的增删通过 [cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 仓库 `docs/` 目录下的静态站点 ([https://cursimple.github.io/cursimple-plugins/](https://cursimple.github.io/cursimple-plugins/)) 完成。两种登录路径：
   - 方式 A：点击"在 GitHub 编辑"按钮，直接跳转 GitHub 网页编辑器，权限完全交给 GitHub（非协作者会进入 fork & PR 流程）。
   - 方式 B：在页面内粘贴一个 [Fine-grained PAT](https://github.com/settings/personal-access-tokens/new)（仓库 `Contents: Read & Write`），直接增删并 commit。Token 只保存在浏览器 localStorage。
