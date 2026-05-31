@@ -252,7 +252,7 @@ class PluginInstallerPackageTest {
         }
 
         override suspend fun saveInstalledPlugin(record: InstalledPluginRecord) {
-            records.value = records.value.filterNot { it.pluginId == record.pluginId } + record
+            records.value = records.value.filterNot { it.pluginId == record.pluginId && it.source == record.source } + record
         }
 
         override suspend fun removeInstalledPlugin(pluginId: String) {
