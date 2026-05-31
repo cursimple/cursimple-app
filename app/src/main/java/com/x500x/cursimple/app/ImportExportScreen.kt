@@ -14,6 +14,8 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -115,6 +117,7 @@ fun ImportExportScreen(
     var webDavBusy by remember { mutableStateOf(false) }
     var remoteBackups by remember { mutableStateOf<List<WebDavBackupFile>>(emptyList()) }
     var aiBusy by remember { mutableStateOf(false) }
+    val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
         Json {
             ignoreUnknownKeys = true
@@ -132,6 +135,7 @@ fun ImportExportScreen(
     }
 
     fun runAiImport(uri: Uri) {
+        if (aiBusy) return
         if (!aiImportConfig.isComplete) {
             Toast.makeText(context, "请先配置 AI 识图导入", Toast.LENGTH_SHORT).show()
             onOpenAiImportSettings()
@@ -142,12 +146,19 @@ fun ImportExportScreen(
             withContext(Dispatchers.IO) {
                 runCatching { aiImportClient.importFromImage(context, uri, aiImportConfig) }
             }.onSuccess { payload ->
+                val courseCount = payload.schedule?.dailySchedules?.sumOf { it.courses.size } ?: 0
+                val manualCount = payload.manualCourses.size
                 pendingImport = ScheduleSharePayload(
                     termName = termName,
                     termStartDate = termStartDate?.toString(),
                     schedule = payload.schedule,
                     manualCourses = payload.manualCourses,
                 )
+                Toast.makeText(
+                    context,
+                    "AI 已识别 ${courseCount + manualCount} 门课程，请确认导入",
+                    Toast.LENGTH_SHORT,
+                ).show()
             }.onFailure {
                 Toast.makeText(context, "AI 导入失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
             }
@@ -273,7 +284,9 @@ fun ImportExportScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .verticalScroll(contentScrollState)
+                .padding(horizontal = 16.dp)
+                .padding(top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Panel(
