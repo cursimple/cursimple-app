@@ -51,6 +51,13 @@ private data class PluginStarsRepositoryApi(
     @SerialName("star") val stars: Int = 0,
     @SerialName("language") val language: String? = null,
     @SerialName("url") val htmlUrl: String = "",
+    @SerialName("release") val release: PluginStarsReleaseApi? = null,
+)
+
+@Serializable
+private data class PluginStarsReleaseApi(
+    @SerialName("tag") val tag: String = "",
+    @SerialName("filename") val filename: String = "",
 )
 
 @Serializable
@@ -120,7 +127,8 @@ class GitHubRegistryRepository(
             val summaries = fetchRegistry(registryRepo, branch)
             summaries.map { summary ->
                 async {
-                    summary.copy(latestRelease = fetchLatestReleaseAsset(summary.fullName))
+                    if (summary.latestRelease != null) summary
+                    else summary.copy(latestRelease = fetchLatestReleaseAsset(summary.fullName))
                 }
             }.awaitAll()
         }
@@ -148,6 +156,14 @@ class GitHubRegistryRepository(
                 ?: return null
             val normalizedOwner = owner.trim().ifBlank { fullName.substringBefore('/') }
             val normalizedName = repo.trim().ifBlank { fullName.substringAfter('/') }
+            val embeddedRelease = release?.takeIf { it.filename.isNotBlank() && it.tag.isNotBlank() }?.let {
+                GitHubReleaseAsset(
+                    tagName = it.tag,
+                    assetName = it.filename,
+                    downloadUrl = latestReleaseDownloadUrl(fullName, it.filename),
+                    sizeBytes = 0,
+                )
+            }
             return GitHubRepoSummary(
                 fullName = fullName,
                 owner = normalizedOwner,
@@ -162,6 +178,7 @@ class GitHubRegistryRepository(
                 homepageUrl = null,
                 pushedAt = null,
                 isFresh = true,
+                latestRelease = embeddedRelease,
             )
         }
 

@@ -74,4 +74,45 @@ class GitHubRegistryRepositoryTest {
             asset?.downloadUrl,
         )
     }
+
+    @Test
+    fun `fetchAll uses embedded release info and skips per-repo fetch`() = runBlocking {
+        var fetchCount = 0
+        val repository = GitHubRegistryRepository(
+            fetchText = { url ->
+                fetchCount++
+                when (url) {
+                    "https://raw.githubusercontent.com/test/repo/plugin-stars-data/plugins-stars.json" ->
+                        """
+                        {
+                          "repositories": [
+                            {
+                              "name": "test/plugin-a",
+                              "repo": "plugin-a",
+                              "owner": "test",
+                              "description": "Plugin A",
+                              "star": 5,
+                              "url": "https://github.com/test/plugin-a",
+                              "release": {
+                                "tag": "v2.0.0",
+                                "filename": "plugin-a-v2.0.0.zip"
+                              }
+                            }
+                          ]
+                        }
+                        """.trimIndent()
+                    else -> error("unexpected url: $url")
+                }
+            },
+        )
+
+        val repos = repository.fetchAll("test/repo")
+
+        assertEquals(1, repos.size)
+        assertEquals(1, fetchCount)
+        val summary = repos.single()
+        assertNotNull(summary.latestRelease)
+        assertEquals("v2.0.0", summary.latestRelease?.tagName)
+        assertEquals("plugin-a-v2.0.0.zip", summary.latestRelease?.assetName)
+    }
 }
