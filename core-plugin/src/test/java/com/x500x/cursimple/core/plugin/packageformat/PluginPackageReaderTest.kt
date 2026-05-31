@@ -5,6 +5,7 @@ import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.install.PluginInstaller
 import com.x500x.cursimple.core.plugin.install.PluginRegistryRepository
+import com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled
 import com.x500x.cursimple.core.plugin.storage.PluginFileStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -179,6 +180,43 @@ class PluginInstallerPackageTest {
         assertTrue((result as PluginInstallResult.Failure).message.contains("插件摘要校验失败"))
     }
 
+    @Test
+    fun `local and remote packages with same id remain separate installs`() = runBlocking {
+        val repository = FakePluginRegistryRepository()
+        val installer = PluginInstaller(
+            registryRepository = repository,
+            fileStore = PluginFileStore(temporaryFolder.newFolder("separate-source-plugins")),
+        )
+        val packageBytes = pluginZip()
+
+        val localResult = installer.installPackage(packageBytes, PluginInstallSource.Local)
+        val remoteResult = installer.installPackage(packageBytes, PluginInstallSource.Remote)
+
+        assertTrue(localResult is PluginInstallResult.Success)
+        assertTrue(remoteResult is PluginInstallResult.Success)
+        val localRecord = (localResult as PluginInstallResult.Success).record
+        val remoteRecord = (remoteResult as PluginInstallResult.Success).record
+        val installed = repository.getInstalledPlugins()
+        assertEquals(2, installed.size)
+        assertEquals(setOf(PluginInstallSource.Local, PluginInstallSource.Remote), installed.map { it.source }.toSet())
+
+        repository.removeInstalledPluginByKey(localRecord.installKey)
+
+        assertEquals(listOf(remoteRecord), repository.getInstalledPlugins())
+    }
+
+    @Test
+    fun `source aware enabled keys do not enable sibling installs`() = runBlocking {
+        val local = installedRecord(PluginInstallSource.Local)
+        val remote = installedRecord(PluginInstallSource.Remote)
+        val installed = listOf(local, remote)
+
+        assertTrue(isPluginInstallEnabled(local, setOf(local.installKey), installed))
+        assertFalse(isPluginInstallEnabled(remote, setOf(local.installKey), installed))
+        assertTrue(isPluginInstallEnabled(local, setOf("edu.demo"), installed))
+        assertFalse(isPluginInstallEnabled(remote, setOf("edu.demo"), installed))
+    }
+
     private fun pluginZip(corruptChecksum: Boolean = false): ByteArray {
         val mainScript = "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }"
         val files = linkedMapOf(
@@ -240,6 +278,18 @@ class PluginInstallerPackageTest {
             .joinToString("") { "%02x".format(it) }
     }
 
+    private fun installedRecord(source: PluginInstallSource): InstalledPluginRecord {
+        return InstalledPluginRecord(
+            pluginId = "edu.demo",
+            name = "Demo",
+            version = "1.0.0",
+            versionCode = 1,
+            storagePath = "/tmp/${source.name.lowercase()}",
+            installedAt = "2026-05-31T00:00:00Z",
+            source = source,
+        )
+    }
+
     private class FakePluginRegistryRepository : PluginRegistryRepository {
         private val records = MutableStateFlow<List<InstalledPluginRecord>>(emptyList())
 
@@ -251,12 +301,20 @@ class PluginInstallerPackageTest {
             return records.value.firstOrNull { it.pluginId == pluginId }
         }
 
+        override suspend fun findByInstallKey(installKey: String): InstalledPluginRecord? {
+            return records.value.firstOrNull { it.installKey == installKey }
+        }
+
         override suspend fun saveInstalledPlugin(record: InstalledPluginRecord) {
             records.value = records.value.filterNot { it.pluginId == record.pluginId && it.source == record.source } + record
         }
 
         override suspend fun removeInstalledPlugin(pluginId: String) {
             records.value = records.value.filterNot { it.pluginId == pluginId }
+        }
+
+        override suspend fun removeInstalledPluginByKey(installKey: String) {
+            records.value = records.value.filterNot { it.installKey == installKey }
         }
     }
 }

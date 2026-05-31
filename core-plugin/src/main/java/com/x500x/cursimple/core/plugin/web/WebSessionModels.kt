@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 data class WebSessionRequest(
     @SerialName("token") val token: String,
     @SerialName("pluginId") val pluginId: String,
+    @SerialName("installKey") val installKey: String = "",
     @SerialName("sessionId") val sessionId: String,
     @SerialName("traceId") val traceId: String = "",
     @SerialName("title") val title: String,
