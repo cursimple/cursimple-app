@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.download
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,6 +34,22 @@ class DownloadMirrorPoolTest {
         assertTrue(candidates.any { it.url.contains("raw.ihtw.moe/raw.githubusercontent.com") })
         assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://fastly.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
+    }
+
+    @Test
+    fun `github raw candidates prefer jsdelivr before mirror pool and source`() {
+        val candidates = pool.candidates(
+            DownloadRequest(
+                purpose = DownloadPurpose.GithubRaw,
+                url = "https://raw.githubusercontent.com/cursimple/cursimple-plugins/plugin-stars-data/plugins-stars.json",
+            ),
+        )
+
+        assertEquals(
+            "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@plugin-stars-data/plugins-stars.json",
+            candidates.first().url,
+        )
+        assertTrue(candidates.indexOfFirst { it.sourceName == "ghfast.top" } < candidates.indexOfFirst { it.sourceName == "GitHub 源站" })
     }
 
     @Test

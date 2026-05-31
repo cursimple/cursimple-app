@@ -32,8 +32,8 @@ enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
 enum class ScheduleBackgroundType { Color, Image, Header }
 
 const val DEFAULT_PLUGIN_REGISTRY_REPO = "cursimple/cursimple-plugins"
-const val DEFAULT_PLUGIN_REGISTRY_BRANCH = "main"
-const val DEFAULT_PLUGIN_REGISTRY_PATH = "plugins.json"
+const val DEFAULT_PLUGIN_REGISTRY_BRANCH = "plugin-stars-data"
+const val DEFAULT_PLUGIN_REGISTRY_PATH = "plugins-stars.json"
 
 const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
     "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
