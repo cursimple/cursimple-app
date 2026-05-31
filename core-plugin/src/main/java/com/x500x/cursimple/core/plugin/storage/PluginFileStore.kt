@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.plugin.storage
 import android.content.Context
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
@@ -22,8 +23,9 @@ class PluginFileStore(
         rootDir.mkdirs()
     }
 
-    fun writeLayout(manifest: PluginManifest, layout: PluginPackageLayout): File {
-        val targetDir = File(rootDir, "${manifest.id}-${manifest.versionCode}").apply {
+    fun writeLayout(manifest: PluginManifest, layout: PluginPackageLayout, source: PluginInstallSource): File {
+        val sourceTag = source.name.lowercase()
+        val targetDir = File(rootDir, "${manifest.id}-${manifest.versionCode}-$sourceTag").apply {
             if (exists()) {
                 deleteRecursively()
             }

@@ -63,7 +63,7 @@ class PluginInstaller(
         return runCatching {
             val layout = packageReader.read(bytes)
             val preview = verifyLayout(layout, source)
-            val targetDir = fileStore.writeLayout(preview.manifest, layout)
+            val targetDir = fileStore.writeLayout(preview.manifest, layout, source)
             val record = preview.manifest.toInstalledRecord(
                 source = source,
                 storagePath = targetDir.absolutePath,

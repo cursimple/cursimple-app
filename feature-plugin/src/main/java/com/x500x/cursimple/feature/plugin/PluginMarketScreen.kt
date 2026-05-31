@@ -260,9 +260,11 @@ private fun PluginListContent(
     onSyncPlugin: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var detailPluginId by rememberSaveable { mutableStateOf<String?>(null) }
+    var detailPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
     var detailRepoSlug by rememberSaveable { mutableStateOf<String?>(null) }
-    val detailPlugin = detailPluginId?.let { id -> uiState.installedPlugins.firstOrNull { it.pluginId == id } }
+    val detailPlugin = detailPluginKey?.let { key ->
+        uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
+    }
     val detailRepo = detailRepoSlug?.let { slug -> uiState.marketRepos.firstOrNull { it.fullName == slug } }
 
     LaunchedEffect(uiState.installPreview, uiState.isLoading) {
@@ -277,12 +279,12 @@ private fun PluginListContent(
             plugin = detailPlugin,
             isEnabled = detailPlugin.pluginId in enabledPluginIds,
             isSyncing = syncingPluginId == detailPlugin.pluginId,
-            onBack = { detailPluginId = null },
+            onBack = { detailPluginKey = null },
             onSetEnabled = { onSetPluginEnabled(detailPlugin.pluginId, it) },
             onSync = { onSyncPlugin(detailPlugin.pluginId) },
             onRemove = {
                 onRemovePlugin(detailPlugin.pluginId)
-                detailPluginId = null
+                detailPluginKey = null
             },
             modifier = modifier,
         )
@@ -373,14 +375,14 @@ private fun PluginListContent(
                 )
             }
         } else {
-            items(uiState.installedPlugins, key = { it.pluginId }) { plugin ->
+            items(uiState.installedPlugins, key = { installedPluginKey(it) }) { plugin ->
                 PluginCard(
                     plugin = plugin,
                     isEnabled = plugin.pluginId in enabledPluginIds,
                     isSyncing = syncingPluginId == plugin.pluginId,
                     onSetEnabled = { onSetPluginEnabled(plugin.pluginId, it) },
                     onSync = { onSyncPlugin(plugin.pluginId) },
-                    onOpenDetail = { detailPluginId = plugin.pluginId },
+                    onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
                 )
             }
         }
@@ -1324,6 +1326,9 @@ private enum class PluginPlatformTab(
     Plugins("插件", Icons.Rounded.Extension),
     Components("组件", Icons.Rounded.Widgets),
 }
+
+private fun installedPluginKey(plugin: InstalledPluginRecord): String =
+    "${plugin.pluginId}:${plugin.source.name}"
 
 private fun componentRequirementText(component: PluginComponentRequirement): String = buildString {
     append(component.id)
