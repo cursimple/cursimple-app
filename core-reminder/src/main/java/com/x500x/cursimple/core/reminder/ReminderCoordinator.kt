@@ -399,6 +399,80 @@ class ReminderCoordinator(
         }
     }
 
+    suspend fun recreateAppManagedAlarmsFromRegistry(
+        nowMillis: Long = System.currentTimeMillis(),
+    ): SystemAlarmSyncSummary = SYSTEM_ALARM_LOCK.withLock {
+        val records = repository.getSystemAlarmRecords()
+            .filter {
+                it.backend == ReminderAlarmBackend.AppAlarmClock &&
+                    it.enabled &&
+                    it.triggerAtMillis > nowMillis
+            }
+            .distinctBy { it.alarmKey }
+        val results = mutableListOf<AlarmDispatchResult>()
+        var registryWriteFailed = 0
+        records.forEach { record ->
+            val plan = record.toReminderPlan()
+            val result = runCatching {
+                appDispatcher.dispatch(plan)
+            }.getOrElse { error ->
+                ReminderLogger.warn(
+                    "reminder.app_alarm_clock.registry.recreate_dispatch.failure",
+                    mapOf("alarmKey" to record.alarmKey, "ruleId" to record.ruleId, "planId" to record.planId),
+                    error,
+                )
+                AlarmDispatchResult(
+                    channel = AlarmDispatchChannel.AppAlarmClock,
+                    succeeded = false,
+                    message = error.message ?: "重建 App 自管闹钟失败",
+                )
+            }
+            results += result
+            runCatching {
+                val nextRecord = if (result.succeeded) {
+                    record.copy(
+                        requestCode = plan.appAlarmRequestCode(),
+                        operationMode = if (record.operationMode == AppAlarmOperationMode.SnoozeForegroundService) {
+                            AppAlarmOperationMode.SnoozeForegroundService
+                        } else {
+                            CURRENT_APP_ALARM_OPERATION_MODE
+                        },
+                        createdAtMillis = nowMillis,
+                    )
+                } else {
+                    record.copy(enabled = false)
+                }
+                repository.saveSystemAlarmRecord(nextRecord)
+            }.onFailure { error ->
+                registryWriteFailed += 1
+                ReminderLogger.warn(
+                    "reminder.app_alarm_clock.registry.recreate_write.failure",
+                    mapOf("alarmKey" to record.alarmKey, "ruleId" to record.ruleId, "planId" to record.planId),
+                    error,
+                )
+            }
+        }
+        val summary = SystemAlarmSyncSummary(
+            submittedCount = results.size,
+            createdCount = results.count { it.succeeded },
+            skippedExistingCount = 0,
+            skippedUnrepresentableCount = 0,
+            results = results,
+            registryWriteFailedCount = registryWriteFailed,
+        )
+        ReminderLogger.info(
+            "reminder.app_alarm_clock.registry.recreate.finish",
+            mapOf(
+                "recordCount" to records.size,
+                "submittedCount" to summary.submittedCount,
+                "createdCount" to summary.createdCount,
+                "failureCount" to summary.failedCount,
+                "registryWriteFailedCount" to summary.registryWriteFailedCount,
+            ),
+        )
+        summary
+    }
+
     suspend fun deleteAlarmRecord(
         alarmKey: String,
         backend: ReminderAlarmBackend,
@@ -1046,6 +1120,7 @@ class ReminderCoordinator(
                     record.pluginId == pluginId &&
                         (ruleId == null || record.ruleId == ruleId) &&
                         record.backend == backend &&
+                        !record.manualAlarm &&
                         record.triggerAtMillis in window.startMillis..window.endMillis &&
                         (backend != ReminderAlarmBackend.AppAlarmClock ||
                             record.operationMode != AppAlarmOperationMode.SnoozeForegroundService) &&

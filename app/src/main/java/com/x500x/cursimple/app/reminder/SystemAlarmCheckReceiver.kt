@@ -22,38 +22,18 @@ import java.time.ZoneId
 
 class SystemAlarmCheckReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val pendingResult = goAsync()
-        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-            try {
-                val app = context.applicationContext as? ClassScheduleApplication
-                if (app == null) {
-                    ReminderLogger.warn("reminder.system_clock.check.no_application", emptyMap())
-                    return@launch
-                }
-                when (intent.action) {
-                    ACTION_DAILY_NEXT_DAY_CHECK -> app.appContainer.runSystemAlarmCheck(ReminderSyncReason.DailyNextDay)
-                    ACTION_AFTER_CLASS_CHECK -> app.appContainer.runSystemAlarmCheck(ReminderSyncReason.AfterClassToday)
-                    Intent.ACTION_BOOT_COMPLETED,
-                    Intent.ACTION_MY_PACKAGE_REPLACED,
-                    Intent.ACTION_TIME_CHANGED,
-                    Intent.ACTION_TIMEZONE_CHANGED,
-                    Intent.ACTION_DATE_CHANGED,
-                    AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
-                        app.appContainer.refreshScheduleOutputs()
-                    }
-                    else -> ReminderLogger.warn(
-                        "reminder.system_clock.check.unknown_action",
-                        mapOf("action" to intent.action.orEmpty()),
-                    )
-                }
-            } catch (error: Throwable) {
-                ReminderLogger.warn(
-                    "reminder.system_clock.check.failure",
-                    mapOf("action" to intent.action.orEmpty()),
-                    error,
+        runAlarmMaintenance(
+            context = context,
+            intent = intent,
+            eventName = "reminder.system_clock.check",
+        ) { app, action ->
+            when (action) {
+                ACTION_DAILY_NEXT_DAY_CHECK -> app.appContainer.runSystemAlarmCheck(ReminderSyncReason.DailyNextDay)
+                ACTION_AFTER_CLASS_CHECK -> app.appContainer.runSystemAlarmCheck(ReminderSyncReason.AfterClassToday)
+                else -> ReminderLogger.warn(
+                    "reminder.system_clock.check.unknown_action",
+                    mapOf("action" to action.orEmpty()),
                 )
-            } finally {
-                pendingResult.finish()
             }
         }
     }
@@ -61,6 +41,60 @@ class SystemAlarmCheckReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_DAILY_NEXT_DAY_CHECK = "com.x500x.cursimple.action.DAILY_NEXT_DAY_SYSTEM_ALARM_CHECK"
         const val ACTION_AFTER_CLASS_CHECK = "com.x500x.cursimple.action.AFTER_CLASS_SYSTEM_ALARM_CHECK"
+    }
+}
+
+class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        runAlarmMaintenance(
+            context = context,
+            intent = intent,
+            eventName = "reminder.system_clock.environment",
+        ) { app, action ->
+            when (action) {
+                Intent.ACTION_BOOT_COMPLETED,
+                Intent.ACTION_MY_PACKAGE_REPLACED,
+                AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
+                    app.appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
+                }
+                Intent.ACTION_TIME_CHANGED,
+                Intent.ACTION_TIMEZONE_CHANGED,
+                Intent.ACTION_DATE_CHANGED -> {
+                    app.appContainer.refreshScheduleOutputs()
+                }
+                else -> ReminderLogger.warn(
+                    "reminder.system_clock.environment.unknown_action",
+                    mapOf("action" to action.orEmpty()),
+                )
+            }
+        }
+    }
+}
+
+private fun BroadcastReceiver.runAlarmMaintenance(
+    context: Context,
+    intent: Intent,
+    eventName: String,
+    block: suspend (ClassScheduleApplication, String?) -> Unit,
+) {
+    val pendingResult = goAsync()
+    CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+        try {
+            val app = context.applicationContext as? ClassScheduleApplication
+            if (app == null) {
+                ReminderLogger.warn("$eventName.no_application", emptyMap())
+                return@launch
+            }
+            block(app, intent.action)
+        } catch (error: Throwable) {
+            ReminderLogger.warn(
+                "$eventName.failure",
+                mapOf("action" to intent.action.orEmpty()),
+                error,
+            )
+        } finally {
+            pendingResult.finish()
+        }
     }
 }
 
