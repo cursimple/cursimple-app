@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 class AiScheduleImportClientTest {
 
@@ -118,6 +120,26 @@ class AiScheduleImportClientTest {
         assertEquals(listOf(8, 9, 10, 11, 12), policy.weeks)
         assertTrue(courses.all { it.time.dayOfWeek == 4 })
         assertEquals(8, policy.time.startNode)
+    }
+
+    @Test
+    fun `applies configured timeout to all okhttp phases`() {
+        val client = OkHttpClient().withAiImportTimeout(120)
+
+        assertEquals(120_000, client.callTimeoutMillis.toLong())
+        assertEquals(120_000, client.connectTimeoutMillis.toLong())
+        assertEquals(120_000, client.readTimeoutMillis.toLong())
+        assertEquals(120_000, client.writeTimeoutMillis.toLong())
+    }
+
+    @Test
+    fun `clamps unsafe timeout before applying okhttp phases`() {
+        val client = OkHttpClient().withAiImportTimeout(999)
+
+        assertEquals(TimeUnit.SECONDS.toMillis(600), client.callTimeoutMillis.toLong())
+        assertEquals(TimeUnit.SECONDS.toMillis(600), client.connectTimeoutMillis.toLong())
+        assertEquals(TimeUnit.SECONDS.toMillis(600), client.readTimeoutMillis.toLong())
+        assertEquals(TimeUnit.SECONDS.toMillis(600), client.writeTimeoutMillis.toLong())
     }
 
     private fun quoteJson(value: String): String =
