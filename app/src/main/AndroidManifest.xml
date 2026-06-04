@@ -76,7 +76,7 @@
         </provider>
 
         <receiver
-            android:name=".app.reminder.SystemAlarmCheckReceiver"
+            android:name=".app.reminder.SystemAlarmEnvironmentReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
@@ -87,6 +87,10 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".app.reminder.SystemAlarmCheckReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".app.reminder.AppAlarmReceiver"

@@ -231,8 +231,11 @@ class AppContainer(
         scheduleSystemAlarmChecks(timingProfile)
     }
 
-    suspend fun refreshScheduleOutputs() {
+    suspend fun refreshScheduleOutputs(recreateAppManagedAlarms: Boolean = false) {
         awaitBootstrap()
+        if (recreateAppManagedAlarms) {
+            reminderCoordinator.recreateAppManagedAlarmsFromRegistry()
+        }
         refreshWidgets()
         val schedule = reminderSchedule() ?: return
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first() ?: return
