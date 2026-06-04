@@ -44,9 +44,7 @@ class AiScheduleImportClient(
             .header("Content-Type", "application/json")
             .post(requestJson.toRequestBody("application/json; charset=utf-8".toMediaType()))
             .build()
-        val requestClient = client.newBuilder()
-            .callTimeout(Duration.ofSeconds(coerceAiImportTimeoutSeconds(config.timeoutSeconds).toLong()))
-            .build()
+        val requestClient = client.withAiImportTimeout(config.timeoutSeconds)
         val bodyText = requestClient.newCall(request).execute().use { response ->
             check(response.isSuccessful) { "AI 请求失败：HTTP ${response.code}" }
             response.body.string()
@@ -178,6 +176,16 @@ class AiScheduleImportClient(
 }
 
 private val AiImportJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+internal fun OkHttpClient.withAiImportTimeout(timeoutSeconds: Int): OkHttpClient {
+    val timeout = Duration.ofSeconds(coerceAiImportTimeoutSeconds(timeoutSeconds).toLong())
+    return newBuilder()
+        .callTimeout(timeout)
+        .connectTimeout(timeout)
+        .readTimeout(timeout)
+        .writeTimeout(timeout)
+        .build()
+}
 
 internal fun extractAiTextContent(
     bodyText: String,
