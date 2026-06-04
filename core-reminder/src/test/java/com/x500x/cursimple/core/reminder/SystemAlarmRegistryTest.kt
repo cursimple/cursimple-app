@@ -177,6 +177,104 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
+    fun `recreate app managed alarm records dispatches only future app records`() = runBlocking {
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+        val appRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45)).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1001,
+            operationMode = AppAlarmOperationMode.ForegroundService,
+        )
+        val expiredAppRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 6, minute = 45)).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1002,
+            operationMode = AppAlarmOperationMode.ForegroundService,
+        )
+        val systemRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 50)).copy(
+            backend = ReminderAlarmBackend.SystemClockApp,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(appRecord, expiredAppRecord, systemRecord)
+        }
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val systemDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDispatcher = dispatcher,
+            appDismisser = appDismisser,
+            systemDismisser = systemDismisser,
+        )
+
+        val summary = coordinator.recreateAppManagedAlarmsFromRegistry(nowMillis = nowMillis)
+
+        assertEquals(1, summary.submittedCount)
+        assertEquals(1, summary.createdCount)
+        assertEquals(1, dispatcher.dispatchCount)
+        assertEquals(appRecord.ruleId, dispatcher.lastPlan?.ruleId)
+        assertEquals(appRecord.triggerAtMillis, dispatcher.lastPlan?.triggerAtMillis)
+        assertEquals(3, repository.records.value.size)
+        assertTrue(repository.records.value.any {
+            it.alarmKey == appRecord.alarmKey &&
+                it.createdAtMillis == nowMillis &&
+                it.operationMode == AppAlarmOperationMode.ForegroundService
+        })
+        assertTrue(repository.records.value.any { it == expiredAppRecord })
+        assertTrue(repository.records.value.any { it == systemRecord })
+        assertEquals(0, appDismisser.dismissCount)
+        assertEquals(0, systemDismisser.dismissCount)
+    }
+
+    @Test
+    fun `app managed sync skips record after registry recreation`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.AppAlarmClock) },
+            appDispatcher = dispatcher,
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+        val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
+        val first = coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+        val firstRecord = repository.records.value.single()
+
+        val recreated = coordinator.recreateAppManagedAlarmsFromRegistry(nowMillis = nowMillis)
+        val second = coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.ScheduleChanged,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(1, first.createdCount)
+        assertEquals(1, recreated.createdCount)
+        assertEquals(1, second.skippedExistingCount)
+        assertEquals(0, second.createdCount)
+        assertEquals(2, dispatcher.dispatchCount)
+        assertEquals(firstRecord.alarmKey, repository.records.value.single().alarmKey)
+    }
+
+    @Test
     fun `app managed alarm dispatch applies default ringtone and alert mode`() = runBlocking {
         val repository = FakeReminderRepository(
             rules = listOf(sampleRule()),
@@ -783,6 +881,42 @@ class SystemAlarmRegistryTest {
         assertEquals(0, summary.dismissedCount)
         assertEquals(0, appDismisser.dismissCount)
         assertEquals(listOf(snoozeRecord), repository.records.value)
+    }
+
+    @Test
+    fun `app managed sync keeps manual app alarms outside stale cleanup`() = runBlocking {
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+        val manualRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 50)).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1004,
+            operationMode = AppAlarmOperationMode.ForegroundService,
+            manualAlarm = true,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(manualRecord)
+        }
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.AppAlarmClock) },
+            appDispatcher = FakeAlarmDispatcher(succeeded = true, channel = AlarmDispatchChannel.AppAlarmClock),
+            appDismisser = appDismisser,
+        )
+
+        val summary = coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile, nowMillis),
+            reason = ReminderSyncReason.ScheduleChanged,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(0, summary.dismissedCount)
+        assertEquals(0, appDismisser.dismissCount)
+        assertEquals(listOf(manualRecord), repository.records.value)
     }
 
     @Test
