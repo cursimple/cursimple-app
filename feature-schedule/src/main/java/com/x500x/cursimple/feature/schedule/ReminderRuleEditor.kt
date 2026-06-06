@@ -71,13 +71,12 @@ internal fun ReminderRuleEditorDialog(
         )
     }
     val advance = advanceText.toIntOrNull()
-    val canSave = name.isNotBlank() &&
-        advance != null &&
-        advance in 0..720 &&
-        conditions.isNotEmpty() &&
-        actions.isNotEmpty() &&
-        conditions.all { it.slotLabel.isNotBlank() } &&
-        actions.all { it.slotLabel.isNotBlank() }
+    val canSave = canSaveReminderLabelRule(
+        displayName = name,
+        advanceMinutes = advance,
+        conditions = conditions,
+        actions = actions,
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -174,6 +173,18 @@ internal fun ReminderRuleEditorDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }
+
+internal fun canSaveReminderLabelRule(
+    displayName: String,
+    advanceMinutes: Int?,
+    conditions: List<ReminderLabelCondition>,
+    actions: List<ReminderLabelAction>,
+): Boolean =
+    displayName.isNotBlank() &&
+        advanceMinutes != null &&
+        advanceMinutes in 0..720 &&
+        conditions.all { it.slotLabel.isNotBlank() } &&
+        actions.all { it.slotLabel.isNotBlank() }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
