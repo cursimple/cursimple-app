@@ -11,6 +11,7 @@ import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
+import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import com.x500x.cursimple.core.reminder.model.appAlarmRequestCode
 import com.x500x.cursimple.core.reminder.model.systemAlarmKey
@@ -24,6 +25,10 @@ interface AlarmDispatcher {
 
 interface AlarmDismisser {
     suspend fun dismiss(record: SystemAlarmRecord): AlarmDismissResult
+}
+
+fun interface AlarmRegistrationVerifier {
+    fun isRegistered(record: SystemAlarmRecord): Boolean
 }
 
 object AppAlarmClockIntents {
@@ -157,6 +162,22 @@ class AppAlarmClockDismisser(
     }
 }
 
+class AppAlarmClockRegistrationVerifier(
+    private val context: Context,
+) : AlarmRegistrationVerifier {
+    override fun isRegistered(record: SystemAlarmRecord): Boolean {
+        if (record.backend != ReminderAlarmBackend.AppAlarmClock) return true
+        val appContext = context.applicationContext
+        val requestCode = record.requestCode ?: (record.alarmKey.hashCode() and Int.MAX_VALUE)
+        return appAlarmOperationIntentOrNull(
+            context = appContext,
+            record = record,
+            requestCode = requestCode,
+            flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+        ) != null
+    }
+}
+
 class SystemAlarmClockDispatcher(
     private val context: Context,
 ) : AlarmDispatcher {
@@ -232,24 +253,48 @@ private fun appAlarmOperationIntent(
     intent = appAlarmServiceIntent(context, record),
 )
 
+private fun appAlarmOperationIntentOrNull(
+    context: Context,
+    record: SystemAlarmRecord,
+    requestCode: Int,
+    flags: Int,
+): PendingIntent? = appAlarmServicePendingIntentOrNull(
+    context = context,
+    requestCode = requestCode,
+    intent = appAlarmServiceIntent(context, record),
+    flags = flags,
+)
+
 private fun appAlarmServicePendingIntent(
     context: Context,
     requestCode: Int,
     intent: Intent,
-): PendingIntent =
+): PendingIntent = appAlarmServicePendingIntentOrNull(
+    context = context,
+    requestCode = requestCode,
+    intent = intent,
+    flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+) ?: error("App alarm PendingIntent was not created")
+
+private fun appAlarmServicePendingIntentOrNull(
+    context: Context,
+    requestCode: Int,
+    intent: Intent,
+    flags: Int,
+): PendingIntent? =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         PendingIntent.getForegroundService(
             context.applicationContext,
             requestCode,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            flags,
         )
     } else {
         PendingIntent.getService(
             context.applicationContext,
             requestCode,
             intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            flags,
         )
     }
 
