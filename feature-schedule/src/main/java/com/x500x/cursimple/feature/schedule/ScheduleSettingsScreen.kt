@@ -510,12 +510,12 @@ private fun RuleRow(
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(rule.displayName ?: "未命名规则", fontWeight = FontWeight.SemiBold)
             Text(
-                "如果 ${rule.conditionSummary()}",
+                rule.conditionSummary(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                "就 ${rule.actionSummary()}",
+                rule.actionSummary(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
