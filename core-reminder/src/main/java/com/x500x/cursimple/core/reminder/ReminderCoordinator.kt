@@ -9,6 +9,8 @@ import com.x500x.cursimple.core.reminder.dispatch.AlarmDispatcher
 import com.x500x.cursimple.core.reminder.dispatch.AlarmDismisser
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockDispatcher
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockDismisser
+import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockRegistrationVerifier
+import com.x500x.cursimple.core.reminder.dispatch.AlarmRegistrationVerifier
 import com.x500x.cursimple.core.reminder.dispatch.SystemAlarmClockDispatcher
 import com.x500x.cursimple.core.reminder.dispatch.SystemAlarmClockDismisser
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
@@ -62,6 +64,7 @@ class ReminderCoordinator(
     private val appDismisser: AlarmDismisser = AppAlarmClockDismisser(context),
     private val systemDispatcher: AlarmDispatcher = SystemAlarmClockDispatcher(context),
     private val systemDismisser: AlarmDismisser = SystemAlarmClockDismisser(context),
+    private val alarmRegistrationVerifier: AlarmRegistrationVerifier = AppAlarmClockRegistrationVerifier(context),
 ) {
 
     val reminderRulesFlow: Flow<List<ReminderRule>> = repository.reminderRulesFlow
@@ -827,6 +830,7 @@ class ReminderCoordinator(
                 .filter { it.backend == settings.backend }
                 .filter { it.enabled }
                 .filter { settings.backend != ReminderAlarmBackend.AppAlarmClock || it.operationMode == CURRENT_APP_ALARM_OPERATION_MODE }
+                .filter { it.hasActiveAlarmRegistration() }
                 .mapTo(mutableSetOf()) { it.alarmKey }
         }.getOrElse { error ->
             ReminderLogger.warn(
@@ -970,6 +974,31 @@ class ReminderCoordinator(
             ),
         )
         return summary
+    }
+
+    private fun SystemAlarmRecord.hasActiveAlarmRegistration(): Boolean {
+        if (backend != ReminderAlarmBackend.AppAlarmClock) return true
+        return runCatching {
+            alarmRegistrationVerifier.isRegistered(this)
+        }.onFailure { error ->
+            ReminderLogger.warn(
+                "reminder.app_alarm_clock.registry.registration_check.failure",
+                mapOf("alarmKey" to alarmKey, "ruleId" to ruleId, "planId" to planId),
+                error,
+            )
+        }.getOrDefault(true).also { registered ->
+            if (!registered) {
+                ReminderLogger.warn(
+                    "reminder.app_alarm_clock.registry.registration_missing",
+                    mapOf(
+                        "alarmKey" to alarmKey,
+                        "ruleId" to ruleId,
+                        "planId" to planId,
+                        "triggerAtMillis" to triggerAtMillis,
+                    ),
+                )
+            }
+        }
     }
 
     private suspend fun dismissExpiredAppAlarmRecords(nowMillis: Long): DismissStats {
