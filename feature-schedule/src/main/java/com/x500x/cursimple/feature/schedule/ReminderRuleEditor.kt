@@ -20,7 +20,6 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -34,7 +33,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -117,7 +115,6 @@ internal fun ReminderRuleEditorDialog(
                     onPickLocal = { onPickLocalAudio { ringtoneUri = it } },
                 )
 
-                Text("如果", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 conditions.forEachIndexed { index, condition ->
                     ConditionRow(
                         condition = condition,
@@ -137,7 +134,6 @@ internal fun ReminderRuleEditorDialog(
                 }
 
                 Spacer(Modifier.height(4.dp))
-                Text("就", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 actions.forEachIndexed { index, action ->
                     ActionRow(
                         action = action,

@@ -3733,7 +3733,7 @@ private fun describeReminderRule(
                 }
                 "${action.slotLabel} $type"
             }.ifBlank { "无动作" }
-            timing = "如果 $conditions · 就 $actions"
+            timing = "$conditions · $actions"
         }
     }
     val ringtone = alarmRingtoneLabel(rule.ringtoneUri)
