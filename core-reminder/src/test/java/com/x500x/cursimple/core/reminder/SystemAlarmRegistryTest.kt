@@ -10,6 +10,7 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.reminder.dispatch.AlarmDispatcher
 import com.x500x.cursimple.core.reminder.dispatch.AlarmDismisser
+import com.x500x.cursimple.core.reminder.dispatch.AlarmRegistrationVerifier
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
@@ -272,6 +273,50 @@ class SystemAlarmRegistryTest {
         assertEquals(0, second.createdCount)
         assertEquals(2, dispatcher.dispatchCount)
         assertEquals(firstRecord.alarmKey, repository.records.value.single().alarmKey)
+    }
+
+    @Test
+    fun `app managed sync recreates existing record when registration is missing`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.AppAlarmClock) },
+            appDispatcher = dispatcher,
+            alarmRegistrationVerifier = FakeAlarmRegistrationVerifier(registered = false),
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+        val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
+        val first = coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+
+        val second = coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.WidgetRefresh,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(1, first.createdCount)
+        assertEquals(1, second.createdCount)
+        assertEquals(0, second.skippedExistingCount)
+        assertEquals(2, dispatcher.dispatchCount)
+        assertEquals(1, repository.records.value.size)
     }
 
     @Test
@@ -1186,6 +1231,12 @@ class SystemAlarmRegistryTest {
                 message = if (succeeded) "dismissed" else "failed",
             )
         }
+    }
+
+    private class FakeAlarmRegistrationVerifier(
+        private val registered: Boolean,
+    ) : AlarmRegistrationVerifier {
+        override fun isRegistered(record: SystemAlarmRecord): Boolean = registered
     }
 
     private class FakeReminderRepository(
