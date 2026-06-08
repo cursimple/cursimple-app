@@ -167,6 +167,28 @@ class ReminderPlannerTest {
     }
 
     @Test
+    fun expandRulesIncludesFirstCourseRules() {
+        val plans = planner.expandRules(
+            rules = listOf(
+                ReminderRule(
+                    ruleId = "morning",
+                    pluginId = "demo",
+                    scopeType = ReminderScopeType.FirstCourseOfPeriod,
+                    period = ReminderDayPeriod.Morning,
+                    advanceMinutes = 15,
+                    createdAt = "2026-02-23T00:00:00+08:00",
+                    updatedAt = "2026-02-23T00:00:00+08:00",
+                ),
+            ),
+            schedule = labelSchedule(),
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(listOf("math"), plans.map { it.courseId })
+    }
+
+    @Test
     fun examRuleExpandsOnlyExamCourses() {
         val schedule = TermSchedule(
             termId = "2026-spring",

@@ -29,7 +29,9 @@
 - JDK 17
 - Android SDK（含 `platforms;android-36`）
 
-### 2) 配置统一签名（本地）
+### 2) 配置 Release 签名（本地）
+
+Debug 构建和 JVM 单测不需要私有签名材料，会使用 Android 默认 debug 签名。构建 Release 包时必须配置以下签名值，缺失会在 release 打包任务开始前明确失败。
 
 本地推荐使用根目录 `keystore.properties`（已加入 `.gitignore`，不要提交）：
 
@@ -57,7 +59,7 @@ CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
 
 脚本只会从当前环境变量解码 keystore，不会调用 `gh` 或访问 GitHub。
 
-> 所有本地构建（Debug/Release）都强制使用这套签名。
+> 只有 Release 打包强制使用这套签名；Debug/CI 构建与单测不依赖私有 keystore。
 > `.signing/`、`keystore.properties`、`*.jks`、`*.keystore`、`*.p12` 已加入 `.gitignore`，不要提交本地生成的 keystore。
 
 ### 3) 构建 Debug
@@ -66,7 +68,7 @@ CLASS_VIEWER_KEY_PASSWORD=replace-with-key-password
 ./gradlew assembleDebug
 ```
 
-Debug/CI 包的 `applicationId` 是 `com.x500x.cursimple.ci`，可与 Release 包 `com.x500x.cursimple` 共存安装；两者仍使用同一套签名材料。
+Debug/CI 包的 `applicationId` 是 `com.x500x.cursimple.ci`，可与 Release 包 `com.x500x.cursimple` 共存安装。Debug/CI 包使用默认 debug 签名，不能用于覆盖安装正式 Release 包。
 
 ### 4) 构建 Release（含 v7a/v8a/x86/x86_64/universal）
 
@@ -122,7 +124,7 @@ export async function run(ctx) {
 - `.github/workflows/android-ci.yml`
 - `.github/workflows/android-release.yml`
 
-- CI（PR / push `main`）：加载同一套签名材料，执行单测 + `assembleDebug`，上传可共存安装的 CI APK artifact
+- CI（PR / push `main`）：执行单测 + `assembleDebug`，上传可共存安装的 CI APK artifact
 - Release（仅 push tag，如 `v1.0.0`）：加载同一套签名材料，执行 `assembleRelease`、上传 APK、发布 GitHub Release
 - push `v*` tag 只触发 Release workflow，不触发 CI workflow
 - 工作流通过 GitHub Actions Secrets 直接注入签名材料，随后用 `scripts/load-signing-env.ps1` 解码到 runner 临时目录

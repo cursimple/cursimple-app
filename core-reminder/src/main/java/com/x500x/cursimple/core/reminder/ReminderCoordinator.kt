@@ -696,13 +696,14 @@ class ReminderCoordinator(
         val settings = alarmSettingsProvider()
         val zone = ZoneId.systemDefault()
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
+        val customOccupancies = repository.getCustomOccupancies(pluginId)
         val rules = repository.getReminderRules()
             .filter {
                 it.enabled &&
                     it.pluginId == pluginId &&
-                    it.scopeType == ReminderScopeType.LabelRule
+                    it.scopeType in ALARM_SYNC_SCOPE_TYPES
             }
-        val plans = expandLabelRulePlans(
+        val plans = expandSyncRulePlans(
             rules = rules,
             schedule = schedule,
             profile = profile,
@@ -710,6 +711,7 @@ class ReminderCoordinator(
             settings = settings,
             zone = zone,
             temporaryScheduleOverrides = temporaryScheduleOverrides,
+            customOccupancies = customOccupancies,
         )
         dispatchPlansForWindowLocked(
             pluginId = pluginId,
@@ -744,14 +746,15 @@ class ReminderCoordinator(
             endMillis = nowMillis + NEAREST_RULE_ALARM_WINDOW_MILLIS,
         )
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
+        val customOccupancies = repository.getCustomOccupancies(pluginId)
         val rules = repository.getReminderRules()
             .filter {
                 it.enabled &&
                     it.ruleId == ruleId &&
                     it.pluginId == pluginId &&
-                    it.scopeType == ReminderScopeType.LabelRule
+                    it.scopeType in ALARM_SYNC_SCOPE_TYPES
             }
-        val plans = expandLabelRulePlans(
+        val plans = expandSyncRulePlans(
             rules = rules,
             schedule = schedule,
             profile = profile,
@@ -759,6 +762,7 @@ class ReminderCoordinator(
             settings = settings,
             zone = zone,
             temporaryScheduleOverrides = temporaryScheduleOverrides,
+            customOccupancies = customOccupancies,
         ).take(1)
         dispatchPlansForWindowLocked(
             pluginId = pluginId,
@@ -774,7 +778,7 @@ class ReminderCoordinator(
         )
     }
 
-    private fun expandLabelRulePlans(
+    private fun expandSyncRulePlans(
         rules: List<ReminderRule>,
         schedule: TermSchedule,
         profile: TermTimingProfile,
@@ -782,12 +786,14 @@ class ReminderCoordinator(
         settings: ReminderAlarmSettings,
         zone: ZoneId,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+        customOccupancies: List<ReminderCustomOccupancy>,
     ): List<ReminderPlan> = planner.expandRules(
         rules = rules,
         schedule = schedule,
         timingProfile = profile,
         fromDate = Instant.ofEpochMilli(window.startMillis).atZone(zone).toLocalDate(),
         temporaryScheduleOverrides = temporaryScheduleOverrides,
+        customOccupancies = customOccupancies,
     ).asSequence()
         .filter { it.triggerAtMillis in window.startMillis..window.endMillis }
         .map { it.withAlarmSettings(settings) }
@@ -1261,6 +1267,11 @@ private const val NEAREST_RULE_ALARM_WINDOW_MILLIS = 2L * 24 * 60 * 60 * 1000
 private data class DismissStats(
     val dismissedCount: Int = 0,
     val failedCount: Int = 0,
+)
+
+private val ALARM_SYNC_SCOPE_TYPES = setOf(
+    ReminderScopeType.LabelRule,
+    ReminderScopeType.FirstCourseOfPeriod,
 )
 
 private fun emptySystemAlarmSyncSummary(

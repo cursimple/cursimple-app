@@ -24,7 +24,7 @@ class PluginInstaller(
         )
         return try {
             val layout = packageReader.read(bytes)
-            val manifest = layout.decodeManifest(json)
+            val manifest = layout.decodeValidatedManifest(json)
             val checksums = layout.decodeChecksums(json)
             val preview = PluginInstallPreview(
                 manifest = manifest,
@@ -101,7 +101,7 @@ class PluginInstaller(
     }
 
     private fun previewPackageFromLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
-        val manifest = layout.decodeManifest(json)
+        val manifest = layout.decodeValidatedManifest(json)
         val checksums = layout.decodeChecksums(json)
         return PluginInstallPreview(
             manifest = manifest,

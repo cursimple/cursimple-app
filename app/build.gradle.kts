@@ -17,18 +17,52 @@ val localSigningProperties = Properties().apply {
     }
 }
 
-fun requireSigningValue(name: String): String {
-    return providers.environmentVariable(name).orNull
-        ?: localSigningProperties.getProperty(name)
+val releaseSigningPropertyNames = listOf(
+    "CLASS_VIEWER_KEYSTORE_FILE",
+    "CLASS_VIEWER_KEYSTORE_PASSWORD",
+    "CLASS_VIEWER_KEY_ALIAS",
+    "CLASS_VIEWER_KEY_PASSWORD",
+)
+
+fun optionalSigningValue(name: String): String? {
+    return providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+        ?: localSigningProperties.getProperty(name)?.takeIf { it.isNotBlank() }
+}
+
+val releaseSigningValues = releaseSigningPropertyNames.associateWith(::optionalSigningValue)
+val missingReleaseSigningValues = releaseSigningPropertyNames.filter {
+    releaseSigningValues[it].isNullOrBlank()
+}
+val hasCompleteReleaseSigning = missingReleaseSigningValues.isEmpty()
+
+fun releaseSigningValue(name: String): String {
+    return releaseSigningValues[name]
         ?: throw GradleException(
-            "缺少签名配置 `$name`。请使用环境变量或根目录 keystore.properties 配置签名（见 README）。",
+            "缺少 Release 签名配置 `$name`。请使用环境变量或根目录 keystore.properties 配置签名（见 README_dev.md）。",
         )
 }
 
-val classViewerKeystoreFile = requireSigningValue("CLASS_VIEWER_KEYSTORE_FILE")
-val classViewerKeystorePassword = requireSigningValue("CLASS_VIEWER_KEYSTORE_PASSWORD")
-val classViewerKeyAlias = requireSigningValue("CLASS_VIEWER_KEY_ALIAS")
-val classViewerKeyPassword = requireSigningValue("CLASS_VIEWER_KEY_PASSWORD")
+fun validateReleaseSigning() {
+    if (missingReleaseSigningValues.isNotEmpty()) {
+        throw GradleException(
+            "Release 打包需要完整签名配置，当前缺少：${missingReleaseSigningValues.joinToString()}。请使用环境变量或根目录 keystore.properties 配置签名（见 README_dev.md）。",
+        )
+    }
+
+    val keystoreFile = rootProject.file(releaseSigningValue("CLASS_VIEWER_KEYSTORE_FILE"))
+    if (!keystoreFile.isFile) {
+        throw GradleException("Release 签名文件不存在：${keystoreFile.absolutePath}。")
+    }
+}
+
+fun isReleasePackagingTaskName(name: String): Boolean {
+    return name == "assembleRelease" ||
+        name == "bundleRelease" ||
+        name == "packageRelease" ||
+        name == "installRelease" ||
+        name.startsWith("signRelease")
+}
+
 val appVersionCode = providers.gradleProperty("app.versionCode")
     .orNull
     ?.toIntOrNull()
@@ -52,13 +86,15 @@ android {
     }
 
     signingConfigs {
-        create("classViewer") {
-            storeFile = rootProject.file(classViewerKeystoreFile)
-            storePassword = classViewerKeystorePassword
-            keyAlias = classViewerKeyAlias
-            keyPassword = classViewerKeyPassword
-            enableV1Signing = true
-            enableV2Signing = true
+        if (hasCompleteReleaseSigning) {
+            create("classViewer") {
+                storeFile = rootProject.file(releaseSigningValue("CLASS_VIEWER_KEYSTORE_FILE"))
+                storePassword = releaseSigningValue("CLASS_VIEWER_KEYSTORE_PASSWORD")
+                keyAlias = releaseSigningValue("CLASS_VIEWER_KEY_ALIAS")
+                keyPassword = releaseSigningValue("CLASS_VIEWER_KEY_PASSWORD")
+                enableV1Signing = true
+                enableV2Signing = true
+            }
         }
     }
 
@@ -66,12 +102,13 @@ android {
         debug {
             applicationIdSuffix = ".ci"
             versionNameSuffix = "-ci"
-            signingConfig = signingConfigs.getByName("classViewer")
             isMinifyEnabled = false
             isShrinkResources = false
         }
         release {
-            signingConfig = signingConfigs.getByName("classViewer")
+            if (hasCompleteReleaseSigning) {
+                signingConfig = signingConfigs.getByName("classViewer")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -104,6 +141,15 @@ android {
             include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
             isUniversalApk = true
         }
+    }
+}
+
+gradle.taskGraph.whenReady {
+    val releasePackagingTasks = allTasks.filter {
+        it.project == project && isReleasePackagingTaskName(it.name)
+    }
+    if (releasePackagingTasks.isNotEmpty()) {
+        validateReleaseSigning()
     }
 }
 

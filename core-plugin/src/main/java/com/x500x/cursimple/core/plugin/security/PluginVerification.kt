@@ -26,11 +26,41 @@ data class PluginSignatureInfo(
 
 class PluginChecksumVerifier {
     fun verify(layout: PluginPackageLayout, checksums: PluginChecksums): Boolean {
+        require(checksums.algorithm.equals(SHA_256, ignoreCase = true)) {
+            "插件摘要只支持 SHA-256: ${checksums.algorithm}"
+        }
+        require(checksums.files.isNotEmpty()) { "插件摘要不能为空" }
+        checksums.files.forEach { (path, expected) ->
+            require(path in layout.files) { "插件摘要包含不存在的文件: $path" }
+            require(SHA_256_HEX.matches(expected)) { "插件摘要格式无效: $path" }
+        }
+        val requiredFiles = layout.files.keys
+            .filterNot { it in OPTIONAL_METADATA_FILES }
+            .toSet()
+        val checksumFiles = checksums.files.keys.toSet()
+        require(checksumFiles == requiredFiles) {
+            val missing = (requiredFiles - checksumFiles).sorted()
+            val extra = (checksumFiles - requiredFiles).sorted()
+            buildString {
+                append("插件摘要文件覆盖不完整")
+                if (missing.isNotEmpty()) append("，缺少: ").append(missing.joinToString())
+                if (extra.isNotEmpty()) append("，多余: ").append(extra.joinToString())
+            }
+        }
         val digest = MessageDigest.getInstance(checksums.algorithm)
         return checksums.files.all { (path, expected) ->
             val actual = digest.digest(layout.requireFile(path)).joinToString("") { "%02x".format(it) }
             actual.equals(expected, ignoreCase = true)
         }
+    }
+
+    private companion object {
+        const val SHA_256 = "SHA-256"
+        val SHA_256_HEX = Regex("[A-Fa-f0-9]{64}")
+        val OPTIONAL_METADATA_FILES = setOf(
+            PluginPackageLayout.CHECKSUMS_FILE,
+            PluginPackageLayout.SIGNATURE_FILE,
+        )
     }
 }
 

@@ -32,20 +32,40 @@ class ReminderPlanner {
         timingProfile: TermTimingProfile,
         fromDate: LocalDate = BeijingTime.today(),
         temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+        customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
     ): List<ReminderPlan> {
-        val labelRules = rules.filter {
+        val enabledRules = rules.filter { it.enabled }
+        val labelRules = enabledRules.filter {
             it.enabled &&
                 it.scopeType == ReminderScopeType.LabelRule &&
                 it.labelActions.isNotEmpty()
         }
-        if (labelRules.isEmpty()) return emptyList()
-        return labelEvaluator.expandAll(
-            rules = labelRules,
-            schedule = schedule,
-            timingProfile = timingProfile,
-            fromDate = fromDate,
-            temporaryScheduleOverrides = temporaryScheduleOverrides,
-        )
+        val labelPlans = if (labelRules.isEmpty()) {
+            emptyList()
+        } else {
+            labelEvaluator.expandAll(
+                rules = labelRules,
+                schedule = schedule,
+                timingProfile = timingProfile,
+                fromDate = fromDate,
+                temporaryScheduleOverrides = temporaryScheduleOverrides,
+            )
+        }
+        val firstCoursePlans = enabledRules
+            .filter { it.scopeType == ReminderScopeType.FirstCourseOfPeriod }
+            .flatMap { rule ->
+                expandRule(
+                    rule = rule,
+                    schedule = schedule,
+                    timingProfile = timingProfile,
+                    fromDate = fromDate,
+                    temporaryScheduleOverrides = temporaryScheduleOverrides,
+                    customOccupancies = customOccupancies,
+                )
+            }
+        return (labelPlans + firstCoursePlans)
+            .distinctBy { it.planId }
+            .sortedBy { it.triggerAtMillis }
     }
 
     fun expandRule(

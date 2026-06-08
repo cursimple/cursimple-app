@@ -71,6 +71,14 @@ class PluginComponentInstaller(
             layout.files.keys.filterNot { it == MANIFEST_FILE }
         }
         require(payloadFiles.isNotEmpty()) { "组件包没有有效文件" }
+        if (manifest.files.isNotEmpty()) {
+            val unlistedFiles = layout.files.keys
+                .filterNot { it == MANIFEST_FILE }
+                .filterNot { it in manifest.files }
+            require(unlistedFiles.isEmpty()) {
+                "组件包包含 manifest.files 未声明文件: ${unlistedFiles.sorted().joinToString()}"
+            }
+        }
         payloadFiles.forEach { file ->
             require(file in layout.files) { "组件包缺少文件: $file" }
         }
@@ -83,26 +91,34 @@ class PluginComponentInstaller(
         layout: ComponentPackageLayout,
         source: PluginComponentSource,
     ): File {
+        val componentRoot = componentRoot.canonicalFile
         componentRoot.mkdirs()
         val safeId = manifest.id.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val safeVersion = manifest.version.replace(Regex("[^A-Za-z0-9._-]"), "_")
         val safeAbi = manifest.abi?.replace(Regex("[^A-Za-z0-9._-]"), "_") ?: "any"
         val sourceTag = source.name.lowercase()
-        val targetDir = File(componentRoot, "$safeId-$safeVersion-$safeAbi-$sourceTag")
+        val targetDir = File(componentRoot, "$safeId-$safeVersion-$safeAbi-$sourceTag").canonicalFile
+        requireContained(componentRoot, targetDir, "组件安装目录越界")
         if (targetDir.exists()) {
+            requireContained(componentRoot, targetDir, "组件安装目录越界")
             targetDir.deleteRecursively()
         }
         targetDir.mkdirs()
-        val rootPath = targetDir.canonicalFile.toPath()
         layout.files
             .filterKeys { it != MANIFEST_FILE }
             .forEach { (path, bytes) ->
                 val target = File(targetDir, path).canonicalFile
-                require(target.toPath().startsWith(rootPath)) { "组件包路径越界: $path" }
+                requireContained(targetDir, target, "组件包路径越界: $path")
                 target.parentFile?.mkdirs()
                 target.writeBytes(bytes)
             }
         return targetDir
+    }
+
+    private fun requireContained(root: File, target: File, message: String) {
+        val rootPath = root.canonicalFile.path
+        val targetPath = target.canonicalFile.path
+        require(targetPath == rootPath || targetPath.startsWith(rootPath + File.separator)) { message }
     }
 
     private fun readComponentPackage(bytes: ByteArray): ComponentPackageLayout {

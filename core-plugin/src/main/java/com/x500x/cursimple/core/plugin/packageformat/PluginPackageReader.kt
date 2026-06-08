@@ -16,7 +16,7 @@ class PluginPackageReader(
             while (true) {
                 val entry = zip.nextEntry ?: break
                 if (!entry.isDirectory) {
-                    val normalizedPath = normalizeEntryPath(entry.name)
+                    val normalizedPath = normalizePluginPackagePath(entry.name)
                     require(normalizedPath !in files) { "插件包包含重复文件: $normalizedPath" }
                     require(files.size < maxFileCount) { "插件包文件数量超过限制: $maxFileCount" }
                     val content = zip.readBytes()
@@ -28,10 +28,8 @@ class PluginPackageReader(
             }
         }
         val layout = PluginPackageLayout(normalizePackageRoot(files))
-        val manifest = layout.decodeManifest(json)
+        val manifest = layout.decodeValidatedManifest(json)
         require(manifest.entry.isNotBlank()) { "插件 manifest 缺少 entry" }
-        val entryPath = normalizeEntryPath(manifest.entry)
-        require(entryPath in layout.files) { "插件包缺少入口文件: ${manifest.entry}" }
         return layout
     }
 
@@ -51,20 +49,27 @@ class PluginPackageReader(
         return files.mapKeys { (path, _) -> path.removePrefix(rootPrefix) }
     }
 
-    private fun normalizeEntryPath(rawPath: String): String {
-        val path = rawPath.replace('\\', '/').trim()
-        require(path.isNotBlank()) { "插件包包含空路径" }
-        require(!path.startsWith("/")) { "插件包包含绝对路径: $rawPath" }
-        require(!WINDOWS_DRIVE_PATH.matches(path)) { "插件包包含 Windows 盘符路径: $rawPath" }
-        val segments = path.split('/')
-        require(segments.none { it == ".." }) { "插件包包含路径穿越: $rawPath" }
-        require(segments.none { it.isBlank() || it == "." }) { "插件包包含非法路径: $rawPath" }
-        return segments.joinToString("/")
-    }
-
     private companion object {
         const val DEFAULT_MAX_FILE_COUNT = 512
         const val DEFAULT_MAX_UNCOMPRESSED_BYTES = 50L * 1024L * 1024L
-        val WINDOWS_DRIVE_PATH = Regex("^[A-Za-z]:.*")
     }
 }
+
+internal fun normalizePluginPackagePath(rawPath: String): String {
+    val path = rawPath.replace('\\', '/').trim()
+    require(path.isNotBlank()) { "插件包包含空路径" }
+    require(!path.startsWith("/")) { "插件包包含绝对路径: $rawPath" }
+    require(!WINDOWS_DRIVE_PATH.matches(path)) { "插件包包含 Windows 盘符路径: $rawPath" }
+    val segments = path.split('/')
+    require(segments.none { it == ".." }) { "插件包包含路径穿越: $rawPath" }
+    require(segments.none { it.isBlank() || it == "." }) { "插件包包含非法路径: $rawPath" }
+    return segments.joinToString("/")
+}
+
+internal fun requireSafePluginId(id: String): String {
+    require(SAFE_PLUGIN_ID.matches(id)) { "插件 ID 只能包含字母、数字、点、下划线和连字符: $id" }
+    return id
+}
+
+private val WINDOWS_DRIVE_PATH = Regex("^[A-Za-z]:.*")
+private val SAFE_PLUGIN_ID = Regex("[A-Za-z0-9._-]+")

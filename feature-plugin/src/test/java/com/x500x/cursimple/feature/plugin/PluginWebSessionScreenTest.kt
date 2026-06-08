@@ -7,6 +7,7 @@ import com.x500x.cursimple.core.plugin.web.WebNetworkPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
+import android.webkit.WebSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -407,6 +408,12 @@ class PluginWebSessionScreenTest {
         assertEquals("Mozilla Test", normalizePluginUserAgent(" Mozilla\r\nTest "))
         assertEquals(null, normalizePluginUserAgent(""))
         assertEquals(null, normalizePluginUserAgent("x".repeat(513)))
+    }
+
+    @Test
+    fun `plugin browser rejects mixed http content`() {
+        assertEquals(WebSettings.MIXED_CONTENT_NEVER_ALLOW, pluginMixedContentMode())
+        assertFalse(pluginMixedContentMode() == WebSettings.MIXED_CONTENT_ALWAYS_ALLOW)
     }
 
     private fun webRequest(
