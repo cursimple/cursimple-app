@@ -90,6 +90,32 @@ class PluginComponentInstallerTest {
         assertTrue((result as PluginComponentInstallResult.Failure).reason.message.contains("ABI 不兼容"))
     }
 
+    @Test
+    fun `installer rejects unlisted payload files when manifest files is explicit`() = runBlocking {
+        val installer = PluginComponentInstaller(
+            componentRoot = temporaryFolder.newFolder("extra-file-components"),
+            repository = FakeComponentRepository(),
+            supportedAbis = listOf("arm64-v8a"),
+        )
+        val payload = "model".toByteArray()
+        val result = installer.installLocalPackage(
+            componentZip(
+                manifest = componentManifest(
+                    sha256 = sha256(payload),
+                    files = listOf("models/model.onnx"),
+                ),
+                files = mapOf(
+                    "models/model.onnx" to payload,
+                    "models/unlisted.onnx" to "extra".toByteArray(),
+                ),
+            ),
+        )
+
+        assertTrue(result is PluginComponentInstallResult.Failure)
+        assertTrue((result as PluginComponentInstallResult.Failure).reason.message.contains("未声明文件"))
+        assertTrue(result.reason.message.contains("models/unlisted.onnx"))
+    }
+
     private fun componentManifest(
         sha256: String,
         abi: String = "arm64-v8a",
