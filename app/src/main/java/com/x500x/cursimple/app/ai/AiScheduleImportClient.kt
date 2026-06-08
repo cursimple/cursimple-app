@@ -26,6 +26,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
+import java.net.URI
 import java.security.MessageDigest
 import java.time.Duration
 
@@ -627,7 +628,9 @@ private val AI_VERSION_SEGMENT = Regex("/v\\d+$", RegexOption.IGNORE_CASE)
 internal fun normalizeAiEndpoint(rawUrl: String): String {
     val trimmedRaw = rawUrl.trim().trimEnd('/')
     if (trimmedRaw.isEmpty()) return trimmedRaw
-    val trimmed = if (trimmedRaw.contains("://")) trimmedRaw else "https://$trimmedRaw"
+    val trimmed = requireHttpsAiEndpoint(
+        if (trimmedRaw.contains("://")) trimmedRaw else "https://$trimmedRaw",
+    )
     val schemeEnd = trimmed.indexOf("://") + 3
     val pathStart = trimmed.indexOf('/', startIndex = schemeEnd)
     val lowerPath = if (pathStart >= 0) trimmed.substring(pathStart).lowercase() else ""
@@ -635,4 +638,10 @@ internal fun normalizeAiEndpoint(rawUrl: String): String {
     if (lowerPath.isEmpty() || lowerPath == "/") return "$trimmed/v1/chat/completions"
     if (AI_VERSION_SEGMENT.containsMatchIn(lowerPath)) return "$trimmed/chat/completions"
     return "$trimmed/v1/chat/completions"
+}
+
+internal fun requireHttpsAiEndpoint(url: String): String {
+    val scheme = runCatching { URI(url).scheme?.lowercase() }.getOrNull()
+    require(scheme == "https") { "AI API URL 必须使用 HTTPS，不能使用明文 HTTP" }
+    return url
 }

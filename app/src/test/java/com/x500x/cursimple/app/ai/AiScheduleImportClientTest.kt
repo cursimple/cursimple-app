@@ -142,6 +142,24 @@ class AiScheduleImportClientTest {
         assertEquals(TimeUnit.SECONDS.toMillis(600), client.writeTimeoutMillis.toLong())
     }
 
+    @Test
+    fun `normalizes ai endpoint to https when scheme is omitted`() {
+        assertEquals(
+            "https://api.example.com/v1/chat/completions",
+            normalizeAiEndpoint("api.example.com"),
+        )
+    }
+
+    @Test
+    fun `rejects cleartext ai endpoint`() {
+        val error = runCatching {
+            normalizeAiEndpoint("http://api.example.com/v1/chat/completions")
+        }.exceptionOrNull()
+
+        assertTrue(error is IllegalArgumentException)
+        assertTrue(error!!.message!!.contains("HTTPS"))
+    }
+
     private fun quoteJson(value: String): String =
         buildString {
             append('"')

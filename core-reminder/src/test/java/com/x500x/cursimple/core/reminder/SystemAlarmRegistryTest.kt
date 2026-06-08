@@ -24,8 +24,10 @@ import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
+import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderRule
+import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
@@ -362,6 +364,86 @@ class SystemAlarmRegistryTest {
         assertEquals(90, record.repeatIntervalSeconds)
         assertEquals(3, record.repeatCount)
         assertEquals(AlarmAlertMode.VibrateOnly, dispatcher.lastPlan?.alertMode)
+    }
+
+    @Test
+    fun `first course rule creates alarm during window sync`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleFirstCourseRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.SystemClockApp) },
+            systemDispatcher = dispatcher,
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+
+        val summary = coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile, nowMillis),
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+
+        val record = repository.records.value.single()
+        assertEquals(1, summary.createdCount)
+        assertEquals(1, dispatcher.dispatchCount)
+        assertEquals("first-course", record.ruleId)
+        assertEquals("math", record.courseId)
+        assertTrue(record.displayTitle.orEmpty().contains("上午首次课"))
+    }
+
+    @Test
+    fun `first course rule edit removes stale alarm records`() = runBlocking {
+        val initialRule = sampleFirstCourseRule()
+        val repository = FakeReminderRepository(
+            rules = listOf(initialRule),
+        )
+        val dispatcher = FakeAlarmDispatcher(succeeded = true)
+        val dismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.SystemClockApp) },
+            systemDispatcher = dispatcher,
+            systemDismisser = dismisser,
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+        val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
+
+        coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+        repository.saveReminderRule(
+            initialRule.copy(
+                mutedNodeRanges = listOf(ReminderNodeRange(1, 2)),
+                updatedAt = "2026-02-23T07:10:00+08:00",
+            ),
+        )
+
+        val summary = coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.ScheduleChanged,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(1, summary.dismissedCount)
+        assertEquals(1, dismisser.dismissCount)
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
     }
 
     @Test
@@ -1057,6 +1139,17 @@ class SystemAlarmRegistryTest {
         pluginId = "demo",
         scopeType = ReminderScopeType.SingleCourse,
         courseId = "math",
+        advanceMinutes = 15,
+        createdAt = "2026-02-23T00:00:00+08:00",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+    )
+
+    private fun sampleFirstCourseRule(): ReminderRule = ReminderRule(
+        ruleId = "first-course",
+        pluginId = "demo",
+        scopeType = ReminderScopeType.FirstCourseOfPeriod,
+        displayName = "上午首次课提醒",
+        period = ReminderDayPeriod.Morning,
         advanceMinutes = 15,
         createdAt = "2026-02-23T00:00:00+08:00",
         updatedAt = "2026-02-23T00:00:00+08:00",

@@ -53,6 +53,7 @@ internal object ReminderDataSource {
         val schedule = scheduleRepository.scheduleFlow.first()
         val manualCourses = manualCourseRepository.manualCoursesFlow.first()
         val rules = reminderRepository.reminderRulesFlow.first().filter { it.enabled }
+        val customOccupancies = reminderRepository.customOccupanciesFlow.first()
         val alarmRecords = reminderRepository.systemAlarmRecordsFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
@@ -72,6 +73,7 @@ internal object ReminderDataSource {
                     timingProfile = timingProfile,
                     fromDate = today,
                     temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+                    customOccupancies = customOccupancies,
                 )
             }.getOrDefault(emptyList())
                 .filter { it.triggerAtMillis >= now }

@@ -6,6 +6,7 @@ import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.install.PluginInstaller
 import com.x500x.cursimple.core.plugin.install.PluginRegistryRepository
 import com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled
+import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.storage.PluginFileStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -181,6 +182,145 @@ class PluginInstallerPackageTest {
     }
 
     @Test
+    fun `package rejects empty checksum manifest`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("empty-checksum-plugins")),
+        )
+        val packageBytes = pluginZip { it.clear() }
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("摘要不能为空"))
+    }
+
+    @Test
+    fun `package rejects partial checksum coverage`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("partial-checksum-plugins")),
+        )
+        val packageBytes = pluginZip { it.remove("main.js") }
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("覆盖不完整"))
+        assertTrue(result.message.contains("main.js"))
+    }
+
+    @Test
+    fun `package rejects checksum path not present in zip`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("unknown-checksum-plugins")),
+        )
+        val packageBytes = pluginZip { it["missing.js"] = "0".repeat(64) }
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("不存在"))
+    }
+
+    @Test
+    fun `package rejects invalid checksum digest format`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("invalid-digest-plugins")),
+        )
+        val packageBytes = pluginZip { it["main.js"] = "abc" }
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("格式无效"))
+    }
+
+    @Test
+    fun `package rejects unsupported checksum algorithm`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("unsupported-algorithm-plugins")),
+        )
+        val packageBytes = pluginZip(checksumAlgorithm = "MD5")
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("只支持 SHA-256"))
+    }
+
+    @Test
+    fun `package rejects path traversal plugin id`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("traversal-id-plugins")),
+        )
+        val packageBytes = pluginZip(id = "../evil")
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("插件 ID"))
+    }
+
+    @Test
+    fun `package rejects slash containing plugin id`() = runBlocking {
+        val installer = PluginInstaller(
+            registryRepository = FakePluginRegistryRepository(),
+            fileStore = PluginFileStore(temporaryFolder.newFolder("slash-id-plugins")),
+        )
+        val packageBytes = pluginZip(id = "edu/demo")
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Failure)
+        assertTrue((result as PluginInstallResult.Failure).message.contains("插件 ID"))
+    }
+
+    @Test
+    fun `installer stores normalized windows entry path`() = runBlocking {
+        val repository = FakePluginRegistryRepository()
+        val fileStore = PluginFileStore(temporaryFolder.newFolder("windows-entry-plugins"))
+        val installer = PluginInstaller(
+            registryRepository = repository,
+            fileStore = fileStore,
+        )
+        val packageBytes = pluginZip(entry = "scripts\\main.js", entryFilePath = "scripts/main.js")
+
+        val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
+
+        assertTrue(result is PluginInstallResult.Success)
+        val record = (result as PluginInstallResult.Success).record
+        assertEquals("scripts/main.js", record.entry)
+        assertTrue(fileStore.loadEntryScript(record).contains("ctx.schedule.commit"))
+    }
+
+    @Test
+    fun `file store rejects package paths outside target directory`() {
+        val fileStore = PluginFileStore(temporaryFolder.newFolder("path-safe-plugins"))
+        val manifest = PluginManifest(
+            id = "edu.demo",
+            name = "Demo",
+            version = "1.0.0",
+            versionCode = 1,
+            entry = "main.js",
+        )
+
+        val error = runCatching {
+            fileStore.writeLayout(
+                manifest = manifest,
+                layout = PluginPackageLayout(mapOf("../escape.txt" to "bad".toByteArray())),
+                source = PluginInstallSource.Local,
+            )
+        }.exceptionOrNull()
+
+        assertTrue(error?.message.orEmpty().contains("路径穿越"))
+    }
+
+    @Test
     fun `local and remote packages with same id remain separate installs`() = runBlocking {
         val repository = FakePluginRegistryRepository()
         val installer = PluginInstaller(
@@ -217,42 +357,54 @@ class PluginInstallerPackageTest {
         assertFalse(isPluginInstallEnabled(remote, setOf("edu.demo"), installed))
     }
 
-    private fun pluginZip(corruptChecksum: Boolean = false): ByteArray {
+    private fun pluginZip(
+        id: String = "edu.demo",
+        entry: String = "main.js",
+        entryFilePath: String = entry.replace('\\', '/'),
+        corruptChecksum: Boolean = false,
+        checksumAlgorithm: String = "SHA-256",
+        mutateChecksums: (MutableMap<String, String>) -> Unit = {},
+    ): ByteArray {
         val mainScript = "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }"
         val files = linkedMapOf(
-            "manifest.json" to manifestJson(),
-            "main.js" to mainScript,
+            "manifest.json" to manifestJson(id = id, entry = entry),
+            entryFilePath to mainScript,
         )
         val checksumEntries = files.mapValues { (_, content) -> sha256(content.toByteArray()) }.toMutableMap()
         if (corruptChecksum) {
-            checksumEntries["main.js"] = "0".repeat(64)
+            checksumEntries[entryFilePath] = "0".repeat(64)
         }
+        mutateChecksums(checksumEntries)
         val filesWithMetadata = files + mapOf(
-            "checksums.json" to checksumsJson(checksumEntries),
+            "checksums.json" to checksumsJson(checksumEntries, checksumAlgorithm),
         )
         return zipBytes(filesWithMetadata)
     }
 
-    private fun manifestJson(): String {
+    private fun manifestJson(id: String = "edu.demo", entry: String = "main.js"): String {
         return """
             {
-              "id": "edu.demo",
+              "id": "${id.escapeJson()}",
               "name": "Demo",
               "version": "1.0.0",
               "versionCode": 1,
-              "entry": "main.js",
+              "entry": "${entry.escapeJson()}",
               "permissions": ["schedule.write"]
             }
         """.trimIndent()
     }
 
-    private fun checksumsJson(files: Map<String, String>): String {
+    private fun String.escapeJson(): String {
+        return replace("\\", "\\\\").replace("\"", "\\\"")
+    }
+
+    private fun checksumsJson(files: Map<String, String>, algorithm: String = "SHA-256"): String {
         val entries = files.entries.joinToString(",\n") { (path, checksum) ->
             """    "$path": "$checksum""""
         }
         return """
             {
-              "algorithm": "SHA-256",
+              "algorithm": "$algorithm",
               "files": {
             $entries
               }

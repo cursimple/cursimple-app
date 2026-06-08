@@ -6,6 +6,8 @@ import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
+import com.x500x.cursimple.core.plugin.packageformat.normalizePluginPackagePath
+import com.x500x.cursimple.core.plugin.packageformat.requireSafePluginId
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -24,15 +26,21 @@ class PluginFileStore(
     }
 
     fun writeLayout(manifest: PluginManifest, layout: PluginPackageLayout, source: PluginInstallSource): File {
+        val root = rootDir.canonicalFile
+        root.mkdirs()
+        val pluginId = requireSafePluginId(manifest.id)
         val sourceTag = source.name.lowercase()
-        val targetDir = File(rootDir, "${manifest.id}-${manifest.versionCode}-$sourceTag").apply {
-            if (exists()) {
-                deleteRecursively()
-            }
-            mkdirs()
+        val targetDir = File(root, "$pluginId-${manifest.versionCode}-$sourceTag").canonicalFile
+        requireContained(root, targetDir)
+        if (targetDir.exists()) {
+            requireContained(root, targetDir)
+            targetDir.deleteRecursively()
         }
+        targetDir.mkdirs()
         layout.files.forEach { (path, bytes) ->
-            val target = File(targetDir, path)
+            val normalizedPath = normalizePluginPackagePath(path)
+            val target = File(targetDir, normalizedPath).canonicalFile
+            requireContained(targetDir, target)
             target.parentFile?.mkdirs()
             target.writeBytes(bytes)
         }
@@ -68,4 +76,11 @@ class PluginFileStore(
         return File(record.storagePath, relativePath).readText()
     }
 
+    private fun requireContained(root: File, target: File) {
+        val rootPath = root.canonicalFile.path
+        val targetPath = target.canonicalFile.path
+        require(targetPath == rootPath || targetPath.startsWith(rootPath + File.separator)) {
+            "插件文件路径越界: $targetPath"
+        }
+    }
 }
