@@ -57,7 +57,7 @@ class WebDavClient(
 
     fun download(config: WebDavConfig, href: String): ByteArray {
         require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
-        val url = href.toAbsoluteAgainst(config.url.directoryUrl())
+        val url = requireHttpsWebDavUrl(href.toAbsoluteAgainst(config.url.directoryUrl()))
         return runWebDav {
             webDav(config).get(url).use { stream ->
                 stream.readBytes()
@@ -108,11 +108,7 @@ class WebDavClient(
         )
     }
 
-    private fun String.directoryUrl(): String = trim().ifBlank {
-        error("WebDAV URL 不能为空")
-    }.let { value ->
-        if (value.endsWith("/")) value else "$value/"
-    }
+    private fun String.directoryUrl(): String = normalizeSecureWebDavDirectoryUrl(this)
 
     private fun String.resolveDirectory(child: String): String = directoryUrl() + child.toPathSegment() + "/"
 
@@ -164,4 +160,18 @@ class WebDavClient(
         const val HTTP_NOT_FOUND = 404
         const val HTTP_METHOD_NOT_ALLOWED = 405
     }
+}
+
+internal fun normalizeSecureWebDavDirectoryUrl(rawUrl: String): String {
+    val trimmedRaw = rawUrl.trim().ifBlank { error("WebDAV URL 不能为空") }
+    val url = requireHttpsWebDavUrl(
+        if (trimmedRaw.contains("://")) trimmedRaw else "https://$trimmedRaw",
+    )
+    return if (url.endsWith("/")) url else "$url/"
+}
+
+internal fun requireHttpsWebDavUrl(url: String): String {
+    val scheme = runCatching { URI(url).scheme?.lowercase() }.getOrNull()
+    require(scheme == "https") { "WebDAV URL 必须使用 HTTPS，不能使用明文 HTTP" }
+    return url
 }

@@ -93,7 +93,7 @@ fun ComponentMarketScreen(
                     )
                 }
             } else {
-                items(uiState.knownComponents, key = { it.id }) { entry ->
+                items(uiState.knownComponents, key = { componentMarketEntryKey(it) }) { entry ->
                     KnownComponentCard(
                         entry = entry,
                         isLoading = uiState.isLoading,
@@ -344,6 +344,14 @@ private fun EmptyStateCard(
 
 private fun installedComponentKey(component: InstalledPluginComponentRecord): String =
     "${component.id}:${component.source.name}"
+
+internal fun componentMarketEntryKey(entry: ComponentMarketEntry): String =
+    listOf(
+        entry.id,
+        entry.version,
+        entry.abi ?: "any",
+        entry.downloadUrl.orEmpty(),
+    ).joinToString(":")
 
 private fun componentTypeLabel(type: PluginComponentType): String = when (type) {
     PluginComponentType.EngineChromium -> "Chromium 引擎"

@@ -1173,7 +1173,7 @@ private fun WebView.applyPluginBrowserSettings(request: WebSessionRequest, userA
     settings.defaultTextEncodingName = "UTF-8"
     settings.textZoom = 100
     settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+    settings.mixedContentMode = pluginMixedContentMode()
     userAgent.takeIf(String::isNotBlank)?.let { settings.userAgentString = it }
     isVerticalScrollBarEnabled = true
     isHorizontalScrollBarEnabled = true
@@ -1182,6 +1182,8 @@ private fun WebView.applyPluginBrowserSettings(request: WebSessionRequest, userA
     CookieManager.getInstance().setAcceptCookie(true)
     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 }
+
+internal fun pluginMixedContentMode(): Int = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
 private class PluginWebSessionBridge(
     private val request: WebSessionRequest,

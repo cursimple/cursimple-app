@@ -17,6 +17,14 @@ data class PluginPackageLayout(
         return json.decodeFromString(readText(MANIFEST_FILE))
     }
 
+    fun decodeValidatedManifest(json: Json): PluginManifest {
+        val manifest = decodeManifest(json)
+        requireSafePluginId(manifest.id)
+        val normalizedEntry = normalizePluginPackagePath(manifest.entry)
+        require(normalizedEntry in files) { "插件包缺少入口文件: ${manifest.entry}" }
+        return manifest.copy(entry = normalizedEntry)
+    }
+
     fun decodeChecksums(json: Json): PluginChecksums {
         return json.decodeFromString(readText(CHECKSUMS_FILE))
     }
@@ -24,5 +32,6 @@ data class PluginPackageLayout(
     companion object {
         const val MANIFEST_FILE = "manifest.json"
         const val CHECKSUMS_FILE = "checksums.json"
+        const val SIGNATURE_FILE = "signature.json"
     }
 }
