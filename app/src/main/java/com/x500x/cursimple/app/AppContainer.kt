@@ -259,12 +259,13 @@ class AppContainer(
         if (schedule != null && timingProfile != null) {
             userPreferencesRepository.markAlarmPollAt(System.currentTimeMillis())
             val window = when (reason) {
-                ReminderSyncReason.DailyNextDay -> ReminderSyncWindows.nextDay(timingProfile)
-            ReminderSyncReason.AfterClassToday,
-            ReminderSyncReason.RuleCreatedToday,
-            ReminderSyncReason.ScheduleChanged,
-            ReminderSyncReason.WidgetRefresh,
-            ReminderSyncReason.AlarmRuntime -> ReminderSyncWindows.todayFromNow(timingProfile)
+                ReminderSyncReason.DailyNextDay,
+                ReminderSyncReason.WorkerBackgroundSync -> ReminderSyncWindows.nextDay(timingProfile)
+                ReminderSyncReason.AfterClassToday,
+                ReminderSyncReason.RuleCreatedToday,
+                ReminderSyncReason.ScheduleChanged,
+                ReminderSyncReason.WidgetRefresh,
+                ReminderSyncReason.AlarmRuntime -> ReminderSyncWindows.todayFromNow(timingProfile)
             }
             reminderCoordinator.syncAlarmsForWindow(
                 pluginId = pluginId,
@@ -360,9 +361,57 @@ class AppContainer(
     suspend fun ensureAlarmRuntimeHealth() {
         awaitBootstrap()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+
+        // App 启动时主动巡检并重建失效的闹钟
+        performStartupAlarmHealthCheck()
+
         scheduleSystemAlarmChecks(timingProfile)
         ScheduleWidgetWorkScheduler.schedule(app)
         logAlarmRuntimeHealth()
+    }
+
+    /**
+     * App 启动时主动巡检闹钟注册状态
+     *
+     * 验证现有闹钟注册状态，如有失效则立即重建。
+     * 这是防止 App 被系统清理后闹钟失效的关键机制。
+     */
+    private suspend fun performStartupAlarmHealthCheck() {
+        try {
+            ReminderLogger.info(
+                "reminder.startup.health_check.begin",
+                emptyMap(),
+            )
+
+            // 1. 重建所有失效的 App 自管闹钟
+            val recreateSummary = reminderCoordinator.recreateAppManagedAlarmsFromRegistry()
+
+            // 2. 如果有重建失败的闹钟，记录警告
+            if (recreateSummary.registryWriteFailedCount > 0) {
+                ReminderLogger.warn(
+                    "reminder.startup.health_check.registry_write_failed",
+                    mapOf(
+                        "failedCount" to recreateSummary.registryWriteFailedCount,
+                    ),
+                )
+            }
+
+            ReminderLogger.info(
+                "reminder.startup.health_check.finish",
+                mapOf(
+                    "submittedCount" to recreateSummary.submittedCount,
+                    "createdCount" to recreateSummary.createdCount,
+                    "failedCount" to recreateSummary.failedCount,
+                    "registryWriteFailedCount" to recreateSummary.registryWriteFailedCount,
+                ),
+            )
+        } catch (e: Exception) {
+            ReminderLogger.warn(
+                "reminder.startup.health_check.failure",
+                emptyMap(),
+                e,
+            )
+        }
     }
 
     suspend fun runAlarmFollowUpSync(
