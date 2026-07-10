@@ -261,7 +261,15 @@ class AlarmRingingService : Service() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             alarmActivityOptions(),
         )
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+
+        // Android 16+ 实时通知状态文本
+        val liveStatusText = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            "🔔 闹钟正在响铃..."
+        } else {
+            null
+        }
+
+        val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle(alarm.title.ifBlank { "课程提醒" })
             .setContentText(alarm.message.ifBlank { "课程即将开始" })
@@ -274,7 +282,15 @@ class AlarmRingingService : Service() {
             .setFullScreenIntent(fullScreenIntent, true)
             .addAction(0, "停止", stopIntent)
             .addAction(0, "延后 5 分钟", snoozeIntent)
-            .build()
+
+        // Android 16+ 实时通知更新支持
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            notificationBuilder.setRequestPromotedOngoing(true)
+            liveStatusText?.let { notificationBuilder.setShortCriticalText(it) }
+        }
+
+        val notification = notificationBuilder.build()
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
