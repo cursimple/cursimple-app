@@ -333,6 +333,7 @@ enum class ReminderSyncReason {
     ScheduleChanged,
     WidgetRefresh,
     AlarmRuntime,
+    WorkerBackgroundSync,
 }
 
 @Serializable

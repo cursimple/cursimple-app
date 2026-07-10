@@ -2,6 +2,7 @@ package com.x500x.cursimple.app
 
 import android.app.Application
 import android.os.Build
+import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
 import com.x500x.cursimple.app.util.AppDiagnosticsFileSink
 import com.x500x.cursimple.app.util.AppDiagnosticsLogger
 import com.x500x.cursimple.app.util.LogCleanupScheduler
@@ -43,6 +44,11 @@ class ClassScheduleApplication : Application() {
         appContainer = AppContainer(this)
         ScheduleWidgetWorkScheduler.schedule(this)
         LogCleanupScheduler.schedule(this)
+
+        // 调度闹钟同步 WorkManager 任务
+        AlarmSyncScheduler.schedulePeriodicSync(this)
+        AlarmSyncScheduler.scheduleDailyGuard(this)
+
         appScope.launch {
             appContainer.bootstrapJob.join()
             appContainer.scheduleSystemAlarmChecks()
