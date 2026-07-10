@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,9 +52,12 @@ import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -79,6 +83,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -1061,6 +1066,58 @@ private fun PermissionsSection(
         PackageManager.PERMISSION_GRANTED
     val installPackagesEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
         context.packageManager.canRequestPackageInstalls()
+
+    // 计算权限健康状态
+    val alarmPermissionsOk = exactAlarmEnabled && notificationEnabled && fullScreenIntentEnabled && batteryOptimizationIgnored
+    val missingAlarmPermissions = buildList {
+        if (!notificationEnabled) add("通知权限")
+        if (!exactAlarmEnabled) add("精确闹钟权限")
+        if (!fullScreenIntentEnabled) add("全屏响铃权限")
+        if (!batteryOptimizationIgnored) add("后台运行权限")
+    }
+
+    // 权限健康状态警告卡片
+    if (!alarmPermissionsOk) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "⚠️ 闹钟可能不响",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "以下权限未开启，可能导致课程提醒无法正常触发：",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                missingAlarmPermissions.forEach { permission ->
+                    Text(
+                        text = "• $permission",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+        }
+    }
 
     SettingsSectionHeader("授权")
     SettingsActionRow(
