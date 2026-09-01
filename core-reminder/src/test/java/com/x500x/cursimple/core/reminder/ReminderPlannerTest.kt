@@ -786,6 +786,59 @@ class ReminderPlannerTest {
         assertEquals(true, plans.any { it.message.startsWith("9月7日") })
     }
 
+    @Test
+    fun expandRulesSkipsLegacyScopeTypes() {
+        val legacyRules = listOf(
+            ReminderScopeType.SingleCourse,
+            ReminderScopeType.TimeSlot,
+            ReminderScopeType.Exam,
+        ).map { scope ->
+            ReminderRule(
+                ruleId = "legacy-${scope.name}",
+                pluginId = "demo",
+                scopeType = scope,
+                courseId = "math",
+                dayOfWeek = 1,
+                startNode = 1,
+                endNode = 2,
+                advanceMinutes = 15,
+                createdAt = "2026-02-23T00:00:00+08:00",
+                updatedAt = "2026-02-23T00:00:00+08:00",
+            )
+        }
+
+        val plans = planner.expandRules(
+            rules = legacyRules,
+            schedule = labelSchedule(),
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(emptyList<String>(), plans.map { it.planId })
+    }
+
+    @Test
+    fun expandRulesStillHandlesSyncableRulesAlongsideLegacyRules() {
+        val legacy = ReminderRule(
+            ruleId = "legacy-single",
+            pluginId = "demo",
+            scopeType = ReminderScopeType.SingleCourse,
+            courseId = "math",
+            advanceMinutes = 15,
+            createdAt = "2026-02-23T00:00:00+08:00",
+            updatedAt = "2026-02-23T00:00:00+08:00",
+        )
+
+        val plans = planner.expandRules(
+            rules = listOf(legacy, labelRule()),
+            schedule = labelSchedule(),
+            timingProfile = labelProfile(),
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+
+        assertEquals(listOf("label-rule"), plans.map { it.ruleId }.distinct())
+    }
+
     private fun preTermSchedule(weeks: List<Int>): TermSchedule = TermSchedule(
         termId = "2026-autumn",
         updatedAt = "2026-09-01T00:00:00+08:00",

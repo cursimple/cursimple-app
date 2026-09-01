@@ -185,4 +185,101 @@ class UserPreferencesTest {
         assertEquals(3, InterruptionFilterValues.NONE)
         assertEquals(4, InterruptionFilterValues.ALARMS)
     }
+
+    @Test
+    fun `backup export drops credential keys and keeps everything else`() {
+        val entries = listOf(
+            stringEntry("ai_import_api_key", "sk-secret"),
+            stringEntry("ai_import_api_url", "https://api.example.com/v1"),
+            stringEntry("ai_import_model", "demo-model"),
+            stringEntry("theme_mode", "Dark"),
+            stringEntry("webdav_password", "hunter2"),
+            stringEntry("webdav_url", DEFAULT_WEBDAV_URL),
+            stringEntry("webdav_username", "student@example.com"),
+        )
+
+        val exported = excludeBackupEntries(entries, USER_PREFERENCES_CREDENTIAL_KEYS)
+
+        assertEquals(
+            listOf(
+                "ai_import_api_url",
+                "ai_import_model",
+                "theme_mode",
+                "webdav_url",
+                "webdav_username",
+            ),
+            exported.map { it.name },
+        )
+        assertEquals("Dark", exported.first { it.name == "theme_mode" }.stringValue)
+        assertEquals("student@example.com", exported.first { it.name == "webdav_username" }.stringValue)
+    }
+
+    @Test
+    fun `restoring a legacy backup ignores its credentials and keeps the local ones`() {
+        val legacyBackup = listOf(
+            stringEntry("theme_mode", "Dark"),
+            stringEntry("webdav_password", "old-device-password"),
+            stringEntry("ai_import_api_key", "sk-old-device"),
+        )
+        val local = listOf(
+            stringEntry("theme_mode", "Light"),
+            stringEntry("webdav_password", "this-device-password"),
+            stringEntry("ai_import_api_key", "sk-this-device"),
+        )
+
+        val restored = mergeRestoredBackupEntries(legacyBackup, local, USER_PREFERENCES_CREDENTIAL_KEYS)
+
+        assertEquals("Dark", restored.first { it.name == "theme_mode" }.stringValue)
+        assertEquals("this-device-password", restored.first { it.name == "webdav_password" }.stringValue)
+        assertEquals("sk-this-device", restored.first { it.name == "ai_import_api_key" }.stringValue)
+        assertEquals(1, restored.count { it.name == "webdav_password" })
+        assertEquals(1, restored.count { it.name == "ai_import_api_key" })
+    }
+
+    @Test
+    fun `restoring a credential free backup keeps the local credentials`() {
+        val backup = listOf(
+            stringEntry("theme_mode", "Dark"),
+            stringEntry("webdav_url", DEFAULT_WEBDAV_URL),
+        )
+        val local = listOf(
+            stringEntry("webdav_password", "this-device-password"),
+            stringEntry("ai_import_api_key", "sk-this-device"),
+        )
+
+        val restored = mergeRestoredBackupEntries(backup, local, USER_PREFERENCES_CREDENTIAL_KEYS)
+
+        assertEquals("this-device-password", restored.first { it.name == "webdav_password" }.stringValue)
+        assertEquals("sk-this-device", restored.first { it.name == "ai_import_api_key" }.stringValue)
+        assertEquals(DEFAULT_WEBDAV_URL, restored.first { it.name == "webdav_url" }.stringValue)
+    }
+
+    @Test
+    fun `restoring without local credentials leaves them unset`() {
+        val backup = listOf(
+            stringEntry("theme_mode", "Dark"),
+            stringEntry("webdav_password", "old-device-password"),
+        )
+
+        val restored = mergeRestoredBackupEntries(backup, emptyList(), USER_PREFERENCES_CREDENTIAL_KEYS)
+
+        assertEquals(listOf("theme_mode"), restored.map { it.name })
+    }
+
+    @Test
+    fun `stores without preserved keys restore the backup unchanged`() {
+        val backup = listOf(
+            stringEntry("schedule_json", "{}"),
+            stringEntry("username", "20250001"),
+        )
+
+        assertEquals(backup, mergeRestoredBackupEntries(backup, emptyList(), emptySet()))
+        assertEquals(backup, excludeBackupEntries(backup, emptySet()))
+    }
+
+    private fun stringEntry(name: String, value: String) = PreferencesBackupEntry(
+        name = name,
+        type = PreferencesBackupValueType.String,
+        stringValue = value,
+    )
 }

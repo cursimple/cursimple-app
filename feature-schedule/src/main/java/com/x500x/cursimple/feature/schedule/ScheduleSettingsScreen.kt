@@ -74,6 +74,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
+import com.x500x.cursimple.core.reminder.model.isLegacy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -238,6 +239,11 @@ fun ScheduleSettingsScreen(
             CourseReminderCard(
                 rules = state.reminderRules.filter { it.isCourseReminderRule() },
                 onSetRuleEnabled = onSetRuleEnabled,
+                onRemoveRule = onRemoveRule,
+            )
+
+            LegacyReminderRuleCard(
+                rules = legacyReminderRules(state.reminderRules),
                 onRemoveRule = onRemoveRule,
             )
 
@@ -668,6 +674,48 @@ private fun CourseReminderCard(
                 Switch(checked = rule.enabled, onCheckedChange = { onSetRuleEnabled(rule.ruleId, it) })
                 IconButton(onClick = { onRemoveRule(rule.ruleId) }) {
                     Icon(Icons.Rounded.Delete, contentDescription = "删除提醒")
+                }
+            }
+        }
+    }
+}
+
+/** 旧版本写入、当前引擎不再展开的规则，列出来供用户确认和删除。 */
+internal fun legacyReminderRules(rules: List<ReminderRule>): List<ReminderRule> =
+    rules.filter { it.scopeType.isLegacy() }
+
+internal fun legacyReminderRuleLabel(rule: ReminderRule): String =
+    rule.displayName?.takeIf { it.isNotBlank() } ?: when (rule.scopeType) {
+        ReminderScopeType.SingleCourse -> "单课提醒（旧版）"
+        ReminderScopeType.TimeSlot -> "时间段提醒（旧版）"
+        ReminderScopeType.Exam -> "考试提醒（旧版）"
+        ReminderScopeType.FirstCourseOfPeriod, ReminderScopeType.LabelRule -> "提醒规则"
+    }
+
+@Composable
+private fun LegacyReminderRuleCard(
+    rules: List<ReminderRule>,
+    onRemoveRule: (String) -> Unit,
+) {
+    if (rules.isEmpty()) return
+    CardSurface {
+        HeaderRow(
+            icon = Icons.Rounded.Warning,
+            title = "失效规则",
+            subtitle = "旧版本留下的 ${rules.size} 条规则不会再触发提醒，删除后可用新规则重建",
+        )
+        rules.forEach { rule ->
+            SurfaceRow {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(legacyReminderRuleLabel(rule), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "提前 ${rule.advanceMinutes} 分钟 · 已停止触发",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                IconButton(onClick = { onRemoveRule(rule.ruleId) }) {
+                    Icon(Icons.Rounded.Delete, contentDescription = "删除失效规则")
                 }
             }
         }

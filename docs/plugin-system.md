@@ -59,7 +59,7 @@ models/
 }
 ```
 
-安装器会拒绝绝对路径、`..` 路径穿越、Windows 盘符路径、重复规范化路径、缺失 `manifest.json`、缺失入口文件、文件数过多或解压体积过大的包。安装预检和正式安装都会读取 `checksums.json`，并校验其中列出的文件摘要；插件包不再要求或校验 `signature.json`。
+安装器会拒绝绝对路径、`..` 路径穿越、Windows 盘符路径、重复规范化路径、缺失 `manifest.json`、缺失入口文件、文件数过多或解压体积过大的包。安装预检和正式安装都会读取 `checksums.json`，并校验其中列出的文件摘要，要求 `checksums.json` 精确覆盖包内全部非元数据文件。`signature.json` 不是必需的：包内没有该文件时照常安装，有则对 `checksums.json` 验签，解析失败或验签不通过会拒绝安装。签名只说明包内容前后一致，公钥随包分发，不构成来源可信的依据。
 
 `startUrl` 可声明带路径或端口的 WebView 起始地址；未声明时宿主才会使用第一个 `allowedHosts` 拼出默认 `https://host`。`userAgent` 仍保留兼容，但推荐插件在 JS 中调用 `await ctx.web.setUserAgent(ua)`，让入口脚本按学校站点状态自行决定 UA；设置成功后，同一 WebView 后续导航和页面内请求共享该 UA。
 

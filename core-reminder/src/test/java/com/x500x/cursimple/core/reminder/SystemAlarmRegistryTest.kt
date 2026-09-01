@@ -1180,45 +1180,6 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
-    fun `muting exam reminder does not dismiss independent single exam reminder`() = runBlocking {
-        val examRule = ReminderRule(
-            ruleId = "exam-rule",
-            pluginId = "demo",
-            scopeType = ReminderScopeType.Exam,
-            advanceMinutes = 40,
-            createdAt = "2026-02-23T00:00:00+08:00",
-            updatedAt = "2026-02-23T00:00:00+08:00",
-        )
-        val singleRule = sampleSingleCourseRule().copy(ruleId = "single-rule", courseId = "future-exam")
-        val examRecord = sampleRecord(triggerAtMillis = futureMillis()).copy(
-            alarmKey = "exam-alarm",
-            ruleId = "exam-rule",
-            courseId = "future-exam",
-        )
-        val singleRecord = sampleRecord(triggerAtMillis = futureMillis() + 60_000).copy(
-            alarmKey = "single-alarm",
-            ruleId = "single-rule",
-            courseId = "future-exam",
-        )
-        val repository = FakeReminderRepository(rules = listOf(examRule, singleRule)).apply {
-            records.value = listOf(examRecord, singleRecord)
-        }
-        val dismisser = FakeAlarmDismisser(succeeded = true)
-        val coordinator = ReminderCoordinator(
-            context = ContextWrapper(null),
-            repository = repository,
-            systemDismisser = dismisser,
-        )
-
-        coordinator.setExamReminderMuted(pluginId = "demo", courseId = "future-exam", muted = true)
-
-        val updatedExamRule = repository.getReminderRules().first { it.ruleId == "exam-rule" }
-        assertEquals(listOf("future-exam"), updatedExamRule.mutedCourseIds)
-        assertEquals(listOf(singleRecord), repository.records.value)
-        assertEquals(1, dismisser.dismissCount)
-    }
-
-    @Test
     fun `system clock dispatch fails when app cannot start an activity`() = runBlocking {
         val dispatcher = SystemAlarmClockDispatcher(
             context = ContextWrapper(null),

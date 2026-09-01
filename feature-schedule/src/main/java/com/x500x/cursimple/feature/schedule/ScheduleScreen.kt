@@ -11,7 +11,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -82,7 +81,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -115,11 +113,9 @@ import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
-import com.x500x.cursimple.core.kernel.model.weekIndexLabel
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.time.BeijingTime
-import com.x500x.cursimple.core.plugin.ui.BannerContribution
 import com.x500x.cursimple.core.data.note.CourseNoteIndex
 import com.x500x.cursimple.core.plugin.ui.CourseBadgeRule
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
@@ -144,7 +140,6 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import kotlin.math.max
@@ -187,16 +182,6 @@ fun ScheduleRoute(
         overrideTermStart = overrideTermStart,
         viewMode = viewMode,
         dayOffset = dayOffset,
-        onUsernameChange = viewModel::onUsernameChange,
-        onPasswordChange = viewModel::onPasswordChange,
-        onPluginIdChange = viewModel::onPluginIdChange,
-        onTermIdChange = viewModel::onTermIdChange,
-        onBaseUrlChange = viewModel::onBaseUrlChange,
-        onSyncClick = viewModel::syncSchedule,
-        onSelectCourse = viewModel::selectCourse,
-        onSelectTimeSlot = viewModel::selectTimeSlot,
-        onClearSelection = viewModel::clearSelection,
-        onCreateReminder = viewModel::createReminderForSelection,
         onCreateCourseReminder = viewModel::createReminderForCourse,
         onMuteExamReminder = viewModel::muteExamReminder,
         onRestoreExamReminder = viewModel::restoreExamReminder,
@@ -228,16 +213,6 @@ fun ScheduleRoute(
 @Composable
 fun ScheduleScreen(
     state: ScheduleUiState,
-    onUsernameChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onPluginIdChange: (String) -> Unit,
-    onTermIdChange: (String) -> Unit,
-    onBaseUrlChange: (String) -> Unit,
-    onSyncClick: () -> Unit,
-    onSelectCourse: (String) -> Unit,
-    onSelectTimeSlot: (Int, Int) -> Unit,
-    onClearSelection: () -> Unit,
-    onCreateReminder: (Int, String?) -> Unit,
     onCreateCourseReminder: (String, Int, String?) -> Unit,
     onMuteExamReminder: (String) -> Unit,
     onRestoreExamReminder: (String) -> Unit,
@@ -270,19 +245,12 @@ fun ScheduleScreen(
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
 ) {
-    var showSyncSettings by rememberSaveable { mutableStateOf(state.schedule == null) }
-    var advanceMinutesText by rememberSaveable { mutableStateOf("20") }
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
     val zone = LocalAppZone.current
-    val horizontalScrollState = rememberScrollState()
-    val scrollState = rememberScrollState()
-    val selectedCourse = remember(state.selectionState, state.schedule) {
-        selectedCourseFromState(state.selectionState, state.schedule)
-    }
 
     Box(
         modifier = modifier
@@ -327,7 +295,6 @@ fun ScheduleScreen(
                         maxWeekOffset = maxWeekOffset,
                         overrideTermStart = overrideTermStart,
                         zone = zone,
-                        horizontalScrollState = horizontalScrollState,
                         selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                         multiSelectMode = multiSelectMode,
                         multiSelectedIds = selectedIds,
@@ -683,373 +650,6 @@ fun ScheduleAppearancePreview(
     }
 }
 
-@Composable
-private fun ScheduleHeroSection(
-    week: WeekModel,
-    schedule: TermSchedule?,
-    hasPlugins: Boolean,
-    selectedCourseTitle: String?,
-    statusMessage: String?,
-    onPreviousWeek: () -> Unit,
-    onNextWeek: () -> Unit,
-    onResetWeek: () -> Unit,
-) {
-    val today = LocalAppZone.current.today()
-    val formatter = remember { DateTimeFormatter.ofPattern("yyyy/M/d") }
-    val weekdayLabel = chineseWeekday(today.dayOfWeek)
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top,
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = formatter.format(today),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = "${weekIndexLabel(week.weekIndex)}  $weekdayLabel",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                WeekNavigator(
-                    onPreviousWeek = onPreviousWeek,
-                    onNextWeek = onNextWeek,
-                    onResetWeek = onResetWeek,
-                )
-            }
-
-            Text(
-                text = statusMessage ?: when {
-                    !selectedCourseTitle.isNullOrBlank() -> "已选中 $selectedCourseTitle，去设置页创建提醒。"
-                    schedule == null && !hasPlugins -> "还没有课表数据，先去插件页安装学校插件。"
-                    schedule == null -> "还没有课表数据，去插件页的当前插件卡片里同步课表。"
-                    else -> "这里现在只保留课表内容，点课程块后可去设置页创建提醒。"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun WeekNavigator(
-    onPreviousWeek: () -> Unit,
-    onNextWeek: () -> Unit,
-    onResetWeek: () -> Unit,
-) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        MiniActionButton(label = "上周", onClick = onPreviousWeek)
-        MiniActionButton(label = "本周", onClick = onResetWeek)
-        MiniActionButton(label = "下周", onClick = onNextWeek)
-    }
-}
-
-@Composable
-private fun MiniActionButton(
-    label: String,
-    onClick: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelLarge,
-        )
-    }
-}
-
-@Composable
-private fun EmptyPluginCard(
-    onOpenPluginMarket: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text("还没有可用插件", style = MaterialTheme.typography.titleLarge)
-            Text(
-                "课表同步依赖插件工作流，先去插件页安装或导入一个学校插件。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Button(onClick = onOpenPluginMarket) {
-                Text("打开插件页")
-            }
-        }
-    }
-}
-
-@Composable
-private fun PluginSelectorCard(
-    plugins: List<com.x500x.cursimple.core.plugin.install.InstalledPluginRecord>,
-    selectedPluginId: String,
-    onPluginIdChange: (String) -> Unit,
-    onOpenPluginMarket: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text("已安装插件", style = MaterialTheme.typography.titleLarge)
-                TextButton(onClick = onOpenPluginMarket) {
-                    Text("管理插件")
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                plugins.forEach { plugin ->
-                    SelectablePill(
-                        title = plugin.name,
-                        subtitle = "${plugin.version} · ${plugin.source.name.lowercase()}",
-                        selected = plugin.installKey == selectedPluginId || plugin.pluginId == selectedPluginId,
-                        onClick = { onPluginIdChange(plugin.installKey) },
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SelectablePill(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val containerColor = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(containerColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Text(title, color = contentColor, fontWeight = FontWeight.SemiBold)
-        Text(subtitle, color = contentColor.copy(alpha = 0.75f), style = MaterialTheme.typography.labelMedium)
-    }
-}
-
-@Composable
-private fun SyncEntryCard(
-    showSyncSettings: Boolean,
-    username: String,
-    termId: String,
-    pluginId: String,
-    isSyncing: Boolean,
-    onToggle: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("同步设置", style = MaterialTheme.typography.titleLarge)
-                Text(
-                    text = buildList {
-                        add(if (username.isBlank()) "未填写账号" else username)
-                        add(if (pluginId.isBlank()) "未选插件" else pluginId)
-                        add(termId)
-                    }.joinToString(" · "),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Button(
-                onClick = onToggle,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-            ) {
-                Text(if (isSyncing) "同步中" else if (showSyncSettings) "收起" else "展开")
-            }
-        }
-    }
-}
-
-@Composable
-internal fun SyncSettingsCard(
-    baseUrl: String,
-    termId: String,
-    username: String,
-    password: String,
-    isSyncing: Boolean,
-    onBaseUrlChange: (String) -> Unit,
-    onTermIdChange: (String) -> Unit,
-    onUsernameChange: (String) -> Unit,
-    onPasswordChange: (String) -> Unit,
-    onSyncClick: () -> Unit,
-    onOpenPluginMarket: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = onBaseUrlChange,
-                label = { Text("教务系统 URL") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = termId,
-                onValueChange = onTermIdChange,
-                label = { Text("学期 ID") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = username,
-                onValueChange = onUsernameChange,
-                label = { Text("学号 / 账号") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = password,
-                onValueChange = onPasswordChange,
-                label = { Text("密码") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = onSyncClick,
-                    enabled = !isSyncing,
-                ) {
-                    Text(if (isSyncing) "同步中..." else "同步课表")
-                }
-                TextButton(onClick = onOpenPluginMarket) {
-                    Text("去插件页")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PluginBannerSection(uiSchema: PluginUiSchema) {
-    if (uiSchema.banners.isEmpty()) {
-        return
-    }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        uiSchema.banners.forEach { banner ->
-            BannerCard(banner)
-        }
-    }
-}
-
-@Composable
-private fun BannerCard(banner: BannerContribution) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(banner.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                banner.message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun MessageCard(
-    title: String,
-    lines: List<String>,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            lines.forEach {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun WeeklyScheduleSection(
@@ -1064,7 +664,6 @@ private fun WeeklyScheduleSection(
     maxWeekOffset: Int,
     overrideTermStart: LocalDate?,
     zone: java.time.ZoneId,
-    horizontalScrollState: androidx.compose.foundation.ScrollState,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
@@ -1248,7 +847,6 @@ private fun WeeklyScheduleSection(
                                 scheduleBackground = scheduleBackground,
                                 scheduleDisplay = scheduleDisplay,
                                 customColorsAdaptToTheme = customColorsAdaptToTheme,
-                                horizontalScrollState = horizontalScrollState,
                                 selectedCourseId = selectedCourseId,
                                 multiSelectMode = multiSelectMode,
                                 multiSelectedIds = multiSelectedIds,
@@ -2026,7 +1624,6 @@ private fun ScheduleGrid(
     scheduleBackground: ScheduleBackgroundPreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
-    horizontalScrollState: androidx.compose.foundation.ScrollState,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
@@ -2741,72 +2338,6 @@ private fun CourseBlock(
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(10.dp),
                 )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun ReminderComposerCard(
-    selectedCourse: CourseItem?,
-    selectionState: ScheduleSelectionState,
-    advanceMinutesText: String,
-    ringtoneUri: String?,
-    onAdvanceMinutesChange: (String) -> Unit,
-    onUseDefaultRingtone: () -> Unit,
-    onPickSystemRingtone: () -> Unit,
-    onPickLocalAudio: () -> Unit,
-    onCreateReminder: () -> Unit,
-    onSelectSameSlot: () -> Unit,
-    onClearSelection: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("创建提醒", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = when (selectionState) {
-                    is ScheduleSelectionState.SingleCourse -> selectedCourse?.let { course ->
-                        "${course.title} · 第 ${course.time.startNode}-${course.time.endNode} 节 · ${course.location.ifBlank { "待定教室" }}"
-                    } ?: "单课提醒"
-
-                    is ScheduleSelectionState.TimeSlot -> "同节次提醒：第 ${selectionState.startNode}-${selectionState.endNode} 节"
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (selectionState is ScheduleSelectionState.SingleCourse && selectedCourse != null) {
-                TextButton(onClick = onSelectSameSlot) {
-                    Text("改为同节次提醒")
-                }
-            }
-            OutlinedTextField(
-                value = advanceMinutesText,
-                onValueChange = onAdvanceMinutesChange,
-                label = { Text("提前分钟数") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            AlarmRingtoneSelector(
-                ringtoneUri = ringtoneUri,
-                onUseDefault = onUseDefaultRingtone,
-                onPickSystem = onPickSystemRingtone,
-                onPickLocal = onPickLocalAudio,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(onClick = onCreateReminder) {
-                    Text("保存提醒")
-                }
-                TextButton(onClick = onClearSelection) {
-                    Text("取消")
-                }
             }
         }
     }
@@ -4535,16 +4066,6 @@ internal fun toggleCellSelection(
     val cellIds = coursesAtCell.map { it.id }.toSet()
     if (cellIds.isEmpty()) return selectedIds
     return if (cellIds.all { it in selectedIds }) selectedIds - cellIds else selectedIds + cellIds
-}
-
-internal fun selectedCourseFromState(
-    selectionState: ScheduleSelectionState?,
-    schedule: TermSchedule?,
-): CourseItem? {
-    val singleCourseId = (selectionState as? ScheduleSelectionState.SingleCourse)?.courseId ?: return null
-    return schedule?.dailySchedules.orEmpty()
-        .flatMap { it.courses }
-        .firstOrNull { it.id == singleCourseId }
 }
 
 internal fun CourseItem.isActiveInWeek(weekNumber: Int): Boolean =

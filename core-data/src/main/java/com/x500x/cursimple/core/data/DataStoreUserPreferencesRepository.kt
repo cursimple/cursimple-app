@@ -563,13 +563,16 @@ class DataStoreUserPreferencesRepository(
     }
 
     suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
-        store.exportSnapshot(AppBackupStores.USER_PREFERENCES)
+        store.exportSnapshot(
+            storeName = AppBackupStores.USER_PREFERENCES,
+            excludedKeyNames = USER_PREFERENCES_CREDENTIAL_KEYS,
+        )
 
     suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
         val before = store.data.first()
         val previousImageUri = before[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
         val previousAlarmRingtoneUri = before[KEY_ALARM_RINGTONE_URI]
-        store.restoreSnapshot(snapshot)
+        store.restoreSnapshot(snapshot, preservedKeyNames = USER_PREFERENCES_CREDENTIAL_KEYS)
         val restored = store.data.first()
         val privateFilesProviderEnabled = restored[KEY_PRIVATE_FILES_PROVIDER_ENABLED] ?: false
         mirrorPrivateFilesProviderEnabled(privateFilesProviderEnabled)
@@ -916,9 +919,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_PRIVATE_FILES_PROVIDER_ENABLED = booleanPreferencesKey("private_files_provider_enabled")
         val KEY_WEBDAV_URL = stringPreferencesKey("webdav_url")
         val KEY_WEBDAV_USERNAME = stringPreferencesKey("webdav_username")
-        val KEY_WEBDAV_PASSWORD = stringPreferencesKey("webdav_password")
+        val KEY_WEBDAV_PASSWORD = stringPreferencesKey(WEBDAV_PASSWORD_PREFERENCE_KEY)
         val KEY_AI_IMPORT_API_URL = stringPreferencesKey("ai_import_api_url")
-        val KEY_AI_IMPORT_API_KEY = stringPreferencesKey("ai_import_api_key")
+        val KEY_AI_IMPORT_API_KEY = stringPreferencesKey(AI_IMPORT_API_KEY_PREFERENCE_KEY)
         val KEY_AI_IMPORT_MODEL = stringPreferencesKey("ai_import_model")
         val KEY_AI_IMPORT_TIMEOUT_SECONDS = intPreferencesKey("ai_import_timeout_seconds")
 

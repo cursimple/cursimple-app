@@ -645,6 +645,11 @@ fun ImportExportScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
+                    Text(
+                        text = "备份不含 WebDAV 密码与 AI 接口密钥，恢复后这两项仍是本机当前填写的值。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             },
             confirmButton = {
@@ -926,7 +931,7 @@ private fun WebDavPanel(
             }
             Text(
                 text = if (configured) {
-                    "同步范围包含课表数据、学期、提醒、插件记录与用户设置。远端目录：cursimple/backups。已加载 $backupCount 个备份。"
+                    "同步范围包含课表数据、学期、提醒、插件记录与用户设置。为避免密码上传到网盘，备份不含 WebDAV 密码与 AI 接口密钥，换机后需要重新填写。远端目录：cursimple/backups。已加载 $backupCount 个备份。"
                 } else {
                     "请先在设置页配置 WebDAV URL、账号和密码。"
                 },
