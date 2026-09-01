@@ -34,6 +34,8 @@ interface WidgetPreferencesRepository {
 
     val timingProfileFlow: Flow<TermTimingProfile?>
 
+    val timingProfileManuallyEditedFlow: Flow<Boolean>
+
     val themePreferencesFlow: Flow<WidgetThemePreferences>
 
     suspend fun setWidgetDay(day: WidgetDay)
@@ -53,6 +55,10 @@ interface WidgetPreferencesRepository {
     suspend fun clearWidgetDayOffset(appWidgetId: Int)
 
     suspend fun saveTimingProfile(profile: TermTimingProfile?)
+
+    suspend fun saveManualTimingProfile(profile: TermTimingProfile)
+
+    suspend fun clearManualTimingProfileFlag()
 
     suspend fun setWidgetThemeAccent(accent: ThemeAccent)
 
