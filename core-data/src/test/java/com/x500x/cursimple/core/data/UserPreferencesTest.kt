@@ -130,6 +130,23 @@ class UserPreferencesTest {
     }
 
     @Test
+    fun `restoring the same media uri keeps its persisted read permission`() {
+        val uri = "content://media/external/images/media/42"
+
+        assertEquals(false, shouldReleasePersistedUriPermission(uri, uri))
+        assertEquals(false, shouldReleasePersistedUriPermission(null, uri))
+        assertEquals(false, shouldReleasePersistedUriPermission("", uri))
+    }
+
+    @Test
+    fun `restoring a different or absent media uri releases the previous permission`() {
+        val previous = "content://media/external/images/media/42"
+
+        assertEquals(true, shouldReleasePersistedUriPermission(previous, "content://media/external/images/media/7"))
+        assertEquals(true, shouldReleasePersistedUriPermission(previous, null))
+    }
+
+    @Test
     fun `ai import timeout clamps unsafe values`() {
         assertEquals(MIN_AI_IMPORT_TIMEOUT_SECONDS, coerceAiImportTimeoutSeconds(0))
         assertEquals(120, coerceAiImportTimeoutSeconds(120))

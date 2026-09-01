@@ -513,18 +513,20 @@ class DataStoreUserPreferencesRepository(
         store.exportSnapshot(AppBackupStores.USER_PREFERENCES)
 
     suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
-        var previousImageUri: String? = null
-        var previousAlarmRingtoneUri: String? = null
-        store.edit { prefs ->
-            previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
-            previousAlarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]
-        }
+        val before = store.data.first()
+        val previousImageUri = before[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
+        val previousAlarmRingtoneUri = before[KEY_ALARM_RINGTONE_URI]
         store.restoreSnapshot(snapshot)
-        val privateFilesProviderEnabled = store.data.first()[KEY_PRIVATE_FILES_PROVIDER_ENABLED] ?: false
+        val restored = store.data.first()
+        val privateFilesProviderEnabled = restored[KEY_PRIVATE_FILES_PROVIDER_ENABLED] ?: false
         mirrorPrivateFilesProviderEnabled(privateFilesProviderEnabled)
         notifyPrivateFilesProviderRootsChanged()
-        releasePersistedReadPermission(previousImageUri)
-        releasePersistedReadPermission(previousAlarmRingtoneUri)
+        if (shouldReleasePersistedUriPermission(previousImageUri, restored[KEY_SCHEDULE_BACKGROUND_IMAGE_URI])) {
+            releasePersistedReadPermission(previousImageUri)
+        }
+        if (shouldReleasePersistedUriPermission(previousAlarmRingtoneUri, restored[KEY_ALARM_RINGTONE_URI])) {
+            releasePersistedReadPermission(previousAlarmRingtoneUri)
+        }
     }
 
     override suspend fun seedEnabledPlugins(pluginKeys: Set<String>) {

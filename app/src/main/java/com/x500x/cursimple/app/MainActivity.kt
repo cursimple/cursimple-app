@@ -99,6 +99,7 @@ import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.kernel.model.weekIndexLabel
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModel
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModelFactory
@@ -123,7 +124,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
-import kotlin.math.max
+import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
+import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
 class MainActivity : ComponentActivity() {
 
@@ -328,6 +330,18 @@ class MainActivity : ComponentActivity() {
                         pendingLocalAudioResult = onPicked
                         localAudioLauncher.launch(arrayOf("audio/*"))
                     }
+                    // 课表域的成功与失败反馈统一走 Snackbar；同步完成另有专门提示，此处跳过
+                    var lastShownStatusMessage by remember { mutableStateOf<String?>(null) }
+                    androidx.compose.runtime.LaunchedEffect(scheduleState.statusMessage) {
+                        val message = scheduleState.statusMessage
+                        if (message != null &&
+                            message != lastShownStatusMessage &&
+                            message != "同步完成，已更新课表"
+                        ) {
+                            lastShownStatusMessage = message
+                            snackbarHostState.showSnackbar(message)
+                        }
+                    }
                     androidx.compose.runtime.LaunchedEffect(
                         scheduleState.isSyncing,
                         scheduleState.pendingWebSession,
@@ -368,19 +382,14 @@ class MainActivity : ComponentActivity() {
                     val today = remember(prefs.debugForcedDateTime, appZone) {
                         prefs.debugForcedDateTime?.toLocalDate() ?: LocalDate.now(appZone)
                     }
-                    val currentWeekIndex = effectiveTermStart?.let { start ->
-                        val termStartMonday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                        val todayMonday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                        max(1, ChronoUnit.WEEKS.between(termStartMonday, todayMonday).toInt() + 1)
-                    } ?: 1
-                    val dayWeekIndex = effectiveTermStart?.let { start ->
-                        val termStartMonday = start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                        val targetMonday = today.plusDays(dayOffset.toLong())
-                            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                        max(1, ChronoUnit.WEEKS.between(termStartMonday, targetMonday).toInt() + 1)
-                    } ?: 1
+                    // 周次小于 1 表示尚未开学；未设置开学日期时回退到第 1 周。
+                    val currentWeekIndex = resolveWeekIndexForDate(effectiveTermStart, today)
+                    val dayWeekIndex = resolveWeekIndexForDate(
+                        effectiveTermStart,
+                        today.plusDays(dayOffset.toLong()),
+                    )
                     val displayedWeekIndex = when (scheduleViewMode) {
-                        ScheduleViewMode.Week -> (currentWeekIndex + weekOffset).coerceAtLeast(1)
+                        ScheduleViewMode.Week -> currentWeekIndex + weekOffset
                         ScheduleViewMode.Day -> dayWeekIndex
                     }
                     val weekPickerTotalWeeks = remember(
@@ -427,7 +436,9 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.clickable { showWeekMenu = true },
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
-                                                val isCurrentWeek = displayedWeekIndex == currentWeekIndex
+                                                // 尚未开学时不存在“当前周”，底色与徽章都不应出现
+                                                val isCurrentWeek =
+                                                    displayedWeekIndex == currentWeekIndex && currentWeekIndex >= 1
                                                 Surface(
                                                     color = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
                                                     else androidx.compose.ui.graphics.Color.Transparent,
@@ -441,7 +452,7 @@ class MainActivity : ComponentActivity() {
                                                         ),
                                                     ) {
                                                         Text(
-                                                            text = "第 $displayedWeekIndex 周",
+                                                            text = weekIndexLabel(displayedWeekIndex),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontWeight = FontWeight.SemiBold,
                                                             color = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
@@ -634,7 +645,8 @@ class MainActivity : ComponentActivity() {
                                         viewModel = scheduleViewModel,
                                         overrideTermStart = prefs.termStartDate,
                                         weekOffset = weekOffset,
-                                        minWeekOffset = 1 - currentWeekIndex,
+                                        // 开学前最早只翻到当前这个未开学的周，开学后最早翻到第 1 周。
+                                        minWeekOffset = (1 - currentWeekIndex).coerceAtMost(0),
                                         maxWeekOffset = weekPickerTotalWeeks - currentWeekIndex,
                                         onPrevWeek = { weekOffset -= 1 },
                                         onNextWeek = { weekOffset += 1 },
@@ -906,6 +918,11 @@ class MainActivity : ComponentActivity() {
                                 ),
                                 aiImportClient = aiImportClient,
                                 onApplyImport = scheduleViewModel::applyImportedSchedule,
+                                onApplyTermStartDate = { date ->
+                                    setActiveTermStartDate(date)
+                                    weekOffset = 0
+                                    dayOffset = 0
+                                },
                                 onCreateAppBackup = container::exportAppBackup,
                                 onRestoreAppBackup = container::restoreAppBackup,
                                 onOpenWebDavSettings = {
@@ -1197,7 +1214,11 @@ private fun AppDrawer(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = if (termStartDate != null) "当前 第 $currentWeekIndex 周" else "未设置开学日期",
+                text = when {
+                    termStartDate == null -> "未设置开学日期"
+                    currentWeekIndex >= 1 -> "当前 第 $currentWeekIndex 周"
+                    else -> "尚未开学 · 距第 1 周还有 ${1 - currentWeekIndex} 周"
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1299,10 +1320,7 @@ private fun TermStartDatePicker(
     showHint: Boolean = false,
 ) {
     val zone = LocalAppZone.current
-    val initialMillis = (initial ?: LocalDate.now(zone))
-        .atStartOfDay(zone)
-        .toInstant()
-        .toEpochMilli()
+    val initialMillis = (initial ?: LocalDate.now(zone)).toDatePickerMillis()
     val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -1310,10 +1328,7 @@ private fun TermStartDatePicker(
             TextButton(
                 onClick = {
                     state.selectedDateMillis?.let { millis ->
-                        val date = Instant.ofEpochMilli(millis)
-                            .atZone(zone)
-                            .toLocalDate()
-                        onConfirm(date)
+                        onConfirm(datePickerMillisToLocalDate(millis))
                     }
                 },
             ) { Text("确定") }
@@ -1360,10 +1375,7 @@ private fun TermStartDatePicker(
                 )
             },
             headline = {
-                val zoneLocal = LocalAppZone.current
-                val selectedDate = state.selectedDateMillis?.let { millis ->
-                    Instant.ofEpochMilli(millis).atZone(zoneLocal).toLocalDate()
-                }
+                val selectedDate = state.selectedDateMillis?.let(::datePickerMillisToLocalDate)
                 val fmt = DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日")
                 Text(
                     text = selectedDate?.let { "开学日期：${fmt.format(it)}" } ?: "选择第 1 周的周一",
