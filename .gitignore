@@ -13,3 +13,7 @@ captures/
 .DS_Store
 
 /.claude
+.gradle-home/
+.android-home/
+.kotlin/
+
