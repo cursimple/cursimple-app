@@ -19,9 +19,10 @@ class PluginPackageReader(
                     val normalizedPath = normalizePluginPackagePath(entry.name)
                     require(normalizedPath !in files) { "插件包包含重复文件: $normalizedPath" }
                     require(files.size < maxFileCount) { "插件包文件数量超过限制: $maxFileCount" }
-                    val content = zip.readBytes()
+                    val content = requireNotNull(zip.readAtMostBytes(maxUncompressedBytes - totalBytes)) {
+                        "插件包解压后体积超过限制: $maxUncompressedBytes"
+                    }
                     totalBytes += content.size.toLong()
-                    require(totalBytes <= maxUncompressedBytes) { "插件包解压后体积超过限制: $maxUncompressedBytes" }
                     files[normalizedPath] = content
                 }
                 zip.closeEntry()

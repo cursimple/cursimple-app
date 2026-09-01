@@ -151,6 +151,23 @@ class AiScheduleImportClientTest {
     }
 
     @Test
+    fun `downsamples oversized camera images before decoding`() {
+        assertEquals(4, aiImageSampleSize(width = 12000, height = 9000, maxSide = 1800))
+        assertEquals(16, aiImageSampleSize(width = 4000, height = 30000, maxSide = 1800))
+    }
+
+    @Test
+    fun `keeps full resolution for images within the target side`() {
+        assertEquals(1, aiImageSampleSize(width = 1600, height = 1200, maxSide = 1800))
+        assertEquals(1, aiImageSampleSize(width = 3000, height = 2000, maxSide = 1800))
+    }
+
+    @Test
+    fun `falls back to full resolution when image bounds are unknown`() {
+        assertEquals(1, aiImageSampleSize(width = -1, height = -1, maxSide = 1800))
+    }
+
+    @Test
     fun `rejects cleartext ai endpoint`() {
         val error = runCatching {
             normalizeAiEndpoint("http://api.example.com/v1/chat/completions")

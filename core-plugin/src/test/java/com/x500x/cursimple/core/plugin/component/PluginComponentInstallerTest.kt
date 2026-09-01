@@ -116,6 +116,29 @@ class PluginComponentInstallerTest {
         assertTrue(result.reason.message.contains("models/unlisted.onnx"))
     }
 
+    @Test
+    fun `installer rejects oversized component entry while streaming`() = runBlocking {
+        val installer = PluginComponentInstaller(
+            componentRoot = temporaryFolder.newFolder("oversized-components"),
+            repository = FakeComponentRepository(),
+            supportedAbis = listOf("arm64-v8a"),
+            maxUncompressedBytes = 4096L,
+        )
+        val payload = ByteArray(8 * 1024 * 1024)
+        val result = installer.installLocalPackage(
+            componentZip(
+                manifest = componentManifest(
+                    sha256 = sha256(payload),
+                    files = listOf("models/model.onnx"),
+                ),
+                files = mapOf("models/model.onnx" to payload),
+            ),
+        )
+
+        assertTrue(result is PluginComponentInstallResult.Failure)
+        assertTrue((result as PluginComponentInstallResult.Failure).reason.message.contains("解压后体积超过限制"))
+    }
+
     private fun componentManifest(
         sha256: String,
         abi: String = "arm64-v8a",
