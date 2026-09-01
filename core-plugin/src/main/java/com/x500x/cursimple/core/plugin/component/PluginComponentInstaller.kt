@@ -1,6 +1,7 @@
 package com.x500x.cursimple.core.plugin.component
 
 import android.os.Build
+import com.x500x.cursimple.core.plugin.packageformat.readAtMostBytes
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -131,9 +132,10 @@ class PluginComponentInstaller(
                     val normalized = normalizePackagePath(entry.name)
                     require(normalized !in files) { "组件包包含重复文件: $normalized" }
                     require(files.size < maxFileCount) { "组件包文件数量超过限制: $maxFileCount" }
-                    val content = zip.readBytes()
+                    val content = requireNotNull(zip.readAtMostBytes(maxUncompressedBytes - totalBytes)) {
+                        "组件包解压后体积超过限制: $maxUncompressedBytes"
+                    }
                     totalBytes += content.size.toLong()
-                    require(totalBytes <= maxUncompressedBytes) { "组件包解压后体积超过限制: $maxUncompressedBytes" }
                     files[normalized] = content
                 }
                 zip.closeEntry()

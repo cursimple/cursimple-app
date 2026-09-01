@@ -1343,7 +1343,7 @@ private fun componentRequirementText(component: PluginComponentRequirement): Str
 }
 
 private fun Context.readContentBytes(uri: Uri): ByteArray {
-    return contentResolver.openInputStream(uri)?.use { it.readBytes() }
+    return contentResolver.openInputStream(uri)?.use { it.readLocalPackageBytes() }
         ?: error("无法读取文件内容")
 }
 

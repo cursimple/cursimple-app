@@ -117,9 +117,17 @@ class AiScheduleImportClient(
     }
 
     private fun Context.imageDataUrl(uri: Uri): String {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri).use { stream ->
+            requireNotNull(stream) { "无法打开图片" }
+            BitmapFactory.decodeStream(stream, null, bounds)
+        }
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = aiImageSampleSize(bounds.outWidth, bounds.outHeight, MAX_IMAGE_SIDE)
+        }
         val bitmap = contentResolver.openInputStream(uri).use { stream ->
             requireNotNull(stream) { "无法打开图片" }
-            BitmapFactory.decodeStream(stream)
+            BitmapFactory.decodeStream(stream, null, decodeOptions)
         } ?: error("图片格式不支持")
         val scaled = bitmap.scaleDown(MAX_IMAGE_SIDE)
         val bytes = ByteArrayOutputStream().use { output ->
@@ -638,6 +646,18 @@ internal fun normalizeAiEndpoint(rawUrl: String): String {
     if (lowerPath.isEmpty() || lowerPath == "/") return "$trimmed/v1/chat/completions"
     if (AI_VERSION_SEGMENT.containsMatchIn(lowerPath)) return "$trimmed/chat/completions"
     return "$trimmed/v1/chat/completions"
+}
+
+// 解码前按原图尺寸算出 BitmapFactory 的降采样倍率，长边超过 maxSide 两倍时逐级折半
+internal fun aiImageSampleSize(width: Int, height: Int, maxSide: Int): Int {
+    if (width <= 0 || height <= 0 || maxSide <= 0) return 1
+    var side = width.coerceAtLeast(height)
+    var sampleSize = 1
+    while (side / 2 >= maxSide) {
+        side /= 2
+        sampleSize *= 2
+    }
+    return sampleSize
 }
 
 internal fun requireHttpsAiEndpoint(url: String): String {

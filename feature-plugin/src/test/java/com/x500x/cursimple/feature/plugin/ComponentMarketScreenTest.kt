@@ -32,6 +32,25 @@ class ComponentMarketScreenTest {
         )
     }
 
+    @Test
+    fun `duplicate market entries are collapsed before rendering`() {
+        val arm64 = marketEntry(
+            version = "1.0.0",
+            abi = "arm64-v8a",
+            downloadUrl = "https://example.com/runtime-arm64.zip",
+        )
+        val x64 = marketEntry(
+            version = "1.0.0",
+            abi = "x86_64",
+            downloadUrl = "https://example.com/runtime-x64.zip",
+        )
+
+        val distinct = distinctMarketEntries(listOf(arm64, x64, arm64.copy()))
+
+        assertEquals(listOf(arm64, x64), distinct)
+        assertEquals(distinct.size, distinct.map(::componentMarketEntryKey).toSet().size)
+    }
+
     private fun marketEntry(
         version: String,
         abi: String,
