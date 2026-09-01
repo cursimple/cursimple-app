@@ -304,4 +304,21 @@ class AppUpdateSelectionTest {
         sha256 = "0".repeat(64),
         downloadUrl = "https://github.com/cursimple/cursimple-app/releases/download/v1/cursimple-$abi.apk",
     )
+
+    @Test
+    fun `a manifest without a version code cannot be called up to date`() {
+        assertNotNull(updateManifestVersionProblem(versionCode = -1, versionName = "1.2.0"))
+        assertNotNull(updateManifestVersionProblem(versionCode = 0, versionName = "1.2.0"))
+    }
+
+    @Test
+    fun `a manifest without a version name is rejected`() {
+        assertNotNull(updateManifestVersionProblem(versionCode = 42, versionName = ""))
+        assertNotNull(updateManifestVersionProblem(versionCode = 42, versionName = "   "))
+    }
+
+    @Test
+    fun `a complete manifest reports no problem`() {
+        assertNull(updateManifestVersionProblem(versionCode = 42, versionName = "1.2.0"))
+    }
 }

@@ -8,6 +8,7 @@ import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.widget.Toast
 import android.media.AudioAttributes
 import android.media.Ringtone
 import android.media.RingtoneManager
@@ -205,12 +206,27 @@ class AlarmRingingService : Service() {
                         "message" to result.message,
                     ),
                 )
+                // 延后没排上时界面表现与成功完全一致，必须告诉用户闹钟不会再响
+                if (snooze && !result.snoozeCreated) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            applicationContext,
+                            "延后失败，闹钟不会再响：${result.message}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
             }.onFailure { error ->
                 ReminderLogger.warn(
                     "reminder.app_alarm_clock.ringing.finish.failure",
                     mapOf("alarmKey" to alarm.alarmKey, "ruleId" to alarm.ruleId, "snooze" to snooze),
                     error,
                 )
+                if (snooze) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(applicationContext, "延后失败，闹钟不会再响", Toast.LENGTH_LONG).show()
+                    }
+                }
             }
         }
     }

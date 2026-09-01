@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.plugin
 
+import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Refresh
@@ -45,9 +46,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,7 +76,7 @@ fun PluginLogScreen(
     var sourceFilter by rememberSaveable { mutableStateOf<PluginLogSource?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
     var pinnedTraceId by rememberSaveable { mutableStateOf<String?>(null) }
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -97,13 +98,16 @@ fun PluginLogScreen(
                 title = { Text("插件日志") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
                     IconButton(onClick = {
-                        clipboard.setText(AnnotatedString(filtered.joinToString("\n") { it.toJsonLine() }))
-                        Toast.makeText(context, "已复制 ${filtered.size} 条到剪贴板", Toast.LENGTH_SHORT).show()
+                        val lines = filtered.joinToString("\n") { it.toJsonLine() }
+                        coroutineScope.launch {
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("插件日志", lines)))
+                            Toast.makeText(context, "已复制 ${filtered.size} 条到剪贴板", Toast.LENGTH_SHORT).show()
+                        }
                     }) {
                         Icon(Icons.Rounded.ContentCopy, contentDescription = "复制全部")
                     }
@@ -161,8 +165,10 @@ fun PluginLogScreen(
                             entry = entry,
                             onPinTrace = { entry.traceId?.let { pinnedTraceId = it } },
                             onCopy = {
-                                clipboard.setText(AnnotatedString(entry.toJsonLine()))
-                                Toast.makeText(context, "已复制该条日志", Toast.LENGTH_SHORT).show()
+                                coroutineScope.launch {
+                                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("插件日志", entry.toJsonLine())))
+                                    Toast.makeText(context, "已复制该条日志", Toast.LENGTH_SHORT).show()
+                                }
                             },
                         )
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

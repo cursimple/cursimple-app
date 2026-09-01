@@ -21,7 +21,12 @@ data class TermTimingProfile(
     @SerialName("timezone") val timezone: String = "",
 )
 
-fun TermTimingProfile.termStartLocalDate(): LocalDate = LocalDate.parse(termStartDate)
+/**
+ * 开学日期为空或无法解析时返回 null。
+ * 节次时间表可以在还没有开学日期时保存，调用方必须自行处理这一状态。
+ */
+fun TermTimingProfile.termStartLocalDate(): LocalDate? =
+    termStartDate.takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
 fun ClassSlotTime.startLocalTime(): LocalTime = LocalTime.parse(startTime)
 
