@@ -106,11 +106,14 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import com.x500x.cursimple.core.kernel.model.cancelsCourseOn
 import com.x500x.cursimple.core.kernel.model.findSlot
+import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.isTemporaryScheduleOverridden
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
+import com.x500x.cursimple.core.kernel.model.weekIndexLabel
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -139,7 +142,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import kotlin.math.max
@@ -268,10 +270,6 @@ fun ScheduleScreen(
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
     val zone = LocalAppZone.current
-    val displayedWeek = remember(state.timingProfile, weekOffset, overrideTermStart, zone, temporaryScheduleOverrides) {
-        buildWeekModel(weekOffset, overrideTermStart, zone, temporaryScheduleOverrides)
-    }
-    val visibleWeekNumber = displayedWeek.weekIndex
     val horizontalScrollState = rememberScrollState()
     val scrollState = rememberScrollState()
     val selectedCourse = remember(state.selectionState, state.schedule) {
@@ -293,9 +291,9 @@ fun ScheduleScreen(
             } else {
                 val onCellClickHandler: (List<CourseItem>, LocalDate) -> Unit = { coursesAtCell, targetDate ->
                     if (multiSelectMode) {
-                        val id = coursesAtCell.firstOrNull()?.id
-                        if (id != null) {
-                            selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+                        val next = toggleCellSelection(selectedIds, coursesAtCell)
+                        if (next != selectedIds) {
+                            selectedIds = next
                             if (selectedIds.isEmpty()) multiSelectMode = false
                         }
                     } else {
@@ -409,16 +407,16 @@ fun ScheduleScreen(
         }
 
         detailRequest?.let { request ->
-            val examRule = state.reminderRules.firstOrNull {
-                it.pluginId == state.pluginId && it.scopeType == ReminderScopeType.Exam
+            val examRules = state.reminderRules.filter {
+                it.pluginId == state.pluginId && it.isExamReminderRule()
             }
             CourseDetailDialog(
                 courses = request.courses,
                 timingProfile = state.timingProfile,
-                visibleWeekNumber = visibleWeekNumber,
+                visibleWeekNumber = detailWeekNumber(request.targetDate, overrideTermStart, temporaryScheduleOverrides),
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
-                examReminderEnabled = examRule?.enabled == true,
-                mutedExamCourseIds = examRule?.mutedCourseIds.orEmpty().toSet(),
+                examReminderEnabled = examRules.isNotEmpty(),
+                mutedExamCourseIds = examRules.flatMap { it.mutedCourseIds }.toSet(),
                 targetDate = request.targetDate,
                 isTemporarilyCancelled = { c ->
                     matchingTemporaryCancelRule(c, request.targetDate, temporaryScheduleOverrides) != null
@@ -702,7 +700,7 @@ private fun ScheduleHeroSection(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "第 ${week.weekIndex} 周  $weekdayLabel",
+                        text = "${weekIndexLabel(week.weekIndex)}  $weekdayLabel",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -1083,7 +1081,7 @@ private fun WeeklyScheduleSection(
                 .padding(horizontal = 4.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            if (slots.isEmpty() || allCourses.isEmpty()) {
+            if (slots.isEmpty()) {
                 EmptyWeekState(schedule = schedule)
             } else {
                 val safeMin = minWeekOffset.coerceAtMost(weekOffset)
@@ -1190,32 +1188,45 @@ private fun WeeklyScheduleSection(
                             visibleDayIndices = visibleDayIndices,
                         )
                     }
-                    if (active.isEmpty()) {
-                        EmptyWeekState(schedule = schedule)
-                    } else {
-                        ScheduleGrid(
-                            modifier = Modifier.fillMaxSize(),
-                            week = pageWeek,
-                            slots = slots,
-                            activeEntries = active,
-                            timingProfile = timingProfile,
-                            uiSchema = uiSchema,
-                            reminderRules = reminderRules,
-                            visibleDayIndices = visibleDayIndices,
-                            scheduleTextStyle = scheduleTextStyle,
-                            scheduleCardStyle = scheduleCardStyle,
-                            scheduleBackground = scheduleBackground,
-                            scheduleDisplay = scheduleDisplay,
-                            customColorsAdaptToTheme = customColorsAdaptToTheme,
-                            horizontalScrollState = horizontalScrollState,
-                            selectedCourseId = selectedCourseId,
-                            multiSelectMode = multiSelectMode,
-                            multiSelectedIds = multiSelectedIds,
-                            onCellClick = onCellClick,
-                            onCourseLongClick = onCourseLongClick,
-                            currentWeekIndex = pageWeek.weekIndex,
-                            onAddManualCourse = onAddManualCourse,
+                    if (pageWeek.weekIndex < 1 && active.isEmpty()) {
+                        EmptyWeekState(
+                            schedule = schedule,
+                            notStarted = true,
+                            termStartDate = overrideTermStart,
                         )
+                    } else {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            emptyScheduleHint(
+                                hasSchedule = schedule != null,
+                                hasAnyCourse = allCourses.isNotEmpty(),
+                                hasCoursesThisWeek = active.isNotEmpty(),
+                            )?.let { hint -> EmptyScheduleHintRow(text = hint) }
+                            ScheduleGrid(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f),
+                                week = pageWeek,
+                                slots = slots,
+                                activeEntries = active,
+                                timingProfile = timingProfile,
+                                uiSchema = uiSchema,
+                                reminderRules = reminderRules,
+                                visibleDayIndices = visibleDayIndices,
+                                scheduleTextStyle = scheduleTextStyle,
+                                scheduleCardStyle = scheduleCardStyle,
+                                scheduleBackground = scheduleBackground,
+                                scheduleDisplay = scheduleDisplay,
+                                customColorsAdaptToTheme = customColorsAdaptToTheme,
+                                horizontalScrollState = horizontalScrollState,
+                                selectedCourseId = selectedCourseId,
+                                multiSelectMode = multiSelectMode,
+                                multiSelectedIds = multiSelectedIds,
+                                onCellClick = onCellClick,
+                                onCourseLongClick = onCourseLongClick,
+                                currentWeekIndex = pageWeek.weekIndex.coerceAtLeast(1),
+                                onAddManualCourse = onAddManualCourse,
+                            )
+                        }
                     }
                 }
             }
@@ -1281,6 +1292,15 @@ private fun DailyScheduleSection(
 
             if (slots.isEmpty() || allCourses.isEmpty()) {
                 EmptyWeekState(schedule = schedule)
+                return@Column
+            }
+
+            if (sourceWeekNumber < 1) {
+                EmptyWeekState(
+                    schedule = schedule,
+                    notStarted = true,
+                    termStartDate = termStartDate,
+                )
                 return@Column
             }
 
@@ -1797,24 +1817,70 @@ private fun computeWeekNumber(
     return computeWeekNumberForDate(termStart, target)
 }
 
-private fun computeWeekNumberForDate(
+/** 开学前得到 0 或负数；未设开学日期时回退到第 1 周。 */
+internal fun computeWeekNumberForDate(
     termStart: LocalDate?,
     target: LocalDate,
-): Int {
-    val termStartMonday = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val targetMonday = target.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    return if (termStartMonday != null) {
-        max(1, ChronoUnit.WEEKS.between(termStartMonday, targetMonday).toInt() + 1)
-    } else {
-        1
-    }
-}
+): Int = if (termStart != null) resolveTermWeekNumber(termStart, target) else 1
+
+/**
+ * 课程详情弹窗判断“本周/非本周”所用的周次：按格子实际所在日期取，
+ * 调课日则取被借用的来源日期，与列表按周次取课的口径一致。
+ */
+internal fun detailWeekNumber(
+    targetDate: LocalDate,
+    termStart: LocalDate?,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+): Int = computeWeekNumberForDate(
+    termStart,
+    resolveTemporaryScheduleSourceDate(targetDate, temporaryScheduleOverrides),
+)
 
 private fun formatSourceDateLabel(date: LocalDate): String =
     "${date.monthValue}/${date.dayOfMonth}${weekdayLabel(date.dayOfWeek.value)}"
 
+/** 网格里没有课时提示去哪儿补课表；返回 null 表示这一周有课，不需要提示。 */
+internal fun emptyScheduleHint(
+    hasSchedule: Boolean,
+    hasAnyCourse: Boolean,
+    hasCoursesThisWeek: Boolean,
+): String? = when {
+    hasCoursesThisWeek -> null
+    !hasAnyCourse && !hasSchedule -> "还没有同步到课表，可以去插件页同步，或点空格子直接加课。"
+    !hasAnyCourse -> "课表还是空的，点空格子就能直接加课。"
+    else -> "这一周没有课程安排，可以切换其他周，或点空格子加课。"
+}
+
 @Composable
-private fun EmptyWeekState(schedule: TermSchedule?) {
+private fun EmptyScheduleHintRow(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+@Composable
+private fun EmptyWeekState(
+    schedule: TermSchedule?,
+    notStarted: Boolean = false,
+    termStartDate: LocalDate? = null,
+) {
+    val title = when {
+        notStarted -> "还没开学"
+        schedule == null -> "还没有同步到课表"
+        else -> "这一周没有课程安排"
+    }
+    val subtitle = when {
+        notStarted -> termStartDate
+            ?.let { "开学日期是 ${it.monthValue} 月 ${it.dayOfMonth} 日，到时候课程会自动显示。" }
+            ?: "开学后课程会自动显示。"
+        schedule == null -> "去插件页同步课表，或去设置页管理提醒。"
+        else -> "可以切换其他周，或者继续在插件页同步最新数据。"
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1823,13 +1889,13 @@ private fun EmptyWeekState(schedule: TermSchedule?) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = if (schedule == null) "还没有同步到课表" else "这一周没有课程安排",
+            text = title,
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         Text(
-            text = if (schedule == null) "去插件页同步课表，或去设置页管理提醒。" else "可以切换其他周，或者继续在插件页同步最新数据。",
+            text = subtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -3367,10 +3433,9 @@ internal fun ExamReminderSettingsCard(
     pluginId: String,
     onSave: (Boolean, Int, String?) -> Unit,
 ) {
-    val rule = reminderRules.firstOrNull {
-        it.pluginId == pluginId && it.scopeType == ReminderScopeType.Exam
-    }
-    var enabled by rememberSaveable(rule?.ruleId, rule?.updatedAt) { mutableStateOf(rule?.enabled == true) }
+    val examRules = reminderRules.filter { it.pluginId == pluginId && it.isExamReminderRule() }
+    val rule = examRules.firstOrNull()
+    var enabled by rememberSaveable(rule?.ruleId, rule?.updatedAt) { mutableStateOf(examRules.isNotEmpty()) }
     var advanceMinutesText by rememberSaveable(rule?.ruleId, rule?.updatedAt) {
         mutableStateOf((rule?.advanceMinutes ?: 40).toString())
     }
@@ -3390,7 +3455,7 @@ internal fun ExamReminderSettingsCard(
     }
     val advance = advanceMinutesText.toIntOrNull()
     val canSave = advance != null && advance in 0..720
-    val mutedCount = rule?.mutedCourseIds.orEmpty().size
+    val mutedCount = examRules.flatMap { it.mutedCourseIds }.distinct().size
     fun save(checked: Boolean = enabled) {
         onSave(checked, advance ?: 40, ringtoneUri)
     }
@@ -3478,7 +3543,9 @@ internal fun ReminderRulesSection(
     manualCourses: List<CourseItem>,
     onRemoveReminderRule: (String) -> Unit,
 ) {
-    val visibleRules = reminderRules.filter { it.scopeType != ReminderScopeType.FirstCourseOfPeriod }
+    val visibleRules = reminderRules.filter {
+        it.scopeType != ReminderScopeType.FirstCourseOfPeriod || it.isCourseReminderRule()
+    }
     if (visibleRules.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -3709,7 +3776,19 @@ private fun describeReminderRule(
             val muted = rule.mutedCourseIds.takeIf { it.isNotEmpty() }?.let { "已临时取消 ${it.size} 场" }
             timing = listOfNotNull("自动提醒全部考试", muted).joinToString(" · ")
         }
-        ReminderScopeType.FirstCourseOfPeriod -> {
+        ReminderScopeType.FirstCourseOfPeriod -> if (rule.isExamReminderRule()) {
+            title = rule.displayName ?: "考试提醒"
+            val nodeRange = course?.time?.let { "第${it.startNode}-${it.endNode}节" }
+            val day = course?.time?.dayOfWeek?.let(::weekdayLabel)
+            val muted = "已临时取消".takeIf { rule.courseId.orEmpty() in rule.mutedCourseIds }
+            timing = listOfNotNull("仅这一场考试", day, nodeRange, muted).joinToString(" · ")
+        } else if (rule.isCourseReminderRule()) {
+            title = rule.displayName ?: course?.title ?: "课程提醒"
+            val nodeRange = course?.time?.let { "第${it.startNode}-${it.endNode}节" }
+            val slot = course?.time?.let { timingProfile?.findSlot(it.startNode, it.endNode) }
+            val timeRange = slot?.let { "${it.startTime}-${it.endTime}" }
+            timing = listOfNotNull("仅这门课", timeRange, nodeRange).joinToString(" · ")
+        } else {
             title = rule.firstCourseDisplayName()
             timing = listOf(
                 candidateScopeSummary(rule.flexibleCandidateScope()),
@@ -3794,7 +3873,7 @@ private fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
     else -> "周$dayOfWeek"
 }
 
-private data class DayHeaderModel(
+internal data class DayHeaderModel(
     val monthLabel: String,
     val weekdayLabel: String,
     val dateLabel: String,
@@ -3802,7 +3881,7 @@ private data class DayHeaderModel(
     val overrideLabel: String? = null,
 )
 
-private data class WeekModel(
+internal data class WeekModel(
     val weekIndex: Int,
     val weekStart: LocalDate,
     val days: List<DayHeaderModel>,
@@ -4035,7 +4114,7 @@ private fun MultiSelectActionBar(
     }
 }
 
-private fun buildWeekModel(
+internal fun buildWeekModel(
     weekOffset: Int,
     termStart: LocalDate? = null,
     zone: ZoneId = ZoneId.systemDefault(),
@@ -4043,12 +4122,7 @@ private fun buildWeekModel(
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
-    val termStartWeek = termStart?.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val weekIndex = if (termStartWeek != null) {
-        max(1, ChronoUnit.WEEKS.between(termStartWeek, weekStart).toInt() + 1)
-    } else {
-        1
-    }
+    val weekIndex = computeWeekNumberForDate(termStart, weekStart)
     val days = (0..6).map { index ->
         val date = weekStart.plusDays(index.toLong())
         DayHeaderModel(
@@ -4282,7 +4356,10 @@ private fun hasReminderForCourse(
                 rule.enabled && rule.startNode == course.time.startNode && rule.endNode == course.time.endNode
             ReminderScopeType.Exam ->
                 rule.enabled && course.category == CourseCategory.Exam && course.id !in rule.mutedCourseIds
-            ReminderScopeType.FirstCourseOfPeriod -> false
+            ReminderScopeType.FirstCourseOfPeriod ->
+                rule.enabled &&
+                    (rule.isExamReminderRule() || rule.isCourseReminderRule()) &&
+                    rule.courseId == course.id
             ReminderScopeType.LabelRule -> rule.enabled &&
                 timingProfile != null &&
                 rule.labelActions.any { action ->
@@ -4291,6 +4368,19 @@ private fun hasReminderForCourse(
                 }
         }
     }
+}
+
+/**
+ * 多选模式下点一格的结果：整格还没全选中就补齐，已经全选中就整格取消，
+ * 这样同一格里叠放的每一门课都够得着。
+ */
+internal fun toggleCellSelection(
+    selectedIds: Set<String>,
+    coursesAtCell: List<CourseItem>,
+): Set<String> {
+    val cellIds = coursesAtCell.map { it.id }.toSet()
+    if (cellIds.isEmpty()) return selectedIds
+    return if (cellIds.all { it in selectedIds }) selectedIds - cellIds else selectedIds + cellIds
 }
 
 internal fun selectedCourseFromState(
@@ -4303,9 +4393,8 @@ internal fun selectedCourseFromState(
         .firstOrNull { it.id == singleCourseId }
 }
 
-internal fun CourseItem.isActiveInWeek(weekNumber: Int): Boolean {
-    return weeks.isEmpty() || weekNumber in weeks
-}
+internal fun CourseItem.isActiveInWeek(weekNumber: Int): Boolean =
+    isActiveInTermWeekNumber(weekNumber)
 
 internal fun activeCoursesForWeek(courses: List<CourseItem>, weekNumber: Int): List<CourseItem> {
     return courses.visibleScheduleCourses().filter { it.isActiveInWeek(weekNumber) }
