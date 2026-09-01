@@ -39,6 +39,16 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
 
 /**
+ * 空格子点击后弹出的快速加课对话框的默认周次区间。
+ * 起始周取当前显示的周次，结束周取学期总周数，保证新课在当前周立刻可见。
+ */
+internal fun quickAddDefaultWeekRange(initialWeek: Int, maxWeekCount: Int): Pair<Int, Int> {
+    val safeMax = maxWeekCount.coerceAtLeast(1)
+    val start = initialWeek.coerceIn(1, safeMax)
+    return start to safeMax
+}
+
+/**
  * A streamlined add-course dialog used when the user taps an empty grid cell.
  * The day-of-week and start/end nodes are locked to where they tapped, so the
  * dialog only asks for the bits that actually vary: title, location, week range.
@@ -57,8 +67,9 @@ fun QuickAddCourseDialog(
     var title by rememberSaveable { mutableStateOf("") }
     var location by rememberSaveable { mutableStateOf("") }
     var teacher by rememberSaveable { mutableStateOf("") }
-    var startWeekText by rememberSaveable { mutableStateOf("1") }
-    var endWeekText by rememberSaveable { mutableStateOf("2") }
+    val defaultWeekRange = quickAddDefaultWeekRange(initialWeek, maxWeekCount)
+    var startWeekText by rememberSaveable { mutableStateOf(defaultWeekRange.first.toString()) }
+    var endWeekText by rememberSaveable { mutableStateOf(defaultWeekRange.second.toString()) }
     var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
 
     val titleTrimmed = title.trim()

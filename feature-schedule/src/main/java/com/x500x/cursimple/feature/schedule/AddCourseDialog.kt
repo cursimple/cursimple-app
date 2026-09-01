@@ -41,10 +41,33 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
 
-private enum class WeekParity(val label: String) {
+internal enum class WeekParity(val label: String) {
     All("全部周"),
     Odd("单周"),
     Even("双周"),
+}
+
+/**
+ * 按单双周筛选出周次列表，输入区间非法或筛完为空时返回 null。
+ * 空列表在课程模型里表示"每周都有"，直接建课会让课程出现在所有周，
+ * 所以这里用 null 与之区分，调用方拿到 null 必须禁止保存。
+ */
+internal fun manualCourseWeeksOrNull(
+    startWeek: Int?,
+    endWeek: Int?,
+    parity: WeekParity,
+    maxWeekCount: Int,
+): List<Int>? {
+    if (startWeek == null || endWeek == null) return null
+    if (startWeek !in 1..maxWeekCount) return null
+    if (endWeek !in startWeek..maxWeekCount) return null
+    return (startWeek..endWeek).filter { week ->
+        when (parity) {
+            WeekParity.All -> true
+            WeekParity.Odd -> week % 2 == 1
+            WeekParity.Even -> week % 2 == 0
+        }
+    }.takeIf { it.isNotEmpty() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,9 +94,12 @@ fun AddCourseDialog(
     val endNode = endNodeText.toIntOrNull()
     val startWeek = startWeekText.toIntOrNull()
     val endWeek = endWeekText.toIntOrNull()
+    val rangeValid = startWeek != null && endWeek != null &&
+        startWeek in 1..maxWeekCount && endWeek in startWeek..maxWeekCount
+    val weeks = manualCourseWeeksOrNull(startWeek, endWeek, parity, maxWeekCount)
     val canSave = titleTrimmed.isNotBlank() &&
         startNode != null && endNode != null && startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount &&
-        startWeek != null && endWeek != null && startWeek in 1..maxWeekCount && endWeek in startWeek..maxWeekCount
+        weeks != null
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -222,6 +248,14 @@ fun AddCourseDialog(
                         )
                     }
                 }
+
+                if (rangeValid && weeks == null) {
+                    Text(
+                        text = "所选周次区间里没有${parity.label}，换个区间或改选全部周。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -241,9 +275,7 @@ fun AddCourseDialog(
                                 dayOfWeek = dayOfWeek,
                                 startNode = startNode!!,
                                 endNode = endNode!!,
-                                startWeek = startWeek!!,
-                                endWeek = endWeek!!,
-                                parity = parity,
+                                weeks = weeks!!,
                                 category = category,
                             )
                             onConfirm(course)
@@ -274,18 +306,9 @@ private fun buildCourse(
     dayOfWeek: Int,
     startNode: Int,
     endNode: Int,
-    startWeek: Int,
-    endWeek: Int,
-    parity: WeekParity,
+    weeks: List<Int>,
     category: CourseCategory,
 ): CourseItem {
-    val weeks = (startWeek..endWeek).filter { week ->
-        when (parity) {
-            WeekParity.All -> true
-            WeekParity.Odd -> week % 2 == 1
-            WeekParity.Even -> week % 2 == 0
-        }
-    }
     return CourseItem(
         id = "manual-" + UUID.randomUUID().toString().take(12),
         title = title,
