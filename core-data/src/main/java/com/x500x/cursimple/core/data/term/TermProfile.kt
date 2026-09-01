@@ -16,3 +16,7 @@ data class TermProfile(
     @SerialName("termStartDate") val termStartDate: String? = null,
     @SerialName("createdAt") val createdAt: Long = System.currentTimeMillis(),
 )
+
+/** 活动学期的开学日期（ISO yyyy-MM-dd）；列表里没有该学期时为 null。 */
+fun List<TermProfile>.termStartDateIsoOf(activeTermId: String): String? =
+    firstOrNull { it.id == activeTermId }?.termStartDate

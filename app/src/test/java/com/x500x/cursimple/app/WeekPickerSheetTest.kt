@@ -4,6 +4,7 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
+import com.x500x.cursimple.core.kernel.model.weekIndexLabel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -77,5 +78,68 @@ class WeekPickerSheetTest {
         val termStart = deriveTermStartForCurrentWeek(today = today, currentWeek = 0)
 
         assertEquals(LocalDate.of(2026, 5, 4), termStart)
+    }
+
+    @Test
+    fun `week index counts from the monday of the term start week`() {
+        val termStart = LocalDate.of(2026, 9, 7)
+
+        assertEquals(1, resolveWeekIndexForDate(termStart, LocalDate.of(2026, 9, 7)))
+        assertEquals(1, resolveWeekIndexForDate(termStart, LocalDate.of(2026, 9, 13)))
+        assertEquals(2, resolveWeekIndexForDate(termStart, LocalDate.of(2026, 9, 14)))
+    }
+
+    @Test
+    fun `week index before term start is zero or negative`() {
+        val termStart = LocalDate.of(2026, 9, 7)
+
+        assertEquals(0, resolveWeekIndexForDate(termStart, LocalDate.of(2026, 9, 1)))
+        assertEquals(0, resolveWeekIndexForDate(termStart, LocalDate.of(2026, 8, 31)))
+        assertEquals(-1, resolveWeekIndexForDate(termStart, LocalDate.of(2026, 8, 24)))
+        assertEquals(-2, resolveWeekIndexForDate(termStart, LocalDate.of(2026, 8, 17)))
+    }
+
+    @Test
+    fun `week index falls back to first week without term start`() {
+        assertEquals(1, resolveWeekIndexForDate(null, LocalDate.of(2026, 9, 1)))
+    }
+
+    @Test
+    fun `week index label hides non positive weeks`() {
+        assertEquals("第 1 周", weekIndexLabel(1))
+        assertEquals("第 12 周", weekIndexLabel(12))
+        assertEquals("未开学", weekIndexLabel(0))
+        assertEquals("未开学", weekIndexLabel(-3))
+    }
+
+    @Test
+    fun `week picker total weeks stays positive before term start`() {
+        val totalWeeks = resolveWeekPickerTotalWeeks(
+            schedule = null,
+            manualCourses = emptyList(),
+            currentWeek = -2,
+            selectedWeek = -2,
+        )
+
+        assertEquals(25, totalWeeks)
+    }
+
+    @Test
+    fun `week offset bounds before term start reach the current week and week one`() {
+        val termStart = LocalDate.of(2026, 9, 7)
+        val currentWeek = resolveWeekIndexForDate(termStart, LocalDate.of(2026, 9, 1))
+        val totalWeeks = resolveWeekPickerTotalWeeks(
+            schedule = null,
+            manualCourses = emptyList(),
+            currentWeek = currentWeek,
+            selectedWeek = currentWeek,
+        )
+
+        val minWeekOffset = (1 - currentWeek).coerceAtMost(0)
+        val maxWeekOffset = totalWeeks - currentWeek
+
+        assertEquals(0, minWeekOffset)
+        assertEquals(currentWeek, currentWeek + minWeekOffset)
+        assertEquals(totalWeeks, currentWeek + maxWeekOffset)
     }
 }

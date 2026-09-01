@@ -118,6 +118,7 @@ import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.weekIndexLabel
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
@@ -133,6 +134,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import kotlin.math.roundToInt
+import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
+import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
 private enum class SettingsDestination {
     Root,
@@ -456,7 +459,7 @@ fun AppSettingsRoute(
                     title = "开学日期",
                     subtitle = termStartDate?.let {
                         val fmt = DateTimeFormatter.ofPattern("yyyy/M/d")
-                        "${fmt.format(it)} · 第 $currentWeekIndex 周"
+                        "${fmt.format(it)} · ${weekIndexLabel(currentWeekIndex)}"
                     } ?: "点击设置（用于计算当前周次）",
                     onClick = onPickTermStartDate,
                     trailing = if (termStartDate != null) {
@@ -474,7 +477,7 @@ fun AppSettingsRoute(
                     icon = Icons.Rounded.CalendarMonth,
                     title = "当前周",
                     subtitle = if (termStartDate != null) {
-                        "第 $currentWeekIndex 周 · 可按周数反推开学日期"
+                        "${weekIndexLabel(currentWeekIndex)} · 可按周数反推开学日期"
                     } else {
                         "点击输入今天所在周数"
                     },
@@ -1730,9 +1733,8 @@ private fun SettingsDatePickerDialog(
     onConfirm: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val zone = ZoneId.systemDefault()
     val state = rememberDatePickerState(
-        initialSelectedDateMillis = initial.atStartOfDay(zone).toInstant().toEpochMilli(),
+        initialSelectedDateMillis = initial.toDatePickerMillis(),
     )
     DatePickerDialog(
         onDismissRequest = onDismiss,
@@ -1740,7 +1742,7 @@ private fun SettingsDatePickerDialog(
             TextButton(
                 onClick = {
                     state.selectedDateMillis?.let { millis ->
-                        onConfirm(Instant.ofEpochMilli(millis).atZone(zone).toLocalDate())
+                        onConfirm(datePickerMillisToLocalDate(millis))
                     }
                 },
             ) {
