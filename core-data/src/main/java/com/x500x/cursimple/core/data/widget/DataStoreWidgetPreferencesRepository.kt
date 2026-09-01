@@ -12,6 +12,7 @@ import com.x500x.cursimple.core.data.AppBackupStores
 import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
 import com.x500x.cursimple.core.data.exportSnapshot
 import com.x500x.cursimple.core.data.restoreSnapshot
+import com.x500x.cursimple.core.data.shouldReleasePersistedUriPermission
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import kotlinx.coroutines.flow.Flow
@@ -180,12 +181,12 @@ class DataStoreWidgetPreferencesRepository(
         store.exportSnapshot(AppBackupStores.WIDGET_PREFERENCES)
 
     suspend fun restoreBackupSnapshot(snapshot: PreferencesStoreSnapshot) {
-        var previousImageUri: String? = null
-        store.edit { preferences ->
-            previousImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]
-        }
+        val previousImageUri = store.data.first()[KEY_WIDGET_BACKGROUND_IMAGE_URI]
         store.restoreSnapshot(snapshot)
-        releasePersistedReadPermission(previousImageUri)
+        val restoredImageUri = store.data.first()[KEY_WIDGET_BACKGROUND_IMAGE_URI]
+        if (shouldReleasePersistedUriPermission(previousImageUri, restoredImageUri)) {
+            releasePersistedReadPermission(previousImageUri)
+        }
     }
 
     private fun releasePersistedReadPermission(uriString: String?) {
