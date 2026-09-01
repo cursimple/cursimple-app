@@ -41,7 +41,18 @@ internal data class ReminderWidgetData(
 }
 
 internal object ReminderDataSource {
-    suspend fun load(context: Context): ReminderWidgetData {
+    private val cache = WidgetDataCache<ReminderWidgetData>()
+
+    /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
+    suspend fun load(context: Context, reuseRecent: Boolean = false): ReminderWidgetData {
+        if (reuseRecent) {
+            cache.get(WIDGET_SHARED_CACHE_KEY, System.nanoTime())?.let { return it }
+        }
+        return loadFresh(context)
+            .also { cache.put(WIDGET_SHARED_CACHE_KEY, System.nanoTime(), it) }
+    }
+
+    private suspend fun loadFresh(context: Context): ReminderWidgetData {
         val appContext = context.applicationContext
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
@@ -80,6 +91,7 @@ internal object ReminderDataSource {
                     fromDate = today,
                     temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
                     customOccupancies = customOccupancies,
+                    holidayCalendar = userPrefs.holidayCalendar,
                 )
             }.getOrDefault(emptyList())
                 .filter { it.triggerAtMillis >= now }

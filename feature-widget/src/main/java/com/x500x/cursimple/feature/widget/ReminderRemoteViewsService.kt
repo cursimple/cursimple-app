@@ -33,7 +33,7 @@ private class ReminderListFactory(
     override fun onDataSetChanged() {
         runCatching {
             runBlocking(Dispatchers.IO) {
-                ReminderDataSource.load(context)
+                ReminderDataSource.load(context, reuseRecent = true)
             }
         }.onSuccess { data ->
             val sizeClass = widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId)

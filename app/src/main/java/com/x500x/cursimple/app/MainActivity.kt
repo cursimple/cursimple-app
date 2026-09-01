@@ -176,6 +176,7 @@ class MainActivity : ComponentActivity() {
                             pluginManager = container.pluginManager,
                             reminderCoordinator = container.reminderCoordinator,
                             manualCourseRepository = container.manualCourseRepository,
+                            courseNoteRepository = container.courseNoteRepository,
                             normalizeTimingProfile = { profile ->
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
