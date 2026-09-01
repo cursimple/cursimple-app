@@ -89,8 +89,8 @@ class PluginMarketViewModel(
     }
 
     /**
-     * Network fetch only when cache is older than [maxAgeMillis] or the registry repo changed.
-     * Called on screen entry to satisfy "每天首次进入刷新一次".
+     * 仅当缓存超过 [maxAgeMillis] 或注册表仓库发生变化时才发起网络请求。
+     * 进入页面时调用，实现每天首次进入刷新一次。
      */
     fun refreshIfStale(registryRepo: String, maxAgeMillis: Long) {
         viewModelScope.launch {

@@ -12,23 +12,23 @@ class HolidayCalendarTest {
 
     @Test
     fun builtInCalendarMarksStatutoryHolidays() {
-        assertTrue(isScheduleHoliday(LocalDate.of(2026, 1, 1), emptyList(), defaults))
-        assertTrue(isScheduleHoliday(LocalDate.of(2026, 2, 17), emptyList(), defaults))
-        assertTrue(isScheduleHoliday(LocalDate.of(2026, 10, 1), emptyList(), defaults))
-        assertEquals("国庆节", scheduleHolidayName(LocalDate.of(2026, 10, 1), emptyList(), defaults))
+        assertTrue(resolveScheduleDay(LocalDate.of(2026, 1, 1), emptyList(), defaults).isHoliday)
+        assertTrue(resolveScheduleDay(LocalDate.of(2026, 2, 17), emptyList(), defaults).isHoliday)
+        assertTrue(resolveScheduleDay(LocalDate.of(2026, 10, 1), emptyList(), defaults).isHoliday)
+        assertEquals("国庆节", resolveScheduleDay(LocalDate.of(2026, 10, 1), emptyList(), defaults).holidayName)
     }
 
     @Test
     fun builtInCalendarLeavesOrdinaryDaysAlone() {
-        assertFalse(isScheduleHoliday(LocalDate.of(2026, 9, 28), emptyList(), defaults))
-        assertNull(scheduleHolidayName(LocalDate.of(2026, 9, 28), emptyList(), defaults))
+        assertFalse(resolveScheduleDay(LocalDate.of(2026, 9, 28), emptyList(), defaults).isHoliday)
+        assertNull(resolveScheduleDay(LocalDate.of(2026, 9, 28), emptyList(), defaults).holidayName)
     }
 
     @Test
     fun builtInCalendarCanBeDisabled() {
         val settings = HolidayCalendarSettings.NONE
 
-        assertFalse(isScheduleHoliday(LocalDate.of(2026, 10, 1), emptyList(), settings))
+        assertFalse(resolveScheduleDay(LocalDate.of(2026, 10, 1), emptyList(), settings).isHoliday)
     }
 
     @Test
@@ -37,7 +37,7 @@ class HolidayCalendarTest {
             HolidayCalendarEntry("2026-10-05", HolidayEntryKind.Workday, "学校照常上课"),
         )
 
-        assertFalse(isScheduleHoliday(LocalDate.of(2026, 10, 5), emptyList(), settings))
+        assertFalse(resolveScheduleDay(LocalDate.of(2026, 10, 5), emptyList(), settings).isHoliday)
     }
 
     @Test
@@ -46,8 +46,8 @@ class HolidayCalendarTest {
             HolidayCalendarEntry("2026-10-06", HolidayEntryKind.Holiday, "国庆调休"),
         )
 
-        assertTrue(isScheduleHoliday(LocalDate.of(2026, 10, 6), emptyList(), settings))
-        assertEquals("国庆调休", scheduleHolidayName(LocalDate.of(2026, 10, 6), emptyList(), settings))
+        assertTrue(resolveScheduleDay(LocalDate.of(2026, 10, 6), emptyList(), settings).isHoliday)
+        assertEquals("国庆调休", resolveScheduleDay(LocalDate.of(2026, 10, 6), emptyList(), settings).holidayName)
     }
 
     @Test
@@ -57,7 +57,7 @@ class HolidayCalendarTest {
             .withEntry(HolidayCalendarEntry("2026-10-06", HolidayEntryKind.Workday))
 
         assertEquals(1, settings.entries.size)
-        assertFalse(isScheduleHoliday(LocalDate.of(2026, 10, 6), emptyList(), settings))
+        assertFalse(resolveScheduleDay(LocalDate.of(2026, 10, 6), emptyList(), settings).isHoliday)
     }
 
     @Test
@@ -67,7 +67,7 @@ class HolidayCalendarTest {
             .withoutEntryOn(LocalDate.of(2026, 10, 5))
 
         assertTrue(settings.entries.isEmpty())
-        assertTrue(isScheduleHoliday(LocalDate.of(2026, 10, 5), emptyList(), settings))
+        assertTrue(resolveScheduleDay(LocalDate.of(2026, 10, 5), emptyList(), settings).isHoliday)
     }
 
     @Test
@@ -119,7 +119,7 @@ class HolidayCalendarTest {
             ),
         )
 
-        assertTrue(isScheduleHoliday(LocalDate.of(2026, 10, 1), overrides, defaults))
+        assertTrue(resolveScheduleDay(LocalDate.of(2026, 10, 1), overrides, defaults).isHoliday)
     }
 
     @Test

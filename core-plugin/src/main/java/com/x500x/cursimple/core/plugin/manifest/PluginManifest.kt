@@ -28,8 +28,6 @@ data class PluginManifest(
     @SerialName("supportUrl") val supportUrl: String? = null,
 ) {
     val pluginId: String get() = id
-    val targetApiVersion: Int get() = apiVersion
-    val declaredPermissions: List<PluginPermission> get() = permissions
 }
 
 @Serializable

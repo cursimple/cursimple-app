@@ -5,8 +5,8 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import kotlinx.serialization.Serializable
 
 /**
- * Compact, version-tagged payload exchanged via QR / 口令.
- * Kept intentionally small: only the data a recipient needs to see the schedule.
+ * 通过二维码 / 口令交换的紧凑载荷，带版本号。
+ * 只保留接收方查看课表所需的数据。
  */
 @Serializable
 data class ScheduleSharePayload(

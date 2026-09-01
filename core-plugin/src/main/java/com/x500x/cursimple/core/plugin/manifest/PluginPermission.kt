@@ -36,6 +36,5 @@ enum class PluginPermission(val id: String) {
 
     companion object {
         val Network: PluginPermission = NetworkFetch
-        val WebSession: PluginPermission = WebNavigate
     }
 }

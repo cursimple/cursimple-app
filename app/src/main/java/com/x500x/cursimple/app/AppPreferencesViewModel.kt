@@ -258,8 +258,7 @@ class AppPreferencesViewModel(
     }
 
     fun setDebugForcedDateTime(dateTime: LocalDateTime?) {
-        // Apply in-process override synchronously so the rest of the app sees the new "now"
-        // immediately, before DataStore commit and the flow re-emits.
+        // 先同步写入进程内的时间覆盖，应用其余部分能立刻读到新的当前时间，不必等 DataStore 提交和 flow 重新发射。
         BeijingTime.setForcedNow(dateTime)
         viewModelScope.launch {
             repository.setDebugForcedDateTime(dateTime)

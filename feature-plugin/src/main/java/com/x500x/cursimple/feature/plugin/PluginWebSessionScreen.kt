@@ -129,7 +129,6 @@ fun PluginWebSessionScreen(
     val pageNavigationVersion = remember(request.token) { mutableStateOf(0L) }
     val webViewInitFailed = remember(request.token) { mutableStateOf(false) }
     val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
-    val sessionStartedAt = remember(request.token) { System.currentTimeMillis() }
     val tickNow = remember(request.token) { mutableStateOf(System.currentTimeMillis()) }
     androidx.compose.runtime.LaunchedEffect(request.token) {
         while (true) {
@@ -914,7 +913,7 @@ private fun WebView.configurePluginWebView(
     networkPacketStore: WebNetworkPacketStore,
     onPageNavigation: () -> Unit,
 ) {
-    applyPluginBrowserSettings(request, pluginUserAgent.value)
+    applyPluginBrowserSettings(pluginUserAgent.value)
     addJavascriptInterface(
         PluginWebSessionBridge(
             request = request,
@@ -1157,7 +1156,7 @@ private fun WebView.configurePluginWebView(
     }
 }
 
-private fun WebView.applyPluginBrowserSettings(request: WebSessionRequest, userAgent: String) {
+private fun WebView.applyPluginBrowserSettings(userAgent: String) {
     settings.javaScriptEnabled = true
     settings.javaScriptCanOpenWindowsAutomatically = true
     settings.domStorageEnabled = true

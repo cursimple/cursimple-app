@@ -32,10 +32,6 @@ object BeijingTime {
         forcedDateTime.set(date?.atStartOfDay())
     }
 
-    fun forcedNow(): LocalDateTime? = forcedDateTime.get()
-
-    fun forcedToday(): LocalDate? = forcedDateTime.get()?.toLocalDate()
-
     fun today(): LocalDate = todayIn(zone)
 
     fun today(zone: ZoneId): LocalDate = todayIn(zone)
@@ -43,8 +39,6 @@ object BeijingTime {
     fun todayIn(zone: ZoneId): LocalDate = forcedDateTime.get()?.toLocalDate() ?: LocalDate.now(zone)
 
     fun nowTimeIn(zone: ZoneId): LocalTime = forcedDateTime.get()?.toLocalTime() ?: LocalTime.now(zone)
-
-    fun nowDateTimeIn(zone: ZoneId): LocalDateTime = forcedDateTime.get() ?: LocalDateTime.now(zone)
 
     fun nowMillis(zone: ZoneId): Long {
         val forced = forcedDateTime.get() ?: return System.currentTimeMillis()
