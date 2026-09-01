@@ -37,6 +37,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.BugReport
@@ -82,6 +83,7 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -121,8 +123,18 @@ import com.x500x.cursimple.app.reminder.AutoSilenceController
 import com.x500x.cursimple.app.util.LogExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.core.data.ThemeMode
+import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
+import com.x500x.cursimple.core.data.widget.MAX_SLOT_NODE
+import com.x500x.cursimple.core.data.widget.MIN_SLOT_NODE
+import com.x500x.cursimple.core.data.widget.SlotDraftInput
 import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.data.widget.buildTimingSlots
+import com.x500x.cursimple.core.data.widget.timingTemplates
+import com.x500x.cursimple.core.data.widget.toDraftInput
+import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.feature.widget.ScheduleWidgetUpdater
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
@@ -142,6 +154,7 @@ import com.x500x.cursimple.feature.schedule.ScheduleAppearancePreview
 import com.x500x.cursimple.feature.schedule.ScheduleSettingsRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -168,6 +181,7 @@ private enum class SettingsDestination {
     ScheduleCardStyle,
     ScheduleBackground,
     ScheduleDisplay,
+    TimingProfile,
     WidgetSettings,
     AutoSilence,
     Plugins,
@@ -203,6 +217,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.ScheduleCardStyle -> "卡片样式"
     SettingsDestination.ScheduleBackground -> "课表背景"
     SettingsDestination.ScheduleDisplay -> "显示"
+    SettingsDestination.TimingProfile -> "节次上课时间"
     SettingsDestination.WidgetSettings -> "小组件设置"
     SettingsDestination.AutoSilence -> "上课自动静音"
     SettingsDestination.Plugins -> "插件"
@@ -423,6 +438,7 @@ fun AppSettingsRoute(
             SettingsDestination.Root -> {
                 SettingsActionRow(Icons.Rounded.Palette, "应用", "主题和外观", { navigate(SettingsDestination.Application) })
                 SettingsActionRow(Icons.Rounded.CalendarMonth, "课表数据", "开学日期和当前周", { navigate(SettingsDestination.ScheduleData) })
+                TimingProfileEntryRow { navigate(SettingsDestination.TimingProfile) }
                 SettingsActionRow(Icons.Rounded.EventRepeat, "临时调课", temporaryOverridesSubtitle(temporaryScheduleOverrides), {
                     navigate(SettingsDestination.TemporaryOverrides)
                 })
@@ -799,6 +815,10 @@ fun AppSettingsRoute(
                 }
             }
 
+            SettingsDestination.TimingProfile -> {
+                TimingProfileSettingsSection()
+            }
+
             SettingsDestination.AutoSilence -> {
                 AutoSilenceSettingsSection()
             }
@@ -1137,6 +1157,328 @@ private fun SettingsSectionHeader(text: String) {
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 4.dp),
+    )
+}
+
+@Composable
+private fun TimingProfileEntryRow(onClick: () -> Unit) {
+    val context = LocalContext.current
+    val repository = remember(context) { DataStoreWidgetPreferencesRepository(context.applicationContext) }
+    val profile by repository.timingProfileFlow.collectAsState(initial = null)
+    val slotCount = profile?.slotTimes?.size ?: 0
+    val subtitle = if (slotCount > 0) {
+        "已设置 $slotCount 个时间段 · 卡片时间、提醒和导出都用它"
+    } else {
+        "未设置 · 手动录课需要它才能显示时间、建提醒、导出"
+    }
+    SettingsActionRow(
+        icon = Icons.Rounded.Schedule,
+        title = "节次上课时间",
+        subtitle = subtitle,
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun TimingProfileSettingsSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repository = remember(context) { DataStoreWidgetPreferencesRepository(context.applicationContext) }
+    val userPreferencesRepository = remember(context) { DataStoreUserPreferencesRepository(context.applicationContext) }
+    val manuallyEdited by repository.timingProfileManuallyEditedFlow.collectAsState(initial = false)
+
+    val drafts = remember { mutableStateListOf<SlotDraftInput>() }
+    var errors by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showTemplatePicker by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        val existing = repository.timingProfileFlow.first()
+        if (existing != null && drafts.isEmpty()) {
+            drafts.addAll(existing.slotTimes.map { it.toDraftInput() })
+        }
+    }
+
+    fun updateRow(index: Int, transform: (SlotDraftInput) -> SlotDraftInput) {
+        drafts[index] = transform(drafts[index])
+    }
+
+    if (drafts.isEmpty()) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "还没有节次上课时间",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "课程卡片时间、创建提醒、日历与图片导出、上课自动静音都依赖它。" +
+                        "可以套用下方模板再逐条改成本校作息，也可以手动逐条添加。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+    }
+
+    Text(
+        text = "每一节填写起始节、结束节和上下课时间。节次区间不能重叠，节次范围 " +
+            "$MIN_SLOT_NODE-$MAX_SLOT_NODE。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    if (manuallyEdited) {
+        Text(
+            text = "当前为手动编辑的时间表，插件同步不会覆盖它。若要交回插件同步管理，请点下方“改回插件同步管理”。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+        )
+    }
+
+    drafts.forEachIndexed { index, draft ->
+        TimingSlotEditorRow(
+            index = index,
+            draft = draft,
+            onChange = { updated -> updateRow(index) { updated } },
+            onDelete = { drafts.removeAt(index) },
+        )
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(
+            onClick = {
+                drafts.add(SlotDraftInput("", "", "", "", ""))
+            },
+            modifier = Modifier.weight(1f),
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("添加一节")
+        }
+        OutlinedButton(
+            onClick = { showTemplatePicker = true },
+            modifier = Modifier.weight(1f),
+        ) {
+            Text("套用模板")
+        }
+    }
+
+    if (errors.isNotEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = "无法保存，请修正以下问题：",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                errors.forEach { message ->
+                    Text(
+                        text = "· $message",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+            }
+        }
+    }
+
+    Button(
+        onClick = {
+            val result = buildTimingSlots(drafts.toList())
+            if (!result.isValid) {
+                errors = result.errors
+                return@Button
+            }
+            errors = emptyList()
+            scope.launch {
+                val existing = repository.timingProfileFlow.first()
+                val termStart = existing?.termStartDate?.takeIf { runCatching { LocalDate.parse(it) }.getOrNull() != null }
+                    ?: userPreferencesRepository.preferencesFlow.first().termStartDate?.toString()
+                    ?: LocalDate.now(BeijingTime.zone).toString()
+                val profile = TermTimingProfile(
+                    termStartDate = termStart,
+                    slotTimes = result.slots,
+                    timezone = existing?.timezone ?: "",
+                )
+                repository.saveManualTimingProfile(profile)
+                withContext(Dispatchers.IO) {
+                    ScheduleWidgetUpdater.refreshAll(context.applicationContext)
+                    AutoSilenceController.evaluate(context.applicationContext, reason = "timing_profile_saved")
+                }
+                withContext(Dispatchers.Main) {
+                    drafts.clear()
+                    drafts.addAll(result.slots.map { it.toDraftInput() })
+                    Toast.makeText(context, "已保存 ${result.slots.size} 个节次时间段", Toast.LENGTH_SHORT).show()
+                }
+            }
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text("保存")
+    }
+
+    if (manuallyEdited) {
+        TextButton(
+            onClick = {
+                scope.launch {
+                    repository.clearManualTimingProfileFlag()
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(context, "已交回插件同步管理，下次同步会更新时间表", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("改回插件同步管理")
+        }
+    }
+
+    if (showTemplatePicker) {
+        TimingTemplatePickerDialog(
+            onDismiss = { showTemplatePicker = false },
+            onSelect = { template ->
+                drafts.clear()
+                drafts.addAll(template.slots.map { it.toDraftInput() })
+                errors = emptyList()
+                showTemplatePicker = false
+            },
+        )
+    }
+}
+
+@Composable
+private fun TimingSlotEditorRow(
+    index: Int,
+    draft: SlotDraftInput,
+    onChange: (SlotDraftInput) -> Unit,
+    onDelete: () -> Unit,
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "第 ${index + 1} 节",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        imageVector = Icons.Rounded.Delete,
+                        contentDescription = "删除这一节",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = draft.startNode,
+                    onValueChange = { onChange(draft.copy(startNode = it.filter(Char::isDigit))) },
+                    label = { Text("起始节") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = draft.endNode,
+                    onValueChange = { onChange(draft.copy(endNode = it.filter(Char::isDigit))) },
+                    label = { Text("结束节") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = draft.startTime,
+                    onValueChange = { onChange(draft.copy(startTime = it)) },
+                    label = { Text("开始") },
+                    placeholder = { Text("08:00") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = draft.endTime,
+                    onValueChange = { onChange(draft.copy(endTime = it)) },
+                    label = { Text("结束") },
+                    placeholder = { Text("08:45") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = draft.label,
+                onValueChange = { onChange(draft.copy(label = it)) },
+                label = { Text("名称（可选，如 第一大节）") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimingTemplatePickerDialog(
+    onDismiss: () -> Unit,
+    onSelect: (com.x500x.cursimple.core.data.widget.TimingTemplate) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("套用作息模板") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "模板时间为示例，套用后会替换现有内容，请按本校作息逐条调整。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                timingTemplates().forEach { template ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(template) },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(
+                                text = template.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = template.summary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
     )
 }
 

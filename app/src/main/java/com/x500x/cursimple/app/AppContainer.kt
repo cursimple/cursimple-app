@@ -229,11 +229,18 @@ class AppContainer(
 
     suspend fun refreshWidgets(timingProfile: TermTimingProfile? = null) {
         awaitBootstrap()
-        if (timingProfile != null) {
-            widgetPreferencesRepository.saveTimingProfile(timingProfile)
+        // 用户手动编辑过的节次时间表优先，插件同步不覆盖，除非用户主动交回同步管理
+        val manuallyEdited = widgetPreferencesRepository.timingProfileManuallyEditedFlow.first()
+        val effectiveProfile = if (manuallyEdited) {
+            widgetPreferencesRepository.timingProfileFlow.first() ?: timingProfile
+        } else {
+            if (timingProfile != null) {
+                widgetPreferencesRepository.saveTimingProfile(timingProfile)
+            }
+            timingProfile
         }
         ScheduleWidgetUpdater.refreshAll(app)
-        scheduleSystemAlarmChecks(timingProfile)
+        scheduleSystemAlarmChecks(effectiveProfile)
     }
 
     suspend fun refreshScheduleOutputs(recreateAppManagedAlarms: Boolean = false) {
