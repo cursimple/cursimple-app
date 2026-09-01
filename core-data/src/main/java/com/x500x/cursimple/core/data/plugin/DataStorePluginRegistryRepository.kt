@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.x500x.cursimple.core.data.AppBackupStores
 import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.R
 import com.x500x.cursimple.core.data.exportSnapshot
 import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
@@ -25,7 +26,8 @@ class DataStorePluginRegistryRepository(
     context: Context,
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
 ) : PluginRegistryRepository {
-    private val store = context.applicationContext.pluginRegistryStore
+    private val appContext = context.applicationContext
+    private val store = appContext.pluginRegistryStore
 
     override val installedPluginsFlow: Flow<List<InstalledPluginRecord>> = store.data.map { preferences ->
         preferences.decodeInstalledPlugins()
@@ -102,8 +104,10 @@ class DataStorePluginRegistryRepository(
             return this
         }
         val incompatibleReason = when {
-            (apiVersion ?: 0) <= 0 -> "旧版插件记录缺少 API 版本"
-            entry.isBlank() -> "旧版插件记录缺少 JS 入口文件"
+            (apiVersion ?: 0) <= 0 ->
+                appContext.getString(R.string.data_plugin_legacy_missing_api_version)
+            entry.isBlank() ->
+                appContext.getString(R.string.data_plugin_legacy_missing_entry)
             else -> null
         }
         return if (incompatibleReason == null) {

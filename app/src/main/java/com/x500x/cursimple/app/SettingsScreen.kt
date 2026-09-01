@@ -98,6 +98,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -130,9 +131,12 @@ import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.MAX_SLOT_NODE
 import com.x500x.cursimple.core.data.widget.MIN_SLOT_NODE
 import com.x500x.cursimple.core.data.widget.SlotDraftInput
+import com.x500x.cursimple.core.data.widget.TimingDraftError
 import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.buildTimingSlots
+import com.x500x.cursimple.core.data.widget.slotTimes
+import com.x500x.cursimple.core.data.widget.timingDraftErrorText
 import com.x500x.cursimple.core.data.widget.timingTemplates
 import com.x500x.cursimple.core.data.widget.toDraftInput
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
@@ -1200,7 +1204,7 @@ private fun TimingProfileSettingsSection() {
     val manuallyEdited by repository.timingProfileManuallyEditedFlow.collectAsState(initial = false)
 
     val drafts = remember { mutableStateListOf<SlotDraftInput>() }
-    var errors by remember { mutableStateOf<List<String>>(emptyList()) }
+    var errors by remember { mutableStateOf<List<TimingDraftError>>(emptyList()) }
     var showTemplatePicker by remember { mutableStateOf(false) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -1297,9 +1301,9 @@ private fun TimingProfileSettingsSection() {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                errors.forEach { message ->
+                errors.forEach { error ->
                     Text(
-                        text = "· $message",
+                        text = "· ${context.timingDraftErrorText(error)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -1366,7 +1370,7 @@ private fun TimingProfileSettingsSection() {
             onDismiss = { showTemplatePicker = false },
             onSelect = { template ->
                 drafts.clear()
-                drafts.addAll(template.slots.map { it.toDraftInput() })
+                drafts.addAll(template.slotTimes(context).map { it.toDraftInput() })
                 errors = emptyList()
                 showTemplatePicker = false
             },
@@ -1475,12 +1479,12 @@ private fun TimingTemplatePickerDialog(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                text = template.name,
+                                text = stringResource(template.nameRes),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                text = template.summary,
+                                text = stringResource(template.summaryRes),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

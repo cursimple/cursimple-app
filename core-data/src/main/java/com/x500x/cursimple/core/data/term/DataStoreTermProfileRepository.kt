@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.x500x.cursimple.core.data.AppBackupStores
 import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
+import com.x500x.cursimple.core.data.R
 import com.x500x.cursimple.core.data.exportSnapshot
 import com.x500x.cursimple.core.data.restoreSnapshot
 import kotlinx.coroutines.flow.Flow
@@ -27,7 +28,8 @@ class DataStoreTermProfileRepository(
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
 ) : TermProfileRepository {
 
-    private val store = context.applicationContext.termProfileStore
+    private val appContext = context.applicationContext
+    private val store = appContext.termProfileStore
     private val listSerializer = ListSerializer(TermProfile.serializer())
 
     override val termsFlow: Flow<List<TermProfile>> = store.data.map { prefs ->
@@ -48,7 +50,7 @@ class DataStoreTermProfileRepository(
             val list = readTerms(prefs).toMutableList()
             val term = TermProfile(
                 id = UUID.randomUUID().toString(),
-                name = name.ifBlank { "新学期" },
+                name = name.ifBlank { appContext.getString(R.string.data_term_default_name) },
                 termStartDate = termStartDateIso,
             )
             list += term
@@ -107,7 +109,9 @@ class DataStoreTermProfileRepository(
                 if (list.isEmpty()) {
                     val term = TermProfile(
                         id = UUID.randomUUID().toString(),
-                        name = defaultName.ifBlank { "默认学期" },
+                        name = defaultName.ifBlank {
+                            appContext.getString(R.string.data_term_bootstrap_default_name)
+                        },
                         termStartDate = legacyTermStartDateIso,
                     )
                     list += term

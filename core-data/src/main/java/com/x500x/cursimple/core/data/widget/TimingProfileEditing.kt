@@ -1,5 +1,7 @@
 package com.x500x.cursimple.core.data.widget
 
+import android.content.Context
+import com.x500x.cursimple.core.data.R
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import java.time.LocalTime
 
@@ -16,21 +18,80 @@ data class SlotDraftInput(
     val label: String,
 )
 
+/** 校验不通过的原因，带上定位所需的行号与节次。 */
+sealed interface TimingDraftError {
+    data object EmptyDraft : TimingDraftError
+    data class NodeNotNumber(val row: Int) : TimingDraftError
+    data class NodeOutOfRange(val row: Int, val min: Int, val max: Int) : TimingDraftError
+    data class NodeOrderReversed(val row: Int) : TimingDraftError
+    data class TimeFormatInvalid(val row: Int) : TimingDraftError
+    data class TimeOrderReversed(val row: Int) : TimingDraftError
+    data class NodeRangeOverlap(
+        val previousStartNode: Int,
+        val previousEndNode: Int,
+        val currentStartNode: Int,
+        val currentEndNode: Int,
+    ) : TimingDraftError
+}
+
+fun Context.timingDraftErrorText(error: TimingDraftError): String = when (error) {
+    TimingDraftError.EmptyDraft -> getString(R.string.data_timing_error_no_slots)
+    is TimingDraftError.NodeNotNumber ->
+        getString(R.string.data_timing_error_node_not_number, error.row)
+    is TimingDraftError.NodeOutOfRange ->
+        getString(R.string.data_timing_error_node_out_of_range, error.row, error.min, error.max)
+    is TimingDraftError.NodeOrderReversed ->
+        getString(R.string.data_timing_error_node_reversed, error.row)
+    is TimingDraftError.TimeFormatInvalid ->
+        getString(R.string.data_timing_error_time_format, error.row)
+    is TimingDraftError.TimeOrderReversed ->
+        getString(R.string.data_timing_error_time_reversed, error.row)
+    is TimingDraftError.NodeRangeOverlap -> getString(
+        R.string.data_timing_error_node_overlap,
+        error.previousStartNode,
+        error.previousEndNode,
+        error.currentStartNode,
+        error.currentEndNode,
+    )
+}
+
 /** 校验并归一化后的结果。errors 非空时 slots 为空，表示不能保存。 */
 data class TimingDraftResult(
     val slots: List<ClassSlotTime>,
-    val errors: List<String>,
+    val errors: List<TimingDraftError>,
 ) {
     val isValid: Boolean get() = errors.isEmpty()
 }
 
+/** 模板里的一个节次。标签取自资源，labelArg 非空时作为占位符实参。 */
+data class TimingTemplateSlot(
+    val startNode: Int,
+    val endNode: Int,
+    val startTime: String,
+    val endTime: String,
+    val labelRes: Int,
+    val labelArg: Int? = null,
+)
+
 /** 常用作息模板。时间仅为示例，需用户按本校作息改动。 */
 data class TimingTemplate(
     val id: String,
-    val name: String,
-    val summary: String,
-    val slots: List<ClassSlotTime>,
+    val nameRes: Int,
+    val summaryRes: Int,
+    val slots: List<TimingTemplateSlot>,
 )
+
+fun TimingTemplate.slotTimes(context: Context): List<ClassSlotTime> = slots.map { slot ->
+    ClassSlotTime(
+        startNode = slot.startNode,
+        endNode = slot.endNode,
+        startTime = slot.startTime,
+        endTime = slot.endTime,
+        label = slot.labelArg
+            ?.let { context.getString(slot.labelRes, it) }
+            ?: context.getString(slot.labelRes),
+    )
+}
 
 /** 把用户输入的 "8:0" 之类补齐成 "08:00"，无法解析成合法时刻时返回 null。 */
 fun normalizeTimeOrNull(raw: String): String? {
@@ -46,13 +107,13 @@ fun normalizeTimeOrNull(raw: String): String? {
     }.getOrNull()
 }
 
-/** 把编辑行解析并校验成节次时间表。校验失败时把每条问题以中文返回。 */
+/** 把编辑行解析并校验成节次时间表。校验失败时逐条返回问题。 */
 fun buildTimingSlots(drafts: List<SlotDraftInput>): TimingDraftResult {
     if (drafts.isEmpty()) {
-        return TimingDraftResult(emptyList(), listOf("请至少添加一个节次时间段"))
+        return TimingDraftResult(emptyList(), listOf(TimingDraftError.EmptyDraft))
     }
 
-    val errors = mutableListOf<String>()
+    val errors = mutableListOf<TimingDraftError>()
     val parsed = mutableListOf<ClassSlotTime>()
 
     drafts.forEachIndexed { index, draft ->
@@ -60,25 +121,25 @@ fun buildTimingSlots(drafts: List<SlotDraftInput>): TimingDraftResult {
         val startNode = draft.startNode.trim().toIntOrNull()
         val endNode = draft.endNode.trim().toIntOrNull()
         if (startNode == null || endNode == null) {
-            errors += "第 $row 行：节次必须填数字"
+            errors += TimingDraftError.NodeNotNumber(row)
             return@forEachIndexed
         }
         if (startNode !in MIN_SLOT_NODE..MAX_SLOT_NODE || endNode !in MIN_SLOT_NODE..MAX_SLOT_NODE) {
-            errors += "第 $row 行：节次必须在 $MIN_SLOT_NODE-$MAX_SLOT_NODE 之间"
+            errors += TimingDraftError.NodeOutOfRange(row, MIN_SLOT_NODE, MAX_SLOT_NODE)
             return@forEachIndexed
         }
         if (startNode > endNode) {
-            errors += "第 $row 行：起始节不能大于结束节"
+            errors += TimingDraftError.NodeOrderReversed(row)
             return@forEachIndexed
         }
         val startTime = normalizeTimeOrNull(draft.startTime)
         val endTime = normalizeTimeOrNull(draft.endTime)
         if (startTime == null || endTime == null) {
-            errors += "第 $row 行：时间格式应为 HH:mm"
+            errors += TimingDraftError.TimeFormatInvalid(row)
             return@forEachIndexed
         }
         if (LocalTime.parse(startTime) >= LocalTime.parse(endTime)) {
-            errors += "第 $row 行：开始时间必须早于结束时间"
+            errors += TimingDraftError.TimeOrderReversed(row)
             return@forEachIndexed
         }
         parsed += ClassSlotTime(
@@ -99,7 +160,12 @@ fun buildTimingSlots(drafts: List<SlotDraftInput>): TimingDraftResult {
         val prev = sorted[i - 1]
         val current = sorted[i]
         if (current.startNode <= prev.endNode) {
-            errors += "节次区间重叠：第 ${prev.startNode}-${prev.endNode} 节与第 ${current.startNode}-${current.endNode} 节"
+            errors += TimingDraftError.NodeRangeOverlap(
+                previousStartNode = prev.startNode,
+                previousEndNode = prev.endNode,
+                currentStartNode = current.startNode,
+                currentEndNode = current.endNode,
+            )
         }
     }
 
@@ -110,54 +176,64 @@ fun buildTimingSlots(drafts: List<SlotDraftInput>): TimingDraftResult {
     }
 }
 
-/** 内置作息模板。名称点明制式，summary 说明这是示例、需按本校作息调整。 */
+/** 内置作息模板。名称点明制式，摘要说明这是示例、需按本校作息调整。 */
 fun timingTemplates(): List<TimingTemplate> = listOf(
     TimingTemplate(
         id = "single_11",
-        name = "单节制 · 11 节",
-        summary = "上午 4 节、下午 4 节、晚上 3 节，示例时间，请按本校作息调整",
+        nameRes = R.string.data_timing_template_single11_name,
+        summaryRes = R.string.data_timing_template_single11_summary,
         slots = listOf(
-            ClassSlotTime(1, 1, "08:00", "08:45", "第1节"),
-            ClassSlotTime(2, 2, "08:55", "09:40", "第2节"),
-            ClassSlotTime(3, 3, "10:00", "10:45", "第3节"),
-            ClassSlotTime(4, 4, "10:55", "11:40", "第4节"),
-            ClassSlotTime(5, 5, "14:00", "14:45", "第5节"),
-            ClassSlotTime(6, 6, "14:55", "15:40", "第6节"),
-            ClassSlotTime(7, 7, "16:00", "16:45", "第7节"),
-            ClassSlotTime(8, 8, "16:55", "17:40", "第8节"),
-            ClassSlotTime(9, 9, "19:00", "19:45", "第9节"),
-            ClassSlotTime(10, 10, "19:55", "20:40", "第10节"),
-            ClassSlotTime(11, 11, "20:50", "21:35", "第11节"),
+            periodSlot(1, "08:00", "08:45"),
+            periodSlot(2, "08:55", "09:40"),
+            periodSlot(3, "10:00", "10:45"),
+            periodSlot(4, "10:55", "11:40"),
+            periodSlot(5, "14:00", "14:45"),
+            periodSlot(6, "14:55", "15:40"),
+            periodSlot(7, "16:00", "16:45"),
+            periodSlot(8, "16:55", "17:40"),
+            periodSlot(9, "19:00", "19:45"),
+            periodSlot(10, "19:55", "20:40"),
+            periodSlot(11, "20:50", "21:35"),
         ),
     ),
     TimingTemplate(
         id = "block_5",
-        name = "大节制 · 5 大节",
-        summary = "每大节连排 2 小节，示例时间，请按本校作息调整",
+        nameRes = R.string.data_timing_template_block5_name,
+        summaryRes = R.string.data_timing_template_block5_summary,
         slots = listOf(
-            ClassSlotTime(1, 2, "08:00", "09:40", "第一大节"),
-            ClassSlotTime(3, 4, "10:00", "11:40", "第二大节"),
-            ClassSlotTime(5, 6, "14:00", "15:40", "第三大节"),
-            ClassSlotTime(7, 8, "16:00", "17:40", "第四大节"),
-            ClassSlotTime(9, 10, "19:00", "20:40", "第五大节"),
+            TimingTemplateSlot(1, 2, "08:00", "09:40", R.string.data_timing_slot_label_block_1),
+            TimingTemplateSlot(3, 4, "10:00", "11:40", R.string.data_timing_slot_label_block_2),
+            TimingTemplateSlot(5, 6, "14:00", "15:40", R.string.data_timing_slot_label_block_3),
+            TimingTemplateSlot(7, 8, "16:00", "17:40", R.string.data_timing_slot_label_block_4),
+            TimingTemplateSlot(9, 10, "19:00", "20:40", R.string.data_timing_slot_label_block_5),
         ),
     ),
     TimingTemplate(
         id = "single_8",
-        name = "单节制 · 8 节（无晚课）",
-        summary = "上午 4 节、下午 4 节，示例时间，请按本校作息调整",
+        nameRes = R.string.data_timing_template_single8_name,
+        summaryRes = R.string.data_timing_template_single8_summary,
         slots = listOf(
-            ClassSlotTime(1, 1, "08:00", "08:45", "第1节"),
-            ClassSlotTime(2, 2, "08:55", "09:40", "第2节"),
-            ClassSlotTime(3, 3, "10:00", "10:45", "第3节"),
-            ClassSlotTime(4, 4, "10:55", "11:40", "第4节"),
-            ClassSlotTime(5, 5, "14:00", "14:45", "第5节"),
-            ClassSlotTime(6, 6, "14:55", "15:40", "第6节"),
-            ClassSlotTime(7, 7, "16:00", "16:45", "第7节"),
-            ClassSlotTime(8, 8, "16:55", "17:40", "第8节"),
+            periodSlot(1, "08:00", "08:45"),
+            periodSlot(2, "08:55", "09:40"),
+            periodSlot(3, "10:00", "10:45"),
+            periodSlot(4, "10:55", "11:40"),
+            periodSlot(5, "14:00", "14:45"),
+            periodSlot(6, "14:55", "15:40"),
+            periodSlot(7, "16:00", "16:45"),
+            periodSlot(8, "16:55", "17:40"),
         ),
     ),
 )
+
+private fun periodSlot(node: Int, startTime: String, endTime: String): TimingTemplateSlot =
+    TimingTemplateSlot(
+        startNode = node,
+        endNode = node,
+        startTime = startTime,
+        endTime = endTime,
+        labelRes = R.string.data_timing_slot_label_period,
+        labelArg = node,
+    )
 
 /** 编辑界面回填模板时，把模型转换成可继续修改的输入行。 */
 fun ClassSlotTime.toDraftInput(): SlotDraftInput = SlotDraftInput(
