@@ -4,11 +4,6 @@ import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import kotlinx.coroutines.flow.Flow
 
-enum class WidgetDay {
-    Today,
-    Tomorrow,
-}
-
 enum class WidgetBackgroundMode { Theme, Image }
 
 data class WidgetThemePreferences(
@@ -16,20 +11,9 @@ data class WidgetThemePreferences(
     val backgroundMode: WidgetBackgroundMode = WidgetBackgroundMode.Theme,
     val backgroundImageUri: String? = null,
     val openAppOnDoubleClickEnabled: Boolean = false,
-) {
-    fun selectTheme(accent: ThemeAccent): WidgetThemePreferences =
-        copy(themeAccent = accent, backgroundMode = WidgetBackgroundMode.Theme, backgroundImageUri = null)
-
-    fun selectBackgroundImage(uri: String): WidgetThemePreferences =
-        copy(backgroundMode = WidgetBackgroundMode.Image, backgroundImageUri = uri)
-
-    fun clearBackgroundImage(): WidgetThemePreferences =
-        copy(backgroundMode = WidgetBackgroundMode.Theme, backgroundImageUri = null)
-}
+)
 
 interface WidgetPreferencesRepository {
-    val widgetDayFlow: Flow<WidgetDay>
-
     val widgetDayOffsetFlow: Flow<Int>
 
     val timingProfileFlow: Flow<TermTimingProfile?>
@@ -37,10 +21,6 @@ interface WidgetPreferencesRepository {
     val timingProfileManuallyEditedFlow: Flow<Boolean>
 
     val themePreferencesFlow: Flow<WidgetThemePreferences>
-
-    suspend fun setWidgetDay(day: WidgetDay)
-
-    suspend fun toggleWidgetDay()
 
     suspend fun setWidgetDayOffset(offset: Int)
 

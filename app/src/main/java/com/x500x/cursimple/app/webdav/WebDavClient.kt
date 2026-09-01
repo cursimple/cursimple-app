@@ -23,14 +23,6 @@ class WebDavClient(
         }
     }
 
-    fun ensureBackupCollection(config: WebDavConfig): String {
-        require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
-        return runWebDav {
-            val dav = webDav(config)
-            ensureBackupCollectionWith(dav, config)
-        }
-    }
-
     fun uploadBackup(config: WebDavConfig, name: String, bytes: ByteArray): WebDavBackupFile {
         return runWebDav {
             val dav = webDav(config)

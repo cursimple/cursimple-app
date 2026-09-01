@@ -311,7 +311,7 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?) {
         store.edit { prefs ->
-            // Drop legacy date-only key whenever forced time is touched.
+            // 改动强制时间时一并清掉旧版仅含日期的键。
             prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
             if (dateTime == null) {
                 prefs.remove(KEY_DEBUG_FORCED_DATETIME)

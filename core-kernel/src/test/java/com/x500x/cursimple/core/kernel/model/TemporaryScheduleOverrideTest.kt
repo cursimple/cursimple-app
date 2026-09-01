@@ -21,8 +21,8 @@ class TemporaryScheduleOverrideTest {
         )
 
         assertEquals(source, resolveTemporaryScheduleSourceDate(target, overrides))
-        assertEquals(1, resolveTemporaryScheduleDayOfWeek(target, overrides))
-        assertTrue(isTemporaryScheduleOverridden(target, overrides))
+        assertEquals(1, resolveTemporaryScheduleSourceDate(target, overrides).dayOfWeek.value)
+        assertTrue(resolveTemporaryScheduleSourceDate(target, overrides) != target)
     }
 
     @Test
@@ -37,8 +37,8 @@ class TemporaryScheduleOverrideTest {
             ),
         )
 
-        assertEquals(1, resolveTemporaryScheduleDayOfWeek(date, overrides))
-        assertTrue(isTemporaryScheduleOverridden(date, overrides))
+        assertEquals(1, resolveTemporaryScheduleSourceDate(date, overrides).dayOfWeek.value)
+        assertTrue(resolveTemporaryScheduleSourceDate(date, overrides) != date)
     }
 
     @Test
@@ -77,7 +77,7 @@ class TemporaryScheduleOverrideTest {
         )
 
         assertEquals("second", matchingTemporaryScheduleOverride(date, overrides)?.id)
-        assertEquals(3, resolveTemporaryScheduleDayOfWeek(date, overrides))
+        assertEquals(3, resolveTemporaryScheduleSourceDate(date, overrides).dayOfWeek.value)
     }
 
     @Test
@@ -99,7 +99,7 @@ class TemporaryScheduleOverrideTest {
         )
 
         assertNull(matchingTemporaryScheduleOverride(date, overrides))
-        assertEquals(date.dayOfWeek.value, resolveTemporaryScheduleDayOfWeek(date, overrides))
+        assertEquals(date.dayOfWeek.value, resolveTemporaryScheduleSourceDate(date, overrides).dayOfWeek.value)
     }
 
     @Test

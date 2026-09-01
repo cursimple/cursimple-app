@@ -14,7 +14,7 @@ import java.net.URLEncoder
 import java.time.Duration
 
 /**
- * One entry from the plugins-stars.json registry, enriched with the latest release manifest.
+ * plugins-stars.json 注册表中的一条记录，并附带最新 release 的 manifest 信息。
  */
 @Serializable
 data class GitHubRepoSummary(
@@ -98,8 +98,7 @@ class GitHubRegistryRepository(
         }
 
     /**
-     * Reads manifest.json from the repo's latest release. The manifest declares the plugin package filename
-     * and public version used by the marketplace.
+     * 读取仓库最新 release 里的 manifest.json，其中声明了插件包文件名和市场展示的版本号。
      */
     suspend fun fetchLatestReleaseAsset(repoSlug: String): GitHubReleaseAsset? = withContext(Dispatchers.IO) {
         runCatching {
@@ -120,7 +119,7 @@ class GitHubRegistryRepository(
     }
 
     /**
-     * Fetches the stars registry and enriches every entry with its latest-release manifest in parallel.
+     * 拉取 stars 注册表，并并发地为每条记录补齐最新 release 的 manifest。
      */
     suspend fun fetchAll(registryRepo: String, branch: String = PLUGIN_STARS_BRANCH): List<GitHubRepoSummary> =
         coroutineScope {

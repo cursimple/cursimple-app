@@ -42,11 +42,6 @@ object PluginLogger {
         this.sink = sink
     }
 
-    /** Test-only: replace the singleton ring buffer. */
-    internal fun setBufferForTest(buffer: PluginLogBuffer) {
-        this.buffer = buffer
-    }
-
     fun info(event: String, fields: Map<String, Any?> = emptyMap()) {
         emit(PluginLogLevel.INFO, PluginLogSource.Host, event, fields, null)
     }
@@ -71,9 +66,8 @@ object PluginLogger {
     }
 
     /**
-     * Returns a scope that auto-injects traceId/pluginId/sessionId into every event so call sites
-     * don't have to repeat them. Use [PluginLogger.scope] at flow boundaries (e.g., when a sync
-     * starts and a traceId is minted).
+     * 返回的作用域会把 traceId/pluginId/sessionId 自动注入每条事件，调用处不必重复传入。
+     * [PluginLogger.scope] 用在流程边界上，例如一次同步开始并生成 traceId 时。
      */
     fun scope(
         traceId: String? = null,
@@ -118,9 +112,6 @@ object PluginLogger {
             .digest(value.toByteArray())
             .joinToString("") { "%02x".format(it) }
     }
-
-    internal fun renderFieldsForTest(fields: Map<String, Any?>): String =
-        renderFlatFields(buildFieldStrings(fields))
 
     internal fun emit(
         level: PluginLogLevel,
@@ -216,13 +207,6 @@ object PluginLogger {
         }
         builder.append('}')
         return builder.toString()
-    }
-
-    /** Plain key=value rendering retained for backward compatibility in unit tests. */
-    private fun renderFlatFields(fields: Map<String, String>): String {
-        return fields.toSortedMap()
-            .entries
-            .joinToString(" ") { "${it.key}=${it.value}" }
     }
 
     private fun errorFields(error: Throwable?): Map<String, Any?> {

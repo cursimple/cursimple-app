@@ -30,13 +30,6 @@ class DataStoreWidgetPreferencesRepository(
     private val appContext = context.applicationContext
     private val store = appContext.widgetPreferencesStore
 
-    override val widgetDayFlow: Flow<WidgetDay> = store.data.map { preferences ->
-        when (preferences[KEY_WIDGET_DAY]) {
-            WidgetDay.Tomorrow.name -> WidgetDay.Tomorrow
-            else -> WidgetDay.Today
-        }
-    }
-
     override val widgetDayOffsetFlow: Flow<Int> = store.data.map { preferences ->
         (preferences[KEY_WIDGET_DAY_OFFSET] ?: 0).coerceIn(MIN_OFFSET, MAX_OFFSET)
     }
@@ -61,21 +54,6 @@ class DataStoreWidgetPreferencesRepository(
             backgroundImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]?.takeIf(String::isNotBlank),
             openAppOnDoubleClickEnabled = preferences[KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK] ?: false,
         )
-    }
-
-    override suspend fun setWidgetDay(day: WidgetDay) {
-        store.edit { preferences ->
-            preferences[KEY_WIDGET_DAY] = day.name
-        }
-    }
-
-    override suspend fun toggleWidgetDay() {
-        store.edit { preferences ->
-            preferences[KEY_WIDGET_DAY] = when (preferences[KEY_WIDGET_DAY]) {
-                WidgetDay.Tomorrow.name -> WidgetDay.Today.name
-                else -> WidgetDay.Tomorrow.name
-            }
-        }
     }
 
     override suspend fun setWidgetDayOffset(offset: Int) {
@@ -217,7 +195,6 @@ class DataStoreWidgetPreferencesRepository(
     }
 
     private companion object {
-        val KEY_WIDGET_DAY = stringPreferencesKey("widget_day")
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
         val KEY_TIMING_PROFILE_MANUAL = booleanPreferencesKey("widget_timing_profile_manual")
