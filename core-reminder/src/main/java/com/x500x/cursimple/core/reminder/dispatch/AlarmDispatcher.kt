@@ -1,5 +1,6 @@
 package com.x500x.cursimple.core.reminder.dispatch
 
+import android.app.ActivityManager
 import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
@@ -29,6 +30,31 @@ interface AlarmDismisser {
 
 fun interface AlarmRegistrationVerifier {
     fun isRegistered(record: SystemAlarmRecord): Boolean
+}
+
+/** 判断当前进程是否处于可以直接拉起 Activity 的状态。 */
+fun interface ForegroundActivityStartGate {
+    fun canStartActivity(): Boolean
+}
+
+/**
+ * 用进程重要度判断前台 Activity 启动条件。
+ * Android 10 起后台进程的 Activity 启动会被静默丢弃，只有进程持有可见 Activity 时才放行。
+ */
+class ProcessImportanceActivityStartGate : ForegroundActivityStartGate {
+    override fun canStartActivity(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return true
+        return runCatching {
+            val state = ActivityManager.RunningAppProcessInfo()
+            ActivityManager.getMyMemoryState(state)
+            state.importance <= ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+        }.getOrDefault(false)
+    }
+}
+
+object SystemAlarmClockMessages {
+    const val DISPATCH_REQUIRES_FOREGROUND = "应用未在前台，系统时钟无法创建闹钟，请打开应用后重试"
+    const val DISMISS_REQUIRES_FOREGROUND = "应用未在前台，系统时钟无法删除闹钟，请打开应用后重试"
 }
 
 object AppAlarmClockIntents {
@@ -180,8 +206,24 @@ class AppAlarmClockRegistrationVerifier(
 
 class SystemAlarmClockDispatcher(
     private val context: Context,
+    private val foregroundGate: ForegroundActivityStartGate = ProcessImportanceActivityStartGate(),
 ) : AlarmDispatcher {
     override suspend fun dispatch(plan: ReminderPlan): AlarmDispatchResult {
+        if (!foregroundGate.canStartActivity()) {
+            ReminderLogger.warn(
+                "reminder.system_clock.dispatch.foreground_unavailable",
+                mapOf(
+                    "ruleId" to plan.ruleId,
+                    "planId" to plan.planId,
+                    "triggerAtMillis" to plan.triggerAtMillis,
+                ),
+            )
+            return AlarmDispatchResult(
+                channel = AlarmDispatchChannel.SystemClockApp,
+                succeeded = false,
+                message = SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND,
+            )
+        }
         val trigger = Instant.ofEpochMilli(plan.triggerAtMillis).atZone(java.time.ZoneId.systemDefault())
         val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -382,8 +424,24 @@ private fun appAlarmShowIntent(
 
 class SystemAlarmClockDismisser(
     private val context: Context,
+    private val foregroundGate: ForegroundActivityStartGate = ProcessImportanceActivityStartGate(),
 ) : AlarmDismisser {
     override suspend fun dismiss(record: SystemAlarmRecord): AlarmDismissResult {
+        if (!foregroundGate.canStartActivity()) {
+            ReminderLogger.warn(
+                "reminder.system_clock.dismiss.foreground_unavailable",
+                mapOf(
+                    "ruleId" to record.ruleId,
+                    "planId" to record.planId,
+                    "alarmKey" to record.alarmKey,
+                ),
+            )
+            return AlarmDismissResult(
+                alarmKey = record.alarmKey,
+                succeeded = false,
+                message = SystemAlarmClockMessages.DISMISS_REQUIRES_FOREGROUND,
+            )
+        }
         val label = record.alarmLabel ?: record.message
         val intent = Intent(android.provider.AlarmClock.ACTION_DISMISS_ALARM).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

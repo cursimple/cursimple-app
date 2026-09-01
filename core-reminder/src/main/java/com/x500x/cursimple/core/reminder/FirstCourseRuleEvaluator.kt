@@ -6,11 +6,10 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
-import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
+import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.model.endLocalTime
-import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.reminder.model.FirstCourseCandidateScope
 import com.x500x.cursimple.core.reminder.model.ReminderAction
@@ -23,11 +22,8 @@ import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
 import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderTimeRange
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 
 internal class FirstCourseRuleEvaluator {
     fun expand(
@@ -197,7 +193,7 @@ internal class FirstCourseRuleEvaluator {
                     context.candidateOccurrences.any { !end.isAfter(it.slot.startLocalTime()) }
                 }
             ReminderConditionType.WeekdayMatches -> daysOfWeek.isEmpty() || context.date.dayOfWeek.value in daysOfWeek
-            ReminderConditionType.WeekMatches -> weeks.isEmpty() || context.termWeek in weeks
+            ReminderConditionType.WeekMatches -> isTermWeekNumberActive(context.termWeek, weeks)
             ReminderConditionType.DateMatches -> dates.isEmpty() || context.date.toString() in dates
             ReminderConditionType.CourseTextMatches -> {
                 val needle = text?.takeIf { it.isNotBlank() } ?: return false
@@ -214,6 +210,7 @@ internal class FirstCourseRuleEvaluator {
         scope: FirstCourseCandidateScope,
         date: LocalDate,
     ): Boolean {
+        if (!isTermWeekStarted(termWeek)) return false
         if (scope.daysOfWeek.isNotEmpty() && date.dayOfWeek.value !in scope.daysOfWeek) return false
         if (scope.weeks.isNotEmpty() && termWeek !in scope.weeks) return false
         if (scope.includeDates.isNotEmpty() && date.toString() !in scope.includeDates) return false
@@ -279,6 +276,7 @@ internal class FirstCourseRuleEvaluator {
 
     private fun ReminderCustomOccupancy.isActiveOn(date: LocalDate, termStart: LocalDate): Boolean {
         val week = resolveTermWeek(termStart, date)
+        if (!isTermWeekStarted(week)) return false
         if (daysOfWeek.isNotEmpty() && date.dayOfWeek.value !in daysOfWeek) return false
         if (weeks.isNotEmpty() && week !in weeks) return false
         if (includeDates.isNotEmpty() && date.toString() !in includeDates) return false
@@ -307,41 +305,6 @@ internal class FirstCourseRuleEvaluator {
             slot = slot,
             period = period,
         )
-
-    private fun courseOccurrenceDates(
-        course: CourseItem,
-        termStart: LocalDate,
-        fromDate: LocalDate,
-        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
-    ): List<LocalDate> {
-        val weeks = course.weeks.ifEmpty { (1..60).toList() }
-        val regularDates = weeks.map { week ->
-            termStart
-                .plusWeeks((week - 1).toLong())
-                .plusDays((course.time.dayOfWeek - 1).toLong())
-        }
-        val overrideTargetDates = temporaryScheduleOverrides.flatMap { it.targetDates() }
-        return (regularDates + overrideTargetDates)
-            .distinct()
-            .filterNot { it.isBefore(fromDate) }
-            .filter { date ->
-                val sourceDate = resolveTemporaryScheduleSourceDate(date, temporaryScheduleOverrides)
-                sourceDate.dayOfWeek.value == course.time.dayOfWeek &&
-                    course.isActiveOnSourceDate(termStart, sourceDate) &&
-                    !isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)
-            }
-    }
-
-    private fun CourseItem.isActiveOnSourceDate(termStart: LocalDate, sourceDate: LocalDate): Boolean {
-        if (weeks.isEmpty()) return true
-        return resolveTermWeek(termStart, sourceDate) in weeks
-    }
-
-    private fun resolveTermWeek(termStart: LocalDate, date: LocalDate): Int {
-        val termStartMonday = termStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val dateMonday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        return ChronoUnit.WEEKS.between(termStartMonday, dateMonday).toInt() + 1
-    }
 
     private fun String.parseLocalTimeOrNull(): LocalTime? =
         runCatching { LocalTime.parse(this) }.getOrNull()

@@ -461,55 +461,6 @@ class AlarmRingingService : Service() {
         }
     }
 
-    private fun Intent.toActiveAlarm(): ActiveAlarm = ActiveAlarm(
-        alarmKey = getStringExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY).orEmpty(),
-        ruleId = getStringExtra(AppAlarmClockIntents.EXTRA_RULE_ID).orEmpty(),
-        pluginId = getStringExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID).orEmpty(),
-        planId = getStringExtra(AppAlarmClockIntents.EXTRA_PLAN_ID).orEmpty(),
-        courseId = getStringExtra(AppAlarmClockIntents.EXTRA_COURSE_ID)?.takeIf { it.isNotBlank() },
-        title = getStringExtra(AppAlarmClockIntents.EXTRA_TITLE).orEmpty(),
-        message = getStringExtra(AppAlarmClockIntents.EXTRA_MESSAGE).orEmpty(),
-        ringtoneUri = getStringExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI)?.takeIf { it.isNotBlank() },
-        alertMode = getStringExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE)
-            ?.let { runCatching { AlarmAlertMode.valueOf(it) }.getOrNull() },
-        triggerAtMillis = getLongExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, 0L),
-        ringDurationSeconds = getIntExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, -1).takeIf { it > 0 },
-        repeatIntervalSeconds = getIntExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, -1).takeIf { it > 0 },
-        repeatCount = getIntExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT, -1).takeIf { it > 0 },
-    )
-
-    private fun Intent.putAlarmExtras(alarm: ActiveAlarm): Intent = apply {
-        putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, alarm.alarmKey)
-        putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, alarm.ruleId)
-        putExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID, alarm.pluginId)
-        putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, alarm.planId)
-        putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, alarm.courseId)
-        putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, alarm.triggerAtMillis)
-        putExtra(AppAlarmClockIntents.EXTRA_TITLE, alarm.title)
-        putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, alarm.message)
-        putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, alarm.ringtoneUri)
-        alarm.alertMode?.let { putExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE, it.name) }
-        alarm.ringDurationSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, it) }
-        alarm.repeatIntervalSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS, it) }
-        alarm.repeatCount?.let { putExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT, it) }
-    }
-
-    private data class ActiveAlarm(
-        val alarmKey: String,
-        val ruleId: String,
-        val pluginId: String,
-        val planId: String,
-        val courseId: String?,
-        val title: String,
-        val message: String,
-        val ringtoneUri: String?,
-        val alertMode: AlarmAlertMode?,
-        val triggerAtMillis: Long,
-        val ringDurationSeconds: Int?,
-        val repeatIntervalSeconds: Int?,
-        val repeatCount: Int?,
-    )
-
     companion object {
         const val ACTION_RING = AppAlarmClockIntents.ACTION_RING
         const val ACTION_STOP = "com.x500x.cursimple.action.ALARM_STOP"

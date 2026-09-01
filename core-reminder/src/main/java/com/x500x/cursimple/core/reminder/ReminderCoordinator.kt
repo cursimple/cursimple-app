@@ -522,19 +522,63 @@ class ReminderCoordinator(
     suspend fun setAppAlarmEnabled(
         alarmKey: String,
         enabled: Boolean,
+        nowMillis: Long = System.currentTimeMillis(),
     ): AlarmDismissResult = SYSTEM_ALARM_LOCK.withLock {
         val record = repository.getSystemAlarmRecords()
             .firstOrNull { it.alarmKey == alarmKey && it.backend == ReminderAlarmBackend.AppAlarmClock }
             ?: return@withLock AlarmDismissResult(alarmKey, true, "闹钟登记已不存在")
         if (!enabled) {
-            val result = appDismisser.dismiss(record)
+            val result = runCatching {
+                appDismisser.dismiss(record)
+            }.getOrElse { error ->
+                ReminderLogger.warn(
+                    "reminder.app_alarm_clock.set_enabled.dismiss_failure",
+                    mapOf("alarmKey" to alarmKey, "ruleId" to record.ruleId, "planId" to record.planId),
+                    error,
+                )
+                AlarmDismissResult(
+                    alarmKey = alarmKey,
+                    succeeded = false,
+                    message = error.message ?: "关闭闹钟失败",
+                )
+            }
             if (result.succeeded) {
                 repository.saveSystemAlarmRecord(record.copy(enabled = false))
             }
             return@withLock result
         }
+        if (record.triggerAtMillis <= nowMillis) {
+            ReminderLogger.warn(
+                "reminder.app_alarm_clock.set_enabled.expired",
+                mapOf(
+                    "alarmKey" to alarmKey,
+                    "ruleId" to record.ruleId,
+                    "planId" to record.planId,
+                    "triggerAtMillis" to record.triggerAtMillis,
+                    "nowMillis" to nowMillis,
+                ),
+            )
+            return@withLock AlarmDismissResult(
+                alarmKey = alarmKey,
+                succeeded = false,
+                message = "闹钟时间已过，无法重新启用",
+            )
+        }
         val plan = record.toReminderPlan()
-        val result = appDispatcher.dispatch(plan)
+        val result = runCatching {
+            appDispatcher.dispatch(plan)
+        }.getOrElse { error ->
+            ReminderLogger.warn(
+                "reminder.app_alarm_clock.set_enabled.dispatch_failure",
+                mapOf("alarmKey" to alarmKey, "ruleId" to record.ruleId, "planId" to record.planId),
+                error,
+            )
+            AlarmDispatchResult(
+                channel = AlarmDispatchChannel.AppAlarmClock,
+                succeeded = false,
+                message = error.message ?: "启用闹钟失败",
+            )
+        }
         if (result.succeeded) {
             repository.saveSystemAlarmRecord(
                 record.copy(
@@ -1354,8 +1398,11 @@ private fun ReminderRule.hasSameDefinition(
 
 private fun String?.normalizeRingtoneUri(): String? = takeUnless { it.isNullOrBlank() }
 
+/** 周期性规则响铃后保留，只有一次性规则才随响铃一起删除。 */
 private fun ReminderRule.shouldDeleteAfterAppAlarmRing(): Boolean =
-    scopeType != ReminderScopeType.LabelRule
+    scopeType != ReminderScopeType.LabelRule &&
+        scopeType != ReminderScopeType.FirstCourseOfPeriod &&
+        scopeType != ReminderScopeType.Exam
 
 private fun List<ReminderLabelCondition>.normalizedLabelConditions(): List<ReminderLabelCondition> =
     mapNotNull { condition ->

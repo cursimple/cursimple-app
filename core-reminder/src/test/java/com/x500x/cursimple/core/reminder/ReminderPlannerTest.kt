@@ -720,6 +720,115 @@ class ReminderPlannerTest {
         assertEquals(0, plans.size)
     }
 
+    @Test
+    fun singleCourseRuleSkipsOccurrencesBeforeTermStart() {
+        val plans = planner.expandRule(
+            rule = preTermSingleCourseRule(),
+            schedule = preTermSchedule(weeks = listOf(1)),
+            timingProfile = preTermProfile(),
+            fromDate = java.time.LocalDate.of(2026, 9, 1),
+            temporaryScheduleOverrides = listOf(preTermMakeUpOverride()),
+        )
+
+        assertEquals(false, plans.any { it.message.startsWith("9月3日") })
+        assertEquals(true, plans.any { it.message.startsWith("9月7日") })
+    }
+
+    @Test
+    fun fullTermCourseRuleSkipsOccurrencesBeforeTermStart() {
+        val plans = planner.expandRule(
+            rule = preTermSingleCourseRule(),
+            schedule = preTermSchedule(weeks = emptyList()),
+            timingProfile = preTermProfile(),
+            fromDate = java.time.LocalDate.of(2026, 9, 1),
+            temporaryScheduleOverrides = listOf(preTermMakeUpOverride()),
+        )
+
+        assertEquals(false, plans.any { it.message.startsWith("9月3日") })
+        assertEquals(true, plans.any { it.message.startsWith("9月7日") })
+    }
+
+    @Test
+    fun firstCourseRuleSkipsFullTermCourseBeforeTermStart() {
+        val rule = ReminderRule(
+            ruleId = "morning",
+            pluginId = "demo",
+            scopeType = ReminderScopeType.FirstCourseOfPeriod,
+            period = ReminderDayPeriod.Morning,
+            advanceMinutes = 15,
+            createdAt = "2026-09-07T00:00:00+08:00",
+            updatedAt = "2026-09-07T00:00:00+08:00",
+        )
+
+        val plans = planner.expandRule(
+            rule = rule,
+            schedule = preTermSchedule(weeks = emptyList()),
+            timingProfile = preTermProfile(),
+            fromDate = java.time.LocalDate.of(2026, 9, 1),
+            temporaryScheduleOverrides = listOf(preTermMakeUpOverride()),
+        )
+
+        assertEquals(false, plans.any { it.message.startsWith("9月3日") })
+        assertEquals(true, plans.any { it.message.startsWith("9月7日") })
+    }
+
+    @Test
+    fun labelRuleSkipsFullTermCourseBeforeTermStart() {
+        val plans = planner.expandRule(
+            rule = labelRule(),
+            schedule = preTermSchedule(weeks = emptyList()),
+            timingProfile = preTermProfile(),
+            fromDate = java.time.LocalDate.of(2026, 9, 1),
+            temporaryScheduleOverrides = listOf(preTermMakeUpOverride()),
+        )
+
+        assertEquals(false, plans.any { it.message.startsWith("9月3日") })
+        assertEquals(true, plans.any { it.message.startsWith("9月7日") })
+    }
+
+    private fun preTermSchedule(weeks: List<Int>): TermSchedule = TermSchedule(
+        termId = "2026-autumn",
+        updatedAt = "2026-09-01T00:00:00+08:00",
+        dailySchedules = listOf(
+            DailySchedule(
+                dayOfWeek = 1,
+                courses = listOf(
+                    CourseItem(
+                        id = "math",
+                        title = "高等数学",
+                        weeks = weeks,
+                        time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    private fun preTermProfile(): TermTimingProfile = TermTimingProfile(
+        termStartDate = "2026-09-07",
+        slotTimes = listOf(
+            ClassSlotTime(1, 2, "08:00", "09:35", "第一节课"),
+        ),
+    )
+
+    /** 目标日 9 月 3 日落在开学前一周，调休来源是那一周的周一。 */
+    private fun preTermMakeUpOverride(): TemporaryScheduleOverride = TemporaryScheduleOverride(
+        id = "pre-term-makeup",
+        startDate = "2026-09-03",
+        endDate = "2026-09-03",
+        sourceDayOfWeek = 1,
+    )
+
+    private fun preTermSingleCourseRule(): ReminderRule = ReminderRule(
+        ruleId = "pre-term",
+        pluginId = "demo",
+        scopeType = ReminderScopeType.SingleCourse,
+        courseId = "math",
+        advanceMinutes = 15,
+        createdAt = "2026-09-07T00:00:00+08:00",
+        updatedAt = "2026-09-07T00:00:00+08:00",
+    )
+
     private fun morningSchedule(vararg courses: CourseItem): TermSchedule = TermSchedule(
         termId = "2026-spring",
         updatedAt = "2026-04-27T08:00:00+08:00",

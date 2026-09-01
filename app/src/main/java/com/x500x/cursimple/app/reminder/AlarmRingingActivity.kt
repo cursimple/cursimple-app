@@ -133,9 +133,10 @@ class AlarmRingingActivity : Activity() {
     private fun sendServiceAction(actionName: String) {
         if (actionSent) return
         actionSent = true
+        val alarm = intent.toActiveAlarm()
         val serviceIntent = Intent(this, AlarmRingingService::class.java).apply {
             action = actionName
-            copyAlarmExtrasFrom(intent)
+            putAlarmExtras(alarm)
         }
         ContextCompat.startForegroundService(this, serviceIntent)
         finish()
@@ -160,21 +161,6 @@ class AlarmRingingActivity : Activity() {
                 else -> true
             }
         }
-    }
-
-    private fun Intent.copyAlarmExtrasFrom(source: Intent) {
-        putExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY, source.getStringExtra(AppAlarmClockIntents.EXTRA_ALARM_KEY))
-        putExtra(AppAlarmClockIntents.EXTRA_RULE_ID, source.getStringExtra(AppAlarmClockIntents.EXTRA_RULE_ID))
-        putExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID, source.getStringExtra(AppAlarmClockIntents.EXTRA_PLUGIN_ID))
-        putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, source.getStringExtra(AppAlarmClockIntents.EXTRA_PLAN_ID))
-        putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, source.getStringExtra(AppAlarmClockIntents.EXTRA_COURSE_ID))
-        putExtra(
-            AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS,
-            source.getLongExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, 0L),
-        )
-        putExtra(AppAlarmClockIntents.EXTRA_TITLE, source.getStringExtra(AppAlarmClockIntents.EXTRA_TITLE))
-        putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, source.getStringExtra(AppAlarmClockIntents.EXTRA_MESSAGE))
-        putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, source.getStringExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI))
     }
 
     private fun actionButton(

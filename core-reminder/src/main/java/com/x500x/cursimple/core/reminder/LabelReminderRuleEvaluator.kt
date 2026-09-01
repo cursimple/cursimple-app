@@ -20,8 +20,6 @@ import com.x500x.cursimple.core.reminder.model.systemAlarmKey
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
 
 internal data class DailyReminderObject(
     val slotLabel: String,
@@ -97,7 +95,7 @@ internal class LabelReminderRuleEvaluator {
             .flatMap { it.courses }
             .asSequence()
             .filter { it.time.dayOfWeek == dayOfWeek }
-            .filter { it.isActiveOnSourceDate(termStart, sourceDate, sourceWeek) }
+            .filter { it.isActiveInTermWeek(sourceWeek) }
             .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
             .mapNotNull { course ->
                 val label = course.reminderSlotLabel(timingProfile)?.trim()?.takeIf { it.isNotBlank() }
@@ -165,11 +163,8 @@ internal class LabelReminderRuleEvaluator {
         val regularDates = schedule.dailySchedules
             .flatMap { it.courses }
             .flatMap { course ->
-                val weeks = course.weeks.ifEmpty { (1..60).toList() }
-                weeks.map { week ->
-                    termStart
-                        .plusWeeks((week - 1).toLong())
-                        .plusDays((course.time.dayOfWeek - 1).toLong())
+                course.termWeekNumbers().map { week ->
+                    termWeekDate(termStart, week, course.time.dayOfWeek)
                 }
             }
         val overrideTargetDates = temporaryScheduleOverrides.flatMap { it.targetDates() }
@@ -244,21 +239,6 @@ internal class LabelReminderRuleEvaluator {
             label = label,
         )
     }
-
-    private fun CourseItem.isActiveOnSourceDate(
-        termStart: LocalDate,
-        sourceDate: LocalDate,
-        sourceWeek: Int = resolveTermWeek(termStart, sourceDate),
-    ): Boolean {
-        if (weeks.isEmpty()) return true
-        return sourceWeek in weeks
-    }
-
-    private fun resolveTermWeek(termStart: LocalDate, date: LocalDate): Int =
-        ChronoUnit.WEEKS.between(
-            termStart.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)),
-            date.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)),
-        ).toInt() + 1
 
     private fun weekdayName(dayOfWeek: Int): String = when (dayOfWeek) {
         1 -> "周一"
