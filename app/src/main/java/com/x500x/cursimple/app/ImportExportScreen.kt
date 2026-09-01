@@ -33,6 +33,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Download
@@ -40,6 +42,7 @@ import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.PhotoLibrary
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.QrCodeScanner
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -68,6 +71,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.app.util.QrCodeCodec
 import com.x500x.cursimple.app.util.QrScannerView
@@ -79,11 +83,14 @@ import com.x500x.cursimple.app.webdav.WebDavBackupFile
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.util.ScheduleIcsExporter
+import com.x500x.cursimple.app.util.ScheduleImageExporter
+import com.x500x.cursimple.app.util.ScheduleImageLayout
 import com.x500x.cursimple.core.data.AppBackupPayload
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -129,6 +136,17 @@ fun ImportExportScreen(
     var pendingRestore by remember { mutableStateOf<WebDavBackupFile?>(null) }
     var aiBusy by remember { mutableStateOf(false) }
     var icsBusy by remember { mutableStateOf(false) }
+    var imageBusy by remember { mutableStateOf(false) }
+    val maxImageWeek = remember(schedule, manualCourses) {
+        ScheduleImageLayout.maxWeekNumber(schedule, manualCourses)
+    }
+    var imageWeek by remember(termStartDate, maxImageWeek) {
+        val current = termStartDate
+            ?.let { ScheduleImageLayout.currentWeekNumber(it, BeijingTime.today()) }
+            ?.coerceIn(1, maxImageWeek)
+            ?: 1
+        mutableStateOf(current)
+    }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
         Json {
@@ -182,6 +200,44 @@ fun ImportExportScreen(
             ).show()
             runCatching {
                 val chooser = android.content.Intent.createChooser(intent, "导出课表日历").apply {
+                    clipData = intent.clipData
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+            }.onFailure {
+                Toast.makeText(context, "无法启动分享：${it.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun exportScheduleImage() {
+        if (imageBusy) return
+        imageBusy = true
+        scope.launch {
+            val outcome = ScheduleImageExporter.export(
+                context = context,
+                termName = termName,
+                termStartDate = termStartDate,
+                weekNumber = imageWeek,
+                schedule = schedule,
+                manualCourses = manualCourses,
+                timingProfile = timingProfile,
+                overrides = temporaryScheduleOverrides,
+                holidayCalendar = holidayCalendar,
+            )
+            imageBusy = false
+            val intent = outcome.intent
+            if (intent == null) {
+                Toast.makeText(
+                    context,
+                    outcome.failureReason ?: "导出失败，请稍后重试",
+                    Toast.LENGTH_LONG,
+                ).show()
+                return@launch
+            }
+            runCatching {
+                val chooser = android.content.Intent.createChooser(intent, "分享课表图片").apply {
                     clipData = intent.clipData
                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -412,6 +468,15 @@ fun ImportExportScreen(
                 actionLabel = if (icsBusy) "生成中..." else "生成 .ics 文件",
                 actionEnabled = canExport && !icsBusy,
                 onAction = { exportIcs() },
+            )
+
+            ScheduleImagePanel(
+                weekNumber = imageWeek,
+                maxWeekNumber = maxImageWeek,
+                canExport = canExport,
+                busy = imageBusy,
+                onWeekChange = { imageWeek = it.coerceIn(1, maxImageWeek) },
+                onExport = { exportScheduleImage() },
             )
 
             ImportPanel(
@@ -1037,6 +1102,98 @@ private fun ScannerOverlay(
                 color = androidx.compose.ui.graphics.Color.White,
                 style = MaterialTheme.typography.bodyMedium,
             )
+        }
+    }
+}
+
+@Composable
+private fun ScheduleImagePanel(
+    weekNumber: Int,
+    maxWeekNumber: Int,
+    canExport: Boolean,
+    busy: Boolean,
+    onWeekChange: (Int) -> Unit,
+    onExport: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp)),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+                Spacer(Modifier.size(12.dp))
+                Text(
+                    text = "导出课表图片",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = if (canExport) {
+                    "把选定一周的课表画成一张 PNG，直接发给同学或家长，对方不用装应用也能看。已排除假日，并按临时调课取课。"
+                } else {
+                    "暂无课表数据，先同步或添加课程后再导出。"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(
+                    onClick = { onWeekChange(weekNumber - 1) },
+                    enabled = canExport && !busy && weekNumber > 1,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronLeft,
+                        contentDescription = "上一周",
+                    )
+                }
+                Text(
+                    text = "第 $weekNumber 周",
+                    modifier = Modifier.weight(1f),
+                    textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                IconButton(
+                    onClick = { onWeekChange(weekNumber + 1) },
+                    enabled = canExport && !busy && weekNumber < maxWeekNumber,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = "下一周",
+                    )
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = onExport,
+                enabled = canExport && !busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (busy) "生成中..." else "生成并分享图片")
+            }
         }
     }
 }

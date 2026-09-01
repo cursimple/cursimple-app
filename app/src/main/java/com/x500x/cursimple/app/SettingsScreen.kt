@@ -8,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -78,6 +79,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
@@ -98,6 +100,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.x500x.cursimple.core.data.AutoSilenceMode
+import com.x500x.cursimple.core.data.AutoSilencePreferences
+import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.ScheduleBackgroundPreferences
 import com.x500x.cursimple.core.data.ScheduleBackgroundType
 import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
@@ -112,6 +117,7 @@ import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
 import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import com.x500x.cursimple.core.data.coerceAiImportTimeoutSeconds
 import com.x500x.cursimple.app.reminder.AlarmPermissionIntents
+import com.x500x.cursimple.app.reminder.AutoSilenceController
 import com.x500x.cursimple.app.util.LogExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.core.data.ThemeMode
@@ -135,7 +141,9 @@ import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.feature.schedule.ScheduleAppearancePreview
 import com.x500x.cursimple.feature.schedule.ScheduleSettingsRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -161,6 +169,7 @@ private enum class SettingsDestination {
     ScheduleBackground,
     ScheduleDisplay,
     WidgetSettings,
+    AutoSilence,
     Plugins,
     WebDav,
     AiImport,
@@ -195,6 +204,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.ScheduleBackground -> "课表背景"
     SettingsDestination.ScheduleDisplay -> "显示"
     SettingsDestination.WidgetSettings -> "小组件设置"
+    SettingsDestination.AutoSilence -> "上课自动静音"
     SettingsDestination.Plugins -> "插件"
     SettingsDestination.WebDav -> "WebDAV"
     SettingsDestination.AiImport -> "AI 识图导入"
@@ -424,6 +434,9 @@ fun AppSettingsRoute(
                 })
                 SettingsActionRow(Icons.Rounded.Widgets, "小组件设置", "主题、桌面小组件和背景", {
                     navigate(SettingsDestination.WidgetSettings)
+                })
+                SettingsActionRow(Icons.Rounded.Notifications, "上课自动静音", "上课时段自动切换手机状态，下课恢复", {
+                    navigate(SettingsDestination.AutoSilence)
                 })
                 SettingsActionRow(Icons.Rounded.Code, "插件", "市场索引和组件索引", {
                     navigate(SettingsDestination.Plugins)
@@ -786,6 +799,10 @@ fun AppSettingsRoute(
                 }
             }
 
+            SettingsDestination.AutoSilence -> {
+                AutoSilenceSettingsSection()
+            }
+
             SettingsDestination.Plugins -> {
                 PluginSettingsSection(
                     pluginRegistryRepo = pluginRegistryRepo,
@@ -1121,6 +1138,203 @@ private fun SettingsSectionHeader(text: String) {
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier.padding(top = 4.dp),
     )
+}
+
+@Composable
+private fun AutoSilenceSettingsSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repository = remember(context) { DataStoreUserPreferencesRepository(context.applicationContext) }
+    val preferences by repository.preferencesFlow.collectAsState(initial = null)
+    val autoSilence = preferences?.autoSilence ?: AutoSilencePreferences()
+    val sessionActive = preferences?.autoSilenceSession?.active == true
+    val readiness = AutoSilenceController.readiness(context, autoSilence.mode)
+    var showModePicker by remember { mutableStateOf(false) }
+
+    fun refreshAutoSilence(reason: String) {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                AutoSilenceController.evaluate(context.applicationContext, reason = reason)
+            }
+        }
+    }
+
+    val blockingReason = readiness.blockingReason
+    if (blockingReason != null) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp),
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "自动静音无法生效",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = blockingReason,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        }
+    }
+    readiness.warning?.let { warning ->
+        Text(
+            text = warning,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
+
+    SettingsSwitchRow(
+        icon = Icons.Rounded.Notifications,
+        title = "上课自动静音",
+        subtitle = if (autoSilence.enabled) {
+            "有课的时段自动切换手机状态，下课恢复原状"
+        } else {
+            "关闭时不会改动手机的铃声和勿扰设置"
+        },
+        checked = autoSilence.enabled,
+        onCheckedChange = { enabled ->
+            val reason = AutoSilenceController.readiness(context, autoSilence.mode).blockingReason
+            if (enabled && reason != null) {
+                Toast.makeText(context, reason, Toast.LENGTH_LONG).show()
+            } else {
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        repository.setAutoSilenceEnabled(enabled)
+                        AutoSilenceController.evaluate(context.applicationContext, reason = "settings_toggle")
+                    }
+                }
+            }
+        },
+    )
+    SettingsActionRow(
+        icon = Icons.Rounded.Tune,
+        title = "静音方式",
+        subtitle = autoSilenceModeLabel(autoSilence.mode),
+        onClick = { showModePicker = true },
+    )
+    SettingsActionRow(
+        icon = Icons.Rounded.Notifications,
+        title = "勿扰权限",
+        subtitle = when {
+            readiness.notificationPolicyGranted -> "已授权，可以切换静音和勿扰"
+            autoSilence.mode == AutoSilenceMode.Vibrate -> "仅震动不需要，改用静音或勿扰时才需要"
+            else -> "未授权，点击后在列表里找到本应用打开"
+        },
+        onClick = {
+            if (readiness.notificationPolicyGranted) {
+                Toast.makeText(context, "勿扰权限已授权", Toast.LENGTH_SHORT).show()
+            } else {
+                launchSettingsIntent(context, AutoSilenceController.notificationPolicySettingsIntent())
+            }
+        },
+    )
+    if (autoSilence.mode == AutoSilenceMode.DoNotDisturb && !readiness.doNotDisturbAllowsAlarms) {
+        SettingsActionRow(
+            icon = Icons.Rounded.Warning,
+            title = "勿扰未放行闹钟",
+            subtitle = "请在系统勿扰设置里允许闹钟，否则课程提醒会被一起静音",
+            onClick = { launchSettingsIntent(context, Intent(Settings.ACTION_SOUND_SETTINGS)) },
+        )
+    }
+    SettingsActionRow(
+        icon = Icons.Rounded.Restore,
+        title = "当前状态",
+        subtitle = if (sessionActive) "正在自动静音中，点击立即恢复" else "手机状态由用户自己控制",
+        onClick = {
+            if (sessionActive) {
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        AutoSilenceController.restoreNow(
+                            context = context.applicationContext,
+                            reason = "settings_restore",
+                            suppressUntilBlockEnd = true,
+                        )
+                    }
+                    Toast.makeText(context, "已恢复原来的铃声状态", Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                refreshAutoSilence("settings_recheck")
+                Toast.makeText(context, "已重新检查", Toast.LENGTH_SHORT).show()
+            }
+        },
+    )
+    Text(
+        text = "静音只改动铃声模式或勿扰级别，课程提醒走闹钟音频通道，不受影响。" +
+            "勿扰只会开到「仅优先级」，不会开成完全静音。" +
+            "假日、临时调课取消的课不会触发静音；连堂课之间不会反复切换。" +
+            "下课后恢复的是上课前的状态，如果上课途中你自己改过铃声，App 不会覆盖你的选择。",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+
+    if (showModePicker) {
+        AlertDialog(
+            onDismissRequest = { showModePicker = false },
+            title = { Text("静音方式") },
+            text = {
+                Column {
+                    AutoSilenceMode.values().forEach { mode ->
+                        SettingsActionRow(
+                            icon = Icons.Rounded.Tune,
+                            title = autoSilenceModeLabel(mode),
+                            subtitle = autoSilenceModeDescription(mode),
+                            onClick = {
+                                showModePicker = false
+                                val reason = AutoSilenceController.readiness(context, mode).blockingReason
+                                if (reason != null && autoSilence.enabled) {
+                                    Toast.makeText(context, reason, Toast.LENGTH_LONG).show()
+                                }
+                                scope.launch {
+                                    withContext(Dispatchers.IO) {
+                                        repository.setAutoSilenceMode(mode)
+                                        if (reason != null) {
+                                            repository.setAutoSilenceEnabled(false)
+                                        }
+                                        AutoSilenceController.evaluate(
+                                            context.applicationContext,
+                                            reason = "settings_mode",
+                                        )
+                                    }
+                                }
+                            },
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showModePicker = false }) { Text("关闭") }
+            },
+        )
+    }
+}
+
+private fun autoSilenceModeLabel(mode: AutoSilenceMode): String = when (mode) {
+    AutoSilenceMode.Vibrate -> "仅震动"
+    AutoSilenceMode.Silent -> "静音"
+    AutoSilenceMode.DoNotDisturb -> "勿扰（仅优先级）"
+}
+
+private fun autoSilenceModeDescription(mode: AutoSilenceMode): String = when (mode) {
+    AutoSilenceMode.Vibrate -> "把铃声模式切到震动，不需要额外授权"
+    AutoSilenceMode.Silent -> "把铃声模式切到静音，需要勿扰权限"
+    AutoSilenceMode.DoNotDisturb -> "打开勿扰并放行闹钟，同时挡掉通知横幅，需要勿扰权限"
 }
 
 @Composable

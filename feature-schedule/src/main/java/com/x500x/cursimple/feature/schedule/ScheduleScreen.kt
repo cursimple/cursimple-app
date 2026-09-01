@@ -1246,6 +1246,7 @@ private fun WeeklyScheduleSection(
                                 onCourseLongClick = onCourseLongClick,
                                 currentWeekIndex = pageWeek.weekIndex.coerceAtLeast(1),
                                 onAddManualCourse = onAddManualCourse,
+                                existingCourses = allCourses,
                             )
                         }
                     }
@@ -2009,6 +2010,7 @@ private fun ScheduleGrid(
     onCourseLongClick: (String) -> Unit,
     currentWeekIndex: Int = 1,
     onAddManualCourse: (CourseItem) -> Unit = {},
+    existingCourses: List<CourseItem> = emptyList(),
     modifier: Modifier = Modifier,
 ) {
     val cellGroups = remember(activeEntries) {
@@ -2273,6 +2275,7 @@ private fun ScheduleGrid(
                 startNode = startNode,
                 endNode = endNode,
                 initialWeek = currentWeekIndex,
+                existingCourses = existingCourses,
                 onDismiss = { addRequest = null },
                 onConfirm = { course ->
                     onAddManualCourse(course)

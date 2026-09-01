@@ -55,6 +55,9 @@ import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.examCountdownOrNull
+import com.x500x.cursimple.feature.schedule.time.LocalAppZone
+import com.x500x.cursimple.feature.schedule.time.today
 import java.time.LocalDate
 
 @Composable
@@ -104,6 +107,15 @@ fun CourseDetailDialog(
     }
     val classTimeText = remember(course, timingProfile) { resolveClassTime(course, timingProfile) }
     val weeksText = remember(course.weeks) { describeWeeksDetail(course.weeks) }
+    val today = LocalAppZone.current.today()
+    // targetDate 是点开这一格时对应的日期，对考试来说就是这场考试的日期。
+    val examCountdown = remember(course, targetDate, today) {
+        if (course.category == CourseCategory.Exam && targetDate != null) {
+            examCountdownOrNull(course, targetDate, today)
+        } else {
+            null
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -193,6 +205,14 @@ fun CourseDetailDialog(
                         title = "上课周次",
                         body = weeksText,
                     )
+                    examCountdown?.let { countdown ->
+                        DetailRow(
+                            icon = Icons.Rounded.AccessTime,
+                            title = "考试倒计时",
+                            body = "${countdown.date.monthValue} 月 ${countdown.date.dayOfMonth} 日 · " +
+                                examCountdownLabel(countdown),
+                        )
+                    }
                     if (course.location.isNotBlank()) {
                         DetailRow(
                             icon = Icons.Rounded.LocationOn,

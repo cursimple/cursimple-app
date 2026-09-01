@@ -33,6 +33,60 @@ enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
 
 enum class ScheduleBackgroundType { Color, Image, Header }
 
+/** 上课时段自动静音采用的手段。 */
+enum class AutoSilenceMode {
+    /** 铃声模式切到仅震动，只需 MODIFY_AUDIO_SETTINGS。 */
+    Vibrate,
+
+    /** 铃声模式切到静音，需要勿扰访问授权。 */
+    Silent,
+
+    /** 打开勿扰（仅优先级），需要勿扰访问授权。 */
+    DoNotDisturb,
+}
+
+/** 铃声模式取值与 AudioManager 保持一致，UNKNOWN 表示没有记录。 */
+object RingerModeValues {
+    const val UNKNOWN = -1
+    const val SILENT = 0
+    const val VIBRATE = 1
+    const val NORMAL = 2
+}
+
+/** 勿扰级别取值与 NotificationManager 保持一致，UNKNOWN 表示没有记录。 */
+object InterruptionFilterValues {
+    const val UNKNOWN = 0
+    const val ALL = 1
+    const val PRIORITY = 2
+    const val NONE = 3
+    const val ALARMS = 4
+}
+
+data class AutoSilencePreferences(
+    val enabled: Boolean = false,
+    val mode: AutoSilenceMode = AutoSilenceMode.Vibrate,
+)
+
+/**
+ * 一次自动静音的现场记录。
+ *
+ * [previousRingerMode] 与 [previousInterruptionFilter] 是切换之前手机的状态，下课后照此恢复。
+ * [appliedRingerMode] 与 [appliedInterruptionFilter] 是本次实际写进系统的值，恢复前用来确认
+ * 用户中途没有手动改过。[plannedEndAtMillis] 是本次静音的兜底截止时刻，即使课表数据读不出来，
+ * 超过它也一律恢复。[suppressedUntilMillis] 之前不再重新静音，供用户手动恢复后使用。
+ */
+data class AutoSilenceSession(
+    val active: Boolean = false,
+    val mode: AutoSilenceMode = AutoSilenceMode.Vibrate,
+    val previousRingerMode: Int = RingerModeValues.UNKNOWN,
+    val previousInterruptionFilter: Int = InterruptionFilterValues.UNKNOWN,
+    val appliedRingerMode: Int = RingerModeValues.UNKNOWN,
+    val appliedInterruptionFilter: Int = InterruptionFilterValues.UNKNOWN,
+    val startedAtMillis: Long = 0L,
+    val plannedEndAtMillis: Long = 0L,
+    val suppressedUntilMillis: Long = 0L,
+)
+
 const val DEFAULT_PLUGIN_REGISTRY_REPO = "cursimple/cursimple-plugins"
 const val DEFAULT_PLUGIN_REGISTRY_BRANCH = "plugin-stars-data"
 const val DEFAULT_PLUGIN_REGISTRY_PATH = "plugins-stars.json"
@@ -206,6 +260,8 @@ data class UserPreferences(
     val alarmRepeatIntervalSeconds: Int = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
     val alarmRepeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
     val lastAlarmPollAtMillis: Long = 0L,
+    val autoSilence: AutoSilencePreferences = AutoSilencePreferences(),
+    val autoSilenceSession: AutoSilenceSession = AutoSilenceSession(),
     val autoUpdateEnabled: Boolean = false,
     val ignoredUpdateVersionCode: Int? = null,
     val pluginRegistryRepo: String = DEFAULT_PLUGIN_REGISTRY_REPO,
@@ -280,6 +336,10 @@ interface UserPreferencesRepository {
     suspend fun setAlarmRepeatCount(count: Int)
     suspend fun markAlarmPollAt(millis: Long)
     suspend fun tryClaimAlarmPoll(nowMillis: Long, minIntervalMillis: Long): Boolean
+    suspend fun setAutoSilenceEnabled(enabled: Boolean)
+    suspend fun setAutoSilenceMode(mode: AutoSilenceMode)
+    suspend fun saveAutoSilenceSession(session: AutoSilenceSession)
+    suspend fun clearAutoSilenceSession(suppressedUntilMillis: Long)
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
     suspend fun setPluginRegistryRepo(repo: String)

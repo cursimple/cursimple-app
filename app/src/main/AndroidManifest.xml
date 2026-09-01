@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
@@ -100,6 +102,19 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.x500x.cursimple.action.APP_ALARM_TRIGGER" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".app.reminder.AutoSilenceReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="com.x500x.cursimple.action.AUTO_SILENCE_BOUNDARY" />
+                <action android:name="com.x500x.cursimple.action.AUTO_SILENCE_RESTORE_NOW" />
             </intent-filter>
         </receiver>
 

@@ -1075,6 +1075,8 @@ class MainActivity : ComponentActivity() {
 
                     if (showAddCourseDialog) {
                         AddCourseDialog(
+                            existingCourses = scheduleState.manualCourses +
+                                scheduleState.schedule?.dailySchedules.orEmpty().flatMap { it.courses },
                             onDismiss = { showAddCourseDialog = false },
                             onConfirm = { course ->
                                 scheduleViewModel.addManualCourse(course)
@@ -1117,6 +1119,8 @@ class MainActivity : ComponentActivity() {
                     if (showManageSheet) {
                         ManageScheduleSheet(
                             manualCourses = scheduleState.manualCourses,
+                            importedCourses = scheduleState.schedule?.dailySchedules.orEmpty()
+                                .flatMap { it.courses },
                             onDismiss = { showManageSheet = false },
                             onAddSingleCourse = {
                                 showManageSheet = false
