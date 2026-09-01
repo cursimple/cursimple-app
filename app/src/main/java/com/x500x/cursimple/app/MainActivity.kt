@@ -184,6 +184,7 @@ class MainActivity : ComponentActivity() {
                                 container.userPreferencesRepository.markAlarmPollAt(System.currentTimeMillis())
                             },
                             resolveTimingProfile = { container.widgetPreferencesRepository.timingProfileFlow.first() },
+                            timingProfileFlow = container.widgetPreferencesRepository.timingProfileFlow,
                         ),
                     )
                     val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()

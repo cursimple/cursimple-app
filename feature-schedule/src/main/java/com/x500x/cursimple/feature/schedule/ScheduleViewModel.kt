@@ -57,6 +57,8 @@ import kotlinx.coroutines.withContext
 import java.time.OffsetDateTime
 import java.util.Locale
 import java.util.UUID
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 sealed interface ScheduleSelectionState {
     data class SingleCourse(val courseId: String) : ScheduleSelectionState
@@ -96,6 +98,7 @@ class ScheduleViewModel(
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
     private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
+    private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ScheduleUiState())
@@ -105,6 +108,12 @@ class ScheduleViewModel(
         viewModelScope.launch {
             manualCourseRepository.manualCoursesFlow.collect { courses ->
                 _uiState.update { it.copy(manualCourses = courses) }
+            }
+        }
+        // 节次时间表以存储为准：插件同步与手动编辑都汇入同一份，手动录课的用户才能拿到上课时间
+        viewModelScope.launch {
+            timingProfileFlow.collect { profile ->
+                _uiState.update { it.copy(timingProfile = profile) }
             }
         }
         viewModelScope.launch {
@@ -1130,7 +1139,8 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     uiSchema = schema,
-                    timingProfile = timingProfile,
+                    // 插件没有节次时间表时保留已有的，用户手填的版本不能被覆盖成空
+                    timingProfile = timingProfile ?: it.timingProfile,
                 )
             }
             // Mirror the timing profile into widget storage so home-screen widgets can
@@ -1227,7 +1237,7 @@ class ScheduleViewModel(
                         pendingWebSession = null,
                         schedule = schedule,
                         uiSchema = result.uiSchema,
-                        timingProfile = syncedTimingProfile,
+                        timingProfile = syncedTimingProfile ?: it.timingProfile,
                         alarmRecommendations = result.recommendations,
                         messages = result.messages,
                         missingComponents = emptyList(),
@@ -1703,6 +1713,7 @@ class ScheduleViewModelFactory(
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
     private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
+    private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
@@ -1716,6 +1727,7 @@ class ScheduleViewModelFactory(
                 onSyncCompleted = onSyncCompleted,
                 onAlarmSyncChecked = onAlarmSyncChecked,
                 resolveTimingProfile = resolveTimingProfile,
+                timingProfileFlow = timingProfileFlow,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

@@ -46,6 +46,10 @@ class DataStoreWidgetPreferencesRepository(
             ?.let { raw -> runCatching { json.decodeFromString<TermTimingProfile>(raw) }.getOrNull() }
     }
 
+    override val timingProfileManuallyEditedFlow: Flow<Boolean> = store.data.map { preferences ->
+        preferences[KEY_TIMING_PROFILE_MANUAL] ?: false
+    }
+
     override val themePreferencesFlow: Flow<WidgetThemePreferences> = store.data.map { preferences ->
         WidgetThemePreferences(
             themeAccent = preferences[KEY_WIDGET_THEME_ACCENT]
@@ -126,6 +130,19 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
+    override suspend fun saveManualTimingProfile(profile: TermTimingProfile) {
+        store.edit { preferences ->
+            preferences[KEY_TIMING_PROFILE_JSON] = json.encodeToString(profile)
+            preferences[KEY_TIMING_PROFILE_MANUAL] = true
+        }
+    }
+
+    override suspend fun clearManualTimingProfileFlag() {
+        store.edit { preferences ->
+            preferences.remove(KEY_TIMING_PROFILE_MANUAL)
+        }
+    }
+
     override suspend fun setWidgetThemeAccent(accent: ThemeAccent) {
         var previousImageUri: String? = null
         store.edit { preferences ->
@@ -203,6 +220,7 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_DAY = stringPreferencesKey("widget_day")
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
+        val KEY_TIMING_PROFILE_MANUAL = booleanPreferencesKey("widget_timing_profile_manual")
         val KEY_WIDGET_THEME_ACCENT = stringPreferencesKey("widget_theme_accent")
         val KEY_WIDGET_BACKGROUND_MODE = stringPreferencesKey("widget_background_mode")
         val KEY_WIDGET_BACKGROUND_IMAGE_URI = stringPreferencesKey("widget_background_image_uri")
