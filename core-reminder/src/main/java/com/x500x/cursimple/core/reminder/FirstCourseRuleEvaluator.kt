@@ -36,7 +36,8 @@ internal class FirstCourseRuleEvaluator {
         customOccupancies: List<ReminderCustomOccupancy>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<ReminderPlanTarget> {
-        val termStart = timingProfile.termStartLocalDate()
+        // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
+        val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val occurrences = schedule.dailySchedules
             .flatMap { it.courses }
             .flatMap { course ->

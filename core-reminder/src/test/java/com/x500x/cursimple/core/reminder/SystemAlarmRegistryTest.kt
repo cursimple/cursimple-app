@@ -248,6 +248,7 @@ class SystemAlarmRegistryTest {
             repository = repository,
             alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.AppAlarmClock) },
             appDispatcher = dispatcher,
+            alarmRegistrationVerifier = FakeAlarmRegistrationVerifier(registered = true),
         )
         val profile = sampleProfile()
         val nowMillis = sampleNowMillis(hour = 7, minute = 0)
@@ -278,6 +279,48 @@ class SystemAlarmRegistryTest {
         assertEquals(0, second.createdCount)
         assertEquals(2, dispatcher.dispatchCount)
         assertEquals(firstRecord.alarmKey, repository.records.value.single().alarmKey)
+    }
+
+    @Test
+    fun `a failing registration check re-dispatches instead of assuming the alarm is armed`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.AppAlarmClock) },
+            appDispatcher = dispatcher,
+            alarmRegistrationVerifier = ThrowingAlarmRegistrationVerifier(),
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+        val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
+        coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+
+        val second = coordinator.syncAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = window,
+            reason = ReminderSyncReason.ScheduleChanged,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(0, second.skippedExistingCount)
+        assertEquals(1, second.createdCount)
+        assertEquals(2, dispatcher.dispatchCount)
     }
 
     @Test
@@ -1579,6 +1622,11 @@ class SystemAlarmRegistryTest {
         private val registered: Boolean,
     ) : AlarmRegistrationVerifier {
         override fun isRegistered(record: SystemAlarmRecord): Boolean = registered
+    }
+
+    private class ThrowingAlarmRegistrationVerifier : AlarmRegistrationVerifier {
+        override fun isRegistered(record: SystemAlarmRecord): Boolean =
+            throw IllegalStateException("闹钟服务不可用")
     }
 
     private class FakeReminderRepository(

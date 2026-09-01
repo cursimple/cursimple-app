@@ -19,6 +19,9 @@ import java.util.UUID
 
 private val Context.termProfileStore: DataStore<Preferences> by preferencesDataStore(name = "term_profiles")
 
+/** 学期列表存在但无法解析。此时任何整体回写都会抹掉尚可修复的原始内容。 */
+class TermProfileDataCorruptedException : IllegalStateException("学期数据已损坏，无法读取")
+
 class DataStoreTermProfileRepository(
     context: Context,
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
@@ -97,28 +100,33 @@ class DataStoreTermProfileRepository(
 
     override suspend fun ensureBootstrapped(defaultName: String, legacyTermStartDateIso: String?): String {
         var resolved: String = ""
-        store.edit { prefs ->
-            val list = readTerms(prefs).toMutableList()
-            if (list.isEmpty()) {
-                val term = TermProfile(
-                    id = UUID.randomUUID().toString(),
-                    name = defaultName.ifBlank { "默认学期" },
-                    termStartDate = legacyTermStartDateIso,
-                )
-                list += term
-                prefs[KEY_TERMS_JSON] = json.encodeToString(listSerializer, list)
-                prefs[KEY_ACTIVE_TERM_ID] = term.id
-                resolved = term.id
-            } else {
-                val active = prefs[KEY_ACTIVE_TERM_ID]
-                resolved = if (!active.isNullOrBlank() && list.any { it.id == active }) {
-                    active
+        // 数据损坏时不建学期也不写盘：新建学期会换掉 id，让按学期存放的课表、手动课程和备注全部变成孤儿
+        try {
+            store.edit { prefs ->
+                val list = readTerms(prefs).toMutableList()
+                if (list.isEmpty()) {
+                    val term = TermProfile(
+                        id = UUID.randomUUID().toString(),
+                        name = defaultName.ifBlank { "默认学期" },
+                        termStartDate = legacyTermStartDateIso,
+                    )
+                    list += term
+                    prefs[KEY_TERMS_JSON] = json.encodeToString(listSerializer, list)
+                    prefs[KEY_ACTIVE_TERM_ID] = term.id
+                    resolved = term.id
                 } else {
-                    val first = list.first().id
-                    prefs[KEY_ACTIVE_TERM_ID] = first
-                    first
+                    val active = prefs[KEY_ACTIVE_TERM_ID]
+                    resolved = if (!active.isNullOrBlank() && list.any { it.id == active }) {
+                        active
+                    } else {
+                        val first = list.first().id
+                        prefs[KEY_ACTIVE_TERM_ID] = first
+                        first
+                    }
                 }
             }
+        } catch (error: TermProfileDataCorruptedException) {
+            return ""
         }
         return resolved
     }
@@ -130,10 +138,15 @@ class DataStoreTermProfileRepository(
         store.restoreSnapshot(snapshot)
     }
 
-    private fun readTerms(prefs: Preferences): List<TermProfile> =
-        prefs[KEY_TERMS_JSON]?.let { raw ->
-            runCatching { json.decodeFromString(listSerializer, raw) }.getOrNull()
-        }.orEmpty()
+    /**
+     * 键不存在返回空列表；内容存在但解析不了时抛出 [TermProfileDataCorruptedException]。
+     * 两者必须区分：写入路径都是先读后整体回写，把损坏当成空列表会用一份空数据覆盖掉原始内容。
+     */
+    private fun readTerms(prefs: Preferences): List<TermProfile> {
+        val raw = prefs[KEY_TERMS_JSON] ?: return emptyList()
+        return runCatching { json.decodeFromString(listSerializer, raw) }
+            .getOrElse { throw TermProfileDataCorruptedException() }
+    }
 
     private companion object {
         val KEY_TERMS_JSON = stringPreferencesKey("term_profiles_json")

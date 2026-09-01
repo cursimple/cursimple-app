@@ -189,3 +189,10 @@ private fun networkErrorDescription(error: Throwable): String? = when {
     error is IOException -> "网络请求失败"
     else -> null
 }
+
+/** 更新清单里的版本字段是否足以判断新旧，不足时返回用户可读的原因。 */
+fun updateManifestVersionProblem(versionCode: Int, versionName: String): String? = when {
+    versionCode <= 0 -> "更新清单缺少版本号，无法判断是否有新版本。"
+    versionName.isBlank() -> "更新清单缺少版本名称，无法确认新版本。"
+    else -> null
+}
