@@ -32,21 +32,25 @@ class AppUpdateChecker(
     suspend fun check(): AppUpdateCheckResult = withContext(Dispatchers.IO) {
         runCatching {
             val releaseUrl = "https://api.github.com/repos/$repository/releases/latest"
-            val releaseResponse = fastestText(
-                urls = mirrorPool.candidates(
+            val attempts = requestAllSources(
+                candidates = mirrorPool.candidates(
                     DownloadRequest(
                         purpose = DownloadPurpose.GithubRelease,
                         url = releaseUrl,
                     ),
-                ).map { UrlCandidate(it.sourceName, it.url) },
+                ),
                 accept = "application/vnd.github+json",
-                successfulOnly = false,
             )
-            if (releaseResponse == null || releaseResponse.statusCode == 404) {
-                return@withContext AppUpdateCheckResult.NoRelease
-            }
-            if (releaseResponse.statusCode !in 200..299) {
-                return@withContext AppUpdateCheckResult.Failure("检查更新失败：HTTP ${releaseResponse.statusCode}")
+            val selection = UpdateSourceSelector.select(attempts, ::isJsonObjectBody)
+            val releaseResponse = when (selection) {
+                is UpdateSourceSelection.Success -> selection.response
+                UpdateSourceSelection.NotFound -> return@withContext AppUpdateCheckResult.NoRelease
+                is UpdateSourceSelection.HttpError,
+                is UpdateSourceSelection.UnusableBody,
+                is UpdateSourceSelection.Unreachable,
+                -> return@withContext AppUpdateCheckResult.Failure(
+                    updateSourceFailureMessage(selection) ?: "检查更新失败，请稍后重试。",
+                )
             }
 
             val release = JSONObject(releaseResponse.body)
@@ -69,8 +73,18 @@ class AppUpdateChecker(
             if (remoteVersionCode <= BuildConfig.VERSION_CODE) {
                 return@withContext AppUpdateCheckResult.UpToDate
             }
-            val apkAsset = selectAsset(manifest)
-                ?: return@withContext AppUpdateCheckResult.Failure("更新清单没有匹配当前设备的 APK")
+            val assetSelection = UpdateAssetSelector.select(
+                assets = parseAssets(manifest),
+                deviceAbis = Build.SUPPORTED_ABIS?.toList().orEmpty(),
+            )
+            val apkAsset = when (assetSelection) {
+                is UpdateAssetSelection.Matched -> assetSelection.asset
+                UpdateAssetSelection.NoAsset,
+                is UpdateAssetSelection.NoCompatibleAbi,
+                -> return@withContext AppUpdateCheckResult.Failure(
+                    updateAssetFailureMessage(assetSelection) ?: "更新清单没有匹配当前设备的安装包。",
+                )
+            }
             val candidates = probeDownloadCandidates(apkAsset.downloadUrl)
             AppUpdateCheckResult.Available(
                 AppUpdateInfo(
@@ -84,7 +98,7 @@ class AppUpdateChecker(
                 ),
             )
         }.getOrElse { error ->
-            AppUpdateCheckResult.Failure(error.message ?: "检查更新失败")
+            AppUpdateCheckResult.Failure("检查更新失败：${describeUpdateError(error)}")
         }
     }
 
@@ -106,14 +120,14 @@ class AppUpdateChecker(
             is MirrorDownloadResult.Success -> AppUpdateDownloadResult.Success(target, result.candidate.sourceName)
             is MirrorDownloadResult.Failure -> {
                 runCatching { target.delete() }
-                AppUpdateDownloadResult.Failure(result.message)
+                AppUpdateDownloadResult.Failure(updateDownloadFailureMessage(result.message))
             }
         }
     }
 
-    private fun selectAsset(manifest: JSONObject): AppUpdateAsset? {
-        val assets = manifest.optJSONArray("assets") ?: return null
-        val parsed = (0 until assets.length())
+    private fun parseAssets(manifest: JSONObject): List<AppUpdateAsset> {
+        val assets = manifest.optJSONArray("assets") ?: return emptyList()
+        return (0 until assets.length())
             .mapNotNull { assets.optJSONObject(it) }
             .mapNotNull { json ->
                 val fileName = json.optString("fileName").ifBlank { json.optString("name") }
@@ -131,10 +145,6 @@ class AppUpdateChecker(
                     )
                 }
             }
-        val supported = Build.SUPPORTED_ABIS.toList()
-        return supported.firstNotNullOfOrNull { abi -> parsed.firstOrNull { it.abi == abi } }
-            ?: parsed.firstOrNull { it.abi == "universal" }
-            ?: parsed.firstOrNull()
     }
 
     private fun parseReleaseNotes(manifest: JSONObject, releaseBody: String): String {
@@ -168,7 +178,8 @@ class AppUpdateChecker(
                 is MirrorDownloadResult.Failure -> failures += result.message
             }
         }
-        throw IllegalStateException(failures.firstOrNull() ?: "无法下载更新清单")
+        val detail = failures.firstNotNullOfOrNull { readableFailureDetail(it) } ?: "没有可用的下载源"
+        throw IllegalStateException("无法下载更新清单（$detail）")
     }
 
     private fun updateManifestRequests(manifestUrl: String, tagName: String): List<DownloadRequest> {
@@ -216,43 +227,33 @@ class AppUpdateChecker(
             )
     }
 
-    private suspend fun fastestText(
-        urls: List<UrlCandidate>,
+    private suspend fun requestAllSources(
+        candidates: List<DownloadCandidate>,
         accept: String,
-        successfulOnly: Boolean,
-    ): TextResponse? = coroutineScope {
-        val responses = urls
+    ): List<UpdateSourceAttempt> = coroutineScope {
+        candidates
             .map { candidate ->
                 async {
                     runCatching {
-                        var response: TextResponse? = null
-                        val latency = measureTimeMillis {
-                            response = requestText(candidate, accept)
-                        }
-                        response?.copy(latencyMillis = latency)
-                    }.getOrNull()
+                        val startedAt = System.nanoTime()
+                        val response = requestText(candidate, accept)
+                        val latency = (System.nanoTime() - startedAt) / 1_000_000L
+                        UpdateSourceAttempt(
+                            sourceName = candidate.sourceName,
+                            response = response.copy(latencyMillis = latency),
+                        )
+                    }.getOrElse { error ->
+                        UpdateSourceAttempt(
+                            sourceName = candidate.sourceName,
+                            errorMessage = describeUpdateError(error),
+                        )
+                    }
                 }
             }
             .awaitAll()
-            .filterNotNull()
-            .filter { !successfulOnly || it.statusCode in 200..299 }
-        val preferred = if (successfulOnly) {
-            responses
-        } else {
-            val sourceNotFound = responses.firstOrNull {
-                it.sourceName == SOURCE_NAME_GITHUB && it.statusCode == 404
-            }
-            if (sourceNotFound != null) {
-                listOf(sourceNotFound)
-            } else {
-                responses.filter { it.statusCode in 200..299 || it.statusCode == 404 }
-            }
-                .ifEmpty { responses }
-        }
-        preferred.minByOrNull { it.latencyMillis }
     }
 
-    private fun requestText(candidate: UrlCandidate, accept: String): TextResponse {
+    private fun requestText(candidate: DownloadCandidate, accept: String): UpdateSourceResponse {
         val connection = (URL(candidate.url).openConnection() as HttpURLConnection).apply {
             connectTimeout = NETWORK_TIMEOUT_MILLIS
             readTimeout = NETWORK_TIMEOUT_MILLIS
@@ -264,8 +265,8 @@ class AppUpdateChecker(
         return connection.use { conn ->
             val status = conn.responseCode
             val stream = if (status in 200..399) conn.inputStream else conn.errorStream
-            TextResponse(
-                sourceName = candidate.name,
+            UpdateSourceResponse(
+                sourceName = candidate.sourceName,
                 statusCode = status,
                 body = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty(),
                 latencyMillis = Long.MAX_VALUE,
@@ -297,10 +298,13 @@ class AppUpdateChecker(
             }
             connection.use { conn -> conn.responseCode }
         }.getOrElse { error ->
-            throw IllegalStateException(error.message ?: "测速失败")
+            throw IllegalStateException("测速失败：${describeUpdateError(error)}")
         }
         check(getStatus in 200..399) { "HTTP $getStatus" }
     }
+
+    private fun isJsonObjectBody(body: String): Boolean =
+        runCatching { JSONObject(body) }.isSuccess
 
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
@@ -315,14 +319,6 @@ class AppUpdateChecker(
         return digest.digest().joinToString("") { byte -> "%02x".format(byte) }
     }
 
-    private data class UrlCandidate(val name: String, val url: String)
-    private data class TextResponse(
-        val sourceName: String,
-        val statusCode: Int,
-        val body: String,
-        val latencyMillis: Long,
-    )
-
     private fun <T> HttpURLConnection.use(block: (HttpURLConnection) -> T): T {
         try {
             return block(this)
@@ -333,7 +329,6 @@ class AppUpdateChecker(
 
     private companion object {
         const val UPDATE_MANIFEST_NAME = "update.json"
-        const val SOURCE_NAME_GITHUB = "GitHub 源站"
         val USER_AGENT = "CurSimple/${BuildConfig.VERSION_NAME}"
         const val NETWORK_TIMEOUT_MILLIS = 8_000
     }

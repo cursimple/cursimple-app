@@ -1,7 +1,6 @@
 package com.x500x.cursimple.core.reminder
 
 import android.content.Context
-import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
@@ -30,7 +29,6 @@ import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
-import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
 import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
 import com.x500x.cursimple.core.reminder.model.ReminderRule
@@ -43,6 +41,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderTimeRange
 import com.x500x.cursimple.core.reminder.model.TriggeredAppAlarmFinishAction
 import com.x500x.cursimple.core.reminder.model.TriggeredAppAlarmFinishResult
 import com.x500x.cursimple.core.reminder.model.appAlarmRequestCode
+import com.x500x.cursimple.core.reminder.model.isSyncable
 import com.x500x.cursimple.core.reminder.model.systemAlarmKey
 import com.x500x.cursimple.core.reminder.model.systemAlarmLabel
 import com.x500x.cursimple.core.reminder.model.toAppAlarmRecord
@@ -143,52 +142,6 @@ class ReminderCoordinator(
             dismissRecords(repository.getSystemAlarmRecords().filter { it.ruleId == ruleId })
         }
         rule
-    }
-
-    suspend fun createRule(
-        pluginId: String,
-        courseId: String?,
-        dayOfWeek: Int?,
-        startNode: Int?,
-        endNode: Int?,
-        scopeType: ReminderScopeType,
-        advanceMinutes: Int,
-        ringtoneUri: String?,
-    ): ReminderRule {
-        val now = OffsetDateTime.now().toString()
-        val existing = repository.getReminderRules().firstOrNull {
-            it.hasSameDefinition(
-                pluginId = pluginId,
-                courseId = courseId,
-                dayOfWeek = dayOfWeek,
-                startNode = startNode,
-                endNode = endNode,
-                scopeType = scopeType,
-                advanceMinutes = advanceMinutes,
-                ringtoneUri = ringtoneUri,
-            )
-        }
-        if (existing != null) {
-            val rule = existing.copy(enabled = true, updatedAt = now)
-            repository.saveReminderRule(rule)
-            return rule
-        }
-        val rule = ReminderRule(
-            ruleId = UUID.randomUUID().toString(),
-            pluginId = pluginId,
-            scopeType = scopeType,
-            period = null,
-            courseId = courseId,
-            dayOfWeek = dayOfWeek,
-            startNode = startNode,
-            endNode = endNode,
-            advanceMinutes = advanceMinutes,
-            ringtoneUri = ringtoneUri,
-            createdAt = now,
-            updatedAt = now,
-        )
-        repository.saveReminderRule(rule)
-        return rule
     }
 
     suspend fun upsertFirstCourseReminder(
@@ -317,71 +270,6 @@ class ReminderCoordinator(
 
     suspend fun removeCustomOccupancy(occupancyId: String) {
         repository.removeCustomOccupancy(occupancyId)
-    }
-
-    suspend fun upsertExamReminder(
-        pluginId: String,
-        enabled: Boolean,
-        advanceMinutes: Int,
-        ringtoneUri: String?,
-    ): ReminderRule = SYSTEM_ALARM_LOCK.withLock {
-        val now = OffsetDateTime.now().toString()
-        val existing = repository.getReminderRules().firstOrNull {
-            it.pluginId == pluginId && it.scopeType == ReminderScopeType.Exam
-        }
-        val rule = (existing ?: ReminderRule(
-            ruleId = UUID.randomUUID().toString(),
-            pluginId = pluginId,
-            scopeType = ReminderScopeType.Exam,
-            advanceMinutes = advanceMinutes,
-            ringtoneUri = ringtoneUri,
-            enabled = enabled,
-            createdAt = now,
-            updatedAt = now,
-        )).copy(
-            advanceMinutes = advanceMinutes,
-            ringtoneUri = ringtoneUri,
-            enabled = enabled,
-            updatedAt = now,
-        )
-        repository.saveReminderRule(rule)
-        if (!enabled) {
-            val records = repository.getSystemAlarmRecords()
-                .filter { it.ruleId == rule.ruleId && it.triggerAtMillis > System.currentTimeMillis() }
-            dismissRecords(records)
-        }
-        rule
-    }
-
-    suspend fun setExamReminderMuted(
-        pluginId: String,
-        courseId: String,
-        muted: Boolean,
-    ): ReminderRule? = SYSTEM_ALARM_LOCK.withLock {
-        val existing = repository.getReminderRules().firstOrNull {
-            it.pluginId == pluginId && it.scopeType == ReminderScopeType.Exam
-        } ?: return@withLock null
-        val nextMutedCourseIds = if (muted) {
-            (existing.mutedCourseIds + courseId).distinct()
-        } else {
-            existing.mutedCourseIds.filterNot { it == courseId }
-        }
-        val rule = existing.copy(
-            mutedCourseIds = nextMutedCourseIds,
-            updatedAt = OffsetDateTime.now().toString(),
-        )
-        repository.saveReminderRule(rule)
-        if (muted) {
-            val records = repository.getSystemAlarmRecords()
-                .filter {
-                    it.ruleId == existing.ruleId &&
-                        it.pluginId == pluginId &&
-                        it.courseId == courseId &&
-                        it.triggerAtMillis > System.currentTimeMillis()
-                }
-            dismissRecords(records)
-        }
-        rule
     }
 
     suspend fun deleteRule(ruleId: String) {
@@ -748,7 +636,7 @@ class ReminderCoordinator(
             .filter {
                 it.enabled &&
                     it.pluginId == pluginId &&
-                    it.scopeType in ALARM_SYNC_SCOPE_TYPES
+                    it.scopeType.isSyncable()
             }
         val plans = expandSyncRulePlans(
             rules = rules,
@@ -801,7 +689,7 @@ class ReminderCoordinator(
                 it.enabled &&
                     it.ruleId == ruleId &&
                     it.pluginId == pluginId &&
-                    it.scopeType in ALARM_SYNC_SCOPE_TYPES
+                    it.scopeType.isSyncable()
             }
         val plans = expandSyncRulePlans(
             rules = rules,
@@ -1074,69 +962,6 @@ class ReminderCoordinator(
         return dismissRecords(records)
     }
 
-    private suspend fun cleanupExpiredExamMutes(
-        pluginId: String,
-        schedule: TermSchedule,
-        timingProfile: TermTimingProfile,
-        fromDate: LocalDate,
-        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
-    ) {
-        repository.getReminderRules()
-            .filter {
-                it.pluginId == pluginId &&
-                    it.scopeType == ReminderScopeType.Exam &&
-                    it.mutedCourseIds.isNotEmpty()
-            }
-            .forEach { rule ->
-                val activeMutedIds = rule.mutedCourseIds.filter { courseId ->
-                    hasExamOccurrenceOnOrAfter(
-                        courseId = courseId,
-                        schedule = schedule,
-                        timingProfile = timingProfile,
-                        fromDate = fromDate,
-                        temporaryScheduleOverrides = temporaryScheduleOverrides,
-                    )
-                }
-                if (activeMutedIds != rule.mutedCourseIds) {
-                    repository.saveReminderRule(
-                        rule.copy(
-                            mutedCourseIds = activeMutedIds,
-                            updatedAt = OffsetDateTime.now().toString(),
-                        ),
-                    )
-                }
-            }
-    }
-
-    private fun hasExamOccurrenceOnOrAfter(
-        courseId: String,
-        schedule: TermSchedule,
-        timingProfile: TermTimingProfile,
-        fromDate: LocalDate,
-        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
-    ): Boolean {
-        val course = schedule.dailySchedules
-            .flatMap { it.courses }
-            .firstOrNull { it.id == courseId && it.category == CourseCategory.Exam }
-            ?: return false
-        val rule = ReminderRule(
-            ruleId = "exam-mute-cleanup-$courseId",
-            pluginId = "",
-            scopeType = ReminderScopeType.SingleCourse,
-            courseId = course.id,
-            advanceMinutes = 0,
-            createdAt = "",
-            updatedAt = "",
-        )
-        return planner.expandRule(
-            rule = rule,
-            schedule = schedule,
-            timingProfile = timingProfile,
-            fromDate = fromDate,
-            temporaryScheduleOverrides = temporaryScheduleOverrides,
-        ).isNotEmpty()
-    }
-
     private suspend fun dismissOutdatedAppAlarmOperationRecords(
         pluginId: String,
         window: ReminderSyncWindow,
@@ -1321,11 +1146,6 @@ private data class DismissStats(
     val failedCount: Int = 0,
 )
 
-private val ALARM_SYNC_SCOPE_TYPES = setOf(
-    ReminderScopeType.LabelRule,
-    ReminderScopeType.FirstCourseOfPeriod,
-)
-
 private fun emptySystemAlarmSyncSummary(
     expiredRecordClearedCount: Int = 0,
     dismissedCount: Int = 0,
@@ -1384,27 +1204,6 @@ private fun ReminderPlan.canBeRepresentedBySystemClock(
         else -> false
     }
 }
-
-private fun ReminderRule.hasSameDefinition(
-    pluginId: String,
-    courseId: String?,
-    dayOfWeek: Int?,
-    startNode: Int?,
-    endNode: Int?,
-    scopeType: ReminderScopeType,
-    advanceMinutes: Int,
-    ringtoneUri: String?,
-): Boolean =
-    this.pluginId == pluginId &&
-        this.courseId == courseId &&
-        this.dayOfWeek == dayOfWeek &&
-        this.startNode == startNode &&
-        this.endNode == endNode &&
-        this.scopeType == scopeType &&
-        this.advanceMinutes == advanceMinutes &&
-        this.ringtoneUri.normalizeRingtoneUri() == ringtoneUri.normalizeRingtoneUri()
-
-private fun String?.normalizeRingtoneUri(): String? = takeUnless { it.isNullOrBlank() }
 
 /** 周期性规则响铃后保留，只有一次性规则才随响铃一起删除。 */
 private fun ReminderRule.shouldDeleteAfterAppAlarmRing(): Boolean =

@@ -104,8 +104,8 @@ fun UpdateCheckSection(
             statusMessage = "正在检查 Release..."
             dismissPendingUpdate()
             when (val result = checker.check()) {
-                AppUpdateCheckResult.NoRelease -> statusMessage = "暂无发布版本。"
-                AppUpdateCheckResult.ManifestMissing -> statusMessage = "最新 Release 缺少 update.json。"
+                AppUpdateCheckResult.NoRelease -> statusMessage = "仓库暂无发布版本。"
+                AppUpdateCheckResult.ManifestMissing -> statusMessage = "最新 Release 缺少 update.json，无法自动更新。"
                 AppUpdateCheckResult.UpToDate -> statusMessage = "当前已经是最新版本。"
                 is AppUpdateCheckResult.Available -> {
                     val ignored = !manual && ignoredUpdateVersionCode == result.info.versionCode
