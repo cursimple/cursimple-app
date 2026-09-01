@@ -2,6 +2,7 @@ package com.x500x.cursimple.core.reminder
 
 import android.content.Context
 import com.x500x.cursimple.core.kernel.model.CourseCategory
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
@@ -59,6 +60,7 @@ class ReminderCoordinator(
     private val repository: ReminderRepository,
     private val planner: ReminderPlanner = ReminderPlanner(),
     private val temporaryScheduleOverridesProvider: suspend () -> List<TemporaryScheduleOverride> = { emptyList() },
+    private val holidayCalendarProvider: suspend () -> HolidayCalendarSettings = { HolidayCalendarSettings.NONE },
     private val alarmSettingsProvider: suspend () -> ReminderAlarmSettings = { ReminderAlarmSettings() },
     private val appDispatcher: AlarmDispatcher = AppAlarmClockDispatcher(context),
     private val appDismisser: AlarmDismisser = AppAlarmClockDismisser(context),
@@ -740,6 +742,7 @@ class ReminderCoordinator(
         val settings = alarmSettingsProvider()
         val zone = ZoneId.systemDefault()
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
+        val holidayCalendar = holidayCalendarProvider()
         val customOccupancies = repository.getCustomOccupancies(pluginId)
         val rules = repository.getReminderRules()
             .filter {
@@ -756,6 +759,7 @@ class ReminderCoordinator(
             zone = zone,
             temporaryScheduleOverrides = temporaryScheduleOverrides,
             customOccupancies = customOccupancies,
+            holidayCalendar = holidayCalendar,
         )
         dispatchPlansForWindowLocked(
             pluginId = pluginId,
@@ -790,6 +794,7 @@ class ReminderCoordinator(
             endMillis = nowMillis + NEAREST_RULE_ALARM_WINDOW_MILLIS,
         )
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
+        val holidayCalendar = holidayCalendarProvider()
         val customOccupancies = repository.getCustomOccupancies(pluginId)
         val rules = repository.getReminderRules()
             .filter {
@@ -807,6 +812,7 @@ class ReminderCoordinator(
             zone = zone,
             temporaryScheduleOverrides = temporaryScheduleOverrides,
             customOccupancies = customOccupancies,
+            holidayCalendar = holidayCalendar,
         ).take(1)
         dispatchPlansForWindowLocked(
             pluginId = pluginId,
@@ -831,6 +837,7 @@ class ReminderCoordinator(
         zone: ZoneId,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         customOccupancies: List<ReminderCustomOccupancy>,
+        holidayCalendar: HolidayCalendarSettings,
     ): List<ReminderPlan> = planner.expandRules(
         rules = rules,
         schedule = schedule,
@@ -838,6 +845,7 @@ class ReminderCoordinator(
         fromDate = Instant.ofEpochMilli(window.startMillis).atZone(zone).toLocalDate(),
         temporaryScheduleOverrides = temporaryScheduleOverrides,
         customOccupancies = customOccupancies,
+        holidayCalendar = holidayCalendar,
     ).asSequence()
         .filter { it.triggerAtMillis in window.startMillis..window.endMillis }
         .map { it.withAlarmSettings(settings) }

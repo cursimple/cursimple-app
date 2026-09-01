@@ -43,6 +43,8 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.ImageSearch
@@ -115,9 +117,17 @@ import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
+import com.x500x.cursimple.core.kernel.model.builtInHolidayYears
+import com.x500x.cursimple.core.kernel.model.entryOn
+import com.x500x.cursimple.core.kernel.model.localDate
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.sortedUserEntries
+import com.x500x.cursimple.core.kernel.model.userEntryOn
 import com.x500x.cursimple.core.kernel.model.weekIndexLabel
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
@@ -142,6 +152,7 @@ private enum class SettingsDestination {
     Application,
     ScheduleData,
     TemporaryOverrides,
+    Holidays,
     ScheduleSettings,
     ScheduleAppearance,
     ScheduleTextStyle,
@@ -175,6 +186,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.Application -> "应用"
     SettingsDestination.ScheduleData -> "课表数据"
     SettingsDestination.TemporaryOverrides -> "临时调课"
+    SettingsDestination.Holidays -> "节假日与调休"
     SettingsDestination.ScheduleSettings -> "课表设置"
     SettingsDestination.ScheduleAppearance -> "外观"
     SettingsDestination.ScheduleTextStyle -> "文字样式"
@@ -207,6 +219,7 @@ fun AppSettingsRoute(
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
     autoUpdateEnabled: Boolean,
     ignoredUpdateVersionCode: Int?,
     pluginRegistryRepo: String,
@@ -263,6 +276,10 @@ fun AppSettingsRoute(
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit,
     onRemoveTemporaryScheduleOverride: (String) -> Unit,
     onClearTemporaryScheduleOverrides: () -> Unit,
+    onUpsertHolidayCalendarEntry: (HolidayCalendarEntry) -> Unit = {},
+    onRemoveHolidayCalendarEntry: (String) -> Unit = {},
+    onClearHolidayCalendarEntries: () -> Unit = {},
+    onHolidayCalendarBuiltInEnabledChange: (Boolean) -> Unit = {},
     onOpenWidgetPicker: () -> Unit,
     onPickWidgetThemeAccent: () -> Unit,
     onWidgetBackgroundImageUriChange: (String) -> Unit,
@@ -323,6 +340,7 @@ fun AppSettingsRoute(
         handleBack()
     }
     var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
+    var showHolidayEditor by rememberSaveable { mutableStateOf(false) }
     var showAlarmBackendDialog by rememberSaveable { mutableStateOf(false) }
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
     var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
@@ -397,6 +415,9 @@ fun AppSettingsRoute(
                 SettingsActionRow(Icons.Rounded.CalendarMonth, "课表数据", "开学日期和当前周", { navigate(SettingsDestination.ScheduleData) })
                 SettingsActionRow(Icons.Rounded.EventRepeat, "临时调课", temporaryOverridesSubtitle(temporaryScheduleOverrides), {
                     navigate(SettingsDestination.TemporaryOverrides)
+                })
+                SettingsActionRow(Icons.Rounded.EventBusy, "节假日与调休", holidayCalendarSubtitle(holidayCalendar), {
+                    navigate(SettingsDestination.Holidays)
                 })
                 SettingsActionRow(Icons.AutoMirrored.Rounded.MenuBook, "课表设置", "外观和显示", {
                     navigate(SettingsDestination.ScheduleSettings)
@@ -499,6 +520,49 @@ fun AppSettingsRoute(
                         subtitle = formatOverrideSource(rule),
                         onClick = { showTemporaryOverrides = true },
                     )
+                }
+            }
+
+            SettingsDestination.Holidays -> {
+                SettingsSwitchRow(
+                    icon = Icons.Rounded.EventBusy,
+                    title = "使用内置法定节假日",
+                    subtitle = builtInHolidayCoverageSubtitle(),
+                    checked = holidayCalendar.builtInEnabled,
+                    onCheckedChange = onHolidayCalendarBuiltInEnabledChange,
+                )
+                SettingsActionRow(
+                    icon = Icons.Rounded.EventAvailable,
+                    title = "调整某一天",
+                    subtitle = "设为假日或设为调休上课日",
+                    onClick = { showHolidayEditor = true },
+                )
+                Text(
+                    text = "内置数据只收录来源确定的法定假日和补假。每年的调休连休和补班日期请在这里手动添加，" +
+                        "手动条目优先于内置数据。调休日若要按其它星期的课表上课，请另外添加一条临时调课。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val userEntries = holidayCalendar.sortedUserEntries()
+                if (userEntries.isEmpty()) {
+                    Text(
+                        text = "暂无手动调整",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    userEntries.forEach { entry ->
+                        SettingsActionRow(
+                            icon = if (entry.kind == HolidayEntryKind.Holiday) {
+                                Icons.Rounded.EventBusy
+                            } else {
+                                Icons.Rounded.EventAvailable
+                            },
+                            title = holidayEntryTitle(entry),
+                            subtitle = holidayEntrySubtitle(entry),
+                            onClick = { showHolidayEditor = true },
+                        )
+                    }
                 }
             }
 
@@ -817,6 +881,15 @@ fun AppSettingsRoute(
             onRemove = onRemoveTemporaryScheduleOverride,
             onClear = onClearTemporaryScheduleOverrides,
             onDismiss = { showTemporaryOverrides = false },
+        )
+    }
+    if (showHolidayEditor) {
+        HolidayCalendarDialog(
+            settings = holidayCalendar,
+            onUpsert = onUpsertHolidayCalendarEntry,
+            onRemove = onRemoveHolidayCalendarEntry,
+            onClear = onClearHolidayCalendarEntries,
+            onDismiss = { showHolidayEditor = false },
         )
     }
     if (showAlarmBackendDialog) {
@@ -1754,6 +1827,203 @@ private fun SettingsDatePickerDialog(
         },
     ) {
         DatePicker(state = state)
+    }
+}
+
+@Composable
+private fun HolidayCalendarDialog(
+    settings: HolidayCalendarSettings,
+    onUpsert: (HolidayCalendarEntry) -> Unit,
+    onRemove: (String) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val today = LocalDate.now()
+    var targetDate by rememberSaveable { mutableStateOf(today) }
+    var pickDate by rememberSaveable { mutableStateOf(false) }
+    var name by rememberSaveable { mutableStateOf("") }
+    val userEntry = settings.userEntryOn(targetDate)
+    val effectiveEntry = settings.entryOn(targetDate)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("节假日与调休") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                DateChoiceButton(
+                    label = "日期",
+                    date = targetDate,
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { pickDate = true },
+                )
+                Text(
+                    text = holidayDateStatusText(targetDate, effectiveEntry, userEntry != null),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it.take(12) },
+                    label = { Text("备注（可留空）") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = {
+                        onUpsert(
+                            HolidayCalendarEntry(
+                                date = targetDate.toString(),
+                                kind = HolidayEntryKind.Holiday,
+                                name = name.trim(),
+                            ),
+                        )
+                        name = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("设为假日")
+                }
+                OutlinedButton(
+                    onClick = {
+                        onUpsert(
+                            HolidayCalendarEntry(
+                                date = targetDate.toString(),
+                                kind = HolidayEntryKind.Workday,
+                                name = name.trim(),
+                            ),
+                        )
+                        name = ""
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("设为调休上课日")
+                }
+                if (userEntry != null) {
+                    OutlinedButton(
+                        onClick = { onRemove(targetDate.toString()) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("取消这天的手动调整")
+                    }
+                }
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                val userEntries = settings.sortedUserEntries()
+                if (userEntries.isEmpty()) {
+                    Text(
+                        text = "暂无手动调整",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    userEntries.forEach { entry ->
+                        HolidayEntryRow(
+                            entry = entry,
+                            onRemove = { onRemove(entry.date) },
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("完成") }
+        },
+        dismissButton = if (settings.entries.isNotEmpty()) {
+            {
+                TextButton(onClick = onClear) { Text("清空") }
+            }
+        } else null,
+    )
+
+    if (pickDate) {
+        SettingsDatePickerDialog(
+            initial = targetDate,
+            onConfirm = {
+                targetDate = it
+                pickDate = false
+            },
+            onDismiss = { pickDate = false },
+        )
+    }
+}
+
+@Composable
+private fun HolidayEntryRow(
+    entry: HolidayCalendarEntry,
+    onRemove: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = holidayEntryTitle(entry),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = holidayEntrySubtitle(entry),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onRemove) {
+                Text("删除")
+            }
+        }
+    }
+}
+
+private fun holidayCalendarSubtitle(settings: HolidayCalendarSettings): String {
+    val manual = settings.entries.size
+    val builtIn = if (settings.builtInEnabled) "内置已启用" else "内置已关闭"
+    return if (manual == 0) builtIn else "$builtIn · $manual 条手动调整"
+}
+
+private fun builtInHolidayCoverageSubtitle(): String {
+    val years = builtInHolidayYears
+    return if (years.isEmpty()) {
+        "暂无内置数据"
+    } else {
+        "已收录 ${years.joinToString("、")} 年法定假日与补假"
+    }
+}
+
+private fun holidayEntryTitle(entry: HolidayCalendarEntry): String {
+    val date = entry.localDate() ?: return "日期无效"
+    return formatLongDate(date)
+}
+
+private fun holidayEntrySubtitle(entry: HolidayCalendarEntry): String {
+    val kind = when (entry.kind) {
+        HolidayEntryKind.Holiday -> "假日，不出课不提醒"
+        HolidayEntryKind.Workday -> "调休上课日，照常出课"
+    }
+    val note = entry.name.trim()
+    return if (note.isBlank()) kind else "$kind · $note"
+}
+
+private fun holidayDateStatusText(
+    date: LocalDate,
+    entry: HolidayCalendarEntry?,
+    manual: Boolean,
+): String {
+    val source = if (manual) "手动" else "内置"
+    val note = entry?.name?.trim().orEmpty()
+    val suffix = if (note.isBlank()) "" else "（$note）"
+    return when (entry?.kind) {
+        HolidayEntryKind.Holiday -> "${formatLongDate(date)} 当前为${source}假日$suffix"
+        HolidayEntryKind.Workday -> "${formatLongDate(date)} 当前为${source}调休上课日$suffix"
+        null -> "${formatLongDate(date)} 当前按常规课表上课"
     }
 }
 

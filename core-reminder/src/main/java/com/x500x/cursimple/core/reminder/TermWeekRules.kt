@@ -1,11 +1,12 @@
 package com.x500x.cursimple.core.reminder
 
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
-import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.targetDates
 import java.time.DayOfWeek
@@ -39,6 +40,7 @@ internal fun courseOccurrenceDates(
     termStart: LocalDate,
     fromDate: LocalDate,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
 ): List<LocalDate> {
     val regularDates = course.termWeekNumbers().map { week ->
         termWeekDate(termStart, week, course.time.dayOfWeek)
@@ -48,9 +50,10 @@ internal fun courseOccurrenceDates(
         .distinct()
         .filterNot { it.isBefore(fromDate) }
         .filter { date ->
-            val sourceDate = resolveTemporaryScheduleSourceDate(date, temporaryScheduleOverrides)
-            sourceDate.dayOfWeek.value == course.time.dayOfWeek &&
-                course.isActiveOnSourceDate(termStart, sourceDate) &&
+            val day = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
+            !day.isHoliday &&
+                day.sourceDate.dayOfWeek.value == course.time.dayOfWeek &&
+                course.isActiveOnSourceDate(termStart, day.sourceDate) &&
                 !isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)
         }
 }

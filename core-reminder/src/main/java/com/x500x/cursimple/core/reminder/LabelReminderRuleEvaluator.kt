@@ -2,13 +2,14 @@ package com.x500x.cursimple.core.reminder
 
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
-import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
@@ -40,12 +41,14 @@ internal class LabelReminderRuleEvaluator {
         timingProfile: TermTimingProfile,
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+        holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<ReminderPlan> = expandAll(
         rules = listOf(rule),
         schedule = schedule,
         timingProfile = timingProfile,
         fromDate = fromDate,
         temporaryScheduleOverrides = temporaryScheduleOverrides,
+        holidayCalendar = holidayCalendar,
     )
 
     fun expandAll(
@@ -54,15 +57,23 @@ internal class LabelReminderRuleEvaluator {
         timingProfile: TermTimingProfile,
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+        holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<ReminderPlan> {
         val zone = ZoneId.systemDefault()
-        return candidateDates(schedule, timingProfile, fromDate, temporaryScheduleOverrides)
+        return candidateDates(
+            schedule = schedule,
+            timingProfile = timingProfile,
+            fromDate = fromDate,
+            temporaryScheduleOverrides = temporaryScheduleOverrides,
+            holidayCalendar = holidayCalendar,
+        )
             .flatMap { date ->
                 val dailyObjects = dailyReminderObjects(
                     schedule = schedule,
                     timingProfile = timingProfile,
                     targetDate = date,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
+                    holidayCalendar = holidayCalendar,
                 )
                 val decision = evaluate(rules, dailyObjects)
                 rules
@@ -86,9 +97,12 @@ internal class LabelReminderRuleEvaluator {
         timingProfile: TermTimingProfile,
         targetDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+        holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<DailyReminderObject> {
         val termStart = timingProfile.termStartLocalDate()
-        val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, temporaryScheduleOverrides)
+        val day = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
+        if (day.isHoliday) return emptyList()
+        val sourceDate = day.sourceDate
         val sourceWeek = resolveTermWeek(termStart, sourceDate)
         val dayOfWeek = sourceDate.dayOfWeek.value
         return schedule.dailySchedules
@@ -158,6 +172,7 @@ internal class LabelReminderRuleEvaluator {
         timingProfile: TermTimingProfile,
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+        holidayCalendar: HolidayCalendarSettings,
     ): List<LocalDate> {
         val termStart = timingProfile.termStartLocalDate()
         val regularDates = schedule.dailySchedules
@@ -171,6 +186,7 @@ internal class LabelReminderRuleEvaluator {
         return (regularDates + overrideTargetDates)
             .distinct()
             .filterNot { it.isBefore(fromDate) }
+            .filterNot { resolveScheduleDay(it, temporaryScheduleOverrides, holidayCalendar).isHoliday }
             .sorted()
     }
 

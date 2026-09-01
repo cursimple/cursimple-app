@@ -20,6 +20,7 @@ import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.LocalDate
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 
 internal data class NextCourseRow(
     val id: String,
@@ -68,10 +69,15 @@ internal object NextCourseDataSource {
         )
 
         fun coursesForDate(targetDate: LocalDate): NextCourseDay {
-            val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, userPrefs.temporaryScheduleOverrides)
+            val dayResolution = resolveScheduleDay(
+                targetDate,
+                userPrefs.temporaryScheduleOverrides,
+                userPrefs.holidayCalendar,
+            )
+            val sourceDate = dayResolution.sourceDate
             val dayOfWeek = sourceDate.dayOfWeek.value
             val weekIndex = resolveWeekIndex(sourceDate, termStart)
-            val courses = filterTemporaryCancelledCourses(
+            val courses = if (dayResolution.isHoliday) emptyList() else filterTemporaryCancelledCourses(
                 date = targetDate,
                 courses = schedule?.coursesOfDay(dayOfWeek).orEmpty() +
                     manualCourses.filter { it.time.dayOfWeek == dayOfWeek },
