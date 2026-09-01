@@ -9,15 +9,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -75,6 +79,7 @@ internal fun manualCourseWeeksOrNull(
 fun AddCourseDialog(
     onDismiss: () -> Unit,
     onConfirm: (CourseItem) -> Unit,
+    existingCourses: List<CourseItem> = emptyList(),
     maxNodeCount: Int = 12,
     maxWeekCount: Int = 30,
 ) {
@@ -100,6 +105,22 @@ fun AddCourseDialog(
     val canSave = titleTrimmed.isNotBlank() &&
         startNode != null && endNode != null && startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount &&
         weeks != null
+    val conflictWarning = remember(
+        existingCourses, dayOfWeek, startNode, endNode, weeks, category, maxNodeCount, maxWeekCount,
+    ) {
+        addCourseConflictWarning(
+            draftCourseConflicts(
+                existingCourses = existingCourses,
+                dayOfWeek = dayOfWeek,
+                startNode = startNode,
+                endNode = endNode,
+                weeks = weeks,
+                category = category,
+                maxNodeCount = maxNodeCount,
+                maxWeekCount = maxWeekCount,
+            ),
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -256,6 +277,8 @@ fun AddCourseDialog(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+
+                conflictWarning?.let { CourseConflictWarning(text = it) }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -284,6 +307,36 @@ fun AddCourseDialog(
                     ) { Text("保存") }
                 }
             }
+        }
+    }
+}
+
+/**
+ * 加课表单里的时间冲突提示。
+ * 用 tertiaryContainer 而不是 errorContainer：这是提醒而非阻止，保存按钮仍然可用。
+ */
+@Composable
+internal fun CourseConflictWarning(text: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer,
+            )
         }
     }
 }

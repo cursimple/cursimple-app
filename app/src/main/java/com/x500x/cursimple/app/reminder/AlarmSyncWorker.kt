@@ -63,6 +63,8 @@ class AlarmSyncWorker(
                 ),
             )
 
+            AutoSilenceController.evaluate(applicationContext, reason = WORKER_NAME)
+
             // 如果有失败的重试一次
             if (totalFailed > 0) {
                 Result.retry()

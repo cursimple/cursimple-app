@@ -89,6 +89,8 @@ class DataStoreUserPreferencesRepository(
             alarmRepeatCount = (prefs[KEY_ALARM_REPEAT_COUNT] ?: DEFAULT_REPEAT_COUNT)
                 .coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT),
             lastAlarmPollAtMillis = prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] ?: 0L,
+            autoSilence = prefs.toAutoSilencePreferences(),
+            autoSilenceSession = prefs.toAutoSilenceSession(),
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,
             ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
             pluginRegistryRepo = prefs[KEY_PLUGIN_REGISTRY_REPO]
@@ -388,6 +390,46 @@ class DataStoreUserPreferencesRepository(
         return claimed
     }
 
+    override suspend fun setAutoSilenceEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_AUTO_SILENCE_ENABLED] = enabled }
+    }
+
+    override suspend fun setAutoSilenceMode(mode: AutoSilenceMode) {
+        store.edit { prefs -> prefs[KEY_AUTO_SILENCE_MODE] = mode.name }
+    }
+
+    override suspend fun saveAutoSilenceSession(session: AutoSilenceSession) {
+        store.edit { prefs ->
+            prefs[KEY_AUTO_SILENCE_SESSION_ACTIVE] = session.active
+            prefs[KEY_AUTO_SILENCE_SESSION_MODE] = session.mode.name
+            prefs[KEY_AUTO_SILENCE_SESSION_PREVIOUS_RINGER_MODE] = session.previousRingerMode
+            prefs[KEY_AUTO_SILENCE_SESSION_PREVIOUS_INTERRUPTION_FILTER] = session.previousInterruptionFilter
+            prefs[KEY_AUTO_SILENCE_SESSION_APPLIED_RINGER_MODE] = session.appliedRingerMode
+            prefs[KEY_AUTO_SILENCE_SESSION_APPLIED_INTERRUPTION_FILTER] = session.appliedInterruptionFilter
+            prefs[KEY_AUTO_SILENCE_SESSION_STARTED_AT_MILLIS] = session.startedAtMillis
+            prefs[KEY_AUTO_SILENCE_SESSION_PLANNED_END_AT_MILLIS] = session.plannedEndAtMillis
+            prefs[KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS] = session.suppressedUntilMillis
+        }
+    }
+
+    override suspend fun clearAutoSilenceSession(suppressedUntilMillis: Long) {
+        store.edit { prefs ->
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_ACTIVE)
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_MODE)
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_PREVIOUS_RINGER_MODE)
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_PREVIOUS_INTERRUPTION_FILTER)
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_APPLIED_RINGER_MODE)
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_APPLIED_INTERRUPTION_FILTER)
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_STARTED_AT_MILLIS)
+            prefs.remove(KEY_AUTO_SILENCE_SESSION_PLANNED_END_AT_MILLIS)
+            if (suppressedUntilMillis > 0L) {
+                prefs[KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS] = suppressedUntilMillis
+            } else {
+                prefs.remove(KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS)
+            }
+        }
+    }
+
     override suspend fun setAutoUpdateEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_AUTO_UPDATE_ENABLED] = enabled }
     }
@@ -493,6 +535,8 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_ALARM_REPEAT_INTERVAL_SECONDS)
             prefs.remove(KEY_ALARM_REPEAT_COUNT)
             prefs.remove(KEY_LAST_ALARM_POLL_AT_MILLIS)
+            prefs.remove(KEY_AUTO_SILENCE_ENABLED)
+            prefs.remove(KEY_AUTO_SILENCE_MODE)
             prefs.remove(KEY_AUTO_UPDATE_ENABLED)
             prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
             prefs.remove(KEY_PLUGIN_REGISTRY_REPO)
@@ -708,6 +752,31 @@ class DataStoreUserPreferencesRepository(
         )
     }
 
+    private fun Preferences.toAutoSilencePreferences(): AutoSilencePreferences = AutoSilencePreferences(
+        enabled = this[KEY_AUTO_SILENCE_ENABLED] ?: false,
+        mode = this[KEY_AUTO_SILENCE_MODE]
+            ?.let { runCatching { AutoSilenceMode.valueOf(it) }.getOrNull() }
+            ?: AutoSilenceMode.Vibrate,
+    )
+
+    private fun Preferences.toAutoSilenceSession(): AutoSilenceSession = AutoSilenceSession(
+        active = this[KEY_AUTO_SILENCE_SESSION_ACTIVE] ?: false,
+        mode = this[KEY_AUTO_SILENCE_SESSION_MODE]
+            ?.let { runCatching { AutoSilenceMode.valueOf(it) }.getOrNull() }
+            ?: AutoSilenceMode.Vibrate,
+        previousRingerMode = this[KEY_AUTO_SILENCE_SESSION_PREVIOUS_RINGER_MODE]
+            ?: RingerModeValues.UNKNOWN,
+        previousInterruptionFilter = this[KEY_AUTO_SILENCE_SESSION_PREVIOUS_INTERRUPTION_FILTER]
+            ?: InterruptionFilterValues.UNKNOWN,
+        appliedRingerMode = this[KEY_AUTO_SILENCE_SESSION_APPLIED_RINGER_MODE]
+            ?: RingerModeValues.UNKNOWN,
+        appliedInterruptionFilter = this[KEY_AUTO_SILENCE_SESSION_APPLIED_INTERRUPTION_FILTER]
+            ?: InterruptionFilterValues.UNKNOWN,
+        startedAtMillis = this[KEY_AUTO_SILENCE_SESSION_STARTED_AT_MILLIS] ?: 0L,
+        plannedEndAtMillis = this[KEY_AUTO_SILENCE_SESSION_PLANNED_END_AT_MILLIS] ?: 0L,
+        suppressedUntilMillis = this[KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS] ?: 0L,
+    )
+
     private fun MutablePreferences.removeScheduleAppearanceAndDisplay() {
         remove(KEY_SCHEDULE_COURSE_TEXT_SIZE_SP)
         remove(KEY_SCHEDULE_COURSE_TEXT_COLOR_ARGB)
@@ -818,6 +887,24 @@ class DataStoreUserPreferencesRepository(
         val KEY_ALARM_REPEAT_INTERVAL_SECONDS = intPreferencesKey("alarm_repeat_interval_seconds")
         val KEY_ALARM_REPEAT_COUNT = intPreferencesKey("alarm_repeat_count")
         val KEY_LAST_ALARM_POLL_AT_MILLIS = longPreferencesKey("last_alarm_poll_at_millis")
+        val KEY_AUTO_SILENCE_ENABLED = booleanPreferencesKey("auto_silence_enabled")
+        val KEY_AUTO_SILENCE_MODE = stringPreferencesKey("auto_silence_mode")
+        val KEY_AUTO_SILENCE_SESSION_ACTIVE = booleanPreferencesKey("auto_silence_session_active")
+        val KEY_AUTO_SILENCE_SESSION_MODE = stringPreferencesKey("auto_silence_session_mode")
+        val KEY_AUTO_SILENCE_SESSION_PREVIOUS_RINGER_MODE =
+            intPreferencesKey("auto_silence_session_previous_ringer_mode")
+        val KEY_AUTO_SILENCE_SESSION_PREVIOUS_INTERRUPTION_FILTER =
+            intPreferencesKey("auto_silence_session_previous_interruption_filter")
+        val KEY_AUTO_SILENCE_SESSION_APPLIED_RINGER_MODE =
+            intPreferencesKey("auto_silence_session_applied_ringer_mode")
+        val KEY_AUTO_SILENCE_SESSION_APPLIED_INTERRUPTION_FILTER =
+            intPreferencesKey("auto_silence_session_applied_interruption_filter")
+        val KEY_AUTO_SILENCE_SESSION_STARTED_AT_MILLIS =
+            longPreferencesKey("auto_silence_session_started_at_millis")
+        val KEY_AUTO_SILENCE_SESSION_PLANNED_END_AT_MILLIS =
+            longPreferencesKey("auto_silence_session_planned_end_at_millis")
+        val KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS =
+            longPreferencesKey("auto_silence_session_suppressed_until_millis")
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")

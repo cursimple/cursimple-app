@@ -152,4 +152,37 @@ class UserPreferencesTest {
         assertEquals(120, coerceAiImportTimeoutSeconds(120))
         assertEquals(MAX_AI_IMPORT_TIMEOUT_SECONDS, coerceAiImportTimeoutSeconds(999))
     }
+
+    @Test
+    fun `auto silence is off by default and uses vibrate`() {
+        val prefs = UserPreferences()
+
+        assertEquals(false, prefs.autoSilence.enabled)
+        assertEquals(AutoSilenceMode.Vibrate, prefs.autoSilence.mode)
+    }
+
+    @Test
+    fun `auto silence session starts empty with unknown previous state`() {
+        val session = UserPreferences().autoSilenceSession
+
+        assertEquals(false, session.active)
+        assertEquals(RingerModeValues.UNKNOWN, session.previousRingerMode)
+        assertEquals(InterruptionFilterValues.UNKNOWN, session.previousInterruptionFilter)
+        assertEquals(RingerModeValues.UNKNOWN, session.appliedRingerMode)
+        assertEquals(InterruptionFilterValues.UNKNOWN, session.appliedInterruptionFilter)
+        assertEquals(0L, session.startedAtMillis)
+        assertEquals(0L, session.plannedEndAtMillis)
+        assertEquals(0L, session.suppressedUntilMillis)
+    }
+
+    @Test
+    fun `ringer and interruption filter constants match the platform values`() {
+        assertEquals(0, RingerModeValues.SILENT)
+        assertEquals(1, RingerModeValues.VIBRATE)
+        assertEquals(2, RingerModeValues.NORMAL)
+        assertEquals(1, InterruptionFilterValues.ALL)
+        assertEquals(2, InterruptionFilterValues.PRIORITY)
+        assertEquals(3, InterruptionFilterValues.NONE)
+        assertEquals(4, InterruptionFilterValues.ALARMS)
+    }
 }
