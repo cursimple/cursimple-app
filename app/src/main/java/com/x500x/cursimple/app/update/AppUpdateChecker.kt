@@ -70,6 +70,10 @@ class AppUpdateChecker(
             val remoteVersionName = manifest.optString("versionName")
             val manifestTag = manifest.optString("tagName", tagName)
             val releaseNotes = parseReleaseNotes(manifest, releaseBody)
+            // 读不到版本号就无从比较，不能当作已是最新
+            updateManifestVersionProblem(remoteVersionCode, remoteVersionName)?.let {
+                return@withContext AppUpdateCheckResult.Failure(it)
+            }
             if (remoteVersionCode <= BuildConfig.VERSION_CODE) {
                 return@withContext AppUpdateCheckResult.UpToDate
             }

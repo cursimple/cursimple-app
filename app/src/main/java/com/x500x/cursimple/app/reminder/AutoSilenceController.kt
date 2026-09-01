@@ -202,10 +202,11 @@ object AutoSilenceController {
             val container = app.appContainer
             container.bootstrapJob.join()
             val timingProfile = container.widgetPreferencesRepository.timingProfileFlow.first()
-            if (timingProfile == null) {
+            // 没有节次时间表或没有开学日期都排不出上课时段，视为今明两天没有课
+            val termStart = timingProfile?.termStartLocalDate()
+            if (timingProfile == null || termStart == null) {
                 emptyList()
             } else {
-                val termStart = timingProfile.termStartLocalDate()
                 val prefs = container.userPreferencesRepository.preferencesFlow.first()
                 val scheduleCourses: List<CourseItem> = container.scheduleRepository.scheduleFlow.first()
                     ?.dailySchedules

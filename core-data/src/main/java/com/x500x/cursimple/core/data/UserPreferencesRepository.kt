@@ -363,11 +363,15 @@ interface UserPreferencesRepository {
     suspend fun resetAllSettings()
 }
 
+/**
+ * [version] 与 [stores] 没有默认值：缺了它们的 JSON 不是备份文件，
+ * 有默认值会让任意 JSON 都解析成一份没有内容的备份，恢复流程随后报成功却什么都没写。
+ */
 @Serializable
 data class AppBackupPayload(
-    @SerialName("version") val version: Int = CURRENT_VERSION,
-    @SerialName("createdAt") val createdAt: Long = System.currentTimeMillis(),
-    @SerialName("stores") val stores: List<PreferencesStoreSnapshot> = emptyList(),
+    @SerialName("version") val version: Int,
+    @SerialName("createdAt") val createdAt: Long? = null,
+    @SerialName("stores") val stores: List<PreferencesStoreSnapshot>,
 ) {
     fun store(name: String): PreferencesStoreSnapshot? = stores.firstOrNull { it.storeName == name }
 
@@ -387,6 +391,19 @@ object AppBackupStores {
     const val REMINDERS = "reminder_store"
     const val PLUGIN_REGISTRY = "plugin_registry_store"
     const val PLUGIN_COMPONENTS = "plugin_component_store"
+
+    /** 备份里出现过的全部存储名，用于判断一份文件是否真的属于本应用。 */
+    val ALL: Set<String> = setOf(
+        USER_PREFERENCES,
+        SCHEDULE,
+        MANUAL_COURSES,
+        COURSE_NOTES,
+        TERM_PROFILES,
+        WIDGET_PREFERENCES,
+        REMINDERS,
+        PLUGIN_REGISTRY,
+        PLUGIN_COMPONENTS,
+    )
 }
 
 @Serializable

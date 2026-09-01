@@ -82,6 +82,7 @@ import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.Composable
@@ -133,6 +134,7 @@ import com.x500x.cursimple.core.data.widget.buildTimingSlots
 import com.x500x.cursimple.core.data.widget.timingTemplates
 import com.x500x.cursimple.core.data.widget.toDraftInput
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.widget.ScheduleWidgetUpdater
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
@@ -1046,10 +1048,10 @@ private fun ColorPickerDialog(
     onConfirm: (Long) -> Unit,
 ) {
     val normalized = initialArgb and 0xFFFF_FFFFL
-    var alpha by rememberSaveable(normalized) { mutableStateOf(argbAlphaByte(normalized)) }
-    var red by rememberSaveable(normalized) { mutableStateOf(argbRedByte(normalized)) }
-    var green by rememberSaveable(normalized) { mutableStateOf(argbGreenByte(normalized)) }
-    var blue by rememberSaveable(normalized) { mutableStateOf(argbBlueByte(normalized)) }
+    var alpha by rememberSaveable(normalized) { mutableIntStateOf(argbAlphaByte(normalized)) }
+    var red by rememberSaveable(normalized) { mutableIntStateOf(argbRedByte(normalized)) }
+    var green by rememberSaveable(normalized) { mutableIntStateOf(argbGreenByte(normalized)) }
+    var blue by rememberSaveable(normalized) { mutableIntStateOf(argbBlueByte(normalized)) }
     var hexText by rememberSaveable(normalized) { mutableStateOf(formatArgb(normalized)) }
 
     fun currentArgb(): Long = argbFromComponents(alpha, red, green, blue)
@@ -1306,9 +1308,11 @@ private fun TimingProfileSettingsSection() {
             errors = emptyList()
             scope.launch {
                 val existing = repository.timingProfileFlow.first()
-                val termStart = existing?.termStartDate?.takeIf { runCatching { LocalDate.parse(it) }.getOrNull() != null }
+                // 用户可能还没设开学日期，这里留空而不是发明一个，
+                // 否则小组件、提醒与自动静音会据此算出周次，与界面显示的“未设置”矛盾
+                val termStart = existing?.termStartLocalDate()?.toString()
                     ?: userPreferencesRepository.preferencesFlow.first().termStartDate?.toString()
-                    ?: LocalDate.now(BeijingTime.zone).toString()
+                    ?: ""
                 val profile = TermTimingProfile(
                     termStartDate = termStart,
                     slotTimes = result.slots,

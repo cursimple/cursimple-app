@@ -99,7 +99,8 @@ internal class LabelReminderRuleEvaluator {
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<DailyReminderObject> {
-        val termStart = timingProfile.termStartLocalDate()
+        // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
+        val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val day = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
         if (day.isHoliday) return emptyList()
         val sourceDate = day.sourceDate
@@ -175,13 +176,18 @@ internal class LabelReminderRuleEvaluator {
         holidayCalendar: HolidayCalendarSettings,
     ): List<LocalDate> {
         val termStart = timingProfile.termStartLocalDate()
-        val regularDates = schedule.dailySchedules
-            .flatMap { it.courses }
-            .flatMap { course ->
-                course.termWeekNumbers().map { week ->
-                    termWeekDate(termStart, week, course.time.dayOfWeek)
+        // 没有开学日期时只剩临时调课这类带具体日期的安排，常规课程排不出日期
+        val regularDates = if (termStart == null) {
+            emptyList()
+        } else {
+            schedule.dailySchedules
+                .flatMap { it.courses }
+                .flatMap { course ->
+                    course.termWeekNumbers().map { week ->
+                        termWeekDate(termStart, week, course.time.dayOfWeek)
+                    }
                 }
-            }
+        }
         val overrideTargetDates = temporaryScheduleOverrides.flatMap { it.targetDates() }
         return (regularDates + overrideTargetDates)
             .distinct()
