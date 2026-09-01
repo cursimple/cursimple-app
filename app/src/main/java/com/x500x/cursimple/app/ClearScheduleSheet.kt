@@ -43,8 +43,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import kotlinx.coroutines.launch
 
@@ -73,20 +75,20 @@ fun ClearScheduleSheet(
     val options = listOf(
         ClearOption(
             scope = ClearScope.ManualOnly,
-            title = "清空手动添加的课程",
-            description = "仅删除你手动添加的 ${manualCourses.size} 门课程",
+            title = stringResource(R.string.clear_option_manual_title),
+            description = stringResource(R.string.clear_option_manual_desc, manualCourses.size),
             icon = Icons.Rounded.Edit,
         ),
         ClearOption(
             scope = ClearScope.ImportedOnly,
-            title = "清空导入的课程",
-            description = "仅删除插件同步的 ${importedCourses.size} 门课程",
+            title = stringResource(R.string.clear_option_imported_title),
+            description = stringResource(R.string.clear_option_imported_desc, importedCourses.size),
             icon = Icons.Rounded.CloudDownload,
         ),
         ClearOption(
             scope = ClearScope.Everything,
-            title = "全部清空",
-            description = "手动课程、导入课程，以及所有提醒规则",
+            title = stringResource(R.string.clear_option_all_title),
+            description = stringResource(R.string.clear_option_all_desc),
             icon = Icons.Rounded.CleaningServices,
             accent = true,
         ),
@@ -104,12 +106,12 @@ fun ClearScheduleSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "清空课表",
+                text = stringResource(R.string.clear_sheet_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "选择要清除的范围。所有清除操作都不可恢复，会再次确认。",
+                text = stringResource(R.string.clear_sheet_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -207,14 +209,14 @@ private fun ClearConfirmDialog(
         ClearScope.Everything -> manualCourses + importedCourses
     }
     val title = when (scope) {
-        ClearScope.ManualOnly -> "清空手动课程？"
-        ClearScope.ImportedOnly -> "清空导入课程？"
-        ClearScope.Everything -> "清空全部课表？"
+        ClearScope.ManualOnly -> stringResource(R.string.clear_confirm_manual_title)
+        ClearScope.ImportedOnly -> stringResource(R.string.clear_confirm_imported_title)
+        ClearScope.Everything -> stringResource(R.string.clear_confirm_all_title)
     }
     val description = when (scope) {
-        ClearScope.ManualOnly -> "将删除以下 ${affected.size} 门手动课程，操作不可恢复："
-        ClearScope.ImportedOnly -> "将删除以下 ${affected.size} 门导入课程，操作不可恢复："
-        ClearScope.Everything -> "将删除以下 ${affected.size} 门课程，并清除所有提醒规则，操作不可恢复："
+        ClearScope.ManualOnly -> stringResource(R.string.clear_confirm_manual_desc, affected.size)
+        ClearScope.ImportedOnly -> stringResource(R.string.clear_confirm_imported_desc, affected.size)
+        ClearScope.Everything -> stringResource(R.string.clear_confirm_all_desc, affected.size)
     }
 
     var expanded by remember { mutableStateOf(false) }
@@ -233,7 +235,7 @@ private fun ClearConfirmDialog(
                 Spacer(Modifier.size(8.dp))
                 if (affected.isEmpty()) {
                     Text(
-                        text = "暂无对应课程，操作仅会清除关联记录。",
+                        text = stringResource(R.string.clear_confirm_empty),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -294,8 +296,8 @@ private fun ClearConfirmDialog(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
-                                    text = if (expanded) "收起列表"
-                                    else "展开剩余 ${affected.size - previewLimit} 门课程",
+                                    text = if (expanded) stringResource(R.string.clear_collapse_list)
+                                    else stringResource(R.string.clear_expand_more, affected.size - previewLimit),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                 )
@@ -308,13 +310,13 @@ private fun ClearConfirmDialog(
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(
-                    text = "确认清空",
+                    text = stringResource(R.string.clear_confirm_button),
                     color = MaterialTheme.colorScheme.error,
                 )
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.clear_cancel)) }
         },
     )
 }

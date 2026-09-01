@@ -7,7 +7,8 @@ import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
-import com.x500x.cursimple.core.kernel.model.weekIndexLabel
+import com.x500x.cursimple.core.kernel.model.TermWeekLabel
+import com.x500x.cursimple.core.kernel.model.termWeekLabel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -222,10 +223,10 @@ class ScheduleValidationTest {
 
     @Test
     fun `week index label hides meaningless week numbers before the term starts`() {
-        assertEquals("第 1 周", weekIndexLabel(1))
-        assertEquals("第 12 周", weekIndexLabel(12))
-        assertEquals("未开学", weekIndexLabel(0))
-        assertEquals("未开学", weekIndexLabel(-2))
+        assertEquals(TermWeekLabel.Week(1), termWeekLabel(1))
+        assertEquals(TermWeekLabel.Week(12), termWeekLabel(12))
+        assertEquals(TermWeekLabel.NotStarted, termWeekLabel(0))
+        assertEquals(TermWeekLabel.NotStarted, termWeekLabel(-2))
     }
 
     @Test

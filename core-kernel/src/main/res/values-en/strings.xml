@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kernel_week_index">Week %1$d</string>
+    <string name="kernel_week_not_started">Term not started</string>
+    <string name="kernel_week_term_start_missing">Term start date not set</string>
+
+    <string name="kernel_weekday_monday">Mon</string>
+    <string name="kernel_weekday_tuesday">Tue</string>
+    <string name="kernel_weekday_wednesday">Wed</string>
+    <string name="kernel_weekday_thursday">Thu</string>
+    <string name="kernel_weekday_friday">Fri</string>
+    <string name="kernel_weekday_saturday">Sat</string>
+    <string name="kernel_weekday_sunday">Sun</string>
+    <string name="kernel_weekday_unknown">Unknown</string>
+</resources>

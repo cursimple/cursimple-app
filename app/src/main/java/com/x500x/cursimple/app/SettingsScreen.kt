@@ -1,3 +1,5 @@
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package com.x500x.cursimple.app
 
 import android.Manifest
@@ -105,6 +107,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.AutoSilenceMode
 import com.x500x.cursimple.core.data.AutoSilencePreferences
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -154,7 +157,8 @@ import com.x500x.cursimple.core.kernel.model.localDate
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.sortedUserEntries
 import com.x500x.cursimple.core.kernel.model.userEntryOn
-import com.x500x.cursimple.core.kernel.model.weekIndexLabel
+import com.x500x.cursimple.core.kernel.model.termWeekLabel
+import com.x500x.cursimple.core.kernel.model.termWeekText
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
@@ -212,26 +216,27 @@ private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
 }
 
+@Composable
 private fun SettingsDestination.title(): String = when (this) {
-    SettingsDestination.Root -> "设置"
-    SettingsDestination.Application -> "应用"
-    SettingsDestination.ScheduleData -> "课表数据"
-    SettingsDestination.TemporaryOverrides -> "临时调课"
-    SettingsDestination.Holidays -> "节假日与调休"
-    SettingsDestination.ScheduleSettings -> "课表设置"
-    SettingsDestination.ScheduleAppearance -> "外观"
-    SettingsDestination.ScheduleTextStyle -> "文字样式"
-    SettingsDestination.ScheduleHeaderStyle -> "表头"
-    SettingsDestination.ScheduleCardStyle -> "卡片样式"
-    SettingsDestination.ScheduleBackground -> "课表背景"
-    SettingsDestination.ScheduleDisplay -> "显示"
-    SettingsDestination.TimingProfile -> "节次上课时间"
-    SettingsDestination.WidgetSettings -> "小组件设置"
-    SettingsDestination.AutoSilence -> "上课自动静音"
-    SettingsDestination.Plugins -> "插件"
+    SettingsDestination.Root -> stringResource(R.string.settings_dest_root)
+    SettingsDestination.Application -> stringResource(R.string.settings_dest_application)
+    SettingsDestination.ScheduleData -> stringResource(R.string.settings_dest_schedule_data)
+    SettingsDestination.TemporaryOverrides -> stringResource(R.string.settings_dest_temporary_overrides)
+    SettingsDestination.Holidays -> stringResource(R.string.settings_dest_holidays)
+    SettingsDestination.ScheduleSettings -> stringResource(R.string.settings_dest_schedule_settings)
+    SettingsDestination.ScheduleAppearance -> stringResource(R.string.settings_appearance)
+    SettingsDestination.ScheduleTextStyle -> stringResource(R.string.settings_text_style)
+    SettingsDestination.ScheduleHeaderStyle -> stringResource(R.string.settings_header_style)
+    SettingsDestination.ScheduleCardStyle -> stringResource(R.string.settings_card_style)
+    SettingsDestination.ScheduleBackground -> stringResource(R.string.settings_schedule_background)
+    SettingsDestination.ScheduleDisplay -> stringResource(R.string.settings_display)
+    SettingsDestination.TimingProfile -> stringResource(R.string.settings_dest_timing_profile)
+    SettingsDestination.WidgetSettings -> stringResource(R.string.settings_dest_widget_settings)
+    SettingsDestination.AutoSilence -> stringResource(R.string.settings_dest_auto_silence)
+    SettingsDestination.Plugins -> stringResource(R.string.settings_dest_plugins)
     SettingsDestination.WebDav -> "WebDAV"
-    SettingsDestination.AiImport -> "AI 识图导入"
-    SettingsDestination.Permissions -> "权限"
+    SettingsDestination.AiImport -> stringResource(R.string.settings_dest_ai_import)
+    SettingsDestination.Permissions -> stringResource(R.string.settings_dest_permissions)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -380,10 +385,20 @@ fun AppSettingsRoute(
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
     var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        Toast.makeText(context, if (granted) "通知权限已开启" else "通知权限未开启", Toast.LENGTH_SHORT).show()
+        val message = if (granted) {
+            context.getString(R.string.settings_toast_notification_granted)
+        } else {
+            context.getString(R.string.settings_toast_notification_denied)
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        Toast.makeText(context, if (granted) "相机权限已开启" else "相机权限未开启", Toast.LENGTH_SHORT).show()
+        val message = if (granted) {
+            context.getString(R.string.settings_toast_camera_granted)
+        } else {
+            context.getString(R.string.settings_toast_camera_denied)
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
     val scheduleBackgroundLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -393,7 +408,11 @@ fun AppSettingsRoute(
             if (persisted) {
                 onScheduleBackgroundImageUriChange(uri.toString())
             } else {
-                Toast.makeText(context, "背景图片授权失败，请重新选择", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_background_image_permission_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
         }
     }
@@ -405,7 +424,11 @@ fun AppSettingsRoute(
             if (persisted) {
                 onWidgetBackgroundImageUriChange(uri.toString())
             } else {
-                Toast.makeText(context, "小组件背景图片授权失败，请重新选择", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_widget_background_image_permission_failed),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
         }
     }
@@ -432,7 +455,7 @@ fun AppSettingsRoute(
                 IconButton(onClick = ::handleBack, modifier = Modifier.size(36.dp)) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "返回",
+                        contentDescription = stringResource(R.string.settings_back),
                     )
                 }
                 Spacer(modifier = Modifier.width(6.dp))
@@ -446,40 +469,67 @@ fun AppSettingsRoute(
 
         when (destination) {
             SettingsDestination.Root -> {
-                SettingsActionRow(Icons.Rounded.Palette, "应用", "主题和外观", { navigate(SettingsDestination.Application) })
-                SettingsActionRow(Icons.Rounded.CalendarMonth, "课表数据", "开学日期和当前周", { navigate(SettingsDestination.ScheduleData) })
+                SettingsActionRow(
+                    Icons.Rounded.Palette,
+                    stringResource(R.string.settings_dest_application),
+                    stringResource(R.string.settings_row_application_subtitle),
+                    { navigate(SettingsDestination.Application) },
+                )
+                SettingsActionRow(
+                    Icons.Rounded.CalendarMonth,
+                    stringResource(R.string.settings_dest_schedule_data),
+                    stringResource(R.string.settings_row_schedule_data_subtitle),
+                    { navigate(SettingsDestination.ScheduleData) },
+                )
                 TimingProfileEntryRow { navigate(SettingsDestination.TimingProfile) }
-                SettingsActionRow(Icons.Rounded.EventRepeat, "临时调课", temporaryOverridesSubtitle(temporaryScheduleOverrides), {
+                SettingsActionRow(Icons.Rounded.EventRepeat, stringResource(R.string.settings_dest_temporary_overrides), temporaryOverridesSubtitle(temporaryScheduleOverrides), {
                     navigate(SettingsDestination.TemporaryOverrides)
                 })
-                SettingsActionRow(Icons.Rounded.EventBusy, "节假日与调休", holidayCalendarSubtitle(holidayCalendar), {
+                SettingsActionRow(Icons.Rounded.EventBusy, stringResource(R.string.settings_dest_holidays), holidayCalendarSubtitle(holidayCalendar), {
                     navigate(SettingsDestination.Holidays)
                 })
-                SettingsActionRow(Icons.AutoMirrored.Rounded.MenuBook, "课表设置", "外观和显示", {
-                    navigate(SettingsDestination.ScheduleSettings)
-                })
-                SettingsActionRow(Icons.Rounded.Widgets, "小组件设置", "主题、桌面小组件和背景", {
-                    navigate(SettingsDestination.WidgetSettings)
-                })
-                SettingsActionRow(Icons.Rounded.Notifications, "上课自动静音", "上课时段自动切换手机状态，下课恢复", {
-                    navigate(SettingsDestination.AutoSilence)
-                })
-                SettingsActionRow(Icons.Rounded.Code, "插件", "市场索引和组件索引", {
-                    navigate(SettingsDestination.Plugins)
-                })
+                SettingsActionRow(
+                    Icons.AutoMirrored.Rounded.MenuBook,
+                    stringResource(R.string.settings_dest_schedule_settings),
+                    stringResource(R.string.settings_row_schedule_settings_subtitle),
+                    {
+                        navigate(SettingsDestination.ScheduleSettings)
+                    },
+                )
+                SettingsActionRow(
+                    Icons.Rounded.Widgets,
+                    stringResource(R.string.settings_dest_widget_settings),
+                    stringResource(R.string.settings_row_widget_settings_subtitle),
+                    { navigate(SettingsDestination.WidgetSettings) },
+                )
+                SettingsActionRow(
+                    Icons.Rounded.Notifications,
+                    stringResource(R.string.settings_dest_auto_silence),
+                    stringResource(R.string.settings_row_auto_silence_subtitle),
+                    { navigate(SettingsDestination.AutoSilence) },
+                )
+                SettingsActionRow(
+                    Icons.Rounded.Code,
+                    stringResource(R.string.settings_dest_plugins),
+                    stringResource(R.string.settings_row_plugins_subtitle),
+                    { navigate(SettingsDestination.Plugins) },
+                )
                 SettingsActionRow(Icons.Rounded.Storage, "WebDAV", webDavSettingsSubtitle(webDavUrl, webDavUsername), {
                     navigate(SettingsDestination.WebDav)
                 })
-                SettingsActionRow(Icons.Rounded.ImageSearch, "AI 识图导入", aiImportSettingsSubtitle(aiImportApiUrl, aiImportModel), {
+                SettingsActionRow(Icons.Rounded.ImageSearch, stringResource(R.string.settings_dest_ai_import), aiImportSettingsSubtitle(aiImportApiUrl, aiImportModel), {
                     navigate(SettingsDestination.AiImport)
                 })
-                SettingsActionRow(Icons.Rounded.Notifications, "权限", "通知、闹钟、相机和安装权限", {
-                    navigate(SettingsDestination.Permissions)
-                })
+                SettingsActionRow(
+                    Icons.Rounded.Notifications,
+                    stringResource(R.string.settings_dest_permissions),
+                    stringResource(R.string.settings_row_permissions_subtitle),
+                    { navigate(SettingsDestination.Permissions) },
+                )
                 SettingsActionRow(
                     icon = Icons.Rounded.Restore,
-                    title = "恢复所有设置",
-                    subtitle = "恢复应用、课表外观显示和小组件设置",
+                    title = stringResource(R.string.settings_reset_all_title),
+                    subtitle = stringResource(R.string.settings_reset_all_subtitle),
                     onClick = { showResetAllSettingsConfirm = true },
                 )
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -494,13 +544,13 @@ fun AppSettingsRoute(
             SettingsDestination.Application -> {
                 SettingsActionRow(
                     icon = Icons.Rounded.Language,
-                    title = "语言",
+                    title = stringResource(R.string.settings_language),
                     subtitle = appLanguageLabel(appLanguage),
                     onClick = onPickAppLanguage,
                 )
                 SettingsActionRow(
                     icon = Icons.Rounded.Palette,
-                    title = "主题",
+                    title = stringResource(R.string.settings_theme),
                     subtitle = themeAccentLabel,
                     onClick = onPickThemeAccent,
                 )
@@ -509,11 +559,11 @@ fun AppSettingsRoute(
                         ThemeMode.Dark -> Icons.Rounded.Brightness4
                         else -> Icons.Rounded.Brightness7
                     },
-                    title = "外观",
+                    title = stringResource(R.string.settings_appearance),
                     subtitle = when (themeMode) {
-                        ThemeMode.System -> "跟随系统"
-                        ThemeMode.Light -> "亮色"
-                        ThemeMode.Dark -> "暗色"
+                        ThemeMode.System -> stringResource(R.string.settings_theme_mode_system)
+                        ThemeMode.Light -> stringResource(R.string.settings_theme_mode_light)
+                        ThemeMode.Dark -> stringResource(R.string.settings_theme_mode_dark)
                     },
                     onClick = onPickThemeMode,
                 )
@@ -522,11 +572,12 @@ fun AppSettingsRoute(
             SettingsDestination.ScheduleData -> {
                 SettingsActionRow(
                     icon = Icons.Rounded.CalendarMonth,
-                    title = "开学日期",
+                    title = stringResource(R.string.settings_term_start_title),
                     subtitle = termStartDate?.let {
                         val fmt = DateTimeFormatter.ofPattern("yyyy/M/d")
-                        "${fmt.format(it)} · ${weekIndexLabel(currentWeekIndex)}"
-                    } ?: "点击设置（用于计算当前周次）",
+                        val week = LocalContext.current.termWeekText(termWeekLabel(currentWeekIndex))
+                        "${fmt.format(it)} · $week"
+                    } ?: stringResource(R.string.settings_term_start_unset),
                     onClick = onPickTermStartDate,
                     trailing = if (termStartDate != null) {
                         {
@@ -534,18 +585,21 @@ fun AppSettingsRoute(
                                 onClick = onClearTermStartDate,
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             ) {
-                                Text("清除", style = MaterialTheme.typography.labelSmall)
+                                Text(stringResource(R.string.settings_clear), style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     } else null,
                 )
                 SettingsActionRow(
                     icon = Icons.Rounded.CalendarMonth,
-                    title = "当前周",
+                    title = stringResource(R.string.settings_current_week_title),
                     subtitle = if (termStartDate != null) {
-                        "${weekIndexLabel(currentWeekIndex)} · 可按周数反推开学日期"
+                        stringResource(
+                            R.string.settings_current_week_subtitle_set,
+                            LocalContext.current.termWeekText(termWeekLabel(currentWeekIndex)),
+                        )
                     } else {
-                        "点击输入今天所在周数"
+                        stringResource(R.string.settings_current_week_subtitle_unset)
                     },
                     onClick = onPickCurrentWeek,
                 )
@@ -554,7 +608,7 @@ fun AppSettingsRoute(
             SettingsDestination.TemporaryOverrides -> {
                 SettingsActionRow(
                     icon = Icons.Rounded.EventRepeat,
-                    title = "管理调课规则",
+                    title = stringResource(R.string.settings_manage_override_rules),
                     subtitle = temporaryOverridesSubtitle(temporaryScheduleOverrides),
                     onClick = { showTemporaryOverrides = true },
                 )
@@ -571,27 +625,26 @@ fun AppSettingsRoute(
             SettingsDestination.Holidays -> {
                 SettingsSwitchRow(
                     icon = Icons.Rounded.EventBusy,
-                    title = "使用内置法定节假日",
+                    title = stringResource(R.string.settings_holiday_builtin_title),
                     subtitle = builtInHolidayCoverageSubtitle(),
                     checked = holidayCalendar.builtInEnabled,
                     onCheckedChange = onHolidayCalendarBuiltInEnabledChange,
                 )
                 SettingsActionRow(
                     icon = Icons.Rounded.EventAvailable,
-                    title = "调整某一天",
-                    subtitle = "设为假日或设为调休上课日",
+                    title = stringResource(R.string.settings_holiday_adjust_day_title),
+                    subtitle = stringResource(R.string.settings_holiday_adjust_day_subtitle),
                     onClick = { showHolidayEditor = true },
                 )
                 Text(
-                    text = "内置数据只收录来源确定的法定假日和补假。每年的调休连休和补班日期请在这里手动添加，" +
-                        "手动条目优先于内置数据。调休日若要按其它星期的课表上课，请另外添加一条临时调课。",
+                    text = stringResource(R.string.settings_holiday_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 val userEntries = holidayCalendar.sortedUserEntries()
                 if (userEntries.isEmpty()) {
                     Text(
-                        text = "暂无手动调整",
+                        text = stringResource(R.string.settings_holiday_no_manual_entries),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -612,16 +665,22 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleSettings -> {
-                SettingsActionRow(Icons.Rounded.Palette, "外观", "文字、卡片和背景", {
-                    navigate(SettingsDestination.ScheduleAppearance)
-                })
-                SettingsActionRow(Icons.AutoMirrored.Rounded.MenuBook, "显示", "列、地点、老师和总课表", {
-                    navigate(SettingsDestination.ScheduleDisplay)
-                })
+                SettingsActionRow(
+                    Icons.Rounded.Palette,
+                    stringResource(R.string.settings_appearance),
+                    stringResource(R.string.settings_schedule_appearance_subtitle),
+                    { navigate(SettingsDestination.ScheduleAppearance) },
+                )
+                SettingsActionRow(
+                    Icons.AutoMirrored.Rounded.MenuBook,
+                    stringResource(R.string.settings_display),
+                    stringResource(R.string.settings_schedule_display_subtitle),
+                    { navigate(SettingsDestination.ScheduleDisplay) },
+                )
                 SettingsActionRow(
                     icon = Icons.Rounded.Restore,
-                    title = "恢复课表外观/显示默认值",
-                    subtitle = "恢复文字、表头、卡片、背景和显示选项",
+                    title = stringResource(R.string.settings_reset_schedule_title),
+                    subtitle = stringResource(R.string.settings_reset_schedule_subtitle),
                     onClick = { showResetScheduleAppearanceConfirm = true },
                 )
             }
@@ -636,157 +695,221 @@ fun AppSettingsRoute(
                 )
                 SettingsSwitchRow(
                     Icons.Rounded.Brightness4,
-                    "自定义颜色适应亮暗主题",
+                    stringResource(R.string.settings_adapt_colors_title),
                     if (scheduleCustomColorsAdaptToTheme) {
-                        "按当前亮暗主题调整课表自定义颜色"
+                        stringResource(R.string.settings_adapt_colors_on)
                     } else {
-                        "自定义颜色保持原样"
+                        stringResource(R.string.settings_adapt_colors_off)
                     },
                     scheduleCustomColorsAdaptToTheme,
                     onScheduleCustomColorsAdaptToThemeChange,
                 )
-                SettingsActionRow(Icons.Rounded.Palette, "文字样式", "课程和考试文字", {
-                    navigate(SettingsDestination.ScheduleTextStyle)
-                })
-                SettingsActionRow(Icons.Rounded.CalendarMonth, "表头", "表头文字和当前天背景", {
-                    navigate(SettingsDestination.ScheduleHeaderStyle)
-                })
-                SettingsActionRow(Icons.Rounded.Tune, "卡片样式", "圆角、高度、透明度和边框", {
-                    navigate(SettingsDestination.ScheduleCardStyle)
-                })
-                SettingsActionRow(Icons.Rounded.Download, "课表背景", backgroundSubtitle(scheduleBackground), {
-                    navigate(SettingsDestination.ScheduleBackground)
-                })
+                SettingsActionRow(
+                    Icons.Rounded.Palette,
+                    stringResource(R.string.settings_text_style),
+                    stringResource(R.string.settings_text_style_subtitle),
+                    { navigate(SettingsDestination.ScheduleTextStyle) },
+                )
+                SettingsActionRow(
+                    Icons.Rounded.CalendarMonth,
+                    stringResource(R.string.settings_header_style),
+                    stringResource(R.string.settings_header_style_subtitle),
+                    { navigate(SettingsDestination.ScheduleHeaderStyle) },
+                )
+                SettingsActionRow(
+                    Icons.Rounded.Tune,
+                    stringResource(R.string.settings_card_style),
+                    stringResource(R.string.settings_card_style_subtitle),
+                    { navigate(SettingsDestination.ScheduleCardStyle) },
+                )
+                SettingsActionRow(
+                    Icons.Rounded.Download,
+                    stringResource(R.string.settings_schedule_background),
+                    backgroundSubtitle(scheduleBackground),
+                    { navigate(SettingsDestination.ScheduleBackground) },
+                )
             }
 
             SettingsDestination.ScheduleTextStyle -> {
-                NumberStepperRow("课程文字大小", scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
-                ColorAlphaRow("课程文字颜色", scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
+                NumberStepperRow(stringResource(R.string.settings_course_text_size), scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
+                ColorAlphaRow(stringResource(R.string.settings_course_text_color), scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
                 if (scheduleCustomColorsAdaptToTheme) {
                     ColorPreviewRow(
-                        "当前主题显示为",
+                        stringResource(R.string.settings_current_theme_preview),
                         scheduleTextStyle.courseTextColorArgb.adaptForegroundForPreview(darkTheme),
                     )
                 }
-                NumberStepperRow("考试文字大小", scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
-                ColorAlphaRow("考试文字颜色", scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
+                NumberStepperRow(stringResource(R.string.settings_exam_text_size), scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
+                ColorAlphaRow(stringResource(R.string.settings_exam_text_color), scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
                 if (scheduleCustomColorsAdaptToTheme) {
                     ColorPreviewRow(
-                        "当前主题显示为",
+                        stringResource(R.string.settings_current_theme_preview),
                         scheduleTextStyle.examTextColorArgb.adaptForegroundForPreview(darkTheme),
                     )
                 }
-                SettingsSwitchRow(Icons.Rounded.Tune, "格子文字水平居中", "课程卡片文字水平居中", scheduleTextStyle.horizontalCenter, onScheduleTextHorizontalCenterChange)
-                SettingsSwitchRow(Icons.Rounded.Tune, "格子文字竖直居中", "课程卡片内容竖直居中", scheduleTextStyle.verticalCenter, onScheduleTextVerticalCenterChange)
-                SettingsSwitchRow(Icons.Rounded.Tune, "格子文字完全居中", "同时启用水平与竖直居中", scheduleTextStyle.fullCenter, onScheduleTextFullCenterChange)
+                SettingsSwitchRow(
+                    Icons.Rounded.Tune,
+                    stringResource(R.string.settings_text_center_horizontal_title),
+                    stringResource(R.string.settings_text_center_horizontal_subtitle),
+                    scheduleTextStyle.horizontalCenter,
+                    onScheduleTextHorizontalCenterChange,
+                )
+                SettingsSwitchRow(
+                    Icons.Rounded.Tune,
+                    stringResource(R.string.settings_text_center_vertical_title),
+                    stringResource(R.string.settings_text_center_vertical_subtitle),
+                    scheduleTextStyle.verticalCenter,
+                    onScheduleTextVerticalCenterChange,
+                )
+                SettingsSwitchRow(
+                    Icons.Rounded.Tune,
+                    stringResource(R.string.settings_text_center_full_title),
+                    stringResource(R.string.settings_text_center_full_subtitle),
+                    scheduleTextStyle.fullCenter,
+                    onScheduleTextFullCenterChange,
+                )
             }
 
             SettingsDestination.ScheduleHeaderStyle -> {
-                NumberStepperRow("表头文字大小", scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
+                NumberStepperRow(stringResource(R.string.settings_header_text_size), scheduleTextStyle.headerTextSizeSp, "sp", 8, 32, 1, onScheduleHeaderTextSizeSpChange)
                 ColorAlphaRow(
-                    "表头文字颜色",
+                    stringResource(R.string.settings_header_text_color),
                     scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, false),
                     onScheduleHeaderTextColorArgbChange,
                 )
                 if (scheduleCustomColorsAdaptToTheme) {
                     ColorPreviewRow(
-                        "当前主题显示为",
+                        stringResource(R.string.settings_current_theme_preview),
                         scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, true),
                     )
                 }
                 ColorAlphaRow(
-                    "当前天表头背景颜色",
+                    stringResource(R.string.settings_today_header_background_color),
                     scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, false),
                     onScheduleTodayHeaderBackgroundColorArgbChange,
                 )
                 if (scheduleCustomColorsAdaptToTheme) {
                     ColorPreviewRow(
-                        "当前主题显示为",
+                        stringResource(R.string.settings_current_theme_preview),
                         scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, true),
                     )
                 }
             }
 
             SettingsDestination.ScheduleCardStyle -> {
-                NumberStepperRow("课程卡片圆角半径", scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
-                NumberStepperRow("课程卡片高度", scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
-                NumberStepperRow("课表透明度", scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
-                NumberStepperRow("非本周课程透明度", scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
-                ColorAlphaRow("格子边框颜色", scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
+                NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
+                NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
+                NumberStepperRow(stringResource(R.string.settings_schedule_opacity), scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
+                NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
+                ColorAlphaRow(stringResource(R.string.settings_grid_border_color), scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
                 if (scheduleCustomColorsAdaptToTheme) {
                     ColorPreviewRow(
-                        "当前主题显示为",
+                        stringResource(R.string.settings_current_theme_preview),
                         scheduleCardStyle.gridBorderColorArgb.adaptForegroundForPreview(darkTheme),
                     )
                 }
-                NumberStepperRow("格子边框透明度", scheduleCardStyle.gridBorderOpacityPercent, "%", 0, 100, 5, onScheduleGridBorderOpacityPercentChange)
-                FloatStepperRow("格子边框粗细", scheduleCardStyle.gridBorderWidthDp, "dp", 0f, 4f, 0.5f, onScheduleGridBorderWidthDpChange)
-                SettingsSwitchRow(Icons.Rounded.Tune, "格子边框虚线", "关闭时使用实线", scheduleCardStyle.gridBorderDashed, onScheduleGridBorderDashedChange)
+                NumberStepperRow(stringResource(R.string.settings_grid_border_opacity), scheduleCardStyle.gridBorderOpacityPercent, "%", 0, 100, 5, onScheduleGridBorderOpacityPercentChange)
+                FloatStepperRow(stringResource(R.string.settings_grid_border_width), scheduleCardStyle.gridBorderWidthDp, "dp", 0f, 4f, 0.5f, onScheduleGridBorderWidthDpChange)
+                SettingsSwitchRow(
+                    Icons.Rounded.Tune,
+                    stringResource(R.string.settings_grid_border_dashed_title),
+                    stringResource(R.string.settings_grid_border_dashed_subtitle),
+                    scheduleCardStyle.gridBorderDashed,
+                    onScheduleGridBorderDashedChange,
+                )
             }
 
             SettingsDestination.ScheduleBackground -> {
-                ColorAlphaRow("背景颜色", scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
+                ColorAlphaRow(stringResource(R.string.settings_background_color), scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
                 if (scheduleCustomColorsAdaptToTheme) {
                     ColorPreviewRow(
-                        "当前主题显示为",
+                        stringResource(R.string.settings_current_theme_preview),
                         scheduleBackground.colorArgb.adaptBackgroundForPreview(darkTheme),
                     )
                 }
                 SettingsActionRow(
                     icon = Icons.Rounded.CalendarMonth,
-                    title = "与表头背景一致",
+                    title = stringResource(R.string.settings_background_match_header_title),
                     subtitle = if (scheduleBackground.type == ScheduleBackgroundType.Header) {
-                        "当前已使用表头区域的深浅模式底色"
+                        stringResource(R.string.settings_background_match_header_on)
                     } else {
-                        "使用表头区域的深浅模式底色作为课表背景"
+                        stringResource(R.string.settings_background_match_header_off)
                     },
                     onClick = onScheduleBackgroundUseHeaderColor,
                 )
                 SettingsActionRow(
                     icon = Icons.Rounded.Download,
-                    title = "背景图片",
-                    subtitle = scheduleBackground.imageUri?.let { "已选择图片" } ?: "未选择",
+                    title = stringResource(R.string.settings_background_image_title),
+                    subtitle = if (scheduleBackground.imageUri != null) {
+                        stringResource(R.string.settings_background_image_selected)
+                    } else {
+                        stringResource(R.string.settings_background_image_none)
+                    },
                     onClick = { scheduleBackgroundLauncher.launch(arrayOf("image/*")) },
                 )
                 if (scheduleBackground.type == ScheduleBackgroundType.Image || scheduleBackground.imageUri != null) {
                     SettingsActionRow(
                         icon = Icons.Rounded.Delete,
-                        title = "清除背景图片",
-                        subtitle = "恢复使用背景颜色",
+                        title = stringResource(R.string.settings_background_image_clear_title),
+                        subtitle = stringResource(R.string.settings_background_image_clear_subtitle),
                         onClick = onClearScheduleBackgroundImage,
                     )
                 }
             }
 
             SettingsDestination.ScheduleDisplay -> {
-                SettingsSwitchRow(Icons.Rounded.Schedule, "节数栏显示时间", "显示每节课的起止时间", scheduleDisplay.nodeColumnTimeEnabled, onScheduleNodeColumnTimeEnabledChange)
+                SettingsSwitchRow(
+                    Icons.Rounded.Schedule,
+                    stringResource(R.string.settings_display_node_time_title),
+                    stringResource(R.string.settings_display_node_time_subtitle),
+                    scheduleDisplay.nodeColumnTimeEnabled,
+                    onScheduleNodeColumnTimeEnabledChange,
+                )
                 SettingsSwitchRow(
                     Icons.Rounded.CalendarMonth,
-                    "显示周六",
-                    "周一到周六视图",
+                    stringResource(R.string.settings_display_saturday_title),
+                    stringResource(R.string.settings_display_saturday_subtitle),
                     scheduleDisplay.saturdayVisible || scheduleDisplay.weekendVisible,
                     onScheduleSaturdayVisibleChange,
                 )
                 SettingsSwitchRow(
                     Icons.Rounded.CalendarMonth,
-                    "显示周末",
-                    "开启后同时显示周六和周日",
+                    stringResource(R.string.settings_display_weekend_title),
+                    stringResource(R.string.settings_display_weekend_subtitle),
                     scheduleDisplay.weekendVisible,
                     {
                         onScheduleWeekendVisibleChange(it)
                         if (it) onScheduleSaturdayVisibleChange(true)
                     },
                 )
-                SettingsSwitchRow(Icons.Rounded.Schedule, "显示上课地点", "课程卡片和日视图显示地点", scheduleDisplay.locationVisible, onScheduleLocationVisibleChange)
-                SettingsSwitchRow(Icons.Rounded.Schedule, "上课地点前加 @", "关闭后直接显示地点名称", scheduleDisplay.locationPrefixAtEnabled, onScheduleLocationPrefixAtEnabledChange)
-                SettingsSwitchRow(Icons.Rounded.Schedule, "显示授课老师", "课程卡片显示教师名称", scheduleDisplay.teacherVisible, onScheduleTeacherVisibleChange)
+                SettingsSwitchRow(
+                    Icons.Rounded.Schedule,
+                    stringResource(R.string.settings_display_location_title),
+                    stringResource(R.string.settings_display_location_subtitle),
+                    scheduleDisplay.locationVisible,
+                    onScheduleLocationVisibleChange,
+                )
+                SettingsSwitchRow(
+                    Icons.Rounded.Schedule,
+                    stringResource(R.string.settings_display_location_at_title),
+                    stringResource(R.string.settings_display_location_at_subtitle),
+                    scheduleDisplay.locationPrefixAtEnabled,
+                    onScheduleLocationPrefixAtEnabledChange,
+                )
+                SettingsSwitchRow(
+                    Icons.Rounded.Schedule,
+                    stringResource(R.string.settings_display_teacher_title),
+                    stringResource(R.string.settings_display_teacher_subtitle),
+                    scheduleDisplay.teacherVisible,
+                    onScheduleTeacherVisibleChange,
+                )
                 SettingsSwitchRow(
                     icon = Icons.AutoMirrored.Rounded.MenuBook,
-                    title = "总课表显示",
+                    title = stringResource(R.string.settings_display_total_title),
                     subtitle = if (scheduleDisplay.totalScheduleDisplayEnabled) {
-                        "周视图显示本学期全部课程，非本周课程置灰标注"
+                        stringResource(R.string.settings_display_total_on)
                     } else {
-                        "周视图只显示本周课程"
+                        stringResource(R.string.settings_display_total_off)
                     },
                     checked = scheduleDisplay.totalScheduleDisplayEnabled,
                     onCheckedChange = onTotalScheduleDisplayChange,
@@ -796,27 +919,31 @@ fun AppSettingsRoute(
             SettingsDestination.WidgetSettings -> {
                 SettingsActionRow(
                     icon = Icons.Rounded.Palette,
-                    title = "主题",
+                    title = stringResource(R.string.settings_theme),
                     subtitle = widgetThemeLabel(widgetThemePreferences),
                     onClick = onPickWidgetThemeAccent,
                 )
                 SettingsActionRow(
                     icon = Icons.Rounded.Widgets,
-                    title = "桌面小组件",
-                    subtitle = "添加课表、下一节课或课程提醒",
+                    title = stringResource(R.string.settings_widget_home_title),
+                    subtitle = stringResource(R.string.settings_widget_home_subtitle),
                     onClick = onOpenWidgetPicker,
                 )
                 SettingsSwitchRow(
                     icon = Icons.Rounded.Schedule,
-                    title = "点击小组件打开 App",
-                    subtitle = "开启后点击小组件主体进入应用",
+                    title = stringResource(R.string.settings_widget_open_app_title),
+                    subtitle = stringResource(R.string.settings_widget_open_app_subtitle),
                     checked = widgetThemePreferences.openAppOnDoubleClickEnabled,
                     onCheckedChange = onWidgetOpenAppOnDoubleClickChange,
                 )
                 SettingsActionRow(
                     icon = Icons.Rounded.Download,
-                    title = "背景选择",
-                    subtitle = widgetThemePreferences.backgroundImageUri?.let { "已选择图片" } ?: "使用主题背景",
+                    title = stringResource(R.string.settings_widget_background_title),
+                    subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
+                        stringResource(R.string.settings_background_image_selected)
+                    } else {
+                        stringResource(R.string.settings_widget_background_theme)
+                    },
                     onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
                 )
                 if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
@@ -824,8 +951,8 @@ fun AppSettingsRoute(
                 ) {
                     SettingsActionRow(
                         icon = Icons.Rounded.Delete,
-                        title = "清除小组件背景",
-                        subtitle = "恢复使用小组件主题",
+                        title = stringResource(R.string.settings_widget_background_clear_title),
+                        subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
                         onClick = onClearWidgetBackgroundImage,
                     )
                 }
@@ -881,17 +1008,21 @@ fun AppSettingsRoute(
         if (showResetScheduleAppearanceConfirm) {
             AlertDialog(
                 onDismissRequest = { showResetScheduleAppearanceConfirm = false },
-                title = { Text("恢复课表外观/显示") },
-                text = { Text("将恢复文字、表头、卡片、背景和显示选项默认值，不会清除课程数据。确定继续？") },
+                title = { Text(stringResource(R.string.settings_reset_schedule_dialog_title)) },
+                text = { Text(stringResource(R.string.settings_reset_schedule_dialog_message)) },
                 confirmButton = {
                     TextButton(onClick = {
                         onResetScheduleAppearanceAndDisplay()
                         showResetScheduleAppearanceConfirm = false
-                        Toast.makeText(context, "课表外观/显示已恢复默认", Toast.LENGTH_SHORT).show()
-                    }) { Text("恢复") }
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_schedule_reset),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }) { Text(stringResource(R.string.settings_reset_confirm)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showResetScheduleAppearanceConfirm = false }) { Text("取消") }
+                    TextButton(onClick = { showResetScheduleAppearanceConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
                 },
             )
         }
@@ -899,17 +1030,21 @@ fun AppSettingsRoute(
         if (showResetAllSettingsConfirm) {
             AlertDialog(
                 onDismissRequest = { showResetAllSettingsConfirm = false },
-                title = { Text("恢复所有设置") },
-                text = { Text("将恢复应用、课表外观显示、小组件、提醒运行参数和更新设置，不会清除课表数据。确定继续？") },
+                title = { Text(stringResource(R.string.settings_reset_all_title)) },
+                text = { Text(stringResource(R.string.settings_reset_all_dialog_message)) },
                 confirmButton = {
                     TextButton(onClick = {
                         onResetAllSettings()
                         showResetAllSettingsConfirm = false
-                        Toast.makeText(context, "所有设置已恢复默认", Toast.LENGTH_SHORT).show()
-                    }) { Text("恢复") }
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_all_reset),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }) { Text(stringResource(R.string.settings_reset_confirm)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showResetAllSettingsConfirm = false }) { Text("取消") }
+                    TextButton(onClick = { showResetAllSettingsConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
                 },
             )
         }
@@ -1030,7 +1165,11 @@ private fun ColorAlphaRow(
     SettingsActionRow(
         icon = Icons.Rounded.Palette,
         title = title,
-        subtitle = "${formatArgb(argb)} · 透明度 ${argbTransparencyPercent(argb)}%",
+        subtitle = stringResource(
+            R.string.settings_color_transparency_summary,
+            formatArgb(argb),
+            argbTransparencyPercent(argb),
+        ),
         onClick = { showPicker = true },
         trailing = {
             Surface(
@@ -1110,29 +1249,29 @@ private fun ColorPickerDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                ColorComponentSlider("红色", red, 255) {
+                ColorComponentSlider(stringResource(R.string.settings_color_red), red, 255) {
                     red = it
                     syncHex()
                 }
-                ColorComponentSlider("绿色", green, 255) {
+                ColorComponentSlider(stringResource(R.string.settings_color_green), green, 255) {
                     green = it
                     syncHex()
                 }
-                ColorComponentSlider("蓝色", blue, 255) {
+                ColorComponentSlider(stringResource(R.string.settings_color_blue), blue, 255) {
                     blue = it
                     syncHex()
                 }
-                ColorComponentSlider("透明度", alphaToTransparencyPercent(alpha), 100) {
+                ColorComponentSlider(stringResource(R.string.settings_color_transparency), alphaToTransparencyPercent(alpha), 100) {
                     alpha = transparencyPercentToAlpha(it)
                     syncHex()
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(currentArgb()) }) { Text("应用") }
+            TextButton(onClick = { onConfirm(currentArgb()) }) { Text(stringResource(R.string.settings_apply)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -1183,13 +1322,13 @@ private fun TimingProfileEntryRow(onClick: () -> Unit) {
     val profile by repository.timingProfileFlow.collectAsState(initial = null)
     val slotCount = profile?.slotTimes?.size ?: 0
     val subtitle = if (slotCount > 0) {
-        "已设置 $slotCount 个时间段 · 卡片时间、提醒和导出都用它"
+        stringResource(R.string.settings_timing_entry_subtitle_set, slotCount)
     } else {
-        "未设置 · 手动录课需要它才能显示时间、建提醒、导出"
+        stringResource(R.string.settings_timing_entry_subtitle_unset)
     }
     SettingsActionRow(
         icon = Icons.Rounded.Schedule,
-        title = "节次上课时间",
+        title = stringResource(R.string.settings_dest_timing_profile),
         subtitle = subtitle,
         onClick = onClick,
     )
@@ -1227,14 +1366,13 @@ private fun TimingProfileSettingsSection() {
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
-                    text = "还没有节次上课时间",
+                    text = stringResource(R.string.settings_timing_empty_title),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    text = "课程卡片时间、创建提醒、日历与图片导出、上课自动静音都依赖它。" +
-                        "可以套用下方模板再逐条改成本校作息，也可以手动逐条添加。",
+                    text = stringResource(R.string.settings_timing_empty_body),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
@@ -1243,15 +1381,14 @@ private fun TimingProfileSettingsSection() {
     }
 
     Text(
-        text = "每一节填写起始节、结束节和上下课时间。节次区间不能重叠，节次范围 " +
-            "$MIN_SLOT_NODE-$MAX_SLOT_NODE。",
+        text = stringResource(R.string.settings_timing_hint, MIN_SLOT_NODE, MAX_SLOT_NODE),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
     if (manuallyEdited) {
         Text(
-            text = "当前为手动编辑的时间表，插件同步不会覆盖它。若要交回插件同步管理，请点下方“改回插件同步管理”。",
+            text = stringResource(R.string.settings_timing_manual_notice),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.primary,
         )
@@ -1278,13 +1415,13 @@ private fun TimingProfileSettingsSection() {
         ) {
             Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("添加一节")
+            Text(stringResource(R.string.settings_timing_add_row))
         }
         OutlinedButton(
             onClick = { showTemplatePicker = true },
             modifier = Modifier.weight(1f),
         ) {
-            Text("套用模板")
+            Text(stringResource(R.string.settings_timing_apply_template))
         }
     }
 
@@ -1295,7 +1432,7 @@ private fun TimingProfileSettingsSection() {
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
-                    text = "无法保存，请修正以下问题：",
+                    text = stringResource(R.string.settings_timing_errors_title),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     fontWeight = FontWeight.SemiBold,
@@ -1340,13 +1477,17 @@ private fun TimingProfileSettingsSection() {
                 withContext(Dispatchers.Main) {
                     drafts.clear()
                     drafts.addAll(result.slots.map { it.toDraftInput() })
-                    Toast.makeText(context, "已保存 ${result.slots.size} 个节次时间段", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_toast_timing_saved, result.slots.size),
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
             }
         },
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text("保存")
+        Text(stringResource(R.string.settings_save))
     }
 
     if (manuallyEdited) {
@@ -1355,13 +1496,17 @@ private fun TimingProfileSettingsSection() {
                 scope.launch {
                     repository.clearManualTimingProfileFlag()
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "已交回插件同步管理，下次同步会更新时间表", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_timing_handback),
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     }
                 }
             },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("改回插件同步管理")
+            Text(stringResource(R.string.settings_timing_handback))
         }
     }
 
@@ -1392,7 +1537,7 @@ private fun TimingSlotEditorRow(
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "第 ${index + 1} 节",
+                    text = stringResource(R.string.settings_timing_row_index, index + 1),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f),
@@ -1400,7 +1545,7 @@ private fun TimingSlotEditorRow(
                 IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
                     Icon(
                         imageVector = Icons.Rounded.Delete,
-                        contentDescription = "删除这一节",
+                        contentDescription = stringResource(R.string.settings_timing_row_delete),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp),
                     )
@@ -1410,7 +1555,7 @@ private fun TimingSlotEditorRow(
                 OutlinedTextField(
                     value = draft.startNode,
                     onValueChange = { onChange(draft.copy(startNode = it.filter(Char::isDigit))) },
-                    label = { Text("起始节") },
+                    label = { Text(stringResource(R.string.settings_timing_start_node)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
@@ -1418,7 +1563,7 @@ private fun TimingSlotEditorRow(
                 OutlinedTextField(
                     value = draft.endNode,
                     onValueChange = { onChange(draft.copy(endNode = it.filter(Char::isDigit))) },
-                    label = { Text("结束节") },
+                    label = { Text(stringResource(R.string.settings_timing_end_node)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
@@ -1429,7 +1574,7 @@ private fun TimingSlotEditorRow(
                 OutlinedTextField(
                     value = draft.startTime,
                     onValueChange = { onChange(draft.copy(startTime = it)) },
-                    label = { Text("开始") },
+                    label = { Text(stringResource(R.string.settings_timing_start_time)) },
                     placeholder = { Text("08:00") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -1437,7 +1582,7 @@ private fun TimingSlotEditorRow(
                 OutlinedTextField(
                     value = draft.endTime,
                     onValueChange = { onChange(draft.copy(endTime = it)) },
-                    label = { Text("结束") },
+                    label = { Text(stringResource(R.string.settings_timing_end_time)) },
                     placeholder = { Text("08:45") },
                     singleLine = true,
                     modifier = Modifier.weight(1f),
@@ -1447,7 +1592,7 @@ private fun TimingSlotEditorRow(
             OutlinedTextField(
                 value = draft.label,
                 onValueChange = { onChange(draft.copy(label = it)) },
-                label = { Text("名称（可选，如 第一大节）") },
+                label = { Text(stringResource(R.string.settings_timing_label_hint)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -1462,11 +1607,11 @@ private fun TimingTemplatePickerDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("套用作息模板") },
+        title = { Text(stringResource(R.string.settings_timing_template_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "模板时间为示例，套用后会替换现有内容，请按本校作息逐条调整。",
+                    text = stringResource(R.string.settings_timing_template_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1495,7 +1640,7 @@ private fun TimingTemplatePickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -1537,7 +1682,7 @@ private fun AutoSilenceSettingsSection() {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "自动静音无法生效",
+                        text = stringResource(R.string.settings_auto_silence_blocked_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -1561,11 +1706,11 @@ private fun AutoSilenceSettingsSection() {
 
     SettingsSwitchRow(
         icon = Icons.Rounded.Notifications,
-        title = "上课自动静音",
+        title = stringResource(R.string.settings_dest_auto_silence),
         subtitle = if (autoSilence.enabled) {
-            "有课的时段自动切换手机状态，下课恢复原状"
+            stringResource(R.string.settings_auto_silence_on)
         } else {
-            "关闭时不会改动手机的铃声和勿扰设置"
+            stringResource(R.string.settings_auto_silence_off)
         },
         checked = autoSilence.enabled,
         onCheckedChange = { enabled ->
@@ -1584,21 +1729,25 @@ private fun AutoSilenceSettingsSection() {
     )
     SettingsActionRow(
         icon = Icons.Rounded.Tune,
-        title = "静音方式",
+        title = stringResource(R.string.settings_auto_silence_mode_title),
         subtitle = autoSilenceModeLabel(autoSilence.mode),
         onClick = { showModePicker = true },
     )
     SettingsActionRow(
         icon = Icons.Rounded.Notifications,
-        title = "勿扰权限",
+        title = stringResource(R.string.settings_dnd_permission_title),
         subtitle = when {
-            readiness.notificationPolicyGranted -> "已授权，可以切换静音和勿扰"
-            autoSilence.mode == AutoSilenceMode.Vibrate -> "仅震动不需要，改用静音或勿扰时才需要"
-            else -> "未授权，点击后在列表里找到本应用打开"
+            readiness.notificationPolicyGranted -> stringResource(R.string.settings_dnd_permission_granted)
+            autoSilence.mode == AutoSilenceMode.Vibrate -> stringResource(R.string.settings_dnd_permission_not_needed)
+            else -> stringResource(R.string.settings_dnd_permission_missing)
         },
         onClick = {
             if (readiness.notificationPolicyGranted) {
-                Toast.makeText(context, "勿扰权限已授权", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_dnd_granted),
+                    Toast.LENGTH_SHORT,
+                ).show()
             } else {
                 launchSettingsIntent(context, AutoSilenceController.notificationPolicySettingsIntent())
             }
@@ -1607,15 +1756,19 @@ private fun AutoSilenceSettingsSection() {
     if (autoSilence.mode == AutoSilenceMode.DoNotDisturb && !readiness.doNotDisturbAllowsAlarms) {
         SettingsActionRow(
             icon = Icons.Rounded.Warning,
-            title = "勿扰未放行闹钟",
-            subtitle = "请在系统勿扰设置里允许闹钟，否则课程提醒会被一起静音",
+            title = stringResource(R.string.settings_dnd_alarms_blocked_title),
+            subtitle = stringResource(R.string.settings_dnd_alarms_blocked_subtitle),
             onClick = { launchSettingsIntent(context, Intent(Settings.ACTION_SOUND_SETTINGS)) },
         )
     }
     SettingsActionRow(
         icon = Icons.Rounded.Restore,
-        title = "当前状态",
-        subtitle = if (sessionActive) "正在自动静音中，点击立即恢复" else "手机状态由用户自己控制",
+        title = stringResource(R.string.settings_auto_silence_status_title),
+        subtitle = if (sessionActive) {
+            stringResource(R.string.settings_auto_silence_status_active)
+        } else {
+            stringResource(R.string.settings_auto_silence_status_idle)
+        },
         onClick = {
             if (sessionActive) {
                 scope.launch {
@@ -1626,19 +1779,24 @@ private fun AutoSilenceSettingsSection() {
                             suppressUntilBlockEnd = true,
                         )
                     }
-                    Toast.makeText(context, "已恢复原来的铃声状态", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_toast_ringer_restored),
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
             } else {
                 refreshAutoSilence("settings_recheck")
-                Toast.makeText(context, "已重新检查", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_rechecked),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
         },
     )
     Text(
-        text = "静音只改动铃声模式或勿扰级别，课程提醒走闹钟音频通道，不受影响。" +
-            "勿扰只会开到「仅优先级」，不会开成完全静音。" +
-            "假日、临时调课取消的课不会触发静音；连堂课之间不会反复切换。" +
-            "下课后恢复的是上课前的状态，如果上课途中你自己改过铃声，App 不会覆盖你的选择。",
+        text = stringResource(R.string.settings_auto_silence_note),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -1646,7 +1804,7 @@ private fun AutoSilenceSettingsSection() {
     if (showModePicker) {
         AlertDialog(
             onDismissRequest = { showModePicker = false },
-            title = { Text("静音方式") },
+            title = { Text(stringResource(R.string.settings_auto_silence_mode_title)) },
             text = {
                 Column {
                     AutoSilenceMode.values().forEach { mode ->
@@ -1679,22 +1837,24 @@ private fun AutoSilenceSettingsSection() {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showModePicker = false }) { Text("关闭") }
+                TextButton(onClick = { showModePicker = false }) { Text(stringResource(R.string.settings_close)) }
             },
         )
     }
 }
 
+@Composable
 private fun autoSilenceModeLabel(mode: AutoSilenceMode): String = when (mode) {
-    AutoSilenceMode.Vibrate -> "仅震动"
-    AutoSilenceMode.Silent -> "静音"
-    AutoSilenceMode.DoNotDisturb -> "勿扰（仅优先级）"
+    AutoSilenceMode.Vibrate -> stringResource(R.string.settings_silence_mode_vibrate)
+    AutoSilenceMode.Silent -> stringResource(R.string.settings_silence_mode_silent)
+    AutoSilenceMode.DoNotDisturb -> stringResource(R.string.settings_silence_mode_dnd)
 }
 
+@Composable
 private fun autoSilenceModeDescription(mode: AutoSilenceMode): String = when (mode) {
-    AutoSilenceMode.Vibrate -> "把铃声模式切到震动，不需要额外授权"
-    AutoSilenceMode.Silent -> "把铃声模式切到静音，需要勿扰权限"
-    AutoSilenceMode.DoNotDisturb -> "打开勿扰并放行闹钟，同时挡掉通知横幅，需要勿扰权限"
+    AutoSilenceMode.Vibrate -> stringResource(R.string.settings_silence_mode_vibrate_desc)
+    AutoSilenceMode.Silent -> stringResource(R.string.settings_silence_mode_silent_desc)
+    AutoSilenceMode.DoNotDisturb -> stringResource(R.string.settings_silence_mode_dnd_desc)
 }
 
 @Composable
@@ -1720,10 +1880,10 @@ private fun PermissionsSection(
     // 计算权限健康状态
     val alarmPermissionsOk = exactAlarmEnabled && notificationEnabled && fullScreenIntentEnabled && batteryOptimizationIgnored
     val missingAlarmPermissions = buildList {
-        if (!notificationEnabled) add("通知权限")
-        if (!exactAlarmEnabled) add("精确闹钟权限")
-        if (!fullScreenIntentEnabled) add("全屏响铃权限")
-        if (!batteryOptimizationIgnored) add("后台运行权限")
+        if (!notificationEnabled) add(context.getString(R.string.settings_permission_notification))
+        if (!exactAlarmEnabled) add(context.getString(R.string.settings_permission_exact_alarm))
+        if (!fullScreenIntentEnabled) add(context.getString(R.string.settings_permission_full_screen))
+        if (!batteryOptimizationIgnored) add(context.getString(R.string.settings_permission_background))
     }
 
     // 权限健康状态警告卡片
@@ -1746,14 +1906,14 @@ private fun PermissionsSection(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "⚠️ 闹钟可能不响",
+                        text = stringResource(R.string.settings_alarm_warning_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "以下权限未开启，可能导致课程提醒无法正常触发：",
+                    text = stringResource(R.string.settings_alarm_warning_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
@@ -1769,14 +1929,22 @@ private fun PermissionsSection(
         }
     }
 
-    SettingsSectionHeader("授权")
+    SettingsSectionHeader(stringResource(R.string.settings_section_grant))
     SettingsActionRow(
         icon = Icons.Rounded.Notifications,
-        title = "通知权限",
-        subtitle = if (notificationEnabled) "已开启" else "未开启，响铃通知可能无法显示",
+        title = stringResource(R.string.settings_permission_notification),
+        subtitle = if (notificationEnabled) {
+            stringResource(R.string.settings_permission_on)
+        } else {
+            stringResource(R.string.settings_permission_notification_off)
+        },
         onClick = {
             if (notificationEnabled) {
-                Toast.makeText(context, "通知权限已开启", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_notification_granted),
+                    Toast.LENGTH_SHORT,
+                ).show()
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 notificationLauncher(Manifest.permission.POST_NOTIFICATIONS)
             } else {
@@ -1786,11 +1954,19 @@ private fun PermissionsSection(
     )
     SettingsActionRow(
         icon = Icons.Rounded.Schedule,
-        title = "精确闹钟权限",
-        subtitle = if (exactAlarmEnabled) "已开启" else "未开启，App 自管闹钟无法设置",
+        title = stringResource(R.string.settings_permission_exact_alarm),
+        subtitle = if (exactAlarmEnabled) {
+            stringResource(R.string.settings_permission_on)
+        } else {
+            stringResource(R.string.settings_permission_exact_alarm_off)
+        },
         onClick = {
             if (exactAlarmEnabled) {
-                Toast.makeText(context, "精确闹钟权限已开启", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_exact_alarm_granted),
+                    Toast.LENGTH_SHORT,
+                ).show()
             } else {
                 launchSettingsIntent(context, AlarmPermissionIntents.exactAlarmSettingsIntent(context))
             }
@@ -1798,11 +1974,19 @@ private fun PermissionsSection(
     )
     SettingsActionRow(
         icon = Icons.Rounded.Notifications,
-        title = "全屏响铃权限",
-        subtitle = if (fullScreenIntentEnabled) "已开启" else "未开启，锁屏响铃页可能不会自动弹出",
+        title = stringResource(R.string.settings_permission_full_screen),
+        subtitle = if (fullScreenIntentEnabled) {
+            stringResource(R.string.settings_permission_on)
+        } else {
+            stringResource(R.string.settings_permission_full_screen_off)
+        },
         onClick = {
             if (fullScreenIntentEnabled) {
-                Toast.makeText(context, "全屏响铃权限已开启", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_full_screen_granted),
+                    Toast.LENGTH_SHORT,
+                ).show()
             } else {
                 launchSettingsIntent(context, AlarmPermissionIntents.fullScreenIntentSettingsIntent(context))
             }
@@ -1810,11 +1994,19 @@ private fun PermissionsSection(
     )
     SettingsActionRow(
         icon = Icons.Rounded.Restore,
-        title = "省电优化",
-        subtitle = if (batteryOptimizationIgnored) "已允许后台运行" else "建议允许后台运行，提升响铃服务可靠性",
+        title = stringResource(R.string.settings_permission_battery_title),
+        subtitle = if (batteryOptimizationIgnored) {
+            stringResource(R.string.settings_permission_battery_on)
+        } else {
+            stringResource(R.string.settings_permission_battery_off)
+        },
         onClick = {
             if (batteryOptimizationIgnored) {
-                Toast.makeText(context, "已允许后台运行", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_permission_battery_on),
+                    Toast.LENGTH_SHORT,
+                ).show()
             } else {
                 launchSettingsIntent(context, AlarmPermissionIntents.batteryOptimizationIntent(context))
             }
@@ -1822,11 +2014,19 @@ private fun PermissionsSection(
     )
     SettingsActionRow(
         icon = Icons.Rounded.Code,
-        title = "相机权限",
-        subtitle = if (cameraEnabled) "已开启" else "扫码导入课表时需要",
+        title = stringResource(R.string.settings_permission_camera),
+        subtitle = if (cameraEnabled) {
+            stringResource(R.string.settings_permission_on)
+        } else {
+            stringResource(R.string.settings_permission_camera_off)
+        },
         onClick = {
             if (cameraEnabled) {
-                Toast.makeText(context, "相机权限已开启", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_camera_granted),
+                    Toast.LENGTH_SHORT,
+                ).show()
             } else {
                 cameraLauncher(Manifest.permission.CAMERA)
             }
@@ -1834,23 +2034,35 @@ private fun PermissionsSection(
     )
     SettingsActionRow(
         icon = Icons.Rounded.Download,
-        title = "安装未知应用权限",
-        subtitle = if (installPackagesEnabled) "已允许安装更新包" else "APK 更新安装时需要",
+        title = stringResource(R.string.settings_permission_install),
+        subtitle = if (installPackagesEnabled) {
+            stringResource(R.string.settings_permission_install_on)
+        } else {
+            stringResource(R.string.settings_permission_install_off)
+        },
         onClick = {
             if (installPackagesEnabled) {
-                Toast.makeText(context, "安装未知应用权限已开启", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_install_granted),
+                    Toast.LENGTH_SHORT,
+                ).show()
             } else {
                 launchSettingsIntent(context, unknownAppInstallSettingsIntent(context))
             }
         },
     )
-    SettingsSectionHeader("声明")
+    SettingsSectionHeader(stringResource(R.string.settings_section_declared))
     SettingsActionRow(
         icon = Icons.Rounded.Tune,
-        title = "网络、唤醒与震动",
-        subtitle = "这些为安装时声明权限，无需单独授权",
+        title = stringResource(R.string.settings_declared_permissions_title),
+        subtitle = stringResource(R.string.settings_declared_permissions_subtitle),
         onClick = {
-            Toast.makeText(context, "无需单独授权", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.settings_toast_no_grant_needed),
+                Toast.LENGTH_SHORT,
+            ).show()
         },
     )
 }
@@ -1886,7 +2098,11 @@ private fun ColorPreviewRow(title: String, argb: Long) {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "${formatArgb(argb)} · 透明度 ${argbTransparencyPercent(argb)}%",
+                    text = stringResource(
+                        R.string.settings_color_transparency_summary,
+                        formatArgb(argb),
+                        argbTransparencyPercent(argb),
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1977,25 +2193,35 @@ private fun ScheduleTextStylePreferences.resolvedTodayHeaderBackgroundColorArgb(
 private fun formatFloat(value: Float): String =
     if (value % 1f == 0f) value.toInt().toString() else "%.1f".format(value)
 
+@Composable
 private fun backgroundSubtitle(background: ScheduleBackgroundPreferences): String = when (background.type) {
-    ScheduleBackgroundType.Color -> "颜色 ${formatArgb(background.colorArgb)}"
-    ScheduleBackgroundType.Image -> background.imageUri?.let { "图片背景" } ?: "图片未选择"
-    ScheduleBackgroundType.Header -> "与表头区域背景一致"
+    ScheduleBackgroundType.Color -> stringResource(
+        R.string.settings_background_summary_color,
+        formatArgb(background.colorArgb),
+    )
+    ScheduleBackgroundType.Image -> if (background.imageUri != null) {
+        stringResource(R.string.settings_background_summary_image)
+    } else {
+        stringResource(R.string.settings_background_summary_image_none)
+    }
+    ScheduleBackgroundType.Header -> stringResource(R.string.settings_background_summary_header)
 }
 
+@Composable
 private fun widgetThemeLabel(preferences: WidgetThemePreferences): String =
     if (preferences.backgroundMode == WidgetBackgroundMode.Image) {
-        "图片背景"
+        stringResource(R.string.settings_background_summary_image)
     } else {
         themeAccentDisplayName(preferences.themeAccent)
     }
 
+@Composable
 private fun themeAccentDisplayName(accent: ThemeAccent): String = when (accent) {
-    ThemeAccent.Green -> "薄荷绿"
-    ThemeAccent.Blue -> "海岸蓝"
-    ThemeAccent.Purple -> "暮霭紫"
-    ThemeAccent.Orange -> "暖陶橙"
-    ThemeAccent.Pink -> "樱花粉"
+    ThemeAccent.Green -> stringResource(R.string.settings_accent_green)
+    ThemeAccent.Blue -> stringResource(R.string.settings_accent_blue)
+    ThemeAccent.Purple -> stringResource(R.string.settings_accent_purple)
+    ThemeAccent.Orange -> stringResource(R.string.settings_accent_orange)
+    ThemeAccent.Pink -> stringResource(R.string.settings_accent_pink)
 }
 
 private fun unknownAppInstallSettingsIntent(context: Context): Intent =
@@ -2065,7 +2291,7 @@ private fun AlarmBackendDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("闹钟通道") },
+        title = { Text(stringResource(R.string.settings_alarm_backend_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 ReminderAlarmBackend.entries.forEach { backend ->
@@ -2098,19 +2324,21 @@ private fun AlarmBackendDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("完成") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
         },
     )
 }
 
+@Composable
 private fun alarmBackendLabel(backend: ReminderAlarmBackend): String = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> "App 自管闹钟"
-    ReminderAlarmBackend.SystemClockApp -> "系统时钟 App 闹钟"
+    ReminderAlarmBackend.AppAlarmClock -> stringResource(R.string.settings_alarm_backend_app)
+    ReminderAlarmBackend.SystemClockApp -> stringResource(R.string.settings_alarm_backend_system)
 }
 
+@Composable
 private fun alarmBackendDescription(backend: ReminderAlarmBackend): String = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> "使用 AlarmManager.setAlarmClock，由本 App 控制响铃。"
-    ReminderAlarmBackend.SystemClockApp -> "使用系统时钟 App 创建和删除闹钟。"
+    ReminderAlarmBackend.AppAlarmClock -> stringResource(R.string.settings_alarm_backend_app_desc)
+    ReminderAlarmBackend.SystemClockApp -> stringResource(R.string.settings_alarm_backend_system_desc)
 }
 
 private fun launchSettingsIntent(context: Context, intent: Intent) {
@@ -2122,7 +2350,11 @@ private fun launchSettingsIntent(context: Context, intent: Intent) {
                 AlarmPermissionIntents.appDetailsIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             )
         }.onFailure { error ->
-            Toast.makeText(context, "无法打开设置：${error.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                context.getString(R.string.settings_toast_open_settings_failed, error.message.toString()),
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 }
@@ -2153,7 +2385,7 @@ private fun TemporaryScheduleOverridesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("临时调课") },
+        title = { Text(stringResource(R.string.settings_dest_temporary_overrides)) },
         text = {
             Column(
                 modifier = Modifier
@@ -2163,13 +2395,13 @@ private fun TemporaryScheduleOverridesDialog(
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OverrideModeButton(
-                        label = "补课/调课",
+                        label = stringResource(R.string.settings_override_mode_makeup),
                         selected = mode == TemporaryOverrideDialogMode.MakeUp,
                         modifier = Modifier.weight(1f),
                         onClick = { mode = TemporaryOverrideDialogMode.MakeUp },
                     )
                     OverrideModeButton(
-                        label = "临时取消",
+                        label = stringResource(R.string.settings_override_mode_cancel),
                         selected = mode == TemporaryOverrideDialogMode.CancelCourse,
                         modifier = Modifier.weight(1f),
                         onClick = { mode = TemporaryOverrideDialogMode.CancelCourse },
@@ -2177,14 +2409,18 @@ private fun TemporaryScheduleOverridesDialog(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DateChoiceButton(
-                        label = if (mode == TemporaryOverrideDialogMode.MakeUp) "调课日" else "取消日",
+                        label = if (mode == TemporaryOverrideDialogMode.MakeUp) {
+                            stringResource(R.string.settings_override_target_makeup)
+                        } else {
+                            stringResource(R.string.settings_override_target_cancel)
+                        },
                         date = targetDate,
                         modifier = Modifier.weight(1f),
                         onClick = { pickTargetDate = true },
                     )
                     if (mode == TemporaryOverrideDialogMode.MakeUp) {
                         DateChoiceButton(
-                            label = "按此日",
+                            label = stringResource(R.string.settings_override_source_day),
                             date = sourceDate,
                             modifier = Modifier.weight(1f),
                             onClick = { pickSourceDate = true },
@@ -2193,7 +2429,11 @@ private fun TemporaryScheduleOverridesDialog(
                 }
                 if (mode == TemporaryOverrideDialogMode.MakeUp) {
                     Text(
-                        text = "将在 ${formatLongDate(targetDate)} 显示并提醒 ${formatLongDate(sourceDate)} 的课程。",
+                        text = stringResource(
+                            R.string.settings_override_makeup_hint,
+                            formatLongDate(targetDate),
+                            formatLongDate(sourceDate),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2202,7 +2442,7 @@ private fun TemporaryScheduleOverridesDialog(
                         OutlinedTextField(
                             value = cancelStartNodeText,
                             onValueChange = { cancelStartNodeText = it.filter(Char::isDigit).take(2) },
-                            label = { Text("取消起始节") },
+                            label = { Text(stringResource(R.string.settings_override_cancel_start)) },
                             singleLine = true,
                             isError = cancelStartNodeText.isNotBlank() && !canAddCancellation,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -2211,7 +2451,7 @@ private fun TemporaryScheduleOverridesDialog(
                         OutlinedTextField(
                             value = cancelEndNodeText,
                             onValueChange = { cancelEndNodeText = it.filter(Char::isDigit).take(2) },
-                            label = { Text("取消结束节") },
+                            label = { Text(stringResource(R.string.settings_override_cancel_end)) },
                             singleLine = true,
                             isError = cancelEndNodeText.isNotBlank() && !canAddCancellation,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -2220,9 +2460,14 @@ private fun TemporaryScheduleOverridesDialog(
                     }
                     Text(
                         text = if (canAddCancellation) {
-                            "将在 ${formatLongDate(targetDate)} 隐藏并取消第 $cancelStartNode-${cancelEndNode} 节对应课程提醒。"
+                            stringResource(
+                                R.string.settings_override_cancel_hint,
+                                formatLongDate(targetDate),
+                                cancelStartNode.toString(),
+                                cancelEndNode.toString(),
+                            )
                         } else {
-                            "请输入 1 到 32 之间的有效节次范围。"
+                            stringResource(R.string.settings_override_cancel_invalid)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (canAddCancellation) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
@@ -2254,12 +2499,18 @@ private fun TemporaryScheduleOverridesDialog(
                     enabled = mode == TemporaryOverrideDialogMode.MakeUp || canAddCancellation,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(if (mode == TemporaryOverrideDialogMode.MakeUp) "添加规则" else "添加取消规则")
+                    Text(
+                        if (mode == TemporaryOverrideDialogMode.MakeUp) {
+                            stringResource(R.string.settings_override_add)
+                        } else {
+                            stringResource(R.string.settings_override_add_cancel)
+                        },
+                    )
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 if (overrides.isEmpty()) {
                     Text(
-                        text = "暂无临时调课规则",
+                        text = stringResource(R.string.settings_override_empty),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2274,11 +2525,11 @@ private fun TemporaryScheduleOverridesDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("完成") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
         },
         dismissButton = if (overrides.isNotEmpty()) {
             {
-                TextButton(onClick = onClear) { Text("清空") }
+                TextButton(onClick = onClear) { Text(stringResource(R.string.settings_clear_all)) }
             }
         } else null,
     )
@@ -2367,7 +2618,7 @@ private fun TemporaryOverrideRuleRow(
                 )
             }
             TextButton(onClick = onRemove) {
-                Text("删除")
+                Text(stringResource(R.string.settings_delete))
             }
         }
     }
@@ -2393,11 +2644,11 @@ private fun SettingsDatePickerDialog(
                     }
                 },
             ) {
-                Text("确定")
+                Text(stringResource(R.string.settings_confirm))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     ) {
         DatePicker(state = state)
@@ -2421,7 +2672,7 @@ private fun HolidayCalendarDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("节假日与调休") },
+        title = { Text(stringResource(R.string.settings_dest_holidays)) },
         text = {
             Column(
                 modifier = Modifier
@@ -2430,7 +2681,7 @@ private fun HolidayCalendarDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 DateChoiceButton(
-                    label = "日期",
+                    label = stringResource(R.string.settings_date),
                     date = targetDate,
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { pickDate = true },
@@ -2443,7 +2694,7 @@ private fun HolidayCalendarDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(12) },
-                    label = { Text("备注（可留空）") },
+                    label = { Text(stringResource(R.string.settings_holiday_note_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -2460,7 +2711,7 @@ private fun HolidayCalendarDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("设为假日")
+                    Text(stringResource(R.string.settings_holiday_set_holiday))
                 }
                 OutlinedButton(
                     onClick = {
@@ -2475,21 +2726,21 @@ private fun HolidayCalendarDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("设为调休上课日")
+                    Text(stringResource(R.string.settings_holiday_set_workday))
                 }
                 if (userEntry != null) {
                     OutlinedButton(
                         onClick = { onRemove(targetDate.toString()) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("取消这天的手动调整")
+                        Text(stringResource(R.string.settings_holiday_remove_manual))
                     }
                 }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 val userEntries = settings.sortedUserEntries()
                 if (userEntries.isEmpty()) {
                     Text(
-                        text = "暂无手动调整",
+                        text = stringResource(R.string.settings_holiday_no_manual_entries),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -2504,11 +2755,11 @@ private fun HolidayCalendarDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("完成") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
         },
         dismissButton = if (settings.entries.isNotEmpty()) {
             {
-                TextButton(onClick = onClear) { Text("清空") }
+                TextButton(onClick = onClear) { Text(stringResource(R.string.settings_clear_all)) }
             }
         } else null,
     )
@@ -2551,89 +2802,125 @@ private fun HolidayEntryRow(
                 )
             }
             TextButton(onClick = onRemove) {
-                Text("删除")
+                Text(stringResource(R.string.settings_delete))
             }
         }
     }
 }
 
+@Composable
 private fun holidayCalendarSubtitle(settings: HolidayCalendarSettings): String {
     val manual = settings.entries.size
-    val builtIn = if (settings.builtInEnabled) "内置已启用" else "内置已关闭"
-    return if (manual == 0) builtIn else "$builtIn · $manual 条手动调整"
-}
-
-private fun builtInHolidayCoverageSubtitle(): String {
-    val years = builtInHolidayYears
-    return if (years.isEmpty()) {
-        "暂无内置数据"
+    val builtIn = if (settings.builtInEnabled) {
+        stringResource(R.string.settings_holiday_builtin_on)
     } else {
-        "已收录 ${years.joinToString("、")} 年法定假日与补假"
+        stringResource(R.string.settings_holiday_builtin_off)
+    }
+    return if (manual == 0) {
+        builtIn
+    } else {
+        stringResource(R.string.settings_holiday_subtitle_with_manual, builtIn, manual)
     }
 }
 
+@Composable
+private fun builtInHolidayCoverageSubtitle(): String {
+    val years = builtInHolidayYears
+    return if (years.isEmpty()) {
+        stringResource(R.string.settings_holiday_builtin_none)
+    } else {
+        stringResource(
+            R.string.settings_holiday_builtin_years,
+            years.joinToString(stringResource(R.string.settings_holiday_year_separator)),
+        )
+    }
+}
+
+@Composable
 private fun holidayEntryTitle(entry: HolidayCalendarEntry): String {
-    val date = entry.localDate() ?: return "日期无效"
+    val date = entry.localDate() ?: return stringResource(R.string.settings_invalid_date)
     return formatLongDate(date)
 }
 
+@Composable
 private fun holidayEntrySubtitle(entry: HolidayCalendarEntry): String {
     val kind = when (entry.kind) {
-        HolidayEntryKind.Holiday -> "假日，不出课不提醒"
-        HolidayEntryKind.Workday -> "调休上课日，照常出课"
+        HolidayEntryKind.Holiday -> stringResource(R.string.settings_holiday_kind_holiday)
+        HolidayEntryKind.Workday -> stringResource(R.string.settings_holiday_kind_workday)
     }
     val note = entry.name.trim()
     return if (note.isBlank()) kind else "$kind · $note"
 }
 
+@Composable
 private fun holidayDateStatusText(
     date: LocalDate,
     entry: HolidayCalendarEntry?,
     manual: Boolean,
 ): String {
-    val source = if (manual) "手动" else "内置"
     val note = entry?.name?.trim().orEmpty()
-    val suffix = if (note.isBlank()) "" else "（$note）"
+    val suffix = if (note.isBlank()) {
+        ""
+    } else {
+        stringResource(R.string.settings_holiday_status_note_suffix, note)
+    }
+    val dateText = formatLongDate(date)
     return when (entry?.kind) {
-        HolidayEntryKind.Holiday -> "${formatLongDate(date)} 当前为${source}假日$suffix"
-        HolidayEntryKind.Workday -> "${formatLongDate(date)} 当前为${source}调休上课日$suffix"
-        null -> "${formatLongDate(date)} 当前按常规课表上课"
+        HolidayEntryKind.Holiday -> if (manual) {
+            stringResource(R.string.settings_holiday_status_holiday_manual, dateText, suffix)
+        } else {
+            stringResource(R.string.settings_holiday_status_holiday_builtin, dateText, suffix)
+        }
+        HolidayEntryKind.Workday -> if (manual) {
+            stringResource(R.string.settings_holiday_status_workday_manual, dateText, suffix)
+        } else {
+            stringResource(R.string.settings_holiday_status_workday_builtin, dateText, suffix)
+        }
+        null -> stringResource(R.string.settings_holiday_status_normal, dateText)
     }
 }
 
+@Composable
 private fun temporaryOverridesSubtitle(overrides: List<TemporaryScheduleOverride>): String {
     return when {
-        overrides.isEmpty() -> "未设置"
+        overrides.isEmpty() -> stringResource(R.string.settings_not_set)
         overrides.size == 1 -> formatOverrideSummary(overrides.first())
-        else -> "${overrides.size} 条规则 · ${formatOverrideSummary(overrides.last())}"
+        else -> stringResource(
+            R.string.settings_override_subtitle_multi,
+            overrides.size,
+            formatOverrideSummary(overrides.last()),
+        )
     }
 }
 
+@Composable
 private fun formatOverrideSummary(rule: TemporaryScheduleOverride): String {
     return "${formatOverrideRange(rule)} · ${formatOverrideSource(rule)}"
 }
 
+@Composable
 private fun formatOverrideRange(rule: TemporaryScheduleOverride): String {
     val target = parseIsoDate(rule.targetDate) ?: parseIsoDate(rule.startDate)
-    return target?.let(::formatShortDate) ?: "日期无效"
+    return target?.let(::formatShortDate) ?: stringResource(R.string.settings_invalid_date)
 }
 
+@Composable
 private fun formatOverrideSource(rule: TemporaryScheduleOverride): String {
     if (rule.type == TemporaryScheduleOverrideType.CancelCourse) {
         val start = rule.cancelStartNode
         val end = rule.cancelEndNode ?: start
         return if (start != null && end != null) {
-            "取消第$start-${end}节"
+            stringResource(R.string.settings_override_source_cancel, start, end)
         } else {
-            "取消节次无效"
+            stringResource(R.string.settings_override_source_cancel_invalid)
         }
     }
     val target = parseIsoDate(rule.targetDate) ?: parseIsoDate(rule.startDate)
     val source = target?.let { resolveTemporaryScheduleSourceDate(it, listOf(rule)) }
     return if (source != null) {
-        "按${formatLongDate(source)}课上"
+        stringResource(R.string.settings_override_source_makeup, formatLongDate(source))
     } else {
-        "来源日期无效"
+        stringResource(R.string.settings_override_source_invalid)
     }
 }
 
@@ -2646,20 +2933,23 @@ private fun formatLongDate(date: LocalDate): String =
 private fun parseIsoDate(value: String): LocalDate? =
     runCatching { LocalDate.parse(value) }.getOrNull()
 
+@Composable
 private fun webDavSettingsSubtitle(url: String, username: String): String {
     val hasAccount = username.isNotBlank()
+    val displayUrl = url.ifBlank { DEFAULT_WEBDAV_URL }
     return if (hasAccount) {
-        "${url.ifBlank { DEFAULT_WEBDAV_URL }} · 已配置账号"
+        stringResource(R.string.settings_webdav_subtitle_configured, displayUrl)
     } else {
-        "${url.ifBlank { DEFAULT_WEBDAV_URL }} · 未配置账号"
+        stringResource(R.string.settings_webdav_subtitle_unconfigured, displayUrl)
     }
 }
 
+@Composable
 private fun aiImportSettingsSubtitle(apiUrl: String, model: String): String {
     return when {
-        apiUrl.isBlank() -> "未配置 API URL 和 Key"
-        model.isNotBlank() -> "$model · 已配置 API"
-        else -> "已配置 API"
+        apiUrl.isBlank() -> stringResource(R.string.settings_ai_import_subtitle_none)
+        model.isNotBlank() -> stringResource(R.string.settings_ai_import_subtitle_model, model)
+        else -> stringResource(R.string.settings_ai_import_subtitle_configured)
     }
 }
 
@@ -2680,23 +2970,31 @@ private fun PluginSettingsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         MarketIndexUrlEditor(
-            title = "插件注册表仓库",
+            title = stringResource(R.string.settings_plugin_registry_title),
             placeholder = "owner/repo",
             value = registryDraft,
             onValueChange = { registryDraft = it },
             onSave = {
                 onPluginRegistryRepoChange(registryDraft)
-                Toast.makeText(context, "已保存插件注册表仓库", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_plugin_registry_saved),
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
         )
         MarketIndexUrlEditor(
-            title = "组件市场索引",
+            title = stringResource(R.string.settings_component_market_title),
             placeholder = "manifest.json",
             value = componentUrlDraft,
             onValueChange = { componentUrlDraft = it },
             onSave = {
                 onComponentMarketIndexUrlChange(componentUrlDraft)
-                Toast.makeText(context, "组件市场索引已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_component_market_saved),
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
         )
     }
@@ -2735,7 +3033,7 @@ private fun MarketIndexUrlEditor(
                 onClick = onSave,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("保存")
+                Text(stringResource(R.string.settings_save))
             }
         }
     }
@@ -2757,7 +3055,7 @@ private fun WebDavSettingsSection(
     var passwordDraft by rememberSaveable(webDavPassword) { mutableStateOf(webDavPassword) }
     var testing by rememberSaveable { mutableStateOf(false) }
 
-    SettingsEditorPanel(title = "WebDAV 连接") {
+    SettingsEditorPanel(title = stringResource(R.string.settings_webdav_panel_title)) {
         OutlinedTextField(
             value = urlDraft,
             onValueChange = { urlDraft = it },
@@ -2770,24 +3068,28 @@ private fun WebDavSettingsSection(
             onValueChange = { usernameDraft = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("账号") },
+            label = { Text(stringResource(R.string.settings_account)) },
         )
         OutlinedTextField(
             value = passwordDraft,
             onValueChange = { passwordDraft = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("密码") },
+            label = { Text(stringResource(R.string.settings_password)) },
         )
         Button(
             onClick = {
                 onSave(urlDraft, usernameDraft, passwordDraft)
                 onSaved(WebDavConfig(urlDraft.trim().ifBlank { DEFAULT_WEBDAV_URL }, usernameDraft.trim(), passwordDraft).isComplete)
-                Toast.makeText(context, "WebDAV 设置已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_webdav_saved),
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("保存")
+            Text(stringResource(R.string.settings_save))
         }
         OutlinedButton(
             enabled = !testing,
@@ -2795,11 +3097,20 @@ private fun WebDavSettingsSection(
                 testing = true
                 scope.launch {
                     onTest(WebDavConfig(urlDraft, usernameDraft, passwordDraft))
-                        .onSuccess { Toast.makeText(context, "WebDAV 连接正常", Toast.LENGTH_SHORT).show() }
+                        .onSuccess {
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_toast_webdav_ok),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
                         .onFailure {
                             Toast.makeText(
                                 context,
-                                "WebDAV 连接失败：${it.message ?: "未知错误"}",
+                                context.getString(
+                                    R.string.settings_toast_webdav_failed,
+                                    it.message ?: context.getString(R.string.settings_unknown_error),
+                                ),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -2808,7 +3119,13 @@ private fun WebDavSettingsSection(
             },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text(if (testing) "测试中..." else "测试连接")
+            Text(
+                if (testing) {
+                    stringResource(R.string.settings_testing)
+                } else {
+                    stringResource(R.string.settings_test_connection)
+                },
+            )
         }
     }
 }
@@ -2830,7 +3147,7 @@ private fun AiImportSettingsSection(
         mutableStateOf(coerceAiImportTimeoutSeconds(timeoutSeconds).toString())
     }
 
-    SettingsEditorPanel(title = "AI 识图导入") {
+    SettingsEditorPanel(title = stringResource(R.string.settings_dest_ai_import)) {
         OutlinedTextField(
             value = apiUrlDraft,
             onValueChange = { apiUrlDraft = it },
@@ -2838,7 +3155,7 @@ private fun AiImportSettingsSection(
             singleLine = true,
             label = { Text("API URL") },
             placeholder = { Text("https://api.openai.com/v1/chat/completions") },
-            supportingText = { Text("只填到 /v1 或仅域名时，自动补 /chat/completions；如需 Responses API，请写完整 /v1/responses。") },
+            supportingText = { Text(stringResource(R.string.settings_ai_import_url_hint)) },
         )
         OutlinedTextField(
             value = apiKeyDraft,
@@ -2853,7 +3170,7 @@ private fun AiImportSettingsSection(
             onValueChange = { modelDraft = it },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("模型（可选）") },
+            label = { Text(stringResource(R.string.settings_ai_import_model_label)) },
             placeholder = { Text("gpt-4o-mini") },
         )
         OutlinedTextField(
@@ -2861,10 +3178,17 @@ private fun AiImportSettingsSection(
             onValueChange = { timeoutDraft = it.filter(Char::isDigit).take(3) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            label = { Text("超时（秒）") },
+            label = { Text(stringResource(R.string.settings_ai_import_timeout_label)) },
             placeholder = { Text(DEFAULT_AI_IMPORT_TIMEOUT_SECONDS.toString()) },
             supportingText = {
-                Text("$MIN_AI_IMPORT_TIMEOUT_SECONDS-$MAX_AI_IMPORT_TIMEOUT_SECONDS 秒，留空使用 $DEFAULT_AI_IMPORT_TIMEOUT_SECONDS 秒")
+                Text(
+                stringResource(
+                    R.string.settings_ai_import_timeout_hint,
+                    MIN_AI_IMPORT_TIMEOUT_SECONDS,
+                    MAX_AI_IMPORT_TIMEOUT_SECONDS,
+                    DEFAULT_AI_IMPORT_TIMEOUT_SECONDS,
+                ),
+            )
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         )
@@ -2876,11 +3200,15 @@ private fun AiImportSettingsSection(
                 timeoutDraft = normalizedTimeout.toString()
                 onSave(apiUrlDraft, apiKeyDraft, modelDraft, normalizedTimeout)
                 onSaved(apiUrlDraft.isNotBlank() && apiKeyDraft.isNotBlank())
-                Toast.makeText(context, "AI 识图导入设置已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_ai_import_saved),
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("保存")
+            Text(stringResource(R.string.settings_save))
         }
     }
 }
@@ -2934,34 +3262,37 @@ private fun DeveloperDebugSection(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "开发者调试",
+                text = stringResource(R.string.settings_developer_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
         }
         Text(
-            text = "调试时间、导出日志、课表元数据与私有目录访问。",
+            text = stringResource(R.string.settings_developer_subtitle),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         SettingsSwitchRow(
             icon = Icons.Rounded.FolderOpen,
-            title = "允许文件管理器访问私有目录",
+            title = stringResource(R.string.settings_dev_files_title),
             subtitle = if (privateFilesProviderEnabled) {
-                "已开启，系统文件管理器左侧栏会显示本应用入口"
+                stringResource(R.string.settings_dev_files_on)
             } else {
-                "关闭后会从系统文件管理器左侧栏隐藏"
+                stringResource(R.string.settings_dev_files_off)
             },
             checked = privateFilesProviderEnabled,
             onCheckedChange = onPrivateFilesProviderEnabledChange,
         )
         DeveloperActionRow(
             icon = Icons.Rounded.CalendarMonth,
-            title = "调试时间",
+            title = stringResource(R.string.settings_dev_time_title),
             subtitle = if (debugForcedDateTime != null) {
-                "当前强制为 ${DateTimeFormatter.ofPattern("yyyy/M/d EEEE HH:mm").format(debugForcedDateTime)}"
+                stringResource(
+                    R.string.settings_dev_time_forced,
+                    DateTimeFormatter.ofPattern("yyyy/M/d EEEE HH:mm").format(debugForcedDateTime),
+                )
             } else {
-                "使用真实时间"
+                stringResource(R.string.settings_dev_time_real)
             },
             onClick = {
                 pendingForcedDate = debugForcedDateTime?.toLocalDate() ?: LocalDate.now()
@@ -2971,63 +3302,86 @@ private fun DeveloperDebugSection(
         if (debugForcedDateTime != null) {
             DeveloperActionRow(
                 icon = Icons.Rounded.Restore,
-                title = "复原真实时间",
-                subtitle = "课表、小组件与提醒恢复使用系统时间",
+                title = stringResource(R.string.settings_dev_time_restore_title),
+                subtitle = stringResource(R.string.settings_dev_time_restore_subtitle),
                 onClick = {
                     onSetDebugForcedDateTime(null)
-                    Toast.makeText(context, "已恢复真实时间", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_toast_dev_time_restored),
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 },
             )
         }
         DeveloperActionRow(
             icon = Icons.Rounded.Download,
-            title = "导出日志",
-            subtitle = "导出完整 logcat、App 与插件诊断日志",
+            title = stringResource(R.string.settings_dev_export_logs_title),
+            subtitle = stringResource(R.string.settings_dev_export_logs_subtitle),
             onClick = {
                 scope.launch {
                     val intent = LogExporter.exportRecentLogs(context)
                     if (intent != null) {
                         runCatching {
-                            val chooser = Intent.createChooser(intent, "导出日志").apply {
+                            val chooser = Intent.createChooser(
+                                intent,
+                                context.getString(R.string.settings_dev_export_logs_title),
+                            ).apply {
                                 clipData = intent.clipData
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
                             context.startActivity(chooser)
                         }.onFailure {
-                            Toast.makeText(context, "无法启动分享：${it.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.settings_toast_share_failed, it.message.toString()),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         }
                     } else {
-                        Toast.makeText(context, "导出日志失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_export_logs_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     }
                 }
             },
         )
         DeveloperActionRow(
             icon = Icons.Rounded.Delete,
-            title = "清空日志",
-            subtitle = "清理 App 自有诊断与已导出日志",
+            title = stringResource(R.string.settings_dev_clear_logs_title),
+            subtitle = stringResource(R.string.settings_dev_clear_logs_subtitle),
             onClick = {
                 scope.launch {
                     if (LogExporter.clearLogs(context)) {
-                        Toast.makeText(context, "已清空日志", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_logs_cleared),
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     } else {
-                        Toast.makeText(context, "清空日志失败，请稍后重试", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_clear_logs_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     }
                 }
             },
         )
         DeveloperActionRow(
             icon = Icons.Rounded.Schedule,
-            title = "导出课表元数据",
-            subtitle = "导出当前课表、插件与调试状态",
+            title = stringResource(R.string.settings_dev_export_metadata_title),
+            subtitle = stringResource(R.string.settings_dev_export_metadata_subtitle),
             onClick = onExportScheduleMetadata,
         )
         var showPluginLog by rememberSaveable { mutableStateOf(false) }
         DeveloperActionRow(
             icon = Icons.Rounded.Code,
-            title = "插件日志",
-            subtitle = "实时查看插件运行事件，支持按 trace_id/级别筛选",
+            title = stringResource(R.string.settings_dev_plugin_log_title),
+            subtitle = stringResource(R.string.settings_dev_plugin_log_subtitle),
             onClick = { showPluginLog = true },
         )
         if (showPluginLog) {
@@ -3047,11 +3401,15 @@ private fun DeveloperDebugSection(
         }
         DeveloperActionRow(
             icon = Icons.Rounded.BugReport,
-            title = "关闭开发者模式",
-            subtitle = "隐藏调试入口与工具",
+            title = stringResource(R.string.settings_dev_disable_title),
+            subtitle = stringResource(R.string.settings_dev_disable_subtitle),
             onClick = {
                 onSetDeveloperMode(false)
-                Toast.makeText(context, "已关闭开发者模式", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_dev_mode_off),
+                    Toast.LENGTH_SHORT,
+                ).show()
             },
         )
     }
@@ -3079,7 +3437,10 @@ private fun DeveloperDebugSection(
                 showForcedTimePicker = false
                 Toast.makeText(
                     context,
-                    "已强制时间：${DateTimeFormatter.ofPattern("yyyy/M/d HH:mm").format(combined)}",
+                    context.getString(
+                        R.string.settings_toast_dev_time_forced,
+                        DateTimeFormatter.ofPattern("yyyy/M/d HH:mm").format(combined),
+                    ),
                     Toast.LENGTH_SHORT,
                 ).show()
             },
@@ -3117,15 +3478,15 @@ private fun ForcedTimePickerDialog(
     )
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("选择调试时间") },
+        title = { Text(stringResource(R.string.settings_dev_time_picker_title)) },
         text = { TimePicker(state = state) },
         confirmButton = {
             TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
-                Text("确定")
+                Text(stringResource(R.string.settings_confirm))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -3266,8 +3627,9 @@ fun SettingsRoute(
     )
 }
 
+@Composable
 internal fun appLanguageLabel(language: AppLanguage): String = when (language) {
-    AppLanguage.System -> "跟随系统"
-    AppLanguage.Chinese -> "简体中文"
+    AppLanguage.System -> stringResource(R.string.settings_language_system)
+    AppLanguage.Chinese -> stringResource(R.string.settings_language_chinese)
     AppLanguage.English -> "English"
 }

@@ -22,16 +22,33 @@ class LegacyReminderRuleTest {
 
     @Test
     fun legacyRuleLabelFallsBackToScopeType() {
-        assertEquals("单课提醒（旧版）", legacyReminderRuleLabel(rule("a", ReminderScopeType.SingleCourse)))
-        assertEquals("时间段提醒（旧版）", legacyReminderRuleLabel(rule("b", ReminderScopeType.TimeSlot)))
-        assertEquals("考试提醒（旧版）", legacyReminderRuleLabel(rule("c", ReminderScopeType.Exam)))
+        assertEquals(
+            LegacyReminderRuleLabel.ScopeName(R.string.schedule_legacy_rule_scope_single_course),
+            legacyReminderRuleLabel(rule("a", ReminderScopeType.SingleCourse)),
+        )
+        assertEquals(
+            LegacyReminderRuleLabel.ScopeName(R.string.schedule_legacy_rule_scope_time_slot),
+            legacyReminderRuleLabel(rule("b", ReminderScopeType.TimeSlot)),
+        )
+        assertEquals(
+            LegacyReminderRuleLabel.ScopeName(R.string.schedule_legacy_rule_scope_exam),
+            legacyReminderRuleLabel(rule("c", ReminderScopeType.Exam)),
+        )
+        assertEquals(
+            LegacyReminderRuleLabel.ScopeName(R.string.schedule_legacy_rule_scope_generic),
+            legacyReminderRuleLabel(rule("d", ReminderScopeType.FirstCourseOfPeriod)),
+        )
+        assertEquals(
+            LegacyReminderRuleLabel.ScopeName(R.string.schedule_legacy_rule_scope_generic),
+            legacyReminderRuleLabel(rule("e", ReminderScopeType.LabelRule)),
+        )
     }
 
     @Test
     fun legacyRuleLabelPrefersDisplayName() {
         val named = rule("a", ReminderScopeType.SingleCourse).copy(displayName = "高等数学")
 
-        assertEquals("高等数学", legacyReminderRuleLabel(named))
+        assertEquals(LegacyReminderRuleLabel.DisplayName("高等数学"), legacyReminderRuleLabel(named))
     }
 
     private fun rule(ruleId: String, scopeType: ReminderScopeType): ReminderRule = ReminderRule(

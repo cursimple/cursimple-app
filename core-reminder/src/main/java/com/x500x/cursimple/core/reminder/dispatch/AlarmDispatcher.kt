@@ -18,6 +18,7 @@ import com.x500x.cursimple.core.reminder.model.appAlarmRequestCode
 import com.x500x.cursimple.core.reminder.model.systemAlarmKey
 import com.x500x.cursimple.core.reminder.model.systemAlarmLabel
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
+import com.x500x.cursimple.core.reminder.R
 import java.time.Instant
 
 interface AlarmDispatcher {
@@ -91,7 +92,7 @@ class AppAlarmClockDispatcher(
             return AlarmDispatchResult(
                 channel = AlarmDispatchChannel.AppAlarmClock,
                 succeeded = false,
-                message = "精确闹钟权限未开启",
+                message = context.getString(R.string.reminder_exact_alarm_permission_off),
             )
         }
         val requestCode = plan.appAlarmRequestCode()
@@ -118,12 +119,12 @@ class AppAlarmClockDispatcher(
             AlarmDispatchResult(
                 channel = AlarmDispatchChannel.AppAlarmClock,
                 succeeded = true,
-                message = "App 自管闹钟已设置",
+                message = context.getString(R.string.reminder_app_alarm_set),
             )
         }.getOrElse {
             val message = when (it) {
-                is SecurityException -> "系统拒绝设置精确闹钟"
-                else -> it.message ?: "设置 App 自管闹钟失败"
+                is SecurityException -> context.getString(R.string.reminder_exact_alarm_denied)
+                else -> it.message ?: context.getString(R.string.reminder_app_alarm_set_failed)
             }
             ReminderLogger.warn(
                 "reminder.app_alarm_clock.dispatch.failure",
@@ -170,10 +171,10 @@ class AppAlarmClockDismisser(
             AlarmDismissResult(
                 alarmKey = record.alarmKey,
                 succeeded = true,
-                message = "App 自管闹钟已取消",
+                message = context.getString(R.string.reminder_app_alarm_cancelled),
             )
         }.getOrElse {
-            val message = it.message ?: "取消 App 自管闹钟失败"
+            val message = it.message ?: context.getString(R.string.reminder_app_alarm_cancel_failed)
             ReminderLogger.warn(
                 "reminder.app_alarm_clock.dismiss.failure",
                 mapOf("ruleId" to record.ruleId, "planId" to record.planId, "alarmKey" to record.alarmKey),
@@ -248,13 +249,13 @@ class SystemAlarmClockDispatcher(
             AlarmDispatchResult(
                 channel = AlarmDispatchChannel.SystemClockApp,
                 succeeded = true,
-                message = "系统时钟已接受创建请求",
+                message = context.getString(R.string.reminder_system_clock_create_accepted),
             )
         }.getOrElse {
             val message = when (it) {
-                is ActivityNotFoundException -> "系统时钟应用不可用"
-                is SecurityException -> "系统拒绝创建闹钟"
-                else -> it.message ?: "创建系统闹钟失败"
+                is ActivityNotFoundException -> context.getString(R.string.reminder_system_clock_unavailable)
+                is SecurityException -> context.getString(R.string.reminder_system_clock_create_denied)
+                else -> it.message ?: context.getString(R.string.reminder_system_clock_create_failed)
             }
             ReminderLogger.warn(
                 "reminder.system_clock.dispatch.failure",
@@ -466,13 +467,13 @@ class SystemAlarmClockDismisser(
             AlarmDismissResult(
                 alarmKey = record.alarmKey,
                 succeeded = true,
-                message = "系统时钟已接受删除请求",
+                message = context.getString(R.string.reminder_system_clock_delete_accepted),
             )
         }.getOrElse {
             val message = when (it) {
-                is ActivityNotFoundException -> "系统时钟应用不可用"
-                is SecurityException -> "系统拒绝删除闹钟"
-                else -> it.message ?: "删除系统闹钟失败"
+                is ActivityNotFoundException -> context.getString(R.string.reminder_system_clock_unavailable)
+                is SecurityException -> context.getString(R.string.reminder_system_clock_delete_denied)
+                else -> it.message ?: context.getString(R.string.reminder_system_clock_delete_failed)
             }
             ReminderLogger.warn(
                 "reminder.system_clock.dismiss.failure",

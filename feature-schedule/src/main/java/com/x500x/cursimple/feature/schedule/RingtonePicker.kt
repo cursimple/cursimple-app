@@ -27,7 +27,7 @@ internal fun launchAlarmRingtonePicker(
     try {
         launch(alarmRingtonePickerIntent(existingUri))
     } catch (_: ActivityNotFoundException) {
-        Toast.makeText(context, "当前系统没有可用的铃声选择器", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.schedule_ringtone_picker_unavailable), Toast.LENGTH_SHORT).show()
     }
 }
 
@@ -40,7 +40,7 @@ internal fun takePersistableAudioReadPermission(context: Context, uri: Uri): Boo
     }.isSuccess
 
 internal fun showAudioPermissionFailedToast(context: Context) {
-    Toast.makeText(context, "音频授权失败，请重新选择", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, context.getString(R.string.schedule_audio_permission_failed), Toast.LENGTH_SHORT).show()
 }
 
 internal fun isLocalAudioRingtoneUri(uriString: String?): Boolean =

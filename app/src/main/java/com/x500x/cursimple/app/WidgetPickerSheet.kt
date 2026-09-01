@@ -1,3 +1,5 @@
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package com.x500x.cursimple.app
 
 import androidx.compose.foundation.background
@@ -49,10 +51,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.x500x.cursimple.R
 import com.x500x.cursimple.feature.widget.WidgetCatalog
 import com.x500x.cursimple.feature.widget.WidgetCatalogEntry
 
@@ -120,7 +124,7 @@ fun WidgetPickerSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "添加桌面小组件",
+                    text = stringResource(R.string.widget_sheet_title),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
@@ -128,16 +132,15 @@ fun WidgetPickerSheet(
                 IconButton(onClick = { showWidgetHelp = true }) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.HelpOutline,
-                        contentDescription = "查看桌面小组件帮助",
+                        contentDescription = stringResource(R.string.widget_help_desc),
                     )
                 }
             }
             Text(
                 text = if (pinSupported) {
-                    "选择一种样式，确认后系统会弹出「添加到桌面」确认框。\n" +
-                        "如果系统弹窗没出现，请点右上角帮助，或长按桌面空白处 → 小组件 → 搜索「课简」。"
+                    stringResource(R.string.widget_sheet_intro_supported)
                 } else {
-                    "当前启动器不支持一键添加。请点右上角帮助，或长按桌面空白处 → 小组件 → 搜索「课简」。"
+                    stringResource(R.string.widget_sheet_intro_unsupported)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -185,13 +188,13 @@ fun WidgetPickerSheet(
         val installed = (installedCounts[pending.id] ?: 0) > 0
         AlertDialog(
             onDismissRequest = { pendingConfirm = null },
-            title = { Text("添加桌面小组件") },
+            title = { Text(stringResource(R.string.widget_sheet_title)) },
             text = {
                 Text(
                     if (installed) {
-                        "「${pending.title}」已经添加到桌面，仍要再添加一个吗？"
+                        stringResource(R.string.widget_confirm_installed, pending.title)
                     } else {
-                        "确定要把「${pending.title}」添加到桌面吗？"
+                        stringResource(R.string.widget_confirm_new, pending.title)
                     }
                 )
             },
@@ -201,17 +204,17 @@ fun WidgetPickerSheet(
                     pendingConfirm = null
                     when (WidgetCatalog.requestPin(context, entry)) {
                         WidgetCatalog.PinRequestResult.Started -> {
-                            onShowMessage("已发起添加请求，请在系统弹窗中确认")
+                            onShowMessage(context.getString(R.string.widget_toast_requested))
                         }
                         WidgetCatalog.PinRequestResult.Unsupported,
                         is WidgetCatalog.PinRequestResult.Failed -> {
                             manualGuideEntry = entry
                         }
                     }
-                }) { Text("添加") }
+                }) { Text(stringResource(R.string.widget_confirm_add)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingConfirm = null }) { Text("取消") }
+                TextButton(onClick = { pendingConfirm = null }) { Text(stringResource(R.string.widget_confirm_cancel)) }
             },
         )
     }
@@ -493,7 +496,7 @@ private fun TrailingStatus(installed: Boolean, installedCount: Int) {
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    text = if (installedCount > 1) "已添加 ×$installedCount" else "已添加",
+                    text = if (installedCount > 1) stringResource(R.string.widget_installed_count, installedCount) else stringResource(R.string.widget_installed),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -509,7 +512,7 @@ private fun TrailingStatus(installed: Boolean, installedCount: Int) {
         ) {
             Icon(
                 imageVector = Icons.Rounded.Add,
-                contentDescription = "添加",
+                contentDescription = stringResource(R.string.widget_add_desc),
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(18.dp),
             )

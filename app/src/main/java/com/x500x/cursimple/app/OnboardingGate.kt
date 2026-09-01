@@ -23,9 +23,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
+import com.x500x.cursimple.R
 
 /**
  * 首次启动时展示阻断式的免责声明对话框；接受后申请应用唯一需要的运行时权限
@@ -89,38 +91,38 @@ private fun DisclaimerDialog(
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
         ),
-        title = { Text("使用须知") },
+        title = { Text(stringResource(R.string.onboarding_disclaimer_title)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    "课简是课表与提醒工具，仅在你的设备本地运行。",
+                    stringResource(R.string.onboarding_disclaimer_intro),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "课表数据由你导入或通过你授权的教务插件获取，应用不会上传到任何服务器。",
+                    stringResource(R.string.onboarding_disclaimer_data),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "课程提醒触发时间依赖精确闹钟与通知机制，可能受到电池优化、勿扰模式或厂商后台限制的影响，作者不对因此造成的迟到、缺席或其它损失承担责任。",
+                    stringResource(R.string.onboarding_disclaimer_reminder),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "继续使用即表示你已了解并接受以上内容。",
+                    stringResource(R.string.onboarding_disclaimer_accept_notice),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onAccept) { Text("同意并继续") }
+            TextButton(onClick = onAccept) { Text(stringResource(R.string.onboarding_accept)) }
         },
         dismissButton = {
-            TextButton(onClick = onReject) { Text("拒绝并退出") }
+            TextButton(onClick = onReject) { Text(stringResource(R.string.onboarding_reject)) }
         },
     )
 }

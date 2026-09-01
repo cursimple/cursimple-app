@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.annotation.StringRes
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,6 +36,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -45,10 +48,10 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
 
-internal enum class WeekParity(val label: String) {
-    All("全部周"),
-    Odd("单周"),
-    Even("双周"),
+internal enum class WeekParity(@param:StringRes val labelRes: Int) {
+    All(R.string.schedule_week_parity_all),
+    Odd(R.string.schedule_week_parity_odd),
+    Even(R.string.schedule_week_parity_even),
 }
 
 /**
@@ -137,7 +140,7 @@ fun AddCourseDialog(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "添加课程",
+                    text = stringResource(R.string.schedule_add_course_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -154,7 +157,7 @@ fun AddCourseDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("课程名 *") },
+                    label = { Text(stringResource(R.string.schedule_course_name_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -162,7 +165,7 @@ fun AddCourseDialog(
                 OutlinedTextField(
                     value = teacher,
                     onValueChange = { teacher = it },
-                    label = { Text("授课教师（可选）") },
+                    label = { Text(stringResource(R.string.schedule_course_teacher_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
@@ -170,13 +173,13 @@ fun AddCourseDialog(
                 OutlinedTextField(
                     value = location,
                     onValueChange = { location = it },
-                    label = { Text("上课地点（可选）") },
+                    label = { Text(stringResource(R.string.schedule_course_location_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
                 Text(
-                    text = "类别",
+                    text = stringResource(R.string.schedule_course_category_label),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -184,27 +187,26 @@ fun AddCourseDialog(
                     FilterChip(
                         selected = category == CourseCategory.Course,
                         onClick = { category = CourseCategory.Course },
-                        label = { Text("课程") },
+                        label = { Text(stringResource(R.string.schedule_category_course)) },
                     )
                     FilterChip(
                         selected = category == CourseCategory.Exam,
                         onClick = { category = CourseCategory.Exam },
-                        label = { Text("考试") },
+                        label = { Text(stringResource(R.string.schedule_category_exam)) },
                     )
                 }
 
                 Text(
-                    text = "上课时间",
+                    text = stringResource(R.string.schedule_add_course_time_label),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 FlowChipRow {
-                    listOf("一", "二", "三", "四", "五", "六", "日").forEachIndexed { idx, label ->
-                        val day = idx + 1
+                    (1..7).forEach { day ->
                         FilterChip(
                             selected = dayOfWeek == day,
                             onClick = { dayOfWeek = day },
-                            label = { Text("周$label") },
+                            label = { Text(stringResource(scheduleWeekdayFullRes(day))) },
                         )
                     }
                 }
@@ -216,7 +218,7 @@ fun AddCourseDialog(
                     OutlinedTextField(
                         value = startNodeText,
                         onValueChange = { startNodeText = it.filter(Char::isDigit).take(2) },
-                        label = { Text("起始节") },
+                        label = { Text(stringResource(R.string.schedule_node_start_label)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -224,7 +226,7 @@ fun AddCourseDialog(
                     OutlinedTextField(
                         value = endNodeText,
                         onValueChange = { endNodeText = it.filter(Char::isDigit).take(2) },
-                        label = { Text("结束节") },
+                        label = { Text(stringResource(R.string.schedule_node_end_label)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -234,7 +236,7 @@ fun AddCourseDialog(
                 Spacer(modifier = Modifier.height(2.dp))
 
                 Text(
-                    text = "周次",
+                    text = stringResource(R.string.schedule_weeks_label),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -245,7 +247,7 @@ fun AddCourseDialog(
                     OutlinedTextField(
                         value = startWeekText,
                         onValueChange = { startWeekText = it.filter(Char::isDigit).take(2) },
-                        label = { Text("起始周") },
+                        label = { Text(stringResource(R.string.schedule_week_start_label)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -253,7 +255,7 @@ fun AddCourseDialog(
                     OutlinedTextField(
                         value = endWeekText,
                         onValueChange = { endWeekText = it.filter(Char::isDigit).take(2) },
-                        label = { Text("结束周") },
+                        label = { Text(stringResource(R.string.schedule_week_end_label)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
@@ -265,20 +267,20 @@ fun AddCourseDialog(
                         FilterChip(
                             selected = parity == p,
                             onClick = { parity = p },
-                            label = { Text(p.label) },
+                            label = { Text(stringResource(p.labelRes)) },
                         )
                     }
                 }
 
                 if (rangeValid && weeks == null) {
                     Text(
-                        text = "所选周次区间里没有${parity.label}，换个区间或改选全部周。",
+                        text = stringResource(R.string.schedule_add_course_parity_empty, stringResource(parity.labelRes)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
 
-                conflictWarning?.let { CourseConflictWarning(text = it) }
+                conflictWarning?.let { CourseConflictWarning(warning = it) }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -287,7 +289,7 @@ fun AddCourseDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         onClick = {
@@ -304,7 +306,7 @@ fun AddCourseDialog(
                             onConfirm(course)
                         },
                         enabled = canSave,
-                    ) { Text("保存") }
+                    ) { Text(stringResource(R.string.schedule_action_save)) }
                 }
             }
         }
@@ -316,7 +318,8 @@ fun AddCourseDialog(
  * 用 tertiaryContainer 而不是 errorContainer：这是提醒而非阻止，保存按钮仍然可用。
  */
 @Composable
-internal fun CourseConflictWarning(text: String) {
+internal fun CourseConflictWarning(warning: AddCourseConflictWarning) {
+    val text = LocalContext.current.addCourseConflictWarningText(warning)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),

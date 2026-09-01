@@ -47,8 +47,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.R
 
 private const val GITHUB_URL = "https://github.com/cursimple/cursimple-app"
 private const val DEV_MODE_TAP_TARGET = 5
@@ -171,7 +173,7 @@ private fun HeroCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "版本号",
+                            text = stringResource(R.string.about_version_label),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -187,7 +189,7 @@ private fun HeroCard(
                             color = MaterialTheme.colorScheme.tertiaryContainer,
                         ) {
                             Text(
-                                text = "开发者",
+                                text = stringResource(R.string.about_developer_badge),
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -216,13 +218,13 @@ private fun HeroCard(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "您已开启开发者模式",
+                                text = stringResource(R.string.about_dev_mode_enabled),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                             )
                             Text(
-                                text = "请前往「设置 - 开发者调试」查看调试工具与日志导出。",
+                                text = stringResource(R.string.about_dev_mode_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
                             )
@@ -248,12 +250,12 @@ private fun ProjectCard(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "项目",
+                text = stringResource(R.string.about_project_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "微内核架构的 Android 课表应用「课简」，使用 manifest 和 WebView 会话运行可热更新的学校插件。",
+                text = stringResource(R.string.about_project_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -269,20 +271,18 @@ private fun ProjectCard(
 
 @Composable
 private fun TechStackCard() {
-    val items = remember {
-        listOf(
+    val items = listOf(
             "Kotlin" to "2.2.21",
             "Jetpack Compose" to "BOM 2026.04",
             "Material 3" to "Compose M3",
-            "AndroidX Glance" to "1.1.1（桌面小组件）",
-            "WorkManager" to "2.11.2（后台同步）",
-            "DataStore" to "1.2.1（偏好/课表）",
+            "AndroidX Glance" to stringResource(R.string.about_tech_glance),
+            "WorkManager" to stringResource(R.string.about_tech_workmanager),
+            "DataStore" to stringResource(R.string.about_tech_datastore),
             "Kotlinx Coroutines" to "1.10.2",
             "Kotlinx Serialization" to "1.11.0",
-            "Android WebView" to "系统 WebView（插件会话）",
-            "OkHttp" to "5.3.2（网络）",
+            "Android WebView" to stringResource(R.string.about_tech_webview),
+            "OkHttp" to stringResource(R.string.about_tech_okhttp),
         )
-    }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -300,7 +300,7 @@ private fun TechStackCard() {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "技术栈",
+                    text = stringResource(R.string.about_tech_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -389,7 +389,7 @@ private fun openUrl(context: Context, url: String) {
     runCatching { context.startActivity(intent) }
         .onFailure {
             if (it is ActivityNotFoundException) {
-                Toast.makeText(context, "没有可处理链接的应用", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.about_no_link_handler), Toast.LENGTH_SHORT).show()
             }
         }
 }

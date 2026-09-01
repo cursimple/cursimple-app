@@ -1,3 +1,5 @@
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package com.x500x.cursimple.app
 
 import android.widget.Toast
@@ -39,9 +41,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.R
 import com.x500x.cursimple.app.update.AppUpdateCheckResult
 import com.x500x.cursimple.app.update.AppUpdateChecker
 import com.x500x.cursimple.app.update.AppUpdateDownloadResult
@@ -63,7 +67,7 @@ fun UpdateCheckSection(
     val checker = remember { AppUpdateChecker() }
     var checking by rememberSaveable { mutableStateOf(false) }
     var downloading by rememberSaveable { mutableStateOf(false) }
-    var statusMessage by rememberSaveable { mutableStateOf("从 GitHub Release 检查新版本。") }
+    var statusMessage by rememberSaveable { mutableStateOf(context.getString(R.string.update_status_default)) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var autoCheckedForCurrentEntry by rememberSaveable { mutableStateOf(false) }
@@ -82,11 +86,11 @@ fun UpdateCheckSection(
         }
         scope.launch {
             downloading = true
-            statusMessage = "正在下载 ${info.asset.fileName}..."
+            statusMessage = context.getString(R.string.update_status_downloading, info.asset.fileName)
             when (val result = checker.download(context, info)) {
                 is AppUpdateDownloadResult.Success -> {
                     downloadedApk = result.file
-                    statusMessage = "已从 ${result.sourceName} 下载，正在打开安装确认。"
+                    statusMessage = context.getString(R.string.update_status_downloaded, result.sourceName)
                     AppUpdateInstaller.openInstall(context, result.file)
                 }
                 is AppUpdateDownloadResult.Failure -> {
@@ -101,19 +105,19 @@ fun UpdateCheckSection(
         if (checking) return
         scope.launch {
             checking = true
-            statusMessage = "正在检查 Release..."
+            statusMessage = context.getString(R.string.update_status_checking)
             dismissPendingUpdate()
             when (val result = checker.check()) {
-                AppUpdateCheckResult.NoRelease -> statusMessage = "仓库暂无发布版本。"
-                AppUpdateCheckResult.ManifestMissing -> statusMessage = "最新 Release 缺少 update.json，无法自动更新。"
-                AppUpdateCheckResult.UpToDate -> statusMessage = "当前已经是最新版本。"
+                AppUpdateCheckResult.NoRelease -> statusMessage = context.getString(R.string.update_status_no_release)
+                AppUpdateCheckResult.ManifestMissing -> statusMessage = context.getString(R.string.update_status_manifest_missing)
+                AppUpdateCheckResult.UpToDate -> statusMessage = context.getString(R.string.update_status_up_to_date)
                 is AppUpdateCheckResult.Available -> {
                     val ignored = !manual && ignoredUpdateVersionCode == result.info.versionCode
                     if (ignored) {
-                        statusMessage = "v${result.info.versionName} 已被忽略，本次自动检查不再提示。"
+                        statusMessage = context.getString(R.string.update_status_ignored, result.info.versionName)
                     } else {
                         pendingUpdate = result.info
-                        statusMessage = "发现新版本 v${result.info.versionName}。"
+                        statusMessage = context.getString(R.string.update_status_available, result.info.versionName)
                     }
                 }
                 is AppUpdateCheckResult.Failure -> statusMessage = result.message
@@ -147,27 +151,27 @@ fun UpdateCheckSection(
             )
             Spacer(modifier = Modifier.width(10.dp))
             Text(
-                text = "应用更新",
+                text = stringResource(R.string.update_section_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
         }
         Text(
-            text = "从 GitHub Release 检查与下载新版本。",
+            text = stringResource(R.string.update_section_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         UpdateSwitchRow(
-            title = "自动检查更新",
-            subtitle = if (autoCheckEnabled) "发现新版本后询问是否更新" else "仅手动检查更新",
+            title = stringResource(R.string.update_auto_check_title),
+            subtitle = if (autoCheckEnabled) stringResource(R.string.update_auto_check_on) else stringResource(R.string.update_auto_check_off),
             checked = autoCheckEnabled,
             onCheckedChange = onAutoCheckEnabledChange,
         )
         UpdateActionRow(
-            title = "检查更新",
+            title = stringResource(R.string.update_check_title),
             subtitle = statusMessage,
             enabled = !checking && !downloading,
-            buttonText = if (checking) "检查中..." else "检查",
+            buttonText = if (checking) stringResource(R.string.update_check_checking) else stringResource(R.string.update_check_button),
             onClick = { checkUpdate(manual = true) },
         )
     }
@@ -180,7 +184,7 @@ fun UpdateCheckSection(
             onUpdate = { downloadAndInstall(info) },
             onIgnore = {
                 onIgnoreUpdateVersion(info.versionCode)
-                statusMessage = "已忽略 v${info.versionName}。手动检查仍可更新。"
+                statusMessage = context.getString(R.string.update_status_ignored_manual, info.versionName)
                 dismissPendingUpdate()
             },
             onDismiss = { dismissPendingUpdate() },
@@ -272,16 +276,16 @@ private fun UpdateAvailableDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("发现新版本 v${info.versionName}") },
+        title = { Text(stringResource(R.string.update_dialog_title, info.versionName)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "版本号：${info.versionCode}",
+                    text = stringResource(R.string.update_dialog_version_code, info.versionCode),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    text = "变更内容",
+                    text = stringResource(R.string.update_dialog_changelog),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -293,7 +297,7 @@ private fun UpdateAvailableDialog(
                     shape = RoundedCornerShape(12.dp),
                 ) {
                     Text(
-                        text = releaseNotesText(info),
+                        text = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
                         modifier = Modifier
                             .verticalScroll(rememberScrollState())
                             .padding(12.dp),
@@ -310,16 +314,16 @@ private fun UpdateAvailableDialog(
             ) {
                 Text(
                     when {
-                        downloading -> "下载中..."
-                        downloadedApk?.exists() == true -> "安装"
-                        else -> "更新"
+                        downloading -> stringResource(R.string.update_dialog_downloading)
+                        downloadedApk?.exists() == true -> stringResource(R.string.update_dialog_install)
+                        else -> stringResource(R.string.update_dialog_update)
                     },
                 )
             }
         },
         dismissButton = {
             TextButton(onClick = onIgnore) {
-                Text("忽略本次更新")
+                Text(stringResource(R.string.update_dialog_ignore))
             }
         },
     )
@@ -407,6 +411,3 @@ private fun UpdateActionRow(
         }
     }
 }
-
-private fun releaseNotesText(info: AppUpdateInfo): String =
-    info.releaseNotes.ifBlank { "暂无变更说明。" }
