@@ -68,6 +68,8 @@ class DailyGuardWorker(
                 ),
             )
 
+            AutoSilenceController.evaluate(applicationContext, reason = WORKER_NAME)
+
             // 每日巡检无论失败与否都视为成功，下次会重试
             // 只有连续失败才会触发 WorkManager 的回退策略
             Result.success()

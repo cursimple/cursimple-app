@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.PowerManager
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -323,10 +324,7 @@ class AlarmRingingService : Service() {
     private fun startTone(rawUri: String?) {
         runCatching {
             stopTone()
-            val attributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
+            val attributes = alarmAudioAttributes()
             val candidates = buildList {
                 rawUri?.takeIf { it.isNotBlank() }?.let { add(Uri.parse(it)) }
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.let(::add)
@@ -351,6 +349,11 @@ class AlarmRingingService : Service() {
         }
     }
 
+    private fun alarmAudioAttributes(): AudioAttributes = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_ALARM)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+
     private fun stopTone() {
         runCatching {
             ringtone?.stop()
@@ -371,11 +374,19 @@ class AlarmRingingService : Service() {
             }
             if (!vibrator.hasVibrator()) return
             activeVibrator = vibrator
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0L, 800L, 800L), 0))
+            // 声明闹钟用途，静音与勿扰模式都不会把它当成普通提示音抑制掉
+            val pattern = longArrayOf(0L, 800L, 800L)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                vibrator.vibrate(
+                    VibrationEffect.createWaveform(pattern, 0),
+                    VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM),
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0), alarmAudioAttributes())
             } else {
                 @Suppress("DEPRECATION")
-                vibrator.vibrate(longArrayOf(0L, 800L, 800L), 0)
+                vibrator.vibrate(pattern, 0, alarmAudioAttributes())
             }
             vibrationStopJob?.cancel()
             vibrationStopJob = serviceScope.launch {

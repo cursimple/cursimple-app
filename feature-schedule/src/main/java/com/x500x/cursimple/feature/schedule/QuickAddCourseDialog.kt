@@ -60,6 +60,7 @@ fun QuickAddCourseDialog(
     startNode: Int,
     endNode: Int,
     initialWeek: Int,
+    existingCourses: List<CourseItem> = emptyList(),
     maxWeekCount: Int = 30,
     onDismiss: () -> Unit,
     onConfirm: (CourseItem) -> Unit,
@@ -78,6 +79,21 @@ fun QuickAddCourseDialog(
     val weeksValid = startWeek != null && endWeek != null &&
         startWeek in 1..maxWeekCount && endWeek in startWeek..maxWeekCount
     val canSave = titleTrimmed.isNotBlank() && weeksValid
+    val conflictWarning = remember(
+        existingCourses, dayOfWeek, startNode, endNode, startWeek, endWeek, weeksValid, category, maxWeekCount,
+    ) {
+        addCourseConflictWarning(
+            draftCourseConflicts(
+                existingCourses = existingCourses,
+                dayOfWeek = dayOfWeek,
+                startNode = startNode,
+                endNode = endNode,
+                weeks = if (weeksValid) (startWeek!!..endWeek!!).toList() else null,
+                category = category,
+                maxWeekCount = maxWeekCount,
+            ),
+        )
+    }
 
     val dayLabel = listOf("一", "二", "三", "四", "五", "六", "日").getOrNull(dayOfWeek - 1) ?: "?"
 
@@ -208,6 +224,8 @@ fun QuickAddCourseDialog(
                             modifier = Modifier.weight(1f),
                         )
                     }
+
+                    conflictWarning?.let { CourseConflictWarning(text = it) }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

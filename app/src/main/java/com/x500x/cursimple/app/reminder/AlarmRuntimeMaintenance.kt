@@ -7,6 +7,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 
 object AlarmRuntimeMaintenance {
     suspend fun onAlarmStarted(context: Context) {
+        runCatching { AutoSilenceController.evaluate(context, reason = "alarm_started") }
         val app = context.applicationContext as? ClassScheduleApplication
         if (app == null) {
             ReminderLogger.warn("reminder.app_alarm_clock.runtime_maintenance.no_application", emptyMap())
@@ -29,6 +30,7 @@ object AlarmRuntimeMaintenance {
     }
 
     suspend fun onAlarmFinished(context: Context) {
+        runCatching { AutoSilenceController.evaluate(context, reason = "alarm_finished") }
         val app = context.applicationContext as? ClassScheduleApplication
         if (app == null) {
             ReminderLogger.warn("reminder.app_alarm_clock.runtime_maintenance.no_application", emptyMap())
