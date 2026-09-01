@@ -9,18 +9,12 @@ import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.kernel.model.CourseCategory
-import com.x500x.cursimple.core.kernel.model.CourseItem
-import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
-import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
-import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
-import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
 import java.time.Duration
 import java.time.LocalDate
-import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 
 internal data class NextCourseRow(
     val id: String,
@@ -46,7 +40,18 @@ internal data class NextCourseWidgetData(
 }
 
 internal object NextCourseDataSource {
-    suspend fun load(context: Context): NextCourseWidgetData {
+    private val cache = WidgetDataCache<NextCourseWidgetData>()
+
+    /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
+    suspend fun load(context: Context, reuseRecent: Boolean = false): NextCourseWidgetData {
+        if (reuseRecent) {
+            cache.get(WIDGET_SHARED_CACHE_KEY, System.nanoTime())?.let { return it }
+        }
+        return loadFresh(context)
+            .also { cache.put(WIDGET_SHARED_CACHE_KEY, System.nanoTime(), it) }
+    }
+
+    private suspend fun loadFresh(context: Context): NextCourseWidgetData {
         val appContext = context.applicationContext
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
@@ -68,30 +73,14 @@ internal object NextCourseDataSource {
             preferenceTermStartDate = userPrefs.termStartDate,
         )
 
-        fun coursesForDate(targetDate: LocalDate): NextCourseDay {
-            val dayResolution = resolveScheduleDay(
-                targetDate,
-                userPrefs.temporaryScheduleOverrides,
-                userPrefs.holidayCalendar,
-            )
-            val sourceDate = dayResolution.sourceDate
-            val dayOfWeek = sourceDate.dayOfWeek.value
-            val weekIndex = resolveWeekIndex(sourceDate, termStart)
-            val courses = if (dayResolution.isHoliday) emptyList() else filterTemporaryCancelledCourses(
-                date = targetDate,
-                courses = schedule?.coursesOfDay(dayOfWeek).orEmpty() +
-                    manualCourses.filter { it.time.dayOfWeek == dayOfWeek },
-                overrides = userPrefs.temporaryScheduleOverrides,
-            )
-                .visibleScheduleCourses()
-                .filter { it.activeOnWeek(weekIndex) }
-                .sortedBy { it.time.startNode }
-            return NextCourseDay(
-                targetDate = targetDate,
-                sourceDate = sourceDate,
-                weekIndex = weekIndex,
-                courses = courses,
-            )
+        fun coursesForDate(targetDate: LocalDate): WidgetScheduleDay = resolveWidgetScheduleDay(
+            targetDate = targetDate,
+            termStart = termStart,
+            temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            holidayCalendar = userPrefs.holidayCalendar,
+        ) { dayOfWeek ->
+            schedule?.coursesOfDay(dayOfWeek).orEmpty() +
+                manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
         }
 
         val todayDay = coursesForDate(today)
@@ -128,6 +117,7 @@ internal object NextCourseDataSource {
             targetDate = targetDate,
             sourceDate = sourceDate,
             today = today,
+            holidayLabel = displayDay.holidayLabel,
         )
         val headerLabel = when {
             live != null -> "$todayHeader · ${if (live.category == CourseCategory.Exam) "考试中" else "上课中"}"
@@ -141,6 +131,7 @@ internal object NextCourseDataSource {
             targetDate = targetDate,
             today = today,
             hasCourses = displayCourses.isNotEmpty(),
+            holidayLabel = displayDay.holidayLabel,
         )
 
         val rows = visibleEntries.map { entry ->
@@ -186,22 +177,19 @@ internal object NextCourseDataSource {
     }
 }
 
-/** 一天的展示数据：目标日期、临时调课实际取课的来源日期、该来源日期对应的教学周与课程。 */
-internal data class NextCourseDay(
-    val targetDate: LocalDate,
-    val sourceDate: LocalDate,
-    val weekIndex: Int?,
-    val courses: List<CourseItem>,
-)
-
-/** 表头前缀；来源日期与目标日期不同时补上“按X月X日周X”。 */
+/** 表头前缀；放假当天补上假日名，来源日期与目标日期不同时补上“按X月X日周X”。 */
 internal fun nextCourseDayHeader(
     targetDate: LocalDate,
     sourceDate: LocalDate,
     today: LocalDate,
+    holidayLabel: String? = null,
 ): String {
     val dayLabel = if (targetDate == today) "今日课程" else "明日课程"
-    return if (sourceDate != targetDate) "$dayLabel · 按${sourceDateLabel(sourceDate)}" else dayLabel
+    return when {
+        holidayLabel != null -> "$dayLabel · $holidayLabel"
+        sourceDate != targetDate -> "$dayLabel · 按${sourceDateLabel(sourceDate)}"
+        else -> dayLabel
+    }
 }
 
 private fun sourceDateLabel(date: LocalDate): String =

@@ -370,6 +370,7 @@ object AppBackupStores {
     const val USER_PREFERENCES = "user_preferences"
     const val SCHEDULE = "schedule_store"
     const val MANUAL_COURSES = "manual_courses_store"
+    const val COURSE_NOTES = "course_notes_store"
     const val TERM_PROFILES = "term_profiles"
     const val WIDGET_PREFERENCES = "widget_preferences"
     const val REMINDERS = "reminder_store"

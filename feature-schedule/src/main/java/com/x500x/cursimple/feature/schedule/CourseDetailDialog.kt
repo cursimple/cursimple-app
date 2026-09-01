@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Person
@@ -34,12 +35,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,6 +54,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.x500x.cursimple.core.data.note.COURSE_NOTE_MAX_LENGTH
+import com.x500x.cursimple.core.data.note.CourseNoteInput
+import com.x500x.cursimple.core.data.note.courseNoteLength
+import com.x500x.cursimple.core.data.note.validateCourseNote
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -70,6 +77,9 @@ fun CourseDetailDialog(
     mutedExamCourseIds: Set<String> = emptySet(),
     targetDate: LocalDate? = null,
     isTemporarilyCancelled: (CourseItem) -> Boolean = { false },
+    noteTextOf: (CourseItem) -> String = { "" },
+    noteMaxLength: Int = COURSE_NOTE_MAX_LENGTH,
+    onSaveNote: (CourseItem, String) -> Unit = { _, _ -> },
     onDismiss: () -> Unit,
     onTemporaryCancel: (CourseItem) -> Unit = {},
     onRestoreTemporaryCancel: (CourseItem) -> Unit = {},
@@ -235,6 +245,15 @@ fun CourseDetailDialog(
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+                    CourseNoteSection(
+                        courseKey = course.id,
+                        savedNote = noteTextOf(course),
+                        maxLength = noteMaxLength,
+                        onSave = { text -> onSaveNote(course, text) },
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
                     if (course.category == CourseCategory.Exam) {
                         ExamReminderMuteRow(
                             enabled = examReminderEnabled,
@@ -311,6 +330,132 @@ fun CourseDetailDialog(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CourseNoteSection(
+    courseKey: String,
+    savedNote: String,
+    maxLength: Int,
+    onSave: (String) -> Unit,
+) {
+    // 切换到同格的另一门课时，草稿与编辑态一起重置，不会把上一门课的输入带过来。
+    var editing by remember(courseKey) { mutableStateOf(false) }
+    var draft by remember(courseKey, savedNote) { mutableStateOf(savedNote) }
+    val draftLength = courseNoteLength(draft)
+    val tooLong = draftLength > maxLength
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "课程备注",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (!editing) {
+                TextButton(onClick = { editing = true }) {
+                    Text(if (savedNote.isBlank()) "添加" else "编辑")
+                }
+            }
+        }
+
+        if (editing) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 96.dp),
+                placeholder = { Text("带教材、换教室、小测……记一句给自己看") },
+                isError = tooLong,
+                supportingText = {
+                    Text(
+                        text = if (tooLong) {
+                            "已超出 ${draftLength - maxLength} 字，最多 $maxLength 字"
+                        } else {
+                            "$draftLength / $maxLength"
+                        },
+                    )
+                },
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (savedNote.isNotBlank()) {
+                    OutlinedButton(
+                        onClick = {
+                            draft = ""
+                            onSave("")
+                            editing = false
+                        },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                        Text("清空", maxLines = 1, softWrap = false)
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(
+                    onClick = {
+                        draft = savedNote
+                        editing = false
+                    },
+                ) {
+                    Text("取消")
+                }
+                Button(
+                    onClick = {
+                        when (val result = validateCourseNote(draft, maxLength)) {
+                            is CourseNoteInput.Accepted -> {
+                                draft = result.text
+                                onSave(result.text)
+                                editing = false
+                            }
+
+                            is CourseNoteInput.TooLong -> Unit
+                        }
+                    },
+                    enabled = !tooLong,
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Text("保存", maxLines = 1, softWrap = false)
+                }
+            }
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+            ) {
+                Text(
+                    text = savedNote.ifBlank { "还没有备注，点「添加」记一句" },
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (savedNote.isBlank()) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
             }
         }
     }

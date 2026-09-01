@@ -184,6 +184,43 @@ class WidgetWeekUtilTest {
         )
     }
 
+    @Test
+    fun `holiday wording outranks the term state on both widgets`() {
+        val today = LocalDate.of(2026, 10, 1)
+
+        assertEquals(
+            "国庆节 · 全天无课",
+            scheduleWidgetEmptyText(
+                termStartMissing = true,
+                beforeTermStart = true,
+                termStartDate = termStart,
+                offset = 0,
+                holidayLabel = "国庆节",
+            ),
+        )
+        assertEquals(
+            "星期四 · 国庆节",
+            scheduleWidgetSubtitle(
+                "星期四",
+                termStartMissing = true,
+                beforeTermStart = true,
+                sourceLabel = "9月28日周一",
+                holidayLabel = "国庆节",
+            ),
+        )
+        assertEquals(
+            "国庆节 · 全天无课",
+            nextCourseEmptyTitle(
+                weekIndex = null,
+                termStartDate = termStart,
+                targetDate = today,
+                today = today,
+                hasCourses = false,
+                holidayLabel = "国庆节",
+            ),
+        )
+    }
+
     private fun course(id: String, weeks: List<Int>): CourseItem =
         CourseItem(
             id = id,

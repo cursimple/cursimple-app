@@ -44,6 +44,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.Icon
@@ -119,6 +120,7 @@ import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.plugin.ui.BannerContribution
+import com.x500x.cursimple.core.data.note.CourseNoteIndex
 import com.x500x.cursimple.core.plugin.ui.CourseBadgeRule
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import com.x500x.cursimple.core.reminder.model.FirstCourseCandidateScope
@@ -201,6 +203,7 @@ fun ScheduleRoute(
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveManualCourse = viewModel::removeManualCourse,
         onAddManualCourse = viewModel::addManualCourse,
+        onSaveCourseNote = viewModel::setCourseNote,
         onCreateBulkReminder = viewModel::createReminderForCourses,
         onPrevWeek = onPrevWeek,
         onNextWeek = onNextWeek,
@@ -241,6 +244,7 @@ fun ScheduleScreen(
     onRemoveReminderRule: (String) -> Unit,
     onRemoveManualCourse: (String) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
+    onSaveCourseNote: (CourseItem, String) -> Unit = { _, _ -> },
     onCreateBulkReminder: (Set<String>, Int, String?) -> Unit,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
@@ -317,6 +321,7 @@ fun ScheduleScreen(
                         timingProfile = state.timingProfile,
                         uiSchema = state.uiSchema,
                         reminderRules = state.reminderRules,
+                        courseNotes = state.courseNotes,
                         weekOffset = weekOffset,
                         minWeekOffset = minWeekOffset,
                         maxWeekOffset = maxWeekOffset,
@@ -346,6 +351,7 @@ fun ScheduleScreen(
                         timingProfile = state.timingProfile,
                         uiSchema = state.uiSchema,
                         reminderRules = state.reminderRules,
+                        courseNotes = state.courseNotes,
                         targetDate = zone.today().plusDays(dayOffset.toLong()),
                         targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
                         termStartDate = overrideTermStart,
@@ -432,6 +438,8 @@ fun ScheduleScreen(
                 isTemporarilyCancelled = { c ->
                     matchingTemporaryCancelRule(c, request.targetDate, temporaryScheduleOverrides) != null
                 },
+                noteTextOf = { c -> state.courseNotes.textOf(c.id) },
+                onSaveNote = onSaveCourseNote,
                 onTemporaryCancel = { c ->
                     onUpsertTemporaryScheduleOverride(
                         TemporaryScheduleOverride(
@@ -1050,6 +1058,7 @@ private fun WeeklyScheduleSection(
     timingProfile: TermTimingProfile?,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
+    courseNotes: CourseNoteIndex = CourseNoteIndex(),
     weekOffset: Int,
     minWeekOffset: Int,
     maxWeekOffset: Int,
@@ -1232,6 +1241,7 @@ private fun WeeklyScheduleSection(
                                 timingProfile = timingProfile,
                                 uiSchema = uiSchema,
                                 reminderRules = reminderRules,
+                                courseNotes = courseNotes,
                                 visibleDayIndices = visibleDayIndices,
                                 scheduleTextStyle = scheduleTextStyle,
                                 scheduleCardStyle = scheduleCardStyle,
@@ -1263,6 +1273,7 @@ private fun DailyScheduleSection(
     timingProfile: TermTimingProfile?,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
+    courseNotes: CourseNoteIndex = CourseNoteIndex(),
     targetDate: LocalDate,
     targetWeekNumber: Int,
     termStartDate: LocalDate?,
@@ -1364,6 +1375,7 @@ private fun DailyScheduleSection(
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
                     uiSchema = uiSchema,
                     reminderRules = reminderRules,
+                    courseNotes = courseNotes,
                     selectedCourseId = selectedCourseId,
                     multiSelectMode = multiSelectMode,
                     multiSelectedIds = multiSelectedIds,
@@ -1460,6 +1472,7 @@ private fun DayList(
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
+    courseNotes: CourseNoteIndex,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
@@ -1513,6 +1526,7 @@ private fun DayList(
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
                 uiSchema = uiSchema,
                 reminderRules = reminderRules,
+                courseNotes = courseNotes,
                 selectedCourseId = selectedCourseId,
                 multiSelectMode = multiSelectMode,
                 multiSelectedIds = multiSelectedIds,
@@ -1549,6 +1563,7 @@ private fun DayRow(
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
+    courseNotes: CourseNoteIndex,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
@@ -1731,6 +1746,14 @@ private fun DayRow(
                         if (hasReminderForCourse(course, reminderRules, timingProfile)) {
                             Icon(
                                 imageVector = Icons.Rounded.Notifications,
+                                contentDescription = null,
+                                tint = onColor,
+                                modifier = Modifier.size(12.dp),
+                            )
+                        }
+                        if (courseNotes.hasNote(course.id)) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
                                 contentDescription = null,
                                 tint = onColor,
                                 modifier = Modifier.size(12.dp),
@@ -1996,6 +2019,7 @@ private fun ScheduleGrid(
     timingProfile: TermTimingProfile?,
     uiSchema: PluginUiSchema,
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
+    courseNotes: CourseNoteIndex = CourseNoteIndex(),
     visibleDayIndices: List<Int>,
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
@@ -2182,6 +2206,7 @@ private fun ScheduleGrid(
                                 course = course,
                                 badges = badgesForCourse(course, uiSchema.courseBadges),
                                 hasReminder = hasReminderForCourse(course, reminderRules, timingProfile),
+                                hasNote = courseNotes.hasNote(course.id),
                                 selected = course.id == selectedCourseId,
                                 inactive = mainEntry.inactive,
                                 temporarilyCancelled = mainEntry.temporarilyCancelled,
@@ -2445,6 +2470,7 @@ private fun CourseBlock(
     course: CourseItem,
     badges: List<String>,
     hasReminder: Boolean,
+    hasNote: Boolean = false,
     selected: Boolean,
     inactive: Boolean,
     temporarilyCancelled: Boolean,
@@ -2641,6 +2667,26 @@ private fun CourseBlock(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Notifications,
+                    contentDescription = null,
+                    tint = onColor,
+                    modifier = Modifier.size(9.dp),
+                )
+            }
+        }
+
+        // 右下角备注标识
+        if (hasNote && !inactive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-2).dp, y = (-2).dp)
+                    .size(13.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(onColor.copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Edit,
                     contentDescription = null,
                     tint = onColor,
                     modifier = Modifier.size(9.dp),
