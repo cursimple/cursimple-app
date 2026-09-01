@@ -1184,6 +1184,30 @@ private fun WebView.applyPluginBrowserSettings(userAgent: String) {
 
 internal fun pluginMixedContentMode(): Int = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
+/**
+ * 服务器没给出原因短语时按状态码补一个。
+ * [WebResourceResponse] 要求该字段非空，但不能一律填 OK，那会让 5xx 看起来像成功。
+ */
+internal fun httpReasonPhrase(statusCode: Int): String = when (statusCode) {
+    200 -> "OK"
+    201 -> "Created"
+    204 -> "No Content"
+    301 -> "Moved Permanently"
+    302 -> "Found"
+    304 -> "Not Modified"
+    400 -> "Bad Request"
+    401 -> "Unauthorized"
+    403 -> "Forbidden"
+    404 -> "Not Found"
+    408 -> "Request Timeout"
+    429 -> "Too Many Requests"
+    500 -> "Internal Server Error"
+    502 -> "Bad Gateway"
+    503 -> "Service Unavailable"
+    504 -> "Gateway Timeout"
+    else -> "Status $statusCode"
+}
+
 private class PluginWebSessionBridge(
     private val request: WebSessionRequest,
     private val webView: WebView,
@@ -1425,7 +1449,8 @@ private fun emptyWebSessionPacket(
         cookies = emptyMap(),
         localStorageSnapshot = emptyMap(),
         sessionStorageSnapshot = emptyMap(),
-        htmlDigest = if (request.extractHtmlDigest) sha256("") else "",
+        // 抓取失败时留空摘要：sha256("") 是一个合法的哈希值，会被当成确实抓到了空页面
+        htmlDigest = "",
         capturedFields = captureSelectorsForRequest(request).associateWith { "" },
         capturedPackets = emptyMap(),
         scheduleDraftJson = null,
@@ -1470,11 +1495,12 @@ class WebNetworkPacketStore(
             val mimeType = response.contentType?.substringBefore(";")?.trim().orEmpty()
             val encoding = response.contentEncoding ?: "utf-8"
             val stream = if (statusCode >= 400) response.errorStream else response.inputStream
+            // 读流失败时返回 null 放弃这次拦截：记成空 body 会让插件把“没读到”当成“服务器返回了空”
             val rawBody: ByteArray? = if (stream == null) {
                 ByteArray(0)
             } else {
                 runCatching { stream.use { it.readAtMostBytes(MAX_INTERCEPTED_BODY_BYTES.toLong()) } }
-                    .getOrDefault(ByteArray(0))
+                    .getOrNull()
             }
             if (rawBody == null) {
                 response.disconnect()
@@ -1505,7 +1531,7 @@ class WebNetworkPacketStore(
                 mimeType.ifBlank { "application/octet-stream" },
                 encoding,
                 statusCode,
-                reason.ifBlank { "OK" },
+                reason.ifBlank { httpReasonPhrase(statusCode) },
                 responseHeaders,
                 ByteArrayInputStream(rawBody),
             )
