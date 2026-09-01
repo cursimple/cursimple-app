@@ -4,6 +4,7 @@ import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.manifest.PluginWebEngineRequirement
+import com.x500x.cursimple.core.plugin.security.PluginSignatureStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -85,7 +86,14 @@ data class PluginInstallPreview(
     val manifest: PluginManifest,
     val checksumVerified: Boolean,
     val source: PluginInstallSource,
-)
+    val signatureStatus: PluginSignatureStatus = PluginSignatureStatus.Absent,
+    val signerFingerprint: String? = null,
+    val signatureMessage: String? = null,
+) {
+    /** 摘要通过且包内签名（若存在）有效时才允许安装。 */
+    val installable: Boolean
+        get() = checksumVerified && signatureStatus != PluginSignatureStatus.Invalid
+}
 
 sealed interface PluginInstallResult {
     data class Success(val record: InstalledPluginRecord) : PluginInstallResult

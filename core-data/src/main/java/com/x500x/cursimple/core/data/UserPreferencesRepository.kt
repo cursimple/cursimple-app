@@ -95,6 +95,19 @@ const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
     "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
 
 const val DEFAULT_WEBDAV_URL = "https://dav.jianguoyun.com/dav/"
+
+const val WEBDAV_PASSWORD_PREFERENCE_KEY = "webdav_password"
+const val AI_IMPORT_API_KEY_PREFERENCE_KEY = "ai_import_api_key"
+
+/**
+ * 用户设置里可直接用于认证的键。
+ * 导出备份时不写入这些键，恢复备份时也不覆盖本机现值。
+ */
+val USER_PREFERENCES_CREDENTIAL_KEYS: Set<String> = setOf(
+    WEBDAV_PASSWORD_PREFERENCE_KEY,
+    AI_IMPORT_API_KEY_PREFERENCE_KEY,
+)
+
 const val DEFAULT_AI_IMPORT_TIMEOUT_SECONDS = 120
 const val MIN_AI_IMPORT_TIMEOUT_SECONDS = 10
 const val MAX_AI_IMPORT_TIMEOUT_SECONDS = 600
@@ -421,18 +434,53 @@ enum class PreferencesBackupValueType {
     Boolean,
 }
 
-suspend fun DataStore<Preferences>.exportSnapshot(storeName: String): PreferencesStoreSnapshot {
-    val entries = data.first()
-        .asMap()
-        .mapNotNull { (key, value) -> value.toBackupEntry(key.name) }
-        .sortedBy { it.name }
-    return PreferencesStoreSnapshot(storeName = storeName, entries = entries)
+fun Preferences.toBackupEntries(): List<PreferencesBackupEntry> = asMap()
+    .mapNotNull { (key, value) -> value.toBackupEntry(key.name) }
+    .sortedBy { it.name }
+
+/** 去掉 [excludedKeyNames] 命中的条目，其余条目原样保留。 */
+fun excludeBackupEntries(
+    entries: List<PreferencesBackupEntry>,
+    excludedKeyNames: Set<String>,
+): List<PreferencesBackupEntry> =
+    if (excludedKeyNames.isEmpty()) entries else entries.filterNot { it.name in excludedKeyNames }
+
+/**
+ * 计算恢复时最终写回的条目。
+ *
+ * [preservedKeyNames] 命中的键一律取本机现值 [localEntries]：备份里的同名条目（老备份仍带着）被丢弃，
+ * 本机没有该键时结果里也不出现，保持未设置状态。其余键完全按 [snapshotEntries] 覆盖。
+ */
+fun mergeRestoredBackupEntries(
+    snapshotEntries: List<PreferencesBackupEntry>,
+    localEntries: List<PreferencesBackupEntry>,
+    preservedKeyNames: Set<String>,
+): List<PreferencesBackupEntry> {
+    if (preservedKeyNames.isEmpty()) return snapshotEntries
+    val preserved = localEntries.filter { it.name in preservedKeyNames }
+    return excludeBackupEntries(snapshotEntries, preservedKeyNames) + preserved
 }
 
-suspend fun DataStore<Preferences>.restoreSnapshot(snapshot: PreferencesStoreSnapshot) {
+suspend fun DataStore<Preferences>.exportSnapshot(
+    storeName: String,
+    excludedKeyNames: Set<String> = emptySet(),
+): PreferencesStoreSnapshot = PreferencesStoreSnapshot(
+    storeName = storeName,
+    entries = excludeBackupEntries(data.first().toBackupEntries(), excludedKeyNames),
+)
+
+suspend fun DataStore<Preferences>.restoreSnapshot(
+    snapshot: PreferencesStoreSnapshot,
+    preservedKeyNames: Set<String> = emptySet(),
+) {
     edit { preferences ->
+        val entries = mergeRestoredBackupEntries(
+            snapshotEntries = snapshot.entries,
+            localEntries = preferences.toBackupEntries(),
+            preservedKeyNames = preservedKeyNames,
+        )
         preferences.clear()
-        snapshot.entries.forEach(preferences::restoreEntry)
+        entries.forEach(preferences::restoreEntry)
     }
 }
 
