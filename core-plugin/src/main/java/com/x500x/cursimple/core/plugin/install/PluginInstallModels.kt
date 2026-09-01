@@ -16,7 +16,7 @@ data class InstalledPluginRecord(
     @SerialName("publisher") val publisher: String = "",
     @SerialName("version") val version: String,
     @SerialName("versionCode") val versionCode: Long,
-    @SerialName("apiVersion") val apiVersion: Int = 0,
+    @SerialName("apiVersion") val apiVersion: Int? = null,
     @SerialName("entry") val entry: String = "",
     @SerialName("storagePath") val storagePath: String,
     @SerialName("installedAt") val installedAt: String,

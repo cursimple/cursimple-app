@@ -804,6 +804,7 @@ private fun WeeklyScheduleSection(
                             slots = slots,
                             weekIndex = pageWeek.weekIndex,
                             totalScheduleDisplayEnabled = scheduleDisplay.totalScheduleDisplayEnabled,
+                            weekNumberKnown = overrideTermStart != null,
                             weekStart = pageWeek.weekStart,
                             termStart = overrideTermStart,
                             temporaryScheduleOverrides = temporaryScheduleOverrides,
@@ -869,7 +870,7 @@ private fun DailyScheduleSection(
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
     courseNotes: CourseNoteIndex = CourseNoteIndex(),
     targetDate: LocalDate,
-    targetWeekNumber: Int,
+    targetWeekNumber: Int?,
     termStartDate: LocalDate?,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     holidayCalendar: HolidayCalendarSettings,
@@ -933,7 +934,7 @@ private fun DailyScheduleSection(
                 return@Column
             }
 
-            if (sourceWeekNumber < 1) {
+            if (sourceWeekNumber != null && sourceWeekNumber < 1) {
                 EmptyWeekState(
                     schedule = schedule,
                     notStarted = true,
@@ -958,7 +959,7 @@ private fun DailyScheduleSection(
             ) { _ ->
                 val active = allCourses
                     .filter { it.time.dayOfWeek == targetDayOfWeek }
-                    .filter { it.isActiveInWeek(sourceWeekNumber) }
+                    .filter { sourceWeekNumber == null || it.isActiveInWeek(sourceWeekNumber) }
                     .sortedBy { it.time.startNode }
                 DayList(
                     slots = slots,
@@ -1467,16 +1468,16 @@ private fun computeWeekNumber(
     termStart: LocalDate?,
     dayOffset: Int,
     zone: ZoneId,
-): Int {
+): Int? {
     val target = BeijingTime.todayIn(zone).plusDays(dayOffset.toLong())
     return computeWeekNumberForDate(termStart, target)
 }
 
-/** 开学前得到 0 或负数；未设开学日期时回退到第 1 周。 */
+/** 没有开学日期就算不出周次，返回 null 交给调用方决定怎么显示。 */
 internal fun computeWeekNumberForDate(
     termStart: LocalDate?,
     target: LocalDate,
-): Int = if (termStart != null) resolveTermWeekNumber(termStart, target) else 1
+): Int? = termStart?.let { resolveTermWeekNumber(it, target) }
 
 /**
  * 课程详情弹窗判断“本周/非本周”所用的周次：按格子实际所在日期取，
@@ -1487,7 +1488,7 @@ internal fun detailWeekNumber(
     termStart: LocalDate?,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-): Int = computeWeekNumberForDate(
+): Int? = computeWeekNumberForDate(
     termStart,
     resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar).sourceDate,
 )
@@ -2739,7 +2740,8 @@ internal fun buildWeekModel(
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
-    val weekIndex = computeWeekNumberForDate(termStart, weekStart)
+    // 没有开学日期时用 1 让翻页算术成立；是否显示周次由 weekNumberKnown 单独决定
+    val weekIndex = computeWeekNumberForDate(termStart, weekStart) ?: 1
     val days = (0..6).map { index ->
         val date = weekStart.plusDays(index.toLong())
         val resolution = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
@@ -3014,6 +3016,7 @@ internal fun buildWeekRenderEntries(
     slots: List<DisplaySlot>,
     weekIndex: Int,
     totalScheduleDisplayEnabled: Boolean = false,
+    weekNumberKnown: Boolean = true,
     weekStart: LocalDate? = null,
     termStart: LocalDate? = null,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
@@ -3033,6 +3036,8 @@ internal fun buildWeekRenderEntries(
         .toMap()
 
     val displayCourses = allCourses.visibleScheduleCourses()
+    // 周次未知时既不按周过滤，也不给任何课程打“非本周”，界面不对周次做断言
+    val showEveryCourse = totalScheduleDisplayEnabled || !weekNumberKnown
     val needsPerDayResolution = temporaryScheduleOverrides.isNotEmpty() ||
         holidayCalendar != HolidayCalendarSettings.NONE
     val resolved = if (weekStart != null && needsPerDayResolution) {
@@ -3043,8 +3048,8 @@ internal fun buildWeekRenderEntries(
             if (resolution.isHoliday) return@flatMap emptyList<Resolved>()
             val sourceDate = resolution.sourceDate
             val sourceDayOfWeek = sourceDate.dayOfWeek.value
-            val sourceWeekIndex = termStart?.let { computeWeekNumberForDate(it, sourceDate) } ?: weekIndex
-            val source = if (totalScheduleDisplayEnabled) {
+            val sourceWeekIndex = computeWeekNumberForDate(termStart, sourceDate) ?: weekIndex
+            val source = if (showEveryCourse) {
                 displayCourses
             } else {
                 activeCoursesForWeek(displayCourses, sourceWeekIndex)
@@ -3067,7 +3072,7 @@ internal fun buildWeekRenderEntries(
                 }
         }
     } else {
-        val source = if (totalScheduleDisplayEnabled) {
+        val source = if (showEveryCourse) {
             displayCourses
         } else {
             activeCoursesForWeek(displayCourses, weekIndex)
@@ -3091,7 +3096,7 @@ internal fun buildWeekRenderEntries(
         list.distinctBy { it.course.id }
             .sortedWith(
                 compareBy<Resolved>(
-                    { !it.course.isActiveInWeek(it.sourceWeekIndex) },
+                    { weekNumberKnown && !it.course.isActiveInWeek(it.sourceWeekIndex) },
                     { it.course.time.startNode },
                     { it.course.time.endNode },
                     { it.course.title },
@@ -3102,7 +3107,7 @@ internal fun buildWeekRenderEntries(
                 entries += CourseRenderEntry(
                     course = it.course,
                     placement = it.placement,
-                    inactive = !it.course.isActiveInWeek(it.sourceWeekIndex),
+                    inactive = weekNumberKnown && !it.course.isActiveInWeek(it.sourceWeekIndex),
                     temporarilyCancelled = it.temporarilyCancelled,
                 )
         }

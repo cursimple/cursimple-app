@@ -71,7 +71,7 @@ import java.time.LocalDate
 fun CourseDetailDialog(
     courses: List<CourseItem>,
     timingProfile: TermTimingProfile?,
-    visibleWeekNumber: Int,
+    visibleWeekNumber: Int?,
     isManual: (CourseItem) -> Boolean,
     examReminderEnabled: Boolean = false,
     mutedExamCourseIds: Set<String> = emptySet(),
@@ -106,7 +106,8 @@ fun CourseDetailDialog(
     } else {
         palette.onContainer
     }
-    val isThisWeek = course.isActiveInWeek(visibleWeekNumber)
+    // 周次未知时不判断本周与否，徽章另行标注
+    val isThisWeek = visibleWeekNumber?.let { course.isActiveInWeek(it) }
     val manual = isManual(course)
     val weekday = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
         .getOrNull(course.time.dayOfWeek - 1) ?: "?"
@@ -504,8 +505,13 @@ private fun ExamReminderMuteRow(
 }
 
 @Composable
-private fun StatusChip(thisWeek: Boolean, manual: Boolean) {
+private fun StatusChip(thisWeek: Boolean?, manual: Boolean) {
     val (label, container, content) = when {
+        thisWeek == null -> Triple(
+            "周次未知",
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         !thisWeek -> Triple(
             "非本周",
             MaterialTheme.colorScheme.surfaceVariant,
