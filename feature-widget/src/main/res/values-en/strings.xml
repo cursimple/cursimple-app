@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="glance_appwidget_description">CurSimple · Daily classes</string>
+    <string name="next_course_widget_description">CurSimple · Next class</string>
+    <string name="reminder_widget_description">CurSimple · Class reminders</string>
+    <string name="widget_label_today">Daily classes</string>
+    <string name="widget_label_next">Next class</string>
+    <string name="widget_label_reminder">Class reminders</string>
+</resources>
