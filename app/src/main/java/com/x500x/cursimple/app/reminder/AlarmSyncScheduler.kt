@@ -13,14 +13,16 @@ import java.util.concurrent.TimeUnit
 /**
  * 闹钟同步调度器 - 封装 WorkManager 定期任务调度逻辑
  *
- * 提供两种定期同步机制：
+ * 提供三种定期任务：
  * 1. AlarmSyncWorker - 每 2 小时执行一次，用于常规闹钟同步
  * 2. DailyGuardWorker - 每天凌晨执行，用于全量闹钟重建
+ * 3. AutoSilenceGuardWorker - 每 15 分钟执行一次，用于复查上课自动静音状态
  */
 object AlarmSyncScheduler {
 
     private const val SYNC_WORK_NAME = "alarm_sync_periodic"
     private const val DAILY_GUARD_WORK_NAME = "alarm_daily_guard"
+    private const val AUTO_SILENCE_GUARD_WORK_NAME = "auto_silence_guard"
 
     /**
      * 调度周期性闹钟同步 Worker
@@ -78,6 +80,32 @@ object AlarmSyncScheduler {
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest,
         )
+    }
+
+    /**
+     * 调度自动静音巡检 Worker
+     * 每 15 分钟复查一次，确保上课静音能按时恢复，不依赖单一的边界闹钟
+     */
+    fun scheduleAutoSilenceGuard(context: Context) {
+        val workRequest = PeriodicWorkRequestBuilder<AutoSilenceGuardWorker>(
+            15, TimeUnit.MINUTES,
+        )
+            .addTag(AUTO_SILENCE_GUARD_WORK_NAME)
+            .build()
+
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+            AUTO_SILENCE_GUARD_WORK_NAME,
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest,
+        )
+    }
+
+    /**
+     * 取消自动静音巡检 Worker
+     * 只在功能关闭且没有待恢复的现场时调用
+     */
+    fun cancelAutoSilenceGuard(context: Context) {
+        WorkManager.getInstance(context).cancelUniqueWork(AUTO_SILENCE_GUARD_WORK_NAME)
     }
 
     /**
