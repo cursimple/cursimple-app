@@ -1,6 +1,8 @@
 package com.x500x.cursimple.app
 
 import android.app.Application
+import android.content.Context
+import com.x500x.cursimple.core.data.AppLocale
 import android.os.Build
 import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
 import com.x500x.cursimple.app.util.AppDiagnosticsFileSink
@@ -25,6 +27,10 @@ class ClassScheduleApplication : Application() {
     lateinit var appContainer: AppContainer
         private set
 
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(AppLocale.wrap(base))
+    }
+
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun onCreate() {
@@ -42,6 +48,8 @@ class ClassScheduleApplication : Application() {
             ),
         )
         appContainer = AppContainer(this)
+        // 备份恢复等路径会绕过设置界面直接改语言，启动时对齐一次同步副本
+        AppLocale.syncCacheFrom(this, appContainer.userPreferencesRepository)
         ScheduleWidgetWorkScheduler.schedule(this)
         LogCleanupScheduler.schedule(this)
 
