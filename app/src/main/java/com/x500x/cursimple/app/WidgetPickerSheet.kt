@@ -93,8 +93,7 @@ fun WidgetPickerSheet(
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
-    // Recheck immediately each time the sheet enters composition, since the user
-    // may have removed a widget without leaving the app (e.g. from a launcher overlay).
+    // 每次进入组合都立即重新检查，用户可能没有离开应用就移除了小组件（例如在启动器浮层里操作）。
     LaunchedEffect(Unit) { refreshTick++ }
 
     val installedCounts = remember(refreshTick) {

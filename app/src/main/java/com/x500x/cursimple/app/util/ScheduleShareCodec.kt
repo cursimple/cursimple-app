@@ -8,11 +8,9 @@ import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
 /**
- * Encodes a [ScheduleSharePayload] into a compact string suitable for embedding inside a QR
- * code, and decodes it back.
+ * 把 [ScheduleSharePayload] 编码成适合嵌入二维码的紧凑字符串，并支持反向解码。
  *
- * Format: `CSV1:<base64(gzip(json))>`. The magic prefix lets us reject random text quickly
- * and version the format if we ever change the encoding.
+ * 格式为 `CSV1:<base64(gzip(json))>`。前缀用于快速排除无关文本，也为编码格式提供版本标识。
  */
 object ScheduleShareCodec {
     private val json = Json {

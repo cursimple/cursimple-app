@@ -207,7 +207,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
 }
 
 /**
- * Vendor-aware twin of [ScheduleGlanceWidgetReceiver]. Registered separately so MIUI / vivo /
- * HONOR launchers can pick it up via their custom widget actions and meta-data.
+ * [ScheduleGlanceWidgetReceiver] 的厂商适配副本。单独注册，便于 MIUI / vivo / HONOR 启动器
+ * 通过各自的小组件 action 与 meta-data 识别。
  */
 class ScheduleGlanceWidgetReceiverMIUI : ScheduleGlanceWidgetReceiver()

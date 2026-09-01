@@ -19,15 +19,10 @@ import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
 import com.x500x.cursimple.core.reminder.model.AppAlarmOperationMode
 import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
-import com.x500x.cursimple.core.reminder.model.FirstCourseCandidateScope
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
-import com.x500x.cursimple.core.reminder.model.ReminderAction
-import com.x500x.cursimple.core.reminder.model.ReminderCondition
-import com.x500x.cursimple.core.reminder.model.ReminderConditionMode
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
-import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
 import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
@@ -142,94 +137,6 @@ class ReminderCoordinator(
             dismissRecords(repository.getSystemAlarmRecords().filter { it.ruleId == ruleId })
         }
         rule
-    }
-
-    suspend fun upsertFirstCourseReminder(
-        pluginId: String,
-        period: ReminderDayPeriod,
-        enabled: Boolean,
-        advanceMinutes: Int,
-        ringtoneUri: String?,
-        periodStartNode: Int? = null,
-        periodEndNode: Int? = null,
-        mutedNodeRanges: List<ReminderNodeRange> = emptyList(),
-    ): ReminderRule {
-        val now = OffsetDateTime.now().toString()
-        val existing = repository.getReminderRules().firstOrNull {
-            it.pluginId == pluginId &&
-                it.scopeType == ReminderScopeType.FirstCourseOfPeriod &&
-                it.period == period
-        }
-        val rule = (existing ?: ReminderRule(
-            ruleId = UUID.randomUUID().toString(),
-            pluginId = pluginId,
-            scopeType = ReminderScopeType.FirstCourseOfPeriod,
-            period = period,
-            periodStartNode = periodStartNode,
-            periodEndNode = periodEndNode,
-            mutedNodeRanges = mutedNodeRanges.map { it.normalized() },
-            advanceMinutes = advanceMinutes,
-            ringtoneUri = ringtoneUri,
-            enabled = enabled,
-            createdAt = now,
-            updatedAt = now,
-        )).copy(
-            advanceMinutes = advanceMinutes,
-            ringtoneUri = ringtoneUri,
-            enabled = enabled,
-            updatedAt = now,
-            period = period,
-            periodStartNode = periodStartNode,
-            periodEndNode = periodEndNode,
-            mutedNodeRanges = mutedNodeRanges.map { it.normalized() },
-        )
-        repository.saveReminderRule(rule)
-        return rule
-    }
-
-    suspend fun upsertFlexibleFirstCourseReminder(
-        pluginId: String,
-        ruleId: String?,
-        displayName: String,
-        enabled: Boolean,
-        advanceMinutes: Int,
-        ringtoneUri: String?,
-        candidate: FirstCourseCandidateScope,
-        conditionMode: ReminderConditionMode,
-        conditions: List<ReminderCondition>,
-        actions: List<ReminderAction>,
-    ): ReminderRule {
-        val now = OffsetDateTime.now().toString()
-        val existing = ruleId?.let { id ->
-            repository.getReminderRules().firstOrNull {
-                it.ruleId == id && it.pluginId == pluginId && it.scopeType == ReminderScopeType.FirstCourseOfPeriod
-            }
-        }
-        val rule = (existing ?: ReminderRule(
-            ruleId = UUID.randomUUID().toString(),
-            pluginId = pluginId,
-            scopeType = ReminderScopeType.FirstCourseOfPeriod,
-            advanceMinutes = advanceMinutes,
-            ringtoneUri = ringtoneUri,
-            enabled = enabled,
-            createdAt = now,
-            updatedAt = now,
-        )).copy(
-            displayName = displayName.takeIf { it.isNotBlank() },
-            advanceMinutes = advanceMinutes,
-            ringtoneUri = ringtoneUri,
-            enabled = enabled,
-            updatedAt = now,
-            firstCourseCandidate = candidate,
-            conditionMode = conditionMode,
-            conditions = conditions,
-            actions = actions,
-            periodStartNode = candidate.nodeRange?.startNode,
-            periodEndNode = candidate.nodeRange?.endNode,
-            mutedNodeRanges = emptyList(),
-        )
-        repository.saveReminderRule(rule)
-        return rule
     }
 
     suspend fun upsertCustomOccupancy(
@@ -556,17 +463,6 @@ class ReminderCoordinator(
         result
     }
 
-    suspend fun consumeTriggeredAppAlarm(
-        alarmKey: String,
-        ruleId: String,
-    ) {
-        finishTriggeredAppAlarm(
-            alarmKey = alarmKey,
-            ruleId = ruleId,
-            action = TriggeredAppAlarmFinishAction.Dismiss,
-        )
-    }
-
     suspend fun finishTriggeredAppAlarm(
         alarmKey: String,
         ruleId: String,
@@ -588,24 +484,6 @@ class ReminderCoordinator(
         }
         finishTriggeredAction(action)
     }
-
-    suspend fun syncSystemClockAlarmsForWindow(
-        pluginId: String,
-        schedule: TermSchedule,
-        timingProfile: TermTimingProfile?,
-        window: ReminderSyncWindow,
-        reason: ReminderSyncReason,
-        nowMillis: Long = System.currentTimeMillis(),
-        clearExpiredRecords: Boolean = true,
-    ): SystemAlarmSyncSummary = syncAlarmsForWindow(
-        pluginId = pluginId,
-        schedule = schedule,
-        timingProfile = timingProfile,
-        window = window,
-        reason = reason,
-        nowMillis = nowMillis,
-        clearExpiredRecords = clearExpiredRecords,
-    )
 
     suspend fun syncAlarmsForWindow(
         pluginId: String,

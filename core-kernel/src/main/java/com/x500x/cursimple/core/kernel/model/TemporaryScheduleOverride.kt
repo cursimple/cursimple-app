@@ -85,25 +85,11 @@ fun matchingTemporaryScheduleOverride(
     return overrides.asReversed().firstOrNull { it.containsDate(date) }
 }
 
-fun resolveTemporaryScheduleDayOfWeek(
-    date: LocalDate,
-    overrides: List<TemporaryScheduleOverride>,
-): Int {
-    return resolveTemporaryScheduleSourceDate(date, overrides).dayOfWeek.value
-}
-
 fun resolveTemporaryScheduleSourceDate(
     date: LocalDate,
     overrides: List<TemporaryScheduleOverride>,
 ): LocalDate {
     return matchingTemporaryScheduleOverride(date, overrides)?.sourceDateFor(date) ?: date
-}
-
-fun isTemporaryScheduleOverridden(
-    date: LocalDate,
-    overrides: List<TemporaryScheduleOverride>,
-): Boolean {
-    return resolveTemporaryScheduleSourceDate(date, overrides) != date
 }
 
 fun isCourseTemporarilyCancelled(
@@ -132,17 +118,6 @@ fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
     6 -> "周六"
     7 -> "周日"
     else -> "周$dayOfWeek"
-}
-
-fun shortWeekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
-    DayOfWeek.MONDAY.value -> "一"
-    DayOfWeek.TUESDAY.value -> "二"
-    DayOfWeek.WEDNESDAY.value -> "三"
-    DayOfWeek.THURSDAY.value -> "四"
-    DayOfWeek.FRIDAY.value -> "五"
-    DayOfWeek.SATURDAY.value -> "六"
-    DayOfWeek.SUNDAY.value -> "日"
-    else -> dayOfWeek.toString()
 }
 
 private fun parseOverrideDate(value: String): LocalDate? =

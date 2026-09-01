@@ -108,14 +108,5 @@ object AlarmSyncScheduler {
         WorkManager.getInstance(context).cancelUniqueWork(AUTO_SILENCE_GUARD_WORK_NAME)
     }
 
-    /**
-     * 取消所有定期同步任务
-     * 通常在需要完全重置同步状态时调用
-     */
-    fun cancelAll(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(SYNC_WORK_NAME)
-        WorkManager.getInstance(context).cancelUniqueWork(DAILY_GUARD_WORK_NAME)
-    }
-
     private val DAILY_GUARD_TIME: LocalTime = LocalTime.of(2, 0)
 }

@@ -7,8 +7,8 @@ import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicLong
 
 /**
- * In-memory ring buffer of recent plugin log entries. Reachable from anywhere via the singleton
- * [PluginLogBuffer.instance]. The in-app diagnostics viewer subscribes to [snapshots].
+ * 保存近期插件日志的内存环形缓冲。通过单例 [PluginLogBuffer.instance] 在任意位置访问，
+ * 应用内的诊断查看器订阅 [snapshots]。
  */
 class PluginLogBuffer(private val capacity: Int = DEFAULT_CAPACITY) {
     private val lock = Any()

@@ -230,9 +230,7 @@ class MainActivity : ComponentActivity() {
                     var showTermStartReminder by rememberSaveable { mutableStateOf(false) }
                     var autoPromptedThisSession by rememberSaveable { mutableStateOf(false) }
                     androidx.compose.runtime.LaunchedEffect(prefs.loaded, prefs.termStartDate, prefs.disclaimerAccepted) {
-                        // Once per app launch, gently remind the user to set the term start date
-                        // if it's missing. We surface a dismissible reminder instead of forcing
-                        // the date picker open.
+                        // 每次启动应用检查一次开学日期，缺失时弹出可关闭的提醒，而不是直接打开日期选择器。
                         if (prefs.loaded && prefs.disclaimerAccepted && prefs.termStartDate == null && !autoPromptedThisSession) {
                             autoPromptedThisSession = true
                             showTermStartReminder = true
@@ -963,7 +961,7 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showDatePicker = false },
                             onConfirm = { date ->
                                 setActiveTermStartDate(date)
-                                // After (re)setting term start, snap views back to today / current week.
+                                // 设置开学日期后把视图跳回今天所在的周。
                                 weekOffset = 0
                                 dayOffset = 0
                                 showDatePicker = false
@@ -1277,52 +1275,6 @@ private fun AppDrawer(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-    }
-}
-
-@Composable
-private fun DrawerActionRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    trailing: (@Composable () -> Unit)? = null,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (trailing != null) {
-                trailing()
-            }
         }
     }
 }

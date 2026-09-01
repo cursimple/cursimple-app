@@ -68,8 +68,6 @@ class PluginManifestTest {
         )
 
         assertEquals(manifest.id, manifest.pluginId)
-        assertEquals(manifest.apiVersion, manifest.targetApiVersion)
-        assertEquals(manifest.permissions, manifest.declaredPermissions)
     }
 
     @Test

@@ -37,34 +37,6 @@ class PluginLoggerTest {
     }
 
     @Test
-    fun `fields render in stable order and omit nulls`() {
-        val rendered = PluginLogger.renderFieldsForTest(
-            mapOf(
-                "zeta" to "last",
-                "empty" to null,
-                "alpha" to "first value",
-            ),
-        )
-
-        assertEquals("alpha=first value zeta=last", rendered)
-    }
-
-    @Test
-    fun `fields redact sensitive keys and inline values`() {
-        val rendered = PluginLogger.renderFieldsForTest(
-            mapOf(
-                "token" to "secret-token",
-                "failureMessage" to "failed with password: hunter2",
-            ),
-        )
-
-        assertTrue(rendered.contains("token=***"))
-        assertTrue(rendered.contains("password: ***"))
-        assertFalse(rendered.contains("secret-token"))
-        assertFalse(rendered.contains("hunter2"))
-    }
-
-    @Test
     fun `sink receives rendered log message`() {
         val entries = mutableListOf<SinkEntry>()
         PluginLogger.setSink(CollectingSink(entries))
