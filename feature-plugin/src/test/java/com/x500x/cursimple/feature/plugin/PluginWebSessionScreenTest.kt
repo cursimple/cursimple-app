@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import android.webkit.WebSettings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -445,5 +446,26 @@ class PluginWebSessionScreenTest {
             capturedFields = capturedFields,
             timestamp = "2026-05-02T12:00:00+08:00",
         )
+    }
+
+    @Test
+    fun `a blank reason phrase is filled from the status code`() {
+        assertEquals("OK", httpReasonPhrase(200))
+        assertEquals("Not Found", httpReasonPhrase(404))
+        assertEquals("Internal Server Error", httpReasonPhrase(500))
+        assertEquals("Service Unavailable", httpReasonPhrase(503))
+    }
+
+    @Test
+    fun `an error status never falls back to OK`() {
+        listOf(400, 401, 403, 404, 408, 429, 500, 502, 503, 504, 418, 599).forEach { code ->
+            assertNotEquals("HTTP $code", "OK", httpReasonPhrase(code))
+        }
+    }
+
+    @Test
+    fun `an unlisted status keeps the code visible`() {
+        assertEquals("Status 418", httpReasonPhrase(418))
+        assertEquals("Status 599", httpReasonPhrase(599))
     }
 }
