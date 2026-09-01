@@ -33,7 +33,7 @@ private class NextCourseListFactory(
     override fun onDataSetChanged() {
         runCatching {
             runBlocking(Dispatchers.IO) {
-                NextCourseDataSource.load(context)
+                NextCourseDataSource.load(context, reuseRecent = true)
             }
         }.onSuccess { data ->
             val sizeClass = widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId)

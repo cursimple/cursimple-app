@@ -117,6 +117,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 sourceLabel = dayData.sourceDate
                     .takeIf { it != dayData.targetDate }
                     ?.let { sourceDateLabel(it) },
+                holidayLabel = dayData.holidayLabel,
             )
             views.setTextViewText(R.id.widget_subtitle, subtitle)
             views.setViewVisibility(
@@ -167,6 +168,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 beforeTermStart = dayData.beforeTermStart,
                 termStartDate = dayData.termStartDate,
                 offset = dayData.offset,
+                holidayLabel = dayData.holidayLabel,
             )
             views.setTextViewText(R.id.widget_empty, emptyText)
             return views

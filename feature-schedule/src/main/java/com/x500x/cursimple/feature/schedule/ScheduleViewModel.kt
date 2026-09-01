@@ -5,6 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.x500x.cursimple.core.data.ManualCourseRepository
 import com.x500x.cursimple.core.data.ScheduleRepository
+import com.x500x.cursimple.core.data.note.CourseNote
+import com.x500x.cursimple.core.data.note.CourseNoteIndex
+import com.x500x.cursimple.core.data.note.CourseNoteInput
+import com.x500x.cursimple.core.data.note.CourseNoteRepository
+import com.x500x.cursimple.core.data.note.resolveCourseNotes
+import com.x500x.cursimple.core.data.note.validateCourseNote
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
@@ -87,13 +93,19 @@ data class ScheduleUiState(
     val messages: List<String> = emptyList(),
     val missingComponents: List<PluginComponentRequirement> = emptyList(),
     val manualCourses: List<CourseItem> = emptyList(),
+    val courseNotes: CourseNoteIndex = CourseNoteIndex(),
 )
+
+/** 备注关联时参与匹配的课程集合：插件下发的课表加上手动添加的课。 */
+internal fun ScheduleUiState.noteMatchCourses(): List<CourseItem> =
+    schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
 
 class ScheduleViewModel(
     private val scheduleRepository: ScheduleRepository,
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
     private val manualCourseRepository: ManualCourseRepository,
+    private val courseNoteRepository: CourseNoteRepository? = null,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
     private val onAlarmSyncChecked: suspend () -> Unit = {},
@@ -104,10 +116,22 @@ class ScheduleViewModel(
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState
 
+    private var storedCourseNotes: List<CourseNote> = emptyList()
+
     init {
         viewModelScope.launch {
             manualCourseRepository.manualCoursesFlow.collect { courses ->
                 _uiState.update { it.copy(manualCourses = courses) }
+                refreshCourseNoteIndex()
+                reconcileCourseNotes()
+            }
+        }
+        courseNoteRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.courseNotesFlow.collect { notes ->
+                    storedCourseNotes = notes
+                    refreshCourseNoteIndex()
+                }
             }
         }
         // 节次时间表以存储为准：插件同步与手动编辑都汇入同一份，手动录课的用户才能拿到上课时间
@@ -162,6 +186,8 @@ class ScheduleViewModel(
                     loadPluginPresentation(selectedPluginKey)
                 }
                 migrateLegacyCourseReminderRules()
+                refreshCourseNoteIndex()
+                reconcileCourseNotes()
                 _uiState.update { it.copy(initialized = true) }
             }
         }
@@ -392,6 +418,45 @@ class ScheduleViewModel(
                 )
             }
         }
+    }
+
+    /** 写入或清空一门课的备注，[text] 去掉首尾空白后为空表示删除。 */
+    fun setCourseNote(course: CourseItem, text: String) {
+        val repository = courseNoteRepository ?: return
+        val accepted = when (val result = validateCourseNote(text)) {
+            is CourseNoteInput.Accepted -> result.text
+            is CourseNoteInput.TooLong -> {
+                _uiState.update {
+                    it.copy(statusMessage = "备注最多 ${result.limit} 字，当前 ${result.length} 字")
+                }
+                return
+            }
+        }
+        val courses = _uiState.value.noteMatchCourses()
+        viewModelScope.launch {
+            runCatching { repository.setNote(courses, course, accepted) }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(statusMessage = error.message ?: "备注保存失败")
+                    }
+                }
+        }
+    }
+
+    private fun refreshCourseNoteIndex() {
+        if (courseNoteRepository == null) return
+        _uiState.update { state ->
+            state.copy(courseNotes = resolveCourseNotes(state.noteMatchCourses(), storedCourseNotes))
+        }
+    }
+
+    /** 课表整体替换后把备注锚点刷新到新的课程 id 上。 */
+    private fun reconcileCourseNotes() {
+        val repository = courseNoteRepository ?: return
+        if (storedCourseNotes.isEmpty()) return
+        val courses = _uiState.value.noteMatchCourses()
+        if (courses.isEmpty()) return
+        viewModelScope.launch { runCatching { repository.reconcile(courses) } }
     }
 
     fun addManualCourse(course: CourseItem) {
@@ -1709,6 +1774,7 @@ class ScheduleViewModelFactory(
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
     private val manualCourseRepository: ManualCourseRepository,
+    private val courseNoteRepository: CourseNoteRepository? = null,
     private val normalizeTimingProfile: suspend (TermTimingProfile?) -> TermTimingProfile? = { it },
     private val onSyncCompleted: suspend (TermTimingProfile?) -> Unit = {},
     private val onAlarmSyncChecked: suspend () -> Unit = {},
@@ -1723,6 +1789,7 @@ class ScheduleViewModelFactory(
                 pluginManager = pluginManager,
                 reminderCoordinator = reminderCoordinator,
                 manualCourseRepository = manualCourseRepository,
+                courseNoteRepository = courseNoteRepository,
                 normalizeTimingProfile = normalizeTimingProfile,
                 onSyncCompleted = onSyncCompleted,
                 onAlarmSyncChecked = onAlarmSyncChecked,

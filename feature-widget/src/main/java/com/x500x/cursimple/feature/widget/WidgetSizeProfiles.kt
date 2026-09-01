@@ -45,25 +45,36 @@ internal object WidgetDayLabels {
     fun missingTermStart(): String = "未设开学日期 · 点按设置"
 }
 
-/** 今日课表小组件的空态文案。 */
+/** 假日名为空时的兜底称呼。 */
+internal fun widgetHolidayLabel(holidayName: String?): String =
+    holidayName?.takeIf { it.isNotBlank() } ?: "放假"
+
+/**
+ * 今日课表小组件的空态文案。
+ * 放假优先于学期状态：课表是否同步、是否已开学，都不如“这天不上课”贴近实际。
+ */
 internal fun scheduleWidgetEmptyText(
     termStartMissing: Boolean,
     beforeTermStart: Boolean,
     termStartDate: LocalDate?,
     offset: Int,
+    holidayLabel: String? = null,
 ): String = when {
+    holidayLabel != null -> "$holidayLabel · 全天无课"
     termStartMissing -> WidgetDayLabels.missingTermStart()
     beforeTermStart -> WidgetDayLabels.beforeTermStart(termStartDate)
     else -> WidgetDayLabels.empty(offset)
 }
 
-/** 今日课表小组件副标题：星期几，再补上学期状态或临时调课来源。 */
+/** 今日课表小组件副标题：星期几，再补上假日、学期状态或临时调课来源。 */
 internal fun scheduleWidgetSubtitle(
     weekdayLabel: String,
     termStartMissing: Boolean,
     beforeTermStart: Boolean,
     sourceLabel: String?,
+    holidayLabel: String? = null,
 ): String = when {
+    holidayLabel != null -> "$weekdayLabel · $holidayLabel"
     termStartMissing -> "$weekdayLabel · 未设开学日期"
     beforeTermStart -> "$weekdayLabel · 未开学"
     sourceLabel != null -> "$weekdayLabel · 按${sourceLabel}课"
@@ -77,7 +88,9 @@ internal fun nextCourseEmptyTitle(
     targetDate: LocalDate,
     today: LocalDate,
     hasCourses: Boolean,
+    holidayLabel: String? = null,
 ): String = when {
+    holidayLabel != null -> "$holidayLabel · 全天无课"
     weekIndex == null -> WidgetDayLabels.missingTermStart()
     isBeforeTermStart(weekIndex) -> WidgetDayLabels.beforeTermStart(termStartDate)
     targetDate == today && hasCourses -> "今天没有更多课程"

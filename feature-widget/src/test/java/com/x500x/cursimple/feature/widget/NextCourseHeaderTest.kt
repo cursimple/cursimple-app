@@ -30,4 +30,17 @@ class NextCourseHeaderTest {
             nextCourseDayHeader(tomorrow, LocalDate.of(2026, 9, 10), today),
         )
     }
+
+    @Test
+    fun `header names the holiday instead of the source date`() {
+        assertEquals(
+            "今日课程 · 国庆节",
+            nextCourseDayHeader(today, today, today, holidayLabel = "国庆节"),
+        )
+        val tomorrow = today.plusDays(1)
+        assertEquals(
+            "明日课程 · 国庆节",
+            nextCourseDayHeader(tomorrow, tomorrow, today, holidayLabel = "国庆节"),
+        )
+    }
 }

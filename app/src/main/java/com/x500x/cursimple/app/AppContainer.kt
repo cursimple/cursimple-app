@@ -60,6 +60,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.data.note.CourseNoteRepository
+import com.x500x.cursimple.core.data.note.DataStoreCourseNoteRepository
 
 class AppContainer(
     private val app: Application,
@@ -75,6 +77,8 @@ class AppContainer(
     val userPreferencesRepository: UserPreferencesRepository = DataStoreUserPreferencesRepository(app)
     private val manualStore = DataStoreManualCourseRepository(app, termProfileRepository)
     val manualCourseRepository: ManualCourseRepository = manualStore
+    private val courseNoteStore = DataStoreCourseNoteRepository(app, termProfileRepository)
+    val courseNoteRepository: CourseNoteRepository = courseNoteStore
     private val sharedDownloader = MirrorDownloader(
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
     )
@@ -141,6 +145,7 @@ class AppContainer(
                 (userPreferencesRepository as DataStoreUserPreferencesRepository).exportBackupSnapshot(),
                 scheduleStore.exportBackupSnapshot(),
                 manualStore.exportBackupSnapshot(),
+            courseNoteStore.exportBackupSnapshot(),
                 (termProfileRepository as DataStoreTermProfileRepository).exportBackupSnapshot(),
                 widgetPreferencesRepository.exportBackupSnapshot(),
                 reminderRepository.exportBackupSnapshot(),
@@ -163,6 +168,8 @@ class AppContainer(
             ?.let { scheduleStore.restoreBackupSnapshot(it) }
         payload.store(AppBackupStores.MANUAL_COURSES)
             ?.let { manualStore.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.COURSE_NOTES)
+            ?.let { courseNoteStore.restoreBackupSnapshot(it) }
         payload.store(AppBackupStores.WIDGET_PREFERENCES)
             ?.let { widgetPreferencesRepository.restoreBackupSnapshot(it) }
         payload.store(AppBackupStores.REMINDERS)
