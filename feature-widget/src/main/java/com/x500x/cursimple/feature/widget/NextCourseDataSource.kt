@@ -61,11 +61,16 @@ internal object NextCourseDataSource {
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
         val now = BeijingTime.nowTimeIn(zone)
+        val termStart = resolveWidgetTermStartDate(
+            termProfileRepository = termProfileRepository,
+            timingProfile = timingProfile,
+            preferenceTermStartDate = userPrefs.termStartDate,
+        )
 
-        fun coursesForDate(targetDate: LocalDate): Triple<LocalDate, LocalDate, List<CourseItem>> {
+        fun coursesForDate(targetDate: LocalDate): NextCourseDay {
             val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, userPrefs.temporaryScheduleOverrides)
             val dayOfWeek = sourceDate.dayOfWeek.value
-            val weekIndex = resolveWeekIndex(sourceDate, userPrefs.termStartDate)
+            val weekIndex = resolveWeekIndex(sourceDate, termStart)
             val courses = filterTemporaryCancelledCourses(
                 date = targetDate,
                 courses = schedule?.coursesOfDay(dayOfWeek).orEmpty() +
@@ -75,16 +80,23 @@ internal object NextCourseDataSource {
                 .visibleScheduleCourses()
                 .filter { it.activeOnWeek(weekIndex) }
                 .sortedBy { it.time.startNode }
-            return Triple(targetDate, sourceDate, courses)
+            return NextCourseDay(
+                targetDate = targetDate,
+                sourceDate = sourceDate,
+                weekIndex = weekIndex,
+                courses = courses,
+            )
         }
 
-        val (todayDate, _, todayCourses) = coursesForDate(today)
-        val (targetDate, sourceDate, displayCourses) =
-            if (shouldShowNextDayAtNight(now, todayCourses, timingProfile)) {
-                coursesForDate(today.plusDays(1))
-            } else {
-                Triple(todayDate, todayDate, todayCourses)
-            }
+        val todayDay = coursesForDate(today)
+        val displayDay = if (shouldShowNextDayAtNight(now, todayDay.courses, timingProfile)) {
+            coursesForDate(today.plusDays(1))
+        } else {
+            todayDay
+        }
+        val targetDate = displayDay.targetDate
+        val sourceDate = displayDay.sourceDate
+        val displayCourses = displayDay.courses
 
         val visibleEntries = visibleNextCourseEntries(
             courses = displayCourses,
@@ -106,24 +118,24 @@ internal object NextCourseDataSource {
             else -> null
         }
 
-        val dayLabel = if (targetDate == today) "今日课程" else "明日课程"
-        val todayHeader = if (sourceDate != targetDate) {
-            "$dayLabel · 按${sourceDateLabel(sourceDate)}"
-        } else {
-            dayLabel
-        }
+        val todayHeader = nextCourseDayHeader(
+            targetDate = targetDate,
+            sourceDate = sourceDate,
+            today = today,
+        )
         val headerLabel = when {
             live != null -> "$todayHeader · ${if (live.category == CourseCategory.Exam) "考试中" else "上课中"}"
             firstUpcoming != null -> if (todayHeader != "今日课程") todayHeader else "下一节课"
             displayCourses.isNotEmpty() -> "$todayHeader · 已结束"
             else -> if (todayHeader != "今日课程") todayHeader else "下一节课"
         }
-        val emptyTitle = when {
-            targetDate == today && displayCourses.isNotEmpty() -> "今天没有更多课程"
-            targetDate == today -> "今天没有课程"
-            targetDate == today.plusDays(1) -> "明天没有课程"
-            else -> "当天没有课程"
-        }
+        val emptyTitle = nextCourseEmptyTitle(
+            weekIndex = displayDay.weekIndex,
+            termStartDate = termStart,
+            targetDate = targetDate,
+            today = today,
+            hasCourses = displayCourses.isNotEmpty(),
+        )
 
         val rows = visibleEntries.map { entry ->
             val course = entry.course
@@ -166,7 +178,25 @@ internal object NextCourseDataSource {
         val m = minutes % 60
         return if (m == 0L) "${h}小时后" else "${h}小时${m}分后"
     }
-
-    private fun sourceDateLabel(date: LocalDate): String =
-        "${date.monthValue}月${date.dayOfMonth}日${weekdayLabel(date.dayOfWeek.value)}"
 }
+
+/** 一天的展示数据：目标日期、临时调课实际取课的来源日期、该来源日期对应的教学周与课程。 */
+internal data class NextCourseDay(
+    val targetDate: LocalDate,
+    val sourceDate: LocalDate,
+    val weekIndex: Int?,
+    val courses: List<CourseItem>,
+)
+
+/** 表头前缀；来源日期与目标日期不同时补上“按X月X日周X”。 */
+internal fun nextCourseDayHeader(
+    targetDate: LocalDate,
+    sourceDate: LocalDate,
+    today: LocalDate,
+): String {
+    val dayLabel = if (targetDate == today) "今日课程" else "明日课程"
+    return if (sourceDate != targetDate) "$dayLabel · 按${sourceDateLabel(sourceDate)}" else dayLabel
+}
+
+private fun sourceDateLabel(date: LocalDate): String =
+    "${date.monthValue}月${date.dayOfMonth}日${weekdayLabel(date.dayOfWeek.value)}"

@@ -4,30 +4,29 @@ import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.endLocalTime
+import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
+import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
+import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.startLocalTime
-import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.temporal.ChronoUnit
-import java.time.temporal.TemporalAdjusters
-import kotlin.math.max
 
+/** 开学前返回 0 或负数；未设开学日期时返回 null。 */
 internal fun resolveWeekIndex(
     targetDate: LocalDate,
     termStartDate: LocalDate?,
 ): Int? {
     val termStart = termStartDate ?: return null
-    val termStartMonday = termStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val targetMonday = targetDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-    val weeks = ChronoUnit.WEEKS.between(termStartMonday, targetMonday).toInt() + 1
-    return max(1, weeks)
+    return resolveTermWeekNumber(termStart, targetDate)
 }
 
-internal fun CourseItem.activeOnWeek(weekIndex: Int?): Boolean {
-    if (weekIndex == null) return false
-    if (weeks.isEmpty()) return true
-    return weeks.contains(weekIndex)
-}
+/** 已知开学日期且周次小于 1，即尚未开学。 */
+internal fun isBeforeTermStart(weekIndex: Int?): Boolean =
+    weekIndex != null && !isTermWeekNumberStarted(weekIndex)
+
+/** 未设开学日期（周次为 null）时不显示任何课程。 */
+internal fun CourseItem.activeOnWeek(weekIndex: Int?): Boolean =
+    weekIndex != null && isActiveInTermWeekNumber(weekIndex)
 
 internal enum class CourseStatus { Past, Live, Upcoming }
 
@@ -101,16 +100,23 @@ internal fun TermTimingProfile.courseClockRange(course: CourseItem, separator: S
     return "$start$separator$end"
 }
 
+/**
+ * 到达 [advanceTime] 且当天课程全部结束时返回 true，表示改为展示次日安排。
+ * [advanceTime] 为 null 表示关闭提前切换，日期只在零点自然翻页。
+ */
 internal fun shouldShowNextDayAtNight(
     now: LocalTime,
     courses: List<CourseItem>,
     timingProfile: TermTimingProfile?,
+    advanceTime: LocalTime? = NIGHT_ADVANCE_TIME,
 ): Boolean {
-    if (NIGHT_ADVANCE_TIME == LocalTime.MIDNIGHT) return false
-    if (now.isBefore(NIGHT_ADVANCE_TIME)) return false
+    if (advanceTime == null || now.isBefore(advanceTime)) return false
     if (courses.isEmpty()) return true
-    val endTimes = courses.map { course -> timingProfile?.courseEndTime(course) }
-    return endTimes.all { endTime -> endTime != null && !now.isBefore(endTime) }
+    return courses.all { course ->
+        val endTime = timingProfile?.courseEndTime(course)
+        endTime != null && !now.isBefore(endTime)
+    }
 }
 
-private val NIGHT_ADVANCE_TIME: LocalTime = LocalTime.MIDNIGHT
+/** 夜间提前切到次日的时刻；null 表示不提前切换。 */
+private val NIGHT_ADVANCE_TIME: LocalTime? = null
