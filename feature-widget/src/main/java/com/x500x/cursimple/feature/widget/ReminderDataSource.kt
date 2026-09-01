@@ -63,14 +63,20 @@ internal object ReminderDataSource {
 
         val now = BeijingTime.nowMillis(zone)
         val today = BeijingTime.todayIn(zone)
+        val termStart = resolveWidgetTermStartDate(
+            termProfileRepository = termProfileRepository,
+            timingProfile = timingProfile,
+            preferenceTermStartDate = userPrefs.termStartDate,
+        )
+        val effectiveTimingProfile = timingProfile?.withTermStartDate(termStart)
         val planner = ReminderPlanner()
         val reminderSchedule = mergeManualCourses(schedule, manualCourses)
-        val plans = if (reminderSchedule != null && timingProfile != null) {
+        val plans = if (reminderSchedule != null && effectiveTimingProfile != null) {
             runCatching {
                 planner.expandRules(
                     rules = rules,
                     schedule = reminderSchedule,
-                    timingProfile = timingProfile,
+                    timingProfile = effectiveTimingProfile,
                     fromDate = today,
                     temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
                     customOccupancies = customOccupancies,

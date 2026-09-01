@@ -71,7 +71,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             val ids = appWidgetIds ?: scheduleWidgetIds(appContext, manager)
             if (ids.isEmpty()) return
             ids.forEach { appWidgetId ->
-                val sizeClass = sizeClassForWidget(manager, appWidgetId)
+                val sizeClass = widgetSizeClass(manager, appWidgetId)
                 val dayData = ScheduleWidgetDataSource.loadDay(appContext, appWidgetId)
                 manager.updateAppWidget(
                     appWidgetId,
@@ -79,14 +79,6 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 )
                 manager.notifyAppWidgetViewDataChanged(intArrayOf(appWidgetId), R.id.widget_course_list)
             }
-        }
-
-        private fun sizeClassForWidget(manager: AppWidgetManager, appWidgetId: Int): WidgetSizeClass {
-            val options = manager.getAppWidgetOptions(appWidgetId)
-            return WidgetSizeClass.fromDp(
-                widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, DEFAULT_MIN_WIDTH_DP),
-                heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, DEFAULT_MIN_HEIGHT_DP),
-            )
         }
 
         private fun scheduleWidgetIds(context: Context, manager: AppWidgetManager): IntArray {
@@ -118,11 +110,14 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 R.id.widget_title,
                 "${dateFormatter.format(dayData.targetDate)} · ${WidgetDayLabels.tag(dayData.offset)}",
             )
-            val subtitle = if (dayData.sourceDate != dayData.targetDate) {
-                "${dayData.weekdayLabel} · 按${sourceDateLabel(dayData.sourceDate)}课"
-            } else {
-                dayData.weekdayLabel
-            }
+            val subtitle = scheduleWidgetSubtitle(
+                weekdayLabel = dayData.weekdayLabel,
+                termStartMissing = dayData.termStartMissing,
+                beforeTermStart = dayData.beforeTermStart,
+                sourceLabel = dayData.sourceDate
+                    .takeIf { it != dayData.targetDate }
+                    ?.let { sourceDateLabel(it) },
+            )
             views.setTextViewText(R.id.widget_subtitle, subtitle)
             views.setViewVisibility(
                 R.id.widget_subtitle,
@@ -167,7 +162,13 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme)
             views.setInt(R.id.widget_empty, "setBackgroundResource", widgetRowVariantBackground(dayData.themeAccent))
-            views.setTextViewText(R.id.widget_empty, WidgetDayLabels.empty(dayData.offset))
+            val emptyText = scheduleWidgetEmptyText(
+                termStartMissing = dayData.termStartMissing,
+                beforeTermStart = dayData.beforeTermStart,
+                termStartDate = dayData.termStartDate,
+                offset = dayData.offset,
+            )
+            views.setTextViewText(R.id.widget_empty, emptyText)
             return views
         }
 
@@ -200,9 +201,6 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
         private val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
         private fun sourceDateLabel(date: java.time.LocalDate): String =
             "${dateFormatter.format(date)}${weekdayLabel(date.dayOfWeek.value)}"
-
-        private const val DEFAULT_MIN_WIDTH_DP = 220
-        private const val DEFAULT_MIN_HEIGHT_DP = 180
     }
 }
 

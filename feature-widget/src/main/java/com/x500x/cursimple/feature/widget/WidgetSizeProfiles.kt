@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.widget
 
+import java.time.LocalDate
+
 internal enum class WidgetSizeClass {
     Compact,
     Regular,
@@ -33,6 +35,55 @@ internal object WidgetDayLabels {
         1 -> "明日没有课程"
         else -> "当日没有课程"
     }
+
+    /** 开学前的空态文案，避免被误读成课表没导入成功。 */
+    fun beforeTermStart(termStartDate: LocalDate?): String = termStartDate
+        ?.let { "未开学 · ${it.monthValue}月${it.dayOfMonth}日开学" }
+        ?: "未开学"
+
+    /** 没有开学日期就算不出教学周，空态要和「今天没课」区分开。 */
+    fun missingTermStart(): String = "未设开学日期 · 点按设置"
+}
+
+/** 今日课表小组件的空态文案。 */
+internal fun scheduleWidgetEmptyText(
+    termStartMissing: Boolean,
+    beforeTermStart: Boolean,
+    termStartDate: LocalDate?,
+    offset: Int,
+): String = when {
+    termStartMissing -> WidgetDayLabels.missingTermStart()
+    beforeTermStart -> WidgetDayLabels.beforeTermStart(termStartDate)
+    else -> WidgetDayLabels.empty(offset)
+}
+
+/** 今日课表小组件副标题：星期几，再补上学期状态或临时调课来源。 */
+internal fun scheduleWidgetSubtitle(
+    weekdayLabel: String,
+    termStartMissing: Boolean,
+    beforeTermStart: Boolean,
+    sourceLabel: String?,
+): String = when {
+    termStartMissing -> "$weekdayLabel · 未设开学日期"
+    beforeTermStart -> "$weekdayLabel · 未开学"
+    sourceLabel != null -> "$weekdayLabel · 按${sourceLabel}课"
+    else -> weekdayLabel
+}
+
+/** 下一节课小组件的空态文案。 */
+internal fun nextCourseEmptyTitle(
+    weekIndex: Int?,
+    termStartDate: LocalDate?,
+    targetDate: LocalDate,
+    today: LocalDate,
+    hasCourses: Boolean,
+): String = when {
+    weekIndex == null -> WidgetDayLabels.missingTermStart()
+    isBeforeTermStart(weekIndex) -> WidgetDayLabels.beforeTermStart(termStartDate)
+    targetDate == today && hasCourses -> "今天没有更多课程"
+    targetDate == today -> "今天没有课程"
+    targetDate == today.plusDays(1) -> "明天没有课程"
+    else -> "当天没有课程"
 }
 
 internal fun WidgetSizeClass.dailyCourseRows(): Int = when (this) {
@@ -52,3 +103,15 @@ internal fun WidgetSizeClass.reminderRows(): Int = when (this) {
     WidgetSizeClass.Regular -> 3
     WidgetSizeClass.Expanded -> 4
 }
+
+/** 下一节课列表按尺寸档案裁剪，小尺寸不再靠滚动塞下整天。 */
+internal fun visibleNextCourseRows(
+    rows: List<NextCourseRow>,
+    sizeClass: WidgetSizeClass,
+): List<NextCourseRow> = rows.take(sizeClass.nextCourseRows())
+
+/** 提醒列表按尺寸档案裁剪；总数仍由标题角标给出。 */
+internal fun visibleReminderRows(
+    rows: List<ReminderRowData>,
+    sizeClass: WidgetSizeClass,
+): List<ReminderRowData> = rows.take(sizeClass.reminderRows())
