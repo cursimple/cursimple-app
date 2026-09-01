@@ -55,6 +55,9 @@ class DataStoreUserPreferencesRepository(
             themeAccent = prefs[KEY_THEME_ACCENT]
                 ?.let { runCatching { ThemeAccent.valueOf(it) }.getOrNull() }
                 ?: ThemeAccent.Green,
+            appLanguage = prefs[KEY_APP_LANGUAGE]
+                ?.let { runCatching { AppLanguage.valueOf(it) }.getOrNull() }
+                ?: AppLanguage.System,
             termStartDate = prefs[KEY_TERM_START_EPOCH_DAY]?.let(LocalDate::ofEpochDay),
             developerModeEnabled = prefs[KEY_DEVELOPER_MODE] ?: false,
             scheduleTextStyle = prefs.toScheduleTextStyle(),
@@ -124,6 +127,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setThemeAccent(accent: ThemeAccent) {
         store.edit { prefs -> prefs[KEY_THEME_ACCENT] = accent.name }
+    }
+
+    override suspend fun setAppLanguage(language: AppLanguage) {
+        store.edit { prefs -> prefs[KEY_APP_LANGUAGE] = language.name }
     }
 
     override suspend fun setTermStartDate(date: LocalDate?) {
@@ -525,6 +532,7 @@ class DataStoreUserPreferencesRepository(
             previousAlarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]
             prefs.remove(KEY_THEME_MODE)
             prefs.remove(KEY_THEME_ACCENT)
+            prefs.remove(KEY_APP_LANGUAGE)
             prefs.remove(KEY_DEVELOPER_MODE)
             prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
             prefs.remove(KEY_DEBUG_FORCED_DATETIME)
@@ -840,6 +848,7 @@ class DataStoreUserPreferencesRepository(
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_THEME_ACCENT = stringPreferencesKey("theme_accent")
+        val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_TERM_START_EPOCH_DAY = longPreferencesKey("term_start_epoch_day")
         val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         val KEY_SCHEDULE_COURSE_TEXT_SIZE_SP = intPreferencesKey("schedule_course_text_size_sp")

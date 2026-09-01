@@ -5,6 +5,7 @@ import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
 import android.widget.Toast
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -98,6 +99,8 @@ import com.x500x.cursimple.app.util.ScheduleMetadataExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.BuildConfig
+import com.x500x.cursimple.core.data.AppLanguage
+import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
 import com.x500x.cursimple.core.kernel.model.termWeekTitle
@@ -129,6 +132,10 @@ import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
 import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
 class MainActivity : ComponentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -264,6 +271,7 @@ class MainActivity : ComponentActivity() {
                     )
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
+                    var showAppLanguageDialog by rememberSaveable { mutableStateOf(false) }
                     var showWidgetThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
                     var showManageSheet by rememberSaveable { mutableStateOf(false) }
@@ -742,6 +750,8 @@ class MainActivity : ComponentActivity() {
                                         debugForcedDateTime = prefs.debugForcedDateTime,
                                         onPickThemeMode = { showThemeSheet = true },
                                         onPickThemeAccent = { showThemeAccentDialog = true },
+                                        appLanguage = prefs.appLanguage,
+                                        onPickAppLanguage = { showAppLanguageDialog = true },
                                         onPickTermStartDate = { showDatePicker = true },
                                         onPickCurrentWeek = { showCurrentWeekDialog = true },
                                         onClearTermStartDate = { showClearTermStartConfirm = true },
@@ -996,6 +1006,22 @@ class MainActivity : ComponentActivity() {
                             onSelect = {
                                 prefsViewModel.setThemeMode(it)
                                 showThemeSheet = false
+                            },
+                        )
+                    }
+
+                    if (showAppLanguageDialog) {
+                        AppLanguageDialog(
+                            current = prefs.appLanguage,
+                            onDismiss = { showAppLanguageDialog = false },
+                            onSelect = { language ->
+                                showAppLanguageDialog = false
+                                if (language != prefs.appLanguage) {
+                                    // 语言在附着基础上下文时读取，改完必须重建界面才能生效
+                                    AppLocale.cache(this@MainActivity, language)
+                                    prefsViewModel.setAppLanguage(language)
+                                    recreate()
+                                }
                             },
                         )
                     }
@@ -1459,6 +1485,42 @@ private val themeAccentOptions = listOf(
 
 private fun themeAccentLabel(accent: ThemeAccent): String =
     themeAccentOptions.firstOrNull { it.accent == accent }?.label ?: accent.name
+
+@Composable
+private fun AppLanguageDialog(
+    current: AppLanguage,
+    onDismiss: () -> Unit,
+    onSelect: (AppLanguage) -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("语言") },
+        text = {
+            Column {
+                AppLanguage.entries.forEach { language ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelect(language) }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = language == current,
+                            onClick = { onSelect(language) },
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(appLanguageLabel(language), style = MaterialTheme.typography.bodyLarge)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        },
+    )
+}
 
 @Composable
 private fun ThemeAccentDialog(

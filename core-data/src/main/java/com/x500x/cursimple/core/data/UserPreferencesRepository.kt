@@ -31,6 +31,13 @@ enum class ThemeMode { System, Light, Dark }
 
 enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
 
+/** 界面语言。[System] 跟随系统设置，其余为用户显式选定。 */
+enum class AppLanguage(val tag: String) {
+    System(""),
+    Chinese("zh-CN"),
+    English("en"),
+}
+
 enum class ScheduleBackgroundType { Color, Image, Header }
 
 /** 上课时段自动静音采用的手段。 */
@@ -251,6 +258,7 @@ private fun srgbChannelToLinear(channelByte: Int): Double {
 data class UserPreferences(
     val themeMode: ThemeMode = ThemeMode.Light,
     val themeAccent: ThemeAccent = ThemeAccent.Green,
+    val appLanguage: AppLanguage = AppLanguage.System,
     val termStartDate: LocalDate? = null,
     val developerModeEnabled: Boolean = false,
     val scheduleTextStyle: ScheduleTextStylePreferences = ScheduleTextStylePreferences(),
@@ -296,6 +304,7 @@ interface UserPreferencesRepository {
     val preferencesFlow: Flow<UserPreferences>
     suspend fun setThemeMode(mode: ThemeMode)
     suspend fun setThemeAccent(accent: ThemeAccent)
+    suspend fun setAppLanguage(language: AppLanguage)
     suspend fun setTermStartDate(date: LocalDate?)
     suspend fun setDeveloperModeEnabled(enabled: Boolean)
     suspend fun setScheduleCourseTextSizeSp(sizeSp: Int)

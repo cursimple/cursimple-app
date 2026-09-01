@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="data_timing_error_no_slots">Add at least one period</string>
+    <string name="data_timing_error_node_not_number">Row %1$d: periods must be numbers</string>
+    <string name="data_timing_error_node_out_of_range">Row %1$d: periods must be between %2$d and %3$d</string>
+    <string name="data_timing_error_node_reversed">Row %1$d: the first period cannot come after the last one</string>
+    <string name="data_timing_error_time_format">Row %1$d: times must use the HH:mm format</string>
+    <string name="data_timing_error_time_reversed">Row %1$d: the start time must be earlier than the end time</string>
+    <string name="data_timing_error_node_overlap">Overlapping periods: %1$d-%2$d and %3$d-%4$d</string>
+
+    <string name="data_timing_template_single11_name">Single periods · 11</string>
+    <string name="data_timing_template_single11_summary">4 in the morning, 4 in the afternoon, 3 in the evening. Sample times, adjust them to your own timetable.</string>
+    <string name="data_timing_template_block5_name">Double periods · 5 blocks</string>
+    <string name="data_timing_template_block5_summary">Each block runs two periods back to back. Sample times, adjust them to your own timetable.</string>
+    <string name="data_timing_template_single8_name">Single periods · 8 (no evening classes)</string>
+    <string name="data_timing_template_single8_summary">4 in the morning, 4 in the afternoon. Sample times, adjust them to your own timetable.</string>
+
+    <string name="data_timing_slot_label_period">Period %1$d</string>
+    <string name="data_timing_slot_label_block_1">Block 1</string>
+    <string name="data_timing_slot_label_block_2">Block 2</string>
+    <string name="data_timing_slot_label_block_3">Block 3</string>
+    <string name="data_timing_slot_label_block_4">Block 4</string>
+    <string name="data_timing_slot_label_block_5">Block 5</string>
+
+    <string name="data_term_default_name">New term</string>
+    <string name="data_term_bootstrap_default_name">Default term</string>
+
+    <string name="data_plugin_legacy_missing_api_version">Legacy plugin record has no API version</string>
+    <string name="data_plugin_legacy_missing_entry">Legacy plugin record has no JS entry file</string>
+</resources>
