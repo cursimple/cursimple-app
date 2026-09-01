@@ -53,6 +53,21 @@ enum class ReminderScopeType {
     LabelRule,
 }
 
+/**
+ * 会被展开成提醒计划并下发闹钟的规则类型。
+ * 其余取值只出现在旧版本写入的持久化数据里，读取时必须仍能反序列化。
+ */
+val SYNCABLE_REMINDER_SCOPE_TYPES: Set<ReminderScopeType> = setOf(
+    ReminderScopeType.LabelRule,
+    ReminderScopeType.FirstCourseOfPeriod,
+)
+
+/** 该类型是否参与提醒展开与闹钟下发。 */
+fun ReminderScopeType.isSyncable(): Boolean = this in SYNCABLE_REMINDER_SCOPE_TYPES
+
+/** 该类型是否只来自旧版本数据，不会再触发提醒。 */
+fun ReminderScopeType.isLegacy(): Boolean = !isSyncable()
+
 @Serializable
 enum class ReminderLabelPresence {
     @SerialName("exists")

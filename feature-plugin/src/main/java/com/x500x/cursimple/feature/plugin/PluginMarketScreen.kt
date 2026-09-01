@@ -70,9 +70,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
+import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
+import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
+import com.x500x.cursimple.core.plugin.security.PluginSignatureStatus
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 
@@ -227,6 +230,7 @@ private fun PluginMarketScreen(
         uiState.installPreview?.let { preview ->
             InstallPreviewDialog(
                 preview = preview,
+                origin = uiState.installPreviewOrigin,
                 isLoading = uiState.isLoading,
                 onDismiss = onDismissInstallPreview,
                 onConfirm = onConfirmInstall,
@@ -1155,38 +1159,93 @@ private fun PluginDetailScreen(
 @Composable
 private fun InstallPreviewDialog(
     preview: PluginInstallPreview,
+    origin: PluginInstallOrigin?,
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
     val manifest = preview.manifest
-    val canInstall = preview.checksumVerified
+    val canInstall = canConfirmPluginInstall(preview)
+    val allowedHosts = manifest.allowedHosts.filter { it.isNotBlank() }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("安装插件") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
                     text = manifest.name,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                DetailRow("版本", "v${manifest.version}")
-                DetailRow("插件 ID", manifest.id)
-                DetailRow("发布者", manifest.publisher.ifBlank { "未声明" })
-                DetailRow("API", manifest.apiVersion.toString())
-                DetailRow("入口", manifest.entry)
-                DetailRow("摘要", if (preview.checksumVerified) "通过" else "未通过")
-                DetailRow(
-                    "权限",
-                    manifest.permissions.joinToString { it.id }.ifBlank { "无" },
-                )
-                if (!canInstall) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DetailRow("版本", "v${manifest.version}")
+                    DetailRow("插件 ID", manifest.id)
+                    DetailRow("发布者", manifest.publisher.ifBlank { "未声明" })
+                    DetailRow("API", manifest.apiVersion.toString())
+                    DetailRow("入口", manifest.entry)
+                }
+
+                SectionTitle("来源")
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DetailRow("渠道", pluginInstallOriginLabel(preview.source, origin))
+                    origin?.let { DetailRow("下载地址", it.downloadUrl) }
+                }
+
+                SectionTitle("可访问站点")
+                if (allowedHosts.isEmpty()) {
                     Text(
-                        text = "摘要未通过，不能安装。",
+                        text = pluginAllowedHostsEmptyLabel(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        allowedHosts.forEach { host ->
+                            Text(
+                                text = host,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                }
+
+                SectionTitle("权限声明")
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    pluginPermissionLabels(manifest.permissions).forEach { label ->
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
+                Text(
+                    text = PERMISSION_SCOPE_NOTE,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                SectionTitle("完整性")
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DetailRow("摘要", pluginChecksumLabel(preview.checksumVerified))
+                    DetailRow(
+                        "签名",
+                        pluginSignatureLabel(preview.signatureStatus, preview.signerFingerprint),
+                    )
+                }
+                Text(
+                    text = INTEGRITY_TRUST_NOTE,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                pluginInstallBlockReason(preview)?.let { reason ->
+                    Text(
+                        text = reason,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
@@ -1329,6 +1388,56 @@ private enum class PluginPlatformTab(
     Plugins("插件", Icons.Rounded.Extension),
     Components("组件", Icons.Rounded.Widgets),
 }
+
+internal fun canConfirmPluginInstall(preview: PluginInstallPreview): Boolean = preview.installable
+
+internal fun pluginInstallBlockReason(preview: PluginInstallPreview): String? = when {
+    !preview.checksumVerified -> "包内文件与 checksums.json 不一致，插件包已被改动或损坏，不能安装。"
+    preview.signatureStatus == PluginSignatureStatus.Invalid ->
+        preview.signatureMessage?.let { "签名校验未通过：$it" } ?: "签名校验未通过，不能安装。"
+    else -> null
+}
+
+internal fun pluginInstallOriginLabel(source: PluginInstallSource, origin: PluginInstallOrigin?): String = when {
+    origin != null -> "GitHub 仓库 ${origin.repoSlug}"
+    source == PluginInstallSource.Local -> "本地文件"
+    source == PluginInstallSource.Bundled -> "应用内置"
+    else -> "远程下载"
+}
+
+internal fun pluginChecksumLabel(verified: Boolean): String =
+    if (verified) "通过（包内文件与 checksums.json 一致）" else "未通过"
+
+internal fun pluginSignatureLabel(status: PluginSignatureStatus, fingerprint: String?): String = when (status) {
+    PluginSignatureStatus.Absent -> "未签名"
+    PluginSignatureStatus.Valid -> fingerprint?.let { "有效，公钥指纹 $it" } ?: "有效"
+    PluginSignatureStatus.Invalid -> "无效"
+}
+
+internal fun pluginAllowedHostsEmptyLabel(): String = "未声明，插件无法打开任何教务网页"
+
+internal fun pluginPermissionLabels(permissions: List<PluginPermission>): List<String> {
+    if (permissions.isEmpty()) return listOf("未声明任何权限")
+    return permissions.distinct().map { "${pluginPermissionText(it)}（${it.id}）" }
+}
+
+private fun pluginPermissionText(permission: PluginPermission): String = when (permission) {
+    PluginPermission.WebNavigate -> "打开并跳转网页"
+    PluginPermission.WebReadDom -> "读取网页内容"
+    PluginPermission.WebReadCookies -> "读取网页登录 Cookie"
+    PluginPermission.WebInjectScript -> "在网页中注入脚本"
+    PluginPermission.WebCapturePacket -> "抓取网页请求与响应"
+    PluginPermission.NetworkFetch -> "发起网络请求"
+    PluginPermission.ScheduleWrite -> "写入课表数据"
+    PluginPermission.StoragePlugin -> "使用插件本地存储"
+    PluginPermission.ComponentUse -> "调用已安装组件"
+}
+
+private const val PERMISSION_SCOPE_NOTE =
+    "权限由插件自行声明，脚本在上述站点的网页环境中运行；实际能触达的范围以站点白名单为准。"
+
+private const val INTEGRITY_TRUST_NOTE =
+    "摘要与签名都随插件包一起分发，只能说明包内容前后一致，不代表发布者已被审核或来源可信。"
 
 private fun installedPluginKey(plugin: InstalledPluginRecord): String =
     plugin.installKey

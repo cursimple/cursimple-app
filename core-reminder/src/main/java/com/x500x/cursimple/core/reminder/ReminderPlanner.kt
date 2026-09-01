@@ -11,11 +11,13 @@ import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
+import com.x500x.cursimple.core.reminder.model.isLegacy
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -34,10 +36,18 @@ class ReminderPlanner {
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<ReminderPlan> {
         val enabledRules = rules.filter { it.enabled }
+        val legacyRules = enabledRules.filter { it.scopeType.isLegacy() }
+        if (legacyRules.isNotEmpty()) {
+            ReminderLogger.warn(
+                "reminder.planner.legacy_scope_type.skipped",
+                mapOf(
+                    "ruleCount" to legacyRules.size,
+                    "scopeTypes" to legacyRules.map { it.scopeType.name }.distinct().sorted().joinToString(","),
+                ),
+            )
+        }
         val labelRules = enabledRules.filter {
-            it.enabled &&
-                it.scopeType == ReminderScopeType.LabelRule &&
-                it.labelActions.isNotEmpty()
+            it.scopeType == ReminderScopeType.LabelRule && it.labelActions.isNotEmpty()
         }
         val labelPlans = if (labelRules.isEmpty()) {
             emptyList()

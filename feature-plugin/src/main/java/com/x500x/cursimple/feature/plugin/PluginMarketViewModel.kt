@@ -11,6 +11,7 @@ import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
+import com.x500x.cursimple.core.plugin.security.PluginSignatureStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,10 +21,24 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+/** 预检结束后展示在市场页顶部的状态文案。 */
+internal fun installPreviewStatusMessage(preview: PluginInstallPreview): String = when {
+    !preview.checksumVerified -> "插件包摘要校验未通过，不能安装"
+    preview.signatureStatus == PluginSignatureStatus.Invalid -> "插件包签名校验未通过，不能安装"
+    else -> "插件包已通过完整性预检，请确认下方权限与站点"
+}
+
+/** 待安装插件包的来源，本地文件安装时为 null。 */
+data class PluginInstallOrigin(
+    val repoSlug: String,
+    val downloadUrl: String,
+)
+
 data class PluginMarketUiState(
     val marketRepos: List<GitHubRepoSummary> = emptyList(),
     val installedPlugins: List<InstalledPluginRecord> = emptyList(),
     val installPreview: PluginInstallPreview? = null,
+    val installPreviewOrigin: PluginInstallOrigin? = null,
     val isLoading: Boolean = false,
     val statusMessage: String? = null,
     val lastLoadedRegistry: String? = null,
@@ -129,7 +144,7 @@ class PluginMarketViewModel(
     }
 
     fun previewLocalPackage(bytes: ByteArray) {
-        previewPackage(bytes, PluginInstallSource.Local)
+        previewPackage(bytes, PluginInstallSource.Local, origin = null)
     }
 
     fun installFromGitHub(repo: GitHubRepoSummary) {
@@ -154,7 +169,14 @@ class PluginMarketViewModel(
                     }
                     return@launch
                 }
-            previewPackage(bytes, PluginInstallSource.Remote)
+            previewPackage(
+                bytes = bytes,
+                source = PluginInstallSource.Remote,
+                origin = PluginInstallOrigin(
+                    repoSlug = repo.fullName,
+                    downloadUrl = asset.downloadUrl,
+                ),
+            )
         }
     }
 
@@ -171,6 +193,7 @@ class PluginMarketViewModel(
                         it.copy(
                             isLoading = false,
                             installPreview = null,
+                            installPreviewOrigin = null,
                             statusMessage = "已安装插件：${result.record.name}",
                         )
                     }
@@ -191,7 +214,7 @@ class PluginMarketViewModel(
     fun dismissInstallPreview() {
         pendingBytes = null
         pendingSource = null
-        _uiState.update { it.copy(installPreview = null) }
+        _uiState.update { it.copy(installPreview = null, installPreviewOrigin = null) }
     }
 
     fun removePlugin(pluginKey: String) {
@@ -207,7 +230,11 @@ class PluginMarketViewModel(
         }
     }
 
-    private fun previewPackage(bytes: ByteArray, source: PluginInstallSource) {
+    private fun previewPackage(
+        bytes: ByteArray,
+        source: PluginInstallSource,
+        origin: PluginInstallOrigin?,
+    ) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, statusMessage = "正在解析插件包...") }
             runCatching { pluginManager.previewPackage(bytes, source) }
@@ -218,7 +245,8 @@ class PluginMarketViewModel(
                         it.copy(
                             isLoading = false,
                             installPreview = preview,
-                            statusMessage = "插件包已通过预检",
+                            installPreviewOrigin = origin,
+                            statusMessage = installPreviewStatusMessage(preview),
                         )
                     }
                 }
@@ -227,6 +255,7 @@ class PluginMarketViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            installPreviewOrigin = null,
                             statusMessage = errorMessage,
                         )
                     }
