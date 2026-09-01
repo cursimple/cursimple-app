@@ -1071,7 +1071,7 @@ private fun PluginDetailScreen(
                         DetailRow("兼容性说明", it)
                     }
                     DetailRow("插件 ID", plugin.pluginId)
-                    DetailRow("API", plugin.apiVersion.toString())
+                    DetailRow("API", plugin.apiVersion?.toString() ?: "未声明")
                     DetailRow("入口", plugin.entry.ifBlank { "未声明" })
                 }
             }
@@ -1184,7 +1184,7 @@ private fun InstallPreviewDialog(
                     DetailRow("版本", "v${manifest.version}")
                     DetailRow("插件 ID", manifest.id)
                     DetailRow("发布者", manifest.publisher.ifBlank { "未声明" })
-                    DetailRow("API", manifest.apiVersion.toString())
+                    DetailRow("API", manifest.apiVersion?.toString() ?: "未声明")
                     DetailRow("入口", manifest.entry)
                 }
 

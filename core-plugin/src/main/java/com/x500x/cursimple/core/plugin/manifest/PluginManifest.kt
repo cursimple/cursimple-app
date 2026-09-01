@@ -1,6 +1,5 @@
 package com.x500x.cursimple.core.plugin.manifest
 
-import com.x500x.cursimple.core.plugin.PluginApiVersion
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -11,7 +10,7 @@ data class PluginManifest(
     @SerialName("publisher") val publisher: String = "",
     @SerialName("version") val version: String,
     @SerialName("versionCode") val versionCode: Long,
-    @SerialName("apiVersion") val apiVersion: Int = PluginApiVersion.CURRENT,
+    @SerialName("apiVersion") val apiVersion: Int? = null,
     @SerialName("entry") val entry: String,
     @SerialName("permissions") val permissions: List<PluginPermission> = emptyList(),
     @SerialName("webEngine") val webEngine: PluginWebEngineRequirement = PluginWebEngineRequirement(),
