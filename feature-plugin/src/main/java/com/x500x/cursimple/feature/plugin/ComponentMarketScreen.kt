@@ -21,8 +21,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -65,14 +67,14 @@ fun ComponentMarketScreen(
             }
 
             item {
-                SectionTitle("已安装组件")
+                SectionTitle(stringResource(R.string.plugin_component_section_installed))
             }
 
             if (uiState.installedComponents.isEmpty()) {
                 item {
                     EmptyStateCard(
-                        title = "还没有组件",
-                        subtitle = "插件声明必需组件时，会在这里查看安装状态。组件不会被静默安装。",
+                        title = stringResource(R.string.plugin_component_installed_empty_title),
+                        subtitle = stringResource(R.string.plugin_component_installed_empty_subtitle),
                     )
                 }
             } else {
@@ -82,14 +84,14 @@ fun ComponentMarketScreen(
             }
 
             item {
-                SectionTitle("远程组件")
+                SectionTitle(stringResource(R.string.plugin_component_section_remote))
             }
 
             if (uiState.knownComponents.isEmpty()) {
                 item {
                     EmptyStateCard(
-                        title = "暂无远程组件索引",
-                        subtitle = "点击刷新后会从设置中的组件市场索引加载远程组件。",
+                        title = stringResource(R.string.plugin_component_remote_empty_title),
+                        subtitle = stringResource(R.string.plugin_component_remote_empty_subtitle),
                     )
                 }
             } else {
@@ -124,7 +126,7 @@ private fun ComponentHeader(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "组件",
+                    text = stringResource(R.string.plugin_component_count_label),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -134,7 +136,7 @@ private fun ComponentHeader(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "已安装 / 远程",
+                    text = stringResource(R.string.plugin_component_count_caption),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -144,13 +146,19 @@ private fun ComponentHeader(
                     onClick = onPickLocalPackage,
                     enabled = !isLoading,
                 ) {
-                    Text("导入 ZIP")
+                    Text(stringResource(R.string.plugin_market_action_import_zip))
                 }
                 Button(
                     onClick = onRefreshMarket,
                     enabled = !isLoading,
                 ) {
-                    Text(if (isLoading) "加载中" else "刷新")
+                    Text(
+                        if (isLoading) {
+                            stringResource(R.string.plugin_market_action_loading)
+                        } else {
+                            stringResource(R.string.plugin_market_action_refresh)
+                        },
+                    )
                 }
             }
         }
@@ -186,10 +194,10 @@ private fun InstalledComponentCard(component: InstalledPluginComponentRecord) {
                 ComponentStatusBadge(status = component.status)
             }
             DetailLine("ABI", component.abi ?: "any")
-            DetailLine("来源", component.source.name.lowercase())
+            DetailLine(stringResource(R.string.plugin_detail_field_source), component.source.name.lowercase())
             DetailLine("SHA-256", component.sha256)
             component.message?.takeIf { it.isNotBlank() }?.let {
-                DetailLine("状态说明", it)
+                DetailLine(stringResource(R.string.plugin_component_field_status_message), it)
             }
         }
     }
@@ -227,7 +235,7 @@ private fun KnownComponentCard(
                     onClick = onInstall,
                     enabled = !isLoading && !entry.downloadUrl.isNullOrBlank(),
                 ) {
-                    Text("下载")
+                    Text(stringResource(R.string.plugin_component_action_download))
                 }
             }
             if (entry.description.isNotBlank()) {
@@ -246,7 +254,7 @@ private fun KnownComponentCard(
 private fun ComponentStatusBadge(status: PluginComponentStatus) {
     val (label, color, contentColor) = when (status) {
         PluginComponentStatus.Installed -> Triple(
-            "已安装",
+            stringResource(R.string.plugin_component_status_installed),
             MaterialTheme.colorScheme.primaryContainer,
             MaterialTheme.colorScheme.onPrimaryContainer,
         )
@@ -353,19 +361,23 @@ internal fun componentMarketEntryKey(entry: ComponentMarketEntry): String =
         entry.downloadUrl.orEmpty(),
     ).joinToString(":")
 
+@Composable
+@ReadOnlyComposable
 private fun componentTypeLabel(type: PluginComponentType): String = when (type) {
-    PluginComponentType.EngineChromium -> "Chromium 引擎"
+    PluginComponentType.EngineChromium -> stringResource(R.string.plugin_component_type_chromium)
     PluginComponentType.OpenCvNative -> "OpenCV Native"
     PluginComponentType.OnnxRuntime -> "ONNX Runtime"
     PluginComponentType.OnnxModel -> "ONNX Model"
-    PluginComponentType.GenericAsset -> "通用资产"
+    PluginComponentType.GenericAsset -> stringResource(R.string.plugin_component_type_generic_asset)
 }
 
+@Composable
+@ReadOnlyComposable
 private fun statusLabel(status: PluginComponentStatus): String = when (status) {
-    PluginComponentStatus.NotInstalled -> "未安装"
-    PluginComponentStatus.NeedsConsent -> "待确认"
-    PluginComponentStatus.Downloading -> "下载中"
-    PluginComponentStatus.Installed -> "已安装"
-    PluginComponentStatus.Failed -> "失败"
-    PluginComponentStatus.Incompatible -> "不兼容"
+    PluginComponentStatus.NotInstalled -> stringResource(R.string.plugin_component_status_not_installed)
+    PluginComponentStatus.NeedsConsent -> stringResource(R.string.plugin_component_status_needs_consent)
+    PluginComponentStatus.Downloading -> stringResource(R.string.plugin_component_status_downloading)
+    PluginComponentStatus.Installed -> stringResource(R.string.plugin_component_status_installed)
+    PluginComponentStatus.Failed -> stringResource(R.string.plugin_component_status_failed)
+    PluginComponentStatus.Incompatible -> stringResource(R.string.plugin_component_status_incompatible)
 }

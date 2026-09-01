@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reminder_exact_alarm_permission_off">Exact alarm permission is off</string>
+    <string name="reminder_app_alarm_set">App-managed alarm set</string>
+    <string name="reminder_exact_alarm_denied">The system denied the exact alarm</string>
+    <string name="reminder_app_alarm_set_failed">Failed to set the app-managed alarm</string>
+    <string name="reminder_app_alarm_cancelled">App-managed alarm cancelled</string>
+    <string name="reminder_app_alarm_cancel_failed">Failed to cancel the app-managed alarm</string>
+
+    <string name="reminder_system_clock_create_accepted">The system clock accepted the create request</string>
+    <string name="reminder_system_clock_unavailable">The system clock app is unavailable</string>
+    <string name="reminder_system_clock_create_denied">The system denied creating the alarm</string>
+    <string name="reminder_system_clock_create_failed">Failed to create the system alarm</string>
+    <string name="reminder_system_clock_delete_accepted">The system clock accepted the delete request</string>
+    <string name="reminder_system_clock_delete_denied">The system denied deleting the alarm</string>
+    <string name="reminder_system_clock_delete_failed">Failed to delete the system alarm</string>
+
+</resources>

@@ -154,10 +154,31 @@ class ExamReminderRuleTest {
 
     @Test
     fun `exam status message reports covered and unresolved exams`() {
-        assertEquals("已关闭考试提醒", examReminderStatusMessage(false, 0, listOf("被忽略")))
-        assertEquals("已为 2 场考试开启提醒", examReminderStatusMessage(true, 2, emptyList()))
-        assertEquals("已开启考试提醒；课表里暂时没有考试", examReminderStatusMessage(true, 0, emptyList()))
-        assertTrue(examReminderStatusMessage(true, 0, listOf("物理")).startsWith("考试提醒开启失败："))
-        assertTrue(examReminderStatusMessage(true, 1, listOf("物理")).contains("物理"))
+        assertEquals(ExamReminderStatus.Disabled, examReminderStatusMessage(false, 0, listOf("被忽略")))
+        assertEquals(
+            ExamReminderStatus.AllCovered(coveredCount = 2),
+            examReminderStatusMessage(true, 2, emptyList()),
+        )
+        assertEquals(ExamReminderStatus.NoExams, examReminderStatusMessage(true, 0, emptyList()))
+        assertEquals(
+            ExamReminderStatus.NoneCovered(
+                skipped = ReminderTitlePreview(titles = listOf("物理"), totalCount = 1),
+            ),
+            examReminderStatusMessage(true, 0, listOf("物理")),
+        )
+        assertEquals(
+            ExamReminderStatus.PartiallyCovered(
+                coveredCount = 1,
+                skipped = ReminderTitlePreview(titles = listOf("物理"), totalCount = 1),
+            ),
+            examReminderStatusMessage(true, 1, listOf("物理")),
+        )
+        assertEquals(
+            ExamReminderStatus.PartiallyCovered(
+                coveredCount = 1,
+                skipped = ReminderTitlePreview(titles = listOf("a", "b", "c"), totalCount = 4),
+            ),
+            examReminderStatusMessage(true, 1, listOf("a", "b", "c", "d")),
+        )
     }
 }

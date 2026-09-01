@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -52,6 +53,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -62,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
@@ -108,7 +111,9 @@ fun PluginMarketRoute(
             runCatching { context.readContentBytes(it) }
                 .onSuccess(pluginMarketViewModel::previewLocalPackage)
                 .onFailure { error ->
-                    pluginMarketViewModel.setStatusMessage(error.message ?: "读取插件包失败")
+                    pluginMarketViewModel.setStatusMessage(
+                        error.message ?: context.getString(R.string.plugin_market_read_plugin_package_failed),
+                    )
                 }
         }
     }
@@ -119,7 +124,9 @@ fun PluginMarketRoute(
             runCatching { context.readContentBytes(it) }
                 .onSuccess(componentMarketViewModel::installLocalPackage)
                 .onFailure { error ->
-                    componentMarketViewModel.setStatusMessage(error.message ?: "读取组件包失败")
+                    componentMarketViewModel.setStatusMessage(
+                        error.message ?: context.getString(R.string.plugin_market_read_component_package_failed),
+                    )
                 }
         }
     }
@@ -353,11 +360,15 @@ private fun PluginListContent(
         if (uiState.marketRepos.isEmpty()) {
             item {
                 EmptyStateCard(
-                    title = if (uiState.isLoading) "正在加载..." else "插件市场为空",
-                    subtitle = if (uiState.isLoading) {
-                        "稍候。"
+                    title = if (uiState.isLoading) {
+                        stringResource(R.string.plugin_market_loading_title)
                     } else {
-                        "注册表里没有任何插件，或还未刷新成功。打开管理页可以新增。"
+                        stringResource(R.string.plugin_market_empty_title)
+                    },
+                    subtitle = if (uiState.isLoading) {
+                        stringResource(R.string.plugin_market_loading_subtitle)
+                    } else {
+                        stringResource(R.string.plugin_market_empty_subtitle)
                     },
                 )
             }
@@ -371,14 +382,14 @@ private fun PluginListContent(
         }
 
         item {
-            SectionTitle("已安装插件")
+            SectionTitle(stringResource(R.string.plugin_market_section_installed))
         }
 
         if (uiState.installedPlugins.isEmpty()) {
             item {
                 EmptyStateCard(
-                    title = "还没有任何插件",
-                    subtitle = "从本地 ZIP 安装后会显示在这里。当前版本不再自动安装内置示例插件。",
+                    title = stringResource(R.string.plugin_market_installed_empty_title),
+                    subtitle = stringResource(R.string.plugin_market_installed_empty_subtitle),
                 )
             }
         } else {
@@ -399,9 +410,9 @@ private fun PluginListContent(
 @Composable
 private fun MarketSectionHeader(registryRepo: String) {
     Column {
-        SectionTitle("插件市场")
+        SectionTitle(stringResource(R.string.plugin_market_section_market))
         Text(
-            text = registryRepo.ifBlank { "未配置注册表仓库" },
+            text = registryRepo.ifBlank { stringResource(R.string.plugin_market_registry_unset) },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -473,7 +484,7 @@ private fun GitHubRepoCard(
                 }
             }
             Text(
-                text = repo.description.ifBlank { "（无描述）" },
+                text = repo.description.ifBlank { stringResource(R.string.plugin_market_repo_no_description) },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 3,
@@ -502,7 +513,7 @@ private fun GitHubRepoCard(
 
 @Composable
 private fun VersionPill(tag: String?) {
-    val text = tag?.takeIf { it.isNotBlank() } ?: "未找到版本"
+    val text = tag?.takeIf { it.isNotBlank() } ?: stringResource(R.string.plugin_market_version_missing)
     val hasVersion = tag?.isNotBlank() == true
     val container = if (hasVersion) {
         MaterialTheme.colorScheme.primaryContainer
@@ -581,10 +592,10 @@ private fun GitHubRepoDetailScreen(
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onBack) { Text("返回") }
+                    TextButton(onClick = onBack) { Text(stringResource(R.string.plugin_action_back)) }
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "插件详情",
+                        text = stringResource(R.string.plugin_detail_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -654,9 +665,12 @@ private fun GitHubRepoDetailScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 val label = when {
-                                    isLoading -> "处理中..."
-                                    !hasRelease -> "未找到版本"
-                                    else -> "安装 ${repo.latestRelease!!.tagName}"
+                                    isLoading -> stringResource(R.string.plugin_repo_action_processing)
+                                    !hasRelease -> stringResource(R.string.plugin_market_version_missing)
+                                    else -> stringResource(
+                                        R.string.plugin_repo_action_install,
+                                        repo.latestRelease!!.tagName,
+                                    )
                                 }
                                 Text(label)
                             }
@@ -667,7 +681,7 @@ private fun GitHubRepoDetailScreen(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("在 GitHub 查看")
+                                Text(stringResource(R.string.plugin_repo_action_open_github))
                             }
                         }
                     }
@@ -675,9 +689,11 @@ private fun GitHubRepoDetailScreen(
             }
 
             item {
-                DetailSection("描述") {
+                DetailSection(stringResource(R.string.plugin_repo_section_description)) {
                     Text(
-                        text = repo.description.ifBlank { "（无描述）" },
+                        text = repo.description.ifBlank {
+                            stringResource(R.string.plugin_market_repo_no_description)
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -685,12 +701,15 @@ private fun GitHubRepoDetailScreen(
             }
 
             item {
-                DetailSection("仓库") {
-                    DetailRow("全名", repo.fullName)
-                    repo.homepageUrl?.let { DetailRow("主页", it) }
-                    repo.updatedAt?.let { DetailRow("更新", it) }
+                DetailSection(stringResource(R.string.plugin_repo_section_repository)) {
+                    DetailRow(stringResource(R.string.plugin_repo_field_full_name), repo.fullName)
+                    repo.homepageUrl?.let { DetailRow(stringResource(R.string.plugin_repo_field_homepage), it) }
+                    repo.updatedAt?.let { DetailRow(stringResource(R.string.plugin_repo_field_updated), it) }
                     if (!repo.isFresh) {
-                        DetailRow("提示", "未能加载最新元信息，已显示降级数据。")
+                        DetailRow(
+                            stringResource(R.string.plugin_repo_field_notice),
+                            stringResource(R.string.plugin_repo_stale_notice),
+                        )
                     }
                 }
             }
@@ -756,7 +775,7 @@ private fun PlatformTabChip(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = tab.label,
+                text = stringResource(tab.labelRes),
                 style = MaterialTheme.typography.labelLarge,
                 color = contentColor,
                 fontWeight = FontWeight.SemiBold,
@@ -787,7 +806,7 @@ private fun PluginCountHeader(
             fun CountColumn(modifier: Modifier = Modifier) {
                 Column(modifier = modifier) {
                     Text(
-                        text = "插件",
+                        text = stringResource(R.string.plugin_market_count_label),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -803,7 +822,7 @@ private fun PluginCountHeader(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        text = "已启用 / 已安装",
+                        text = stringResource(R.string.plugin_market_count_caption),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -829,7 +848,11 @@ private fun PluginCountHeader(
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("导入 ZIP", maxLines = 1, softWrap = false)
+                        Text(
+                            stringResource(R.string.plugin_market_action_import_zip),
+                            maxLines = 1,
+                            softWrap = false,
+                        )
                     }
                     Button(
                         onClick = onRefreshMarket,
@@ -842,7 +865,15 @@ private fun PluginCountHeader(
                             modifier = Modifier.size(18.dp),
                         )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (isLoading) "加载中" else "刷新", maxLines = 1, softWrap = false)
+                        Text(
+                            if (isLoading) {
+                                stringResource(R.string.plugin_market_action_loading)
+                            } else {
+                                stringResource(R.string.plugin_market_action_refresh)
+                            },
+                            maxLines = 1,
+                            softWrap = false,
+                        )
                     }
                 }
             }
@@ -878,7 +909,7 @@ private fun MissingComponentsCard(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "缺少必需组件",
+                text = stringResource(R.string.plugin_market_missing_components_title),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
                 fontWeight = FontWeight.SemiBold,
@@ -889,7 +920,7 @@ private fun MissingComponentsCard(
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Button(onClick = onOpenComponents) {
-                Text("查看组件")
+                Text(stringResource(R.string.plugin_market_missing_components_action))
             }
         }
     }
@@ -938,7 +969,9 @@ private fun PluginCard(
                 )
             }
             Text(
-                text = plugin.permissions.joinToString { it.id }.ifBlank { "无权限声明" },
+                text = plugin.permissions.joinToString { it.id }.ifBlank {
+                    stringResource(R.string.plugin_card_no_permission)
+                },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,
@@ -949,7 +982,13 @@ private fun PluginCard(
                     onClick = onSync,
                     enabled = !isSyncing,
                 ) {
-                    Text(if (isSyncing) "同步中..." else "同步课表")
+                    Text(
+                        if (isSyncing) {
+                            stringResource(R.string.plugin_card_action_syncing)
+                        } else {
+                            stringResource(R.string.plugin_card_action_sync)
+                        },
+                    )
                 }
             }
         }
@@ -963,7 +1002,7 @@ private fun EnabledBadge() {
         color = MaterialTheme.colorScheme.primaryContainer,
     ) {
         Text(
-            text = "已启用",
+            text = stringResource(R.string.plugin_badge_enabled),
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -997,11 +1036,11 @@ private fun PluginDetailScreen(
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onBack) {
-                        Text("返回")
+                        Text(stringResource(R.string.plugin_action_back))
                     }
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = "插件详情",
+                        text = stringResource(R.string.plugin_detail_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -1045,7 +1084,13 @@ private fun PluginDetailScreen(
                                     onClick = onSync,
                                     enabled = !isSyncing,
                                 ) {
-                                    Text(if (isSyncing) "同步中..." else "同步课表")
+                                    Text(
+                                        if (isSyncing) {
+                                            stringResource(R.string.plugin_card_action_syncing)
+                                        } else {
+                                            stringResource(R.string.plugin_card_action_sync)
+                                        },
+                                    )
                                 }
                             }
                             TextButton(onClick = { showRemoveConfirm = true }) {
@@ -1055,7 +1100,7 @@ private fun PluginDetailScreen(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("移除插件")
+                                Text(stringResource(R.string.plugin_detail_action_remove))
                             }
                         }
                     }
@@ -1063,23 +1108,41 @@ private fun PluginDetailScreen(
             }
 
             item {
-                DetailSection("基本信息") {
-                    DetailRow("发布者", plugin.publisher.ifBlank { "未声明" })
-                    DetailRow("来源", plugin.source.name.lowercase())
-                    DetailRow("兼容性", plugin.compatibilityStatus.name.lowercase())
+                DetailSection(stringResource(R.string.plugin_detail_section_basic)) {
+                    val undeclared = stringResource(R.string.plugin_detail_value_undeclared)
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_publisher),
+                        plugin.publisher.ifBlank { undeclared },
+                    )
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_source),
+                        plugin.source.name.lowercase(),
+                    )
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_compatibility),
+                        plugin.compatibilityStatus.name.lowercase(),
+                    )
                     plugin.compatibilityMessage?.takeIf { it.isNotBlank() }?.let {
-                        DetailRow("兼容性说明", it)
+                        DetailRow(stringResource(R.string.plugin_detail_field_compatibility_message), it)
                     }
-                    DetailRow("插件 ID", plugin.pluginId)
-                    DetailRow("API", plugin.apiVersion?.toString() ?: "未声明")
-                    DetailRow("入口", plugin.entry.ifBlank { "未声明" })
+                    DetailRow(stringResource(R.string.plugin_detail_field_plugin_id), plugin.pluginId)
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_api),
+                        plugin.apiVersion?.toString() ?: undeclared,
+                    )
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_entry),
+                        plugin.entry.ifBlank { undeclared },
+                    )
                 }
             }
 
             item {
-                DetailSection("权限") {
+                DetailSection(stringResource(R.string.plugin_detail_section_permissions)) {
                     Text(
-                        text = plugin.permissions.joinToString { it.id }.ifBlank { "无" },
+                        text = plugin.permissions.joinToString { it.id }.ifBlank {
+                            stringResource(R.string.plugin_detail_value_none)
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
@@ -1087,19 +1150,32 @@ private fun PluginDetailScreen(
             }
 
             item {
-                DetailSection("Web 引擎") {
-                    DetailRow("首选", plugin.webEngine.preferred)
-                    DetailRow("允许 Chromium", if (plugin.webEngine.allowChromium) "是" else "否")
+                DetailSection(stringResource(R.string.plugin_detail_section_web_engine)) {
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_preferred),
+                        plugin.webEngine.preferred,
+                    )
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_allow_chromium),
+                        if (plugin.webEngine.allowChromium) {
+                            stringResource(R.string.plugin_detail_value_yes)
+                        } else {
+                            stringResource(R.string.plugin_detail_value_no)
+                        },
+                    )
                     plugin.webEngine.chromiumComponent?.takeIf { it.isNotBlank() }?.let {
-                        DetailRow("Chromium 组件", it)
+                        DetailRow(stringResource(R.string.plugin_detail_field_chromium_component), it)
                     }
                 }
             }
 
             item {
-                DetailSection("组件依赖") {
+                DetailSection(stringResource(R.string.plugin_detail_section_components)) {
                     if (plugin.components.isEmpty()) {
-                        Text("无", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            stringResource(R.string.plugin_detail_value_none),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             plugin.components.forEach { component ->
@@ -1115,9 +1191,12 @@ private fun PluginDetailScreen(
             }
 
             item {
-                DetailSection("站点白名单") {
+                DetailSection(stringResource(R.string.plugin_detail_section_allowed_hosts)) {
                     if (plugin.allowedHosts.isEmpty()) {
-                        Text("无", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            stringResource(R.string.plugin_detail_value_none),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     } else {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             plugin.allowedHosts.forEach { host ->
@@ -1136,19 +1215,19 @@ private fun PluginDetailScreen(
         if (showRemoveConfirm) {
             AlertDialog(
                 onDismissRequest = { showRemoveConfirm = false },
-                title = { Text("移除插件") },
-                text = { Text("移除后会删除插件包文件，并取消正在等待的插件会话。") },
+                title = { Text(stringResource(R.string.plugin_remove_dialog_title)) },
+                text = { Text(stringResource(R.string.plugin_remove_dialog_message)) },
                 confirmButton = {
                     Button(onClick = {
                         showRemoveConfirm = false
                         onRemove()
                     }) {
-                        Text("移除")
+                        Text(stringResource(R.string.plugin_remove_dialog_confirm))
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showRemoveConfirm = false }) {
-                        Text("取消")
+                        Text(stringResource(R.string.plugin_action_cancel))
                     }
                 },
             )
@@ -1169,7 +1248,7 @@ private fun InstallPreviewDialog(
     val allowedHosts = manifest.allowedHosts.filter { it.isNotBlank() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("安装插件") },
+        title = { Text(stringResource(R.string.plugin_install_dialog_title)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -1181,20 +1260,32 @@ private fun InstallPreviewDialog(
                     fontWeight = FontWeight.SemiBold,
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DetailRow("版本", "v${manifest.version}")
-                    DetailRow("插件 ID", manifest.id)
-                    DetailRow("发布者", manifest.publisher.ifBlank { "未声明" })
-                    DetailRow("API", manifest.apiVersion?.toString() ?: "未声明")
-                    DetailRow("入口", manifest.entry)
+                    val undeclared = stringResource(R.string.plugin_detail_value_undeclared)
+                    DetailRow(stringResource(R.string.plugin_detail_field_version), "v${manifest.version}")
+                    DetailRow(stringResource(R.string.plugin_detail_field_plugin_id), manifest.id)
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_publisher),
+                        manifest.publisher.ifBlank { undeclared },
+                    )
+                    DetailRow(
+                        stringResource(R.string.plugin_detail_field_api),
+                        manifest.apiVersion?.toString() ?: undeclared,
+                    )
+                    DetailRow(stringResource(R.string.plugin_detail_field_entry), manifest.entry)
                 }
 
-                SectionTitle("来源")
+                SectionTitle(stringResource(R.string.plugin_install_section_source))
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DetailRow("渠道", pluginInstallOriginLabel(preview.source, origin))
-                    origin?.let { DetailRow("下载地址", it.downloadUrl) }
+                    DetailRow(
+                        stringResource(R.string.plugin_install_field_channel),
+                        pluginInstallOriginLabel(preview.source, origin),
+                    )
+                    origin?.let {
+                        DetailRow(stringResource(R.string.plugin_install_field_download_url), it.downloadUrl)
+                    }
                 }
 
-                SectionTitle("可访问站点")
+                SectionTitle(stringResource(R.string.plugin_install_section_allowed_hosts))
                 if (allowedHosts.isEmpty()) {
                     Text(
                         text = pluginAllowedHostsEmptyLabel(),
@@ -1213,7 +1304,7 @@ private fun InstallPreviewDialog(
                     }
                 }
 
-                SectionTitle("权限声明")
+                SectionTitle(stringResource(R.string.plugin_install_section_permissions))
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     pluginPermissionLabels(manifest.permissions).forEach { label ->
                         Text(
@@ -1224,21 +1315,24 @@ private fun InstallPreviewDialog(
                     }
                 }
                 Text(
-                    text = PERMISSION_SCOPE_NOTE,
+                    text = stringResource(R.string.plugin_install_permission_scope_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
 
-                SectionTitle("完整性")
+                SectionTitle(stringResource(R.string.plugin_install_section_integrity))
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DetailRow("摘要", pluginChecksumLabel(preview.checksumVerified))
                     DetailRow(
-                        "签名",
+                        stringResource(R.string.plugin_install_field_checksum),
+                        pluginChecksumLabel(preview.checksumVerified),
+                    )
+                    DetailRow(
+                        stringResource(R.string.plugin_install_field_signature),
                         pluginSignatureLabel(preview.signatureStatus, preview.signerFingerprint),
                     )
                 }
                 Text(
-                    text = INTEGRITY_TRUST_NOTE,
+                    text = stringResource(R.string.plugin_install_integrity_trust_note),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1257,12 +1351,18 @@ private fun InstallPreviewDialog(
                 onClick = onConfirm,
                 enabled = canInstall && !isLoading,
             ) {
-                Text(if (isLoading) "安装中" else "安装")
+                Text(
+                    if (isLoading) {
+                        stringResource(R.string.plugin_install_action_installing)
+                    } else {
+                        stringResource(R.string.plugin_install_action_install)
+                    },
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.plugin_action_cancel))
             }
         },
     )
@@ -1382,11 +1482,11 @@ private fun EmptyStateCard(
 }
 
 private enum class PluginPlatformTab(
-    val label: String,
+    @param:StringRes val labelRes: Int,
     val icon: ImageVector,
 ) {
-    Plugins("插件", Icons.Rounded.Extension),
-    Components("组件", Icons.Rounded.Widgets),
+    Plugins(R.string.plugin_market_tab_plugins, Icons.Rounded.Extension),
+    Components(R.string.plugin_market_tab_components, Icons.Rounded.Widgets),
 }
 
 internal fun canConfirmPluginInstall(preview: PluginInstallPreview): Boolean = preview.installable
@@ -1433,27 +1533,30 @@ private fun pluginPermissionText(permission: PluginPermission): String = when (p
     PluginPermission.ComponentUse -> "调用已安装组件"
 }
 
-private const val PERMISSION_SCOPE_NOTE =
-    "权限由插件自行声明，脚本在上述站点的网页环境中运行；实际能触达的范围以站点白名单为准。"
-
-private const val INTEGRITY_TRUST_NOTE =
-    "摘要与签名都随插件包一起分发，只能说明包内容前后一致，不代表发布者已被审核或来源可信。"
-
 private fun installedPluginKey(plugin: InstalledPluginRecord): String =
     plugin.installKey
 
-private fun componentRequirementText(component: PluginComponentRequirement): String = buildString {
-    append(component.id)
-    append(" / ")
-    append(component.type)
-    append(if (component.required) " / 必需" else " / 可选")
-    component.version?.let { append(" / v").append(it) }
-    component.abi?.let { append(" / ").append(it) }
+@Composable
+@ReadOnlyComposable
+private fun componentRequirementText(component: PluginComponentRequirement): String {
+    val requirement = if (component.required) {
+        stringResource(R.string.plugin_detail_component_required)
+    } else {
+        stringResource(R.string.plugin_detail_component_optional)
+    }
+    return buildString {
+        append(component.id)
+        append(" / ")
+        append(component.type)
+        append(" / ").append(requirement)
+        component.version?.let { append(" / v").append(it) }
+        component.abi?.let { append(" / ").append(it) }
+    }
 }
 
 private fun Context.readContentBytes(uri: Uri): ByteArray {
     return contentResolver.openInputStream(uri)?.use { it.readLocalPackageBytes() }
-        ?: error("无法读取文件内容")
+        ?: error(getString(R.string.plugin_market_read_file_failed))
 }
 
 private fun Context.openExternalUrl(url: String) {

@@ -76,40 +76,58 @@ class ScheduleInteractionTest {
     @Test
     fun `empty schedule keeps a hint while the grid stays usable`() {
         assertNull(emptyScheduleHint(hasSchedule = true, hasAnyCourse = true, hasCoursesThisWeek = true))
-        assertTrue(
-            emptyScheduleHint(hasSchedule = false, hasAnyCourse = false, hasCoursesThisWeek = false)
-                .orEmpty()
-                .contains("还没有同步到课表"),
+        assertEquals(
+            EmptyScheduleHint.NeedsSync,
+            emptyScheduleHint(hasSchedule = false, hasAnyCourse = false, hasCoursesThisWeek = false),
         )
-        assertTrue(
-            emptyScheduleHint(hasSchedule = true, hasAnyCourse = false, hasCoursesThisWeek = false)
-                .orEmpty()
-                .contains("空"),
+        assertEquals(
+            EmptyScheduleHint.NoCourses,
+            emptyScheduleHint(hasSchedule = true, hasAnyCourse = false, hasCoursesThisWeek = false),
         )
-        assertTrue(
-            emptyScheduleHint(hasSchedule = true, hasAnyCourse = true, hasCoursesThisWeek = false)
-                .orEmpty()
-                .contains("这一周"),
+        assertEquals(
+            EmptyScheduleHint.NoCourseThisWeek,
+            emptyScheduleHint(hasSchedule = true, hasAnyCourse = true, hasCoursesThisWeek = false),
         )
     }
 
     @Test
     fun `bulk reminder message reports failures instead of claiming success`() {
-        assertEquals("已为 3 门课程创建提醒", bulkReminderStatusMessage(3, emptyList(), true))
+        assertEquals(
+            BulkReminderStatus.AllCreated(successCount = 3),
+            bulkReminderStatusMessage(3, emptyList(), true),
+        )
 
-        val partial = bulkReminderStatusMessage(2, listOf("体育"), true)
-        assertTrue(partial.startsWith("已为 2 门课程创建提醒"))
-        assertTrue(partial.contains("体育"))
-        assertTrue(partial.contains("节次时间表"))
+        assertEquals(
+            BulkReminderStatus.PartiallyCreated(
+                successCount = 2,
+                failed = ReminderTitlePreview(titles = listOf("体育"), totalCount = 1),
+                hasTimingProfile = true,
+            ),
+            bulkReminderStatusMessage(2, listOf("体育"), true),
+        )
 
-        val allFailed = bulkReminderStatusMessage(0, listOf("体育", "军训"), true)
-        assertTrue(allFailed.startsWith("提醒创建失败："))
-        assertTrue(allFailed.contains("体育、军训"))
+        assertEquals(
+            BulkReminderStatus.NoneCreated(
+                failed = ReminderTitlePreview(titles = listOf("体育", "军训"), totalCount = 2),
+                hasTimingProfile = true,
+            ),
+            bulkReminderStatusMessage(0, listOf("体育", "军训"), true),
+        )
 
-        val noProfile = bulkReminderStatusMessage(0, listOf("体育"), false)
-        assertTrue(noProfile.contains("还没有节次时间表"))
+        assertEquals(
+            BulkReminderStatus.NoneCreated(
+                failed = ReminderTitlePreview(titles = listOf("体育"), totalCount = 1),
+                hasTimingProfile = false,
+            ),
+            bulkReminderStatusMessage(0, listOf("体育"), false),
+        )
 
-        val many = bulkReminderStatusMessage(0, listOf("a", "b", "c", "d"), true)
-        assertTrue(many.contains("等 4 门"))
+        assertEquals(
+            BulkReminderStatus.NoneCreated(
+                failed = ReminderTitlePreview(titles = listOf("a", "b", "c"), totalCount = 4),
+                hasTimingProfile = true,
+            ),
+            bulkReminderStatusMessage(0, listOf("a", "b", "c", "d"), true),
+        )
     }
 }

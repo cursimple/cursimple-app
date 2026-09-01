@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -52,8 +54,12 @@ internal fun ReminderRuleEditorDialog(
     onSave: (String?, String, Boolean, Int, String?, List<ReminderLabelCondition>, List<ReminderLabelAction>) -> Unit,
 ) {
     val labels = slotLabels.ifEmpty { listOf("") }
+    val defaultRuleName = stringResource(
+        R.string.schedule_reminder_rule_default_name,
+        (System.currentTimeMillis() % 1000).toInt(),
+    )
     var name by rememberSaveable(rule?.ruleId) {
-        mutableStateOf(rule?.displayName ?: "新提醒规则 ${(System.currentTimeMillis() % 1000).toInt()}")
+        mutableStateOf(rule?.displayName ?: defaultRuleName)
     }
     var enabled by rememberSaveable(rule?.ruleId) { mutableStateOf(rule?.enabled ?: true) }
     var advanceText by rememberSaveable(rule?.ruleId) { mutableStateOf((rule?.advanceMinutes ?: 20).toString()) }
@@ -80,7 +86,7 @@ internal fun ReminderRuleEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (rule == null) "新建规则" else "编辑规则") },
+        title = { Text(stringResource(if (rule == null) R.string.schedule_reminder_rule_new_title else R.string.schedule_reminder_rule_edit_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -92,17 +98,17 @@ internal fun ReminderRuleEditorDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(40) },
-                    label = { Text("规则名称") },
+                    label = { Text(stringResource(R.string.schedule_reminder_rule_name_label)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("启用", modifier = Modifier.weight(1f))
+                    Text(stringResource(R.string.schedule_reminder_rule_enabled), modifier = Modifier.weight(1f))
                     Switch(checked = enabled, onCheckedChange = { enabled = it })
                 }
                 OutlinedTextField(
                     value = advanceText,
                     onValueChange = { advanceText = it.filter(Char::isDigit).take(4) },
-                    label = { Text("提前分钟数") },
+                    label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     isError = advanceText.isNotBlank() && (advance == null || advance !in 0..720),
@@ -129,7 +135,7 @@ internal fun ReminderRuleEditorDialog(
                         conditions += ReminderLabelCondition(labels.first(), ReminderLabelPresence.Exists)
                     },
                 ) {
-                    Text("+ 添加触发条件")
+                    Text(stringResource(R.string.schedule_reminder_rule_add_condition))
                 }
 
                 Spacer(Modifier.height(4.dp))
@@ -148,7 +154,7 @@ internal fun ReminderRuleEditorDialog(
                         actions += ReminderLabelAction(labels.first(), ReminderLabelActionType.Remind)
                     },
                 ) {
-                    Text("+ 添加执行动作")
+                    Text(stringResource(R.string.schedule_reminder_rule_add_action))
                 }
             }
         },
@@ -167,10 +173,10 @@ internal fun ReminderRuleEditorDialog(
                 },
                 enabled = canSave,
             ) {
-                Text("保存")
+                Text(stringResource(R.string.schedule_action_save))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -210,13 +216,13 @@ private fun ConditionRow(
         EnumDropdown(
             value = condition.presence,
             options = ReminderLabelPresence.entries,
-            label = "条件",
-            optionLabel = { it.conditionLabel() },
+            label = stringResource(R.string.schedule_reminder_rule_condition_label),
+            optionLabel = { stringResource(it.conditionLabelRes()) },
             modifier = Modifier.weight(0.8f),
             onSelected = { onChange(condition.copy(presence = it)) },
         )
         IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = "删除条件")
+            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_reminder_rule_delete_condition))
         }
     }
 }
@@ -245,13 +251,13 @@ private fun ActionRow(
         EnumDropdown(
             value = action.action,
             options = ReminderLabelActionType.entries,
-            label = "动作",
-            optionLabel = { it.actionLabel() },
+            label = stringResource(R.string.schedule_reminder_rule_action_label),
+            optionLabel = { stringResource(it.actionLabelRes()) },
             modifier = Modifier.weight(0.8f),
             onSelected = { onChange(action.copy(action = it)) },
         )
         IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = "删除动作")
+            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_reminder_rule_delete_action))
         }
     }
 }
@@ -271,10 +277,10 @@ private fun LabelDropdown(
         modifier = modifier,
     ) {
         OutlinedTextField(
-            value = label.ifBlank { "无可选 label" },
+            value = label.ifBlank { stringResource(R.string.schedule_reminder_rule_no_label) },
             onValueChange = {},
             readOnly = true,
-            label = { Text("课程 label") },
+            label = { Text(stringResource(R.string.schedule_reminder_rule_course_label)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
@@ -286,7 +292,7 @@ private fun LabelDropdown(
         ) {
             labels.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.ifBlank { "无可选 label" }) },
+                    text = { Text(option.ifBlank { stringResource(R.string.schedule_reminder_rule_no_label) }) },
                     onClick = {
                         onSelected(option)
                         expanded = false
@@ -303,7 +309,7 @@ private fun <T> EnumDropdown(
     value: T,
     options: List<T>,
     label: String,
-    optionLabel: (T) -> String,
+    optionLabel: @Composable (T) -> String,
     modifier: Modifier,
     onSelected: (T) -> Unit,
 ) {
@@ -340,12 +346,14 @@ private fun <T> EnumDropdown(
     }
 }
 
-private fun ReminderLabelPresence.conditionLabel(): String = when (this) {
-    ReminderLabelPresence.Exists -> "存在"
-    ReminderLabelPresence.Absent -> "不存在"
+@StringRes
+private fun ReminderLabelPresence.conditionLabelRes(): Int = when (this) {
+    ReminderLabelPresence.Exists -> R.string.schedule_reminder_presence_exists
+    ReminderLabelPresence.Absent -> R.string.schedule_reminder_presence_absent
 }
 
-private fun ReminderLabelActionType.actionLabel(): String = when (this) {
-    ReminderLabelActionType.Remind -> "提醒"
-    ReminderLabelActionType.Skip -> "跳过"
+@StringRes
+private fun ReminderLabelActionType.actionLabelRes(): Int = when (this) {
+    ReminderLabelActionType.Remind -> R.string.schedule_reminder_action_remind
+    ReminderLabelActionType.Skip -> R.string.schedule_reminder_action_skip
 }

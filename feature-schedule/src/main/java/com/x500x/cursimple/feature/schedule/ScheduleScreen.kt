@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
@@ -70,9 +71,11 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -724,7 +727,7 @@ private fun WeeklyScheduleSection(
                                     lastEdgeToastAt.longValue = now
                                     android.widget.Toast.makeText(
                                         context,
-                                        if (atStart) "已经是最早一周" else "已经是最后一周",
+                                        if (atStart) context.getString(R.string.schedule_edge_first_week) else context.getString(R.string.schedule_edge_last_week),
                                         android.widget.Toast.LENGTH_SHORT,
                                     ).show()
                                 }
@@ -824,7 +827,11 @@ private fun WeeklyScheduleSection(
                                 hasSchedule = schedule != null,
                                 hasAnyCourse = allCourses.isNotEmpty(),
                                 hasCoursesThisWeek = active.isNotEmpty(),
-                            )?.let { hint -> EmptyScheduleHintRow(text = hint) }
+                            )?.let { hint ->
+                                EmptyScheduleHintRow(
+                                    text = LocalContext.current.emptyScheduleHintText(hint),
+                                )
+                            }
                             ScheduleGrid(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -990,7 +997,7 @@ private fun DailyHeaderRow(
     date: LocalDate,
     isToday: Boolean,
     overrideLabel: String?,
-    holidayLabel: String? = null,
+    holidayLabel: HolidayLabel? = null,
 ) {
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     Row(
@@ -1008,7 +1015,7 @@ private fun DailyHeaderRow(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             ) {
                 Text(
-                    text = "${date.monthValue}月${date.dayOfMonth}日",
+                    text = stringResource(R.string.schedule_month_day, date.monthValue, date.dayOfMonth),
                     color = accents.todayOnContainer,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
@@ -1016,14 +1023,14 @@ private fun DailyHeaderRow(
             }
         } else {
             Text(
-                text = "${date.monthValue}月${date.dayOfMonth}日",
+                text = stringResource(R.string.schedule_month_day, date.monthValue, date.dayOfMonth),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
         Text(
-            text = chineseWeekday(date.dayOfWeek),
+            text = stringResource(scheduleWeekdayFullRes(date.dayOfWeek.value)),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1033,7 +1040,7 @@ private fun DailyHeaderRow(
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    text = holidayLabel,
+                    text = LocalContext.current.holidayLabelText(holidayLabel),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -1045,7 +1052,7 @@ private fun DailyHeaderRow(
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    text = "按${overrideLabel}课",
+                    text = stringResource(R.string.schedule_override_day, overrideLabel),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -1128,7 +1135,7 @@ private fun DayList(
         }
         if (courses.isEmpty()) {
             Text(
-                text = "今天没有安排的课程",
+                text = stringResource(R.string.schedule_day_no_courses),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 24.dp),
@@ -1293,7 +1300,7 @@ private fun DayRow(
                         )
                         if (isExam) {
                             Text(
-                                text = "考试",
+                                text = stringResource(R.string.schedule_category_exam),
                                 color = onColor,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
@@ -1325,7 +1332,7 @@ private fun DayRow(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
-                            text = "第${course.time.startNode}节",
+                            text = stringResource(R.string.schedule_period_compact, course.time.startNode),
                             color = onColor,
                             fontSize = 12.sp,
                         )
@@ -1354,17 +1361,15 @@ private fun DayRow(
 
 @Composable
 private fun ScheduleInitializingState(modifier: Modifier = Modifier) {
-    val tips = remember {
-        listOf(
-            "马力全开中…",
-            "正在全力加载课表与提醒～",
-            "嘿，先喝口水，马上就好",
-            "悄悄告诉你：侧滑课表可以飞快翻周",
-            "长按课程能批量加提醒，超方便",
-            "侧边栏里有主题、开学日期，去逛逛",
-            "再等等，正在把课塞进格子里…",
-        )
-    }
+    val tips = listOf(
+        stringResource(R.string.schedule_loading_tip_1),
+        stringResource(R.string.schedule_loading_tip_2),
+        stringResource(R.string.schedule_loading_tip_3),
+        stringResource(R.string.schedule_loading_tip_4),
+        stringResource(R.string.schedule_loading_tip_5),
+        stringResource(R.string.schedule_loading_tip_6),
+        stringResource(R.string.schedule_loading_tip_7),
+    )
     val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition(label = "init-loader")
     val tipIndex = androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableIntStateOf(tips.indices.random())
@@ -1455,7 +1460,7 @@ private fun BackToTodayButton(
         shadowElevation = 8.dp,
     ) {
         Text(
-            text = "切回今天",
+            text = stringResource(R.string.schedule_back_to_today),
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
             color = MaterialTheme.colorScheme.onPrimary,
             style = MaterialTheme.typography.titleSmall,
@@ -1496,20 +1501,51 @@ internal fun detailWeekNumber(
 private fun formatSourceDateLabel(date: LocalDate): String =
     "${date.monthValue}/${date.dayOfMonth}${weekdayLabel(date.dayOfWeek.value)}"
 
-/** 假日在表头与空态里显示的文字；用户手动加的假日可以没有名字，回落到通用文案。 */
-internal fun holidayDisplayLabel(holidayName: String?): String =
-    holidayName?.takeIf { it.isNotBlank() } ?: "放假"
+/** 假日在表头与空态里显示的名字来源。 */
+internal sealed interface HolidayLabel {
+    /** 日历条目自带名字。 */
+    data class Named(val name: String) : HolidayLabel
+
+    /** 用户手动加的假日可以没有名字，用通用文案。 */
+    data object Unnamed : HolidayLabel
+}
+
+internal fun holidayDisplayLabel(holidayName: String?): HolidayLabel =
+    holidayName?.takeIf { it.isNotBlank() }?.let(HolidayLabel::Named) ?: HolidayLabel.Unnamed
+
+internal fun Context.holidayLabelText(label: HolidayLabel): String = when (label) {
+    is HolidayLabel.Named -> label.name
+    HolidayLabel.Unnamed -> getString(R.string.schedule_holiday_unnamed)
+}
+
+/** 网格里没有课时的提示分类。 */
+internal sealed interface EmptyScheduleHint {
+    /** 既没有课表来源，也没有任何课程。 */
+    data object NeedsSync : EmptyScheduleHint
+
+    /** 有课表来源，但一门课都没有。 */
+    data object NoCourses : EmptyScheduleHint
+
+    /** 有课程，只是这一周没有排到。 */
+    data object NoCourseThisWeek : EmptyScheduleHint
+}
 
 /** 网格里没有课时提示去哪儿补课表；返回 null 表示这一周有课，不需要提示。 */
 internal fun emptyScheduleHint(
     hasSchedule: Boolean,
     hasAnyCourse: Boolean,
     hasCoursesThisWeek: Boolean,
-): String? = when {
+): EmptyScheduleHint? = when {
     hasCoursesThisWeek -> null
-    !hasAnyCourse && !hasSchedule -> "还没有同步到课表，可以去插件页同步，或点空格子直接加课。"
-    !hasAnyCourse -> "课表还是空的，点空格子就能直接加课。"
-    else -> "这一周没有课程安排，可以切换其他周，或点空格子加课。"
+    !hasAnyCourse && !hasSchedule -> EmptyScheduleHint.NeedsSync
+    !hasAnyCourse -> EmptyScheduleHint.NoCourses
+    else -> EmptyScheduleHint.NoCourseThisWeek
+}
+
+internal fun Context.emptyScheduleHintText(hint: EmptyScheduleHint): String = when (hint) {
+    EmptyScheduleHint.NeedsSync -> getString(R.string.schedule_hint_needs_sync)
+    EmptyScheduleHint.NoCourses -> getString(R.string.schedule_hint_no_courses)
+    EmptyScheduleHint.NoCourseThisWeek -> getString(R.string.schedule_hint_no_course_this_week)
 }
 
 @Composable
@@ -1529,52 +1565,92 @@ internal data class ScheduleEmptyStateText(
     val subtitle: String,
 )
 
+/** 这一周（或这一天）没有课的原因。 */
+internal sealed interface ScheduleEmptyState {
+    /** 整天放假。 */
+    data class Holiday(val label: HolidayLabel) : ScheduleEmptyState
+
+    /** 还没开学，且知道开学是哪一天。 */
+    data class NotStarted(val termStartMonth: Int, val termStartDay: Int) : ScheduleEmptyState
+
+    /** 还没开学，但没有具体日期可说。 */
+    data object NotStartedWithoutDate : ScheduleEmptyState
+
+    /** 一次课表都没有同步过。 */
+    data object NoSchedule : ScheduleEmptyState
+
+    /** 有课表，只是这一周没有课。 */
+    data object EmptyWeek : ScheduleEmptyState
+}
+
 /**
- * 空态文案。假日排在最前：这一天不上课是由日期本身决定的，
+ * 空态的原因判定。假日排在最前：这一天不上课是由日期本身决定的，
  * 无论课表是否同步、是否已开学，说明放假都比其余文案更贴近实际。
  * 其后未开学优先于课表为空，避免开学前把“还没有同步到课表”盖在“还没开学”上面。
  */
-internal fun scheduleEmptyStateText(
+internal fun scheduleEmptyState(
     hasSchedule: Boolean,
     notStarted: Boolean = false,
     termStartDate: LocalDate? = null,
-    holidayLabel: String? = null,
-): ScheduleEmptyStateText = when {
-    holidayLabel != null -> ScheduleEmptyStateText(
-        title = holidayLabel,
-        subtitle = "这一天是假日，不安排课程，也不会发出课程提醒。",
-    )
+    holidayLabel: HolidayLabel? = null,
+): ScheduleEmptyState = when {
+    holidayLabel != null -> ScheduleEmptyState.Holiday(holidayLabel)
 
-    notStarted -> ScheduleEmptyStateText(
-        title = "还没开学",
-        subtitle = termStartDate
-            ?.let { "开学日期是 ${it.monthValue} 月 ${it.dayOfMonth} 日，到时候课程会自动显示。" }
-            ?: "开学后课程会自动显示。",
-    )
+    notStarted -> termStartDate
+        ?.let { ScheduleEmptyState.NotStarted(it.monthValue, it.dayOfMonth) }
+        ?: ScheduleEmptyState.NotStartedWithoutDate
 
-    !hasSchedule -> ScheduleEmptyStateText(
-        title = "还没有同步到课表",
-        subtitle = "去插件页同步课表，或去设置页管理提醒。",
-    )
+    !hasSchedule -> ScheduleEmptyState.NoSchedule
 
-    else -> ScheduleEmptyStateText(
-        title = "这一周没有课程安排",
-        subtitle = "可以切换其他周，或者继续在插件页同步最新数据。",
-    )
+    else -> ScheduleEmptyState.EmptyWeek
 }
+
+internal fun Context.scheduleEmptyStateText(state: ScheduleEmptyState): ScheduleEmptyStateText =
+    when (state) {
+        is ScheduleEmptyState.Holiday -> ScheduleEmptyStateText(
+            title = holidayLabelText(state.label),
+            subtitle = getString(R.string.schedule_empty_holiday_subtitle),
+        )
+
+        is ScheduleEmptyState.NotStarted -> ScheduleEmptyStateText(
+            title = getString(R.string.schedule_empty_not_started_title),
+            subtitle = getString(
+                R.string.schedule_empty_not_started_subtitle_date,
+                state.termStartMonth,
+                state.termStartDay,
+            ),
+        )
+
+        ScheduleEmptyState.NotStartedWithoutDate -> ScheduleEmptyStateText(
+            title = getString(R.string.schedule_empty_not_started_title),
+            subtitle = getString(R.string.schedule_empty_not_started_subtitle),
+        )
+
+        ScheduleEmptyState.NoSchedule -> ScheduleEmptyStateText(
+            title = getString(R.string.schedule_empty_no_schedule_title),
+            subtitle = getString(R.string.schedule_empty_no_schedule_subtitle),
+        )
+
+        ScheduleEmptyState.EmptyWeek -> ScheduleEmptyStateText(
+            title = getString(R.string.schedule_empty_week_title),
+            subtitle = getString(R.string.schedule_empty_week_subtitle),
+        )
+    }
 
 @Composable
 private fun EmptyWeekState(
     schedule: TermSchedule?,
     notStarted: Boolean = false,
     termStartDate: LocalDate? = null,
-    holidayLabel: String? = null,
+    holidayLabel: HolidayLabel? = null,
 ) {
-    val (title, subtitle) = scheduleEmptyStateText(
-        hasSchedule = schedule != null,
-        notStarted = notStarted,
-        termStartDate = termStartDate,
-        holidayLabel = holidayLabel,
+    val (title, subtitle) = LocalContext.current.scheduleEmptyStateText(
+        scheduleEmptyState(
+            hasSchedule = schedule != null,
+            notStarted = notStarted,
+            termStartDate = termStartDate,
+            holidayLabel = holidayLabel,
+        ),
     )
     Column(
         modifier = Modifier
@@ -1968,7 +2044,7 @@ private fun ScheduleGrid(
                                             Box(contentAlignment = Alignment.Center) {
                                                 androidx.compose.material3.Icon(
                                                     imageVector = Icons.Rounded.Add,
-                                                    contentDescription = "添加课程",
+                                                    contentDescription = stringResource(R.string.schedule_add_course_title),
                                                     tint = MaterialTheme.colorScheme.onPrimary,
                                                     modifier = Modifier.size(22.dp),
                                                 )
@@ -2030,7 +2106,7 @@ private fun DayHeader(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Text(
-            text = day.weekdayLabel,
+            text = stringResource(day.weekdayLabelRes),
             fontSize = headerSize,
             fontWeight = FontWeight.SemiBold,
             color = if (day.isToday) todayContent else headerColor.copy(alpha = 0.88f),
@@ -2047,7 +2123,7 @@ private fun DayHeader(
         )
         if (day.holidayLabel != null) {
             Text(
-                text = day.holidayLabel,
+                text = LocalContext.current.holidayLabelText(day.holidayLabel),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.tertiary,
@@ -2325,7 +2401,7 @@ private fun CourseBlock(
             ) {
                 if (inactive) {
                     Text(
-                        text = "非本周",
+                        text = stringResource(R.string.schedule_status_other_week),
                         color = onColor,
                         fontSize = 9.sp,
                         maxLines = 1,
@@ -2334,7 +2410,7 @@ private fun CourseBlock(
                 }
                 if (isExam && !inactive) {
                     Text(
-                        text = "考试",
+                        text = stringResource(R.string.schedule_category_exam),
                         color = onColor,
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
@@ -2485,17 +2561,29 @@ private fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
     else -> "周$dayOfWeek"
 }
 
+@StringRes
+internal fun scheduleWeekdayFullRes(dayOfWeek: Int): Int = when (dayOfWeek) {
+    1 -> R.string.schedule_weekday_1
+    2 -> R.string.schedule_weekday_2
+    3 -> R.string.schedule_weekday_3
+    4 -> R.string.schedule_weekday_4
+    5 -> R.string.schedule_weekday_5
+    6 -> R.string.schedule_weekday_6
+    7 -> R.string.schedule_weekday_7
+    else -> R.string.schedule_weekday_1
+}
+
 /**
  * [overrideLabel] 与 [holidayLabel] 不会同时有值：一天要么按别的日期上课，要么整天放假。
  * 两者分开存放，是为了让表头能按各自的语义着色，而不是让一个字段既表示调课又表示放假。
  */
 internal data class DayHeaderModel(
     val monthLabel: String,
-    val weekdayLabel: String,
+    val weekdayLabelRes: Int,
     val dateLabel: String,
     val isToday: Boolean,
     val overrideLabel: String? = null,
-    val holidayLabel: String? = null,
+    val holidayLabel: HolidayLabel? = null,
 )
 
 internal data class WeekModel(
@@ -2566,13 +2654,13 @@ private fun ScheduleGridBackground(
                 value = withContext(Dispatchers.IO) {
                     runCatching {
                         context.contentResolver.openInputStream(Uri.parse(imageUri)).use { input ->
-                            requireNotNull(input) { "无法打开图片文件" }
-                            requireNotNull(BitmapFactory.decodeStream(input)) { "图片格式无法解析" }
+                            requireNotNull(input) { context.getString(R.string.schedule_bg_open_failed) }
+                            requireNotNull(BitmapFactory.decodeStream(input)) { context.getString(R.string.schedule_bg_decode_failed) }
                                 .asImageBitmap()
                         }
                     }.fold(
                         onSuccess = { ScheduleBackgroundImageState(image = it) },
-                        onFailure = { ScheduleBackgroundImageState(errorMessage = it.message ?: "背景图片无法读取") },
+                        onFailure = { ScheduleBackgroundImageState(errorMessage = it.message ?: context.getString(R.string.schedule_bg_read_failed)) },
                     )
                 }
             }
@@ -2595,7 +2683,7 @@ private fun ScheduleGridBackground(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        text = "背景图片无法读取：$message",
+                        text = stringResource(R.string.schedule_bg_read_failed_prefix, message),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         textAlign = TextAlign.Center,
@@ -2706,7 +2794,7 @@ private fun MultiSelectActionBar(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "已选 $selectedCount",
+                text = stringResource(R.string.schedule_selected_count, selectedCount),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -2722,10 +2810,10 @@ private fun MultiSelectActionBar(
                     modifier = Modifier.size(16.dp),
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("设提醒")
+                Text(stringResource(R.string.schedule_multiselect_set_reminder))
             }
             TextButton(onClick = onClear) {
-                Text("取消")
+                Text(stringResource(R.string.schedule_action_cancel))
             }
         }
     }
@@ -2747,7 +2835,7 @@ internal fun buildWeekModel(
         val resolution = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
         DayHeaderModel(
             monthLabel = if (index == 0) "${date.monthValue}月" else "",
-            weekdayLabel = chineseShortWeekday(date.dayOfWeek),
+            weekdayLabelRes = shortWeekdayRes(date.dayOfWeek),
             dateLabel = if (date.dayOfMonth == 1) "${date.monthValue}月" else date.dayOfMonth.toString(),
             isToday = date == today,
             overrideLabel = if (!resolution.isHoliday && resolution.sourceDate != date) {
@@ -2767,13 +2855,13 @@ private fun appearancePreviewWeek(): WeekModel = WeekModel(
     weekIndex = 2,
     weekStart = LocalDate.of(2026, 3, 2),
     days = listOf(
-        DayHeaderModel(monthLabel = "3月", weekdayLabel = "周一", dateLabel = "2", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabel = "周二", dateLabel = "3", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabel = "周三", dateLabel = "4", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabel = "周四", dateLabel = "5", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabel = "周五", dateLabel = "6", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabel = "周六", dateLabel = "7", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabel = "周日", dateLabel = "8", isToday = false),
+        DayHeaderModel(monthLabel = "3月", weekdayLabelRes = R.string.schedule_weekday_short_monday, dateLabel = "2", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_tuesday, dateLabel = "3", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_wednesday, dateLabel = "4", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_thursday, dateLabel = "5", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_friday, dateLabel = "6", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_saturday, dateLabel = "7", isToday = false),
+        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_sunday, dateLabel = "8", isToday = false),
     ),
 )
 
@@ -3115,26 +3203,14 @@ internal fun buildWeekRenderEntries(
     return entries
 }
 
-private fun chineseShortWeekday(dayOfWeek: DayOfWeek): String {
-    return when (dayOfWeek) {
-        DayOfWeek.MONDAY -> "一"
-        DayOfWeek.TUESDAY -> "二"
-        DayOfWeek.WEDNESDAY -> "三"
-        DayOfWeek.THURSDAY -> "四"
-        DayOfWeek.FRIDAY -> "五"
-        DayOfWeek.SATURDAY -> "六"
-        DayOfWeek.SUNDAY -> "日"
-    }
+/** 表头用的短星期文案资源。 */
+private fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
+    DayOfWeek.MONDAY -> R.string.schedule_weekday_short_monday
+    DayOfWeek.TUESDAY -> R.string.schedule_weekday_short_tuesday
+    DayOfWeek.WEDNESDAY -> R.string.schedule_weekday_short_wednesday
+    DayOfWeek.THURSDAY -> R.string.schedule_weekday_short_thursday
+    DayOfWeek.FRIDAY -> R.string.schedule_weekday_short_friday
+    DayOfWeek.SATURDAY -> R.string.schedule_weekday_short_saturday
+    DayOfWeek.SUNDAY -> R.string.schedule_weekday_short_sunday
 }
 
-private fun chineseWeekday(dayOfWeek: DayOfWeek): String {
-    return when (dayOfWeek) {
-        DayOfWeek.MONDAY -> "周一"
-        DayOfWeek.TUESDAY -> "周二"
-        DayOfWeek.WEDNESDAY -> "周三"
-        DayOfWeek.THURSDAY -> "周四"
-        DayOfWeek.FRIDAY -> "周五"
-        DayOfWeek.SATURDAY -> "周六"
-        DayOfWeek.SUNDAY -> "周日"
-    }
-}
