@@ -72,13 +72,12 @@ class DataStoreScheduleRepository(
     }
 
     private fun decodeSchedule(preferences: Preferences, termId: String): TermSchedule? {
-        // Prefer per-term key, but fall back to legacy single-key payload to keep
-        // pre-multi-term installs working through the migration window.
+        // 优先读按学期区分的键，回退到旧版单键数据，让迁移期内的旧安装仍能读到课表。
         val raw = preferences[scheduleKey(termId)] ?: preferences[KEY_LEGACY_SCHEDULE_JSON]
         return raw?.let { runCatching { json.decodeFromString<TermSchedule>(it) }.getOrNull() }
     }
 
-    /** One-shot legacy migration: copy the global schedule_json into the active term, then drop it. */
+    /** 一次性迁移：把全局 schedule_json 拷贝到活动学期，然后删除原键。 */
     suspend fun migrateLegacyScheduleIfNeeded(targetTermId: String) {
         if (targetTermId.isBlank()) return
         store.edit { preferences ->

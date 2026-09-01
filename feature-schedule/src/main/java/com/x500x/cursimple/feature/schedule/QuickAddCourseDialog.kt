@@ -49,9 +49,8 @@ internal fun quickAddDefaultWeekRange(initialWeek: Int, maxWeekCount: Int): Pair
 }
 
 /**
- * A streamlined add-course dialog used when the user taps an empty grid cell.
- * The day-of-week and start/end nodes are locked to where they tapped, so the
- * dialog only asks for the bits that actually vary: title, location, week range.
+ * 点击课表空白格时使用的精简版添加课程对话框。
+ * 星期与起止节次固定为点击的位置，对话框只询问会变化的部分：课程名、地点、周次范围。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,8 +117,7 @@ fun QuickAddCourseDialog(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // Locked time chips: day + node range, read-only so the user knows
-                // exactly where the new course will land.
+                // 星期与节次范围以只读 chip 固定展示，标明新课程会落在哪个位置。
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AssistChip(
                         onClick = {},

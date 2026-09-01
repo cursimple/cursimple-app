@@ -25,11 +25,6 @@ object ScheduleWidgetUpdater {
         NextCourseGlanceWidgetReceiver.updateWidgets(app)
         ReminderGlanceWidgetReceiver.updateWidgets(app)
     }
-
-    suspend fun refreshSchedule(context: Context, appWidgetIds: IntArray? = null) = withContext(Dispatchers.Default) {
-        val app = context.applicationContext
-        ScheduleGlanceWidgetReceiver.updateWidgets(app, appWidgetIds)
-    }
 }
 
 object ScheduleWidgetWorkScheduler {

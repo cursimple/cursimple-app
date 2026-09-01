@@ -46,16 +46,6 @@ class BeijingTimeTest {
     }
 
     @Test
-    fun `nowDateTimeIn separates zones by their offset`() {
-        val east = BeijingTime.nowDateTimeIn(farEast)
-        val west = BeijingTime.nowDateTimeIn(farWest)
-
-        val gap = Duration.between(west, east)
-        assertTrue(gap >= Duration.ofHours(24))
-        assertTrue(gap < Duration.ofHours(26))
-    }
-
-    @Test
     fun `nowTimeIn separates zones by their offset`() {
         val east = BeijingTime.nowTimeIn(farEast)
         val west = BeijingTime.nowTimeIn(farWest)
@@ -71,7 +61,6 @@ class BeijingTimeTest {
         assertEquals(LocalDate.of(2026, 5, 6), BeijingTime.todayIn(farEast))
         assertEquals(LocalDate.of(2026, 5, 6), BeijingTime.todayIn(farWest))
         assertEquals(forced.toLocalTime(), BeijingTime.nowTimeIn(farWest))
-        assertEquals(forced, BeijingTime.nowDateTimeIn(farWest))
         assertEquals(forced.dayOfWeek, BeijingTime.dayOfWeek(farWest))
     }
 

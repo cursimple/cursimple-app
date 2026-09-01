@@ -29,7 +29,6 @@ data class InstalledPluginRecord(
     @SerialName("compatibilityMessage") val compatibilityMessage: String? = null,
     @SerialName("isBundled") val isBundled: Boolean = false,
 ) {
-    val declaredPermissions: List<PluginPermission> get() = permissions
     val installKey: String get() = pluginInstallKey(pluginId, source)
 }
 

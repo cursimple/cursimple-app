@@ -28,9 +28,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 
 /**
- * Renders a blocking disclaimer dialog on first launch; once accepted, requests the
- * single runtime permission this app actually needs (POST_NOTIFICATIONS, API 33+).
- * Optional permissions are intentionally not requested.
+ * 首次启动时展示阻断式的免责声明对话框；接受后申请应用唯一需要的运行时权限
+ * （POST_NOTIFICATIONS，API 33+）。不申请可选权限。
  */
 @Composable
 fun OnboardingGate(

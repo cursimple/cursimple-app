@@ -55,10 +55,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import java.net.URI
-import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.data.note.CourseNoteRepository
 import com.x500x.cursimple.core.data.note.DataStoreCourseNoteRepository
@@ -124,8 +121,7 @@ class AppContainer(
     )
 
     val bootstrapJob: Job = containerScope.launch {
-        // Bootstrap term list: if empty, seed from any existing legacy termStartDate
-        // so users keep their schedule after the upgrade.
+        // 学期列表为空时，用已有的旧版 termStartDate 生成初始学期，升级后课表不丢失。
         val legacyTermStart = userPreferencesRepository.preferencesFlow.first()
             .termStartDate?.toString()
         val activeTermId = termProfileRepository.ensureBootstrapped(
@@ -433,44 +429,6 @@ class AppContainer(
         }
     }
 
-    suspend fun runAlarmFollowUpSync(
-        nowMillis: Long = System.currentTimeMillis(),
-        clearExpiredRecords: Boolean = true,
-    ): List<SystemAlarmSyncSummary> {
-        awaitBootstrap()
-        val schedule = reminderSchedule()
-        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
-        val pluginId = scheduleRepository.lastPluginIdFlow.first()
-        if (schedule == null || timingProfile == null) {
-            scheduleSystemAlarmChecks(timingProfile)
-            return emptyList()
-        }
-        userPreferencesRepository.markAlarmPollAt(nowMillis)
-        val summaries = mutableListOf<SystemAlarmSyncSummary>()
-        summaries += reminderCoordinator.syncAlarmsForWindow(
-            pluginId = pluginId,
-            schedule = schedule,
-            timingProfile = timingProfile,
-            window = ReminderSyncWindows.todayFromNow(timingProfile, nowMillis),
-            reason = ReminderSyncReason.AfterClassToday,
-            nowMillis = nowMillis,
-            clearExpiredRecords = clearExpiredRecords,
-        )
-        if (shouldSyncNextDayAfterAlarm(timingProfile, nowMillis)) {
-            summaries += reminderCoordinator.syncAlarmsForWindow(
-                pluginId = pluginId,
-                schedule = schedule,
-                timingProfile = timingProfile,
-                window = ReminderSyncWindows.nextDay(timingProfile, nowMillis),
-                reason = ReminderSyncReason.DailyNextDay,
-                nowMillis = nowMillis,
-                clearExpiredRecords = clearExpiredRecords,
-            )
-        }
-        scheduleSystemAlarmChecks(timingProfile)
-        return summaries
-    }
-
     suspend fun normalizeTimingProfileForActiveTerm(timingProfile: TermTimingProfile?): TermTimingProfile? {
         if (timingProfile == null) {
             return null
@@ -504,17 +462,10 @@ class AppContainer(
 
     private companion object {
         const val SHARED_ALARM_POLL_INTERVAL_MILLIS = 40L * 60L * 1000L
-        val NEXT_DAY_SYNC_START_TIME: LocalTime = LocalTime.of(22, 0)
         const val ALARM_RINGING_CHANNEL_ID = "course_alarm_ringing"
 
         fun parseIsoDate(value: String): LocalDate? =
             runCatching { LocalDate.parse(value) }.getOrNull()
-    }
-
-    private fun shouldSyncNextDayAfterAlarm(_timingProfile: TermTimingProfile, nowMillis: Long): Boolean {
-        val zone = ZoneId.systemDefault()
-        val localTime = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalTime()
-        return !localTime.isBefore(NEXT_DAY_SYNC_START_TIME)
     }
 
     private fun logAlarmRuntimeHealth() {

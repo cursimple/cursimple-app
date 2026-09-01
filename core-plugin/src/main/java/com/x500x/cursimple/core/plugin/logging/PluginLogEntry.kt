@@ -7,16 +7,6 @@ enum class PluginLogLevel(val priority: Int, val short: String) {
     INFO(Log.INFO, "INFO"),
     WARN(Log.WARN, "WARN"),
     ERROR(Log.ERROR, "ERROR"),
-    ;
-
-    companion object {
-        fun fromPriority(priority: Int): PluginLogLevel = when (priority) {
-            Log.DEBUG -> DEBUG
-            Log.WARN -> WARN
-            Log.ERROR -> ERROR
-            else -> INFO
-        }
-    }
 }
 
 enum class PluginLogSource(val token: String) {

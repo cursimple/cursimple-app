@@ -42,17 +42,3 @@ fun resolveScheduleDay(
         holidayName = if (holiday) effectiveEntry?.name?.takeIf { it.isNotBlank() } else null,
     )
 }
-
-/** [date] 是否为不上课的假日。 */
-fun isScheduleHoliday(
-    date: LocalDate,
-    overrides: List<TemporaryScheduleOverride>,
-    holidayCalendar: HolidayCalendarSettings,
-): Boolean = resolveScheduleDay(date, overrides, holidayCalendar).isHoliday
-
-/** [date] 假日名称，非假日为 null。 */
-fun scheduleHolidayName(
-    date: LocalDate,
-    overrides: List<TemporaryScheduleOverride>,
-    holidayCalendar: HolidayCalendarSettings,
-): String? = resolveScheduleDay(date, overrides, holidayCalendar).holidayName

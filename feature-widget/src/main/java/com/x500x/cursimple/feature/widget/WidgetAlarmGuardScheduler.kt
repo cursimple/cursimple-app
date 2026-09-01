@@ -20,14 +20,12 @@ internal data class WidgetAlarmGuardSlot(
 )
 
 /**
- * Maintains a small chain of silent guard alarms.
+ * 维护一条短链式的静默守护闹钟。
  *
- * These alarms are intentionally separate from user-facing class reminders: when they fire they
- * only wake the app process, re-arm the guard chain, verify reminder alarm registration, and refresh
- * widget RemoteViews with the latest data. They must never ring, vibrate, or show alarm UI.
+ * 这些闹钟与面向用户的上课提醒相互独立：触发时只唤醒应用进程、重新排布守护链、校验提醒闹钟的注册情况，
+ * 并用最新数据刷新小组件的 RemoteViews。它们不会响铃、震动或弹出闹钟界面。
  *
- * Future background jobs that need the same five-minute cadence can be attached in
- * [WidgetAlarmGuardRunner.run] so there is one documented place for this silent wakeup path.
+ * [WidgetAlarmGuardRunner.run] 是这条静默唤醒路径的统一入口，同样按五分钟周期执行的后台任务挂在其中。
  */
 internal object WidgetAlarmGuardScheduler {
     fun ensureScheduled(context: Context) {
@@ -121,7 +119,7 @@ internal object WidgetAlarmGuardRunner {
     suspend fun run(context: Context, reason: String) {
         val app = context.applicationContext
 
-        // Re-arm first so a later sync or widget refresh failure does not stop the silent guard chain.
+        // 先重新排布闹钟，后续同步或小组件刷新失败也不会中断静默守护链。
         WidgetAlarmGuardScheduler.ensureScheduled(app)
 
         runCatching {
@@ -134,7 +132,7 @@ internal object WidgetAlarmGuardRunner {
             )
         }
 
-        // RemoteViews updates are silent when rendered data is unchanged; no notification or user UI is shown.
+        // 渲染数据没有变化时 RemoteViews 更新是静默的，不产生通知或界面。
         runCatching {
             ScheduleWidgetUpdater.refreshAll(app)
         }.onFailure { error ->

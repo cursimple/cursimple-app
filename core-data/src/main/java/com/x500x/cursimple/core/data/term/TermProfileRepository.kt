@@ -6,7 +6,7 @@ interface TermProfileRepository {
     val termsFlow: Flow<List<TermProfile>>
     val activeTermIdFlow: Flow<String>
 
-    /** Suspends until the active term is loaded. */
+    /** 挂起直到活动学期加载完成。 */
     suspend fun activeTermId(): String
 
     suspend fun createTerm(name: String, termStartDateIso: String?): TermProfile
@@ -16,9 +16,8 @@ interface TermProfileRepository {
     suspend fun setActiveTerm(id: String)
 
     /**
-     * Bootstrap migration: if no term exists, create one named [defaultName] using
-     * [legacyTermStartDateIso] (taken from old global prefs) and mark it active.
-     * Returns the resulting active term id.
+     * 引导迁移：不存在任何学期时，用取自旧版全局偏好的 [legacyTermStartDateIso]
+     * 创建一个名为 [defaultName] 的学期并设为活动学期。返回最终的活动学期 id。
      */
     suspend fun ensureBootstrapped(defaultName: String, legacyTermStartDateIso: String?): String
 }

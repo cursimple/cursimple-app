@@ -36,7 +36,7 @@ class TermProfileViewModel(
     fun createTerm(name: String, startDate: LocalDate?) {
         viewModelScope.launch {
             val term = termRepo.createTerm(name = name, termStartDateIso = startDate?.toString())
-            // Newly-created term auto-becomes active so the user can immediately work in it.
+            // 新建的学期直接切换为活动学期。
             termRepo.setActiveTerm(term.id)
             userPrefs.setTermStartDate(startDate)
             onActiveTermChanged()
@@ -64,8 +64,7 @@ class TermProfileViewModel(
                     state.value.terms.firstOrNull { t -> t.id == id }
                 }
             }
-            // Mirror the active term's start date into user prefs so the schedule UI/widgets
-            // continue to read from a single source.
+            // 把活动学期的开学日期镜像到用户偏好，课表界面与小组件统一从这里读取。
             val iso = newActive?.termStartDate
             userPrefs.setTermStartDate(iso?.let { runCatching { LocalDate.parse(it) }.getOrNull() })
             onActiveTermChanged()

@@ -83,7 +83,7 @@ class SystemAlarmRegistryTest {
         val nowMillis = sampleNowMillis(hour = 7, minute = 0)
         val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
 
-        val first = coordinator.syncSystemClockAlarmsForWindow(
+        val first = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -91,7 +91,7 @@ class SystemAlarmRegistryTest {
             reason = ReminderSyncReason.RuleCreatedToday,
             nowMillis = nowMillis,
         )
-        val second = coordinator.syncSystemClockAlarmsForWindow(
+        val second = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -123,7 +123,7 @@ class SystemAlarmRegistryTest {
         val nowMillis = sampleNowMillis(hour = 7, minute = 0)
         val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
 
-        val first = coordinator.syncSystemClockAlarmsForWindow(
+        val first = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -131,7 +131,7 @@ class SystemAlarmRegistryTest {
             reason = ReminderSyncReason.RuleCreatedToday,
             nowMillis = nowMillis,
         )
-        val second = coordinator.syncSystemClockAlarmsForWindow(
+        val second = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -384,7 +384,7 @@ class SystemAlarmRegistryTest {
         val profile = sampleProfile()
         val nowMillis = sampleNowMillis(hour = 7, minute = 0)
 
-        val summary = coordinator.syncSystemClockAlarmsForWindow(
+        val summary = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -420,7 +420,7 @@ class SystemAlarmRegistryTest {
         val nowMillis = sampleNowMillis(hour = 7, minute = 0)
         val window = ReminderSyncWindows.todayFromNow(profile, nowMillis)
 
-        coordinator.syncSystemClockAlarmsForWindow(
+        coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -435,7 +435,7 @@ class SystemAlarmRegistryTest {
             ),
         )
 
-        val summary = coordinator.syncSystemClockAlarmsForWindow(
+        val summary = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -640,7 +640,7 @@ class SystemAlarmRegistryTest {
         )
         val nowMillis = sampleNowMillis(hour = 9, minute = 40)
 
-        val summary = coordinator.syncSystemClockAlarmsForWindow(
+        val summary = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -673,7 +673,7 @@ class SystemAlarmRegistryTest {
         )
         val nowMillis = sampleNowMillis(hour = 22, minute = 0)
 
-        val summary = coordinator.syncSystemClockAlarmsForWindow(
+        val summary = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -763,7 +763,7 @@ class SystemAlarmRegistryTest {
         )
         val nowMillis = sampleNowMillis(hour = 7, minute = 0)
 
-        val summary = coordinator.syncSystemClockAlarmsForWindow(
+        val summary = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
@@ -862,7 +862,7 @@ class SystemAlarmRegistryTest {
             appDismisser = appDismisser,
         )
 
-        coordinator.consumeTriggeredAppAlarm("fired", "rule")
+        coordinator.finishTriggeredAppAlarm("fired", "rule", TriggeredAppAlarmFinishAction.Dismiss)
 
         assertEquals(emptyList<ReminderRule>(), repository.getReminderRules())
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
@@ -886,7 +886,7 @@ class SystemAlarmRegistryTest {
             appDismisser = appDismisser,
         )
 
-        coordinator.consumeTriggeredAppAlarm("fired", "rule")
+        coordinator.finishTriggeredAppAlarm("fired", "rule", TriggeredAppAlarmFinishAction.Dismiss)
 
         assertEquals(listOf(rule), repository.getReminderRules())
         assertEquals(listOf(future), repository.records.value)
@@ -920,7 +920,7 @@ class SystemAlarmRegistryTest {
             appDismisser = appDismisser,
         )
 
-        coordinator.consumeTriggeredAppAlarm("fired", rule.ruleId)
+        coordinator.finishTriggeredAppAlarm("fired", rule.ruleId, TriggeredAppAlarmFinishAction.Dismiss)
 
         assertEquals(listOf(rule), repository.getReminderRules())
         assertEquals(listOf(future), repository.records.value)
@@ -946,7 +946,7 @@ class SystemAlarmRegistryTest {
             repository = repository,
         )
 
-        coordinator.consumeTriggeredAppAlarm("fired", rule.ruleId)
+        coordinator.finishTriggeredAppAlarm("fired", rule.ruleId, TriggeredAppAlarmFinishAction.Dismiss)
 
         assertEquals(listOf(rule), repository.getReminderRules())
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
@@ -979,7 +979,7 @@ class SystemAlarmRegistryTest {
             appDismisser = appDismisser,
         )
 
-        coordinator.consumeTriggeredAppAlarm("fired", rule.ruleId)
+        coordinator.finishTriggeredAppAlarm("fired", rule.ruleId, TriggeredAppAlarmFinishAction.Dismiss)
 
         assertEquals(listOf(rule), repository.getReminderRules())
         assertEquals(listOf(future), repository.records.value)
@@ -1166,7 +1166,7 @@ class SystemAlarmRegistryTest {
             .toInstant()
             .toEpochMilli()
 
-        coordinator.syncSystemClockAlarmsForWindow(
+        coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleExamSchedule(),
             timingProfile = profile,
@@ -1225,7 +1225,7 @@ class SystemAlarmRegistryTest {
         val profile = sampleProfile()
         val nowMillis = sampleNowMillis(hour = 7, minute = 0)
 
-        val summary = coordinator.syncSystemClockAlarmsForWindow(
+        val summary = coordinator.syncAlarmsForWindow(
             pluginId = "demo",
             schedule = sampleSchedule(),
             timingProfile = profile,
