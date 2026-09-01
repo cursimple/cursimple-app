@@ -121,6 +121,7 @@ class PluginInstaller(
         storagePath: String,
         bundled: Boolean,
     ): InstalledPluginRecord {
+        val compatibility = resolvePluginCompatibility(apiVersion)
         return InstalledPluginRecord(
             pluginId = pluginId,
             name = name,
@@ -136,8 +137,8 @@ class PluginInstaller(
             allowedHosts = allowedHosts,
             webEngine = webEngine,
             components = components,
-            compatibilityStatus = PluginCompatibilityStatus.Compatible,
-            compatibilityMessage = null,
+            compatibilityStatus = compatibility.status,
+            compatibilityMessage = compatibility.message,
             isBundled = bundled,
         )
     }

@@ -11,6 +11,7 @@ import com.x500x.cursimple.core.kernel.model.weekIndexLabel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -167,9 +168,46 @@ class ScheduleValidationTest {
     }
 
     @Test
-    fun `week number falls back to the first week without a term start date`() {
-        assertEquals(1, computeWeekNumberForDate(null, LocalDate.of(2026, 9, 1)))
-        assertEquals(1, computeWeekNumberForDate(null, LocalDate.of(2027, 3, 1)))
+    fun `without a term start date there is no week number to report`() {
+        assertNull(computeWeekNumberForDate(null, LocalDate.of(2026, 9, 1)))
+        assertNull(computeWeekNumberForDate(null, LocalDate.of(2027, 3, 1)))
+    }
+
+    @Test
+    fun `an unknown week number shows every course and marks none as out of week`() {
+        val courses = listOf(
+            course(id = "week-one", weeks = listOf(1)),
+            course(id = "week-ten", weeks = listOf(10)),
+        )
+        val slots = listOf(testSlot())
+
+        val entries = buildWeekRenderEntries(
+            allCourses = courses,
+            slots = slots,
+            weekIndex = 1,
+            weekNumberKnown = false,
+        )
+
+        assertEquals(setOf("week-one", "week-ten"), entries.map { it.course.id }.toSet())
+        assertTrue(entries.none { it.inactive })
+    }
+
+    @Test
+    fun `a known week number keeps filtering courses by week`() {
+        val courses = listOf(
+            course(id = "week-one", weeks = listOf(1)),
+            course(id = "week-ten", weeks = listOf(10)),
+        )
+        val slots = listOf(testSlot())
+
+        val entries = buildWeekRenderEntries(
+            allCourses = courses,
+            slots = slots,
+            weekIndex = 1,
+            weekNumberKnown = true,
+        )
+
+        assertEquals(listOf("week-one"), entries.map { it.course.id })
     }
 
     @Test

@@ -102,7 +102,7 @@ class DataStorePluginRegistryRepository(
             return this
         }
         val incompatibleReason = when {
-            apiVersion <= 0 -> "旧版插件记录缺少 API 版本"
+            (apiVersion ?: 0) <= 0 -> "旧版插件记录缺少 API 版本"
             entry.isBlank() -> "旧版插件记录缺少 JS 入口文件"
             else -> null
         }
