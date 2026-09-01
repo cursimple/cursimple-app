@@ -30,4 +30,41 @@ class WebDavClientTest {
         assertTrue(error is IllegalArgumentException)
         assertTrue(error!!.message!!.contains("HTTPS"))
     }
+
+    @Test
+    fun `keeps backup url that stays on the configured webdav host`() {
+        assertEquals(
+            "https://dav.example.com/backups/cursimple/backups/a.json",
+            requireSameWebDavOrigin(
+                baseUrl = "https://dav.example.com/backups/",
+                url = "https://dav.example.com/backups/cursimple/backups/a.json",
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects backup url pointing at another host`() {
+        val error = runCatching {
+            requireSameWebDavOrigin(
+                baseUrl = "https://dav.example.com/backups/",
+                url = "https://attacker.example.net/steal.json",
+            )
+        }.exceptionOrNull()
+
+        assertTrue(error is IllegalArgumentException)
+        assertTrue(error!!.message!!.contains("与配置的服务器不一致"))
+    }
+
+    @Test
+    fun `rejects backup url pointing at another port on the same host`() {
+        val error = runCatching {
+            requireSameWebDavOrigin(
+                baseUrl = "https://dav.example.com/backups/",
+                url = "https://dav.example.com:8443/backups/a.json",
+            )
+        }.exceptionOrNull()
+
+        assertTrue(error is IllegalArgumentException)
+        assertTrue(error!!.message!!.contains("与配置的服务器不一致"))
+    }
 }

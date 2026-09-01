@@ -65,11 +65,14 @@ class ComponentMarketViewModel(
             _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载远程组件...") }
             runCatching { fetchComponentIndex(url) }
                 .onSuccess { entries ->
+                    val marketEntries = distinctMarketEntries(
+                        entries.map(ComponentMarketIndexEntry::toMarketEntry),
+                    )
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            knownComponents = entries.map(ComponentMarketIndexEntry::toMarketEntry),
-                            statusMessage = "已加载 ${entries.size} 个组件",
+                            knownComponents = marketEntries,
+                            statusMessage = "已加载 ${marketEntries.size} 个组件",
                         )
                     }
                 }
@@ -173,3 +176,7 @@ private fun ComponentMarketIndexEntry.toMarketEntry(): ComponentMarketEntry {
         description = description,
     )
 }
+
+/** 列表键取自 id/版本/ABI/下载地址，重复条目会导致 LazyColumn 抛重复键异常。 */
+internal fun distinctMarketEntries(entries: List<ComponentMarketEntry>): List<ComponentMarketEntry> =
+    entries.distinctBy(::componentMarketEntryKey)

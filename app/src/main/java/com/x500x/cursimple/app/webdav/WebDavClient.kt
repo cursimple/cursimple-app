@@ -57,7 +57,11 @@ class WebDavClient(
 
     fun download(config: WebDavConfig, href: String): ByteArray {
         require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
-        val url = requireHttpsWebDavUrl(href.toAbsoluteAgainst(config.url.directoryUrl()))
+        val baseUrl = config.url.directoryUrl()
+        val url = requireSameWebDavOrigin(
+            baseUrl = baseUrl,
+            url = requireHttpsWebDavUrl(href.toAbsoluteAgainst(baseUrl)),
+        )
         return runWebDav {
             webDav(config).get(url).use { stream ->
                 stream.readBytes()
@@ -169,6 +173,26 @@ internal fun normalizeSecureWebDavDirectoryUrl(rawUrl: String): String {
     )
     return if (url.endsWith("/")) url else "$url/"
 }
+
+// 服务端返回的 href 可能指向别的主机，下载前限制在配置的服务器上，避免 Basic 凭据外发
+internal fun requireSameWebDavOrigin(baseUrl: String, url: String): String {
+    val baseUri = runCatching { URI(baseUrl) }.getOrNull()
+    val targetUri = runCatching { URI(url) }.getOrNull()
+    val baseHost = baseUri?.host
+    val targetHost = targetUri?.host
+    require(!baseHost.isNullOrBlank() && !targetHost.isNullOrBlank()) { "WebDAV 备份地址无法解析" }
+    require(targetHost.equals(baseHost, ignoreCase = true) && webDavPort(targetUri) == webDavPort(baseUri)) {
+        "WebDAV 备份地址与配置的服务器不一致"
+    }
+    return url
+}
+
+private fun webDavPort(uri: URI?): Int {
+    val port = uri?.port ?: -1
+    return if (port != -1) port else DEFAULT_HTTPS_PORT
+}
+
+private const val DEFAULT_HTTPS_PORT = 443
 
 internal fun requireHttpsWebDavUrl(url: String): String {
     val scheme = runCatching { URI(url).scheme?.lowercase() }.getOrNull()

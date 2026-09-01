@@ -7,6 +7,16 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicReference
 
+/**
+ * 应用统一的当前时间来源。
+ *
+ * 应用时区等于设备时区：[zone] 返回 [ZoneId.systemDefault]，不再固定为某个地区时区。
+ * 带 [ZoneId] 参数的函数按传入时区计算，调用方通过传入 [zone] 获得设备本地结果。
+ *
+ * 开发者模式可以用 [setForcedNow] / [setForcedToday] 覆盖当前时间。被覆盖的值是墙上时钟，
+ * 已经处于目标时区，因此覆盖生效时不再按 [ZoneId] 二次换算，只有 [nowMillis] 需要用时区
+ * 把墙上时钟还原成时间戳。
+ */
 object BeijingTime {
     val zone: ZoneId
         get() = ZoneId.systemDefault()
@@ -26,26 +36,20 @@ object BeijingTime {
 
     fun forcedToday(): LocalDate? = forcedDateTime.get()?.toLocalDate()
 
-    fun today(): LocalDate = forcedDateTime.get()?.toLocalDate() ?: LocalDate.now()
+    fun today(): LocalDate = todayIn(zone)
 
-    @Suppress("UNUSED_PARAMETER")
-    fun today(zone: ZoneId): LocalDate = today()
+    fun today(zone: ZoneId): LocalDate = todayIn(zone)
 
-    @Suppress("UNUSED_PARAMETER")
-    fun todayIn(zone: ZoneId): LocalDate = today()
+    fun todayIn(zone: ZoneId): LocalDate = forcedDateTime.get()?.toLocalDate() ?: LocalDate.now(zone)
 
-    @Suppress("UNUSED_PARAMETER")
-    fun nowTimeIn(zone: ZoneId): LocalTime = forcedDateTime.get()?.toLocalTime() ?: LocalTime.now()
+    fun nowTimeIn(zone: ZoneId): LocalTime = forcedDateTime.get()?.toLocalTime() ?: LocalTime.now(zone)
 
-    @Suppress("UNUSED_PARAMETER")
-    fun nowDateTimeIn(zone: ZoneId): LocalDateTime = forcedDateTime.get() ?: LocalDateTime.now()
+    fun nowDateTimeIn(zone: ZoneId): LocalDateTime = forcedDateTime.get() ?: LocalDateTime.now(zone)
 
-    @Suppress("UNUSED_PARAMETER")
     fun nowMillis(zone: ZoneId): Long {
         val forced = forcedDateTime.get() ?: return System.currentTimeMillis()
-        return forced.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return forced.atZone(zone).toInstant().toEpochMilli()
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun dayOfWeek(zone: ZoneId = BeijingTime.zone): DayOfWeek = today().dayOfWeek
+    fun dayOfWeek(zone: ZoneId = BeijingTime.zone): DayOfWeek = todayIn(zone).dayOfWeek
 }
