@@ -23,6 +23,8 @@ import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 
 internal data class ScheduleWidgetCourseRow(
     val id: String,
@@ -131,6 +133,7 @@ internal object ScheduleWidgetDataSource {
             manualCourseRepository = manualCourseRepository,
             reminderRepository = reminderRepository,
             temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            holidayCalendar = userPrefs.holidayCalendar,
             widgetTheme = widgetTheme,
         )
         if (manualOffset == 0 && shouldShowNextDayAtNight(BeijingTime.nowTimeIn(zone), currentDay.courses, timingProfile)) {
@@ -144,6 +147,7 @@ internal object ScheduleWidgetDataSource {
                 manualCourseRepository = manualCourseRepository,
                 reminderRepository = reminderRepository,
                 temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            holidayCalendar = userPrefs.holidayCalendar,
                 widgetTheme = widgetTheme,
             ).data
         }
@@ -159,6 +163,7 @@ internal object ScheduleWidgetDataSource {
             manualCourseRepository = manualCourseRepository,
             reminderRepository = reminderRepository,
             temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            holidayCalendar = userPrefs.holidayCalendar,
             widgetTheme = widgetTheme,
         ).data
     }
@@ -173,12 +178,11 @@ internal object ScheduleWidgetDataSource {
         manualCourseRepository: DataStoreManualCourseRepository,
         reminderRepository: DataStoreReminderRepository,
         temporaryScheduleOverrides: List<com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride>,
+        holidayCalendar: HolidayCalendarSettings,
         widgetTheme: WidgetThemePreferences,
     ): LoadedDay {
-        val sourceDate = resolveTemporaryScheduleSourceDate(
-            date = targetDate,
-            overrides = temporaryScheduleOverrides,
-        )
+        val dayResolution = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
+        val sourceDate = dayResolution.sourceDate
         val weekIndex = resolveWeekIndex(sourceDate, termStart)
         val dayOfWeek = sourceDate.dayOfWeek.value
 
@@ -188,7 +192,7 @@ internal object ScheduleWidgetDataSource {
         val manualCourses = manualCourseRepository.manualCoursesFlow.first()
             .filter { it.time.dayOfWeek == dayOfWeek }
         val reminderRules = reminderRepository.reminderRulesFlow.first()
-        val courses = filterTemporaryCancelledCourses(
+        val courses = if (dayResolution.isHoliday) emptyList() else filterTemporaryCancelledCourses(
             date = targetDate,
             courses = importedCourses + manualCourses,
             overrides = temporaryScheduleOverrides,

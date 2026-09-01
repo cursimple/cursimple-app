@@ -2,12 +2,13 @@ package com.x500x.cursimple.core.reminder
 
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
-import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.model.endLocalTime
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
@@ -33,6 +34,7 @@ internal class FirstCourseRuleEvaluator {
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         customOccupancies: List<ReminderCustomOccupancy>,
+        holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<ReminderPlanTarget> {
         val termStart = timingProfile.termStartLocalDate()
         val occurrences = schedule.dailySchedules
@@ -45,11 +47,17 @@ internal class FirstCourseRuleEvaluator {
                     termStart = termStart,
                     fromDate = fromDate,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
+                    holidayCalendar = holidayCalendar,
                 ).map { courseDate ->
+                    val sourceDate = resolveScheduleDay(
+                        courseDate,
+                        temporaryScheduleOverrides,
+                        holidayCalendar,
+                    ).sourceDate
                     CourseOccurrence(
                         course = course,
                         courseDate = courseDate,
-                        termWeek = resolveTermWeek(termStart, resolveTemporaryScheduleSourceDate(courseDate, temporaryScheduleOverrides)),
+                        termWeek = resolveTermWeek(termStart, sourceDate),
                         slot = slot,
                     )
                 }

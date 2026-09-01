@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -100,6 +101,7 @@ import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
@@ -108,9 +110,8 @@ import com.x500x.cursimple.core.kernel.model.cancelsCourseOn
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
-import com.x500x.cursimple.core.kernel.model.isTemporaryScheduleOverridden
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
-import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekIndexLabel
@@ -171,6 +172,7 @@ fun ScheduleRoute(
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
     customColorsAdaptToTheme: Boolean = false,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
 ) {
@@ -213,6 +215,7 @@ fun ScheduleRoute(
         scheduleDisplay = scheduleDisplay,
         customColorsAdaptToTheme = customColorsAdaptToTheme,
         temporaryScheduleOverrides = temporaryScheduleOverrides,
+        holidayCalendar = holidayCalendar,
         onUpsertTemporaryScheduleOverride = onUpsertTemporaryScheduleOverride,
         onRemoveTemporaryScheduleOverride = onRemoveTemporaryScheduleOverride,
         modifier = modifier,
@@ -259,6 +262,7 @@ fun ScheduleScreen(
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
     customColorsAdaptToTheme: Boolean = false,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
 ) {
@@ -332,6 +336,7 @@ fun ScheduleScreen(
                         scheduleDisplay = scheduleDisplay,
                         customColorsAdaptToTheme = customColorsAdaptToTheme,
                         temporaryScheduleOverrides = temporaryScheduleOverrides,
+                        holidayCalendar = holidayCalendar,
                     )
 
                     ScheduleViewMode.Day -> DailyScheduleSection(
@@ -345,6 +350,7 @@ fun ScheduleScreen(
                         targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
                         termStartDate = overrideTermStart,
                         temporaryScheduleOverrides = temporaryScheduleOverrides,
+                        holidayCalendar = holidayCalendar,
                         selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                         multiSelectMode = multiSelectMode,
                         multiSelectedIds = selectedIds,
@@ -413,7 +419,12 @@ fun ScheduleScreen(
             CourseDetailDialog(
                 courses = request.courses,
                 timingProfile = state.timingProfile,
-                visibleWeekNumber = detailWeekNumber(request.targetDate, overrideTermStart, temporaryScheduleOverrides),
+                visibleWeekNumber = detailWeekNumber(
+                    request.targetDate,
+                    overrideTermStart,
+                    temporaryScheduleOverrides,
+                    holidayCalendar,
+                ),
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
                 examReminderEnabled = examRules.isNotEmpty(),
                 mutedExamCourseIds = examRules.flatMap { it.mutedCourseIds }.toSet(),
@@ -1058,6 +1069,7 @@ private fun WeeklyScheduleSection(
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     modifier: Modifier = Modifier,
 ) {
     val slots = remember(schedule, timingProfile, manualCourses) {
@@ -1164,8 +1176,15 @@ private fun WeeklyScheduleSection(
                     beyondViewportPageCount = 1,
                 ) { page ->
                     val pageOffset = page + safeMin
-                    val pageWeek = remember(timingProfile, pageOffset, overrideTermStart, zone, temporaryScheduleOverrides) {
-                        buildWeekModel(pageOffset, overrideTermStart, zone, temporaryScheduleOverrides)
+                    val pageWeek = remember(
+                        timingProfile,
+                        pageOffset,
+                        overrideTermStart,
+                        zone,
+                        temporaryScheduleOverrides,
+                        holidayCalendar,
+                    ) {
+                        buildWeekModel(pageOffset, overrideTermStart, zone, temporaryScheduleOverrides, holidayCalendar)
                     }
                     val active = remember(
                         allCourses,
@@ -1175,6 +1194,7 @@ private fun WeeklyScheduleSection(
                         scheduleDisplay.totalScheduleDisplayEnabled,
                         visibleDayIndices,
                         temporaryScheduleOverrides,
+                        holidayCalendar,
                         overrideTermStart,
                     ) {
                         buildWeekRenderEntries(
@@ -1185,6 +1205,7 @@ private fun WeeklyScheduleSection(
                             weekStart = pageWeek.weekStart,
                             termStart = overrideTermStart,
                             temporaryScheduleOverrides = temporaryScheduleOverrides,
+                            holidayCalendar = holidayCalendar,
                             visibleDayIndices = visibleDayIndices,
                         )
                     }
@@ -1245,6 +1266,7 @@ private fun DailyScheduleSection(
     targetWeekNumber: Int,
     termStartDate: LocalDate?,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    holidayCalendar: HolidayCalendarSettings,
     selectedCourseId: String?,
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
@@ -1266,12 +1288,14 @@ private fun DailyScheduleSection(
         (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
     }
     val today = LocalAppZone.current.today()
-    val sourceDate = resolveTemporaryScheduleSourceDate(targetDate, temporaryScheduleOverrides)
+    val dayResolution = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
+    val sourceDate = dayResolution.sourceDate
     val targetDayOfWeek = sourceDate.dayOfWeek.value
     val sourceWeekNumber = computeWeekNumberForDate(termStartDate, sourceDate).takeIf {
         sourceDate != targetDate
     } ?: targetWeekNumber
     val overrideLabel = sourceDate.takeIf { it != targetDate }?.let(::formatSourceDateLabel)
+    val holidayLabel = dayResolution.takeIf { it.isHoliday }?.let { holidayDisplayLabel(it.holidayName) }
 
     Card(
         modifier = modifier,
@@ -1288,7 +1312,16 @@ private fun DailyScheduleSection(
                 date = targetDate,
                 isToday = targetDate == today,
                 overrideLabel = overrideLabel,
+                holidayLabel = holidayLabel,
             )
+
+            if (holidayLabel != null) {
+                EmptyWeekState(
+                    schedule = schedule,
+                    holidayLabel = holidayLabel,
+                )
+                return@Column
+            }
 
             if (slots.isEmpty() || allCourses.isEmpty()) {
                 EmptyWeekState(schedule = schedule)
@@ -1352,6 +1385,7 @@ private fun DailyHeaderRow(
     date: LocalDate,
     isToday: Boolean,
     overrideLabel: String?,
+    holidayLabel: String? = null,
 ) {
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     Row(
@@ -1388,7 +1422,19 @@ private fun DailyHeaderRow(
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (overrideLabel != null) {
+        if (holidayLabel != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                shape = RoundedCornerShape(999.dp),
+            ) {
+                Text(
+                    text = holidayLabel,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                )
+            }
+        } else if (overrideLabel != null) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
                 shape = RoundedCornerShape(999.dp),
@@ -1831,13 +1877,18 @@ internal fun detailWeekNumber(
     targetDate: LocalDate,
     termStart: LocalDate?,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
 ): Int = computeWeekNumberForDate(
     termStart,
-    resolveTemporaryScheduleSourceDate(targetDate, temporaryScheduleOverrides),
+    resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar).sourceDate,
 )
 
 private fun formatSourceDateLabel(date: LocalDate): String =
     "${date.monthValue}/${date.dayOfMonth}${weekdayLabel(date.dayOfWeek.value)}"
+
+/** 假日在表头与空态里显示的文字；用户手动加的假日可以没有名字，回落到通用文案。 */
+internal fun holidayDisplayLabel(holidayName: String?): String =
+    holidayName?.takeIf { it.isNotBlank() } ?: "放假"
 
 /** 网格里没有课时提示去哪儿补课表；返回 null 表示这一周有课，不需要提示。 */
 internal fun emptyScheduleHint(
@@ -1863,24 +1914,58 @@ private fun EmptyScheduleHintRow(text: String) {
     )
 }
 
+internal data class ScheduleEmptyStateText(
+    val title: String,
+    val subtitle: String,
+)
+
+/**
+ * 空态文案。假日排在最前：这一天不上课是由日期本身决定的，
+ * 无论课表是否同步、是否已开学，说明放假都比其余文案更贴近实际。
+ * 其后未开学优先于课表为空，避免开学前把“还没有同步到课表”盖在“还没开学”上面。
+ */
+internal fun scheduleEmptyStateText(
+    hasSchedule: Boolean,
+    notStarted: Boolean = false,
+    termStartDate: LocalDate? = null,
+    holidayLabel: String? = null,
+): ScheduleEmptyStateText = when {
+    holidayLabel != null -> ScheduleEmptyStateText(
+        title = holidayLabel,
+        subtitle = "这一天是假日，不安排课程，也不会发出课程提醒。",
+    )
+
+    notStarted -> ScheduleEmptyStateText(
+        title = "还没开学",
+        subtitle = termStartDate
+            ?.let { "开学日期是 ${it.monthValue} 月 ${it.dayOfMonth} 日，到时候课程会自动显示。" }
+            ?: "开学后课程会自动显示。",
+    )
+
+    !hasSchedule -> ScheduleEmptyStateText(
+        title = "还没有同步到课表",
+        subtitle = "去插件页同步课表，或去设置页管理提醒。",
+    )
+
+    else -> ScheduleEmptyStateText(
+        title = "这一周没有课程安排",
+        subtitle = "可以切换其他周，或者继续在插件页同步最新数据。",
+    )
+}
+
 @Composable
 private fun EmptyWeekState(
     schedule: TermSchedule?,
     notStarted: Boolean = false,
     termStartDate: LocalDate? = null,
+    holidayLabel: String? = null,
 ) {
-    val title = when {
-        notStarted -> "还没开学"
-        schedule == null -> "还没有同步到课表"
-        else -> "这一周没有课程安排"
-    }
-    val subtitle = when {
-        notStarted -> termStartDate
-            ?.let { "开学日期是 ${it.monthValue} 月 ${it.dayOfMonth} 日，到时候课程会自动显示。" }
-            ?: "开学后课程会自动显示。"
-        schedule == null -> "去插件页同步课表，或去设置页管理提醒。"
-        else -> "可以切换其他周，或者继续在插件页同步最新数据。"
-    }
+    val (title, subtitle) = scheduleEmptyStateText(
+        hasSchedule = schedule != null,
+        notStarted = notStarted,
+        termStartDate = termStartDate,
+        holidayLabel = holidayLabel,
+    )
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1972,7 +2057,9 @@ private fun ScheduleGrid(
             maxWidth < 420.dp -> 48.dp
             else -> 52.dp
         }
-        val dayHeaderHeight = if (visibleDays.any { it.overrideLabel != null }) 66.dp else 52.dp
+        // 调课与假日都会在日期下方多出一行说明，表头需要更高
+        val dayHeaderMinHeight =
+            if (visibleDays.any { it.overrideLabel != null || it.holidayLabel != null }) 66.dp else 52.dp
         val totalWidth = maxWidth
         val dayColumnWidth = ((totalWidth - timeColumnWidth) / dayColumnCount).coerceAtLeast(36.dp)
         val gridWidth = dayColumnWidth * dayColumnCount
@@ -1982,7 +2069,7 @@ private fun ScheduleGrid(
         Column {
             // 顶部周日期头
             Row(
-                modifier = Modifier.height(dayHeaderHeight),
+                modifier = Modifier.heightIn(min = dayHeaderMinHeight),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MonthCornerCell(
@@ -2241,7 +2328,17 @@ private fun DayHeader(
             maxLines = 1,
             softWrap = false,
         )
-        if (day.overrideLabel != null) {
+        if (day.holidayLabel != null) {
+            Text(
+                text = day.holidayLabel,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (day.isToday) todayContent else MaterialTheme.colorScheme.tertiary,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else if (day.overrideLabel != null) {
             Text(
                 text = day.overrideLabel,
                 fontSize = 10.sp,
@@ -3873,12 +3970,17 @@ private fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
     else -> "周$dayOfWeek"
 }
 
+/**
+ * [overrideLabel] 与 [holidayLabel] 不会同时有值：一天要么按别的日期上课，要么整天放假。
+ * 两者分开存放，是为了让表头能按各自的语义着色，而不是让一个字段既表示调课又表示放假。
+ */
 internal data class DayHeaderModel(
     val monthLabel: String,
     val weekdayLabel: String,
     val dateLabel: String,
     val isToday: Boolean,
     val overrideLabel: String? = null,
+    val holidayLabel: String? = null,
 )
 
 internal data class WeekModel(
@@ -4119,20 +4221,23 @@ internal fun buildWeekModel(
     termStart: LocalDate? = null,
     zone: ZoneId = ZoneId.systemDefault(),
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)
     val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
     val weekIndex = computeWeekNumberForDate(termStart, weekStart)
     val days = (0..6).map { index ->
         val date = weekStart.plusDays(index.toLong())
+        val resolution = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
         DayHeaderModel(
             monthLabel = if (index == 0) "${date.monthValue}月" else "",
             weekdayLabel = chineseShortWeekday(date.dayOfWeek),
             dateLabel = if (date.dayOfMonth == 1) "${date.monthValue}月" else date.dayOfMonth.toString(),
             isToday = date == today,
-            overrideLabel = if (isTemporaryScheduleOverridden(date, temporaryScheduleOverrides)) {
-                "按${formatSourceDateLabel(resolveTemporaryScheduleSourceDate(date, temporaryScheduleOverrides))}"
+            overrideLabel = if (!resolution.isHoliday && resolution.sourceDate != date) {
+                "按${formatSourceDateLabel(resolution.sourceDate)}"
             } else null,
+            holidayLabel = if (resolution.isHoliday) holidayDisplayLabel(resolution.holidayName) else null,
         )
     }
     return WeekModel(
@@ -4408,6 +4513,7 @@ internal fun buildWeekRenderEntries(
     weekStart: LocalDate? = null,
     termStart: LocalDate? = null,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     visibleDayIndices: List<Int> = (0..6).toList(),
 ): List<CourseRenderEntry> {
     data class Resolved(
@@ -4423,10 +4529,15 @@ internal fun buildWeekRenderEntries(
         .toMap()
 
     val displayCourses = allCourses.visibleScheduleCourses()
-    val resolved = if (weekStart != null && temporaryScheduleOverrides.isNotEmpty()) {
+    val needsPerDayResolution = temporaryScheduleOverrides.isNotEmpty() ||
+        holidayCalendar != HolidayCalendarSettings.NONE
+    val resolved = if (weekStart != null && needsPerDayResolution) {
         visibleColumns.keys.sorted().flatMap { dayIndex ->
             val actualDate = weekStart.plusDays(dayIndex.toLong())
-            val sourceDate = resolveTemporaryScheduleSourceDate(actualDate, temporaryScheduleOverrides)
+            val resolution = resolveScheduleDay(actualDate, temporaryScheduleOverrides, holidayCalendar)
+            // 假日整天不出课，总课表显示也不例外：这一天是明确放假，不是“课程不在本周”。
+            if (resolution.isHoliday) return@flatMap emptyList<Resolved>()
+            val sourceDate = resolution.sourceDate
             val sourceDayOfWeek = sourceDate.dayOfWeek.value
             val sourceWeekIndex = termStart?.let { computeWeekNumberForDate(it, sourceDate) } ?: weekIndex
             val source = if (totalScheduleDisplayEnabled) {

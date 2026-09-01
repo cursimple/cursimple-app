@@ -50,6 +50,9 @@ internal object WidgetSystemAlarmSynchronizer {
             temporaryScheduleOverridesProvider = {
                 userPreferencesRepository.preferencesFlow.first().temporaryScheduleOverrides
             },
+            holidayCalendarProvider = {
+                userPreferencesRepository.preferencesFlow.first().holidayCalendar
+            },
             alarmSettingsProvider = {
                 alarmSettings
             },

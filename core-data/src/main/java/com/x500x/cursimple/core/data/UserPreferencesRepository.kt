@@ -13,6 +13,8 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
@@ -194,6 +196,7 @@ data class UserPreferences(
     val enabledPluginIds: Set<String> = emptySet(),
     val pluginsSeeded: Boolean = false,
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
+    val holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
     val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
@@ -263,6 +266,10 @@ interface UserPreferencesRepository {
     suspend fun upsertTemporaryScheduleOverride(override: TemporaryScheduleOverride)
     suspend fun removeTemporaryScheduleOverride(id: String)
     suspend fun clearTemporaryScheduleOverrides()
+    suspend fun setHolidayCalendarBuiltInEnabled(enabled: Boolean)
+    suspend fun upsertHolidayCalendarEntry(entry: HolidayCalendarEntry)
+    suspend fun removeHolidayCalendarEntry(date: String)
+    suspend fun clearHolidayCalendarEntries()
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
     suspend fun setAlarmBackend(backend: ReminderAlarmBackend)
