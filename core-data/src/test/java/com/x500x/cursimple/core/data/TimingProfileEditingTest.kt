@@ -1,6 +1,9 @@
 package com.x500x.cursimple.core.data
 
+import com.x500x.cursimple.core.data.widget.MAX_SLOT_NODE
+import com.x500x.cursimple.core.data.widget.MIN_SLOT_NODE
 import com.x500x.cursimple.core.data.widget.SlotDraftInput
+import com.x500x.cursimple.core.data.widget.TimingDraftError
 import com.x500x.cursimple.core.data.widget.buildTimingSlots
 import com.x500x.cursimple.core.data.widget.normalizeTimeOrNull
 import com.x500x.cursimple.core.data.widget.timingTemplates
@@ -56,41 +59,45 @@ class TimingProfileEditingTest {
         val result = buildTimingSlots(emptyList())
         assertFalse(result.isValid)
         assertTrue(result.slots.isEmpty())
+        assertEquals(listOf(TimingDraftError.EmptyDraft), result.errors)
     }
 
     @Test
     fun `build rejects node out of range`() {
         val result = buildTimingSlots(listOf(draft("0", "1", "08:00", "08:45")))
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("1-32") })
+        assertEquals(
+            listOf(TimingDraftError.NodeOutOfRange(row = 1, min = MIN_SLOT_NODE, max = MAX_SLOT_NODE)),
+            result.errors,
+        )
     }
 
     @Test
     fun `build rejects start node greater than end node`() {
         val result = buildTimingSlots(listOf(draft("5", "3", "08:00", "08:45")))
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("起始节不能大于结束节") })
+        assertEquals(listOf(TimingDraftError.NodeOrderReversed(row = 1)), result.errors)
     }
 
     @Test
     fun `build rejects non numeric node`() {
         val result = buildTimingSlots(listOf(draft("a", "1", "08:00", "08:45")))
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("节次必须填数字") })
+        assertEquals(listOf(TimingDraftError.NodeNotNumber(row = 1)), result.errors)
     }
 
     @Test
     fun `build rejects unparseable time`() {
         val result = buildTimingSlots(listOf(draft("1", "1", "8", "08:45")))
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("HH:mm") })
+        assertEquals(listOf(TimingDraftError.TimeFormatInvalid(row = 1)), result.errors)
     }
 
     @Test
     fun `build rejects start time not before end time`() {
         val result = buildTimingSlots(listOf(draft("1", "1", "09:00", "09:00")))
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("开始时间必须早于结束时间") })
+        assertEquals(listOf(TimingDraftError.TimeOrderReversed(row = 1)), result.errors)
     }
 
     @Test
@@ -102,7 +109,17 @@ class TimingProfileEditingTest {
             ),
         )
         assertFalse(result.isValid)
-        assertTrue(result.errors.any { it.contains("重叠") })
+        assertEquals(
+            listOf(
+                TimingDraftError.NodeRangeOverlap(
+                    previousStartNode = 1,
+                    previousEndNode = 2,
+                    currentStartNode = 2,
+                    currentEndNode = 3,
+                ),
+            ),
+            result.errors,
+        )
     }
 
     @Test
@@ -123,7 +140,7 @@ class TimingProfileEditingTest {
         assertTrue(templates.size >= 2)
         templates.forEach { template ->
             val drafts = template.slots.map {
-                draft(it.startNode.toString(), it.endNode.toString(), it.startTime, it.endTime, it.label)
+                draft(it.startNode.toString(), it.endNode.toString(), it.startTime, it.endTime)
             }
             val result = buildTimingSlots(drafts)
             assertTrue("模板 ${template.id} 应通过校验", result.isValid)
