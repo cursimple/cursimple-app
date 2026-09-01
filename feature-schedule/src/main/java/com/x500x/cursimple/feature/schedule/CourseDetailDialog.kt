@@ -38,7 +38,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -77,10 +76,10 @@ fun CourseDetailDialog(
     onDelete: (CourseItem) -> Unit,
 ) {
     if (courses.isEmpty()) return
-    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(courses) {
-        if (selectedIndex >= courses.size) selectedIndex = 0
-    }
+    // 以这一格的课程 id 列表为 key：换格子或删掉其中一门后，chip 选中项回到第一门，
+    // 不会沿用上一格的下标而串到别的课上。
+    val courseIdsKey = remember(courses) { courses.joinToString("|") { it.id } }
+    var selectedIndex by rememberSaveable(courseIdsKey) { mutableIntStateOf(0) }
     val course = courses[selectedIndex.coerceIn(0, courses.size - 1)]
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     val palette = remember(course.title, course.category, accents) { courseColor(course.title, accents.coursePalette) }
@@ -94,7 +93,7 @@ fun CourseDetailDialog(
     } else {
         palette.onContainer
     }
-    val isThisWeek = course.weeks.isEmpty() || course.weeks.contains(visibleWeekNumber)
+    val isThisWeek = course.isActiveInWeek(visibleWeekNumber)
     val manual = isManual(course)
     val weekday = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
         .getOrNull(course.time.dayOfWeek - 1) ?: "?"

@@ -7,13 +7,17 @@ import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
+import com.x500x.cursimple.core.kernel.model.weekIndexLabel
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 
 class ScheduleValidationTest {
     @Test
@@ -94,6 +98,96 @@ class ScheduleValidationTest {
         assertTrue(course.isActiveInWeek(3))
         assertFalse(course.isActiveInWeek(5))
         assertTrue(allWeeksCourse.isActiveInWeek(30))
+    }
+
+    @Test
+    fun `no course is active before the term starts`() {
+        val course = CourseItem(
+            id = "short-course",
+            title = "短期课程",
+            weeks = listOf(1, 2, 3),
+            time = CourseTimeSlot(dayOfWeek = 2, startNode = 1, endNode = 2),
+        )
+        val allWeeksCourse = course.copy(id = "all-weeks", weeks = emptyList())
+
+        assertFalse(course.isActiveInWeek(0))
+        assertFalse(course.isActiveInWeek(-3))
+        assertFalse(allWeeksCourse.isActiveInWeek(0))
+        assertFalse(allWeeksCourse.isActiveInWeek(-3))
+    }
+
+    @Test
+    fun `week render source is empty before the term starts`() {
+        val normal = course(id = "normal", weeks = listOf(1))
+        val allWeeks = course(id = "all-weeks", weeks = emptyList())
+
+        assertTrue(activeCoursesForWeek(listOf(normal, allWeeks), weekNumber = 0).isEmpty())
+        assertTrue(activeCoursesForWeek(listOf(normal, allWeeks), weekNumber = -1).isEmpty())
+    }
+
+    @Test
+    fun `week render entries are empty before the term starts`() {
+        val normal = course(id = "normal", weeks = listOf(1))
+        val allWeeks = course(id = "all-weeks", weeks = emptyList())
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(normal, allWeeks),
+            slots = listOf(testSlot()),
+            weekIndex = 0,
+            totalScheduleDisplayEnabled = false,
+        )
+
+        assertTrue(entries.isEmpty())
+    }
+
+    @Test
+    fun `total schedule display still shows every course before the term starts`() {
+        val normal = course(id = "normal", weeks = listOf(1))
+        val allWeeks = course(id = "all-weeks", weeks = emptyList())
+
+        val entries = buildWeekRenderEntries(
+            allCourses = listOf(normal, allWeeks),
+            slots = listOf(testSlot()),
+            weekIndex = 0,
+            totalScheduleDisplayEnabled = true,
+        )
+
+        assertEquals(setOf("normal", "all-weeks"), entries.map { it.course.id }.toSet())
+        assertTrue(entries.all { it.inactive })
+    }
+
+    @Test
+    fun `week number before term start is not clamped to the first week`() {
+        val termStart = LocalDate.of(2026, 9, 7)
+
+        assertEquals(0, computeWeekNumberForDate(termStart, LocalDate.of(2026, 9, 1)))
+        assertEquals(-1, computeWeekNumberForDate(termStart, LocalDate.of(2026, 8, 25)))
+        assertEquals(1, computeWeekNumberForDate(termStart, LocalDate.of(2026, 9, 7)))
+        assertEquals(2, computeWeekNumberForDate(termStart, LocalDate.of(2026, 9, 14)))
+    }
+
+    @Test
+    fun `week number falls back to the first week without a term start date`() {
+        assertEquals(1, computeWeekNumberForDate(null, LocalDate.of(2026, 9, 1)))
+        assertEquals(1, computeWeekNumberForDate(null, LocalDate.of(2027, 3, 1)))
+    }
+
+    @Test
+    fun `week model keeps the real week index around the term start`() {
+        val thisMonday = BeijingTime.today().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+        assertEquals(0, buildWeekModel(weekOffset = 0, termStart = thisMonday.plusWeeks(1)).weekIndex)
+        assertEquals(-2, buildWeekModel(weekOffset = 0, termStart = thisMonday.plusWeeks(3)).weekIndex)
+        assertEquals(1, buildWeekModel(weekOffset = 0, termStart = thisMonday).weekIndex)
+        assertEquals(1, buildWeekModel(weekOffset = 0, termStart = null).weekIndex)
+    }
+
+    @Test
+    fun `week index label hides meaningless week numbers before the term starts`() {
+        assertEquals("第 1 周", weekIndexLabel(1))
+        assertEquals("第 12 周", weekIndexLabel(12))
+        assertEquals("未开学", weekIndexLabel(0))
+        assertEquals("未开学", weekIndexLabel(-2))
     }
 
     @Test

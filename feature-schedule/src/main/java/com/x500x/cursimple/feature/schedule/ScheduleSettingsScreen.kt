@@ -209,7 +209,7 @@ fun ScheduleSettingsScreen(
                 onSetAppAlarmEnabled = onSetAppAlarmEnabled,
             )
 
-            SectionHeader("规则设置", "按 slotTimes.label 的条件和动作生成提醒")
+            SectionHeader("规则设置", "按节次的条件和动作生成提醒")
             RuleManagementCard(
                 rules = state.reminderRules.filter { it.scopeType == ReminderScopeType.LabelRule },
                 slotLabels = slotLabels,
@@ -233,6 +233,12 @@ fun ScheduleSettingsScreen(
                     showPlaceholderDialog = true
                 },
                 onDeletePlaceholder = onDeletePlaceholder,
+            )
+
+            CourseReminderCard(
+                rules = state.reminderRules.filter { it.isCourseReminderRule() },
+                onSetRuleEnabled = onSetRuleEnabled,
+                onRemoveRule = onRemoveRule,
             )
 
             ReminderDefaultsCard(
@@ -453,11 +459,11 @@ private fun RuleManagementCard(
         HeaderRow(
             icon = Icons.Rounded.Notifications,
             title = "规则管理",
-            subtitle = "可选 label ${slotLabels.size} 个",
+            subtitle = "可选节次 ${slotLabels.size} 个",
             trailing = { Button(onClick = onAddRule) { Text("新建规则") } },
         )
         if (rules.isEmpty()) {
-            EmptySurface("还没有 label 规则")
+            EmptySurface("还没有节次规则")
         } else {
             rules.forEach { rule ->
                 RuleRow(
@@ -584,11 +590,7 @@ private fun ExamReminderCard(
     onSave: (Boolean, Int, String?) -> Unit,
     onOpenRules: () -> Unit,
 ) {
-    val enabled = rules.any {
-        it.scopeType == ReminderScopeType.LabelRule &&
-            it.displayName?.startsWith("考试提醒：") == true &&
-            it.enabled
-    }
+    val enabled = examReminderEnabled(rules)
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     CardSurface {
         HeaderRow(Icons.Rounded.Event, "考试提醒", if (enabled) "所有考试前提醒已开启" else "默认关闭")
@@ -617,7 +619,7 @@ private fun ExamReminderCard(
             text = {
                 Text(
                     listOf(
-                        "将按默认闹钟设置为所有考试 label 创建提醒规则。",
+                        "将按默认闹钟设置，为课表里的每一场考试单独创建提醒。",
                         "铃声：${alarmRingtoneLabel(alarmRingtoneUri)}",
                         "提醒方式：${alarmAlertModeLabel(alarmAlertMode)}",
                         "响铃时长：$alarmRingDurationSeconds 秒",
@@ -634,6 +636,41 @@ private fun ExamReminderCard(
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("取消") } },
         )
+    }
+}
+
+@Composable
+private fun CourseReminderCard(
+    rules: List<ReminderRule>,
+    onSetRuleEnabled: (String, Boolean) -> Unit,
+    onRemoveRule: (String) -> Unit,
+) {
+    if (rules.isEmpty()) return
+    CardSurface {
+        HeaderRow(
+            icon = Icons.Rounded.Notifications,
+            title = "单课提醒",
+            subtitle = "只对这一门课生效，共 ${rules.size} 条",
+        )
+        rules.forEach { rule ->
+            SurfaceRow {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        rule.displayName?.removePrefix(COURSE_RULE_PREFIX) ?: "未命名课程",
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "提前 ${rule.advanceMinutes} 分钟 · ${alarmRingtoneLabel(rule.ringtoneUri)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = rule.enabled, onCheckedChange = { onSetRuleEnabled(rule.ruleId, it) })
+                IconButton(onClick = { onRemoveRule(rule.ruleId) }) {
+                    Icon(Icons.Rounded.Delete, contentDescription = "删除提醒")
+                }
+            }
+        }
     }
 }
 
