@@ -1456,7 +1456,8 @@ class WebNetworkPacketStore(
         val response = runCatching {
             java.net.URL(url).openConnection() as java.net.HttpURLConnection
         }.getOrNull() ?: return null
-        return runCatching {
+        return runCatching<WebResourceResponse?> {
+            response.applyNetworkCaptureTimeouts()
             response.instanceFollowRedirects = false
             response.requestMethod = method
             request.requestHeaders.forEach { (key, value) ->
@@ -1469,10 +1470,17 @@ class WebNetworkPacketStore(
             val reason = response.responseMessage.orEmpty()
             val mimeType = response.contentType?.substringBefore(";")?.trim().orEmpty()
             val encoding = response.contentEncoding ?: "utf-8"
-            val rawBody = runCatching<ByteArray> {
-                val stream = if (statusCode >= 400) response.errorStream else response.inputStream
-                stream?.use { it.readBytes() } ?: ByteArray(0)
-            }.getOrDefault(ByteArray(0))
+            val stream = if (statusCode >= 400) response.errorStream else response.inputStream
+            val rawBody: ByteArray? = if (stream == null) {
+                ByteArray(0)
+            } else {
+                runCatching { stream.use { it.readAtMostBytes(MAX_INTERCEPTED_BODY_BYTES.toLong()) } }
+                    .getOrDefault(ByteArray(0))
+            }
+            if (rawBody == null) {
+                response.disconnect()
+                return@runCatching null
+            }
             val boundedBody = rawBody.takeBytes(spec.safeMaxBodyBytes())
             val responseHeaders = response.headerFields.orEmpty().mapNotNull { (key, values) ->
                 key?.let { it to values.joinToString("; ") }
