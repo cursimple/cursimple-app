@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermSchedule
+import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -36,6 +37,7 @@ private const val DefaultWeekPickerTotalWeeks = 25
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeekPickerSheet(
+    termStart: LocalDate?,
     currentWeek: Int,
     selectedWeek: Int,
     totalWeeks: Int = DefaultWeekPickerTotalWeeks,
@@ -73,7 +75,13 @@ fun WeekPickerSheet(
                 }
             }
 
-            if (currentWeek < 1) {
+            if (termStart == null) {
+                Text(
+                    text = "还没有设置开学日期，无法判断当前是第几周",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (currentWeek < 1) {
                 Text(
                     text = "尚未开学 · 距第 1 周还有 ${1 - currentWeek} 周",
                     style = MaterialTheme.typography.bodySmall,
@@ -91,7 +99,7 @@ fun WeekPickerSheet(
                         rowWeeks.forEach { week ->
                             WeekCell(
                                 week = week,
-                                isCurrent = week == currentWeek,
+                                isCurrent = isCurrentTermWeek(termStart, week, currentWeek),
                                 isSelected = week == selectedWeek,
                                 onClick = { onSelectWeek(week) },
                                 modifier = Modifier.weight(1f),
