@@ -99,7 +99,8 @@ import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.core.data.ThemeAccent
-import com.x500x.cursimple.core.kernel.model.weekIndexLabel
+import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
+import com.x500x.cursimple.core.kernel.model.termWeekTitle
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModel
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModelFactory
@@ -436,9 +437,12 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.clickable { showWeekMenu = true },
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
-                                                // 尚未开学时不存在“当前周”，底色与徽章都不应出现
-                                                val isCurrentWeek =
-                                                    displayedWeekIndex == currentWeekIndex && currentWeekIndex >= 1
+                                                // 未设置开学日期或尚未开学时都不存在“当前周”，底色与徽章都不应出现
+                                                val isCurrentWeek = isCurrentTermWeek(
+                                                    termStart = effectiveTermStart,
+                                                    displayedWeekIndex = displayedWeekIndex,
+                                                    currentWeekIndex = currentWeekIndex,
+                                                )
                                                 Surface(
                                                     color = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
                                                     else androidx.compose.ui.graphics.Color.Transparent,
@@ -452,7 +456,7 @@ class MainActivity : ComponentActivity() {
                                                         ),
                                                     ) {
                                                         Text(
-                                                            text = weekIndexLabel(displayedWeekIndex),
+                                                            text = termWeekTitle(effectiveTermStart, displayedWeekIndex),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontWeight = FontWeight.SemiBold,
                                                             color = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
@@ -1087,6 +1091,7 @@ class MainActivity : ComponentActivity() {
 
                     if (showWeekMenu) {
                         WeekPickerSheet(
+                            termStart = effectiveTermStart,
                             currentWeek = currentWeekIndex,
                             selectedWeek = displayedWeekIndex,
                             totalWeeks = weekPickerTotalWeeks,

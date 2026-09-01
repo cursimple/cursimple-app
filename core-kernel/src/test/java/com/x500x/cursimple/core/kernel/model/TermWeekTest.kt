@@ -1,0 +1,75 @@
+package com.x500x.cursimple.core.kernel.model
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.LocalDate
+
+class TermWeekTest {
+
+    private val monday = LocalDate.of(2026, 9, 7)
+
+    @Test
+    fun `no term start means there is no week to name`() {
+        assertEquals("未设置开学日期", termWeekTitle(null, 1))
+        assertEquals("未设置开学日期", termWeekTitle(null, 5))
+        assertEquals("未设置开学日期", termWeekTitle(null, -2))
+    }
+
+    @Test
+    fun `a term start makes the week number the title`() {
+        assertEquals("第 1 周", termWeekTitle(monday, 1))
+        assertEquals("第 12 周", termWeekTitle(monday, 12))
+    }
+
+    @Test
+    fun `a week before the term start reads as not yet started`() {
+        assertEquals("未开学", termWeekTitle(monday, 0))
+        assertEquals("未开学", termWeekTitle(monday, -1))
+    }
+
+    @Test
+    fun `no term start means no week is the current one`() {
+        assertFalse(isCurrentTermWeek(termStart = null, displayedWeekIndex = 1, currentWeekIndex = 1))
+        assertFalse(isCurrentTermWeek(termStart = null, displayedWeekIndex = 3, currentWeekIndex = 3))
+    }
+
+    @Test
+    fun `before the term starts no week is the current one`() {
+        assertFalse(isCurrentTermWeek(termStart = monday, displayedWeekIndex = 0, currentWeekIndex = 0))
+        assertFalse(isCurrentTermWeek(termStart = monday, displayedWeekIndex = -1, currentWeekIndex = -1))
+    }
+
+    @Test
+    fun `the displayed week is current only when it matches the current one`() {
+        assertTrue(isCurrentTermWeek(termStart = monday, displayedWeekIndex = 3, currentWeekIndex = 3))
+        assertFalse(isCurrentTermWeek(termStart = monday, displayedWeekIndex = 2, currentWeekIndex = 3))
+        assertFalse(isCurrentTermWeek(termStart = monday, displayedWeekIndex = 4, currentWeekIndex = 3))
+    }
+
+    @Test
+    fun `a term start midweek still anchors week one to its own monday`() {
+        val wednesday = LocalDate.of(2026, 9, 9)
+
+        assertEquals(1, resolveTermWeekNumber(wednesday, LocalDate.of(2026, 9, 7)))
+        assertEquals(1, resolveTermWeekNumber(wednesday, LocalDate.of(2026, 9, 13)))
+        assertEquals(2, resolveTermWeekNumber(wednesday, LocalDate.of(2026, 9, 14)))
+        assertEquals(0, resolveTermWeekNumber(wednesday, LocalDate.of(2026, 9, 6)))
+    }
+
+    @Test
+    fun `an empty week list means every week once the term has started`() {
+        assertTrue(isTermWeekNumberActive(weekNumber = 1, weeks = emptyList()))
+        assertTrue(isTermWeekNumberActive(weekNumber = 20, weeks = emptyList()))
+        assertFalse(isTermWeekNumberActive(weekNumber = 0, weeks = emptyList()))
+        assertFalse(isTermWeekNumberActive(weekNumber = -3, weeks = emptyList()))
+    }
+
+    @Test
+    fun `a listed week only counts once the term has started`() {
+        assertTrue(isTermWeekNumberActive(weekNumber = 2, weeks = listOf(2, 4)))
+        assertFalse(isTermWeekNumberActive(weekNumber = 3, weeks = listOf(2, 4)))
+        assertFalse(isTermWeekNumberActive(weekNumber = 0, weeks = listOf(0, 2)))
+    }
+}
