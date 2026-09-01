@@ -28,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -94,8 +95,6 @@ fun QuickAddCourseDialog(
         )
     }
 
-    val dayLabel = listOf("一", "二", "三", "四", "五", "六", "日").getOrNull(dayOfWeek - 1) ?: "?"
-
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -110,7 +109,7 @@ fun QuickAddCourseDialog(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "在此处添加课程",
+                    text = stringResource(R.string.schedule_quick_add_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -122,7 +121,7 @@ fun QuickAddCourseDialog(
                     AssistChip(
                         onClick = {},
                         enabled = false,
-                        label = { Text("周$dayLabel") },
+                        label = { Text(stringResource(scheduleWeekdayFullRes(dayOfWeek))) },
                         colors = AssistChipDefaults.assistChipColors(
                             disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
                             disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -133,8 +132,8 @@ fun QuickAddCourseDialog(
                         enabled = false,
                         label = {
                             Text(
-                                if (startNode == endNode) "第 $startNode 节"
-                                else "第 $startNode-$endNode 节"
+                                if (startNode == endNode) stringResource(R.string.schedule_node_single, startNode)
+                                else stringResource(R.string.schedule_node_range, startNode, endNode)
                             )
                         },
                         colors = AssistChipDefaults.assistChipColors(
@@ -150,21 +149,21 @@ fun QuickAddCourseDialog(
                     OutlinedTextField(
                         value = title,
                         onValueChange = { title = it },
-                        label = { Text("课程名 *") },
+                        label = { Text(stringResource(R.string.schedule_course_name_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
                         value = location,
                         onValueChange = { location = it },
-                        label = { Text("上课地点（可选）") },
+                        label = { Text(stringResource(R.string.schedule_course_location_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     OutlinedTextField(
                         value = teacher,
                         onValueChange = { teacher = it },
-                        label = { Text("授课教师（可选）") },
+                        label = { Text(stringResource(R.string.schedule_course_teacher_label)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -172,7 +171,7 @@ fun QuickAddCourseDialog(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AssistChip(
                             onClick = { category = CourseCategory.Course },
-                            label = { Text("课程") },
+                            label = { Text(stringResource(R.string.schedule_category_course)) },
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = if (category == CourseCategory.Course) {
                                     MaterialTheme.colorScheme.primaryContainer
@@ -188,7 +187,7 @@ fun QuickAddCourseDialog(
                         )
                         AssistChip(
                             onClick = { category = CourseCategory.Exam },
-                            label = { Text("考试") },
+                            label = { Text(stringResource(R.string.schedule_category_exam)) },
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = if (category == CourseCategory.Exam) {
                                     MaterialTheme.colorScheme.errorContainer
@@ -208,7 +207,7 @@ fun QuickAddCourseDialog(
                         OutlinedTextField(
                             value = startWeekText,
                             onValueChange = { startWeekText = it.filter(Char::isDigit).take(2) },
-                            label = { Text("起始周") },
+                            label = { Text(stringResource(R.string.schedule_week_start_label)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f),
@@ -216,14 +215,14 @@ fun QuickAddCourseDialog(
                         OutlinedTextField(
                             value = endWeekText,
                             onValueChange = { endWeekText = it.filter(Char::isDigit).take(2) },
-                            label = { Text("结束周") },
+                            label = { Text(stringResource(R.string.schedule_week_end_label)) },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.weight(1f),
                         )
                     }
 
-                    conflictWarning?.let { CourseConflictWarning(text = it) }
+                    conflictWarning?.let { CourseConflictWarning(warning = it) }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -232,7 +231,7 @@ fun QuickAddCourseDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         enabled = canSave,
@@ -253,7 +252,7 @@ fun QuickAddCourseDialog(
                             )
                             onConfirm(course)
                         },
-                    ) { Text("保存") }
+                    ) { Text(stringResource(R.string.schedule_action_save)) }
                 }
             }
         }

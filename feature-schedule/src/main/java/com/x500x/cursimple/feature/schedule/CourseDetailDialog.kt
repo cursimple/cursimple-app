@@ -50,6 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -61,6 +62,7 @@ import com.x500x.cursimple.core.data.note.validateCourseNote
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.ExamCountdown
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.examCountdownOrNull
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
@@ -109,12 +111,15 @@ fun CourseDetailDialog(
     // 周次未知时不判断本周与否，徽章另行标注
     val isThisWeek = visibleWeekNumber?.let { course.isActiveInWeek(it) }
     val manual = isManual(course)
-    val weekday = listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日")
-        .getOrNull(course.time.dayOfWeek - 1) ?: "?"
-    val nodeRange = if (course.time.startNode == course.time.endNode) {
-        "第 ${course.time.startNode} 节"
+    val weekday = if (course.time.dayOfWeek in 1..7) {
+        stringResource(scheduleWeekdayFullRes(course.time.dayOfWeek))
     } else {
-        "第 ${course.time.startNode}-${course.time.endNode} 节"
+        "?"
+    }
+    val nodeRange = if (course.time.startNode == course.time.endNode) {
+        stringResource(R.string.schedule_node_single, course.time.startNode)
+    } else {
+        stringResource(R.string.schedule_node_range, course.time.startNode, course.time.endNode)
     }
     val classTimeText = remember(course, timingProfile) { resolveClassTime(course, timingProfile) }
     val weeksText = remember(course.weeks) { describeWeeksDetail(course.weeks) }
@@ -165,7 +170,12 @@ fun CourseDetailDialog(
                             StatusChip(thisWeek = isThisWeek, manual = manual)
                         }
                         Text(
-                            text = "${if (course.category == CourseCategory.Exam) "考试 · " else ""}$weekday · $nodeRange",
+                            text = stringResource(
+                                R.string.schedule_course_detail_header,
+                                if (course.category == CourseCategory.Exam) stringResource(R.string.schedule_course_detail_exam_prefix) else "",
+                                weekday,
+                                nodeRange,
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = headerContent.copy(alpha = 0.85f),
                         )
@@ -181,7 +191,7 @@ fun CourseDetailDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = "同位置 ${courses.size} 门：",
+                            text = stringResource(R.string.schedule_course_detail_same_slot, courses.size),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.align(Alignment.CenterVertically),
@@ -208,40 +218,44 @@ fun CourseDetailDialog(
                 ) {
                     DetailRow(
                         icon = Icons.Rounded.AccessTime,
-                        title = "上课时间",
+                        title = stringResource(R.string.schedule_course_detail_class_time),
                         body = classTimeText,
                     )
                     DetailRow(
                         icon = Icons.Rounded.CalendarMonth,
-                        title = "上课周次",
+                        title = stringResource(R.string.schedule_course_detail_weeks),
                         body = weeksText,
                     )
                     examCountdown?.let { countdown ->
                         DetailRow(
                             icon = Icons.Rounded.AccessTime,
-                            title = "考试倒计时",
-                            body = "${countdown.date.monthValue} 月 ${countdown.date.dayOfMonth} 日 · " +
-                                examCountdownLabel(countdown),
+                            title = stringResource(R.string.schedule_course_detail_countdown),
+                            body = stringResource(
+                                R.string.schedule_course_detail_countdown_body,
+                                countdown.date.monthValue,
+                                countdown.date.dayOfMonth,
+                                examCountdownText(countdown),
+                            ),
                         )
                     }
                     if (course.location.isNotBlank()) {
                         DetailRow(
                             icon = Icons.Rounded.LocationOn,
-                            title = "地点",
+                            title = stringResource(R.string.schedule_course_detail_location),
                             body = course.location,
                         )
                     }
                     if (course.teacher.isNotBlank()) {
                         DetailRow(
                             icon = Icons.Rounded.Person,
-                            title = "授课教师",
+                            title = stringResource(R.string.schedule_course_detail_teacher),
                             body = course.teacher,
                         )
                     }
                     DetailRow(
                         icon = Icons.Rounded.Source,
-                        title = "数据来源",
-                        body = if (manual) "手动添加" else "插件同步",
+                        title = stringResource(R.string.schedule_course_detail_source),
+                        body = stringResource(if (manual) R.string.schedule_source_manual else R.string.schedule_source_plugin),
                     )
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -284,7 +298,7 @@ fun CourseDetailDialog(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = if (temporarilyCancelled) "取消临时取消" else "临时取消",
+                                text = stringResource(if (temporarilyCancelled) R.string.schedule_course_detail_restore_cancel else R.string.schedule_course_detail_temp_cancel),
                                 maxLines = 1,
                                 softWrap = false,
                             )
@@ -307,7 +321,7 @@ fun CourseDetailDialog(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Text("删除", maxLines = 1, softWrap = false)
+                                Text(stringResource(R.string.schedule_action_delete), maxLines = 1, softWrap = false)
                             }
                         }
                         OutlinedButton(
@@ -321,13 +335,13 @@ fun CourseDetailDialog(
                                 modifier = Modifier.size(18.dp),
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text("设为提醒", maxLines = 1, softWrap = false)
+                            Text(stringResource(R.string.schedule_course_detail_set_reminder), maxLines = 1, softWrap = false)
                         }
                         Button(
                             onClick = onDismiss,
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         ) {
-                            Text("关闭", maxLines = 1, softWrap = false)
+                            Text(stringResource(R.string.schedule_action_close), maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -367,14 +381,14 @@ private fun CourseNoteSection(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-                text = "课程备注",
+                text = stringResource(R.string.schedule_note_title),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
             if (!editing) {
                 TextButton(onClick = { editing = true }) {
-                    Text(if (savedNote.isBlank()) "添加" else "编辑")
+                    Text(stringResource(if (savedNote.isBlank()) R.string.schedule_action_add else R.string.schedule_action_edit))
                 }
             }
         }
@@ -386,12 +400,12 @@ private fun CourseNoteSection(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 96.dp),
-                placeholder = { Text("带教材、换教室、小测……记一句给自己看") },
+                placeholder = { Text(stringResource(R.string.schedule_note_hint)) },
                 isError = tooLong,
                 supportingText = {
                     Text(
                         text = if (tooLong) {
-                            "已超出 ${draftLength - maxLength} 字，最多 $maxLength 字"
+                            stringResource(R.string.schedule_note_over_limit, draftLength - maxLength, maxLength)
                         } else {
                             "$draftLength / $maxLength"
                         },
@@ -411,7 +425,7 @@ private fun CourseNoteSection(
                         },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                     ) {
-                        Text("清空", maxLines = 1, softWrap = false)
+                        Text(stringResource(R.string.schedule_action_clear), maxLines = 1, softWrap = false)
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
@@ -421,7 +435,7 @@ private fun CourseNoteSection(
                         editing = false
                     },
                 ) {
-                    Text("取消")
+                    Text(stringResource(R.string.schedule_action_cancel))
                 }
                 Button(
                     onClick = {
@@ -438,7 +452,7 @@ private fun CourseNoteSection(
                     enabled = !tooLong,
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 ) {
-                    Text("保存", maxLines = 1, softWrap = false)
+                    Text(stringResource(R.string.schedule_action_save), maxLines = 1, softWrap = false)
                 }
             }
         } else {
@@ -448,7 +462,7 @@ private fun CourseNoteSection(
                 color = MaterialTheme.colorScheme.surfaceVariant,
             ) {
                 Text(
-                    text = savedNote.ifBlank { "还没有备注，点「添加」记一句" },
+                    text = savedNote.ifBlank { stringResource(R.string.schedule_note_empty) },
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (savedNote.isBlank()) {
@@ -481,15 +495,15 @@ private fun ExamReminderMuteRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "全局考试提醒",
+                    text = stringResource(R.string.schedule_exam_mute_title),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
                     text = when {
-                        !enabled -> "未开启，请到提醒页开启"
-                        muted -> "本场考试已临时取消提醒"
-                        else -> "本场考试会按全局规则提醒"
+                        !enabled -> stringResource(R.string.schedule_exam_mute_disabled)
+                        muted -> stringResource(R.string.schedule_exam_mute_muted)
+                        else -> stringResource(R.string.schedule_exam_mute_active)
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -497,7 +511,7 @@ private fun ExamReminderMuteRow(
             }
             if (enabled) {
                 TextButton(onClick = if (muted) onRestore else onMute) {
-                    Text(if (muted) "恢复" else "取消本场")
+                    Text(stringResource(if (muted) R.string.schedule_action_restore else R.string.schedule_exam_mute_this))
                 }
             }
         }
@@ -508,22 +522,22 @@ private fun ExamReminderMuteRow(
 private fun StatusChip(thisWeek: Boolean?, manual: Boolean) {
     val (label, container, content) = when {
         thisWeek == null -> Triple(
-            "周次未知",
+            stringResource(R.string.schedule_status_week_unknown),
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
         !thisWeek -> Triple(
-            "非本周",
+            stringResource(R.string.schedule_status_other_week),
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
         manual -> Triple(
-            "手动",
+            stringResource(R.string.schedule_status_manual),
             MaterialTheme.colorScheme.tertiaryContainer,
             MaterialTheme.colorScheme.onTertiaryContainer,
         )
         else -> Triple(
-            "本周",
+            stringResource(R.string.schedule_status_this_week),
             MaterialTheme.colorScheme.primaryContainer,
             MaterialTheme.colorScheme.onPrimaryContainer,
         )
@@ -577,6 +591,13 @@ private fun DetailRow(
             )
         }
     }
+}
+
+@Composable
+private fun examCountdownText(countdown: ExamCountdown): String = when (countdown.daysRemaining) {
+    0L -> stringResource(R.string.schedule_exam_countdown_today)
+    1L -> stringResource(R.string.schedule_exam_countdown_tomorrow)
+    else -> stringResource(R.string.schedule_exam_countdown_days, countdown.daysRemaining)
 }
 
 private fun resolveClassTime(course: CourseItem, timingProfile: TermTimingProfile?): String {

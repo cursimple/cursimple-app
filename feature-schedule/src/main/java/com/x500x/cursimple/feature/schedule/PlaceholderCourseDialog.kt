@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -52,7 +53,7 @@ internal fun PlaceholderCourseDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (course == null) "新增占位课" else "编辑占位课") },
+        title = { Text(stringResource(if (course == null) R.string.schedule_placeholder_add_title else R.string.schedule_placeholder_edit_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 var labelExpanded by rememberSaveable(course?.id, slotLabels) { mutableStateOf(false) }
@@ -88,22 +89,22 @@ internal fun PlaceholderCourseDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it.take(40) },
-                    label = { Text("名称") },
-                    placeholder = { Text("可空，默认使用 label") },
+                    label = { Text(stringResource(R.string.schedule_placeholder_name_label)) },
+                    placeholder = { Text(stringResource(R.string.schedule_placeholder_name_hint)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = startTime,
                         onValueChange = { startTime = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
-                        label = { Text("开始") },
+                        label = { Text(stringResource(R.string.schedule_placeholder_start_label)) },
                         modifier = Modifier.weight(1f),
                         isError = startTime.isNotBlank() && start == null,
                     )
                     OutlinedTextField(
                         value = endTime,
                         onValueChange = { endTime = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
-                        label = { Text("结束") },
+                        label = { Text(stringResource(R.string.schedule_placeholder_end_label)) },
                         modifier = Modifier.weight(1f),
                         isError = endTime.isNotBlank() && (end == null || (start != null && !end.isAfter(start))),
                     )
@@ -111,15 +112,15 @@ internal fun PlaceholderCourseDialog(
                 OutlinedTextField(
                     value = weeksText,
                     onValueChange = { weeksText = it.filter { c -> c.isDigit() || c == ',' || c == '，' || c == ' ' } },
-                    label = { Text("生效周次") },
-                    placeholder = { Text("可空表示全部周") },
+                    label = { Text(stringResource(R.string.schedule_placeholder_weeks_label)) },
+                    placeholder = { Text(stringResource(R.string.schedule_placeholder_weeks_hint)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = daysText,
                     onValueChange = { daysText = it.filter { c -> c.isDigit() || c == ',' || c == '，' || c == ' ' } },
-                    label = { Text("生效星期") },
+                    label = { Text(stringResource(R.string.schedule_placeholder_days_label)) },
                     placeholder = { Text("1,2,3,4,5") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -140,9 +141,9 @@ internal fun PlaceholderCourseDialog(
                         title.takeIf { it.isNotBlank() },
                     )
                 },
-            ) { Text("保存") }
+            ) { Text(stringResource(R.string.schedule_action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 

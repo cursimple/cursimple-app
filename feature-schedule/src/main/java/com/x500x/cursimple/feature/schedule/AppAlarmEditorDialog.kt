@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -53,7 +55,7 @@ internal fun AppAlarmEditorDialog(
     val zone = ZoneId.systemDefault()
     val trigger = Instant.ofEpochMilli(record.triggerAtMillis).atZone(zone).toLocalDateTime()
     AlarmSettingsDialogContent(
-        title = "编辑闹钟",
+        title = stringResource(R.string.schedule_app_alarm_edit_title),
         initialDate = trigger.toLocalDate().toString(),
         initialTime = DateTimeFormatter.ofPattern("HH:mm").format(trigger.toLocalTime()),
         initialRingtone = record.ringtoneUriOverride,
@@ -77,8 +79,10 @@ internal fun ManualAppAlarmDialog(
 ) {
     var dateText by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     var timeText by rememberSaveable { mutableStateOf(LocalTime.now().plusHours(1).withSecond(0).withNano(0).toString()) }
-    var title by rememberSaveable { mutableStateOf("手动闹钟") }
-    var message by rememberSaveable { mutableStateOf("手动创建的提醒") }
+    val defaultTitle = stringResource(R.string.schedule_manual_alarm_default_title)
+    val defaultMessage = stringResource(R.string.schedule_manual_alarm_default_message)
+    var title by rememberSaveable { mutableStateOf(defaultTitle) }
+    var message by rememberSaveable { mutableStateOf(defaultMessage) }
     var ringtone by rememberSaveable { mutableStateOf<String?>(null) }
     var alertMode by rememberSaveable { mutableStateOf<AlarmAlertMode?>(null) }
     var duration by rememberSaveable { mutableStateOf(DEFAULT_APP_ALARM_RING_DURATION_SECONDS.toString()) }
@@ -91,21 +95,21 @@ internal fun ManualAppAlarmDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("新建 APP 自管闹钟") },
+        title = { Text(stringResource(R.string.schedule_manual_alarm_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = dateText,
                         onValueChange = { dateText = it.take(10) },
-                        label = { Text("日期") },
+                        label = { Text(stringResource(R.string.schedule_alarm_date_label)) },
                         modifier = Modifier.weight(1f),
                         isError = dateText.isNotBlank() && date == null,
                     )
                     OutlinedTextField(
                         value = timeText,
                         onValueChange = { timeText = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
-                        label = { Text("时间") },
+                        label = { Text(stringResource(R.string.schedule_alarm_time_label)) },
                         modifier = Modifier.weight(1f),
                         isError = timeText.isNotBlank() && time == null,
                     )
@@ -113,13 +117,13 @@ internal fun ManualAppAlarmDialog(
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it.take(40) },
-                    label = { Text("标题") },
+                    label = { Text(stringResource(R.string.schedule_alarm_title_label)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 OutlinedTextField(
                     value = message,
                     onValueChange = { message = it.take(80) },
-                    label = { Text("消息") },
+                    label = { Text(stringResource(R.string.schedule_alarm_message_label)) },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 AlarmSettingsFields(
@@ -148,9 +152,9 @@ internal fun ManualAppAlarmDialog(
                         .toEpochMilli()
                     onCreate(millis, title.trim(), message.trim(), settings ?: EditableAppAlarmSettings())
                 },
-            ) { Text("创建") }
+            ) { Text(stringResource(R.string.schedule_action_create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -190,14 +194,14 @@ private fun AlarmSettingsDialogContent(
                     OutlinedTextField(
                         value = dateText,
                         onValueChange = { dateText = it.take(10) },
-                        label = { Text("日期") },
+                        label = { Text(stringResource(R.string.schedule_alarm_date_label)) },
                         modifier = Modifier.weight(1f),
                         isError = dateText.isNotBlank() && date == null,
                     )
                     OutlinedTextField(
                         value = timeText,
                         onValueChange = { timeText = it.filter { c -> c.isDigit() || c == ':' }.take(5) },
-                        label = { Text("时间") },
+                        label = { Text(stringResource(R.string.schedule_alarm_time_label)) },
                         modifier = Modifier.weight(1f),
                         isError = timeText.isNotBlank() && time == null,
                     )
@@ -228,9 +232,9 @@ private fun AlarmSettingsDialogContent(
                         .toEpochMilli()
                     onSave(settings?.copy(triggerAtMillis = millis) ?: EditableAppAlarmSettings())
                 },
-            ) { Text("保存") }
+            ) { Text(stringResource(R.string.schedule_action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -262,10 +266,10 @@ private fun AlarmSettingsFields(
             onSelect = onAlertMode,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-            NumberField("时长秒", duration, 5..600, onDuration, Modifier.weight(1f))
-            NumberField("间隔秒", interval, 5..3600, onInterval, Modifier.weight(1f))
+            NumberField(stringResource(R.string.schedule_alarm_duration_label), duration, 5..600, onDuration, Modifier.weight(1f))
+            NumberField(stringResource(R.string.schedule_alarm_interval_label), interval, 5..3600, onInterval, Modifier.weight(1f))
         }
-        NumberField("响铃次数", count, 1..10, onCount, Modifier.fillMaxWidth())
+        NumberField(stringResource(R.string.schedule_alarm_count_label), count, 1..10, onCount, Modifier.fillMaxWidth())
     }
 }
 
@@ -328,17 +332,17 @@ internal fun AlarmRingtoneSelector(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("铃声", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.schedule_ringtone_section), fontWeight = FontWeight.SemiBold)
                 Text(
-                    alarmRingtoneLabel(ringtoneUri),
+                    stringResource(alarmRingtoneLabelRes(ringtoneUri)),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onUseDefault) { Text("默认铃声") }
-                TextButton(onClick = onPickSystem) { Text("系统铃声") }
-                TextButton(onClick = onPickLocal) { Text("本地音频") }
+                TextButton(onClick = onUseDefault) { Text(stringResource(R.string.schedule_ringtone_default)) }
+                TextButton(onClick = onPickSystem) { Text(stringResource(R.string.schedule_ringtone_system)) }
+                TextButton(onClick = onPickLocal) { Text(stringResource(R.string.schedule_ringtone_local)) }
             }
         }
     }
@@ -364,7 +368,7 @@ internal fun AlarmAlertModeSelector(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text("提醒方式", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.schedule_alert_mode_section), fontWeight = FontWeight.SemiBold)
             options.forEach { mode ->
                 Row(
                     modifier = Modifier
@@ -376,25 +380,27 @@ internal fun AlarmAlertModeSelector(
                 ) {
                     RadioButton(selected = selected == mode, onClick = { onSelect(mode) })
                     Spacer(Modifier.width(6.dp))
-                    Text(alarmAlertModeLabel(mode))
+                    Text(stringResource(alarmAlertModeLabelRes(mode)))
                 }
             }
         }
     }
 }
 
-internal fun alarmRingtoneLabel(ringtoneUri: String?): String {
-    val uri = ringtoneUri?.takeIf { it.isNotBlank() } ?: return "默认铃声"
+@StringRes
+internal fun alarmRingtoneLabelRes(ringtoneUri: String?): Int {
+    val uri = ringtoneUri?.takeIf { it.isNotBlank() } ?: return R.string.schedule_ringtone_default
     return if (isLocalAudioRingtoneUri(uri)) {
-        "本地音频"
+        R.string.schedule_ringtone_local
     } else {
-        "系统铃声"
+        R.string.schedule_ringtone_system
     }
 }
 
-internal fun alarmAlertModeLabel(mode: AlarmAlertMode?): String = when (mode) {
-    null -> "跟随默认"
-    AlarmAlertMode.RingOnly -> "仅响铃"
-    AlarmAlertMode.VibrateOnly -> "仅震动"
-    AlarmAlertMode.RingAndVibrate -> "响铃并震动"
+@StringRes
+internal fun alarmAlertModeLabelRes(mode: AlarmAlertMode?): Int = when (mode) {
+    null -> R.string.schedule_alert_mode_default
+    AlarmAlertMode.RingOnly -> R.string.schedule_alert_mode_ring
+    AlarmAlertMode.VibrateOnly -> R.string.schedule_alert_mode_vibrate
+    AlarmAlertMode.RingAndVibrate -> R.string.schedule_alert_mode_ring_vibrate
 }

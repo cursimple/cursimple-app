@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -98,6 +99,7 @@ internal fun ScheduleUiState.noteMatchCourses(): List<CourseItem> =
     schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
 
 class ScheduleViewModel(
+    appContext: Context,
     private val scheduleRepository: ScheduleRepository,
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
@@ -110,6 +112,14 @@ class ScheduleViewModel(
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
+    /** 状态提示要按当前语言渲染，这里只取应用级 Context，不持有 Activity。 */
+    private val resources: Context = appContext.applicationContext
+
+    private fun text(resId: Int): String = resources.getString(resId)
+
+    private fun text(resId: Int, vararg formatArgs: Any): String =
+        resources.getString(resId, *formatArgs)
+
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState
 
@@ -195,7 +205,7 @@ class ScheduleViewModel(
         val pluginId = targetPluginId?.takeIf { it.isNotBlank() } ?: snapshot.pluginId
         if (pluginId.isBlank()) {
             PluginLogger.warn("plugin.schedule.sync.rejected", mapOf("reason" to "missing_plugin"))
-            _uiState.update { it.copy(statusMessage = "请先安装并启用至少一个插件") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_no_plugin_installed)) }
             return
         }
         viewModelScope.launch {
@@ -213,7 +223,7 @@ class ScheduleViewModel(
                 it.copy(
                     pluginId = pluginId,
                     isSyncing = true,
-                    statusMessage = "正在打开登录取数流程...",
+                    statusMessage = text(R.string.schedule_status_sync_opening),
                     missingComponents = emptyList(),
                 )
             }
@@ -240,7 +250,7 @@ class ScheduleViewModel(
                     mapOf("pluginId" to pluginId, "elapsedMs" to (System.currentTimeMillis() - startedAt)),
                     error,
                 )
-                WorkflowExecutionResult.Failure(error.message ?: "启动插件同步流程失败")
+                WorkflowExecutionResult.Failure(error.message ?: text(R.string.schedule_status_sync_start_failed))
             }
             handleExecutionResult(result, startedAt)
         }
@@ -264,7 +274,7 @@ class ScheduleViewModel(
                     "htmlDigest" to packet.htmlDigest,
                 ),
             )
-            _uiState.update { it.copy(isSyncing = true, statusMessage = "正在继续执行插件工作流...") }
+            _uiState.update { it.copy(isSyncing = true, statusMessage = text(R.string.schedule_status_sync_resuming)) }
             val result = runCatching {
                 withContext(ioDispatcher) {
                     pluginManager.resumeSync(
@@ -283,7 +293,7 @@ class ScheduleViewModel(
                     ),
                     error,
                 )
-                WorkflowExecutionResult.Failure(error.message ?: "恢复插件同步流程失败")
+                WorkflowExecutionResult.Failure(error.message ?: text(R.string.schedule_status_sync_resume_failed))
             }
             handleExecutionResult(result, startedAt)
         }
@@ -304,7 +314,7 @@ class ScheduleViewModel(
             it.copy(
                 pendingWebSession = null,
                 isSyncing = false,
-                statusMessage = "已取消网页登录流程",
+                statusMessage = text(R.string.schedule_status_web_session_cancelled),
             )
         }
     }
@@ -313,11 +323,11 @@ class ScheduleViewModel(
         val state = _uiState.value
         val schedule = reminderSchedule(state)
         if (state.pluginId.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先选择插件后再创建提醒") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_select_plugin_reminder)) }
             return
         }
         if (schedule == null) {
-            _uiState.update { it.copy(statusMessage = "暂无课表可设置提醒") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_no_schedule_reminder)) }
             return
         }
         viewModelScope.launch {
@@ -327,7 +337,7 @@ class ScheduleViewModel(
                 advanceMinutes = advanceMinutes.coerceIn(0, 720),
                 ringtoneUri = ringtoneUri,
             ) ?: return@launch _uiState.update {
-                it.copy(statusMessage = "无法确定上课时间：这门课的节次范围与当前节次时间表不一致。请先同步课表或补全节次时间。")
+                it.copy(statusMessage = text(R.string.schedule_status_course_time_unresolved))
             }
             val dispatchSummary = syncTodaySystemClockAlarms(
                 pluginId = state.pluginId,
@@ -343,7 +353,7 @@ class ScheduleViewModel(
                 it.copy(
                     selectionState = null,
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已创建提醒：${courseTitle ?: rule.ruleId.take(8)}",
+                        successMessage = text(R.string.schedule_status_reminder_created, courseTitle ?: rule.ruleId.take(8)),
                         summary = dispatchSummary,
                     ),
                 )
@@ -358,7 +368,7 @@ class ScheduleViewModel(
             is CourseNoteInput.Accepted -> result.text
             is CourseNoteInput.TooLong -> {
                 _uiState.update {
-                    it.copy(statusMessage = "备注最多 ${result.limit} 字，当前 ${result.length} 字")
+                    it.copy(statusMessage = text(R.string.schedule_status_note_too_long, result.limit, result.length))
                 }
                 return
             }
@@ -368,7 +378,7 @@ class ScheduleViewModel(
             runCatching { repository.setNote(courses, course, accepted) }
                 .onFailure { error ->
                     _uiState.update {
-                        it.copy(statusMessage = error.message ?: "备注保存失败")
+                        it.copy(statusMessage = error.message ?: text(R.string.schedule_status_note_save_failed))
                     }
                 }
         }
@@ -397,7 +407,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已添加课程：${course.title}",
+                        successMessage = text(R.string.schedule_status_course_added, course.title),
                         summary = dispatchSummary,
                     ),
                 )
@@ -406,7 +416,7 @@ class ScheduleViewModel(
     }
 
     fun reportCourseMoveBlocked() {
-        _uiState.update { it.copy(statusMessage = "目标位置已有课程") }
+        _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_move_blocked)) }
     }
 
     fun moveManualCourse(courseId: String, time: CourseTimeSlot) {
@@ -414,7 +424,7 @@ class ScheduleViewModel(
             val courses = manualCourseRepository.manualCoursesFlow.first()
             val target = courses.firstOrNull { it.id == courseId }
             if (target == null) {
-                _uiState.update { it.copy(statusMessage = "只能移动手动添加的课程") }
+                _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_move_manual_only)) }
                 return@launch
             }
             if (target.time == time) return@launch
@@ -425,7 +435,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已移动到${weekdayLabel(time.dayOfWeek)}第${time.startNode}节",
+                        successMessage = text(R.string.schedule_status_course_moved, weekdayLabel(time.dayOfWeek), time.startNode),
                         summary = dispatchSummary,
                     ),
                 )
@@ -440,7 +450,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已删除手动课程",
+                        successMessage = text(R.string.schedule_status_manual_course_removed),
                         summary = dispatchSummary,
                     ),
                 )
@@ -472,10 +482,12 @@ class ScheduleViewModel(
                     failedTitles += courseTitleById(current, id) ?: id
                 }
             }
-            val successMessage = bulkReminderStatusMessage(
-                successCount = successCount,
-                failedTitles = failedTitles,
-                hasTimingProfile = _uiState.value.timingProfile != null,
+            val successMessage = resources.bulkReminderStatusText(
+                bulkReminderStatusMessage(
+                    successCount = successCount,
+                    failedTitles = failedTitles,
+                    hasTimingProfile = _uiState.value.timingProfile != null,
+                ),
             )
             val schedule = reminderSchedule(state)
             if (schedule != null) {
@@ -494,7 +506,7 @@ class ScheduleViewModel(
                     )
                 }
             } else {
-                _uiState.update { it.copy(statusMessage = "$successMessage；暂无课表可设置提醒") }
+                _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_bulk_reminder_no_schedule, successMessage)) }
             }
         }
     }
@@ -506,7 +518,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已加载示例课表",
+                        successMessage = text(R.string.schedule_status_sample_loaded),
                         summary = dispatchSummary,
                     ),
                 )
@@ -521,7 +533,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已清空手动课表",
+                        successMessage = text(R.string.schedule_status_manual_cleared),
                         summary = dispatchSummary,
                     ),
                 )
@@ -537,7 +549,7 @@ class ScheduleViewModel(
                 it.copy(
                     schedule = null,
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已清空导入的课表",
+                        successMessage = text(R.string.schedule_status_imported_cleared),
                         summary = dispatchSummary,
                     ),
                 )
@@ -555,7 +567,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     schedule = null,
-                    statusMessage = "已清空全部课表",
+                    statusMessage = text(R.string.schedule_status_all_cleared),
                     selectionState = null,
                 )
             }
@@ -583,7 +595,7 @@ class ScheduleViewModel(
     fun removeReminderRule(ruleId: String) {
         viewModelScope.launch {
             reminderCoordinator.deleteRule(ruleId)
-            _uiState.update { it.copy(statusMessage = "已删除提醒规则") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_rule_deleted)) }
         }
     }
 
@@ -595,7 +607,7 @@ class ScheduleViewModel(
         val state = _uiState.value
         val pluginId = state.pluginId
         if (pluginId.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先选择插件后再设置考试提醒") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_select_plugin_exam)) }
             return
         }
         viewModelScope.launch {
@@ -641,10 +653,12 @@ class ScheduleViewModel(
                 }
             }
 
-            val successMessage = examReminderStatusMessage(
-                enabled = enabled,
-                coveredCount = coveredTitles.size,
-                unresolvedTitles = unresolvedTitles,
+            val successMessage = resources.examReminderStatusText(
+                examReminderStatusMessage(
+                    enabled = enabled,
+                    coveredCount = coveredTitles.size,
+                    unresolvedTitles = unresolvedTitles,
+                ),
             )
             if (schedule != null) {
                 val dispatchSummary = syncTodaySystemClockAlarms(
@@ -679,7 +693,7 @@ class ScheduleViewModel(
         viewModelScope.launch {
             val result = reminderCoordinator.deleteAlarmRecord(alarmKey, backend)
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) result.message else "闹钟取消失败：${result.message}")
+                it.copy(statusMessage = if (result.succeeded) result.message else text(R.string.schedule_status_alarm_cancel_failed, result.message))
             }
         }
     }
@@ -688,7 +702,7 @@ class ScheduleViewModel(
         viewModelScope.launch {
             val result = reminderCoordinator.setAppAlarmEnabled(alarmKey, enabled)
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) result.message else "闹钟状态更新失败：${result.message}")
+                it.copy(statusMessage = if (result.succeeded) result.message else text(R.string.schedule_status_alarm_toggle_failed, result.message))
             }
         }
     }
@@ -697,7 +711,7 @@ class ScheduleViewModel(
         viewModelScope.launch {
             val result = reminderCoordinator.updateAppAlarmSettings(alarmKey, settings)
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) "已更新闹钟设置" else "闹钟设置失败：${result.message}")
+                it.copy(statusMessage = if (result.succeeded) text(R.string.schedule_status_alarm_settings_updated) else text(R.string.schedule_status_alarm_settings_failed, result.message))
             }
         }
     }
@@ -718,7 +732,7 @@ class ScheduleViewModel(
                 settings = settings,
             )
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) "已创建手动闹钟" else "手动闹钟创建失败：${result.message}")
+                it.copy(statusMessage = if (result.succeeded) text(R.string.schedule_status_manual_alarm_created) else text(R.string.schedule_status_manual_alarm_failed, result.message))
             }
         }
     }
@@ -727,14 +741,14 @@ class ScheduleViewModel(
         val state = _uiState.value
         val pluginId = state.pluginId
         if (pluginId.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先选择插件后再调整考试提醒") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_select_plugin_exam_mute)) }
             return
         }
         val rule = state.reminderRules.firstOrNull {
             it.pluginId == pluginId && it.isExamReminderRule() && it.courseId == courseId
         }
         if (rule == null) {
-            _uiState.update { it.copy(statusMessage = "请先在提醒页开启考试提醒") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_enable_exam_first)) }
             return
         }
         val courseTitle = courseTitleById(state, courseId)
@@ -762,14 +776,14 @@ class ScheduleViewModel(
             } else {
                 emptySystemAlarmSyncSummary()
             }
-            val label = courseTitle ?: "本场考试"
+            val label = courseTitle ?: text(R.string.schedule_status_exam_fallback_label)
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
                         successMessage = if (muted) {
-                            "已取消$label 的考试提醒"
+                            text(R.string.schedule_status_exam_muted, label)
                         } else {
-                            "已恢复$label 的考试提醒"
+                            text(R.string.schedule_status_exam_restored, label)
                         },
                         summary = summary,
                     ),
@@ -784,7 +798,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已刷新今日闹钟",
+                        successMessage = text(R.string.schedule_status_alarms_refreshed),
                         summary = summary,
                     ),
                 )
@@ -804,7 +818,7 @@ class ScheduleViewModel(
         val state = _uiState.value
         val pluginId = state.pluginId
         if (pluginId.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先选择插件后再保存提醒规则") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_select_plugin_rule)) }
             return
         }
         val isNewRule = ruleId == null
@@ -845,7 +859,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已保存规则：${rule.displayName ?: rule.ruleId.take(8)}",
+                        successMessage = text(R.string.schedule_status_rule_saved, rule.displayName ?: rule.ruleId.take(8)),
                         summary = summary,
                     ),
                 )
@@ -860,7 +874,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = if (enabled) "已启用提醒规则" else "已关闭提醒规则",
+                        successMessage = if (enabled) text(R.string.schedule_status_rule_enabled) else text(R.string.schedule_status_rule_disabled),
                         summary = summary,
                     ),
                 )
@@ -879,7 +893,7 @@ class ScheduleViewModel(
     ) {
         val normalizedLabel = label.trim()
         if (normalizedLabel.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "占位课名称不能为空") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_placeholder_name_empty)) }
             return
         }
         val id = courseId ?: "placeholder-${UUID.randomUUID()}"
@@ -905,7 +919,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已保存占位课：$normalizedLabel",
+                        successMessage = text(R.string.schedule_status_placeholder_saved, normalizedLabel),
                         summary = summary,
                     ),
                 )
@@ -923,7 +937,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已删除占位课",
+                        successMessage = text(R.string.schedule_status_placeholder_deleted),
                         summary = summary,
                     ),
                 )
@@ -944,7 +958,7 @@ class ScheduleViewModel(
         val state = _uiState.value
         val pluginId = state.pluginId
         if (pluginId.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先选择插件后再设置自定义占用") }
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_select_plugin_occupancy)) }
             return
         }
         viewModelScope.launch {
@@ -963,7 +977,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已保存自定义占用：${occupancy.name}",
+                        successMessage = text(R.string.schedule_status_occupancy_saved, occupancy.name),
                         summary = summary,
                     ),
                 )
@@ -978,7 +992,7 @@ class ScheduleViewModel(
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = "已删除自定义占用",
+                        successMessage = text(R.string.schedule_status_occupancy_deleted),
                         summary = summary,
                     ),
                 )
@@ -1023,15 +1037,43 @@ class ScheduleViewModel(
         summary: SystemAlarmSyncSummary,
     ): String {
         val details = buildList {
-            if (summary.expiredRecordClearedCount > 0) add("已清理 ${summary.expiredRecordClearedCount} 个过期闹钟登记")
-            if (summary.dismissedCount > 0) add("已删除 ${summary.dismissedCount} 个失效闹钟")
-            if (summary.dismissFailedCount > 0) add("${summary.dismissFailedCount} 个失效闹钟删除失败")
-            if (summary.createdCount > 0) add("成功添加 ${summary.createdCount} 个闹钟")
-            if (summary.skippedExistingCount > 0) add("跳过 ${summary.skippedExistingCount} 个已添加闹钟")
-            if (summary.skippedUnrepresentableCount > 0) add("跳过 ${summary.skippedUnrepresentableCount} 个无法安全表达日期的闹钟")
-            if (summary.failedCount > 0) add("${summary.failedCount} 个设置失败：${summary.results.first { !it.succeeded }.message}")
+            if (summary.expiredRecordClearedCount > 0) {
+                add(text(R.string.schedule_status_alarm_expired_cleared, summary.expiredRecordClearedCount))
+            }
+            if (summary.dismissedCount > 0) {
+                add(text(R.string.schedule_status_alarm_dismissed, summary.dismissedCount))
+            }
+            if (summary.dismissFailedCount > 0) {
+                add(text(R.string.schedule_status_alarm_dismiss_failed, summary.dismissFailedCount))
+            }
+            if (summary.createdCount > 0) {
+                add(text(R.string.schedule_status_alarm_created_count, summary.createdCount))
+            }
+            if (summary.skippedExistingCount > 0) {
+                add(text(R.string.schedule_status_alarm_skipped_existing, summary.skippedExistingCount))
+            }
+            if (summary.skippedUnrepresentableCount > 0) {
+                add(text(R.string.schedule_status_alarm_skipped_unrepresentable, summary.skippedUnrepresentableCount))
+            }
+            if (summary.failedCount > 0) {
+                add(
+                    text(
+                        R.string.schedule_status_alarm_failed_count,
+                        summary.failedCount,
+                        summary.results.first { !it.succeeded }.message,
+                    ),
+                )
+            }
         }
-        return if (details.isEmpty()) "$successMessage；暂无可立即添加的闹钟" else "$successMessage；${details.joinToString("，")}"
+        return if (details.isEmpty()) {
+            text(R.string.schedule_status_alarm_sync_none, successMessage)
+        } else {
+            text(
+                R.string.schedule_status_alarm_sync_details,
+                successMessage,
+                details.joinToString(text(R.string.schedule_status_alarm_detail_separator)),
+            )
+        }
     }
 
     private suspend fun currentReminderSchedule(): TermSchedule? {
@@ -1086,7 +1128,7 @@ class ScheduleViewModel(
                         it.copy(
                             isSyncing = false,
                             pendingWebSession = null,
-                            statusMessage = "同步失败：${error.message ?: "插件返回的课表数据无效"}",
+                            statusMessage = text(R.string.schedule_status_sync_failed, error.message ?: text(R.string.schedule_status_sync_invalid_schedule)),
                         )
                     }
                     return
@@ -1121,7 +1163,7 @@ class ScheduleViewModel(
                         it.copy(
                             isSyncing = false,
                             pendingWebSession = null,
-                            statusMessage = "同步失败：${error.message ?: "插件结果后处理失败"}",
+                            statusMessage = text(R.string.schedule_status_sync_failed, error.message ?: text(R.string.schedule_status_sync_postprocess_failed)),
                         )
                     }
                     return
@@ -1148,7 +1190,7 @@ class ScheduleViewModel(
                         alarmRecommendations = result.recommendations,
                         messages = result.messages,
                         missingComponents = emptyList(),
-                        statusMessage = "同步完成，已更新课表",
+                        statusMessage = text(R.string.schedule_status_sync_completed),
                     )
                 }
             }
@@ -1173,7 +1215,7 @@ class ScheduleViewModel(
                         statusMessage = if (componentIds.isBlank()) {
                             result.message
                         } else {
-                            "${result.message}：$componentIds"
+                            text(R.string.schedule_status_missing_components, result.message, componentIds)
                         },
                     )
                 }
@@ -1198,7 +1240,7 @@ class ScheduleViewModel(
                         uiSchema = result.uiSchema,
                         messages = result.messages,
                         missingComponents = emptyList(),
-                        statusMessage = "请在当前插件页完成登录",
+                        statusMessage = text(R.string.schedule_status_web_session_pending),
                     )
                 }
             }
@@ -1217,7 +1259,7 @@ class ScheduleViewModel(
                         isSyncing = false,
                         pendingWebSession = null,
                         missingComponents = emptyList(),
-                        statusMessage = "同步失败：${result.message}",
+                        statusMessage = text(R.string.schedule_status_sync_failed, result.message),
                     )
                 }
             }
@@ -1532,43 +1574,152 @@ internal fun planLegacyCourseReminderMigration(
     ).copy(enabled = rule.enabled)
 }
 
+/** 提醒创建失败时最多列出几个课程标题。 */
+private const val REMINDER_TITLE_PREVIEW_LIMIT = 3
+
+/** 没能建成提醒的课程，[titles] 最多保留 3 个，[totalCount] 是全部数量。 */
+internal data class ReminderTitlePreview(
+    val titles: List<String>,
+    val totalCount: Int,
+)
+
+private fun reminderTitlePreview(titles: List<String>): ReminderTitlePreview = ReminderTitlePreview(
+    titles = titles.take(REMINDER_TITLE_PREVIEW_LIMIT),
+    totalCount = titles.size,
+)
+
+private fun Context.reminderTitlePreviewText(preview: ReminderTitlePreview, overflowRes: Int): String {
+    val joined = preview.titles.joinToString(getString(R.string.schedule_reminder_title_separator))
+    return if (preview.totalCount > preview.titles.size) {
+        joined + getString(overflowRes, preview.totalCount)
+    } else {
+        joined
+    }
+}
+
+/** 批量创建课程提醒的结果。 */
+internal sealed interface BulkReminderStatus {
+    /** 选中的课程全部建好了提醒。 */
+    data class AllCreated(val successCount: Int) : BulkReminderStatus
+
+    /** 一部分建好了，另一部分因为节次问题没建成。 */
+    data class PartiallyCreated(
+        val successCount: Int,
+        val failed: ReminderTitlePreview,
+        val hasTimingProfile: Boolean,
+    ) : BulkReminderStatus
+
+    /** 一门都没建成。 */
+    data class NoneCreated(
+        val failed: ReminderTitlePreview,
+        val hasTimingProfile: Boolean,
+    ) : BulkReminderStatus
+}
+
 internal fun bulkReminderStatusMessage(
     successCount: Int,
     failedTitles: List<String>,
     hasTimingProfile: Boolean,
-): String {
-    if (failedTitles.isEmpty()) return "已为 $successCount 门课程创建提醒"
-    val reason = if (hasTimingProfile) "节次范围和当前节次时间表对不上" else "还没有节次时间表"
-    val preview = failedTitles.take(3).joinToString("、")
-    val suffix = if (failedTitles.size > 3) "等 ${failedTitles.size} 门" else ""
-    val failure = "$preview$suffix 没能创建（$reason），请先同步课表或补全节次时间"
+): BulkReminderStatus {
+    if (failedTitles.isEmpty()) return BulkReminderStatus.AllCreated(successCount)
+    val failed = reminderTitlePreview(failedTitles)
     return if (successCount == 0) {
-        "提醒创建失败：$failure"
+        BulkReminderStatus.NoneCreated(failed, hasTimingProfile)
     } else {
-        "已为 $successCount 门课程创建提醒；$failure"
+        BulkReminderStatus.PartiallyCreated(successCount, failed, hasTimingProfile)
     }
+}
+
+private fun Context.bulkReminderFailureText(
+    failed: ReminderTitlePreview,
+    hasTimingProfile: Boolean,
+): String {
+    val reason = if (hasTimingProfile) {
+        getString(R.string.schedule_bulk_reminder_reason_mismatch)
+    } else {
+        getString(R.string.schedule_bulk_reminder_reason_no_profile)
+    }
+    val titles = reminderTitlePreviewText(failed, R.string.schedule_bulk_reminder_failure_overflow)
+    return getString(R.string.schedule_bulk_reminder_failure, titles, reason)
+}
+
+internal fun Context.bulkReminderStatusText(status: BulkReminderStatus): String = when (status) {
+    is BulkReminderStatus.AllCreated ->
+        getString(R.string.schedule_bulk_reminder_all_created, status.successCount)
+
+    is BulkReminderStatus.NoneCreated -> getString(
+        R.string.schedule_bulk_reminder_none,
+        bulkReminderFailureText(status.failed, status.hasTimingProfile),
+    )
+
+    is BulkReminderStatus.PartiallyCreated -> getString(
+        R.string.schedule_bulk_reminder_partial,
+        status.successCount,
+        bulkReminderFailureText(status.failed, status.hasTimingProfile),
+    )
+}
+
+/** 开关考试提醒后的结果。 */
+internal sealed interface ExamReminderStatus {
+    /** 提醒被关掉了。 */
+    data object Disabled : ExamReminderStatus
+
+    /** 提醒已开启，但课表里没有考试。 */
+    data object NoExams : ExamReminderStatus
+
+    /** 所有考试都建好了提醒。 */
+    data class AllCovered(val coveredCount: Int) : ExamReminderStatus
+
+    /** 一部分考试建好了提醒，另一部分节次不在时间表内。 */
+    data class PartiallyCovered(
+        val coveredCount: Int,
+        val skipped: ReminderTitlePreview,
+    ) : ExamReminderStatus
+
+    /** 一场都没建成。 */
+    data class NoneCovered(val skipped: ReminderTitlePreview) : ExamReminderStatus
 }
 
 internal fun examReminderStatusMessage(
     enabled: Boolean,
     coveredCount: Int,
     unresolvedTitles: List<String>,
-): String {
-    if (!enabled) return "已关闭考试提醒"
-    val skipped = unresolvedTitles.takeIf { it.isNotEmpty() }?.let { titles ->
-        val preview = titles.take(3).joinToString("、")
-        val suffix = if (titles.size > 3) "等 ${titles.size} 场" else ""
-        "$preview$suffix 的节次不在当前节次时间表内，没能创建提醒"
-    }
+): ExamReminderStatus {
+    if (!enabled) return ExamReminderStatus.Disabled
+    val skipped = unresolvedTitles.takeIf { it.isNotEmpty() }?.let(::reminderTitlePreview)
     return when {
-        coveredCount == 0 && skipped != null -> "考试提醒开启失败：$skipped。请先同步课表或补全节次时间。"
-        coveredCount == 0 -> "已开启考试提醒；课表里暂时没有考试"
-        skipped != null -> "已为 $coveredCount 场考试开启提醒；$skipped"
-        else -> "已为 $coveredCount 场考试开启提醒"
+        coveredCount == 0 && skipped != null -> ExamReminderStatus.NoneCovered(skipped)
+        coveredCount == 0 -> ExamReminderStatus.NoExams
+        skipped != null -> ExamReminderStatus.PartiallyCovered(coveredCount, skipped)
+        else -> ExamReminderStatus.AllCovered(coveredCount)
     }
 }
 
+private fun Context.examReminderSkippedText(skipped: ReminderTitlePreview): String = getString(
+    R.string.schedule_exam_reminder_skipped,
+    reminderTitlePreviewText(skipped, R.string.schedule_exam_reminder_skipped_overflow),
+)
+
+internal fun Context.examReminderStatusText(status: ExamReminderStatus): String = when (status) {
+    ExamReminderStatus.Disabled -> getString(R.string.schedule_exam_reminder_disabled)
+    ExamReminderStatus.NoExams -> getString(R.string.schedule_exam_reminder_no_exams)
+    is ExamReminderStatus.AllCovered ->
+        getString(R.string.schedule_exam_reminder_covered, status.coveredCount)
+
+    is ExamReminderStatus.NoneCovered -> getString(
+        R.string.schedule_exam_reminder_none,
+        examReminderSkippedText(status.skipped),
+    )
+
+    is ExamReminderStatus.PartiallyCovered -> getString(
+        R.string.schedule_exam_reminder_partial,
+        status.coveredCount,
+        examReminderSkippedText(status.skipped),
+    )
+}
+
 class ScheduleViewModelFactory(
+    private val appContext: Context,
     private val scheduleRepository: ScheduleRepository,
     private val pluginManager: PluginManager,
     private val reminderCoordinator: ReminderCoordinator,
@@ -1584,6 +1735,7 @@ class ScheduleViewModelFactory(
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
             return ScheduleViewModel(
+                appContext = appContext,
                 scheduleRepository = scheduleRepository,
                 pluginManager = pluginManager,
                 reminderCoordinator = reminderCoordinator,

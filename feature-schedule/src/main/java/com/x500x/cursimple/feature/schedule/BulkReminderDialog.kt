@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
@@ -54,14 +55,14 @@ fun BulkReminderDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(24.dp),
-        title = { Text(if (containsExam) "批量设置考试提醒" else "批量设置提醒") },
+        title = { Text(stringResource(if (containsExam) R.string.schedule_bulk_reminder_exam_title else R.string.schedule_bulk_reminder_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = if (containsExam) {
-                        "将为已选中的 $selectedCount 项内容统一创建考试/课程提醒。"
+                        stringResource(R.string.schedule_bulk_reminder_body_exam, selectedCount)
                     } else {
-                        "将为已选中的 $selectedCount 门课程统一创建上课前提醒。"
+                        stringResource(R.string.schedule_bulk_reminder_body, selectedCount)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -69,7 +70,7 @@ fun BulkReminderDialog(
                 OutlinedTextField(
                     value = advanceMinutesText,
                     onValueChange = { advanceMinutesText = it.filter(Char::isDigit).take(4) },
-                    label = { Text("提前分钟数") },
+                    label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -90,10 +91,10 @@ fun BulkReminderDialog(
             Button(
                 onClick = { onConfirm(advance ?: 20, ringtoneUri) },
                 enabled = canSave,
-            ) { Text("创建") }
+            ) { Text(stringResource(R.string.schedule_action_create)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }
