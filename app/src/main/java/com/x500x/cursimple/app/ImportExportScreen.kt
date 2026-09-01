@@ -42,6 +42,7 @@ import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,6 +100,7 @@ fun ImportExportScreen(
     aiImportConfig: AiImportConfig,
     aiImportClient: AiScheduleImportClient,
     onApplyImport: (TermSchedule?, List<CourseItem>, (Result<Pair<Int, Int>>) -> Unit) -> Unit,
+    onApplyTermStartDate: (LocalDate) -> Unit,
     onCreateAppBackup: suspend () -> AppBackupPayload,
     onRestoreAppBackup: suspend (AppBackupPayload) -> Unit,
     onOpenWebDavSettings: () -> Unit,
@@ -116,6 +118,7 @@ fun ImportExportScreen(
     var showScanner by remember { mutableStateOf(false) }
     var webDavBusy by remember { mutableStateOf(false) }
     var remoteBackups by remember { mutableStateOf<List<WebDavBackupFile>>(emptyList()) }
+    var pendingRestore by remember { mutableStateOf<WebDavBackupFile?>(null) }
     var aiBusy by remember { mutableStateOf(false) }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
@@ -210,6 +213,30 @@ fun ImportExportScreen(
         val uri = createAiCameraUri(context)
         aiCameraUri = uri
         aiCameraLauncher.launch(uri)
+    }
+
+    fun restoreRemoteBackup(backup: WebDavBackupFile) {
+        webDavBusy = true
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val text = webDavClient.download(webDavConfig, backup.href).toString(Charsets.UTF_8)
+                    appBackupJson.decodeFromString(AppBackupPayload.serializer(), text)
+                }
+            }.onSuccess {
+                runCatching {
+                    withContext(Dispatchers.IO) { onRestoreAppBackup(it) }
+                }.onSuccess {
+                    Toast.makeText(context, "WebDAV 备份已恢复", Toast.LENGTH_SHORT).show()
+                }.onFailure { error ->
+                    Toast.makeText(context, "恢复失败：${error.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                }
+            }.onFailure {
+                Toast.makeText(context, "恢复失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+            }
+            webDavBusy = false
+            pendingRestore = null
+        }
     }
 
     fun openScanner() {
@@ -379,28 +406,7 @@ fun ImportExportScreen(
                     }
                 },
                 backups = remoteBackups,
-                onRestore = { backup ->
-                    webDavBusy = true
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            runCatching {
-                                val text = webDavClient.download(webDavConfig, backup.href).toString(Charsets.UTF_8)
-                                appBackupJson.decodeFromString(AppBackupPayload.serializer(), text)
-                            }
-                        }.onSuccess {
-                            runCatching {
-                                withContext(Dispatchers.IO) { onRestoreAppBackup(it) }
-                            }.onSuccess {
-                                Toast.makeText(context, "WebDAV 备份已恢复", Toast.LENGTH_SHORT).show()
-                            }.onFailure { error ->
-                                Toast.makeText(context, "恢复失败：${error.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
-                            }
-                        }.onFailure {
-                            Toast.makeText(context, "恢复失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
-                        }
-                        webDavBusy = false
-                    }
-                },
+                onRestore = { backup -> pendingRestore = backup },
             )
 
             AiImportPanel(
@@ -476,9 +482,62 @@ fun ImportExportScreen(
         )
     }
 
+    pendingRestore?.let { backup ->
+        AlertDialog(
+            onDismissRequest = { if (!webDavBusy) pendingRestore = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.CloudDownload,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                )
+            },
+            title = { Text("用这个备份覆盖本机数据？") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("备份文件：${backup.name}", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = "备份时间：${backup.lastModified ?: "未知"}",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text("文件大小：${backup.size} 字节", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = "恢复会先清空本机现有数据，再用这个备份整体覆盖：课表、手动课程、学期档案与开学日期、提醒规则、插件与组件记录、小组件外观和全部应用设置。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        text = "本机现有数据会被全部丢弃，且无法撤销。请确认这就是你要用的备份。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !webDavBusy,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                    onClick = { restoreRemoteBackup(backup) },
+                ) { Text(if (webDavBusy) "恢复中..." else "覆盖并恢复") }
+            },
+            dismissButton = {
+                TextButton(
+                    enabled = !webDavBusy,
+                    onClick = { pendingRestore = null },
+                ) { Text("取消") }
+            },
+        )
+    }
+
     pendingImport?.let { payload ->
         val courseCount = payload.schedule?.dailySchedules?.sumOf { it.courses.size } ?: 0
         val manualCount = payload.manualCourses.size
+        val importedTermStart = remember(payload.termStartDate) {
+            parseImportedTermStartDate(payload.termStartDate)
+        }
         AlertDialog(
             onDismissRequest = { if (!importing) pendingImport = null },
             icon = {
@@ -494,11 +553,18 @@ fun ImportExportScreen(
                     payload.termName?.takeIf(String::isNotBlank)?.let { name ->
                         Text("学期：$name", style = MaterialTheme.typography.bodyMedium)
                     }
-                    payload.termStartDate?.takeIf(String::isNotBlank)?.let { iso ->
-                        Text("开学日期：$iso", style = MaterialTheme.typography.bodyMedium)
+                    importedTermStart?.let { date ->
+                        Text("开学日期：$date", style = MaterialTheme.typography.bodyMedium)
                     }
                     Text("导入课程：$courseCount 门", style = MaterialTheme.typography.bodyMedium)
                     Text("手动添加课程：$manualCount 门", style = MaterialTheme.typography.bodyMedium)
+                    importedTermStart?.takeIf { it != termStartDate }?.let { date ->
+                        Text(
+                            text = "将同时把开学日期改为 $date（当前：${termStartDate?.toString() ?: "未设置"}），周次会按新日期重新计算。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
                     Text(
                         text = "导入会覆盖当前学期已有的课表与手动课程，请确认无误。",
                         style = MaterialTheme.typography.bodySmall,
@@ -516,6 +582,7 @@ fun ImportExportScreen(
                             pendingImport = null
                             result
                                 .onSuccess { (imported, manual) ->
+                                    importedTermStart?.let(onApplyTermStartDate)
                                     Toast.makeText(
                                         context,
                                         "已导入 $imported 门课程，$manual 门手动课程",
@@ -960,6 +1027,13 @@ private fun Panel(
             }
         }
     }
+}
+
+// 分享负载里的开学日期为 ISO yyyy-MM-dd，缺失或格式非法时返回 null
+internal fun parseImportedTermStartDate(iso: String?): LocalDate? {
+    val trimmed = iso?.trim().orEmpty()
+    if (trimmed.isEmpty()) return null
+    return runCatching { LocalDate.parse(trimmed) }.getOrNull()
 }
 
 private fun decodeQrFromUri(

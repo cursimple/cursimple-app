@@ -368,6 +368,13 @@ suspend fun DataStore<Preferences>.restoreSnapshot(snapshot: PreferencesStoreSna
     }
 }
 
+/**
+ * 备份恢复后是否释放 [previousUri] 的持久化读取授权。
+ * 恢复结果仍指向同一个 URI 时保留授权，否则该 URI 之后无法再被读取。
+ */
+fun shouldReleasePersistedUriPermission(previousUri: String?, restoredUri: String?): Boolean =
+    !previousUri.isNullOrBlank() && previousUri != restoredUri
+
 private fun Any.toBackupEntry(name: String): PreferencesBackupEntry? = when (this) {
     is String -> PreferencesBackupEntry(
         name = name,

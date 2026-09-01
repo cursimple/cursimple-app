@@ -55,6 +55,8 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
+import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -425,15 +427,14 @@ private fun TermDatePickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
 ) {
-    val initialMillis = initial.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val initialMillis = initial.toDatePickerMillis()
     val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
             TextButton(onClick = {
                 state.selectedDateMillis?.let { millis ->
-                    val date = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
-                    onConfirm(date)
+                    onConfirm(datePickerMillisToLocalDate(millis))
                 }
             }) { Text("确定") }
         },

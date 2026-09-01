@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermSchedule
+import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -64,9 +65,20 @@ fun WeekPickerSheet(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { onSetSelectedAsCurrent(selectedWeek) }) {
+                TextButton(
+                    onClick = { onSetSelectedAsCurrent(selectedWeek) },
+                    enabled = selectedWeek >= 1,
+                ) {
                     Text("设为当前周")
                 }
+            }
+
+            if (currentWeek < 1) {
+                Text(
+                    text = "尚未开学 · 距第 1 周还有 ${1 - currentWeek} 周",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             val rows = (1..totalWeeks).chunked(5)
@@ -93,6 +105,15 @@ fun WeekPickerSheet(
             }
         }
     }
+}
+
+/**
+ * 按开学日期所在周的周一起算 [date] 落在第几周。
+ * 开学前返回 0 或负数；未设置开学日期时回退到第 1 周。
+ */
+internal fun resolveWeekIndexForDate(termStart: LocalDate?, date: LocalDate): Int {
+    if (termStart == null) return 1
+    return resolveTermWeekNumber(termStart, date)
 }
 
 internal fun resolveWeekPickerTotalWeeks(

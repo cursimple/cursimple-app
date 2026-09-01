@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.data.term.TermProfile
 import com.x500x.cursimple.core.data.term.TermProfileRepository
+import com.x500x.cursimple.core.data.term.termStartDateIsoOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -73,9 +75,9 @@ class TermProfileViewModel(
     fun delete(id: String) {
         viewModelScope.launch {
             termRepo.deleteTerm(id)
-            // Re-mirror new active's start date into user prefs.
-            val nextActive = state.value.terms.firstOrNull { it.id != id }
-            val iso = nextActive?.termStartDate
+            // 删除后以仓库里实际的活动学期为准镜像开学日期，删除非活动学期不会改动当前学期。
+            val activeId = termRepo.activeTermIdFlow.first()
+            val iso = termRepo.termsFlow.first().termStartDateIsoOf(activeId)
             userPrefs.setTermStartDate(iso?.let { runCatching { LocalDate.parse(it) }.getOrNull() })
             onActiveTermChanged()
         }
