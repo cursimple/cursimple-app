@@ -15,6 +15,7 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
+import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -42,12 +43,59 @@ internal data class ScheduleWidgetDayData(
     val sourceDate: LocalDate,
     val rows: List<ScheduleWidgetCourseRow>,
     val widgetTheme: WidgetThemePreferences = WidgetThemePreferences(),
+    val beforeTermStart: Boolean = false,
+    val termStartMissing: Boolean = false,
+    val termStartDate: LocalDate? = null,
 ) {
     val themeAccent: ThemeAccent = widgetTheme.themeAccent
 }
 
+/**
+ * 一次刷新里头部和列表共用同一份读取结果的短时缓存；超出 [ttlNanos] 或换了小组件就重新读。
+ */
+internal class ScheduleWidgetDayCache(private val ttlNanos: Long = DEFAULT_TTL_NANOS) {
+    private class Entry(
+        val appWidgetId: Int,
+        val atNanos: Long,
+        val data: ScheduleWidgetDayData,
+    )
+
+    @Volatile
+    private var entry: Entry? = null
+
+    fun get(appWidgetId: Int, nowNanos: Long): ScheduleWidgetDayData? {
+        val current = entry ?: return null
+        if (current.appWidgetId != appWidgetId) return null
+        val age = nowNanos - current.atNanos
+        return if (age in 0 until ttlNanos) current.data else null
+    }
+
+    fun put(appWidgetId: Int, nowNanos: Long, data: ScheduleWidgetDayData) {
+        entry = Entry(appWidgetId, nowNanos, data)
+    }
+
+    companion object {
+        const val DEFAULT_TTL_NANOS: Long = 5_000_000_000L
+    }
+}
+
 internal object ScheduleWidgetDataSource {
-    suspend fun loadDay(context: Context, appWidgetId: Int): ScheduleWidgetDayData {
+    private val dayCache = ScheduleWidgetDayCache()
+
+    /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
+    suspend fun loadDay(
+        context: Context,
+        appWidgetId: Int,
+        reuseRecent: Boolean = false,
+    ): ScheduleWidgetDayData {
+        if (reuseRecent) {
+            dayCache.get(appWidgetId, System.nanoTime())?.let { return it }
+        }
+        return loadFreshDay(context, appWidgetId)
+            .also { dayCache.put(appWidgetId, System.nanoTime(), it) }
+    }
+
+    private suspend fun loadFreshDay(context: Context, appWidgetId: Int): ScheduleWidgetDayData {
         val appContext = context.applicationContext
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
@@ -67,8 +115,11 @@ internal object ScheduleWidgetDataSource {
         } else {
             widgetPreferencesRepository.widgetDayOffset(appWidgetId)
         }
-        val termStart = activeTermStartDate(termProfileRepository, timingProfile)
-            ?: userPrefs.termStartDate
+        val termStart = resolveWidgetTermStartDate(
+            termProfileRepository = termProfileRepository,
+            timingProfile = timingProfile,
+            preferenceTermStartDate = userPrefs.termStartDate,
+        )
 
         val currentDay = loadDate(
             targetDate = today,
@@ -156,6 +207,9 @@ internal object ScheduleWidgetDataSource {
                 sourceDate = sourceDate,
                 rows = rows,
                 widgetTheme = widgetTheme,
+                beforeTermStart = isBeforeTermStart(weekIndex),
+                termStartMissing = weekIndex == null,
+                termStartDate = termStart,
             ),
             courses = courses,
         )
@@ -165,18 +219,6 @@ internal object ScheduleWidgetDataSource {
         val data: ScheduleWidgetDayData,
         val courses: List<CourseItem>,
     )
-
-    private suspend fun activeTermStartDate(
-        termProfileRepository: DataStoreTermProfileRepository,
-        timingProfile: TermTimingProfile?,
-    ): LocalDate? {
-        val activeTermId = termProfileRepository.activeTermId()
-        val activeTermStart = termProfileRepository.termsFlow.first()
-            .firstOrNull { it.id == activeTermId }
-            ?.termStartDate
-            ?.let(::parseIsoDate)
-        return activeTermStart ?: timingProfile?.termStartDate?.let(::parseIsoDate)
-    }
 
     private fun CourseItem.toRow(
         timingProfile: TermTimingProfile?,
@@ -194,25 +236,30 @@ internal object ScheduleWidgetDataSource {
             timeRange = timeRange,
             title = if (category == CourseCategory.Exam) "考试 · $title" else title,
             subtitle = subtitle,
-            hasReminder = reminderRules.any { it.matches(this) },
+            hasReminder = reminderRules.any { it.matches(this, timingProfile) },
         )
     }
 
-    private fun ReminderRule.matches(course: CourseItem): Boolean = enabled && when (scopeType) {
+    private fun ReminderRule.matches(
+        course: CourseItem,
+        timingProfile: TermTimingProfile?,
+    ): Boolean = enabled && when (scopeType) {
         ReminderScopeType.SingleCourse -> courseId == course.id
         ReminderScopeType.TimeSlot ->
             startNode == course.time.startNode && endNode == course.time.endNode
         ReminderScopeType.Exam ->
             course.category == CourseCategory.Exam && course.id !in mutedCourseIds
         ReminderScopeType.FirstCourseOfPeriod -> false
-        ReminderScopeType.LabelRule -> labelActions.any {
-            it.action == com.x500x.cursimple.core.reminder.model.ReminderLabelActionType.Remind &&
-                it.slotLabel == course.slotLabelOverride
+        ReminderScopeType.LabelRule -> {
+            // 节次名优先取课程自身覆盖，其次回退到计时档案，与提醒评估器口径一致
+            val slotLabel = timingProfile?.let { course.reminderSlotLabel(it) }
+                ?: course.slotLabelOverride
+            slotLabel != null && labelActions.any {
+                it.action == com.x500x.cursimple.core.reminder.model.ReminderLabelActionType.Remind &&
+                    it.slotLabel == slotLabel
+            }
         }
     }
-
-    private fun parseIsoDate(value: String): LocalDate? =
-        runCatching { LocalDate.parse(value) }.getOrNull()
 
     private fun weekdayLabel(date: LocalDate): String = when (date.dayOfWeek.value) {
         1 -> "星期一"
@@ -225,3 +272,39 @@ internal object ScheduleWidgetDataSource {
         else -> ""
     }
 }
+
+/** 所有小组件共用的开学日期来源，保证不同小组件算出同一个教学周。 */
+internal suspend fun resolveWidgetTermStartDate(
+    termProfileRepository: DataStoreTermProfileRepository,
+    timingProfile: TermTimingProfile?,
+    preferenceTermStartDate: LocalDate?,
+): LocalDate? {
+    val activeTermId = termProfileRepository.activeTermId()
+    val activeTermStartIso = termProfileRepository.termsFlow.first()
+        .firstOrNull { it.id == activeTermId }
+        ?.termStartDate
+    return selectTermStartDate(
+        activeTermStartIso = activeTermStartIso,
+        timingProfileTermStartIso = timingProfile?.termStartDate,
+        preferenceTermStartDate = preferenceTermStartDate,
+    )
+}
+
+/** 把计时档案的开学日期换成统一解析出的日期；日期为空或本就一致时返回原档案。 */
+internal fun TermTimingProfile.withTermStartDate(termStartDate: LocalDate?): TermTimingProfile {
+    val iso = termStartDate?.toString() ?: return this
+    return if (iso == this.termStartDate) this else copy(termStartDate = iso)
+}
+
+/** 当前学期档案 → 小组件计时档案 → 用户偏好，取第一个能解析出日期的来源。 */
+internal fun selectTermStartDate(
+    activeTermStartIso: String?,
+    timingProfileTermStartIso: String?,
+    preferenceTermStartDate: LocalDate?,
+): LocalDate? =
+    activeTermStartIso?.let(::parseIsoDate)
+        ?: timingProfileTermStartIso?.let(::parseIsoDate)
+        ?: preferenceTermStartDate
+
+private fun parseIsoDate(value: String): LocalDate? =
+    runCatching { LocalDate.parse(value) }.getOrNull()

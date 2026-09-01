@@ -22,7 +22,7 @@ class NextCourseRemoteViewsService : RemoteViewsService() {
 
 private class NextCourseListFactory(
     private val context: Context,
-    @Suppress("unused") private val appWidgetId: Int,
+    private val appWidgetId: Int,
 ) : RemoteViewsService.RemoteViewsFactory {
     private var rows: List<NextCourseRow> = emptyList()
     private var themeAccent: ThemeAccent = ThemeAccent.Green
@@ -36,7 +36,8 @@ private class NextCourseListFactory(
                 NextCourseDataSource.load(context)
             }
         }.onSuccess { data ->
-            rows = data.rows
+            val sizeClass = widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId)
+            rows = visibleNextCourseRows(data.rows, sizeClass)
             themeAccent = data.themeAccent
             widgetTheme = data.widgetTheme
         }

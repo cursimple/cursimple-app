@@ -34,7 +34,7 @@ private class ScheduleCourseListFactory(
     override fun onDataSetChanged() {
         runCatching {
             runBlocking(Dispatchers.IO) {
-                ScheduleWidgetDataSource.loadDay(context, appWidgetId)
+                ScheduleWidgetDataSource.loadDay(context, appWidgetId, reuseRecent = true)
             }
         }.onSuccess { day ->
             rows = day.rows

@@ -55,6 +55,57 @@ class WidgetSizeProfilesTest {
     }
 
     @Test
+    fun `night advance switches to the next day once every course ended`() {
+        val profile = TermTimingProfile(
+            termStartDate = "2026-02-23",
+            slotTimes = listOf(
+                ClassSlotTime(1, 2, "08:00", "09:35"),
+                ClassSlotTime(11, 12, "22:30", "23:30"),
+            ),
+        )
+        val morning = course("morning", 1, 2)
+        val night = course("night", 11, 12)
+        val advanceTime = LocalTime.of(22, 0)
+
+        assertFalse(shouldShowNextDayAtNight(LocalTime.of(21, 59), listOf(morning), profile, advanceTime))
+        assertTrue(shouldShowNextDayAtNight(LocalTime.of(22, 0), listOf(morning), profile, advanceTime))
+        assertTrue(shouldShowNextDayAtNight(LocalTime.of(22, 0), emptyList(), profile, advanceTime))
+        assertFalse(shouldShowNextDayAtNight(LocalTime.of(22, 0), listOf(morning, night), profile, advanceTime))
+        assertTrue(shouldShowNextDayAtNight(LocalTime.of(23, 30), listOf(morning, night), profile, advanceTime))
+    }
+
+    @Test
+    fun `night advance without timing data keeps the current day`() {
+        val untimed = course("unknown", 1, 2)
+
+        assertFalse(
+            shouldShowNextDayAtNight(LocalTime.of(23, 0), listOf(untimed), null, LocalTime.of(22, 0)),
+        )
+    }
+
+    @Test
+    fun `next course rows shrink with the widget size`() {
+        val rows = (1..6).map { nextCourseRow("course-$it") }
+
+        assertEquals(2, visibleNextCourseRows(rows, WidgetSizeClass.Compact).size)
+        assertEquals(4, visibleNextCourseRows(rows, WidgetSizeClass.Regular).size)
+        assertEquals(5, visibleNextCourseRows(rows, WidgetSizeClass.Expanded).size)
+        assertEquals(
+            listOf("course-1", "course-2"),
+            visibleNextCourseRows(rows, WidgetSizeClass.Compact).map { it.id },
+        )
+    }
+
+    @Test
+    fun `reminder rows shrink with the widget size`() {
+        val rows = (1..6).map { reminderRow("reminder-$it") }
+
+        assertEquals(2, visibleReminderRows(rows, WidgetSizeClass.Compact).size)
+        assertEquals(3, visibleReminderRows(rows, WidgetSizeClass.Regular).size)
+        assertEquals(4, visibleReminderRows(rows, WidgetSizeClass.Expanded).size)
+    }
+
+    @Test
     fun `next course widget hides courses that already ended today`() {
         val profile = TermTimingProfile(
             termStartDate = "2026-02-23",
@@ -102,6 +153,29 @@ class WidgetSizeProfilesTest {
         assertEquals(listOf("tomorrow-morning"), entries.map { it.course.id })
         assertEquals(listOf(CourseStatus.Upcoming), entries.map { it.status })
     }
+
+    private fun nextCourseRow(id: String): NextCourseRow =
+        NextCourseRow(
+            id = id,
+            label = "即将开始",
+            period = "1-2节",
+            title = id,
+            time = "08:00 – 09:35",
+            sub = "待定",
+            isFocus = false,
+            isPast = false,
+        )
+
+    private fun reminderRow(id: String): ReminderRowData =
+        ReminderRowData(
+            id = id,
+            dateLabel = "今天",
+            timeLabel = "08:00",
+            title = id,
+            message = "课程即将开始",
+            countdown = "10分钟后",
+            accentPrimary = true,
+        )
 
     private fun course(id: String, startNode: Int, endNode: Int): CourseItem =
         CourseItem(
