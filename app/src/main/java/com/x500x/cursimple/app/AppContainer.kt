@@ -59,6 +59,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 
 class AppContainer(
     private val app: Application,
@@ -99,6 +100,9 @@ class AppContainer(
     private val temporaryScheduleOverridesState = userPreferencesRepository.preferencesFlow
         .map { it.temporaryScheduleOverrides }
         .stateIn(containerScope, SharingStarted.Eagerly, emptyList())
+    private val holidayCalendarState = userPreferencesRepository.preferencesFlow
+        .map { it.holidayCalendar }
+        .stateIn(containerScope, SharingStarted.Eagerly, HolidayCalendarSettings())
     private val alarmSettingsState = userPreferencesRepository.preferencesFlow
         .map { it.toReminderAlarmSettings() }
         .stateIn(
@@ -111,6 +115,7 @@ class AppContainer(
         context = app,
         repository = reminderRepository,
         temporaryScheduleOverridesProvider = { temporaryScheduleOverridesState.value },
+        holidayCalendarProvider = { holidayCalendarState.value },
         alarmSettingsProvider = { alarmSettingsState.value },
     )
 

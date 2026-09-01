@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.reminder
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
@@ -30,6 +31,7 @@ class ReminderPlanner {
         fromDate: LocalDate = BeijingTime.today(),
         temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
         customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
+        holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<ReminderPlan> {
         val enabledRules = rules.filter { it.enabled }
         val labelRules = enabledRules.filter {
@@ -46,6 +48,7 @@ class ReminderPlanner {
                 timingProfile = timingProfile,
                 fromDate = fromDate,
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
+                holidayCalendar = holidayCalendar,
             )
         }
         val firstCoursePlans = enabledRules
@@ -58,6 +61,7 @@ class ReminderPlanner {
                     fromDate = fromDate,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
                     customOccupancies = customOccupancies,
+                    holidayCalendar = holidayCalendar,
                 )
             }
         return (labelPlans + firstCoursePlans)
@@ -72,6 +76,7 @@ class ReminderPlanner {
         fromDate: LocalDate = BeijingTime.today(),
         temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
         customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
+        holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     ): List<ReminderPlan> {
         if (rule.scopeType == ReminderScopeType.LabelRule) {
             return labelEvaluator.expand(
@@ -80,6 +85,7 @@ class ReminderPlanner {
                 timingProfile = timingProfile,
                 fromDate = fromDate,
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
+                holidayCalendar = holidayCalendar,
             )
         }
         if (rule.scopeType == ReminderScopeType.FirstCourseOfPeriod) {
@@ -91,6 +97,7 @@ class ReminderPlanner {
                 fromDate = fromDate,
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
                 customOccupancies = customOccupancies,
+                holidayCalendar = holidayCalendar,
             )
                 .map { target ->
                     buildPlan(
@@ -115,6 +122,7 @@ class ReminderPlanner {
                     timingProfile = timingProfile,
                     fromDate = fromDate,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
+                    holidayCalendar = holidayCalendar,
                 )
             }
             .distinctBy { it.planId }
@@ -127,6 +135,7 @@ class ReminderPlanner {
         timingProfile: TermTimingProfile,
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+        holidayCalendar: HolidayCalendarSettings,
     ): List<ReminderPlan> {
         val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: return emptyList()
         val termStart = timingProfile.termStartLocalDate()
@@ -136,6 +145,7 @@ class ReminderPlanner {
             termStart = termStart,
             fromDate = fromDate,
             temporaryScheduleOverrides = temporaryScheduleOverrides,
+            holidayCalendar = holidayCalendar,
         ).map { courseDate ->
             buildPlan(rule, course, courseDate, slot, zone)
         }

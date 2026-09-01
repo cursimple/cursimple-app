@@ -19,7 +19,11 @@ import com.x500x.cursimple.core.data.AppBackupStores
 import com.x500x.cursimple.core.data.PreferencesStoreSnapshot
 import com.x500x.cursimple.core.data.exportSnapshot
 import com.x500x.cursimple.core.data.restoreSnapshot
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
+import com.x500x.cursimple.core.kernel.model.localDate
+import com.x500x.cursimple.core.kernel.model.withEntry
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
@@ -62,6 +66,10 @@ class DataStoreUserPreferencesRepository(
             pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
             temporaryScheduleOverrides = decodeTemporaryScheduleOverrides(
                 prefs[KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON],
+            ),
+            holidayCalendar = HolidayCalendarSettings(
+                builtInEnabled = prefs[KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED] ?: true,
+                entries = decodeHolidayCalendarEntries(prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON]),
             ),
             debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
@@ -501,6 +509,7 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_AI_IMPORT_API_KEY)
             prefs.remove(KEY_AI_IMPORT_MODEL)
             prefs.remove(KEY_AI_IMPORT_TIMEOUT_SECONDS)
+            prefs.remove(KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED)
             prefs.removeScheduleAppearanceAndDisplay()
         }
         releasePersistedReadPermission(previousImageUri)
@@ -563,6 +572,47 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs ->
             prefs.remove(KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON)
         }
+    }
+
+    override suspend fun setHolidayCalendarBuiltInEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED] = enabled }
+    }
+
+    override suspend fun upsertHolidayCalendarEntry(entry: HolidayCalendarEntry) {
+        store.edit { prefs ->
+            val current = HolidayCalendarSettings(
+                entries = decodeHolidayCalendarEntries(prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON]),
+            )
+            val next = current.withEntry(entry).entries
+            if (next.isEmpty()) {
+                prefs.remove(KEY_HOLIDAY_CALENDAR_ENTRIES_JSON)
+            } else {
+                prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON] = json.encodeToString(next)
+            }
+        }
+    }
+
+    override suspend fun removeHolidayCalendarEntry(date: String) {
+        val target = runCatching { LocalDate.parse(date) }.getOrNull()
+        store.edit { prefs ->
+            val next = decodeHolidayCalendarEntries(prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON])
+                .filterNot { it.date == date || (target != null && it.localDate() == target) }
+            if (next.isEmpty()) {
+                prefs.remove(KEY_HOLIDAY_CALENDAR_ENTRIES_JSON)
+            } else {
+                prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON] = json.encodeToString(next)
+            }
+        }
+    }
+
+    override suspend fun clearHolidayCalendarEntries() {
+        store.edit { prefs -> prefs.remove(KEY_HOLIDAY_CALENDAR_ENTRIES_JSON) }
+    }
+
+    private fun decodeHolidayCalendarEntries(raw: String?): List<HolidayCalendarEntry> {
+        return raw
+            ?.let { value -> runCatching { json.decodeFromString<List<HolidayCalendarEntry>>(value) }.getOrNull() }
+            .orEmpty()
     }
 
     private fun decodeTemporaryScheduleOverrides(raw: String?): List<TemporaryScheduleOverride> {
@@ -756,6 +806,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_ENABLED_PLUGIN_IDS = stringSetPreferencesKey("enabled_plugin_ids")
         val KEY_PLUGINS_SEEDED = booleanPreferencesKey("plugins_seeded")
         val KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON = stringPreferencesKey("temporary_schedule_overrides_json")
+        val KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED = booleanPreferencesKey("holiday_calendar_built_in_enabled")
+        val KEY_HOLIDAY_CALENDAR_ENTRIES_JSON = stringPreferencesKey("holiday_calendar_entries_json")
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")

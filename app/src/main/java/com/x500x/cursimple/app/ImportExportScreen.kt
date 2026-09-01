@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.Download
@@ -77,9 +78,12 @@ import com.x500x.cursimple.app.ai.AiScheduleImportClient
 import com.x500x.cursimple.app.webdav.WebDavBackupFile
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.app.webdav.WebDavConfig
+import com.x500x.cursimple.app.util.ScheduleIcsExporter
 import com.x500x.cursimple.core.data.AppBackupPayload
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
+import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,6 +91,7 @@ import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,6 +100,9 @@ fun ImportExportScreen(
     manualCourses: List<CourseItem>,
     termName: String?,
     termStartDate: LocalDate?,
+    timingProfile: TermTimingProfile?,
+    temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+    holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
     webDavConfig: WebDavConfig,
     webDavClient: WebDavClient,
     aiImportConfig: AiImportConfig,
@@ -120,6 +128,7 @@ fun ImportExportScreen(
     var remoteBackups by remember { mutableStateOf<List<WebDavBackupFile>>(emptyList()) }
     var pendingRestore by remember { mutableStateOf<WebDavBackupFile?>(null) }
     var aiBusy by remember { mutableStateOf(false) }
+    var icsBusy by remember { mutableStateOf(false) }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
         Json {
@@ -135,6 +144,53 @@ fun ImportExportScreen(
             .onFailure { error ->
                 Toast.makeText(context, error.message ?: "无法识别二维码", Toast.LENGTH_SHORT).show()
             }
+    }
+
+    fun exportIcs() {
+        if (icsBusy) return
+        icsBusy = true
+        scope.launch {
+            val outcome = ScheduleIcsExporter.export(
+                context = context,
+                termName = termName,
+                termStartDate = termStartDate,
+                schedule = schedule,
+                manualCourses = manualCourses,
+                timingProfile = timingProfile,
+                overrides = temporaryScheduleOverrides,
+                holidayCalendar = holidayCalendar,
+            )
+            icsBusy = false
+            val intent = outcome.intent
+            if (intent == null) {
+                Toast.makeText(
+                    context,
+                    outcome.failureReason ?: "导出失败，请稍后重试",
+                    Toast.LENGTH_LONG,
+                ).show()
+                return@launch
+            }
+            val skippedNote = if (outcome.skipped.isNotEmpty()) {
+                "，${outcome.skipped.size} 门课程缺少上课时间未导出"
+            } else {
+                ""
+            }
+            Toast.makeText(
+                context,
+                "已生成 ${outcome.eventCount} 个日历事件$skippedNote",
+                Toast.LENGTH_LONG,
+            ).show()
+            runCatching {
+                val chooser = android.content.Intent.createChooser(intent, "导出课表日历").apply {
+                    clipData = intent.clipData
+                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(chooser)
+            }.onFailure {
+                Toast.makeText(context, "无法启动分享：${it.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun runAiImport(uri: Uri) {
@@ -343,6 +399,19 @@ fun ImportExportScreen(
                             qrError = "课表数据过大，二维码无法容纳。请减少课程后再试。"
                         }
                 },
+            )
+
+            Panel(
+                icon = Icons.Rounded.CalendarMonth,
+                title = "导出到日历 (ICS)",
+                body = if (canExport) {
+                    "把当前学期课表导出为通用日历文件，可导入系统日历、Google 日历、Outlook 等，无需联网或额外权限。"
+                } else {
+                    "暂无课表数据，先同步或添加课程后再导出。"
+                },
+                actionLabel = if (icsBusy) "生成中..." else "生成 .ics 文件",
+                actionEnabled = canExport && !icsBusy,
+                onAction = { exportIcs() },
             )
 
             ImportPanel(
