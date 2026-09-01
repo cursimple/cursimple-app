@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 
 class AppPreferencesViewModel(
     private val repository: UserPreferencesRepository,
@@ -212,6 +213,34 @@ class AppPreferencesViewModel(
     fun clearTemporaryScheduleOverrides() {
         viewModelScope.launch {
             repository.clearTemporaryScheduleOverrides()
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun setHolidayCalendarBuiltInEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setHolidayCalendarBuiltInEnabled(enabled)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun upsertHolidayCalendarEntry(entry: HolidayCalendarEntry) {
+        viewModelScope.launch {
+            repository.upsertHolidayCalendarEntry(entry)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun removeHolidayCalendarEntry(date: String) {
+        viewModelScope.launch {
+            repository.removeHolidayCalendarEntry(date)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun clearHolidayCalendarEntries() {
+        viewModelScope.launch {
+            repository.clearHolidayCalendarEntries()
             refreshScheduleOutputs()
         }
     }
