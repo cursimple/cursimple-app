@@ -51,6 +51,7 @@ import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
@@ -111,6 +112,7 @@ import com.x500x.cursimple.core.data.ScheduleBackgroundType
 import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
+import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.DEFAULT_AI_IMPORT_TIMEOUT_SECONDS
 import com.x500x.cursimple.core.data.DEFAULT_WEBDAV_URL
@@ -263,6 +265,8 @@ fun AppSettingsRoute(
     debugForcedDateTime: LocalDateTime?,
     onPickThemeMode: () -> Unit,
     onPickThemeAccent: () -> Unit,
+    appLanguage: AppLanguage = AppLanguage.System,
+    onPickAppLanguage: () -> Unit = {},
     onPickTermStartDate: () -> Unit,
     onPickCurrentWeek: () -> Unit,
     onClearTermStartDate: () -> Unit,
@@ -484,6 +488,12 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.Application -> {
+                SettingsActionRow(
+                    icon = Icons.Rounded.Language,
+                    title = "语言",
+                    subtitle = appLanguageLabel(appLanguage),
+                    onClick = onPickAppLanguage,
+                )
                 SettingsActionRow(
                     icon = Icons.Rounded.Palette,
                     title = "主题",
@@ -3250,4 +3260,10 @@ fun SettingsRoute(
         onPickLocalAudio = onPickLocalAudio,
         modifier = modifier,
     )
+}
+
+internal fun appLanguageLabel(language: AppLanguage): String = when (language) {
+    AppLanguage.System -> "跟随系统"
+    AppLanguage.Chinese -> "简体中文"
+    AppLanguage.English -> "English"
 }

@@ -3,6 +3,7 @@ package com.x500x.cursimple.app
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.data.UserPreferences
@@ -33,6 +34,10 @@ class AppPreferencesViewModel(
 
     fun setThemeAccent(accent: ThemeAccent) {
         viewModelScope.launch { repository.setThemeAccent(accent) }
+    }
+
+    fun setAppLanguage(language: AppLanguage) {
+        viewModelScope.launch { repository.setAppLanguage(language) }
     }
 
     fun setTermStartDate(date: LocalDate?) {
