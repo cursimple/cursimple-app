@@ -2,6 +2,7 @@
 
 package com.x500x.cursimple.feature.widget
 
+import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -294,3 +295,17 @@ internal fun IconCircleButton(
         )
     }
 }
+
+/** 读取小组件当前尺寸选项换算尺寸档案；读不到尺寸时按默认值。 */
+internal fun widgetSizeClass(manager: AppWidgetManager, appWidgetId: Int): WidgetSizeClass {
+    val options = runCatching { manager.getAppWidgetOptions(appWidgetId) }.getOrNull()
+    val widthDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
+    val heightDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
+    return WidgetSizeClass.fromDp(
+        widthDp = if (widthDp > 0) widthDp else DEFAULT_WIDGET_MIN_WIDTH_DP,
+        heightDp = if (heightDp > 0) heightDp else DEFAULT_WIDGET_MIN_HEIGHT_DP,
+    )
+}
+
+private const val DEFAULT_WIDGET_MIN_WIDTH_DP = 220
+private const val DEFAULT_WIDGET_MIN_HEIGHT_DP = 180

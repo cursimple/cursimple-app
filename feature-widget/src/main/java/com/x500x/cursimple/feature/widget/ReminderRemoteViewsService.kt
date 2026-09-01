@@ -22,7 +22,7 @@ class ReminderRemoteViewsService : RemoteViewsService() {
 
 private class ReminderListFactory(
     private val context: Context,
-    @Suppress("unused") private val appWidgetId: Int,
+    private val appWidgetId: Int,
 ) : RemoteViewsService.RemoteViewsFactory {
     private var rows: List<ReminderRowData> = emptyList()
     private var themeAccent: ThemeAccent = ThemeAccent.Green
@@ -36,7 +36,8 @@ private class ReminderListFactory(
                 ReminderDataSource.load(context)
             }
         }.onSuccess { data ->
-            rows = data.rows
+            val sizeClass = widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId)
+            rows = visibleReminderRows(data.rows, sizeClass)
             themeAccent = data.themeAccent
             widgetTheme = data.widgetTheme
         }
