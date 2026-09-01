@@ -137,6 +137,8 @@ class AppContainer(
     suspend fun exportAppBackup(): AppBackupPayload {
         awaitBootstrap()
         return AppBackupPayload(
+            version = AppBackupPayload.CURRENT_VERSION,
+            createdAt = System.currentTimeMillis(),
             stores = listOf(
                 (userPreferencesRepository as DataStoreUserPreferencesRepository).exportBackupSnapshot(),
                 scheduleStore.exportBackupSnapshot(),
@@ -155,6 +157,10 @@ class AppContainer(
         awaitBootstrap()
         require(payload.version <= AppBackupPayload.CURRENT_VERSION) {
             "备份版本过新，请先升级应用后再恢复"
+        }
+        // 一条都恢复不了说明这不是本应用的备份，如实报错而不是静默走完
+        require(payload.stores.any { it.storeName in AppBackupStores.ALL }) {
+            "备份文件里没有可恢复的数据"
         }
         payload.store(AppBackupStores.USER_PREFERENCES)
             ?.let { (userPreferencesRepository as DataStoreUserPreferencesRepository).restoreBackupSnapshot(it) }

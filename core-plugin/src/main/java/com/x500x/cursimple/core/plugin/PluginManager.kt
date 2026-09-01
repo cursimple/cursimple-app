@@ -119,6 +119,8 @@ class PluginManager(
                 ),
                 error,
             )
+            // 记完日志继续抛出：吞掉会让界面提示“已移除插件”，而插件仍留在已安装列表里
+            throw error
         }
     }
 

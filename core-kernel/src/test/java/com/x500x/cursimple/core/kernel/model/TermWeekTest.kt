@@ -2,6 +2,7 @@ package com.x500x.cursimple.core.kernel.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -72,4 +73,25 @@ class TermWeekTest {
         assertFalse(isTermWeekNumberActive(weekNumber = 3, weeks = listOf(2, 4)))
         assertFalse(isTermWeekNumberActive(weekNumber = 0, weeks = listOf(0, 2)))
     }
+
+    @Test
+    fun `a timing profile without a term start resolves to no date`() {
+        assertNull(profile(termStartDate = "").termStartLocalDate())
+        assertNull(profile(termStartDate = "   ").termStartLocalDate())
+    }
+
+    @Test
+    fun `a timing profile with an unparseable term start resolves to no date`() {
+        assertNull(profile(termStartDate = "2026-13-45").termStartLocalDate())
+        assertNull(profile(termStartDate = "not a date").termStartLocalDate())
+        assertNull(profile(termStartDate = "2026/09/07").termStartLocalDate())
+    }
+
+    @Test
+    fun `a timing profile with a valid term start resolves to it`() {
+        assertEquals(LocalDate.of(2026, 9, 7), profile(termStartDate = "2026-09-07").termStartLocalDate())
+    }
+
+    private fun profile(termStartDate: String) =
+        TermTimingProfile(termStartDate = termStartDate, slotTimes = emptyList())
 }

@@ -810,7 +810,8 @@ class ReminderCoordinator(
                 mapOf("alarmKey" to alarmKey, "ruleId" to ruleId, "planId" to planId),
                 error,
             )
-        }.getOrDefault(true).also { registered ->
+        // 校验本身失败时按“未注册”处理：闹钟用 FLAG_UPDATE_CURRENT，重复下发无副作用，漏响的代价大得多
+        }.getOrDefault(false).also { registered ->
             if (!registered) {
                 ReminderLogger.warn(
                     "reminder.app_alarm_clock.registry.registration_missing",

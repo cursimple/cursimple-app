@@ -60,6 +60,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -145,7 +146,7 @@ fun ImportExportScreen(
             ?.let { ScheduleImageLayout.currentWeekNumber(it, BeijingTime.today()) }
             ?.coerceIn(1, maxImageWeek)
             ?: 1
-        mutableStateOf(current)
+        mutableIntStateOf(current)
     }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
