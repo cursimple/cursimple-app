@@ -4,7 +4,8 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
-import com.x500x.cursimple.core.kernel.model.weekIndexLabel
+import com.x500x.cursimple.core.kernel.model.TermWeekLabel
+import com.x500x.cursimple.core.kernel.model.termWeekLabel
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -106,10 +107,10 @@ class WeekPickerSheetTest {
 
     @Test
     fun `week index label hides non positive weeks`() {
-        assertEquals("第 1 周", weekIndexLabel(1))
-        assertEquals("第 12 周", weekIndexLabel(12))
-        assertEquals("未开学", weekIndexLabel(0))
-        assertEquals("未开学", weekIndexLabel(-3))
+        assertEquals(TermWeekLabel.Week(1), termWeekLabel(1))
+        assertEquals(TermWeekLabel.Week(12), termWeekLabel(12))
+        assertEquals(TermWeekLabel.NotStarted, termWeekLabel(0))
+        assertEquals(TermWeekLabel.NotStarted, termWeekLabel(-3))
     }
 
     @Test

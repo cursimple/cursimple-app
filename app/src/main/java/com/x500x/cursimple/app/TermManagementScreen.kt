@@ -48,8 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.term.TermProfile
 import java.time.Instant
 import java.time.LocalDate
@@ -81,19 +83,19 @@ fun TermManagementScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "学期管理",
+                        text = stringResource(R.string.term_mgmt_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.term_mgmt_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { showCreateSheet = true }) {
-                        Icon(Icons.Rounded.Add, contentDescription = "新建学期")
+                        Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.term_mgmt_create))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -111,10 +113,10 @@ fun TermManagementScreen(
                 contentAlignment = Alignment.Center,
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("还没有学期", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.term_mgmt_empty_title), style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "点击右上角加号新建一个学期",
+                        stringResource(R.string.term_mgmt_empty_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -180,16 +182,16 @@ fun TermManagementScreen(
     deleteTarget?.let { term ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("删除学期") },
-            text = { Text("将删除学期「${term.name}」及其专属课表与手动课程，此操作不可恢复。") },
+            title = { Text(stringResource(R.string.term_delete_title)) },
+            text = { Text(stringResource(R.string.term_delete_message, term.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     onDelete(term.id)
                     deleteTarget = null
-                }) { Text("删除") }
+                }) { Text(stringResource(R.string.term_delete_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
+                TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.term_cancel)) }
             },
         )
     }
@@ -248,9 +250,9 @@ private fun TermRow(
                     )
                     val sub = term.termStartDate?.let { iso ->
                         runCatching { LocalDate.parse(iso) }.getOrNull()?.let { date ->
-                            "开学：${DateTimeFormatter.ofPattern("yyyy/M/d").format(date)}"
+                            stringResource(R.string.term_start_prefix, DateTimeFormatter.ofPattern("yyyy/M/d").format(date))
                         }
-                    } ?: "未设置开学日期"
+                    } ?: stringResource(R.string.term_no_start_date)
                     Text(
                         text = sub,
                         style = MaterialTheme.typography.bodySmall,
@@ -263,7 +265,7 @@ private fun TermRow(
                         shape = RoundedCornerShape(50),
                     ) {
                         Text(
-                            text = "当前",
+                            text = stringResource(R.string.term_badge_current),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
@@ -273,11 +275,11 @@ private fun TermRow(
             }
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                ActionChip(label = "重命名", icon = Icons.Rounded.Edit, onClick = onRename)
-                ActionChip(label = "开学日期", icon = Icons.Rounded.CalendarMonth, onClick = onPickDate)
+                ActionChip(label = stringResource(R.string.term_action_rename), icon = Icons.Rounded.Edit, onClick = onRename)
+                ActionChip(label = stringResource(R.string.term_action_date), icon = Icons.Rounded.CalendarMonth, onClick = onPickDate)
                 if (canDelete) {
                     ActionChip(
-                        label = "删除",
+                        label = stringResource(R.string.term_action_delete),
                         icon = Icons.Rounded.DeleteOutline,
                         onClick = onDelete,
                         destructive = true,
@@ -332,13 +334,13 @@ private fun CreateTermDialog(
     var showDate by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("新建学期") },
+        title = { Text(stringResource(R.string.term_create_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("学期名称（如 2026 春）") },
+                    label = { Text(stringResource(R.string.term_name_label)) },
                     singleLine = true,
                 )
                 Spacer(Modifier.height(12.dp))
@@ -363,8 +365,8 @@ private fun CreateTermDialog(
                         Spacer(Modifier.width(8.dp))
                         Text(
                             text = date?.let {
-                                "开学：${DateTimeFormatter.ofPattern("yyyy/M/d").format(it)}"
-                            } ?: "未设置开学日期（可稍后再填）",
+                                stringResource(R.string.term_start_prefix, DateTimeFormatter.ofPattern("yyyy/M/d").format(it))
+                            } ?: stringResource(R.string.term_no_start_date_optional),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -376,9 +378,9 @@ private fun CreateTermDialog(
             TextButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim(), date) },
-            ) { Text("创建") }
+            ) { Text(stringResource(R.string.term_create_confirm)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
     )
     if (showDate) {
         TermDatePickerDialog(
@@ -401,22 +403,22 @@ private fun RenameDialog(
     var name by rememberSaveable { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("重命名学期") },
+        title = { Text(stringResource(R.string.term_rename_title)) },
         text = {
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
-                label = { Text("新名称") },
+                label = { Text(stringResource(R.string.term_new_name_label)) },
             )
         },
         confirmButton = {
             TextButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim()) },
-            ) { Text("保存") }
+            ) { Text(stringResource(R.string.term_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
     )
 }
 
@@ -436,9 +438,9 @@ private fun TermDatePickerDialog(
                 state.selectedDateMillis?.let { millis ->
                     onConfirm(datePickerMillisToLocalDate(millis))
                 }
-            }) { Text("确定") }
+            }) { Text(stringResource(R.string.term_date_confirm)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
     ) {
         DatePicker(state = state)
     }

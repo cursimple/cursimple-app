@@ -139,7 +139,7 @@ class ScheduleHolidayDisplayTest {
             ),
         )
 
-        assertEquals("校庆", week.days[2].holidayLabel)
+        assertEquals(HolidayLabel.Named("校庆"), week.days[2].holidayLabel)
         assertNull(week.days[2].overrideLabel)
         assertNull(week.days[0].holidayLabel)
     }
@@ -167,9 +167,9 @@ class ScheduleHolidayDisplayTest {
 
     @Test
     fun `holiday label falls back when the entry has no name`() {
-        assertEquals("国庆节", holidayDisplayLabel("国庆节"))
-        assertEquals("放假", holidayDisplayLabel(null))
-        assertEquals("放假", holidayDisplayLabel("  "))
+        assertEquals(HolidayLabel.Named("国庆节"), holidayDisplayLabel("国庆节"))
+        assertEquals(HolidayLabel.Unnamed, holidayDisplayLabel(null))
+        assertEquals(HolidayLabel.Unnamed, holidayDisplayLabel("  "))
     }
 
     @Test
@@ -194,33 +194,42 @@ class ScheduleHolidayDisplayTest {
 
     @Test
     fun `empty state explains the holiday before anything else`() {
-        val text = scheduleEmptyStateText(
+        val state = scheduleEmptyState(
             hasSchedule = false,
             notStarted = true,
             termStartDate = termStart,
-            holidayLabel = "国庆节",
+            holidayLabel = HolidayLabel.Named("国庆节"),
         )
 
-        assertEquals("国庆节", text.title)
-        assertTrue(text.subtitle.contains("假日"))
+        assertEquals(ScheduleEmptyState.Holiday(HolidayLabel.Named("国庆节")), state)
     }
 
     @Test
     fun `empty state prefers not-started over a missing schedule`() {
-        val text = scheduleEmptyStateText(
+        val state = scheduleEmptyState(
             hasSchedule = false,
             notStarted = true,
             termStartDate = termStart,
         )
 
-        assertEquals("还没开学", text.title)
-        assertTrue(text.subtitle.contains("4 月 13 日"))
+        assertEquals(ScheduleEmptyState.NotStarted(termStartMonth = 4, termStartDay = 13), state)
+    }
+
+    @Test
+    fun `empty state before the term keeps quiet about the date it does not have`() {
+        val state = scheduleEmptyState(
+            hasSchedule = false,
+            notStarted = true,
+            termStartDate = null,
+        )
+
+        assertEquals(ScheduleEmptyState.NotStartedWithoutDate, state)
     }
 
     @Test
     fun `empty state falls back to the sync and empty-week hints`() {
-        assertEquals("还没有同步到课表", scheduleEmptyStateText(hasSchedule = false).title)
-        assertEquals("这一周没有课程安排", scheduleEmptyStateText(hasSchedule = true).title)
+        assertEquals(ScheduleEmptyState.NoSchedule, scheduleEmptyState(hasSchedule = false))
+        assertEquals(ScheduleEmptyState.EmptyWeek, scheduleEmptyState(hasSchedule = true))
     }
 
     private fun renderEntries(

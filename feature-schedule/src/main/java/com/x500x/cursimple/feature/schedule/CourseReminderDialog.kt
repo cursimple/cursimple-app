@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
@@ -57,7 +58,7 @@ fun CourseReminderDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         shape = RoundedCornerShape(24.dp),
-        title = { Text(if (course.category == CourseCategory.Exam) "设置考试提醒" else "设置提醒") },
+        title = { Text(stringResource(if (course.category == CourseCategory.Exam) R.string.schedule_reminder_set_exam_title else R.string.schedule_reminder_set_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -66,20 +67,25 @@ fun CourseReminderDialog(
                     color = MaterialTheme.colorScheme.onSurface,
                 )
                 Text(
-                    text = "${if (course.category == CourseCategory.Exam) "考试" else "课程"} · 第 ${course.time.startNode}-${course.time.endNode} 节 · ${course.location.ifBlank { "地点待定" }}",
+                    text = stringResource(
+                        R.string.schedule_course_reminder_subtitle,
+                        stringResource(if (course.category == CourseCategory.Exam) R.string.schedule_category_exam else R.string.schedule_category_course),
+                        stringResource(R.string.schedule_node_range, course.time.startNode, course.time.endNode),
+                        course.location.ifBlank { stringResource(R.string.schedule_location_tbd) },
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 OutlinedTextField(
                     value = advanceMinutesText,
                     onValueChange = { advanceMinutesText = it.filter(Char::isDigit).take(4) },
-                    label = { Text("提前分钟数") },
+                    label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
                     singleLine = true,
                     isError = advanceMinutesText.isNotBlank() && !canSave,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     supportingText = {
                         if (advanceMinutesText.isNotBlank() && !canSave) {
-                            Text("请输入 0 到 720 分钟")
+                            Text(stringResource(R.string.schedule_advance_minutes_error))
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -101,12 +107,12 @@ fun CourseReminderDialog(
                 onClick = { onConfirm(advance ?: 20, ringtoneUri) },
                 enabled = canSave,
             ) {
-                Text(if (course.category == CourseCategory.Exam) "保存考试提醒" else "保存提醒")
+                Text(stringResource(if (course.category == CourseCategory.Exam) R.string.schedule_reminder_save_exam else R.string.schedule_reminder_save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.schedule_action_cancel))
             }
         },
     )

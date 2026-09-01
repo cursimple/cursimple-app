@@ -30,14 +30,6 @@ fun isTermWeekNumberActive(weekNumber: Int, weeks: List<Int>): Boolean {
 fun CourseItem.isActiveInTermWeekNumber(weekNumber: Int): Boolean =
     isTermWeekNumberActive(weekNumber, weeks)
 
-/** 周次小于 1 时显示未开学。 */
-fun weekIndexLabel(weekIndex: Int): String =
-    if (isTermWeekNumberStarted(weekIndex)) "第 $weekIndex 周" else "未开学"
-
-/** 没有开学日期就不存在教学周，标题只说明这一状态。 */
-fun termWeekTitle(termStart: LocalDate?, weekIndex: Int): String =
-    if (termStart == null) "未设置开学日期" else weekIndexLabel(weekIndex)
-
 /**
  * 正在看的周是否就是当前教学周。
  * 未设置开学日期时没有当前周可言，开学之前同样没有。

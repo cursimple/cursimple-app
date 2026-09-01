@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,32 +96,53 @@ fun PluginLogScreen(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text("插件日志") },
+                title = { Text(stringResource(R.string.plugin_log_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = stringResource(R.string.plugin_action_back),
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = {
                         val lines = filtered.joinToString("\n") { it.toJsonLine() }
                         coroutineScope.launch {
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("插件日志", lines)))
-                            Toast.makeText(context, "已复制 ${filtered.size} 条到剪贴板", Toast.LENGTH_SHORT).show()
+                            val label = context.getString(R.string.plugin_log_title)
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(label, lines)))
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.plugin_log_copied_count, filtered.size),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         }
                     }) {
-                        Icon(Icons.Rounded.ContentCopy, contentDescription = "复制全部")
+                        Icon(
+                            Icons.Rounded.ContentCopy,
+                            contentDescription = stringResource(R.string.plugin_log_action_copy_all),
+                        )
                     }
                     IconButton(onClick = {
                         buffer.clear()
-                        Toast.makeText(context, "已清空日志", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.plugin_log_cleared),
+                            Toast.LENGTH_SHORT,
+                        ).show()
                     }) {
-                        Icon(Icons.Rounded.Clear, contentDescription = "清空")
+                        Icon(
+                            Icons.Rounded.Clear,
+                            contentDescription = stringResource(R.string.plugin_log_action_clear),
+                        )
                     }
                     IconButton(onClick = {
                         coroutineScope.launch { listState.scrollToItem(0) }
                     }) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = "回到顶部")
+                        Icon(
+                            Icons.Rounded.Refresh,
+                            contentDescription = stringResource(R.string.plugin_log_action_scroll_top),
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -150,7 +172,11 @@ fun PluginLogScreen(
             if (filtered.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = if (entries.isEmpty()) "暂无日志，操作插件后会自动产生" else "当前筛选条件下没有匹配日志",
+                        text = if (entries.isEmpty()) {
+                            stringResource(R.string.plugin_log_empty)
+                        } else {
+                            stringResource(R.string.plugin_log_no_match)
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -166,8 +192,15 @@ fun PluginLogScreen(
                             onPinTrace = { entry.traceId?.let { pinnedTraceId = it } },
                             onCopy = {
                                 coroutineScope.launch {
-                                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("插件日志", entry.toJsonLine())))
-                                    Toast.makeText(context, "已复制该条日志", Toast.LENGTH_SHORT).show()
+                                    val label = context.getString(R.string.plugin_log_title)
+                                    clipboard.setClipEntry(
+                                        ClipEntry(ClipData.newPlainText(label, entry.toJsonLine())),
+                                    )
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.plugin_log_copied_one),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
                                 }
                             },
                         )
@@ -203,7 +236,7 @@ private fun FilterBar(
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            placeholder = { Text("搜索事件名/插件 ID/字段值…") },
+            placeholder = { Text(stringResource(R.string.plugin_log_search_placeholder)) },
         )
         Row(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -212,7 +245,7 @@ private fun FilterBar(
             FilterChip(
                 selected = levelFilter == null,
                 onClick = { onLevelFilter(null) },
-                label = { Text("全部") },
+                label = { Text(stringResource(R.string.plugin_log_filter_all_levels)) },
             )
             PluginLogLevel.values().forEach { lv ->
                 FilterChip(
@@ -229,7 +262,7 @@ private fun FilterBar(
             FilterChip(
                 selected = sourceFilter == null,
                 onClick = { onSourceFilter(null) },
-                label = { Text("全部来源") },
+                label = { Text(stringResource(R.string.plugin_log_filter_all_sources)) },
             )
             PluginLogSource.values().forEach { src ->
                 FilterChip(
@@ -242,14 +275,21 @@ private fun FilterBar(
         if (pinnedTraceId != null) {
             AssistChip(
                 onClick = onClearPinnedTrace,
-                label = { Text("trace=${pinnedTraceId.takeLast(8)} × 取消") },
+                label = {
+                    Text(
+                        stringResource(
+                            R.string.plugin_log_filter_trace_chip,
+                            pinnedTraceId.takeLast(8),
+                        ),
+                    )
+                },
                 colors = AssistChipDefaults.assistChipColors(
                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 ),
             )
         }
         Text(
-            text = "$shownCount / $totalCount 条",
+            text = stringResource(R.string.plugin_log_count, shownCount, totalCount),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -343,7 +383,10 @@ private fun LogEntryRow(
                 horizontalArrangement = Arrangement.End,
             ) {
                 IconButton(onClick = onCopy) {
-                    Icon(Icons.Rounded.ContentCopy, contentDescription = "复制本条 JSON")
+                    Icon(
+                        Icons.Rounded.ContentCopy,
+                        contentDescription = stringResource(R.string.plugin_log_action_copy_json),
+                    )
                 }
             }
         }

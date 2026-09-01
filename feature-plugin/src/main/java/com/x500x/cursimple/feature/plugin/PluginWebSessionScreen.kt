@@ -15,6 +15,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.unit.dp
@@ -77,13 +80,13 @@ private const val DEFAULT_COMPLETION_STABLE_DELAY_MS = 1200L
 private const val MAX_COMPLETION_STABLE_DELAY_MS = 10000L
 
 private enum class UploadStage(
-    val label: String,
+    @param:StringRes val labelRes: Int,
     val step: Int,
     val progress: Float,
 ) {
-    Capturing("采集网页数据", 1, 0.33f),
-    Packing("整理会话数据", 2, 0.66f),
-    Writing("写入课表数据", 3, 0.9f),
+    Capturing(R.string.plugin_web_stage_capturing, 1, 0.33f),
+    Packing(R.string.plugin_web_stage_packing, 2, 0.66f),
+    Writing(R.string.plugin_web_stage_writing, 3, 0.9f),
 }
 
 private data class WebSessionCompletionCandidate(
@@ -102,6 +105,7 @@ fun PluginWebSessionScreen(
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     val currentUrl = remember(request.token) { mutableStateOf(request.startUrl) }
     val webViewState = remember(request.token) { mutableStateOf<WebView?>(null) }
     val isFinishing = remember(request.token) { mutableStateOf(false) }
@@ -154,27 +158,45 @@ fun PluginWebSessionScreen(
         val activeUploadStage = uploadStage.value
         when {
             activeUploadStage != null -> {
-                "上传课表 · ${activeUploadStage.label}（${activeUploadStage.step}/3）"
+                context.getString(
+                    R.string.plugin_web_status_uploading,
+                    context.getString(activeUploadStage.labelRes),
+                    activeUploadStage.step,
+                )
             }
-            pageError.value != null -> "页面加载失败：${pageError.value}"
-            blockedUrl.value != null -> "已拦截非白名单跳转：${blockedUrl.value}"
-            popupUrl.value != null -> "已接管新窗口跳转：${popupUrl.value}"
-            pendingCompletion.value != null -> "数据已就绪，等待页面停止跳转…"
-            consoleError.value != null -> "页面脚本提示：${consoleError.value}"
+            pageError.value != null ->
+                context.getString(R.string.plugin_web_status_page_error, pageError.value)
+            blockedUrl.value != null ->
+                context.getString(R.string.plugin_web_status_blocked, blockedUrl.value)
+            popupUrl.value != null ->
+                context.getString(R.string.plugin_web_status_popup, popupUrl.value)
+            pendingCompletion.value != null ->
+                context.getString(R.string.plugin_web_status_pending_completion)
+            consoleError.value != null ->
+                context.getString(R.string.plugin_web_status_console_error, consoleError.value)
             requiredPacketCount > 0 -> {
                 val captured = packets.count { it.value.id in requiredCapturePacketIds(request) }
                 buildString {
-                    append("数据包 $captured/$requiredPacketCount")
+                    append(
+                        context.getString(
+                            R.string.plugin_web_status_packets,
+                            captured,
+                            requiredPacketCount,
+                        ),
+                    )
                     if (cookieCount > 0) append(" · cookies $cookieCount")
                     if (lsCount > 0) append(" · localStorage $lsCount")
                     if (ssCount > 0) append(" · sessionStorage $ssCount")
                 }
             }
-            packets.isNotEmpty() -> "等待可用会话数据…"
-            loadProgress.value in 1..99 -> "页面加载中 ${loadProgress.value}%"
-            pageTitle.value.isNotBlank() -> "已打开：${pageTitle.value}"
-            currentUrl.value.isNotBlank() -> "正在访问：${currentUrl.value}"
-            else -> "等待页面加载…"
+            packets.isNotEmpty() -> context.getString(R.string.plugin_web_status_waiting_data)
+            loadProgress.value in 1..99 ->
+                context.getString(R.string.plugin_web_status_loading, loadProgress.value)
+            pageTitle.value.isNotBlank() ->
+                context.getString(R.string.plugin_web_status_opened, pageTitle.value)
+            currentUrl.value.isNotBlank() ->
+                context.getString(R.string.plugin_web_status_visiting, currentUrl.value)
+            else -> context.getString(R.string.plugin_web_status_waiting_page)
         }
     }
 
@@ -505,7 +527,7 @@ fun PluginWebSessionScreen(
                     contentPadding = buttonPadding,
                 ) {
                     Text(
-                        "取消",
+                        stringResource(R.string.plugin_action_cancel),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         softWrap = false,
@@ -556,7 +578,7 @@ fun PluginWebSessionScreen(
                     contentPadding = buttonPadding,
                 ) {
                     Text(
-                        "后退",
+                        stringResource(R.string.plugin_web_action_back),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         softWrap = false,
@@ -572,7 +594,7 @@ fun PluginWebSessionScreen(
                     contentPadding = buttonPadding,
                 ) {
                     Text(
-                        "刷新",
+                        stringResource(R.string.plugin_web_action_reload),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         softWrap = false,
@@ -586,7 +608,11 @@ fun PluginWebSessionScreen(
                     contentPadding = buttonPadding,
                 ) {
                     Text(
-                        if (uploadInProgress) "上传中" else "上传课表",
+                        if (uploadInProgress) {
+                            stringResource(R.string.plugin_web_action_uploading)
+                        } else {
+                            stringResource(R.string.plugin_web_action_upload)
+                        },
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         softWrap = false,
@@ -597,7 +623,7 @@ fun PluginWebSessionScreen(
         }
         if (effectiveCaptureSpecs(request).isNotEmpty()) {
             Text(
-                text = "正在等待插件声明的数据包，全部必需数据到齐后会自动继续。",
+                text = stringResource(R.string.plugin_web_capture_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -616,7 +642,11 @@ fun PluginWebSessionScreen(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "当前进度：${activeUploadStage.label}（${activeUploadStage.step}/3）",
+                    text = stringResource(
+                        R.string.plugin_web_progress_stage,
+                        stringResource(activeUploadStage.labelRes),
+                        activeUploadStage.step,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -702,17 +732,17 @@ fun PluginWebSessionScreen(
     pendingCompletion.value?.takeIf { it.requiresUserConfirmation }?.let { candidate ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { pendingCompletion.value = null },
-            title = { Text("课表数据已就绪") },
-            text = { Text("页面已停止跳转，并已捕获本次同步所需数据，是否关闭插件页并写入课表？") },
+            title = { Text(stringResource(R.string.plugin_web_ready_dialog_title)) },
+            text = { Text(stringResource(R.string.plugin_web_ready_dialog_message)) },
             confirmButton = {
                 Button(onClick = {
                     pendingCompletion.value = null
                     finishWithPacket(candidate.packet, candidate.packets)
-                }) { Text("关闭并写入") }
+                }) { Text(stringResource(R.string.plugin_web_ready_dialog_confirm)) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { pendingCompletion.value = null }) {
-                    Text("继续浏览")
+                    Text(stringResource(R.string.plugin_web_ready_dialog_dismiss))
                 }
             },
         )
@@ -743,12 +773,12 @@ private fun PluginWorkingOverlay() {
                     strokeWidth = 4.dp,
                 )
                 Text(
-                    text = "正在抓取课表…",
+                    text = stringResource(R.string.plugin_web_overlay_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "请保持页面不要切换",
+                    text = stringResource(R.string.plugin_web_overlay_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -830,7 +860,7 @@ private fun PluginWebViewHost(
         }.getOrElse { error ->
             createdWebView?.destroy()
             webViewInitFailed.value = true
-            pageError.value = "WebView 初始化失败，请稍后重试。"
+            pageError.value = host.context.getString(R.string.plugin_web_error_webview_init)
             PluginLogger.error(
                 "plugin.web_session.webview.init.failure",
                 mapOf(
@@ -874,7 +904,7 @@ private fun PluginWebViewHost(
 
         if (webViewState.value == null && !webViewInitFailed.value) {
             Text(
-                text = "正在准备网页登录环境…",
+                text = stringResource(R.string.plugin_web_preparing),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.Center),
@@ -990,7 +1020,7 @@ private fun WebView.configurePluginWebView(
                 }
             }.getOrElse { error ->
                 createdWebView?.destroy()
-                pageError.value = "浏览器弹窗初始化失败，请重试。"
+                pageError.value = hostWebView.context.getString(R.string.plugin_web_error_popup_init)
                 PluginLogger.error(
                     "plugin.web_session.webview.init.failure",
                     mapOf(
@@ -1004,7 +1034,7 @@ private fun WebView.configurePluginWebView(
                 )
                 return false
             }
-            popupUrl.value = "已打开新窗口"
+            popupUrl.value = hostWebView.context.getString(R.string.plugin_web_popup_opened)
             PluginLogger.info(
                 "plugin.web_session.popup.opened",
                 mapOf(

@@ -54,9 +54,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.annotation.StringRes
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -210,7 +212,7 @@ fun ScheduleSettingsScreen(
                 onSetAppAlarmEnabled = onSetAppAlarmEnabled,
             )
 
-            SectionHeader("规则设置", "按节次的条件和动作生成提醒")
+            SectionHeader(stringResource(R.string.schedule_section_rules_title), stringResource(R.string.schedule_section_rules_subtitle))
             RuleManagementCard(
                 rules = state.reminderRules.filter { it.scopeType == ReminderScopeType.LabelRule },
                 slotLabels = slotLabels,
@@ -379,13 +381,13 @@ private fun AlarmManagementCard(
     CardSurface {
         HeaderRow(
             icon = Icons.Rounded.Alarm,
-            title = "闹钟管理",
-            subtitle = if (appRecords.isEmpty()) "暂无 APP 自管闹钟" else "APP 自管闹钟 ${appRecords.size} 个",
+            title = stringResource(R.string.schedule_alarm_card_title),
+            subtitle = if (appRecords.isEmpty()) stringResource(R.string.schedule_alarm_card_empty_subtitle) else stringResource(R.string.schedule_alarm_card_count, appRecords.size),
             trailing = {
                 TextButton(onClick = onRefresh) {
                     Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("刷新")
+                    Text(stringResource(R.string.schedule_action_refresh))
                 }
             },
         )
@@ -393,10 +395,10 @@ private fun AlarmManagementCard(
             AlarmPermissionRow { launchExactAlarmSettings(context) }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = onCreate) { Text("新建闹钟") }
+            Button(onClick = onCreate) { Text(stringResource(R.string.schedule_new_alarm)) }
         }
         if (appRecords.isEmpty()) {
-            EmptySurface("没有等待触发的 APP 自管闹钟")
+            EmptySurface(stringResource(R.string.schedule_alarm_none_pending))
         } else {
             appRecords.forEach { record ->
                 AlarmRecordRow(
@@ -428,11 +430,11 @@ private fun AlarmRecordRow(
             Text(
                 listOf(
                     record.displayMessage ?: record.message,
-                    "响铃 ${record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS} 秒",
-                    "间隔 ${record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS} 秒",
-                    "${record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT} 次",
-                    alarmRingtoneLabel(record.ringtoneUriOverride),
-                    alarmAlertModeLabel(record.alertModeOverride),
+                    stringResource(R.string.schedule_alarm_ring_seconds, record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS),
+                    stringResource(R.string.schedule_alarm_interval_seconds, record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS),
+                    stringResource(R.string.schedule_alarm_count_times, record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT),
+                    stringResource(alarmRingtoneLabelRes(record.ringtoneUriOverride)),
+                    stringResource(alarmAlertModeLabelRes(record.alertModeOverride)),
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -440,10 +442,10 @@ private fun AlarmRecordRow(
         }
         Switch(checked = record.enabled, onCheckedChange = onSetEnabled)
         IconButton(onClick = onEdit) {
-            Icon(Icons.Rounded.Edit, contentDescription = "编辑闹钟")
+            Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.schedule_cd_edit_alarm))
         }
         IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = "删除闹钟")
+            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_cd_delete_alarm))
         }
     }
 }
@@ -464,12 +466,12 @@ private fun RuleManagementCard(
     CardSurface {
         HeaderRow(
             icon = Icons.Rounded.Notifications,
-            title = "规则管理",
-            subtitle = "可选节次 ${slotLabels.size} 个",
-            trailing = { Button(onClick = onAddRule) { Text("新建规则") } },
+            title = stringResource(R.string.schedule_rule_card_title),
+            subtitle = stringResource(R.string.schedule_rule_card_subtitle, slotLabels.size),
+            trailing = { Button(onClick = onAddRule) { Text(stringResource(R.string.schedule_new_rule)) } },
         )
         if (rules.isEmpty()) {
-            EmptySurface("还没有节次规则")
+            EmptySurface(stringResource(R.string.schedule_rule_none))
         } else {
             rules.forEach { rule ->
                 RuleRow(
@@ -482,9 +484,9 @@ private fun RuleManagementCard(
         }
         HeaderRow(
             icon = Icons.Rounded.Event,
-            title = "占位课",
-            subtitle = if (placeholders.isEmpty()) "暂无隐藏占位课" else "隐藏占位课 ${placeholders.size} 个",
-            trailing = { OutlinedButton(onClick = onAddPlaceholder) { Text("新增占位课") } },
+            title = stringResource(R.string.schedule_placeholder_card_title),
+            subtitle = if (placeholders.isEmpty()) stringResource(R.string.schedule_placeholder_empty) else stringResource(R.string.schedule_placeholder_count, placeholders.size),
+            trailing = { OutlinedButton(onClick = onAddPlaceholder) { Text(stringResource(R.string.schedule_placeholder_add_title)) } },
         )
         placeholders.forEach { group ->
             val course = group.representative
@@ -492,13 +494,19 @@ private fun RuleManagementCard(
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(course.slotLabelOverride ?: course.title, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "周${group.daysOfWeek.joinToString(",")} · ${course.reminderStartTime ?: "--:--"}-${course.reminderEndTime ?: "--:--"} · ${course.weeks.ifEmpty { listOf(0) }.joinToString(",").replace("0", "全部周")}",
+                        stringResource(
+                            R.string.schedule_placeholder_summary,
+                            group.daysOfWeek.joinToString(","),
+                            course.reminderStartTime ?: "--:--",
+                            course.reminderEndTime ?: "--:--",
+                            course.weeks.ifEmpty { listOf(0) }.joinToString(",").replace("0", stringResource(R.string.schedule_week_parity_all)),
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                TextButton(onClick = { onEditPlaceholder(group) }) { Text("编辑") }
-                TextButton(onClick = { onDeletePlaceholder(course.id) }) { Text("删除") }
+                TextButton(onClick = { onEditPlaceholder(group) }) { Text(stringResource(R.string.schedule_action_edit)) }
+                TextButton(onClick = { onDeletePlaceholder(course.id) }) { Text(stringResource(R.string.schedule_action_delete)) }
             }
         }
     }
@@ -520,7 +528,7 @@ private fun RuleRow(
 ) {
     SurfaceRow {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(rule.displayName ?: "未命名规则", fontWeight = FontWeight.SemiBold)
+            Text(rule.displayName ?: stringResource(R.string.schedule_rule_unnamed), fontWeight = FontWeight.SemiBold)
             Text(
                 rule.conditionSummary(),
                 style = MaterialTheme.typography.bodySmall,
@@ -531,19 +539,19 @@ private fun RuleRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text("提前 ${rule.advanceMinutes} 分钟", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            Text(stringResource(R.string.schedule_rule_advance, rule.advanceMinutes), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             Text(
-                alarmRingtoneLabel(rule.ringtoneUri),
+                stringResource(alarmRingtoneLabelRes(rule.ringtoneUri)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Switch(checked = rule.enabled, onCheckedChange = onSetEnabled)
         IconButton(onClick = onEdit) {
-            Icon(Icons.Rounded.Edit, contentDescription = "编辑规则")
+            Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.schedule_cd_edit_rule))
         }
         IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = "删除规则")
+            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_cd_delete_rule))
         }
     }
 }
@@ -566,8 +574,8 @@ private fun ReminderDefaultsCard(
     onRepeatCountChange: (Int) -> Unit,
 ) {
     CardSurface {
-        HeaderRow(Icons.Rounded.Settings, "默认闹钟设置", "规则未单独设置时使用这里的参数")
-        SettingRow("闹钟通道", alarmBackendFullLabel(alarmBackend), onClick = onPickBackend)
+        HeaderRow(Icons.Rounded.Settings, stringResource(R.string.schedule_defaults_title), stringResource(R.string.schedule_defaults_subtitle))
+        SettingRow(stringResource(R.string.schedule_backend_row_title), stringResource(alarmBackendFullLabelRes(alarmBackend)), onClick = onPickBackend)
         AlarmRingtoneSelector(
             ringtoneUri = alarmRingtoneUri,
             onUseDefault = onUseDefaultRingtone,
@@ -579,9 +587,9 @@ private fun ReminderDefaultsCard(
             includeDefault = false,
             onSelect = { mode -> mode?.let(onAlertModeChange) },
         )
-        NumberSettingRow("响铃时长", alarmRingDurationSeconds, "秒", 5, 600, 5, onRingDurationChange)
-        NumberSettingRow("响铃间隔", alarmRepeatIntervalSeconds, "秒", 5, 3600, 5, onRepeatIntervalChange)
-        NumberSettingRow("响铃次数", alarmRepeatCount, "次", 1, 10, 1, onRepeatCountChange)
+        NumberSettingRow(stringResource(R.string.schedule_ring_duration), alarmRingDurationSeconds, stringResource(R.string.schedule_unit_seconds), 5, 600, 5, onRingDurationChange)
+        NumberSettingRow(stringResource(R.string.schedule_ring_interval), alarmRepeatIntervalSeconds, stringResource(R.string.schedule_unit_seconds), 5, 3600, 5, onRepeatIntervalChange)
+        NumberSettingRow(stringResource(R.string.schedule_ring_count), alarmRepeatCount, stringResource(R.string.schedule_unit_times), 1, 10, 1, onRepeatCountChange)
     }
 }
 
@@ -599,12 +607,12 @@ private fun ExamReminderCard(
     val enabled = examReminderEnabled(rules)
     var showConfirm by rememberSaveable { mutableStateOf(false) }
     CardSurface {
-        HeaderRow(Icons.Rounded.Event, "考试提醒", if (enabled) "所有考试前提醒已开启" else "默认关闭")
+        HeaderRow(Icons.Rounded.Event, stringResource(R.string.schedule_exam_card_title), if (enabled) stringResource(R.string.schedule_exam_card_on) else stringResource(R.string.schedule_exam_card_off))
         SurfaceRow {
             Column(modifier = Modifier.weight(1f)) {
-                Text("所有考试前提醒", fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.schedule_exam_all), fontWeight = FontWeight.SemiBold)
                 Text(
-                    "${alarmRingtoneLabel(alarmRingtoneUri)} · ${alarmAlertModeLabel(alarmAlertMode)} · 响铃 $alarmRingDurationSeconds 秒 · 间隔 $alarmRepeatIntervalSeconds 秒 · $alarmRepeatCount 次",
+                    stringResource(R.string.schedule_exam_summary, stringResource(alarmRingtoneLabelRes(alarmRingtoneUri)), stringResource(alarmAlertModeLabelRes(alarmAlertMode)), alarmRingDurationSeconds, alarmRepeatIntervalSeconds, alarmRepeatCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -616,21 +624,21 @@ private fun ExamReminderCard(
                 },
             )
         }
-        TextButton(onClick = onOpenRules) { Text("进入规则管理编辑考试规则") }
+        TextButton(onClick = onOpenRules) { Text(stringResource(R.string.schedule_exam_open_rules)) }
     }
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("确认考试提醒参数") },
+            title = { Text(stringResource(R.string.schedule_exam_confirm_title)) },
             text = {
                 Text(
                     listOf(
-                        "将按默认闹钟设置，为课表里的每一场考试单独创建提醒。",
-                        "铃声：${alarmRingtoneLabel(alarmRingtoneUri)}",
-                        "提醒方式：${alarmAlertModeLabel(alarmAlertMode)}",
-                        "响铃时长：$alarmRingDurationSeconds 秒",
-                        "响铃间隔：$alarmRepeatIntervalSeconds 秒",
-                        "响铃次数：$alarmRepeatCount 次",
+                        stringResource(R.string.schedule_exam_confirm_intro),
+                        stringResource(R.string.schedule_exam_confirm_ringtone, stringResource(alarmRingtoneLabelRes(alarmRingtoneUri))),
+                        stringResource(R.string.schedule_exam_confirm_mode, stringResource(alarmAlertModeLabelRes(alarmAlertMode))),
+                        stringResource(R.string.schedule_exam_confirm_duration, alarmRingDurationSeconds),
+                        stringResource(R.string.schedule_exam_confirm_interval, alarmRepeatIntervalSeconds),
+                        stringResource(R.string.schedule_exam_confirm_count, alarmRepeatCount),
                     ).joinToString("\n"),
                 )
             },
@@ -638,9 +646,9 @@ private fun ExamReminderCard(
                 TextButton(onClick = {
                     onSave(true, 40, null)
                     showConfirm = false
-                }) { Text("确认开启") }
+                }) { Text(stringResource(R.string.schedule_exam_confirm_ok)) }
             },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.schedule_action_cancel)) } },
         )
     }
 }
@@ -655,25 +663,25 @@ private fun CourseReminderCard(
     CardSurface {
         HeaderRow(
             icon = Icons.Rounded.Notifications,
-            title = "单课提醒",
-            subtitle = "只对这一门课生效，共 ${rules.size} 条",
+            title = stringResource(R.string.schedule_course_reminder_card_title),
+            subtitle = stringResource(R.string.schedule_course_reminder_card_subtitle, rules.size),
         )
         rules.forEach { rule ->
             SurfaceRow {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        rule.displayName?.removePrefix(COURSE_RULE_PREFIX) ?: "未命名课程",
+                        rule.displayName?.removePrefix(COURSE_RULE_PREFIX) ?: stringResource(R.string.schedule_course_unnamed),
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        "提前 ${rule.advanceMinutes} 分钟 · ${alarmRingtoneLabel(rule.ringtoneUri)}",
+                        stringResource(R.string.schedule_course_rule_summary, rule.advanceMinutes, stringResource(alarmRingtoneLabelRes(rule.ringtoneUri))),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Switch(checked = rule.enabled, onCheckedChange = { onSetRuleEnabled(rule.ruleId, it) })
                 IconButton(onClick = { onRemoveRule(rule.ruleId) }) {
-                    Icon(Icons.Rounded.Delete, contentDescription = "删除提醒")
+                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_cd_delete_reminder))
                 }
             }
         }
@@ -684,12 +692,32 @@ private fun CourseReminderCard(
 internal fun legacyReminderRules(rules: List<ReminderRule>): List<ReminderRule> =
     rules.filter { it.scopeType.isLegacy() }
 
-internal fun legacyReminderRuleLabel(rule: ReminderRule): String =
-    rule.displayName?.takeIf { it.isNotBlank() } ?: when (rule.scopeType) {
-        ReminderScopeType.SingleCourse -> "单课提醒（旧版）"
-        ReminderScopeType.TimeSlot -> "时间段提醒（旧版）"
-        ReminderScopeType.Exam -> "考试提醒（旧版）"
-        ReminderScopeType.FirstCourseOfPeriod, ReminderScopeType.LabelRule -> "提醒规则"
+/** 旧版规则在列表里显示的标题来源。 */
+internal sealed interface LegacyReminderRuleLabel {
+    /** 规则自带展示名。 */
+    data class DisplayName(val name: String) : LegacyReminderRuleLabel
+
+    /** 没有展示名，按作用域给通用标题。 */
+    data class ScopeName(val nameRes: Int) : LegacyReminderRuleLabel
+}
+
+/** 作用域对应的通用标题资源 id。 */
+internal fun legacyReminderRuleScopeNameRes(scopeType: ReminderScopeType): Int = when (scopeType) {
+    ReminderScopeType.SingleCourse -> R.string.schedule_legacy_rule_scope_single_course
+    ReminderScopeType.TimeSlot -> R.string.schedule_legacy_rule_scope_time_slot
+    ReminderScopeType.Exam -> R.string.schedule_legacy_rule_scope_exam
+    ReminderScopeType.FirstCourseOfPeriod, ReminderScopeType.LabelRule ->
+        R.string.schedule_legacy_rule_scope_generic
+}
+
+internal fun legacyReminderRuleLabel(rule: ReminderRule): LegacyReminderRuleLabel =
+    rule.displayName?.takeIf { it.isNotBlank() }?.let(LegacyReminderRuleLabel::DisplayName)
+        ?: LegacyReminderRuleLabel.ScopeName(legacyReminderRuleScopeNameRes(rule.scopeType))
+
+internal fun Context.legacyReminderRuleLabelText(label: LegacyReminderRuleLabel): String =
+    when (label) {
+        is LegacyReminderRuleLabel.DisplayName -> label.name
+        is LegacyReminderRuleLabel.ScopeName -> getString(label.nameRes)
     }
 
 @Composable
@@ -701,21 +729,24 @@ private fun LegacyReminderRuleCard(
     CardSurface {
         HeaderRow(
             icon = Icons.Rounded.Warning,
-            title = "失效规则",
-            subtitle = "旧版本留下的 ${rules.size} 条规则不会再触发提醒，删除后可用新规则重建",
+            title = stringResource(R.string.schedule_legacy_card_title),
+            subtitle = stringResource(R.string.schedule_legacy_card_subtitle, rules.size),
         )
         rules.forEach { rule ->
             SurfaceRow {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(legacyReminderRuleLabel(rule), fontWeight = FontWeight.SemiBold)
                     Text(
-                        "提前 ${rule.advanceMinutes} 分钟 · 已停止触发",
+                        LocalContext.current.legacyReminderRuleLabelText(legacyReminderRuleLabel(rule)),
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        stringResource(R.string.schedule_legacy_rule_summary, rule.advanceMinutes),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
                 IconButton(onClick = { onRemoveRule(rule.ruleId) }) {
-                    Icon(Icons.Rounded.Delete, contentDescription = "删除失效规则")
+                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_cd_delete_legacy))
                 }
             }
         }
@@ -843,7 +874,7 @@ private fun AlarmBackendDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("闹钟通道") },
+        title = { Text(stringResource(R.string.schedule_backend_dialog_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ReminderAlarmBackend.entries.forEach { backend ->
@@ -858,14 +889,14 @@ private fun AlarmBackendDialog(
                         RadioButton(selected = backend == selected, onClick = { onSelect(backend) })
                         Spacer(Modifier.width(8.dp))
                         Column {
-                            Text(alarmBackendFullLabel(backend))
-                            Text(alarmBackendDescription(backend), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(alarmBackendFullLabelRes(backend)))
+                            Text(stringResource(alarmBackendDescriptionRes(backend)), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_close)) } },
     )
 }
 
@@ -882,29 +913,41 @@ private fun AlarmPermissionRow(onOpenSettings: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Icon(Icons.Rounded.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
-            Text("精确闹钟权限未开启", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
-            Button(onClick = onOpenSettings) { Text("去开启") }
+            Text(stringResource(R.string.schedule_exact_alarm_off), modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
+            Button(onClick = onOpenSettings) { Text(stringResource(R.string.schedule_go_enable)) }
         }
     }
 }
 
-private fun ReminderRule.conditionSummary(): String =
-    labelConditions.joinToString("，") { condition ->
+@Composable
+private fun ReminderRule.conditionSummary(): String {
+    val exists = stringResource(R.string.schedule_reminder_presence_exists)
+    val absent = stringResource(R.string.schedule_reminder_presence_absent)
+    val empty = stringResource(R.string.schedule_no_condition)
+    val separator = stringResource(R.string.schedule_summary_separator)
+    return labelConditions.joinToString(separator) { condition ->
         val presence = when (condition.presence) {
-            ReminderLabelPresence.Exists -> "存在"
-            ReminderLabelPresence.Absent -> "不存在"
+            ReminderLabelPresence.Exists -> exists
+            ReminderLabelPresence.Absent -> absent
         }
         "${condition.slotLabel} $presence"
-    }.ifBlank { "无条件" }
+    }.ifBlank { empty }
+}
 
-private fun ReminderRule.actionSummary(): String =
-    labelActions.joinToString("，") { action ->
+@Composable
+private fun ReminderRule.actionSummary(): String {
+    val remind = stringResource(R.string.schedule_reminder_action_remind)
+    val skip = stringResource(R.string.schedule_reminder_action_skip)
+    val empty = stringResource(R.string.schedule_no_action)
+    val separator = stringResource(R.string.schedule_summary_separator)
+    return labelActions.joinToString(separator) { action ->
         val type = when (action.action) {
-            ReminderLabelActionType.Remind -> "提醒"
-            ReminderLabelActionType.Skip -> "跳过"
+            ReminderLabelActionType.Remind -> remind
+            ReminderLabelActionType.Skip -> skip
         }
         "${action.slotLabel} $type"
-    }.ifBlank { "无动作" }
+    }.ifBlank { empty }
+}
 
 private fun canScheduleExactAlarms(context: Context): Boolean {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -926,29 +969,32 @@ private fun launchExactAlarmSettings(context: Context) {
     runCatching {
         context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.onFailure { error ->
-        Toast.makeText(context, "无法打开设置：${error.message}", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.schedule_open_settings_failed, error.message), Toast.LENGTH_SHORT).show()
     }
 }
 
-private fun alarmBackendFullLabel(backend: ReminderAlarmBackend): String = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> "App 自管闹钟"
-    ReminderAlarmBackend.SystemClockApp -> "系统时钟 App 闹钟"
+@StringRes
+private fun alarmBackendFullLabelRes(backend: ReminderAlarmBackend): Int = when (backend) {
+    ReminderAlarmBackend.AppAlarmClock -> R.string.schedule_backend_app_label
+    ReminderAlarmBackend.SystemClockApp -> R.string.schedule_backend_system_label
 }
 
-private fun alarmBackendDescription(backend: ReminderAlarmBackend): String = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> "使用系统精确闹钟，由课简控制响铃。"
-    ReminderAlarmBackend.SystemClockApp -> "调用系统时钟 App 创建和删除闹钟。"
+@StringRes
+private fun alarmBackendDescriptionRes(backend: ReminderAlarmBackend): Int = when (backend) {
+    ReminderAlarmBackend.AppAlarmClock -> R.string.schedule_backend_app_desc
+    ReminderAlarmBackend.SystemClockApp -> R.string.schedule_backend_system_desc
 }
 
 private fun formatAlarmTime(millis: Long, zone: ZoneId): String =
     DateTimeFormatter.ofPattern("HH:mm").format(Instant.ofEpochMilli(millis).atZone(zone))
 
+@Composable
 private fun formatAlarmDay(millis: Long, zone: ZoneId): String {
     val date = Instant.ofEpochMilli(millis).atZone(zone).toLocalDate()
     val today = LocalDate.now(zone)
     return when (date) {
-        today -> "今天"
-        today.plusDays(1) -> "明天"
+        today -> stringResource(R.string.schedule_day_today)
+        today.plusDays(1) -> stringResource(R.string.schedule_day_tomorrow)
         else -> "${date.monthValue}/${date.dayOfMonth}"
     }
 }

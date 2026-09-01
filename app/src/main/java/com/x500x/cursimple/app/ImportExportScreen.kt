@@ -1,3 +1,5 @@
+@file:Suppress("LocalContextGetResourceValueCall")
+
 package com.x500x.cursimple.app
 
 import android.Manifest
@@ -71,9 +73,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.R
 import com.x500x.cursimple.app.util.QrCodeCodec
 import com.x500x.cursimple.app.util.QrScannerView
 import com.x500x.cursimple.app.util.ScheduleShareCodec
@@ -161,7 +165,7 @@ fun ImportExportScreen(
         ScheduleShareCodec.decode(text)
             .onSuccess { pendingImport = it }
             .onFailure { error ->
-                Toast.makeText(context, error.message ?: "无法识别二维码", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, error.message ?: context.getString(R.string.ie_qr_unrecognized), Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -184,30 +188,30 @@ fun ImportExportScreen(
             if (intent == null) {
                 Toast.makeText(
                     context,
-                    outcome.failureReason ?: "导出失败，请稍后重试",
+                    outcome.failureReason ?: context.getString(R.string.ie_export_failed_retry),
                     Toast.LENGTH_LONG,
                 ).show()
                 return@launch
             }
             val skippedNote = if (outcome.skipped.isNotEmpty()) {
-                "，${outcome.skipped.size} 门课程缺少上课时间未导出"
+                context.getString(R.string.ie_ics_skipped_note, outcome.skipped.size)
             } else {
                 ""
             }
             Toast.makeText(
                 context,
-                "已生成 ${outcome.eventCount} 个日历事件$skippedNote",
+                context.getString(R.string.ie_ics_generated, outcome.eventCount, skippedNote),
                 Toast.LENGTH_LONG,
             ).show()
             runCatching {
-                val chooser = android.content.Intent.createChooser(intent, "导出课表日历").apply {
+                val chooser = android.content.Intent.createChooser(intent, context.getString(R.string.ie_ics_chooser_title)).apply {
                     clipData = intent.clipData
                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(chooser)
             }.onFailure {
-                Toast.makeText(context, "无法启动分享：${it.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.ie_share_launch_failed, it.message), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -232,20 +236,20 @@ fun ImportExportScreen(
             if (intent == null) {
                 Toast.makeText(
                     context,
-                    outcome.failureReason ?: "导出失败，请稍后重试",
+                    outcome.failureReason ?: context.getString(R.string.ie_export_failed_retry),
                     Toast.LENGTH_LONG,
                 ).show()
                 return@launch
             }
             runCatching {
-                val chooser = android.content.Intent.createChooser(intent, "分享课表图片").apply {
+                val chooser = android.content.Intent.createChooser(intent, context.getString(R.string.ie_image_chooser_title)).apply {
                     clipData = intent.clipData
                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 context.startActivity(chooser)
             }.onFailure {
-                Toast.makeText(context, "无法启动分享：${it.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.ie_share_launch_failed, it.message), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -253,7 +257,7 @@ fun ImportExportScreen(
     fun runAiImport(uri: Uri) {
         if (aiBusy) return
         if (!aiImportConfig.isComplete) {
-            Toast.makeText(context, "请先配置 AI 识图导入", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.ie_ai_configure_first), Toast.LENGTH_SHORT).show()
             onOpenAiImportSettings()
             return
         }
@@ -272,11 +276,18 @@ fun ImportExportScreen(
                 )
                 Toast.makeText(
                     context,
-                    "AI 已识别 ${courseCount + manualCount} 门课程，请确认导入",
+                    context.getString(R.string.ie_ai_recognized, courseCount + manualCount),
                     Toast.LENGTH_SHORT,
                 ).show()
             }.onFailure {
-                Toast.makeText(context, "AI 导入失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.ie_ai_import_failed,
+                        it.message ?: context.getString(R.string.ie_unknown_error),
+                    ),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
             aiBusy = false
         }
@@ -290,7 +301,7 @@ fun ImportExportScreen(
             val payload = withContext(Dispatchers.IO) { decodeQrFromUri(context, uri) }
             payload.onSuccess { pendingImport = it }
                 .onFailure { error ->
-                    Toast.makeText(context, error.message ?: "无法识别二维码", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, error.message ?: context.getString(R.string.ie_qr_unrecognized), Toast.LENGTH_SHORT).show()
                 }
         }
     }
@@ -312,7 +323,7 @@ fun ImportExportScreen(
         if (granted) {
             showScanner = true
         } else {
-            Toast.makeText(context, "未授予相机权限，无法扫码", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.ie_camera_permission_denied_scan), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -320,7 +331,7 @@ fun ImportExportScreen(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (!granted) {
-            Toast.makeText(context, "未授予相机权限，无法拍照导入", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.ie_camera_permission_denied_photo), Toast.LENGTH_SHORT).show()
             return@rememberLauncherForActivityResult
         }
         val uri = createAiCameraUri(context)
@@ -340,12 +351,26 @@ fun ImportExportScreen(
                 runCatching {
                     withContext(Dispatchers.IO) { onRestoreAppBackup(it) }
                 }.onSuccess {
-                    Toast.makeText(context, "WebDAV 备份已恢复", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.ie_webdav_restore_success), Toast.LENGTH_SHORT).show()
                 }.onFailure { error ->
-                    Toast.makeText(context, "恢复失败：${error.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            R.string.ie_restore_failed,
+                            error.message ?: context.getString(R.string.ie_unknown_error),
+                        ),
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
             }.onFailure {
-                Toast.makeText(context, "恢复失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.ie_restore_failed,
+                        it.message ?: context.getString(R.string.ie_unknown_error),
+                    ),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
             webDavBusy = false
             pendingRestore = null
@@ -366,7 +391,7 @@ fun ImportExportScreen(
 
     fun openAiCamera() {
         if (!aiImportConfig.isComplete) {
-            Toast.makeText(context, "请先配置 AI 识图导入", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.ie_ai_configure_first), Toast.LENGTH_SHORT).show()
             onOpenAiImportSettings()
             return
         }
@@ -403,14 +428,14 @@ fun ImportExportScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "导入 / 导出课程",
+                        stringResource(R.string.ie_screen_title),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.ie_back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -431,13 +456,13 @@ fun ImportExportScreen(
         ) {
             Panel(
                 icon = Icons.Rounded.Upload,
-                title = "导出二维码",
+                title = stringResource(R.string.ie_qr_export_title),
                 body = if (canExport) {
-                    "把当前学期的课表生成二维码，让同学用本应用扫码或选图导入。"
+                    stringResource(R.string.ie_qr_export_body)
                 } else {
-                    "暂无课表数据，先同步或添加课程后再导出。"
+                    stringResource(R.string.ie_no_schedule_body)
                 },
-                actionLabel = "生成二维码",
+                actionLabel = stringResource(R.string.ie_qr_generate_action),
                 actionEnabled = canExport,
                 onAction = {
                     val payload = ScheduleSharePayload(
@@ -453,20 +478,24 @@ fun ImportExportScreen(
                             qrError = null
                         }
                         .onFailure {
-                            qrError = "课表数据过大，二维码无法容纳。请减少课程后再试。"
+                            qrError = context.getString(R.string.ie_qr_too_large)
                         }
                 },
             )
 
             Panel(
                 icon = Icons.Rounded.CalendarMonth,
-                title = "导出到日历 (ICS)",
+                title = stringResource(R.string.ie_ics_title),
                 body = if (canExport) {
-                    "把当前学期课表导出为通用日历文件，可导入系统日历、Google 日历、Outlook 等，无需联网或额外权限。"
+                    stringResource(R.string.ie_ics_body)
                 } else {
-                    "暂无课表数据，先同步或添加课程后再导出。"
+                    stringResource(R.string.ie_no_schedule_body)
                 },
-                actionLabel = if (icsBusy) "生成中..." else "生成 .ics 文件",
+                actionLabel = if (icsBusy) {
+                    stringResource(R.string.ie_generating)
+                } else {
+                    stringResource(R.string.ie_ics_generate_action)
+                },
                 actionEnabled = canExport && !icsBusy,
                 onAction = { exportIcs() },
             )
@@ -496,7 +525,7 @@ fun ImportExportScreen(
                 backupCount = remoteBackups.size,
                 onUpload = {
                     if (!webDavConfig.isComplete) {
-                        Toast.makeText(context, "请先在设置页配置 WebDAV", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.ie_webdav_configure_first), Toast.LENGTH_SHORT).show()
                         onOpenWebDavSettings()
                         return@WebDavPanel
                     }
@@ -511,19 +540,30 @@ fun ImportExportScreen(
                                 webDavClient.uploadBackup(webDavConfig, fileName, encoded)
                             }
                         }.onSuccess {
-                            Toast.makeText(context, "WebDAV 备份已上传：${it.name}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.ie_webdav_upload_success, it.name),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                             remoteBackups = withContext(Dispatchers.IO) {
                                 runCatching { webDavClient.listBackups(webDavConfig) }.getOrDefault(remoteBackups)
                             }
                         }.onFailure {
-                            Toast.makeText(context, "上传失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    R.string.ie_upload_failed,
+                                    it.message ?: context.getString(R.string.ie_unknown_error),
+                                ),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         }
                         webDavBusy = false
                     }
                 },
                 onRefresh = {
                     if (!webDavConfig.isComplete) {
-                        Toast.makeText(context, "请先在设置页配置 WebDAV", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.ie_webdav_configure_first), Toast.LENGTH_SHORT).show()
                         onOpenWebDavSettings()
                         return@WebDavPanel
                     }
@@ -533,9 +573,20 @@ fun ImportExportScreen(
                             runCatching { webDavClient.listBackups(webDavConfig) }
                         }.onSuccess {
                             remoteBackups = it
-                            Toast.makeText(context, "已找到 ${it.size} 个备份", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(R.string.ie_backups_found, it.size),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         }.onFailure {
-                            Toast.makeText(context, "获取备份失败：${it.message ?: "未知错误"}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    R.string.ie_list_backups_failed,
+                                    it.message ?: context.getString(R.string.ie_unknown_error),
+                                ),
+                                Toast.LENGTH_SHORT,
+                            ).show()
                         }
                         webDavBusy = false
                     }
@@ -549,7 +600,7 @@ fun ImportExportScreen(
                 configured = aiImportConfig.isComplete,
                 onPickImage = {
                     if (!aiImportConfig.isComplete) {
-                        Toast.makeText(context, "请先配置 AI 识图导入", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.ie_ai_configure_first), Toast.LENGTH_SHORT).show()
                         onOpenAiImportSettings()
                     } else {
                         aiImagePickerLauncher.launch(
@@ -567,7 +618,7 @@ fun ImportExportScreen(
                 shape = RoundedCornerShape(16.dp),
             ) {
                 Text(
-                    text = "二维码完全在本地生成与解析，不依赖任何服务器。导入会覆盖当前学期已有的课表与手动添加的课程。",
+                    text = stringResource(R.string.ie_local_notice),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(14.dp),
@@ -579,7 +630,7 @@ fun ImportExportScreen(
     qrBitmap?.let { bitmap ->
         AlertDialog(
             onDismissRequest = { qrBitmap = null },
-            title = { Text("课表二维码") },
+            title = { Text(stringResource(R.string.ie_qr_dialog_title)) },
             text = {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -588,20 +639,20 @@ fun ImportExportScreen(
                 ) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "课表二维码",
+                        contentDescription = stringResource(R.string.ie_qr_dialog_title),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp),
                     )
                     Text(
-                        text = "请同学使用本应用「导入二维码」从相册导入这张图片。",
+                        text = stringResource(R.string.ie_qr_dialog_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = { qrBitmap = null }) { Text("关闭") }
+                TextButton(onClick = { qrBitmap = null }) { Text(stringResource(R.string.ie_close)) }
             },
         )
     }
@@ -609,10 +660,10 @@ fun ImportExportScreen(
     qrError?.let { message ->
         AlertDialog(
             onDismissRequest = { qrError = null },
-            title = { Text("生成二维码失败") },
+            title = { Text(stringResource(R.string.ie_qr_error_title)) },
             text = { Text(message) },
             confirmButton = {
-                TextButton(onClick = { qrError = null }) { Text("知道了") }
+                TextButton(onClick = { qrError = null }) { Text(stringResource(R.string.ie_got_it)) }
             },
         )
     }
@@ -627,27 +678,36 @@ fun ImportExportScreen(
                     tint = MaterialTheme.colorScheme.error,
                 )
             },
-            title = { Text("用这个备份覆盖本机数据？") },
+            title = { Text(stringResource(R.string.ie_restore_confirm_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("备份文件：${backup.name}", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        text = "备份时间：${backup.lastModified ?: "未知"}",
+                        text = stringResource(R.string.ie_restore_file, backup.name),
                         style = MaterialTheme.typography.bodyMedium,
                     )
-                    Text("文件大小：${backup.size} 字节", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        text = "恢复会先清空本机现有数据，再用这个备份整体覆盖：课表、手动课程、学期档案与开学日期、提醒规则、插件与组件记录、小组件外观和全部应用设置。",
+                        text = stringResource(
+                            R.string.ie_restore_time,
+                            backup.lastModified ?: stringResource(R.string.ie_unknown),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.ie_restore_size, backup.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.ie_restore_warning_scope),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
                     Text(
-                        text = "本机现有数据会被全部丢弃，且无法撤销。请确认这就是你要用的备份。",
+                        text = stringResource(R.string.ie_restore_warning_irreversible),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
                     Text(
-                        text = "备份不含 WebDAV 密码与 AI 接口密钥，恢复后这两项仍是本机当前填写的值。",
+                        text = stringResource(R.string.ie_restore_warning_secrets),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -661,13 +721,21 @@ fun ImportExportScreen(
                         contentColor = MaterialTheme.colorScheme.onError,
                     ),
                     onClick = { restoreRemoteBackup(backup) },
-                ) { Text(if (webDavBusy) "恢复中..." else "覆盖并恢复") }
+                ) {
+                    Text(
+                        if (webDavBusy) {
+                            stringResource(R.string.ie_restoring)
+                        } else {
+                            stringResource(R.string.ie_restore_confirm_action)
+                        },
+                    )
+                }
             },
             dismissButton = {
                 TextButton(
                     enabled = !webDavBusy,
                     onClick = { pendingRestore = null },
-                ) { Text("取消") }
+                ) { Text(stringResource(R.string.ie_cancel)) }
             },
         )
     }
@@ -687,26 +755,42 @@ fun ImportExportScreen(
                     tint = MaterialTheme.colorScheme.primary,
                 )
             },
-            title = { Text("确认导入课表") },
+            title = { Text(stringResource(R.string.ie_import_confirm_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     payload.termName?.takeIf(String::isNotBlank)?.let { name ->
-                        Text("学期：$name", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = stringResource(R.string.ie_import_term, name),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                     importedTermStart?.let { date ->
-                        Text("开学日期：$date", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            text = stringResource(R.string.ie_import_term_start, date.toString()),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
-                    Text("导入课程：$courseCount 门", style = MaterialTheme.typography.bodyMedium)
-                    Text("手动添加课程：$manualCount 门", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = stringResource(R.string.ie_import_course_count, courseCount),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        text = stringResource(R.string.ie_import_manual_count, manualCount),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                     importedTermStart?.takeIf { it != termStartDate }?.let { date ->
                         Text(
-                            text = "将同时把开学日期改为 $date（当前：${termStartDate?.toString() ?: "未设置"}），周次会按新日期重新计算。",
+                            text = stringResource(
+                                R.string.ie_import_term_start_change,
+                                date.toString(),
+                                termStartDate?.toString() ?: stringResource(R.string.ie_not_set),
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
                     Text(
-                        text = "导入会覆盖当前学期已有的课表与手动课程，请确认无误。",
+                        text = stringResource(R.string.ie_import_overwrite_notice),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -725,26 +809,37 @@ fun ImportExportScreen(
                                     importedTermStart?.let(onApplyTermStartDate)
                                     Toast.makeText(
                                         context,
-                                        "已导入 $imported 门课程，$manual 门手动课程",
+                                        context.getString(R.string.ie_import_success, imported, manual),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
                                 .onFailure {
                                     Toast.makeText(
                                         context,
-                                        "导入失败：${it.message ?: "未知错误"}",
+                                        context.getString(
+                                            R.string.ie_import_failed,
+                                            it.message ?: context.getString(R.string.ie_unknown_error),
+                                        ),
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
                         }
                     },
-                ) { Text(if (importing) "导入中..." else "确认导入") }
+                ) {
+                    Text(
+                        if (importing) {
+                            stringResource(R.string.ie_importing)
+                        } else {
+                            stringResource(R.string.ie_import_confirm_action)
+                        },
+                    )
+                }
             },
             dismissButton = {
                 TextButton(
                     enabled = !importing,
                     onClick = { pendingImport = null },
-                ) { Text("取消") }
+                ) { Text(stringResource(R.string.ie_cancel)) }
             },
         )
     }
@@ -782,16 +877,16 @@ private fun AiImportPanel(
                 }
                 Spacer(Modifier.size(12.dp))
                 Text(
-                    text = "AI 识图导入",
+                    text = stringResource(R.string.ie_ai_panel_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
                 text = if (configured) {
-                    "从相册选择课表截图，或直接拍照识别并生成当前课表。"
+                    stringResource(R.string.ie_ai_panel_body)
                 } else {
-                    "请先在设置页配置 API URL 和 Key。"
+                    stringResource(R.string.ie_ai_panel_unconfigured)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -805,13 +900,17 @@ private fun AiImportPanel(
                             .fillMaxWidth()
                             .heightIn(min = 48.dp),
                     ) {
-                        Text("去配置")
+                        Text(stringResource(R.string.ie_go_configure))
                     }
                 } else {
                     AiImportActionCard(
                         icon = Icons.Rounded.PhotoLibrary,
-                        title = if (enabled) "相册导入" else "识别中",
-                        body = "选择已有课表截图",
+                        title = if (enabled) {
+                            stringResource(R.string.ie_ai_pick_image)
+                        } else {
+                            stringResource(R.string.ie_ai_recognizing)
+                        },
+                        body = stringResource(R.string.ie_ai_pick_image_desc),
                         enabled = enabled,
                         onClick = onPickImage,
                         modifier = Modifier
@@ -820,8 +919,8 @@ private fun AiImportPanel(
                     )
                     AiImportActionCard(
                         icon = Icons.Rounded.PhotoCamera,
-                        title = "拍照导入",
-                        body = "需要相机权限",
+                        title = stringResource(R.string.ie_ai_take_photo),
+                        body = stringResource(R.string.ie_ai_take_photo_desc),
                         enabled = enabled,
                         onClick = onTakePhoto,
                         modifier = Modifier
@@ -925,16 +1024,16 @@ private fun WebDavPanel(
                 }
                 Spacer(Modifier.size(12.dp))
                 Text(
-                    text = "WebDAV 备份 / 恢复",
+                    text = stringResource(R.string.ie_webdav_panel_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             Text(
                 text = if (configured) {
-                    "同步范围包含课表数据、学期、提醒、插件记录与用户设置。为避免密码上传到网盘，备份不含 WebDAV 密码与 AI 接口密钥，换机后需要重新填写。远端目录：cursimple/backups。已加载 $backupCount 个备份。"
+                    stringResource(R.string.ie_webdav_panel_body, backupCount)
                 } else {
-                    "请先在设置页配置 WebDAV URL、账号和密码。"
+                    stringResource(R.string.ie_webdav_panel_unconfigured)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -946,7 +1045,7 @@ private fun WebDavPanel(
                         enabled = enabled,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text("去配置")
+                        Text(stringResource(R.string.ie_go_configure))
                     }
                 } else {
                     Button(
@@ -956,7 +1055,13 @@ private fun WebDavPanel(
                     ) {
                         Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(6.dp))
-                        Text(if (enabled) "上传备份" else "处理中")
+                        Text(
+                            if (enabled) {
+                                stringResource(R.string.ie_webdav_upload_action)
+                            } else {
+                                stringResource(R.string.ie_processing)
+                            },
+                        )
                     }
                     OutlinedButton(
                         onClick = onRefresh,
@@ -965,7 +1070,7 @@ private fun WebDavPanel(
                     ) {
                         Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(6.dp))
-                        Text("远端备份")
+                        Text(stringResource(R.string.ie_webdav_remote_backups))
                     }
                 }
             }
@@ -1027,14 +1132,14 @@ private fun ImportPanel(
                 }
                 Spacer(Modifier.size(12.dp))
                 Text(
-                    text = "导入二维码",
+                    text = stringResource(R.string.ie_import_panel_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "扫描同学手机上的二维码，或从相册选择二维码图片；本地解析后覆盖当前学期的课表。",
+                text = stringResource(R.string.ie_import_panel_body),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1051,14 +1156,14 @@ private fun ImportPanel(
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(Modifier.size(6.dp))
-                    Text("扫一扫")
+                    Text(stringResource(R.string.ie_scan))
                 }
                 OutlinedButton(
                     onClick = onPickImage,
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text("相册选图")
+                    Text(stringResource(R.string.ie_pick_from_gallery))
                 }
             }
         }
@@ -1089,7 +1194,7 @@ private fun ScannerOverlay(
             IconButton(onClick = onCancel) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "返回",
+                    contentDescription = stringResource(R.string.ie_back),
                     tint = androidx.compose.ui.graphics.Color.White,
                 )
             }
@@ -1103,7 +1208,7 @@ private fun ScannerOverlay(
             color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f),
         ) {
             Text(
-                text = "将二维码对准屏幕，识别成功后自动返回。",
+                text = stringResource(R.string.ie_scanner_hint),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 color = androidx.compose.ui.graphics.Color.White,
                 style = MaterialTheme.typography.bodyMedium,
@@ -1146,7 +1251,7 @@ private fun ScheduleImagePanel(
                 }
                 Spacer(Modifier.size(12.dp))
                 Text(
-                    text = "导出课表图片",
+                    text = stringResource(R.string.ie_image_panel_title),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -1154,9 +1259,9 @@ private fun ScheduleImagePanel(
             Spacer(Modifier.height(8.dp))
             Text(
                 text = if (canExport) {
-                    "把选定一周的课表画成一张 PNG，直接发给同学或家长，对方不用装应用也能看。已排除假日，并按临时调课取课。"
+                    stringResource(R.string.ie_image_panel_body)
                 } else {
-                    "暂无课表数据，先同步或添加课程后再导出。"
+                    stringResource(R.string.ie_no_schedule_body)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1172,11 +1277,11 @@ private fun ScheduleImagePanel(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ChevronLeft,
-                        contentDescription = "上一周",
+                        contentDescription = stringResource(R.string.ie_previous_week),
                     )
                 }
                 Text(
-                    text = "第 $weekNumber 周",
+                    text = stringResource(R.string.ie_week_label, weekNumber),
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.Center,
                     style = MaterialTheme.typography.titleMedium,
@@ -1188,7 +1293,7 @@ private fun ScheduleImagePanel(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = "下一周",
+                        contentDescription = stringResource(R.string.ie_next_week),
                     )
                 }
             }
@@ -1198,7 +1303,13 @@ private fun ScheduleImagePanel(
                 enabled = canExport && !busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (busy) "生成中..." else "生成并分享图片")
+                Text(
+                    if (busy) {
+                        stringResource(R.string.ie_generating)
+                    } else {
+                        stringResource(R.string.ie_image_generate_action)
+                    },
+                )
             }
         }
     }
@@ -1273,10 +1384,10 @@ private fun decodeQrFromUri(
     uri: Uri,
 ): Result<ScheduleSharePayload> = runCatching {
     val bitmap = context.contentResolver.openInputStream(uri).use { stream ->
-        requireNotNull(stream) { "无法打开图片" }
+        requireNotNull(stream) { context.getString(R.string.ie_image_open_failed) }
         BitmapFactory.decodeStream(stream)
-    } ?: error("图片格式不支持")
-    val text = QrCodeCodec.decodeBitmap(bitmap) ?: error("图片中没有可识别的二维码")
+    } ?: error(context.getString(R.string.ie_image_format_unsupported))
+    val text = QrCodeCodec.decodeBitmap(bitmap) ?: error(context.getString(R.string.ie_image_no_qr))
     ScheduleShareCodec.decode(text).getOrThrow()
 }
 

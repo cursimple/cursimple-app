@@ -36,6 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseConflict
@@ -74,12 +76,12 @@ fun ManageScheduleSheet(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Text(
-                text = "课表管理",
+                text = stringResource(R.string.schedule_manage_title),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "在这里加载示例数据预览各种排课情况，或手动添加 / 删除自定义课程。",
+                text = stringResource(R.string.schedule_manage_subtitle),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -90,20 +92,20 @@ fun ManageScheduleSheet(
 
             ActionRow(
                 icon = Icons.Rounded.Add,
-                title = "添加一节课",
-                subtitle = "打开新建课程表单（可设单/双周）",
+                title = stringResource(R.string.schedule_manage_add_title),
+                subtitle = stringResource(R.string.schedule_manage_add_subtitle),
                 onClick = onAddSingleCourse,
             )
             ActionRow(
                 icon = Icons.Rounded.AutoFixHigh,
-                title = "加载示例课表",
-                subtitle = "覆盖现有手动课程，含单/双周、连堂、短期等多种情况",
+                title = stringResource(R.string.schedule_manage_sample_title),
+                subtitle = stringResource(R.string.schedule_manage_sample_subtitle),
                 onClick = onLoadSample,
             )
             ActionRow(
                 icon = Icons.Rounded.DeleteOutline,
-                title = "清空全部课表",
-                subtitle = "同时删除手动课程、插件同步的课表和所有提醒",
+                title = stringResource(R.string.schedule_manage_clear_all_title),
+                subtitle = stringResource(R.string.schedule_manage_clear_all_subtitle),
                 onClick = onClearEverything,
                 danger = true,
             )
@@ -111,15 +113,15 @@ fun ManageScheduleSheet(
             if (manualCourses.isNotEmpty()) {
                 ActionRow(
                     icon = Icons.Rounded.DeleteOutline,
-                    title = "清空手动课表",
-                    subtitle = "仅清除本应用手动添加的，不影响插件同步的课表",
+                    title = stringResource(R.string.schedule_manage_clear_manual_title),
+                    subtitle = stringResource(R.string.schedule_manage_clear_manual_subtitle),
                     onClick = onClearAll,
                     danger = true,
                 )
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
-                    text = "已添加 ${manualCourses.size} 门",
+                    text = stringResource(R.string.schedule_manage_added_count, manualCourses.size),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -133,7 +135,7 @@ fun ManageScheduleSheet(
                 }
             } else {
                 Text(
-                    text = "当前没有手动添加的课程",
+                    text = stringResource(R.string.schedule_manage_empty),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -152,7 +154,7 @@ fun ManageScheduleSheet(
 private fun ConflictSection(conflicts: List<CourseConflict>) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            text = "时间冲突 ${conflicts.size} 处",
+            text = stringResource(R.string.schedule_conflict_count, conflicts.size),
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.error,
@@ -163,13 +165,13 @@ private fun ConflictSection(conflicts: List<CourseConflict>) {
         val rest = conflicts.size - CONFLICT_ROW_LIMIT
         if (rest > 0) {
             Text(
-                text = "另有 $rest 处冲突未列出",
+                text = stringResource(R.string.schedule_conflict_more, rest),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         Text(
-            text = "单双周交替上课不算冲突，只有教学周有交集才会列在这里。",
+            text = stringResource(R.string.schedule_conflict_note),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -178,6 +180,7 @@ private fun ConflictSection(conflicts: List<CourseConflict>) {
 
 @Composable
 private fun ConflictRow(conflict: CourseConflict) {
+    val context = LocalContext.current
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -196,13 +199,17 @@ private fun ConflictRow(conflict: CourseConflict) {
             Spacer(modifier = Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = conflictPairTitle(conflict),
+                    text = context.conflictPairTitleText(conflictPairTitle(conflict)),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
                 Text(
-                    text = "${conflictKindLabel(conflict.kind)} · ${conflictScopeText(conflict)}",
+                    text = stringResource(
+                        R.string.schedule_conflict_kind_and_scope,
+                        stringResource(conflictKindNameRes(conflict.kind)),
+                        context.conflictScopeText(conflictScope(conflict)),
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.78f),
                 )
@@ -262,11 +269,15 @@ private fun ManualCourseRow(
     course: CourseItem,
     onRemove: () -> Unit,
 ) {
-    val weekday = listOf("一", "二", "三", "四", "五", "六", "日").getOrNull(course.time.dayOfWeek - 1) ?: "?"
-    val nodeText = if (course.time.startNode == course.time.endNode) {
-        "第 ${course.time.startNode} 节"
+    val weekday = if (course.time.dayOfWeek in 1..7) {
+        stringResource(scheduleWeekdayFullRes(course.time.dayOfWeek))
     } else {
-        "第 ${course.time.startNode}-${course.time.endNode} 节"
+        "?"
+    }
+    val nodeText = if (course.time.startNode == course.time.endNode) {
+        stringResource(R.string.schedule_node_single, course.time.startNode)
+    } else {
+        stringResource(R.string.schedule_node_range, course.time.startNode, course.time.endNode)
     }
     val weeksLabel = describeWeeks(course.weeks)
 
@@ -287,7 +298,7 @@ private fun ManualCourseRow(
                 )
                 Text(
                     text = buildString {
-                        append("周$weekday · $nodeText · $weeksLabel")
+                        append("$weekday · $nodeText · $weeksLabel")
                         if (course.location.isNotBlank()) append(" · ${course.location}")
                         if (course.teacher.isNotBlank()) append(" · ${course.teacher}")
                     },
@@ -298,7 +309,7 @@ private fun ManualCourseRow(
             IconButton(onClick = onRemove) {
                 Icon(
                     imageVector = Icons.Rounded.Close,
-                    contentDescription = "删除",
+                    contentDescription = stringResource(R.string.schedule_action_delete),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -306,8 +317,9 @@ private fun ManualCourseRow(
     }
 }
 
+@Composable
 private fun describeWeeks(weeks: List<Int>): String {
-    if (weeks.isEmpty()) return "全周"
+    if (weeks.isEmpty()) return stringResource(R.string.schedule_weeks_all_short)
     val sorted = weeks.sorted()
     val first = sorted.first()
     val last = sorted.last()
@@ -315,9 +327,9 @@ private fun describeWeeks(weeks: List<Int>): String {
     val odd = full.filter { it % 2 == 1 }
     val even = full.filter { it % 2 == 0 }
     return when {
-        sorted == full -> "$first-$last 周"
-        sorted == odd -> "$first-$last 周(单)"
-        sorted == even -> "$first-$last 周(双)"
-        else -> "${sorted.size} 周"
+        sorted == full -> stringResource(R.string.schedule_weeks_range, first, last)
+        sorted == odd -> stringResource(R.string.schedule_weeks_range_odd, first, last)
+        sorted == even -> stringResource(R.string.schedule_weeks_range_even, first, last)
+        else -> stringResource(R.string.schedule_weeks_count, sorted.size)
     }
 }

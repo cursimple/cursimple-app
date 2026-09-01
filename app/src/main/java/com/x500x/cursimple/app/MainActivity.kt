@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -84,6 +85,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.x500x.cursimple.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -103,7 +107,8 @@ import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
-import com.x500x.cursimple.core.kernel.model.termWeekTitle
+import com.x500x.cursimple.core.kernel.model.termWeekLabel
+import com.x500x.cursimple.core.kernel.model.termWeekText
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModel
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModelFactory
@@ -180,6 +185,7 @@ class MainActivity : ComponentActivity() {
                     var showAddMenu by remember { mutableStateOf(false) }
                     val scheduleViewModel: ScheduleViewModel = viewModel(
                         factory = ScheduleViewModelFactory(
+                            appContext = applicationContext,
                             scheduleRepository = container.scheduleRepository,
                             pluginManager = container.pluginManager,
                             reminderCoordinator = container.reminderCoordinator,
@@ -464,7 +470,9 @@ class MainActivity : ComponentActivity() {
                                                         ),
                                                     ) {
                                                         Text(
-                                                            text = termWeekTitle(effectiveTermStart, displayedWeekIndex),
+                                                            text = LocalContext.current.termWeekText(
+                                                                termWeekLabel(effectiveTermStart, displayedWeekIndex),
+                                                            ),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontWeight = FontWeight.SemiBold,
                                                             color = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
@@ -505,7 +513,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         } else {
                                             Text(
-                                                text = currentScreen.label,
+                                                text = stringResource(currentScreen.labelRes),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold,
                                             )
@@ -539,7 +547,8 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                         if (currentScreen == AppScreen.Schedule) {
-                                            IconButton(
+                                            // 标签宽度随语言变化，按内容伸展，中文时仍是 32dp 方块
+                                            Surface(
                                                 onClick = {
                                                     scheduleViewMode = if (scheduleViewMode == ScheduleViewMode.Week) {
                                                         dayOffset = 0
@@ -548,20 +557,31 @@ class MainActivity : ComponentActivity() {
                                                         ScheduleViewMode.Week
                                                     }
                                                 },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                                modifier = Modifier
+                                                    .padding(horizontal = 4.dp)
+                                                    .height(32.dp)
+                                                    .defaultMinSize(minWidth = 32.dp),
                                             ) {
-                                                Surface(
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                                    modifier = Modifier.size(32.dp),
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.padding(horizontal = 8.dp),
                                                 ) {
-                                                    Box(contentAlignment = Alignment.Center) {
-                                                        Text(
-                                                            text = if (scheduleViewMode == ScheduleViewMode.Week) "周" else "日",
-                                                            style = MaterialTheme.typography.titleSmall,
-                                                            fontWeight = FontWeight.Bold,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                        )
-                                                    }
+                                                    Text(
+                                                        text = stringResource(
+                                                            if (scheduleViewMode == ScheduleViewMode.Week) {
+                                                                R.string.schedule_view_mode_week
+                                                            } else {
+                                                                R.string.schedule_view_mode_day
+                                                            },
+                                                        ),
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        maxLines = 1,
+                                                        softWrap = false,
+                                                    )
                                                 }
                                             }
                                             Box {
@@ -1211,14 +1231,14 @@ class MainActivity : ComponentActivity() {
     }
 
     enum class AppScreen(
-        val label: String,
+        val labelRes: Int,
         val icon: ImageVector,
     ) {
-        Schedule("课表", Icons.AutoMirrored.Rounded.MenuBook),
-        Plugins("插件", Icons.Rounded.Extension),
-        Reminders("提醒", Icons.Rounded.Notifications),
-        Settings("设置", Icons.Rounded.Settings),
-        About("关于", Icons.Rounded.Info),
+        Schedule(R.string.screen_schedule, Icons.AutoMirrored.Rounded.MenuBook),
+        Plugins(R.string.screen_plugins, Icons.Rounded.Extension),
+        Reminders(R.string.screen_reminders, Icons.Rounded.Notifications),
+        Settings(R.string.screen_settings, Icons.Rounded.Settings),
+        About(R.string.screen_about, Icons.Rounded.Info),
     }
 
     enum class SubScreen { TermManagement, ImportExport }
@@ -1274,7 +1294,7 @@ private fun AppDrawer(
                 NavigationDrawerItem(
                     label = {
                         Text(
-                            text = screen.label,
+                            text = stringResource(screen.labelRes),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium,
                         )

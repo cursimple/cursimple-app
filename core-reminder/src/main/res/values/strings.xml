@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reminder_exact_alarm_permission_off">精确闹钟权限未开启</string>
+    <string name="reminder_app_alarm_set">App 自管闹钟已设置</string>
+    <string name="reminder_exact_alarm_denied">系统拒绝设置精确闹钟</string>
+    <string name="reminder_app_alarm_set_failed">设置 App 自管闹钟失败</string>
+    <string name="reminder_app_alarm_cancelled">App 自管闹钟已取消</string>
+    <string name="reminder_app_alarm_cancel_failed">取消 App 自管闹钟失败</string>
+
+    <string name="reminder_system_clock_create_accepted">系统时钟已接受创建请求</string>
+    <string name="reminder_system_clock_unavailable">系统时钟应用不可用</string>
+    <string name="reminder_system_clock_create_denied">系统拒绝创建闹钟</string>
+    <string name="reminder_system_clock_create_failed">创建系统闹钟失败</string>
+    <string name="reminder_system_clock_delete_accepted">系统时钟已接受删除请求</string>
+    <string name="reminder_system_clock_delete_denied">系统拒绝删除闹钟</string>
+    <string name="reminder_system_clock_delete_failed">删除系统闹钟失败</string>
+
+</resources>

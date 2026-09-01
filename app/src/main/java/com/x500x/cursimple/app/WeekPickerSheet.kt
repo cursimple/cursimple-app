@@ -22,8 +22,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
@@ -62,7 +64,7 @@ fun WeekPickerSheet(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "查看周课表",
+                    text = stringResource(R.string.week_picker_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
@@ -71,19 +73,19 @@ fun WeekPickerSheet(
                     onClick = { onSetSelectedAsCurrent(selectedWeek) },
                     enabled = selectedWeek >= 1,
                 ) {
-                    Text("设为当前周")
+                    Text(stringResource(R.string.week_picker_set_current))
                 }
             }
 
             if (termStart == null) {
                 Text(
-                    text = "还没有设置开学日期，无法判断当前是第几周",
+                    text = stringResource(R.string.week_picker_no_term_start),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else if (currentWeek < 1) {
                 Text(
-                    text = "尚未开学 · 距第 1 周还有 ${1 - currentWeek} 周",
+                    text = stringResource(R.string.week_picker_before_term, 1 - currentWeek),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -171,7 +173,7 @@ private fun WeekCell(
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
-                text = if (isCurrent) "本周" else week.toString(),
+                text = if (isCurrent) stringResource(R.string.week_picker_current_week) else week.toString(),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = if (isCurrent || isSelected) FontWeight.Bold else FontWeight.SemiBold,
                 color = onContainer,

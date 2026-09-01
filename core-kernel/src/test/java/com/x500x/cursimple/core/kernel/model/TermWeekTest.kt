@@ -12,25 +12,6 @@ class TermWeekTest {
     private val monday = LocalDate.of(2026, 9, 7)
 
     @Test
-    fun `no term start means there is no week to name`() {
-        assertEquals("未设置开学日期", termWeekTitle(null, 1))
-        assertEquals("未设置开学日期", termWeekTitle(null, 5))
-        assertEquals("未设置开学日期", termWeekTitle(null, -2))
-    }
-
-    @Test
-    fun `a term start makes the week number the title`() {
-        assertEquals("第 1 周", termWeekTitle(monday, 1))
-        assertEquals("第 12 周", termWeekTitle(monday, 12))
-    }
-
-    @Test
-    fun `a week before the term start reads as not yet started`() {
-        assertEquals("未开学", termWeekTitle(monday, 0))
-        assertEquals("未开学", termWeekTitle(monday, -1))
-    }
-
-    @Test
     fun `no term start means no week is the current one`() {
         assertFalse(isCurrentTermWeek(termStart = null, displayedWeekIndex = 1, currentWeekIndex = 1))
         assertFalse(isCurrentTermWeek(termStart = null, displayedWeekIndex = 3, currentWeekIndex = 3))
