@@ -11,6 +11,9 @@ import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.reminder.dispatch.AlarmDispatcher
 import com.x500x.cursimple.core.reminder.dispatch.AlarmDismisser
 import com.x500x.cursimple.core.reminder.dispatch.AlarmRegistrationVerifier
+import com.x500x.cursimple.core.reminder.dispatch.SystemAlarmClockDismisser
+import com.x500x.cursimple.core.reminder.dispatch.SystemAlarmClockDispatcher
+import com.x500x.cursimple.core.reminder.dispatch.SystemAlarmClockMessages
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
@@ -891,6 +894,99 @@ class SystemAlarmRegistryTest {
     }
 
     @Test
+    fun `consuming first course of period app alarm keeps rule and future alarms`() = runBlocking {
+        val rule = sampleFirstCourseRule()
+        val fired = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+            .copy(
+                alarmKey = "fired",
+                ruleId = rule.ruleId,
+                backend = ReminderAlarmBackend.AppAlarmClock,
+                requestCode = 1001,
+            )
+        val future = sampleRecord(triggerAtMillis = futureMillis())
+            .copy(
+                alarmKey = "future",
+                ruleId = rule.ruleId,
+                backend = ReminderAlarmBackend.AppAlarmClock,
+                requestCode = 1002,
+            )
+        val repository = FakeReminderRepository(rules = listOf(rule)).apply {
+            records.value = listOf(fired, future)
+        }
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDismisser = appDismisser,
+        )
+
+        coordinator.consumeTriggeredAppAlarm("fired", rule.ruleId)
+
+        assertEquals(listOf(rule), repository.getReminderRules())
+        assertEquals(listOf(future), repository.records.value)
+        assertEquals(0, appDismisser.dismissCount)
+    }
+
+    @Test
+    fun `snoozed first course of period alarm keeps rule after ringing again`() = runBlocking {
+        val rule = sampleFirstCourseRule()
+        val fired = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+            .copy(
+                alarmKey = "fired",
+                ruleId = rule.ruleId,
+                backend = ReminderAlarmBackend.AppAlarmClock,
+                operationMode = AppAlarmOperationMode.SnoozeForegroundService,
+                requestCode = 1001,
+            )
+        val repository = FakeReminderRepository(rules = listOf(rule)).apply {
+            records.value = listOf(fired)
+        }
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+        )
+
+        coordinator.consumeTriggeredAppAlarm("fired", rule.ruleId)
+
+        assertEquals(listOf(rule), repository.getReminderRules())
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+    }
+
+    @Test
+    fun `consuming exam app alarm keeps rule and future alarms`() = runBlocking {
+        val rule = sampleExamRule()
+        val fired = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
+            .copy(
+                alarmKey = "fired",
+                ruleId = rule.ruleId,
+                backend = ReminderAlarmBackend.AppAlarmClock,
+                requestCode = 1001,
+            )
+        val future = sampleRecord(triggerAtMillis = futureMillis())
+            .copy(
+                alarmKey = "future",
+                ruleId = rule.ruleId,
+                backend = ReminderAlarmBackend.AppAlarmClock,
+                requestCode = 1002,
+            )
+        val repository = FakeReminderRepository(rules = listOf(rule)).apply {
+            records.value = listOf(fired, future)
+        }
+        val appDismisser = FakeAlarmDismisser(succeeded = true)
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDismisser = appDismisser,
+        )
+
+        coordinator.consumeTriggeredAppAlarm("fired", rule.ruleId)
+
+        assertEquals(listOf(rule), repository.getReminderRules())
+        assertEquals(listOf(future), repository.records.value)
+        assertEquals(0, appDismisser.dismissCount)
+    }
+
+    @Test
     fun `finishing triggered app alarm with snooze records snoozed alarm`() = runBlocking {
         val fired = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 7, minute = 45))
             .copy(alarmKey = "fired", backend = ReminderAlarmBackend.AppAlarmClock, requestCode = 1001)
@@ -1122,6 +1218,174 @@ class SystemAlarmRegistryTest {
         assertEquals(1, dismisser.dismissCount)
     }
 
+    @Test
+    fun `system clock dispatch fails when app cannot start an activity`() = runBlocking {
+        val dispatcher = SystemAlarmClockDispatcher(
+            context = ContextWrapper(null),
+            foregroundGate = { false },
+        )
+
+        val result = dispatcher.dispatch(sampleSnoozePlan())
+
+        assertFalse(result.succeeded)
+        assertEquals(AlarmDispatchChannel.SystemClockApp, result.channel)
+        assertEquals(SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND, result.message)
+    }
+
+    @Test
+    fun `system clock dismiss fails when app cannot start an activity`() = runBlocking {
+        val dismisser = SystemAlarmClockDismisser(
+            context = ContextWrapper(null),
+            foregroundGate = { false },
+        )
+        val record = sampleRecord(triggerAtMillis = futureMillis())
+
+        val result = dismisser.dismiss(record)
+
+        assertFalse(result.succeeded)
+        assertEquals(record.alarmKey, result.alarmKey)
+        assertEquals(SystemAlarmClockMessages.DISMISS_REQUIRES_FOREGROUND, result.message)
+    }
+
+    @Test
+    fun `background system clock sync creates no registry record`() = runBlocking {
+        val repository = FakeReminderRepository(
+            rules = listOf(sampleRule()),
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            alarmSettingsProvider = { ReminderAlarmSettings(backend = ReminderAlarmBackend.SystemClockApp) },
+            systemDispatcher = SystemAlarmClockDispatcher(
+                context = ContextWrapper(null),
+                foregroundGate = { false },
+            ),
+        )
+        val profile = sampleProfile()
+        val nowMillis = sampleNowMillis(hour = 7, minute = 0)
+
+        val summary = coordinator.syncSystemClockAlarmsForWindow(
+            pluginId = "demo",
+            schedule = sampleSchedule(),
+            timingProfile = profile,
+            window = ReminderSyncWindows.todayFromNow(profile, nowMillis),
+            reason = ReminderSyncReason.RuleCreatedToday,
+            nowMillis = nowMillis,
+        )
+
+        assertEquals(0, summary.createdCount)
+        assertEquals(1, summary.failedCount)
+        assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
+        assertEquals(
+            SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND,
+            summary.results.single().message,
+        )
+    }
+
+    @Test
+    fun `re-enabling an expired app alarm is rejected without dispatch`() = runBlocking {
+        val expiredRecord = sampleRecord(triggerAtMillis = System.currentTimeMillis() - 60_000).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1001,
+            operationMode = AppAlarmOperationMode.ForegroundService,
+            enabled = false,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(expiredRecord)
+        }
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDispatcher = dispatcher,
+        )
+
+        val result = coordinator.setAppAlarmEnabled(expiredRecord.alarmKey, enabled = true)
+
+        assertFalse(result.succeeded)
+        assertEquals(0, dispatcher.dispatchCount)
+        assertFalse(repository.records.value.single().enabled)
+    }
+
+    @Test
+    fun `re-enabling a future app alarm still dispatches`() = runBlocking {
+        val record = sampleRecord(triggerAtMillis = futureMillis()).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1001,
+            operationMode = AppAlarmOperationMode.ForegroundService,
+            enabled = false,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(record)
+        }
+        val dispatcher = FakeAlarmDispatcher(
+            succeeded = true,
+            channel = AlarmDispatchChannel.AppAlarmClock,
+        )
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDispatcher = dispatcher,
+        )
+
+        val result = coordinator.setAppAlarmEnabled(record.alarmKey, enabled = true)
+
+        assertTrue(result.succeeded)
+        assertEquals(1, dispatcher.dispatchCount)
+        assertTrue(repository.records.value.single().enabled)
+    }
+
+    @Test
+    fun `enabling app alarm reports dispatcher error instead of throwing`() = runBlocking {
+        val record = sampleRecord(triggerAtMillis = futureMillis()).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1001,
+            operationMode = AppAlarmOperationMode.ForegroundService,
+            enabled = false,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(record)
+        }
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDispatcher = ThrowingAlarmDispatcher("dispatch boom"),
+        )
+
+        val result = coordinator.setAppAlarmEnabled(record.alarmKey, enabled = true)
+
+        assertFalse(result.succeeded)
+        assertEquals("dispatch boom", result.message)
+        assertFalse(repository.records.value.single().enabled)
+    }
+
+    @Test
+    fun `disabling app alarm reports dismisser error instead of throwing`() = runBlocking {
+        val record = sampleRecord(triggerAtMillis = futureMillis()).copy(
+            backend = ReminderAlarmBackend.AppAlarmClock,
+            requestCode = 1001,
+            operationMode = AppAlarmOperationMode.ForegroundService,
+            enabled = true,
+        )
+        val repository = FakeReminderRepository(rules = emptyList()).apply {
+            records.value = listOf(record)
+        }
+        val coordinator = ReminderCoordinator(
+            context = ContextWrapper(null),
+            repository = repository,
+            appDismisser = ThrowingAlarmDismisser("dismiss boom"),
+        )
+
+        val result = coordinator.setAppAlarmEnabled(record.alarmKey, enabled = false)
+
+        assertFalse(result.succeeded)
+        assertEquals("dismiss boom", result.message)
+        assertTrue(repository.records.value.single().enabled)
+    }
+
     private fun sampleRule(): ReminderRule = ReminderRule(
         ruleId = "rule",
         pluginId = "demo",
@@ -1151,6 +1415,16 @@ class SystemAlarmRegistryTest {
         displayName = "上午首次课提醒",
         period = ReminderDayPeriod.Morning,
         advanceMinutes = 15,
+        createdAt = "2026-02-23T00:00:00+08:00",
+        updatedAt = "2026-02-23T00:00:00+08:00",
+    )
+
+    private fun sampleExamRule(): ReminderRule = ReminderRule(
+        ruleId = "exam",
+        pluginId = "demo",
+        scopeType = ReminderScopeType.Exam,
+        displayName = "考试提醒",
+        advanceMinutes = 30,
         createdAt = "2026-02-23T00:00:00+08:00",
         updatedAt = "2026-02-23T00:00:00+08:00",
     )
@@ -1324,6 +1598,20 @@ class SystemAlarmRegistryTest {
                 message = if (succeeded) "dismissed" else "failed",
             )
         }
+    }
+
+    private class ThrowingAlarmDispatcher(
+        private val reason: String,
+    ) : AlarmDispatcher {
+        override suspend fun dispatch(plan: ReminderPlan): AlarmDispatchResult =
+            throw IllegalStateException(reason)
+    }
+
+    private class ThrowingAlarmDismisser(
+        private val reason: String,
+    ) : AlarmDismisser {
+        override suspend fun dismiss(record: SystemAlarmRecord): AlarmDismissResult =
+            throw IllegalStateException(reason)
     }
 
     private class FakeAlarmRegistrationVerifier(

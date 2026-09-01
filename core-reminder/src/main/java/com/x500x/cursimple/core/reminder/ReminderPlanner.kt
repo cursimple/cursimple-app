@@ -7,10 +7,7 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
-import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
-import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.startLocalTime
-import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
@@ -144,30 +141,6 @@ class ReminderPlanner {
         }
     }
 
-    private fun courseOccurrenceDates(
-        course: CourseItem,
-        termStart: LocalDate,
-        fromDate: LocalDate,
-        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
-    ): List<LocalDate> {
-        val weeks = course.weeks.ifEmpty { (1..60).toList() }
-        val regularDates = weeks.map { week ->
-            termStart
-                .plusWeeks((week - 1).toLong())
-                .plusDays((course.time.dayOfWeek - 1).toLong())
-        }
-        val overrideTargetDates = temporaryScheduleOverrides.flatMap { it.targetDates() }
-        return (regularDates + overrideTargetDates)
-            .distinct()
-            .filterNot { it.isBefore(fromDate) }
-            .filter { date ->
-                val sourceDate = resolveTemporaryScheduleSourceDate(date, temporaryScheduleOverrides)
-                sourceDate.dayOfWeek.value == course.time.dayOfWeek &&
-                    course.isActiveOnSourceDate(termStart, sourceDate) &&
-                    !isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)
-            }
-    }
-
     private fun buildPlan(
         rule: ReminderRule,
         course: CourseItem,
@@ -251,15 +224,4 @@ class ReminderPlanner {
             ReminderScopeType.LabelRule -> false
         }
     }
-
-    private fun CourseItem.isActiveOnSourceDate(termStart: LocalDate, sourceDate: LocalDate): Boolean {
-        if (weeks.isEmpty()) return true
-        return resolveTermWeek(termStart, sourceDate) in weeks
-    }
-
-    private fun resolveTermWeek(termStart: LocalDate, date: LocalDate): Int =
-        java.time.temporal.ChronoUnit.WEEKS.between(
-            termStart.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)),
-            date.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)),
-        ).toInt() + 1
 }
