@@ -440,6 +440,20 @@ class ScheduleViewModel(
         }
     }
 
+    fun resizeManualCourse(courseId: String, time: CourseTimeSlot) {
+        viewModelScope.launch {
+            applyManualCourseTime(courseId, time) {
+                val changed = text(R.string.schedule_status_course_span_changed, time.startNode, time.endNode)
+                // 改后的节次区间可能不再精确对应任何一条节次时间，提醒展开会取不到时间
+                if (_uiState.value.timingProfile?.findSlot(time.startNode, time.endNode) == null) {
+                    "$changed ${text(R.string.schedule_status_course_time_unresolved)}"
+                } else {
+                    changed
+                }
+            }
+        }
+    }
+
     /**
      * 改写手动课程的上课时间并落库。
      *

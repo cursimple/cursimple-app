@@ -239,4 +239,117 @@ class CourseDragTargetTest {
         placement = CoursePlacement(dayIndex = dayIndex, rowIndex = rowIndex, rowSpan = rowSpan),
         inactive = false,
     )
+
+    @Test
+    fun `dragging the bottom edge down extends the span`() {
+        val target = resolveCourseResizeTarget(
+            startRowIndex = 0, rowSpan = 1, edge = CourseResizeEdge.Bottom,
+            dragOffsetY = 60f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = emptySet(),
+        )
+
+        assertEquals(0, target.rowIndex)
+        assertEquals(2, target.rowSpan)
+        assertTrue(target.isValid)
+    }
+
+    @Test
+    fun `dragging the top edge up extends the span upwards`() {
+        val target = resolveCourseResizeTarget(
+            startRowIndex = 2, rowSpan = 1, edge = CourseResizeEdge.Top,
+            dragOffsetY = -60f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = emptySet(),
+        )
+
+        assertEquals(1, target.rowIndex)
+        assertEquals(2, target.rowSpan)
+    }
+
+    @Test
+    fun `pressing an edge past the other one leaves a single row`() {
+        val top = resolveCourseResizeTarget(
+            startRowIndex = 0, rowSpan = 2, edge = CourseResizeEdge.Top,
+            dragOffsetY = 600f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = emptySet(),
+        )
+        assertEquals(1, top.rowSpan)
+
+        val bottom = resolveCourseResizeTarget(
+            startRowIndex = 1, rowSpan = 2, edge = CourseResizeEdge.Bottom,
+            dragOffsetY = -600f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = emptySet(),
+        )
+        assertEquals(1, bottom.rowSpan)
+        assertEquals(1, bottom.rowIndex)
+    }
+
+    @Test
+    fun `an edge dragged past the grid is clamped`() {
+        val bottom = resolveCourseResizeTarget(
+            startRowIndex = 2, rowSpan = 1, edge = CourseResizeEdge.Bottom,
+            dragOffsetY = 600f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = emptySet(),
+        )
+        assertEquals(2, bottom.rowIndex)
+        assertEquals(2, bottom.rowSpan)
+
+        val top = resolveCourseResizeTarget(
+            startRowIndex = 1, rowSpan = 1, edge = CourseResizeEdge.Top,
+            dragOffsetY = -600f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = emptySet(),
+        )
+        assertEquals(0, top.rowIndex)
+    }
+
+    @Test
+    fun `growing into another course is refused but shrinking beside it is not`() {
+        val blocked = resolveCourseResizeTarget(
+            startRowIndex = 0, rowSpan = 1, edge = CourseResizeEdge.Bottom,
+            dragOffsetY = 60f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = setOf(0 to 1),
+        )
+        assertFalse(blocked.isValid)
+
+        // 原本就占着的行不重复判定，缩回去不该被自己挡住
+        val shrink = resolveCourseResizeTarget(
+            startRowIndex = 0, rowSpan = 3, edge = CourseResizeEdge.Bottom,
+            dragOffsetY = -60f, slotHeightPx = 60f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = setOf(0 to 1),
+        )
+        assertTrue(shrink.isValid)
+    }
+
+    @Test
+    fun `a zero row height does not divide by zero`() {
+        val target = resolveCourseResizeTarget(
+            startRowIndex = 1, rowSpan = 1, edge = CourseResizeEdge.Bottom,
+            dragOffsetY = 120f, slotHeightPx = 0f, slotCount = 4,
+            dayIndex = 0, occupiedByOthers = emptySet(),
+        )
+
+        assertEquals(1, target.rowIndex)
+        assertEquals(1, target.rowSpan)
+    }
+
+    @Test
+    fun `an unchanged span is not a resize`() {
+        val same = CourseResizeTarget(rowIndex = 1, rowSpan = 2, isValid = true)
+
+        assertFalse(same.isResizeFrom(startRowIndex = 1, startRowSpan = 2))
+        assertTrue(same.isResizeFrom(startRowIndex = 1, startRowSpan = 1))
+        assertFalse(CourseResizeTarget(1, 2, isValid = false).isResizeFrom(0, 1))
+    }
+
+    @Test
+    fun `a resized span takes the first and last node of the rows it covers`() {
+        val time = resizedCourseTime(
+            target = CourseResizeTarget(rowIndex = 0, rowSpan = 2, isValid = true),
+            dayOfWeek = 3,
+            slots = listOf(slot(1, 2), slot(3, 4), slot(5, 6)),
+        )
+
+        assertEquals(3, time?.dayOfWeek)
+        assertEquals(1, time?.startNode)
+        assertEquals(4, time?.endNode)
+    }
 }
