@@ -92,6 +92,8 @@ data class ScheduleUiState(
     val missingComponents: List<PluginComponentRequirement> = emptyList(),
     val manualCourses: List<CourseItem> = emptyList(),
     val courseNotes: CourseNoteIndex = CourseNoteIndex(),
+    /** 每完成一次插件同步递增，界面据此跳转，不再比较提示文字。 */
+    val syncCompletedCount: Int = 0,
 )
 
 /** 备注关联时参与匹配的课程集合：插件下发的课表加上手动添加的课。 */
@@ -1191,6 +1193,7 @@ class ScheduleViewModel(
                         messages = result.messages,
                         missingComponents = emptyList(),
                         statusMessage = text(R.string.schedule_status_sync_completed),
+                        syncCompletedCount = it.syncCompletedCount + 1,
                     )
                 }
             }

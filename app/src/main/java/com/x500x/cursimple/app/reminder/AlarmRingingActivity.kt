@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.reminder
 
 import android.app.Activity
+import com.x500x.cursimple.R
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -53,10 +54,10 @@ class AlarmRingingActivity : Activity() {
     private fun render() {
         val title = intent.getStringExtra(AppAlarmClockIntents.EXTRA_TITLE)
             ?.takeIf { it.isNotBlank() }
-            ?: "课程提醒"
+            ?: getString(R.string.alarm_default_title)
         val message = intent.getStringExtra(AppAlarmClockIntents.EXTRA_MESSAGE)
             ?.takeIf { it.isNotBlank() }
-            ?: "课程即将开始"
+            ?: getString(R.string.alarm_default_message)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -87,19 +88,19 @@ class AlarmRingingActivity : Activity() {
             gravity = Gravity.CENTER
         }
         val snoozeButton = actionButton(
-            text = "延后 5 分钟",
+            text = getString(R.string.alarm_snooze),
             backgroundColor = Color.rgb(43, 57, 74),
             textColor = Color.WHITE,
             actionName = AlarmRingingService.ACTION_SNOOZE,
         )
         val stopButton = actionButton(
-            text = "关闭",
+            text = getString(R.string.alarm_dismiss),
             backgroundColor = Color.rgb(230, 74, 55),
             textColor = Color.WHITE,
             actionName = AlarmRingingService.ACTION_STOP,
         )
         val gestureHint = TextView(this).apply {
-            text = "左滑延后 · 右滑关闭"
+            text = getString(R.string.alarm_swipe_hint)
             textSize = 13f
             setTextColor(Color.rgb(146, 157, 171))
             gravity = Gravity.CENTER
