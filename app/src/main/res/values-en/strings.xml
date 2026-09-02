@@ -297,6 +297,15 @@
     <string name="settings_holiday_builtin_none">No built-in data</string>
     <string name="settings_holiday_builtin_years">Covers the %1$s holiday schedule</string>
     <string name="settings_holiday_sync_title">Update holiday data</string>
+    <string name="settings_holiday_skip_reminders_title">Skip reminders on holidays</string>
+    <string name="settings_holiday_skip_reminders_on">No class reminders on a holiday</string>
+    <string name="settings_holiday_skip_reminders_off">Reminders still fire; you can turn them off from the notice the day before</string>
+    <string name="holiday_eve_generic_name">a holiday</string>
+    <string name="holiday_eve_notice_title">Tomorrow is %1$s</string>
+    <string name="holiday_eve_notice_body">%1$d class reminders are still set for tomorrow. Turn them off?</string>
+    <string name="holiday_eve_notice_action_mute">Turn off tomorrow</string>
+    <string name="holiday_eve_channel_name">Holiday reminder notices</string>
+    <string name="holiday_eve_muted_toast">Class reminders for %1$s are off</string>
     <string name="settings_holiday_sync_never">Not synced yet, using the bundled snapshot</string>
     <string name="settings_holiday_sync_years">Synced %1$s · from %2$s</string>
     <string name="settings_holiday_sync_running">Syncing…</string>

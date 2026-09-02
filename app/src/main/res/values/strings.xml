@@ -297,6 +297,15 @@
     <string name="settings_holiday_builtin_none">暂无内置数据</string>
     <string name="settings_holiday_builtin_years">已收录 %1$s 年放假安排</string>
     <string name="settings_holiday_sync_title">更新节假日数据</string>
+    <string name="settings_holiday_skip_reminders_title">假日跳过提醒</string>
+    <string name="settings_holiday_skip_reminders_on">放假当天不下发课程提醒</string>
+    <string name="settings_holiday_skip_reminders_off">放假当天照常提醒，可在假期前一天的通知里单独关掉</string>
+    <string name="holiday_eve_generic_name">假期</string>
+    <string name="holiday_eve_notice_title">明天是%1$s</string>
+    <string name="holiday_eve_notice_body">明天仍有 %1$d 条课程提醒，需要关掉吗？</string>
+    <string name="holiday_eve_notice_action_mute">关掉明天的提醒</string>
+    <string name="holiday_eve_channel_name">假期提醒建议</string>
+    <string name="holiday_eve_muted_toast">已关闭 %1$s 的课程提醒</string>
     <string name="settings_holiday_sync_never">尚未同步，正在用内置快照</string>
     <string name="settings_holiday_sync_years">已同步 %1$s 年 · 来源 %2$s</string>
     <string name="settings_holiday_sync_running">正在同步…</string>

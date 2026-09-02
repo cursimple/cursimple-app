@@ -96,6 +96,7 @@ class ReminderHolidayTest {
             timingProfile = profile(),
             fromDate = fromDate,
             holidayCalendar = HolidayCalendarSettings(),
+            dayPolicy = SKIP_ON_HOLIDAY,
         )
         val dates = plans.map { it.message.substringBefore(' ') }
 
@@ -111,6 +112,7 @@ class ReminderHolidayTest {
             timingProfile = profile(),
             fromDate = fromDate,
             holidayCalendar = HolidayCalendarSettings(),
+            dayPolicy = SKIP_ON_HOLIDAY,
         )
         val dates = plans.map { it.message.substringBefore(' ') }
 
@@ -125,9 +127,31 @@ class ReminderHolidayTest {
         assertEquals(listOf("9月7日", "9月14日", "9月21日", "9月28日", "10月12日"), dates)
     }
 
+    @Test
+    fun holidaysKeepTheirRemindersByDefault() {
+        val dates = planDates(
+            holidayCalendar = HolidayCalendarSettings(),
+            dayPolicy = ReminderDayPolicy.ALWAYS,
+        )
+
+        assertTrue(dates.contains("10月5日"))
+    }
+
+    @Test
+    fun aMutedDateDropsItsRemindersEvenWhenItIsNotAHoliday() {
+        val dates = planDates(
+            holidayCalendar = HolidayCalendarSettings.NONE,
+            dayPolicy = ReminderDayPolicy(mutedDates = setOf(LocalDate.of(2026, 9, 14))),
+        )
+
+        assertFalse(dates.contains("9月14日"))
+        assertTrue(dates.contains("9月21日"))
+    }
+
     private fun planDates(
         holidayCalendar: HolidayCalendarSettings,
         overrides: List<TemporaryScheduleOverride> = emptyList(),
+        dayPolicy: ReminderDayPolicy = SKIP_ON_HOLIDAY,
     ): List<String> = planner.expandRule(
         rule = singleCourseRule(),
         schedule = schedule(),
@@ -135,7 +159,12 @@ class ReminderHolidayTest {
         fromDate = fromDate,
         temporaryScheduleOverrides = overrides,
         holidayCalendar = holidayCalendar,
+        dayPolicy = dayPolicy,
     ).map { it.message.substringBefore(' ') }
+
+    private companion object {
+        val SKIP_ON_HOLIDAY = ReminderDayPolicy(skipOnHoliday = true)
+    }
 
     /** 目标日按开学第一周的周一课表上课。 */
     private fun mondayMakeUpOn(targetDate: String): TemporaryScheduleOverride = TemporaryScheduleOverride(

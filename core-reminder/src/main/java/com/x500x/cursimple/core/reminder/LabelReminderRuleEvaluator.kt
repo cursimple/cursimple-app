@@ -45,6 +45,7 @@ internal class LabelReminderRuleEvaluator {
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
     ): List<ReminderPlan> = expandAll(
         rules = listOf(rule),
         schedule = schedule,
@@ -52,6 +53,7 @@ internal class LabelReminderRuleEvaluator {
         fromDate = fromDate,
         temporaryScheduleOverrides = temporaryScheduleOverrides,
         holidayCalendar = holidayCalendar,
+        dayPolicy = dayPolicy,
     )
 
     fun expandAll(
@@ -61,6 +63,7 @@ internal class LabelReminderRuleEvaluator {
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
     ): List<ReminderPlan> {
         val zone = ZoneId.systemDefault()
         return candidateDates(
@@ -69,6 +72,7 @@ internal class LabelReminderRuleEvaluator {
             fromDate = fromDate,
             temporaryScheduleOverrides = temporaryScheduleOverrides,
             holidayCalendar = holidayCalendar,
+            dayPolicy = dayPolicy,
         )
             .flatMap { date ->
                 val dailyObjects = dailyReminderObjects(
@@ -77,6 +81,7 @@ internal class LabelReminderRuleEvaluator {
                     targetDate = date,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
                     holidayCalendar = holidayCalendar,
+                    dayPolicy = dayPolicy,
                 )
                 val decision = evaluate(rules, dailyObjects)
                 rules
@@ -101,11 +106,12 @@ internal class LabelReminderRuleEvaluator {
         targetDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
     ): List<DailyReminderObject> {
         // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val day = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
-        if (day.isHoliday) return emptyList()
+        if (dayPolicy.suppresses(targetDate, day)) return emptyList()
         val sourceDate = day.sourceDate
         val sourceWeek = resolveTermWeek(termStart, sourceDate)
         val dayOfWeek = sourceDate.dayOfWeek.value
@@ -177,6 +183,7 @@ internal class LabelReminderRuleEvaluator {
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings,
+        dayPolicy: ReminderDayPolicy,
     ): List<LocalDate> {
         val termStart = timingProfile.termStartLocalDate()
         // 没有开学日期时只剩临时调课这类带具体日期的安排，常规课程排不出日期
@@ -195,7 +202,9 @@ internal class LabelReminderRuleEvaluator {
         return (regularDates + overrideTargetDates)
             .distinct()
             .filterNot { it.isBefore(fromDate) }
-            .filterNot { resolveScheduleDay(it, temporaryScheduleOverrides, holidayCalendar).isHoliday }
+            .filterNot { date ->
+                dayPolicy.suppresses(date, resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar))
+            }
             .sorted()
     }
 

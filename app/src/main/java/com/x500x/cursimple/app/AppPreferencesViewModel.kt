@@ -229,6 +229,13 @@ class AppPreferencesViewModel(
         }
     }
 
+    fun setSkipRemindersOnHoliday(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setSkipRemindersOnHoliday(enabled)
+            refreshScheduleOutputs()
+        }
+    }
+
     fun upsertHolidayCalendarEntry(entry: HolidayCalendarEntry) {
         viewModelScope.launch {
             repository.upsertHolidayCalendarEntry(entry)

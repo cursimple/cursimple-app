@@ -6,6 +6,7 @@ import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
+import com.x500x.cursimple.core.data.reminderDayPolicy
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
@@ -92,6 +93,7 @@ internal object ReminderDataSource {
                     temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
                     customOccupancies = customOccupancies,
                     holidayCalendar = userPrefs.holidayCalendar,
+                    dayPolicy = userPrefs.reminderDayPolicy(),
                 )
             }.getOrDefault(emptyList())
                 .filter { it.triggerAtMillis >= now }

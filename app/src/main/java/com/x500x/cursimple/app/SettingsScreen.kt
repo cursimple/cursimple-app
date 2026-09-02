@@ -55,6 +55,7 @@ import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
@@ -327,6 +328,8 @@ fun AppSettingsRoute(
     onRemoveHolidayCalendarEntry: (String) -> Unit = {},
     onClearHolidayCalendarEntries: () -> Unit = {},
     onHolidayCalendarBuiltInEnabledChange: (Boolean) -> Unit = {},
+    skipRemindersOnHoliday: Boolean = false,
+    onSkipRemindersOnHolidayChange: (Boolean) -> Unit = {},
     onOpenWidgetPicker: () -> Unit,
     onPickWidgetThemeAccent: () -> Unit,
     onWidgetBackgroundImageUriChange: (String) -> Unit,
@@ -636,6 +639,19 @@ fun AppSettingsRoute(
                     subtitle = builtInHolidayCoverageSubtitle(),
                     checked = holidayCalendar.builtInEnabled,
                     onCheckedChange = onHolidayCalendarBuiltInEnabledChange,
+                )
+                SettingsSwitchRow(
+                    icon = Icons.Rounded.NotificationsOff,
+                    title = stringResource(R.string.settings_holiday_skip_reminders_title),
+                    subtitle = stringResource(
+                        if (skipRemindersOnHoliday) {
+                            R.string.settings_holiday_skip_reminders_on
+                        } else {
+                            R.string.settings_holiday_skip_reminders_off
+                        },
+                    ),
+                    checked = skipRemindersOnHoliday,
+                    onCheckedChange = onSkipRemindersOnHolidayChange,
                 )
                 HolidayCalendarSyncRow(syncedYears = holidayCalendar.syncedYears)
                 SettingsActionRow(
