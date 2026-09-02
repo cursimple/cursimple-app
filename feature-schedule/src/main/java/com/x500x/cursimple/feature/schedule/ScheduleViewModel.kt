@@ -440,6 +440,26 @@ class ScheduleViewModel(
         }
     }
 
+    /**
+     * 改写手动课程的全部字段。
+     * 节次可能一并改动，所以同样要按新节次重建单课与考试提醒规则。
+     */
+    fun updateManualCourse(course: CourseItem) {
+        viewModelScope.launch {
+            manualCourseRepository.updateCourse(course)
+            rebuildCourseScopedRules(course)
+            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = text(R.string.schedule_status_course_updated, course.title),
+                        summary = dispatchSummary,
+                    ),
+                )
+            }
+        }
+    }
+
     fun resizeManualCourse(courseId: String, time: CourseTimeSlot) {
         viewModelScope.launch {
             applyManualCourseTime(courseId, time) {
