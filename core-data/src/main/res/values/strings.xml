@@ -21,6 +21,9 @@
     <string name="data_timing_slot_label_block_3">第三大节</string>
     <string name="data_timing_slot_label_block_4">第四大节</string>
     <string name="data_timing_slot_label_block_5">第五大节</string>
+    <string name="data_timing_slot_label_block_6">第六大节</string>
+    <string name="data_timing_slot_label_block_7">第七大节</string>
+    <string name="data_timing_slot_label_block_8">第八大节</string>
 
     <string name="data_term_default_name">新学期</string>
     <string name="data_term_bootstrap_default_name">默认学期</string>

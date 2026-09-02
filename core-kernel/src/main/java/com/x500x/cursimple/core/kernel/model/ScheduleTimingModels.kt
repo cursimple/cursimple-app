@@ -12,6 +12,11 @@ data class ClassSlotTime(
     @SerialName("startTime") val startTime: String,
     @SerialName("endTime") val endTime: String,
     @SerialName("label") val label: String = "",
+    /**
+     * 内置模板填入的标签标识，只用于按当前语言显示。
+     * [label] 保持语言无关：按标签匹配的提醒规则用它作键，跟随语言会让已存规则失配。
+     */
+    @SerialName("labelKey") val labelKey: String? = null,
 )
 
 @Serializable
