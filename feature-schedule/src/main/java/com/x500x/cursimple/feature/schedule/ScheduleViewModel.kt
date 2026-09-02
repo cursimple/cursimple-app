@@ -434,25 +434,58 @@ class ScheduleViewModel(
 
     fun moveManualCourse(courseId: String, time: CourseTimeSlot) {
         viewModelScope.launch {
-            val courses = manualCourseRepository.manualCoursesFlow.first()
-            val target = courses.firstOrNull { it.id == courseId }
-            if (target == null) {
-                _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_move_manual_only)) }
-                return@launch
+            applyManualCourseTime(courseId, time) {
+                text(R.string.schedule_status_course_moved, weekdayLabel(time.dayOfWeek), time.startNode)
             }
-            if (target.time == time) return@launch
-            manualCourseRepository.replaceAll(
-                courses.map { if (it.id == courseId) it.copy(time = time) else it },
+        }
+    }
+
+    /**
+     * 改写手动课程的上课时间并落库。
+     *
+     * 单课与考试提醒规则把课程当时的节次范围写进了匹配条件，节次一变就匹配不上，
+     * 提醒会静默失效，所以时间改动后要按新节次重建这两类规则。
+     */
+    private suspend fun applyManualCourseTime(
+        courseId: String,
+        time: CourseTimeSlot,
+        successMessage: (CourseItem) -> String,
+    ) {
+        val courses = manualCourseRepository.manualCoursesFlow.first()
+        val target = courses.firstOrNull { it.id == courseId }
+        if (target == null) {
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_move_manual_only)) }
+            return
+        }
+        if (target.time == time) return
+        val moved = target.copy(time = time)
+        manualCourseRepository.replaceAll(
+            courses.map { if (it.id == courseId) moved else it },
+        )
+        rebuildCourseScopedRules(moved)
+        val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+        _uiState.update {
+            it.copy(
+                statusMessage = systemAlarmSyncMessage(
+                    successMessage = successMessage(moved),
+                    summary = dispatchSummary,
+                ),
             )
-            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
-            _uiState.update {
-                it.copy(
-                    statusMessage = systemAlarmSyncMessage(
-                        successMessage = text(R.string.schedule_status_course_moved, weekdayLabel(time.dayOfWeek), time.startNode),
-                        summary = dispatchSummary,
-                    ),
-                )
+        }
+    }
+
+    /** 按课程当前的节次范围重建它名下的单课与考试提醒规则。 */
+    private suspend fun rebuildCourseScopedRules(course: CourseItem) {
+        val affected = _uiState.value.reminderRules.filter {
+            it.courseId == course.id && (it.isCourseReminderRule() || it.isExamReminderRule())
+        }
+        affected.forEach { rule ->
+            val candidate = if (rule.isExamReminderRule()) {
+                examReminderCandidateScope(course)
+            } else {
+                courseReminderCandidateScope(course)
             }
+            reminderCoordinator.saveRule(rule.copy(firstCourseCandidate = candidate))
         }
     }
 
