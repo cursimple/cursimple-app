@@ -246,6 +246,7 @@
     <string name="schedule_status_move_blocked">There is already a course at that position</string>
     <string name="schedule_status_move_manual_only">Only manual courses can be moved</string>
     <string name="schedule_status_course_moved">Moved to %1$s, period %2$d</string>
+    <string name="schedule_status_course_span_changed">Now periods %1$d-%2$d</string>
     <string name="schedule_status_manual_course_removed">Manual course deleted</string>
     <string name="schedule_status_bulk_reminder_no_schedule">%1$s. No timetable available to set reminders for</string>
     <string name="schedule_status_sample_loaded">Sample timetable loaded</string>

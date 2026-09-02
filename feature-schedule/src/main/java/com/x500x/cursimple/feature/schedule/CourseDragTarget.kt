@@ -52,14 +52,85 @@ internal fun movedCourseTime(
     slots: List<DisplaySlot>,
 ): CourseTimeSlot? {
     val dayOfWeek = columnDayOfWeeks.getOrNull(target.dayIndex) ?: return null
-    val first = slots.getOrNull(target.rowIndex) ?: return null
-    val last = slots.getOrNull(target.rowIndex + rowSpan - 1) ?: return null
+    return courseTimeAt(dayOfWeek, target.rowIndex, rowSpan, slots)
+}
+
+/**
+ * 起止行换算成课程时间。
+ * 一行可能覆盖多个节号，所以取首行的起始节与末行的结束节。
+ */
+internal fun courseTimeAt(
+    dayOfWeek: Int,
+    rowIndex: Int,
+    rowSpan: Int,
+    slots: List<DisplaySlot>,
+): CourseTimeSlot? {
+    val first = slots.getOrNull(rowIndex) ?: return null
+    val last = slots.getOrNull(rowIndex + rowSpan - 1) ?: return null
     return CourseTimeSlot(
         dayOfWeek = dayOfWeek,
         startNode = first.startNode,
         endNode = last.endNode,
     )
 }
+
+/** 被拖动的是课程块的哪条边。 */
+internal enum class CourseResizeEdge { Top, Bottom }
+
+/** 改跨度后的起止行，以及该结果是否可用。 */
+internal data class CourseResizeTarget(
+    val rowIndex: Int,
+    val rowSpan: Int,
+    val isValid: Boolean,
+)
+
+/**
+ * 把边缘拖动的位移换算成新的起止行。
+ *
+ * 顶边向下压或底边向上压最多剩一行；越出网格范围的部分被夹住；
+ * 新占的行与他人课程重叠时判为不可用。
+ */
+internal fun resolveCourseResizeTarget(
+    startRowIndex: Int,
+    rowSpan: Int,
+    edge: CourseResizeEdge,
+    dragOffsetY: Float,
+    slotHeightPx: Float,
+    slotCount: Int,
+    dayIndex: Int,
+    occupiedByOthers: Set<Pair<Int, Int>>,
+): CourseResizeTarget {
+    val rowShift = if (slotHeightPx > 0f) (dragOffsetY / slotHeightPx).roundToInt() else 0
+    val bottomExclusive = startRowIndex + rowSpan
+    val (newStart, newEnd) = when (edge) {
+        CourseResizeEdge.Top -> {
+            val start = (startRowIndex + rowShift).coerceIn(0, bottomExclusive - 1)
+            start to bottomExclusive
+        }
+
+        CourseResizeEdge.Bottom -> {
+            val end = (bottomExclusive + rowShift).coerceIn(startRowIndex + 1, slotCount)
+            startRowIndex to end
+        }
+    }
+    val newSpan = (newEnd - newStart).coerceAtLeast(1)
+    val fits = newStart >= 0 && newStart + newSpan <= slotCount
+    // 只检查新增的行，原本就占着的行不重复判定
+    val added = (newStart until newStart + newSpan).filter { it !in startRowIndex until bottomExclusive }
+    val clear = added.none { (dayIndex to it) in occupiedByOthers }
+    return CourseResizeTarget(rowIndex = newStart, rowSpan = newSpan, isValid = fits && clear)
+}
+
+/** 起止行都没变时不构成改动。 */
+internal fun CourseResizeTarget.isResizeFrom(startRowIndex: Int, startRowSpan: Int): Boolean =
+    isValid && (rowIndex != startRowIndex || rowSpan != startRowSpan)
+
+/** 把改跨度的结果换算成课程时间。 */
+internal fun resizedCourseTime(
+    target: CourseResizeTarget,
+    dayOfWeek: Int,
+    slots: List<DisplaySlot>,
+): CourseTimeSlot? = courseTimeAt(dayOfWeek, target.rowIndex, target.rowSpan, slots)
 
 /**
  * 网格中除 [excludedCourseId] 之外的课程占用的格子。
