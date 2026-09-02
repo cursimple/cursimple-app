@@ -85,17 +85,29 @@ fun AddCourseDialog(
     existingCourses: List<CourseItem> = emptyList(),
     maxNodeCount: Int = 12,
     maxWeekCount: Int = 30,
+    /** 不为 null 时是编辑已有课程，保存会保留它的 id 与提醒相关字段。 */
+    initial: CourseItem? = null,
 ) {
-    var title by rememberSaveable { mutableStateOf("") }
-    var teacher by rememberSaveable { mutableStateOf("") }
-    var location by rememberSaveable { mutableStateOf("") }
-    var dayOfWeek by rememberSaveable { mutableStateOf(1) }
-    var startNodeText by rememberSaveable { mutableStateOf("1") }
-    var endNodeText by rememberSaveable { mutableStateOf("2") }
-    var startWeekText by rememberSaveable { mutableStateOf("1") }
-    var endWeekText by rememberSaveable { mutableStateOf("16") }
-    var parity by rememberSaveable { mutableStateOf(WeekParity.All) }
-    var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
+    var title by rememberSaveable(initial) { mutableStateOf(initial?.title.orEmpty()) }
+    var teacher by rememberSaveable(initial) { mutableStateOf(initial?.teacher.orEmpty()) }
+    var location by rememberSaveable(initial) { mutableStateOf(initial?.location.orEmpty()) }
+    var dayOfWeek by rememberSaveable(initial) { mutableStateOf(initial?.time?.dayOfWeek ?: 1) }
+    var startNodeText by rememberSaveable(initial) {
+        mutableStateOf(initial?.time?.startNode?.toString() ?: "1")
+    }
+    var endNodeText by rememberSaveable(initial) {
+        mutableStateOf(initial?.time?.endNode?.toString() ?: "2")
+    }
+    var startWeekText by rememberSaveable(initial) {
+        mutableStateOf(initial?.weeks?.minOrNull()?.toString() ?: "1")
+    }
+    var endWeekText by rememberSaveable(initial) {
+        mutableStateOf(initial?.weeks?.maxOrNull()?.toString() ?: "16")
+    }
+    var parity by rememberSaveable(initial) { mutableStateOf(initialWeekParity(initial?.weeks)) }
+    var category by rememberSaveable(initial) {
+        mutableStateOf(initial?.category ?: CourseCategory.Course)
+    }
 
     val titleTrimmed = title.trim()
     val startNode = startNodeText.toIntOrNull()
@@ -140,7 +152,13 @@ fun AddCourseDialog(
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = stringResource(R.string.schedule_add_course_title),
+                    text = stringResource(
+                        if (initial == null) {
+                            R.string.schedule_add_course_title
+                        } else {
+                            R.string.schedule_edit_course_title
+                        },
+                    ),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -302,6 +320,7 @@ fun AddCourseDialog(
                                 endNode = endNode!!,
                                 weeks = weeks!!,
                                 category = category,
+                                existing = initial,
                             )
                             onConfirm(course)
                         },
@@ -364,7 +383,20 @@ private fun buildCourse(
     endNode: Int,
     weeks: List<Int>,
     category: CourseCategory,
+    existing: CourseItem? = null,
 ): CourseItem {
+    val time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode)
+    // 编辑时只覆盖表单里的字段，id 与提醒占位字段原样保留
+    if (existing != null) {
+        return existing.copy(
+            title = title,
+            teacher = teacher,
+            location = location,
+            weeks = weeks,
+            category = category,
+            time = time,
+        )
+    }
     return CourseItem(
         id = "manual-" + UUID.randomUUID().toString().take(12),
         title = title,
@@ -372,10 +404,16 @@ private fun buildCourse(
         location = location,
         weeks = weeks,
         category = category,
-        time = CourseTimeSlot(
-            dayOfWeek = dayOfWeek,
-            startNode = startNode,
-            endNode = endNode,
-        ),
+        time = time,
     )
+}
+
+/** 从已有周次反推单双周选项，无法归类时按全部处理。 */
+private fun initialWeekParity(weeks: List<Int>?): WeekParity {
+    if (weeks.isNullOrEmpty()) return WeekParity.All
+    return when {
+        weeks.all { it % 2 == 1 } -> WeekParity.Odd
+        weeks.all { it % 2 == 0 } -> WeekParity.Even
+        else -> WeekParity.All
+    }
 }

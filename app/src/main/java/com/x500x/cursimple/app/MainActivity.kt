@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
@@ -116,6 +117,7 @@ import com.x500x.cursimple.feature.plugin.PluginMarketRoute
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModel
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
 import com.x500x.cursimple.feature.schedule.AddCourseDialog
+import com.x500x.cursimple.feature.schedule.CourseLibraryRoute
 import com.x500x.cursimple.feature.schedule.ManageScheduleSheet
 import com.x500x.cursimple.feature.schedule.ScheduleRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewMode
@@ -722,6 +724,18 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
+                                    AppScreen.Courses -> CourseLibraryRoute(
+                                        viewModel = scheduleViewModel,
+                                        scheduleDisplay = prefs.scheduleDisplay,
+                                        maxWeekCount = resolveWeekPickerTotalWeeks(
+                                            schedule = scheduleState.schedule,
+                                            manualCourses = scheduleState.manualCourses,
+                                            currentWeek = currentWeekIndex,
+                                            selectedWeek = displayedWeekIndex,
+                                        ),
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+
                                     AppScreen.Reminders -> SettingsRoute(
                                         viewModel = scheduleViewModel,
                                         alarmBackend = prefs.alarmBackend,
@@ -1247,6 +1261,7 @@ class MainActivity : ComponentActivity() {
         val icon: ImageVector,
     ) {
         Schedule(R.string.screen_schedule, Icons.AutoMirrored.Rounded.MenuBook),
+        Courses(R.string.screen_courses, Icons.AutoMirrored.Rounded.ListAlt),
         Plugins(R.string.screen_plugins, Icons.Rounded.Extension),
         Reminders(R.string.screen_reminders, Icons.Rounded.Notifications),
         Settings(R.string.screen_settings, Icons.Rounded.Settings),
