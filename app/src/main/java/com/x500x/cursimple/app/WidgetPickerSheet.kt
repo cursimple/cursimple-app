@@ -226,7 +226,7 @@ private fun WidgetHelpDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("桌面小组件帮助") },
+        title = { Text(stringResource(R.string.widget_help_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -235,94 +235,109 @@ private fun WidgetHelpDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    "不同系统会把同一个入口叫作「小组件」「小部件」「插件」或「窗口小工具」。找不到时优先搜索「课简」。",
+                    stringResource(R.string.widget_help_intro),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 WidgetGuideSection(
-                    title = "通用添加",
+                    title = stringResource(R.string.widget_help_generic_title),
                     steps = listOf(
-                        "长按桌面空白处，或在桌面双指捏合，进入桌面编辑。",
-                        "进入「小组件 / 小部件 / 插件 / Widgets」。",
-                        "找到「课简」，长按需要的样式并拖到桌面空位后松手。",
+                        stringResource(R.string.widget_help_generic_step1),
+                        stringResource(R.string.widget_help_generic_step2),
+                        stringResource(R.string.widget_help_generic_step3),
                     ),
                 )
                 WidgetGuideSection(
-                    title = "调整大小",
+                    title = stringResource(R.string.widget_help_resize_title),
                     steps = listOf(
-                        "添加后，在桌面长按小组件并松手。",
-                        "如果小组件支持调整大小，边缘会出现边框或控制点。",
-                        "拖动边缘或控制点调整大小，完成后点一下桌面空白处。",
+                        stringResource(R.string.widget_help_resize_step1),
+                        stringResource(R.string.widget_help_resize_step2),
+                        stringResource(R.string.widget_help_resize_step3),
                     ),
                 )
                 widgetVendorGuides().forEach { guide ->
-                    WidgetGuideSection(title = guide.title, steps = guide.steps)
+                    WidgetGuideSection(
+                        title = stringResource(guide.titleRes),
+                        steps = guide.stepRes.map { stringResource(it) },
+                    )
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("知道了") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
         },
     )
 }
 
+/** 厂商指引的稳定标识，避免用会随语言变化的标题去匹配。 */
+private enum class WidgetGuideKey { OnePlus, Huawei, Xiaomi, Oppo, Vivo }
+
 private data class WidgetGuide(
-    val title: String,
-    val steps: List<String>,
+    val key: WidgetGuideKey,
+    val titleRes: Int,
+    val stepRes: List<Int>,
 )
 
 private fun widgetVendorGuides(): List<WidgetGuide> = listOf(
     WidgetGuide(
-        title = "一加 / ColorOS",
-        steps = listOf(
-            "长按桌面空白处，进入桌面编辑。",
-            "依次选择「卡片」→「插件」，找到「课简」。",
-            "长按要添加的小组件，拖到桌面空位后松手。",
-            "想改尺寸时，长按桌面小组件，松手后等待一会；出现边框或控制点后即可拖动调整大小。",
+        key = WidgetGuideKey.OnePlus,
+        titleRes = R.string.widget_guide_oneplus_title,
+        stepRes = listOf(
+            R.string.widget_guide_oneplus_step1,
+            R.string.widget_guide_oneplus_step2,
+            R.string.widget_guide_oneplus_step3,
+            R.string.widget_guide_oneplus_step4,
         ),
     ),
     WidgetGuide(
-        title = "华为 / 荣耀",
-        steps = listOf(
-            "在桌面双指捏合，进入桌面编辑。",
-            "进入「服务卡片」，再进入底部的「窗口小工具」。",
-            "找到「课简」并添加到桌面。",
+        key = WidgetGuideKey.Huawei,
+        titleRes = R.string.widget_guide_huawei_title,
+        stepRes = listOf(
+            R.string.widget_guide_huawei_step1,
+            R.string.widget_guide_huawei_step2,
+            R.string.widget_guide_huawei_step3,
         ),
     ),
     WidgetGuide(
-        title = "小米 / 红米",
-        steps = listOf(
-            "在桌面双指捏合，点击底部「添加小部件」。",
-            "点右上角搜索；如果当前页只有系统卡片，继续进入底部「安卓小部件」。",
-            "搜索或找到「课简」，选择要添加的样式。",
+        key = WidgetGuideKey.Xiaomi,
+        titleRes = R.string.widget_guide_xiaomi_title,
+        stepRes = listOf(
+            R.string.widget_guide_xiaomi_step1,
+            R.string.widget_guide_xiaomi_step2,
+            R.string.widget_guide_xiaomi_step3,
         ),
     ),
     WidgetGuide(
-        title = "OPPO / realme",
-        steps = listOf(
-            "在桌面双指捏合，进入桌面编辑。",
-            "选择「插件」或「小组件」。",
-            "找到「课简」，长按并拖到桌面。",
+        key = WidgetGuideKey.Oppo,
+        titleRes = R.string.widget_guide_oppo_title,
+        stepRes = listOf(
+            R.string.widget_guide_oppo_step1,
+            R.string.widget_guide_oppo_step2,
+            R.string.widget_guide_oppo_step3,
         ),
     ),
     WidgetGuide(
-        title = "vivo / iQOO",
-        steps = listOf(
-            "在桌面双指捏合，点击底部「组件」。",
-            "如果列表里没有看到应用，向上滑到底部进入「更多组件」。",
-            "找到「课简」后添加到桌面。",
+        key = WidgetGuideKey.Vivo,
+        titleRes = R.string.widget_guide_vivo_title,
+        stepRes = listOf(
+            R.string.widget_guide_vivo_step1,
+            R.string.widget_guide_vivo_step2,
+            R.string.widget_guide_vivo_step3,
         ),
     ),
 )
 
 private fun widgetVendorGuide(vendor: WidgetCatalog.LauncherVendor): WidgetGuide? = when (vendor) {
-    WidgetCatalog.LauncherVendor.Miui -> widgetVendorGuides().first { it.title == "小米 / 红米" }
-    WidgetCatalog.LauncherVendor.Huawei -> widgetVendorGuides().first { it.title == "华为 / 荣耀" }
-    WidgetCatalog.LauncherVendor.Oppo -> widgetVendorGuides().first { it.title == "一加 / ColorOS" }
-    WidgetCatalog.LauncherVendor.Vivo -> widgetVendorGuides().first { it.title == "vivo / iQOO" }
+    WidgetCatalog.LauncherVendor.Miui -> guideOf(WidgetGuideKey.Xiaomi)
+    WidgetCatalog.LauncherVendor.Huawei -> guideOf(WidgetGuideKey.Huawei)
+    WidgetCatalog.LauncherVendor.Oppo -> guideOf(WidgetGuideKey.OnePlus)
+    WidgetCatalog.LauncherVendor.Vivo -> guideOf(WidgetGuideKey.Vivo)
     WidgetCatalog.LauncherVendor.Samsung,
     WidgetCatalog.LauncherVendor.Other -> null
 }
+
+private fun guideOf(key: WidgetGuideKey): WidgetGuide =
+    widgetVendorGuides().first { it.key == key }
 
 @Composable
 private fun WidgetGuideSection(
@@ -413,31 +428,28 @@ private fun ManualAddGuideDialog(
     onDismiss: () -> Unit,
 ) {
     val genericSteps = listOf(
-        "1. 长按桌面空白处，或在桌面双指捏合",
-        "2. 选择「小部件 / 小组件 / 插件 / Widgets」",
-        "3. 找到「课简」或搜索「课简」",
-        "4. 长按「${entry.title}」并拖到桌面空位后松手",
+        stringResource(R.string.widget_manual_step1),
+        stringResource(R.string.widget_manual_step2),
+        stringResource(R.string.widget_manual_step3),
+        stringResource(R.string.widget_manual_step4, entry.title),
     )
     val vendorGuide = widgetVendorGuide(vendor)
-    val permissionTip = when (vendor) {
-        WidgetCatalog.LauncherVendor.Miui ->
-            "如果一键添加仍然没有弹窗，可到「应用信息 → 权限管理」检查「显示弹出式窗口」与「后台弹出界面」。"
-        WidgetCatalog.LauncherVendor.Huawei ->
-            "如果仍无法唤起添加确认，可到「应用信息 → 权限」检查悬浮窗相关权限。"
-        WidgetCatalog.LauncherVendor.Oppo ->
-            "如果一键添加仍然没有弹窗，可到「应用信息 → 权限管理」检查「悬浮窗」和后台弹出相关权限。"
-        WidgetCatalog.LauncherVendor.Vivo ->
-            "如果仍无法唤起添加确认，可到「应用信息 → 权限」检查「悬浮窗」。"
+    val permissionTipRes = when (vendor) {
+        WidgetCatalog.LauncherVendor.Miui -> R.string.widget_manual_hint_miui
+        WidgetCatalog.LauncherVendor.Huawei -> R.string.widget_manual_hint_huawei
+        WidgetCatalog.LauncherVendor.Oppo -> R.string.widget_manual_hint_oppo
+        WidgetCatalog.LauncherVendor.Vivo -> R.string.widget_manual_hint_other
         WidgetCatalog.LauncherVendor.Samsung,
         WidgetCatalog.LauncherVendor.Other -> null
     }
+    val permissionTip = permissionTipRes?.let { stringResource(it) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("手动添加到桌面") },
+        title = { Text(stringResource(R.string.widget_manual_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "系统没有弹出添加确认框，请按以下步骤操作：",
+                    stringResource(R.string.widget_manual_intro),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 genericSteps.forEach { step ->
@@ -445,9 +457,9 @@ private fun ManualAddGuideDialog(
                 }
                 if (vendorGuide != null) {
                     Spacer(Modifier.height(4.dp))
-                    vendorGuide.steps.forEach { step ->
+                    vendorGuide.stepRes.forEach { step ->
                         Text(
-                            step,
+                            stringResource(step),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -464,14 +476,14 @@ private fun ManualAddGuideDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("知道了") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
         },
         dismissButton = if (permissionTip != null) {
             {
                 TextButton(onClick = {
                     onOpenAppDetails()
                     onDismiss()
-                }) { Text("打开应用设置") }
+                }) { Text(stringResource(R.string.widget_manual_open_settings)) }
             }
         } else null,
     )

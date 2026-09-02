@@ -253,19 +253,19 @@ class MainActivity : ComponentActivity() {
                     if (showTermStartReminder) {
                         androidx.compose.material3.AlertDialog(
                             onDismissRequest = { showTermStartReminder = false },
-                            title = { Text("还没有设置开学日期") },
+                            title = { Text(stringResource(R.string.main_term_start_missing_title)) },
                             text = {
-                                Text("没有开学日期就无法计算当前周次。可以稍后在课表页右上角的提示按钮，或抽屉里随时设置。")
+                                Text(stringResource(R.string.main_term_start_missing_body))
                             },
                             confirmButton = {
                                 TextButton(onClick = {
                                     showTermStartReminder = false
                                     showDatePicker = true
-                                }) { Text("去设置") }
+                                }) { Text(stringResource(R.string.main_go_to_settings)) }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showTermStartReminder = false }) {
-                                    Text("稍后再说")
+                                    Text(stringResource(R.string.main_later))
                                 }
                             },
                         )
@@ -294,6 +294,7 @@ class MainActivity : ComponentActivity() {
                     var scheduleViewMode by rememberSaveable { mutableStateOf(ScheduleViewMode.Week) }
                     var showWeekMenu by remember { mutableStateOf(false) }
                     var syncWasActive by rememberSaveable { mutableStateOf(false) }
+                    var lastNavigatedSyncCount by rememberSaveable { mutableIntStateOf(0) }
                     var pendingSystemRingtoneResult by remember {
                         mutableStateOf<((String?) -> Unit)?>(null)
                     }
@@ -325,7 +326,7 @@ class MainActivity : ComponentActivity() {
                             if (persisted) {
                                 callback?.invoke(uri.toString())
                             } else {
-                                Toast.makeText(this, "音频授权失败，请重新选择", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, getString(R.string.main_audio_grant_failed), Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -347,12 +348,16 @@ class MainActivity : ComponentActivity() {
                     }
                     // 课表域的成功与失败反馈统一走 Snackbar；同步完成另有专门提示，此处跳过
                     var lastShownStatusMessage by remember { mutableStateOf<String?>(null) }
+                    var lastSuppressedSyncCount by remember { mutableIntStateOf(0) }
                     androidx.compose.runtime.LaunchedEffect(scheduleState.statusMessage) {
                         val message = scheduleState.statusMessage
-                        if (message != null &&
-                            message != lastShownStatusMessage &&
-                            message != "同步完成，已更新课表"
-                        ) {
+                        val isSyncCompletion = scheduleState.syncCompletedCount != lastSuppressedSyncCount
+                        if (isSyncCompletion) {
+                            lastSuppressedSyncCount = scheduleState.syncCompletedCount
+                            lastShownStatusMessage = message
+                            return@LaunchedEffect
+                        }
+                        if (message != null && message != lastShownStatusMessage) {
                             lastShownStatusMessage = message
                             snackbarHostState.showSnackbar(message)
                         }
@@ -361,20 +366,21 @@ class MainActivity : ComponentActivity() {
                         scheduleState.isSyncing,
                         scheduleState.pendingWebSession,
                         scheduleState.schedule,
-                        scheduleState.statusMessage,
+                        scheduleState.syncCompletedCount,
                     ) {
                         val syncActive = scheduleState.isSyncing || scheduleState.pendingWebSession != null
                         val justCompleted = syncWasActive &&
                             !syncActive &&
                             scheduleState.schedule != null &&
-                            scheduleState.statusMessage == "同步完成，已更新课表"
+                            scheduleState.syncCompletedCount != lastNavigatedSyncCount
                         if (justCompleted) {
+                            lastNavigatedSyncCount = scheduleState.syncCompletedCount
                             currentScreen = AppScreen.Schedule
                             subScreen = null
                             weekOffset = 0
                             dayOffset = 0
                             scheduleViewMode = ScheduleViewMode.Week
-                            snackbarHostState.showSnackbar("同步完成，已回到课表")
+                            snackbarHostState.showSnackbar(getString(R.string.sync_back_to_schedule))
                         }
                         syncWasActive = syncActive
                     }
@@ -485,7 +491,7 @@ class MainActivity : ComponentActivity() {
                                                                 shape = RoundedCornerShape(50),
                                                             ) {
                                                                 Text(
-                                                                    text = "本周",
+                                                                    text = stringResource(R.string.main_this_week),
                                                                     style = MaterialTheme.typography.labelSmall,
                                                                     color = MaterialTheme.colorScheme.onPrimary,
                                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
@@ -494,15 +500,13 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                         Icon(
                                                             imageVector = Icons.Rounded.ArrowDropDown,
-                                                            contentDescription = "切换周次",
+                                                            contentDescription = stringResource(R.string.main_switch_week),
                                                             tint = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
                                                             else MaterialTheme.colorScheme.onBackground,
                                                         )
                                                     }
                                                 }
-                                                val termLabel = remember(effectiveTermStart) {
-                                                    formatTermLabel(effectiveTermStart)
-                                                }
+                                                val termLabel = formatTermLabel(effectiveTermStart)
                                                 if (termLabel.isNotBlank()) {
                                                     Text(
                                                         text = termLabel,
@@ -523,7 +527,7 @@ class MainActivity : ComponentActivity() {
                                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                             Icon(
                                                 imageVector = Icons.Rounded.Menu,
-                                                contentDescription = "打开侧边栏",
+                                                contentDescription = stringResource(R.string.main_open_drawer),
                                             )
                                         }
                                     },
@@ -538,7 +542,7 @@ class MainActivity : ComponentActivity() {
                                                     Box(contentAlignment = Alignment.Center) {
                                                         Icon(
                                                             imageVector = Icons.Rounded.PriorityHigh,
-                                                            contentDescription = "请设置开学日期",
+                                                            contentDescription = stringResource(R.string.main_set_term_start),
                                                             tint = MaterialTheme.colorScheme.onErrorContainer,
                                                             modifier = Modifier.size(18.dp),
                                                         )
@@ -594,7 +598,7 @@ class MainActivity : ComponentActivity() {
                                                         Box(contentAlignment = Alignment.Center) {
                                                             Icon(
                                                                 imageVector = Icons.Rounded.Add,
-                                                                contentDescription = "添加课表",
+                                                                contentDescription = stringResource(R.string.main_add_to_schedule),
                                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                                 modifier = Modifier.size(20.dp),
                                                             )
@@ -606,7 +610,7 @@ class MainActivity : ComponentActivity() {
                                                     onDismissRequest = { showAddMenu = false },
                                                 ) {
                                                     DropdownMenuItem(
-                                                        text = { Text("切换 / 管理学期") },
+                                                        text = { Text(stringResource(R.string.main_manage_terms)) },
                                                         leadingIcon = {
                                                             Icon(
                                                                 Icons.Rounded.CalendarMonth,
@@ -619,7 +623,7 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text("手动添加课程") },
+                                                        text = { Text(stringResource(R.string.main_add_course_manually)) },
                                                         leadingIcon = {
                                                             Icon(
                                                                 Icons.Rounded.Add,
@@ -632,7 +636,7 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text("清空课表") },
+                                                        text = { Text(stringResource(R.string.main_clear_schedule)) },
                                                         leadingIcon = {
                                                             Icon(
                                                                 Icons.Rounded.CleaningServices,
@@ -645,7 +649,7 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                     )
                                                     DropdownMenuItem(
-                                                        text = { Text("导入 / 导出课程") },
+                                                        text = { Text(stringResource(R.string.main_import_export)) },
                                                         leadingIcon = {
                                                             Icon(
                                                                 Icons.Rounded.SwapHoriz,
@@ -876,7 +880,7 @@ class MainActivity : ComponentActivity() {
                                                 val intent = ScheduleMetadataExporter.export(this@MainActivity, snapshot)
                                                 if (intent != null) {
                                                     runCatching {
-                                                        val chooser = android.content.Intent.createChooser(intent, "导出课表元数据").apply {
+                                                        val chooser = android.content.Intent.createChooser(intent, getString(R.string.main_export_metadata_chooser)).apply {
                                                             clipData = intent.clipData
                                                             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                             addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -885,14 +889,14 @@ class MainActivity : ComponentActivity() {
                                                     }.onFailure {
                                                         android.widget.Toast.makeText(
                                                             this@MainActivity,
-                                                            "无法启动分享：${it.message}",
+                                                            getString(R.string.main_share_failed, it.message.orEmpty()),
                                                             android.widget.Toast.LENGTH_SHORT,
                                                         ).show()
                                                     }
                                                 } else {
                                                     android.widget.Toast.makeText(
                                                         this@MainActivity,
-                                                        "导出失败，请稍后重试",
+                                                        getString(R.string.main_export_failed),
                                                         android.widget.Toast.LENGTH_SHORT,
                                                     ).show()
                                                 }
@@ -1071,16 +1075,16 @@ class MainActivity : ComponentActivity() {
                     if (showClearTermStartConfirm) {
                         androidx.compose.material3.AlertDialog(
                             onDismissRequest = { showClearTermStartConfirm = false },
-                            title = { Text("清除开学日期") },
-                            text = { Text("清除后将无法计算当前周次，需要重新设置。确定继续？") },
+                            title = { Text(stringResource(R.string.main_clear_term_start_title)) },
+                            text = { Text(stringResource(R.string.main_clear_term_start_body)) },
                             confirmButton = {
                                 TextButton(onClick = {
                                     setActiveTermStartDate(null)
                                     showClearTermStartConfirm = false
-                                }) { Text("清除") }
+                                }) { Text(stringResource(R.string.main_clear)) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showClearTermStartConfirm = false }) { Text("取消") }
+                                TextButton(onClick = { showClearTermStartConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
                             },
                         )
                     }
@@ -1088,18 +1092,18 @@ class MainActivity : ComponentActivity() {
                     if (showClearEverythingConfirm) {
                         androidx.compose.material3.AlertDialog(
                             onDismissRequest = { showClearEverythingConfirm = false },
-                            title = { Text("清空全部课表") },
+                            title = { Text(stringResource(R.string.main_clear_everything_title)) },
                             text = {
-                                Text("将删除手动添加的课程、插件同步的课表，以及全部提醒规则。此操作不可恢复，确定继续？")
+                                Text(stringResource(R.string.main_clear_everything_body))
                             },
                             confirmButton = {
                                 TextButton(onClick = {
                                     scheduleViewModel.clearAllSchedules()
                                     showClearEverythingConfirm = false
-                                }) { Text("清空") }
+                                }) { Text(stringResource(R.string.main_clear_all)) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showClearEverythingConfirm = false }) { Text("取消") }
+                                TextButton(onClick = { showClearEverythingConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
                             },
                         )
                     }
@@ -1107,18 +1111,18 @@ class MainActivity : ComponentActivity() {
                     if (showClearManualConfirm) {
                         androidx.compose.material3.AlertDialog(
                             onDismissRequest = { showClearManualConfirm = false },
-                            title = { Text("清空手动课表") },
+                            title = { Text(stringResource(R.string.main_clear_manual_title)) },
                             text = {
-                                Text("将删除所有手动添加的课程，不影响插件同步的课表。此操作不可恢复，确定继续？")
+                                Text(stringResource(R.string.main_clear_manual_body))
                             },
                             confirmButton = {
                                 TextButton(onClick = {
                                     scheduleViewModel.clearManualCourses()
                                     showClearManualConfirm = false
-                                }) { Text("清空") }
+                                }) { Text(stringResource(R.string.main_clear_all)) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showClearManualConfirm = false }) { Text("取消") }
+                                TextButton(onClick = { showClearManualConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
                             },
                         )
                     }
@@ -1274,15 +1278,17 @@ private fun AppDrawer(
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
-                text = "课简",
+                text = stringResource(R.string.main_app_name),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
             Text(
                 text = when {
-                    termStartDate == null -> "未设置开学日期"
-                    currentWeekIndex >= 1 -> "当前 第 $currentWeekIndex 周"
-                    else -> "尚未开学 · 距第 1 周还有 ${1 - currentWeekIndex} 周"
+                    termStartDate == null -> stringResource(R.string.main_drawer_term_start_unset)
+                    currentWeekIndex >= 1 ->
+                        stringResource(R.string.main_drawer_current_week, currentWeekIndex)
+                    else ->
+                        stringResource(R.string.main_drawer_before_term, 1 - currentWeekIndex)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1322,7 +1328,7 @@ private fun AppDrawer(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "课简 · v$appVersionName",
+                text = stringResource(R.string.main_drawer_version, appVersionName),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1350,10 +1356,10 @@ private fun TermStartDatePicker(
                         onConfirm(datePickerMillisToLocalDate(millis))
                     }
                 },
-            ) { Text("确定") }
+            ) { Text(stringResource(R.string.main_confirm)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
     ) {
         if (showHint) {
@@ -1377,7 +1383,7 @@ private fun TermStartDatePicker(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "请设置开学日期，用于计算当前周次和正确显示课表。",
+                        text = stringResource(R.string.main_term_start_prompt),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -1388,16 +1394,17 @@ private fun TermStartDatePicker(
             state = state,
             title = {
                 Text(
-                    text = "选择开学日期",
+                    text = stringResource(R.string.main_pick_term_start),
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 4.dp),
                 )
             },
             headline = {
                 val selectedDate = state.selectedDateMillis?.let(::datePickerMillisToLocalDate)
-                val fmt = DateTimeFormatter.ofPattern("yyyy 年 M 月 d 日")
+                val fmt = DateTimeFormatter.ofPattern(stringResource(R.string.main_date_pattern))
                 Text(
-                    text = selectedDate?.let { "开学日期：${fmt.format(it)}" } ?: "选择第 1 周的周一",
+                    text = selectedDate?.let { stringResource(R.string.main_term_start_value, fmt.format(it)) }
+                        ?: stringResource(R.string.main_pick_first_monday),
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(start = 24.dp, end = 12.dp, bottom = 12.dp),
                 )
@@ -1417,24 +1424,24 @@ private fun CurrentWeekDialog(
     val weekValid = parsedWeek != null && parsedWeek >= 1
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("设置当前周") },
+        title = { Text(stringResource(R.string.main_set_current_week_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "输入今天所在的教学周，应用会用今天日期反推开学日期。",
+                    text = stringResource(R.string.main_set_current_week_body),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 OutlinedTextField(
                     value = weekText,
                     onValueChange = { weekText = it.filter(Char::isDigit).take(3) },
-                    label = { Text("当前周") },
+                    label = { Text(stringResource(R.string.main_current_week_label)) },
                     singleLine = true,
                     isError = weekText.isNotBlank() && !weekValid,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     supportingText = {
                         if (weekText.isNotBlank() && !weekValid) {
-                            Text("请输入大于 0 的周数")
+                            Text(stringResource(R.string.main_week_must_be_positive))
                         }
                     },
                 )
@@ -1444,10 +1451,10 @@ private fun CurrentWeekDialog(
             Button(
                 onClick = { parsedWeek?.let(onConfirm) },
                 enabled = weekValid,
-            ) { Text("设置") }
+            ) { Text(stringResource(R.string.main_set)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
     )
 }
@@ -1460,14 +1467,14 @@ private fun ThemeModeDialog(
 ) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("外观") },
+        title = { Text(stringResource(R.string.main_appearance)) },
         text = {
             Column {
                 ThemeMode.entries.forEach { mode ->
                     val label = when (mode) {
-                        ThemeMode.System -> "跟随系统"
-                        ThemeMode.Light -> "亮色"
-                        ThemeMode.Dark -> "暗色"
+                        ThemeMode.System -> stringResource(R.string.main_theme_system)
+                        ThemeMode.Light -> stringResource(R.string.main_theme_light)
+                        ThemeMode.Dark -> stringResource(R.string.main_theme_dark)
                     }
                     Row(
                         modifier = Modifier
@@ -1488,23 +1495,29 @@ private fun ThemeModeDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
         },
     )
 }
 
-private data class ThemeAccentOption(val accent: ThemeAccent, val label: String, val swatch: androidx.compose.ui.graphics.Color)
-
-private val themeAccentOptions = listOf(
-    ThemeAccentOption(ThemeAccent.Green, "薄荷绿", androidx.compose.ui.graphics.Color(0xFF3FA277)),
-    ThemeAccentOption(ThemeAccent.Blue, "海岸蓝", androidx.compose.ui.graphics.Color(0xFF3F6FB5)),
-    ThemeAccentOption(ThemeAccent.Purple, "暮霭紫", androidx.compose.ui.graphics.Color(0xFF7259B5)),
-    ThemeAccentOption(ThemeAccent.Orange, "暖陶橙", androidx.compose.ui.graphics.Color(0xFFD0763B)),
-    ThemeAccentOption(ThemeAccent.Pink, "樱花粉", androidx.compose.ui.graphics.Color(0xFFC25B7D)),
+private data class ThemeAccentOption(
+    val accent: ThemeAccent,
+    val labelRes: Int,
+    val swatch: androidx.compose.ui.graphics.Color,
 )
 
+private val themeAccentOptions = listOf(
+    ThemeAccentOption(ThemeAccent.Green, R.string.main_accent_green, androidx.compose.ui.graphics.Color(0xFF3FA277)),
+    ThemeAccentOption(ThemeAccent.Blue, R.string.main_accent_blue, androidx.compose.ui.graphics.Color(0xFF3F6FB5)),
+    ThemeAccentOption(ThemeAccent.Purple, R.string.main_accent_purple, androidx.compose.ui.graphics.Color(0xFF7259B5)),
+    ThemeAccentOption(ThemeAccent.Orange, R.string.main_accent_orange, androidx.compose.ui.graphics.Color(0xFFD0763B)),
+    ThemeAccentOption(ThemeAccent.Pink, R.string.main_accent_pink, androidx.compose.ui.graphics.Color(0xFFC25B7D)),
+)
+
+@Composable
 private fun themeAccentLabel(accent: ThemeAccent): String =
-    themeAccentOptions.firstOrNull { it.accent == accent }?.label ?: accent.name
+    themeAccentOptions.firstOrNull { it.accent == accent }?.let { stringResource(it.labelRes) }
+        ?: accent.name
 
 @Composable
 private fun AppLanguageDialog(
@@ -1514,7 +1527,7 @@ private fun AppLanguageDialog(
 ) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("语言") },
+        title = { Text(stringResource(R.string.main_language)) },
         text = {
             Column {
                 AppLanguage.entries.forEach { language ->
@@ -1537,7 +1550,7 @@ private fun AppLanguageDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
     )
 }
@@ -1550,7 +1563,7 @@ private fun ThemeAccentDialog(
 ) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("主题") },
+        title = { Text(stringResource(R.string.main_theme)) },
         text = {
             Column {
                 themeAccentOptions.forEach { option ->
@@ -1574,25 +1587,26 @@ private fun ThemeAccentDialog(
                                 .background(option.swatch),
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text(option.label, style = MaterialTheme.typography.bodyLarge)
+                        Text(stringResource(option.labelRes), style = MaterialTheme.typography.bodyLarge)
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
         },
     )
 }
 
+@Composable
 private fun formatTermLabel(termStart: LocalDate?): String {
     if (termStart == null) return ""
     val month = termStart.monthValue
     val year = termStart.year
     return if (month >= 7) {
-        "$year-${year + 1} 第1学期"
+        stringResource(R.string.main_term_first, year, year + 1)
     } else {
-        "${year - 1}-$year 第2学期"
+        stringResource(R.string.main_term_second, year - 1, year)
     }
 }
 

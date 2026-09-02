@@ -211,7 +211,7 @@ class AlarmRingingService : Service() {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
                             applicationContext,
-                            "延后失败，闹钟不会再响：${result.message}",
+                            getString(R.string.alarm_snooze_failed_reason, result.message),
                             Toast.LENGTH_LONG,
                         ).show()
                     }
@@ -224,7 +224,11 @@ class AlarmRingingService : Service() {
                 )
                 if (snooze) {
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(applicationContext, "延后失败，闹钟不会再响", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            applicationContext,
+                            getString(R.string.alarm_snooze_failed),
+                            Toast.LENGTH_LONG,
+                        ).show()
                     }
                 }
             }
@@ -237,8 +241,8 @@ class AlarmRingingService : Service() {
             planId = "${planId.ifBlank { alarmKey }}_snooze_$triggerAtMillis",
             ruleId = ruleId,
             pluginId = pluginId.ifBlank { "snooze" },
-            title = title.ifBlank { "课程提醒" },
-            message = "已延后 5 分钟",
+            title = title.ifBlank { getString(R.string.alarm_default_title) },
+            message = getString(R.string.alarm_snoozed),
             triggerAtMillis = triggerAtMillis,
             ringtoneUri = ringtoneUri,
             alertMode = alertMode,
@@ -281,15 +285,15 @@ class AlarmRingingService : Service() {
 
         // Android 16+ 实时通知状态文本
         val liveStatusText = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            "🔔 闹钟正在响铃..."
+            "🔔 " + getString(R.string.alarm_ringing_notification)
         } else {
             null
         }
 
         val notificationBuilder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(alarm.title.ifBlank { "课程提醒" })
-            .setContentText(alarm.message.ifBlank { "课程即将开始" })
+            .setContentTitle(alarm.title.ifBlank { getString(R.string.alarm_default_title) })
+            .setContentText(alarm.message.ifBlank { getString(R.string.alarm_default_message) })
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -297,8 +301,8 @@ class AlarmRingingService : Service() {
             .setOnlyAlertOnce(true)
             .setContentIntent(fullScreenIntent)
             .setFullScreenIntent(fullScreenIntent, true)
-            .addAction(0, "停止", stopIntent)
-            .addAction(0, "延后 5 分钟", snoozeIntent)
+            .addAction(0, getString(R.string.alarm_stop), stopIntent)
+            .addAction(0, getString(R.string.alarm_snooze), snoozeIntent)
 
         // Android 16+ 实时通知更新支持
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
@@ -474,10 +478,10 @@ class AlarmRingingService : Service() {
         runCatching {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "课程闹钟",
+                getString(R.string.alarm_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply {
-                description = "课程提醒响铃"
+                description = getString(R.string.alarm_channel_description)
                 enableVibration(true)
                 setSound(null, null)
             }
