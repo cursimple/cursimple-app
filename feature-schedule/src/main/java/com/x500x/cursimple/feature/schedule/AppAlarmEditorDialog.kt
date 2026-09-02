@@ -2,6 +2,8 @@ package com.x500x.cursimple.feature.schedule
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -314,6 +316,7 @@ private fun editableSettings(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AlarmRingtoneSelector(
     ringtoneUri: String?,
@@ -339,10 +342,16 @@ internal fun AlarmRingtoneSelector(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onUseDefault) { Text(stringResource(R.string.schedule_ringtone_default)) }
-                TextButton(onClick = onPickSystem) { Text(stringResource(R.string.schedule_ringtone_system)) }
-                TextButton(onClick = onPickLocal) { Text(stringResource(R.string.schedule_ringtone_local)) }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onUseDefault) {
+                    Text(stringResource(R.string.schedule_ringtone_default), maxLines = 2)
+                }
+                TextButton(onClick = onPickSystem) {
+                    Text(stringResource(R.string.schedule_ringtone_system), maxLines = 2)
+                }
+                TextButton(onClick = onPickLocal) {
+                    Text(stringResource(R.string.schedule_ringtone_local), maxLines = 2)
+                }
             }
         }
     }
