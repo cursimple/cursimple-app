@@ -24,6 +24,7 @@ import com.x500x.cursimple.core.data.AppBackupStores
 import com.x500x.cursimple.core.data.plugin.DataStorePluginComponentRepository
 import com.x500x.cursimple.core.data.plugin.DataStorePluginRegistryRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
+import com.x500x.cursimple.core.data.reminderDayPolicy
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.term.TermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
@@ -37,6 +38,7 @@ import com.x500x.cursimple.core.plugin.component.PluginComponentInstaller
 import com.x500x.cursimple.core.plugin.market.MarketIndexRepository
 import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
+import com.x500x.cursimple.core.reminder.ReminderDayPolicy
 import com.x500x.cursimple.core.reminder.ReminderSyncWindows
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
@@ -106,6 +108,9 @@ class AppContainer(
     private val holidayCalendarState = userPreferencesRepository.preferencesFlow
         .map { it.holidayCalendar }
         .stateIn(containerScope, SharingStarted.Eagerly, HolidayCalendarSettings())
+    private val reminderDayPolicyState = userPreferencesRepository.preferencesFlow
+        .map { it.reminderDayPolicy() }
+        .stateIn(containerScope, SharingStarted.Eagerly, ReminderDayPolicy.ALWAYS)
     private val alarmSettingsState = userPreferencesRepository.preferencesFlow
         .map { it.toReminderAlarmSettings() }
         .stateIn(
@@ -119,6 +124,7 @@ class AppContainer(
         repository = reminderRepository,
         temporaryScheduleOverridesProvider = { temporaryScheduleOverridesState.value },
         holidayCalendarProvider = { holidayCalendarState.value },
+        dayPolicyProvider = { reminderDayPolicyState.value },
         alarmSettingsProvider = { alarmSettingsState.value },
     )
 

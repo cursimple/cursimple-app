@@ -56,6 +56,7 @@ class ReminderCoordinator(
     private val planner: ReminderPlanner = ReminderPlanner(),
     private val temporaryScheduleOverridesProvider: suspend () -> List<TemporaryScheduleOverride> = { emptyList() },
     private val holidayCalendarProvider: suspend () -> HolidayCalendarSettings = { HolidayCalendarSettings.NONE },
+    private val dayPolicyProvider: suspend () -> ReminderDayPolicy = { ReminderDayPolicy.ALWAYS },
     private val alarmSettingsProvider: suspend () -> ReminderAlarmSettings = { ReminderAlarmSettings() },
     private val appDispatcher: AlarmDispatcher = AppAlarmClockDispatcher(context),
     private val appDismisser: AlarmDismisser = AppAlarmClockDismisser(context),
@@ -524,6 +525,7 @@ class ReminderCoordinator(
         val zone = ZoneId.systemDefault()
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
         val holidayCalendar = holidayCalendarProvider()
+        val dayPolicy = dayPolicyProvider()
         val customOccupancies = repository.getCustomOccupancies(pluginId)
         val rules = repository.getReminderRules()
             .filter {
@@ -541,6 +543,7 @@ class ReminderCoordinator(
             temporaryScheduleOverrides = temporaryScheduleOverrides,
             customOccupancies = customOccupancies,
             holidayCalendar = holidayCalendar,
+            dayPolicy = dayPolicy,
         )
         dispatchPlansForWindowLocked(
             pluginId = pluginId,
@@ -576,6 +579,7 @@ class ReminderCoordinator(
         )
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
         val holidayCalendar = holidayCalendarProvider()
+        val dayPolicy = dayPolicyProvider()
         val customOccupancies = repository.getCustomOccupancies(pluginId)
         val rules = repository.getReminderRules()
             .filter {
@@ -594,6 +598,7 @@ class ReminderCoordinator(
             temporaryScheduleOverrides = temporaryScheduleOverrides,
             customOccupancies = customOccupancies,
             holidayCalendar = holidayCalendar,
+            dayPolicy = dayPolicy,
         ).take(1)
         dispatchPlansForWindowLocked(
             pluginId = pluginId,
@@ -619,6 +624,7 @@ class ReminderCoordinator(
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         customOccupancies: List<ReminderCustomOccupancy>,
         holidayCalendar: HolidayCalendarSettings,
+        dayPolicy: ReminderDayPolicy,
     ): List<ReminderPlan> = planner.expandRules(
         rules = rules,
         schedule = schedule,
@@ -627,6 +633,7 @@ class ReminderCoordinator(
         temporaryScheduleOverrides = temporaryScheduleOverrides,
         customOccupancies = customOccupancies,
         holidayCalendar = holidayCalendar,
+        dayPolicy = dayPolicy,
     ).asSequence()
         .filter { it.triggerAtMillis in window.startMillis..window.endMillis }
         .map { it.withAlarmSettings(settings) }

@@ -41,6 +41,7 @@ internal fun courseOccurrenceDates(
     fromDate: LocalDate,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
+    dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
 ): List<LocalDate> {
     val regularDates = course.termWeekNumbers().map { week ->
         termWeekDate(termStart, week, course.time.dayOfWeek)
@@ -51,7 +52,7 @@ internal fun courseOccurrenceDates(
         .filterNot { it.isBefore(fromDate) }
         .filter { date ->
             val day = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
-            !day.isHoliday &&
+            !dayPolicy.suppresses(date, day) &&
                 day.sourceDate.dayOfWeek.value == course.time.dayOfWeek &&
                 course.isActiveOnSourceDate(termStart, day.sourceDate) &&
                 !isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)

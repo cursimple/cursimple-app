@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.x500x.cursimple.core.reminder.ReminderDayPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
@@ -271,6 +272,10 @@ data class UserPreferences(
     val pluginsSeeded: Boolean = false,
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     val holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
+    /** 放假当天是否跳过提醒。默认照常提醒，安静与否交给用户决定。 */
+    val skipRemindersOnHoliday: Boolean = false,
+    /** 单独静音的日期，ISO 日期字符串。 */
+    val reminderMutedDates: Set<String> = emptySet(),
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
     val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
@@ -352,6 +357,11 @@ interface UserPreferencesRepository {
     suspend fun putSyncedHolidayYears(years: List<SyncedHolidayYear>)
 
     suspend fun clearSyncedHolidayYears()
+
+    suspend fun setSkipRemindersOnHoliday(enabled: Boolean)
+
+    /** 把某一天设为静音或取消静音，当天不再下发任何课程提醒。 */
+    suspend fun setReminderMuted(date: String, muted: Boolean)
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
     suspend fun setAlarmBackend(backend: ReminderAlarmBackend)
@@ -598,3 +608,9 @@ private fun MutablePreferences.restoreEntry(entry: PreferencesBackupEntry) {
         }
     }
 }
+
+/** 把偏好里的假日与静音设置换成提醒侧的判定策略。 */
+fun UserPreferences.reminderDayPolicy(): ReminderDayPolicy = ReminderDayPolicy(
+    skipOnHoliday = skipRemindersOnHoliday,
+    mutedDates = reminderMutedDates.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.toSet(),
+)

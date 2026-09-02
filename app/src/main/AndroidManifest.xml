@@ -99,6 +99,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".app.holiday.HolidayEveMuteReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".app.reminder.AppAlarmReceiver"
             android:exported="false">
             <intent-filter>

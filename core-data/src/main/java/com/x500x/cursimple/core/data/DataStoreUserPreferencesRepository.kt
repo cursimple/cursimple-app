@@ -76,6 +76,8 @@ class DataStoreUserPreferencesRepository(
                 entries = decodeHolidayCalendarEntries(prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON]),
                 syncedYears = decodeSyncedHolidayYears(prefs[KEY_HOLIDAY_CALENDAR_SYNCED_JSON]),
             ),
+            skipRemindersOnHoliday = prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] ?: false,
+            reminderMutedDates = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toSet(),
             debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
             },
@@ -677,6 +679,22 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
+    override suspend fun setSkipRemindersOnHoliday(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] = enabled }
+    }
+
+    override suspend fun setReminderMuted(date: String, muted: Boolean) {
+        store.edit { prefs ->
+            val current = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toMutableSet()
+            if (muted) current += date else current -= date
+            if (current.isEmpty()) {
+                prefs.remove(KEY_REMINDER_MUTED_DATES)
+            } else {
+                prefs[KEY_REMINDER_MUTED_DATES] = current
+            }
+        }
+    }
+
     override suspend fun clearSyncedHolidayYears() {
         store.edit { prefs -> prefs.remove(KEY_HOLIDAY_CALENDAR_SYNCED_JSON) }
     }
@@ -913,6 +931,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED = booleanPreferencesKey("holiday_calendar_built_in_enabled")
         val KEY_HOLIDAY_CALENDAR_ENTRIES_JSON = stringPreferencesKey("holiday_calendar_entries_json")
         val KEY_HOLIDAY_CALENDAR_SYNCED_JSON = stringPreferencesKey("holiday_calendar_synced_json")
+        val KEY_SKIP_REMINDERS_ON_HOLIDAY = booleanPreferencesKey("skip_reminders_on_holiday")
+        val KEY_REMINDER_MUTED_DATES = stringSetPreferencesKey("reminder_muted_dates")
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")
