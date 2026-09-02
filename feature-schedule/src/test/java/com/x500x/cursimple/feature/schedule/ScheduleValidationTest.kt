@@ -10,6 +10,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import com.x500x.cursimple.core.kernel.model.TermWeekLabel
 import com.x500x.cursimple.core.kernel.model.termWeekLabel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -385,18 +386,28 @@ class ScheduleValidationTest {
     }
 
     @Test
-    fun `visible day indices follow saturday and weekend display preferences`() {
+    fun `visible columns follow saturday and weekend display preferences`() {
         assertEquals(
-            (0..6).toList(),
-            visibleDayIndices(ScheduleDisplayPreferences(saturdayVisible = false, weekendVisible = true)),
+            (1..7).toList(),
+            visibleColumnDayOfWeeks(ScheduleDisplayPreferences(saturdayVisible = false, weekendVisible = true)),
         )
         assertEquals(
-            (0..5).toList(),
-            visibleDayIndices(ScheduleDisplayPreferences(saturdayVisible = true, weekendVisible = false)),
+            (1..6).toList(),
+            visibleColumnDayOfWeeks(ScheduleDisplayPreferences(saturdayVisible = true, weekendVisible = false)),
         )
         assertEquals(
-            (0..4).toList(),
-            visibleDayIndices(ScheduleDisplayPreferences(saturdayVisible = false, weekendVisible = false)),
+            (1..5).toList(),
+            visibleColumnDayOfWeeks(ScheduleDisplayPreferences(saturdayVisible = false, weekendVisible = false)),
+        )
+    }
+
+    @Test
+    fun `a sunday-first week puts sunday in the first column`() {
+        assertEquals(
+            listOf(7, 1, 2, 3, 4, 5, 6),
+            visibleColumnDayOfWeeks(
+                ScheduleDisplayPreferences(weekendVisible = true, weekStartDay = WeekStartDay.Sunday),
+            ),
         )
     }
 
@@ -414,14 +425,14 @@ class ScheduleValidationTest {
             slots = listOf(testSlot()),
             weekIndex = 4,
             totalScheduleDisplayEnabled = true,
-            visibleDayIndices = (0..4).toList(),
+            columnDayOfWeeks = (1..5).toList(),
         )
         val mondayToSaturday = buildWeekRenderEntries(
             allCourses = listOf(monday, saturday),
             slots = listOf(testSlot()),
             weekIndex = 4,
             totalScheduleDisplayEnabled = true,
-            visibleDayIndices = (0..5).toList(),
+            columnDayOfWeeks = (1..6).toList(),
         )
 
         assertEquals(listOf("monday"), weekdaysOnly.map { it.course.id })

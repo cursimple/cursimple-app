@@ -807,6 +807,8 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setScheduleCustomColorsAdaptToTheme,
                                         onScheduleNodeColumnTimeEnabledChange = prefsViewModel::setScheduleNodeColumnTimeEnabled,
                                         onScheduleSaturdayVisibleChange = prefsViewModel::setScheduleSaturdayVisible,
+                                        onScheduleWeekStartDayChange =
+                                            prefsViewModel::setScheduleWeekStartDay,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
                                         onScheduleLocationPrefixAtEnabledChange = prefsViewModel::setScheduleLocationPrefixAtEnabled,
@@ -948,6 +950,7 @@ class MainActivity : ComponentActivity() {
                             val activeTermProfile = termProfileState.terms
                                 .firstOrNull { it.id == termProfileState.activeTermId }
                             ImportExportScreen(
+                                weekStartDay = prefs.scheduleDisplay.weekStartDay,
                                 schedule = scheduleState.schedule,
                                 manualCourses = scheduleState.manualCourses,
                                 termName = activeTermProfile?.name,

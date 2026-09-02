@@ -49,6 +49,7 @@ fun TemporaryScheduleOverride.sourceDateFor(date: LocalDate): LocalDate? {
     val normalizedStart = minOf(start, end)
     val normalizedEnd = maxOf(start, end)
     if (date.isBefore(normalizedStart) || date.isAfter(normalizedEnd)) return null
+    // 旧记录只存了来源星期几，当初是按周一起算写下的，这个基准属于已落盘数据的语义，不跟随显示起始日
     return date
         .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         .plusDays((legacySourceDayOfWeek - 1).toLong())

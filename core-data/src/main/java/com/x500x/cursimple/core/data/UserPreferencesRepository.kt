@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.core.reminder.ReminderDayPolicy
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -208,6 +209,8 @@ data class ScheduleDisplayPreferences(
     val locationPrefixAtEnabled: Boolean = true,
     val teacherVisible: Boolean = true,
     val totalScheduleDisplayEnabled: Boolean = true,
+    /** 一周从哪天开始显示，不影响教学周编号。 */
+    val weekStartDay: WeekStartDay = WeekStartDay.Monday,
 )
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
@@ -339,6 +342,8 @@ interface UserPreferencesRepository {
     suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean)
     suspend fun setScheduleSaturdayVisible(visible: Boolean)
     suspend fun setScheduleWeekendVisible(visible: Boolean)
+
+    suspend fun setScheduleWeekStartDay(day: WeekStartDay)
     suspend fun setScheduleLocationVisible(visible: Boolean)
     suspend fun setScheduleLocationPrefixAtEnabled(enabled: Boolean)
     suspend fun setScheduleTeacherVisible(visible: Boolean)
