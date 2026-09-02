@@ -285,7 +285,7 @@
     <string name="settings_holiday_builtin_title">Use built-in public holidays</string>
     <string name="settings_holiday_adjust_day_title">Adjust a specific day</string>
     <string name="settings_holiday_adjust_day_subtitle">Mark it as a holiday or as a make-up class day</string>
-    <string name="settings_holiday_note">The built-in data only covers public holidays and their official days off from confirmed sources. Add each year\'s shifted days off and make-up workdays here by hand; manual entries take priority over the built-in data. If a make-up day should follow another weekday\'s timetable, add a temporary change as well.</string>
+    <string name="settings_holiday_note">The built-in data follows the State Council\'s annual holiday notice and covers each full break, shifted days included. Make-up workdays from that notice are not included; add them here by hand, and manual entries take priority over the built-in data. If a make-up workday should follow another weekday\'s timetable, add a temporary change as well.</string>
     <string name="settings_holiday_no_manual_entries">No manual adjustments yet</string>
     <string name="settings_holiday_note_label">Note (optional)</string>
     <string name="settings_holiday_set_holiday">Mark as holiday</string>
@@ -295,7 +295,7 @@
     <string name="settings_holiday_builtin_off">Built-in data off</string>
     <string name="settings_holiday_subtitle_with_manual">%1$s · %2$d manual adjustments</string>
     <string name="settings_holiday_builtin_none">No built-in data</string>
-    <string name="settings_holiday_builtin_years">Covers public holidays and days off for %1$s</string>
+    <string name="settings_holiday_builtin_years">Covers the %1$s holiday schedule</string>
     <string name="settings_holiday_year_separator">", "</string>
     <string name="settings_holiday_kind_holiday">Holiday: no classes, no reminders</string>
     <string name="settings_holiday_kind_workday">Make-up class day: classes as usual</string>

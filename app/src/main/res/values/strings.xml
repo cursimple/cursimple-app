@@ -285,7 +285,7 @@
     <string name="settings_holiday_builtin_title">使用内置法定节假日</string>
     <string name="settings_holiday_adjust_day_title">调整某一天</string>
     <string name="settings_holiday_adjust_day_subtitle">设为假日或设为调休上课日</string>
-    <string name="settings_holiday_note">内置数据只收录来源确定的法定假日和补假。每年的调休连休和补班日期请在这里手动添加，手动条目优先于内置数据。调休日若要按其它星期的课表上课，请另外添加一条临时调课。</string>
+    <string name="settings_holiday_note">内置数据按国务院办公厅当年的放假通知收录完整放假区间，含调休连休。通知里的补班日不含在内，需要在这里手动添加，手动条目优先于内置数据。补班日若要按其它星期的课表上课，请另外添加一条临时调课。</string>
     <string name="settings_holiday_no_manual_entries">暂无手动调整</string>
     <string name="settings_holiday_note_label">备注（可留空）</string>
     <string name="settings_holiday_set_holiday">设为假日</string>
@@ -295,7 +295,7 @@
     <string name="settings_holiday_builtin_off">内置已关闭</string>
     <string name="settings_holiday_subtitle_with_manual">%1$s · %2$d 条手动调整</string>
     <string name="settings_holiday_builtin_none">暂无内置数据</string>
-    <string name="settings_holiday_builtin_years">已收录 %1$s 年法定假日与补假</string>
+    <string name="settings_holiday_builtin_years">已收录 %1$s 年放假安排</string>
     <string name="settings_holiday_year_separator">、</string>
     <string name="settings_holiday_kind_holiday">假日，不出课不提醒</string>
     <string name="settings_holiday_kind_workday">调休上课日，照常出课</string>

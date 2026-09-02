@@ -166,6 +166,7 @@ class HolidayCalendarTest {
     @Test
     fun builtInDataCoversTwentyTwentySix() {
         assertEquals(listOf(2026), builtInHolidayYears)
-        assertEquals(18, builtInHolidayEntriesOfYear(2026).size)
+        // 元旦 3 + 春节 9 + 清明 3 + 劳动 5 + 端午 3 + 中秋 3 + 国庆 7
+        assertEquals(33, builtInHolidayEntriesOfYear(2026).size)
     }
 }
