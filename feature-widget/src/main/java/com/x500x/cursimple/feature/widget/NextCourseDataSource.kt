@@ -92,13 +92,18 @@ internal object NextCourseDataSource {
         val sourceDate = displayDay.sourceDate
         val displayCourses = displayDay.courses
 
-        val visibleEntries = visibleNextCourseEntries(
-            courses = displayCourses,
-            today = today,
-            targetDate = targetDate,
-            now = now,
-            timingProfile = timingProfile,
-        )
+        // 放假当天课程照常列出，但不判上课中、不给倒计时
+        val visibleEntries = if (displayDay.onHoliday) {
+            emptyList()
+        } else {
+            visibleNextCourseEntries(
+                courses = displayCourses,
+                today = today,
+                targetDate = targetDate,
+                now = now,
+                timingProfile = timingProfile,
+            )
+        }
         val live = visibleEntries.firstOrNull { it.status == CourseStatus.Live }?.course
         val firstUpcoming = visibleEntries.firstOrNull { it.status == CourseStatus.Upcoming }?.course
 

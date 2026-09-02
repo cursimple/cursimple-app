@@ -18,11 +18,13 @@ internal data class WidgetScheduleDay(
     val weekIndex: Int?,
     val holidayLabel: WidgetHolidayLabel?,
     val courses: List<CourseItem>,
+    /** 当天放假。课程照常列出，只是按不可用态显示，也不参与上课中与倒计时判断。 */
+    val onHoliday: Boolean = false,
 )
 
 /**
  * 合并临时调课与节假日，得出 [targetDate] 当天要显示的课程。
- * [coursesOfDayOfWeek] 按来源日期的星期几取课；判定为假日时当天不出课。
+ * [coursesOfDayOfWeek] 按来源日期的星期几取课；判定为假日时课程照常列出并标记。
  */
 internal fun resolveWidgetScheduleDay(
     targetDate: LocalDate,
@@ -34,23 +36,20 @@ internal fun resolveWidgetScheduleDay(
     val resolution = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
     val sourceDate = resolution.sourceDate
     val weekIndex = resolveWeekIndex(sourceDate, termStart)
-    val courses = if (resolution.isHoliday) {
-        emptyList()
-    } else {
-        filterTemporaryCancelledCourses(
-            date = targetDate,
-            courses = coursesOfDayOfWeek(sourceDate.dayOfWeek.value),
-            overrides = temporaryScheduleOverrides,
-        )
-            .visibleScheduleCourses()
-            .filter { it.activeOnWeek(weekIndex) }
-            .sortedBy { it.time.startNode }
-    }
+    val courses = filterTemporaryCancelledCourses(
+        date = targetDate,
+        courses = coursesOfDayOfWeek(sourceDate.dayOfWeek.value),
+        overrides = temporaryScheduleOverrides,
+    )
+        .visibleScheduleCourses()
+        .filter { it.activeOnWeek(weekIndex) }
+        .sortedBy { it.time.startNode }
     return WidgetScheduleDay(
         targetDate = targetDate,
         sourceDate = sourceDate,
         weekIndex = weekIndex,
         holidayLabel = if (resolution.isHoliday) widgetHolidayLabel(resolution.holidayName, resolution.holidayNameRes) else null,
         courses = courses,
+        onHoliday = resolution.isHoliday,
     )
 }
