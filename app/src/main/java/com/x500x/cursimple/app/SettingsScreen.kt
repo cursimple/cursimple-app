@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
@@ -108,6 +109,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.x500x.cursimple.R
+import com.x500x.cursimple.app.download.MirrorDownloader
+import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.holiday.HolidayCalendarSyncer
+import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
+import com.x500x.cursimple.app.holiday.holidaySyncYears
 import com.x500x.cursimple.core.data.AutoSilenceMode
 import com.x500x.cursimple.core.data.AutoSilencePreferences
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -142,6 +148,7 @@ import com.x500x.cursimple.core.data.widget.slotTimes
 import com.x500x.cursimple.core.data.widget.timingDraftErrorText
 import com.x500x.cursimple.core.data.widget.timingTemplates
 import com.x500x.cursimple.core.data.widget.toDraftInput
+import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -630,6 +637,7 @@ fun AppSettingsRoute(
                     checked = holidayCalendar.builtInEnabled,
                     onCheckedChange = onHolidayCalendarBuiltInEnabledChange,
                 )
+                HolidayCalendarSyncRow(syncedYears = holidayCalendar.syncedYears)
                 SettingsActionRow(
                     icon = Icons.Rounded.EventAvailable,
                     title = stringResource(R.string.settings_holiday_adjust_day_title),
@@ -3635,4 +3643,68 @@ internal fun appLanguageLabel(language: AppLanguage): String = when (language) {
     AppLanguage.System -> stringResource(R.string.settings_language_system)
     AppLanguage.Chinese -> stringResource(R.string.settings_language_chinese)
     AppLanguage.English -> "English"
+}
+
+/**
+ * 节假日数据的同步入口。
+ * 放假安排每年由通知决定，这里从公开维护的数据集取回并缓存，取不到时沿用已有数据。
+ */
+@Composable
+private fun HolidayCalendarSyncRow(syncedYears: List<SyncedHolidayYear>) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repository = remember(context) { DataStoreUserPreferencesRepository(context.applicationContext) }
+    val downloader = remember(context) {
+        MirrorDownloader(labels = context.applicationContext.mirrorDownloaderLabels())
+    }
+    val syncer = remember(downloader) { HolidayCalendarSyncer(downloader) }
+    var syncing by remember { mutableStateOf(false) }
+
+    val subtitle = when {
+        syncing -> stringResource(R.string.settings_holiday_sync_running)
+        else -> holidaySyncSubtitle(syncedYears)
+    }
+    SettingsActionRow(
+        icon = Icons.Rounded.CloudDownload,
+        title = stringResource(R.string.settings_holiday_sync_title),
+        subtitle = subtitle,
+        onClick = {
+            if (syncing) return@SettingsActionRow
+            syncing = true
+            scope.launch {
+                val outcomes = syncer.sync(
+                    years = holidaySyncYears(LocalDate.now()),
+                    cached = syncedYears,
+                    force = true,
+                )
+                repository.putSyncedHolidayYears(
+                    outcomes.filterIsInstance<HolidaySyncOutcome.Updated>().map { it.year },
+                )
+                syncing = false
+                Toast.makeText(context, context.holidaySyncMessage(outcomes), Toast.LENGTH_SHORT).show()
+            }
+        },
+    )
+}
+
+@Composable
+private fun holidaySyncSubtitle(syncedYears: List<SyncedHolidayYear>): String {
+    val usable = syncedYears.filter { it.entries.isNotEmpty() }
+    if (usable.isEmpty()) return stringResource(R.string.settings_holiday_sync_never)
+    return stringResource(
+        R.string.settings_holiday_sync_years,
+        usable.map { it.year }.sorted().joinToString(stringResource(R.string.settings_holiday_year_separator)),
+        usable.last().source.ifBlank { stringResource(R.string.download_source_local_file) },
+    )
+}
+
+/** 同步结果的提示文案，只报告最值得说的一条。 */
+private fun Context.holidaySyncMessage(outcomes: List<HolidaySyncOutcome>): String {
+    outcomes.filterIsInstance<HolidaySyncOutcome.Updated>().firstOrNull()
+        ?.let { return getString(R.string.settings_holiday_sync_done) }
+    outcomes.filterIsInstance<HolidaySyncOutcome.Unusable>().firstOrNull()
+        ?.let { return getString(R.string.settings_holiday_sync_unusable, it.year) }
+    outcomes.filterIsInstance<HolidaySyncOutcome.Unreachable>().firstOrNull()
+        ?.let { return getString(R.string.settings_holiday_sync_unreachable, it.year) }
+    return getString(R.string.settings_holiday_sync_fresh)
 }

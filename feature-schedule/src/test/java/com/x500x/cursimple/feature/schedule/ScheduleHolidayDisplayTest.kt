@@ -27,11 +27,16 @@ class ScheduleHolidayDisplayTest {
     private val termStart = LocalDate.of(2026, 4, 13)
 
     @Test
-    fun `built-in holiday hides that day's courses`() {
+    fun `built-in holiday keeps that day's courses but marks them unavailable`() {
         val entries = renderEntries(holidayCalendar = HolidayCalendarSettings())
+        val monday = entries.single { it.placement.dayIndex == 0 }
 
-        assertFalse(entries.any { it.placement.dayIndex == 0 })
-        assertTrue(entries.any { it.course.id == "wednesday" && it.placement.dayIndex == 2 })
+        assertEquals("monday", monday.course.id)
+        assertTrue(monday.inactive)
+        assertTrue(monday.onHoliday)
+        val wednesday = entries.single { it.placement.dayIndex == 2 }
+        assertFalse(wednesday.inactive)
+        assertFalse(wednesday.onHoliday)
     }
 
     @Test
@@ -65,19 +70,22 @@ class ScheduleHolidayDisplayTest {
             ),
         )
 
-        assertTrue(entries.any { it.course.id == "monday" && it.placement.dayIndex == 0 })
-        assertFalse(entries.any { it.placement.dayIndex == 2 })
+        val monday = entries.single { it.placement.dayIndex == 0 }
+        assertFalse(monday.inactive)
+        val wednesday = entries.single { it.placement.dayIndex == 2 }
+        assertTrue(wednesday.inactive)
+        assertTrue(wednesday.onHoliday)
     }
 
     @Test
-    fun `total schedule display still hides courses on a holiday`() {
+    fun `total schedule display also dims a holiday instead of dropping it`() {
         val entries = renderEntries(
             holidayCalendar = HolidayCalendarSettings(),
             totalScheduleDisplayEnabled = true,
         )
 
-        assertFalse(entries.any { it.placement.dayIndex == 0 })
-        assertTrue(entries.any { it.course.id == "wednesday" && it.placement.dayIndex == 2 })
+        assertTrue(entries.single { it.placement.dayIndex == 0 }.onHoliday)
+        assertFalse(entries.single { it.placement.dayIndex == 2 }.onHoliday)
     }
 
     @Test
@@ -114,7 +122,7 @@ class ScheduleHolidayDisplayTest {
             ),
         )
 
-        assertFalse(entries.any { it.placement.dayIndex == 2 })
+        assertTrue(entries.single { it.placement.dayIndex == 2 }.onHoliday)
     }
 
     @Test
