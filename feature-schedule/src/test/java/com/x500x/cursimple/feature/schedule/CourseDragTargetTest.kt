@@ -168,7 +168,7 @@ class CourseDragTargetTest {
         val time = movedCourseTime(
             target = target,
             rowSpan = 1,
-            visibleDayIndices = listOf(0, 1, 2, 3, 4),
+            columnDayOfWeeks = listOf(1, 2, 3, 4, 5),
             slots = listOf(slot(1, 2), slot(3, 4), slot(5, 6)),
         )
 
@@ -184,7 +184,7 @@ class CourseDragTargetTest {
         val time = movedCourseTime(
             target = target,
             rowSpan = 3,
-            visibleDayIndices = listOf(0, 1, 2, 3, 4, 5, 6),
+            columnDayOfWeeks = listOf(1, 2, 3, 4, 5, 6, 7),
             slots = listOf(slot(1, 2), slot(3, 4), slot(5, 6), slot(7, 8)),
         )
 
@@ -200,7 +200,7 @@ class CourseDragTargetTest {
         val time = movedCourseTime(
             target = target,
             rowSpan = 3,
-            visibleDayIndices = listOf(0, 1, 2, 3, 4, 5, 6),
+            columnDayOfWeeks = listOf(1, 2, 3, 4, 5, 6, 7),
             slots = listOf(slot(1, 2), slot(3, 4), slot(5, 6)),
         )
 
@@ -214,7 +214,7 @@ class CourseDragTargetTest {
         val time = movedCourseTime(
             target = target,
             rowSpan = 1,
-            visibleDayIndices = listOf(0, 1, 2, 3, 4),
+            columnDayOfWeeks = listOf(1, 2, 3, 4, 5),
             slots = listOf(slot(1, 2)),
         )
 

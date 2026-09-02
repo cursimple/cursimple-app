@@ -12,6 +12,7 @@ import com.x500x.cursimple.core.kernel.model.weekdayName
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -43,6 +44,7 @@ object ScheduleImageExporter {
         timingProfile: TermTimingProfile?,
         overrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings,
+        weekStartDay: WeekStartDay = WeekStartDay.Monday,
     ): ScheduleImageExportOutcome = withContext(Dispatchers.IO) {
         if (termStartDate == null) {
             return@withContext failure(weekNumber, context.getString(R.string.image_failure_no_term_start))
@@ -55,6 +57,7 @@ object ScheduleImageExporter {
             termName = termName,
             termStartDate = termStartDate,
             weekNumber = weekNumber,
+            weekStartDay = weekStartDay,
             schedule = schedule,
             manualCourses = manualCourses,
             timingProfile = timingProfile,

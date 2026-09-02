@@ -16,6 +16,7 @@ import java.time.temporal.TemporalAdjusters
 private const val MAX_TERM_WEEK = 60
 
 /** 第 [termWeek] 教学周里星期 [dayOfWeek] 对应的日期，第 1 周从开学日所在周的周一算起。 */
+/** 教学周编号的逆运算，锚点必须与 resolveTermWeekNumber 一致，同样固定为周一。 */
 internal fun termWeekDate(termStart: LocalDate, termWeek: Int, dayOfWeek: Int): LocalDate =
     termStart
         .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
