@@ -809,6 +809,8 @@ class MainActivity : ComponentActivity() {
                                         onScheduleSaturdayVisibleChange = prefsViewModel::setScheduleSaturdayVisible,
                                         onScheduleWeekStartDayChange =
                                             prefsViewModel::setScheduleWeekStartDay,
+                                        onCourseDragEnabledChange =
+                                            prefsViewModel::setCourseDragEnabled,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
                                         onScheduleLocationPrefixAtEnabledChange = prefsViewModel::setScheduleLocationPrefixAtEnabled,

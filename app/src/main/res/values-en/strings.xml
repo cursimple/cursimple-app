@@ -389,6 +389,8 @@
     <string name="settings_display_week_start_subtitle">Only reorders the timetable columns; week numbers still count from Monday</string>
     <string name="settings_display_week_start_monday">Monday</string>
     <string name="settings_display_week_start_sunday">Sunday</string>
+    <string name="settings_display_course_drag_title">Drag to adjust courses</string>
+    <string name="settings_display_course_drag_subtitle">Long-press to move a course and drag its edges to change periods; off means the timetable is read-only</string>
     <string name="settings_display_total_off">The week view only shows this week\'s courses</string>
     <string name="settings_widget_home_title">Home screen widgets</string>
     <string name="settings_widget_home_subtitle">Add a timetable, next class or reminder widget</string>

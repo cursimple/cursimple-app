@@ -389,6 +389,8 @@
     <string name="settings_display_week_start_subtitle">只改课表列的排列顺序，第几周仍按周一起算</string>
     <string name="settings_display_week_start_monday">周一</string>
     <string name="settings_display_week_start_sunday">周日</string>
+    <string name="settings_display_course_drag_title">拖动调整课程</string>
+    <string name="settings_display_course_drag_subtitle">开启后可长按拖动课程位置、拖边缘改节次；关闭时课表只读</string>
     <string name="settings_display_total_off">周视图只显示本周课程</string>
     <string name="settings_widget_home_title">桌面小组件</string>
     <string name="settings_widget_home_subtitle">添加课表、下一节课或课程提醒</string>
