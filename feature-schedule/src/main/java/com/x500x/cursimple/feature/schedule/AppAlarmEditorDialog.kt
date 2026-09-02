@@ -2,6 +2,7 @@ package com.x500x.cursimple.feature.schedule
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -342,14 +344,26 @@ internal fun AlarmRingtoneSelector(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onUseDefault) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onUseDefault,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                ) {
                     Text(stringResource(R.string.schedule_ringtone_default), maxLines = 2)
                 }
-                TextButton(onClick = onPickSystem) {
+                OutlinedButton(
+                    onClick = onPickSystem,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                ) {
                     Text(stringResource(R.string.schedule_ringtone_system), maxLines = 2)
                 }
-                TextButton(onClick = onPickLocal) {
+                OutlinedButton(
+                    onClick = onPickLocal,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                ) {
                     Text(stringResource(R.string.schedule_ringtone_local), maxLines = 2)
                 }
             }
