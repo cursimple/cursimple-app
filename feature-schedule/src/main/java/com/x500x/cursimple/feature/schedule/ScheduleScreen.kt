@@ -934,27 +934,11 @@ private fun DailyScheduleSection(
                 holidayLabel = holidayLabel,
             )
 
-            if (holidayLabel != null) {
-                EmptyWeekState(
-                    schedule = schedule,
-                    holidayLabel = holidayLabel,
-                )
-                return@Column
-            }
-
             if (slots.isEmpty() || allCourses.isEmpty()) {
-                EmptyWeekState(schedule = schedule)
+                EmptyWeekState(schedule = schedule, holidayLabel = holidayLabel)
                 return@Column
             }
 
-            if (sourceWeekNumber != null && sourceWeekNumber < 1) {
-                EmptyWeekState(
-                    schedule = schedule,
-                    notStarted = true,
-                    termStartDate = termStartDate,
-                )
-                return@Column
-            }
 
             AnimatedContent(
                 targetState = dayOffset,
@@ -970,13 +954,17 @@ private fun DailyScheduleSection(
                 label = "day-list",
                 modifier = Modifier.fillMaxSize(),
             ) { _ ->
+                // 还没开学时不按周过滤，课程照常列出并按不可用态显示
+                val beforeTerm = sourceWeekNumber != null && sourceWeekNumber < 1
                 val active = allCourses
                     .filter { it.time.dayOfWeek == targetDayOfWeek }
-                    .filter { sourceWeekNumber == null || it.isActiveInWeek(sourceWeekNumber) }
+                    .filter { beforeTerm || sourceWeekNumber == null || it.isActiveInWeek(sourceWeekNumber) }
                     .sortedBy { it.time.startNode }
                 DayList(
                     slots = slots,
                     courses = active,
+                    onHoliday = holidayLabel != null,
+                    beforeTerm = beforeTerm,
                     timingProfile = timingProfile,
                     targetDate = targetDate,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
@@ -1072,6 +1060,8 @@ private fun DailyHeaderRow(
 private fun DayList(
     slots: List<DisplaySlot>,
     courses: List<CourseItem>,
+    onHoliday: Boolean,
+    beforeTerm: Boolean,
     timingProfile: TermTimingProfile?,
     targetDate: LocalDate,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
@@ -1124,6 +1114,8 @@ private fun DayList(
             DayRow(
                 slot = slot,
                 courses = starting,
+                onHoliday = onHoliday,
+                beforeTerm = beforeTerm,
                 timingProfile = timingProfile,
                 targetDate = targetDate,
                 temporaryScheduleOverrides = temporaryScheduleOverrides,
@@ -1159,6 +1151,8 @@ private fun DayList(
 private fun DayRow(
     slot: DisplaySlot,
     courses: List<CourseItem>,
+    onHoliday: Boolean,
+    beforeTerm: Boolean,
     timingProfile: TermTimingProfile?,
     targetDate: LocalDate,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
@@ -1214,8 +1208,17 @@ private fun DayRow(
                     course = course,
                     overrides = temporaryScheduleOverrides,
                 )
-                val containerColor = if (isExam) MaterialTheme.colorScheme.errorContainer else palette.container
-                val onColor = if (isExam) MaterialTheme.colorScheme.onErrorContainer else palette.onContainer
+                val unavailable = onHoliday || beforeTerm
+                val containerColor = when {
+                    unavailable -> accents.inactiveContainer
+                    isExam -> MaterialTheme.colorScheme.errorContainer
+                    else -> palette.container
+                }
+                val onColor = when {
+                    unavailable -> accents.inactiveOnContainer
+                    isExam -> MaterialTheme.colorScheme.onErrorContainer
+                    else -> palette.onContainer
+                }
                 val isSelected = course.id == selectedCourseId
                 val isMultiSelected = course.id in multiSelectedIds
                 val highlight = isSelected || isMultiSelected
@@ -1242,7 +1245,15 @@ private fun DayRow(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(shape)
-                        .background(containerColor.withOpacityPercent(scheduleCardStyle.scheduleOpacityPercent))
+                        .background(
+                            containerColor.withOpacityPercent(
+                                if (unavailable) {
+                                    scheduleCardStyle.inactiveCourseOpacityPercent
+                                } else {
+                                    scheduleCardStyle.scheduleOpacityPercent
+                                },
+                            ),
+                        )
                         .border(
                             BorderStroke(
                                 when {
@@ -1304,7 +1315,21 @@ private fun DayRow(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (isExam) {
+                        if (unavailable) {
+                            Text(
+                                text = stringResource(
+                                    if (onHoliday) {
+                                        R.string.schedule_status_on_holiday
+                                    } else {
+                                        R.string.schedule_status_other_week
+                                    },
+                                ),
+                                color = onColor,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                            )
+                        }
+                        if (isExam && !unavailable) {
                             Text(
                                 text = stringResource(R.string.schedule_category_exam),
                                 color = onColor,
