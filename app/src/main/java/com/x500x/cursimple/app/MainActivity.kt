@@ -825,6 +825,9 @@ class MainActivity : ComponentActivity() {
                                         onClearHolidayCalendarEntries = prefsViewModel::clearHolidayCalendarEntries,
                                         onHolidayCalendarBuiltInEnabledChange =
                                             prefsViewModel::setHolidayCalendarBuiltInEnabled,
+                                        skipRemindersOnHoliday = prefs.skipRemindersOnHoliday,
+                                        onSkipRemindersOnHolidayChange =
+                                            prefsViewModel::setSkipRemindersOnHoliday,
                                         onOpenWidgetPicker = { showWidgetPicker = true },
                                         onPickWidgetThemeAccent = { showWidgetThemeAccentDialog = true },
                                         onWidgetBackgroundImageUriChange = widgetPrefsViewModel::setWidgetBackgroundImageUri,
