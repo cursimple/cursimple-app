@@ -385,6 +385,10 @@
     <string name="settings_display_teacher_subtitle">课程卡片显示教师名称</string>
     <string name="settings_display_total_title">总课表显示</string>
     <string name="settings_display_total_on">周视图显示本学期全部课程，非本周课程置灰标注</string>
+    <string name="settings_display_week_start_title">一周从哪天开始</string>
+    <string name="settings_display_week_start_subtitle">只改课表列的排列顺序，第几周仍按周一起算</string>
+    <string name="settings_display_week_start_monday">周一</string>
+    <string name="settings_display_week_start_sunday">周日</string>
     <string name="settings_display_total_off">周视图只显示本周课程</string>
     <string name="settings_widget_home_title">桌面小组件</string>
     <string name="settings_widget_home_subtitle">添加课表、下一节课或课程提醒</string>

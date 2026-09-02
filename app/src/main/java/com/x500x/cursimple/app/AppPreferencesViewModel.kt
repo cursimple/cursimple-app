@@ -10,6 +10,7 @@ import com.x500x.cursimple.core.data.UserPreferences
 import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import kotlinx.coroutines.flow.SharingStarted
@@ -150,6 +151,13 @@ class AppPreferencesViewModel(
 
     fun setScheduleWeekendVisible(visible: Boolean) {
         viewModelScope.launch { repository.setScheduleWeekendVisible(visible) }
+    }
+
+    fun setScheduleWeekStartDay(day: WeekStartDay) {
+        viewModelScope.launch {
+            repository.setScheduleWeekStartDay(day)
+            refreshScheduleOutputs()
+        }
     }
 
     fun setScheduleLocationVisible(visible: Boolean) {

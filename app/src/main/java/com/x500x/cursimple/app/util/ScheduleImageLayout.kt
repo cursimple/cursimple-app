@@ -14,6 +14,9 @@ import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
+import com.x500x.cursimple.core.kernel.time.columnDate
+import com.x500x.cursimple.core.kernel.time.columnDayOfWeeks
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -207,7 +210,7 @@ object ScheduleImageLayout {
         return (declared ?: DEFAULT_WEEK_COUNT).coerceAtLeast(1)
     }
 
-    /** 第 [weekNumber] 教学周的周一。 */
+    /** 第 [weekNumber] 教学周的周一。教学周锚点固定为周一，不跟随显示起始日。 */
     fun weekStartDate(termStartDate: LocalDate, weekNumber: Int): LocalDate =
         termStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             .plusWeeks((weekNumber - 1).toLong())
@@ -216,6 +219,7 @@ object ScheduleImageLayout {
         termName: String?,
         termStartDate: LocalDate,
         weekNumber: Int,
+        weekStartDay: WeekStartDay = WeekStartDay.Monday,
         schedule: TermSchedule?,
         manualCourses: List<CourseItem>,
         timingProfile: TermTimingProfile,
@@ -234,17 +238,24 @@ object ScheduleImageLayout {
         }
 
         val weekMonday = weekStartDate(termStartDate, safeWeek)
-        val dayDates = (1..7).associateWith { weekMonday.plusDays((it - 1).toLong()) }
+        // 周日起时这一页最左是周一的前一天，属于同一个显示窗口但在教学周锚点之前
+        val displayWeekStart = if (weekStartDay == WeekStartDay.Sunday) weekMonday.minusDays(1) else weekMonday
+        val orderedDayOfWeeks = columnDayOfWeeks(
+            weekStart = weekStartDay,
+            weekendVisible = true,
+            saturdayVisible = true,
+        )
+        val dayDates = orderedDayOfWeeks.associateWith { columnDate(displayWeekStart, it) }
         val resolutions = dayDates.mapValues { (_, date) ->
             resolveScheduleDay(date, overrides, holidayCalendar)
         }
 
-        val importedByDay = (1..7).associateWith { day ->
+        val importedByDay = orderedDayOfWeeks.associateWith { day ->
             schedule?.coursesOfDay(day).orEmpty().visibleScheduleCourses()
         }
         val visibleManual = manualCourses.visibleScheduleCourses()
 
-        val placedByDay = (1..7).associateWith { day ->
+        val placedByDay = orderedDayOfWeeks.associateWith { day ->
             collectDay(
                 date = dayDates.getValue(day),
                 resolution = resolutions.getValue(day),
@@ -256,10 +267,14 @@ object ScheduleImageLayout {
             )
         }
 
-        val lastCourseDay = (7 downTo 1).firstOrNull { placedByDay.getValue(it).isNotEmpty() } ?: 0
-        val dayCount = maxOf(MIN_DAY_COLUMNS, lastCourseDay)
+        // 只裁尾：最左那列即使没课也保留，否则周日起时整页会左移一格
+        val lastCourseColumn = orderedDayOfWeeks.indices.lastOrNull {
+            placedByDay.getValue(orderedDayOfWeeks[it]).isNotEmpty()
+        }?.plus(1) ?: 0
+        val dayCount = maxOf(MIN_DAY_COLUMNS, lastCourseColumn)
+        val columns = orderedDayOfWeeks.take(dayCount)
 
-        val shown = (1..dayCount).flatMap { placedByDay.getValue(it) }
+        val shown = columns.flatMap { placedByDay.getValue(it) }
         val firstRow = shown.minOfOrNull { it.rowStart } ?: 0
         val lastRow = shown.maxOfOrNull { it.rowEnd } ?: slots.lastIndex
         val rowCount = lastRow - firstRow + 1
@@ -270,13 +285,13 @@ object ScheduleImageLayout {
         val bodyBottom = bodyTop + rowCount * metrics.rowHeight
         val gridRight = gridLeft + metrics.nodeColumnWidth + dayCount * metrics.dayColumnWidth
 
-        fun columnLeft(day: Int): Float =
-            gridLeft + metrics.nodeColumnWidth + (day - 1) * metrics.dayColumnWidth
+        fun columnLeft(columnIndex: Int): Float =
+            gridLeft + metrics.nodeColumnWidth + columnIndex * metrics.dayColumnWidth
 
-        val dayHeaders = (1..dayCount).map { day ->
+        val dayHeaders = columns.mapIndexed { columnIndex, day ->
             val date = dayDates.getValue(day)
             val resolution = resolutions.getValue(day)
-            val left = columnLeft(day)
+            val left = columnLeft(columnIndex)
             ScheduleImageDayHeader(
                 dayOfWeek = day,
                 rect = ScheduleImageRect(left, gridTop, left + metrics.dayColumnWidth, bodyTop),
@@ -304,10 +319,10 @@ object ScheduleImageLayout {
             )
         }
 
-        val holidays = (1..dayCount).mapNotNull { day ->
+        val holidays = columns.mapIndexedNotNull { columnIndex, day ->
             val resolution = resolutions.getValue(day)
-            if (!resolution.isHoliday) return@mapNotNull null
-            val left = columnLeft(day)
+            if (!resolution.isHoliday) return@mapIndexedNotNull null
+            val left = columnLeft(columnIndex)
             val rect = ScheduleImageRect(left, bodyTop, left + metrics.dayColumnWidth, bodyBottom)
             val content = rect.inset(metrics.blockPadding + metrics.blockGap)
             val name = resolution.holidayNameRes?.let(labels.holidayNameOfRes)
@@ -333,10 +348,10 @@ object ScheduleImageLayout {
 
         val blocks = mutableListOf<ScheduleImageBlock>()
         val footnoteSources = mutableListOf<String>()
-        for (day in 1..dayCount) {
+        columns.forEachIndexed { columnIndex, day ->
             val placed = placedByDay.getValue(day)
-            if (placed.isEmpty()) continue
-            val left = columnLeft(day)
+            if (placed.isEmpty()) return@forEachIndexed
+            val left = columnLeft(columnIndex)
             for (group in overlapGroups(placed)) {
                 val overflow = group.size > metrics.maxLanesPerCell
                 val laneCount = if (overflow) metrics.maxLanesPerCell else group.size
@@ -413,13 +428,13 @@ object ScheduleImageLayout {
         }
 
         val courseCount = shown.size
-        val weekEnd = weekMonday.plusDays((dayCount - 1).toLong())
+        val weekEnd = displayWeekStart.plusDays((dayCount - 1).toLong())
         return ScheduleImageLayoutResult(
             width = ceil(gridRight + metrics.outerPadding).toInt(),
             height = ceil(contentBottom + metrics.outerPadding).toInt(),
             metrics = metrics,
             title = termName?.trim()?.takeIf { it.isNotEmpty() } ?: labels.defaultTitle,
-            subtitle = "${labels.weekLabel(safeWeek)} · ${labels.dateLabel(weekMonday)} - ${labels.dateLabel(weekEnd)}",
+            subtitle = "${labels.weekLabel(safeWeek)} · ${labels.dateLabel(displayWeekStart)} - ${labels.dateLabel(weekEnd)}",
             weekNumber = safeWeek,
             gridRect = ScheduleImageRect(gridLeft, gridTop, gridRight, bodyBottom),
             bodyRect = ScheduleImageRect(gridLeft, bodyTop, gridRight, bodyBottom),

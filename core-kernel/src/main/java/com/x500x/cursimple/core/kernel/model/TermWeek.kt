@@ -8,6 +8,9 @@ import java.time.temporal.TemporalAdjusters
 /**
  * 以开学日所在周的周一为基准换算 [date] 的教学周，不做任何钳制。
  * 开学之前得到 0 或负数。
+ *
+ * 锚点固定为周一，不跟随课表的显示起始日。已存课程的 weeks 字段是按这个锚点写下的，
+ * 改锚点等于改所有历史课表的周次含义。
  */
 fun resolveTermWeekNumber(termStart: LocalDate, date: LocalDate): Int {
     val termStartMonday = termStart.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))

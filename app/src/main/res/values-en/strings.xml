@@ -385,6 +385,10 @@
     <string name="settings_display_teacher_subtitle">Course cards show the teacher\'s name</string>
     <string name="settings_display_total_title">Full-term timetable</string>
     <string name="settings_display_total_on">The week view shows every course this term and grays out the ones outside this week</string>
+    <string name="settings_display_week_start_title">Week starts on</string>
+    <string name="settings_display_week_start_subtitle">Only reorders the timetable columns; week numbers still count from Monday</string>
+    <string name="settings_display_week_start_monday">Monday</string>
+    <string name="settings_display_week_start_sunday">Sunday</string>
     <string name="settings_display_total_off">The week view only shows this week\'s courses</string>
     <string name="settings_widget_home_title">Home screen widgets</string>
     <string name="settings_widget_home_subtitle">Add a timetable, next class or reminder widget</string>
