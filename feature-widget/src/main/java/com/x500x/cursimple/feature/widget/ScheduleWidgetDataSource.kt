@@ -28,6 +28,8 @@ internal data class ScheduleWidgetCourseRow(
     val title: String,
     val subtitle: String,
     val hasReminder: Boolean,
+    /** 放假当天的课程，行文字按不可用态显示。 */
+    val onHoliday: Boolean = false,
 ) {
     val stableId: Long = id.hashCode().toLong()
 }
@@ -164,7 +166,7 @@ internal object ScheduleWidgetDataSource {
             schedule?.coursesOfDay(dayOfWeek).orEmpty() +
                 manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
         }
-        val rows = day.courses.map { it.toRow(context, timingProfile, reminderRules) }
+        val rows = day.courses.map { it.toRow(context, timingProfile, reminderRules, day.onHoliday) }
 
         return LoadedDay(
             data = ScheduleWidgetDayData(
@@ -192,6 +194,7 @@ internal object ScheduleWidgetDataSource {
         context: Context,
         timingProfile: TermTimingProfile?,
         reminderRules: List<ReminderRule>,
+        onHoliday: Boolean,
     ): ScheduleWidgetCourseRow {
         val nodeRange = context.widgetNodeRangeText(time.startNode, time.endNode)
         val timeRange = timingProfile?.courseClockRange(this) ?: nodeRange
@@ -206,6 +209,7 @@ internal object ScheduleWidgetDataSource {
             title = context.widgetCourseTitleText(title, category == CourseCategory.Exam),
             subtitle = subtitle,
             hasReminder = reminderRules.any { it.matchesWidgetCourse(this, timingProfile) },
+            onHoliday = onHoliday,
         )
     }
 }
