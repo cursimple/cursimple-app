@@ -21,7 +21,7 @@ data class ScheduleDayResolution(
  * 优先级由高到低：
  * 1. 用户手动写下的节假日条目，无论是设为假日还是设为调休上课日；
  * 2. 覆盖当天的临时调课（补课/调课），它明示当天要上课，因此推翻内置假日；
- * 3. 内置节假日数据。
+ * 3. 同步下来的放假安排，取不到该年数据时回落到内置快照。
  *
  * 临时取消只移除指定节次的课，不参与当天是否为假日的判定。
  */
@@ -34,7 +34,7 @@ fun resolveScheduleDay(
     val effectiveEntry = when {
         userEntry != null -> userEntry
         matchingTemporaryScheduleOverride(date, overrides) != null -> null
-        else -> holidayCalendar.builtInEntryOn(date)
+        else -> holidayCalendar.syncedEntryOn(date) ?: holidayCalendar.builtInEntryOn(date)
     }
     val holiday = effectiveEntry?.kind == HolidayEntryKind.Holiday
     return ScheduleDayResolution(
@@ -42,6 +42,9 @@ fun resolveScheduleDay(
         sourceDate = if (holiday) date else resolveTemporaryScheduleSourceDate(date, overrides),
         isHoliday = holiday,
         holidayName = if (holiday) effectiveEntry?.name?.takeIf { it.isNotBlank() } else null,
-        holidayNameRes = if (holiday && userEntry == null) builtInHolidayNameResOn(date) else null,
+        holidayNameRes = when {
+            !holiday || userEntry != null -> null
+            else -> builtInHolidayNameResOn(date) ?: effectiveEntry?.name?.let(::holidayNameResOfName)
+        },
     )
 }

@@ -1943,6 +1943,7 @@ private fun ScheduleGrid(
                                 hasNote = courseNotes.hasNote(course.id),
                                 selected = course.id == selectedCourseId,
                                 inactive = mainEntry.inactive,
+                                onHoliday = mainEntry.onHoliday,
                                 temporarilyCancelled = mainEntry.temporarilyCancelled,
                                 cellCount = count,
                                 multiSelectMode = multiSelectMode,
@@ -2255,6 +2256,7 @@ private fun CourseBlock(
     hasNote: Boolean = false,
     selected: Boolean,
     inactive: Boolean,
+    onHoliday: Boolean = false,
     temporarilyCancelled: Boolean,
     cellCount: Int,
     multiSelectMode: Boolean,
@@ -2418,7 +2420,9 @@ private fun CourseBlock(
             ) {
                 if (inactive) {
                     Text(
-                        text = stringResource(R.string.schedule_status_other_week),
+                        text = stringResource(
+                            if (onHoliday) R.string.schedule_status_on_holiday else R.string.schedule_status_other_week,
+                        ),
                         color = onColor,
                         fontSize = 9.sp,
                         maxLines = 1,
@@ -2628,6 +2632,8 @@ internal data class CourseRenderEntry(
     val placement: CoursePlacement,
     val inactive: Boolean,
     val temporarilyCancelled: Boolean = false,
+    /** 不可用的原因是放假而不是课程不在本周，徽标据此换文案。 */
+    val onHoliday: Boolean = false,
 )
 
 internal fun visibleDayIndices(display: ScheduleDisplayPreferences): List<Int> = when {
@@ -3155,7 +3161,12 @@ internal fun buildWeekRenderEntries(
         val placement: CoursePlacement,
         val sourceWeekIndex: Int,
         val temporarilyCancelled: Boolean,
-    )
+        val onHoliday: Boolean = false,
+    ) {
+        /** 放假当天与不在本周的课程一样按不可用态渲染。 */
+        fun isInactive(weekNumberKnown: Boolean): Boolean =
+            onHoliday || (weekNumberKnown && !course.isActiveInWeek(sourceWeekIndex))
+    }
     val visibleColumns = visibleDayIndices
         .filter { it in 0..6 }
         .distinct()
@@ -3171,8 +3182,7 @@ internal fun buildWeekRenderEntries(
         visibleColumns.keys.sorted().flatMap { dayIndex ->
             val actualDate = weekStart.plusDays(dayIndex.toLong())
             val resolution = resolveScheduleDay(actualDate, temporaryScheduleOverrides, holidayCalendar)
-            // 假日整天不出课，总课表显示也不例外：这一天是明确放假，不是“课程不在本周”。
-            if (resolution.isHoliday) return@flatMap emptyList<Resolved>()
+            // 假日当天照常排出课程，只是渲染成不可用态；提醒仍按假日跳过。
             val sourceDate = resolution.sourceDate
             val sourceDayOfWeek = sourceDate.dayOfWeek.value
             val sourceWeekIndex = computeWeekNumberForDate(termStart, sourceDate) ?: weekIndex
@@ -3195,6 +3205,7 @@ internal fun buildWeekRenderEntries(
                             course = course,
                             overrides = temporaryScheduleOverrides,
                         ),
+                        onHoliday = resolution.isHoliday,
                     )
                 }
         }
@@ -3223,7 +3234,7 @@ internal fun buildWeekRenderEntries(
         list.distinctBy { it.course.id }
             .sortedWith(
                 compareBy<Resolved>(
-                    { weekNumberKnown && !it.course.isActiveInWeek(it.sourceWeekIndex) },
+                    { it.isInactive(weekNumberKnown) },
                     { it.course.time.startNode },
                     { it.course.time.endNode },
                     { it.course.title },
@@ -3234,8 +3245,9 @@ internal fun buildWeekRenderEntries(
                 entries += CourseRenderEntry(
                     course = it.course,
                     placement = it.placement,
-                    inactive = weekNumberKnown && !it.course.isActiveInWeek(it.sourceWeekIndex),
+                    inactive = it.isInactive(weekNumberKnown),
                     temporarilyCancelled = it.temporarilyCancelled,
+                    onHoliday = it.onHoliday,
                 )
         }
     }

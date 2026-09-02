@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
@@ -346,6 +347,11 @@ interface UserPreferencesRepository {
     suspend fun upsertHolidayCalendarEntry(entry: HolidayCalendarEntry)
     suspend fun removeHolidayCalendarEntry(date: String)
     suspend fun clearHolidayCalendarEntries()
+
+    /** 写入同步下来的放假安排，按年覆盖同一年的旧数据。 */
+    suspend fun putSyncedHolidayYears(years: List<SyncedHolidayYear>)
+
+    suspend fun clearSyncedHolidayYears()
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
     suspend fun setAlarmBackend(backend: ReminderAlarmBackend)

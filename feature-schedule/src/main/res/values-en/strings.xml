@@ -115,6 +115,7 @@
     <string name="schedule_exam_mute_this">Cancel this one</string>
     <string name="schedule_status_week_unknown">Week unknown</string>
     <string name="schedule_status_other_week">Other weeks</string>
+    <string name="schedule_status_on_holiday">Holiday</string>
     <string name="schedule_status_manual">Manual</string>
     <string name="schedule_status_this_week">This week</string>
     <string name="schedule_exam_countdown_today">Today</string>
