@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
+import androidx.annotation.RequiresApi
 import androidx.glance.layout.size
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
@@ -57,6 +58,7 @@ private fun loadWidgetBackgroundBitmap(context: Context, uriString: String): Bit
     return decodeWidgetBackgroundWithBitmapFactory(context, uri)
 }
 
+@RequiresApi(Build.VERSION_CODES.P)
 private fun decodeWidgetBackgroundWithImageDecoder(context: Context, uri: Uri): Bitmap? =
     runCatching {
         val source = ImageDecoder.createSource(context.contentResolver, uri)

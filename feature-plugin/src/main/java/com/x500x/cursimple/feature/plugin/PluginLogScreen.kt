@@ -80,6 +80,7 @@ fun PluginLogScreen(
     val clipboard = LocalClipboard.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val clipLabel = stringResource(R.string.plugin_log_title)
     val listState = rememberLazyListState()
 
     val filtered = remember(entries, levelFilter, sourceFilter, query, pinnedTraceId) {
@@ -109,8 +110,7 @@ fun PluginLogScreen(
                     IconButton(onClick = {
                         val lines = filtered.joinToString("\n") { it.toJsonLine() }
                         coroutineScope.launch {
-                            val label = context.getString(R.string.plugin_log_title)
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(label, lines)))
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(clipLabel, lines)))
                             Toast.makeText(
                                 context,
                                 context.getString(R.string.plugin_log_copied_count, filtered.size),
