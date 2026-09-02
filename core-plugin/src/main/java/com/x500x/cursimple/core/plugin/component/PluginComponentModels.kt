@@ -80,8 +80,8 @@ sealed interface PluginComponentInstallResult {
     data class Failure(val reason: PluginComponentInstallFailure) : PluginComponentInstallResult
 }
 
-@Serializable
+/** [error] 由界面层渲染成当前语言的文案。 */
 data class PluginComponentInstallFailure(
-    @SerialName("code") val code: String,
-    @SerialName("message") val message: String,
+    val code: String,
+    val error: Throwable,
 )

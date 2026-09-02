@@ -1,6 +1,9 @@
 package com.x500x.cursimple.core.plugin.packageformat
 
+import com.x500x.cursimple.core.plugin.PluginArgumentException
+import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
+import com.x500x.cursimple.core.plugin.pluginRequire
 import com.x500x.cursimple.core.plugin.security.PluginChecksums
 import kotlinx.serialization.json.Json
 
@@ -8,7 +11,10 @@ data class PluginPackageLayout(
     val files: Map<String, ByteArray>,
 ) {
     fun requireFile(path: String): ByteArray {
-        return files[path] ?: throw IllegalArgumentException("插件包缺少文件: $path")
+        return files[path] ?: throw PluginArgumentException(
+            R.string.plugin_error_package_missing_file,
+            listOf(path),
+        )
     }
 
     fun readText(path: String): String = requireFile(path).toString(Charsets.UTF_8)
@@ -21,7 +27,11 @@ data class PluginPackageLayout(
         val manifest = decodeManifest(json)
         requireSafePluginId(manifest.id)
         val normalizedEntry = normalizePluginPackagePath(manifest.entry)
-        require(normalizedEntry in files) { "插件包缺少入口文件: ${manifest.entry}" }
+        pluginRequire(
+            normalizedEntry in files,
+            R.string.plugin_error_package_missing_entry_file,
+            manifest.entry,
+        )
         return manifest.copy(entry = normalizedEntry)
     }
 

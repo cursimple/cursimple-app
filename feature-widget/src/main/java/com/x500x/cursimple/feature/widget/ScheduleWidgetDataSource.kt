@@ -36,14 +36,13 @@ internal data class ScheduleWidgetDayData(
     val offset: Int,
     val manualOffset: Int,
     val targetDate: LocalDate,
-    val weekdayLabel: String,
     val sourceDate: LocalDate,
     val rows: List<ScheduleWidgetCourseRow>,
     val widgetTheme: WidgetThemePreferences = WidgetThemePreferences(),
     val beforeTermStart: Boolean = false,
     val termStartMissing: Boolean = false,
     val termStartDate: LocalDate? = null,
-    val holidayLabel: String? = null,
+    val holidayLabel: WidgetHolidayLabel? = null,
 ) {
     val themeAccent: ThemeAccent = widgetTheme.themeAccent
 }
@@ -91,6 +90,7 @@ internal object ScheduleWidgetDataSource {
         )
 
         val currentDay = loadDate(
+            context = appContext,
             targetDate = today,
             offset = 0,
             manualOffset = manualOffset,
@@ -105,6 +105,7 @@ internal object ScheduleWidgetDataSource {
         )
         if (manualOffset == 0 && shouldShowNextDayAtNight(BeijingTime.nowTimeIn(zone), currentDay.courses, timingProfile)) {
             return loadDate(
+                context = appContext,
                 targetDate = today.plusDays(1),
                 offset = 1,
                 manualOffset = manualOffset,
@@ -121,6 +122,7 @@ internal object ScheduleWidgetDataSource {
         if (manualOffset == 0) return currentDay.data
 
         return loadDate(
+            context = appContext,
             targetDate = today.plusDays(manualOffset.toLong()),
             offset = manualOffset,
             manualOffset = manualOffset,
@@ -136,6 +138,7 @@ internal object ScheduleWidgetDataSource {
     }
 
     private suspend fun loadDate(
+        context: Context,
         targetDate: LocalDate,
         offset: Int,
         manualOffset: Int,
@@ -161,14 +164,13 @@ internal object ScheduleWidgetDataSource {
             schedule?.coursesOfDay(dayOfWeek).orEmpty() +
                 manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
         }
-        val rows = day.courses.map { it.toRow(timingProfile, reminderRules) }
+        val rows = day.courses.map { it.toRow(context, timingProfile, reminderRules) }
 
         return LoadedDay(
             data = ScheduleWidgetDayData(
                 offset = offset,
                 manualOffset = manualOffset,
                 targetDate = targetDate,
-                weekdayLabel = weekdayLabel(targetDate),
                 sourceDate = day.sourceDate,
                 rows = rows,
                 widgetTheme = widgetTheme,
@@ -187,34 +189,24 @@ internal object ScheduleWidgetDataSource {
     )
 
     private fun CourseItem.toRow(
+        context: Context,
         timingProfile: TermTimingProfile?,
         reminderRules: List<ReminderRule>,
     ): ScheduleWidgetCourseRow {
-        val nodeRange = "${time.startNode}-${time.endNode}节"
+        val nodeRange = context.widgetNodeRangeText(time.startNode, time.endNode)
         val timeRange = timingProfile?.courseClockRange(this) ?: nodeRange
         val subtitle = listOf(location, teacher)
             .filter { it.isNotBlank() }
             .joinToString(" · ")
-            .ifBlank { "待定" }
+            .ifBlank { context.getString(R.string.widget_course_subtitle_placeholder) }
         return ScheduleWidgetCourseRow(
             id = id,
             nodeRange = nodeRange,
             timeRange = timeRange,
-            title = if (category == CourseCategory.Exam) "考试 · $title" else title,
+            title = context.widgetCourseTitleText(title, category == CourseCategory.Exam),
             subtitle = subtitle,
             hasReminder = reminderRules.any { it.matchesWidgetCourse(this, timingProfile) },
         )
-    }
-
-    private fun weekdayLabel(date: LocalDate): String = when (date.dayOfWeek.value) {
-        1 -> "星期一"
-        2 -> "星期二"
-        3 -> "星期三"
-        4 -> "星期四"
-        5 -> "星期五"
-        6 -> "星期六"
-        7 -> "星期日"
-        else -> ""
     }
 }
 

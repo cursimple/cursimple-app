@@ -1,5 +1,7 @@
 package com.x500x.cursimple.core.plugin.runtime
 
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.assertPluginError
 import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -55,7 +57,7 @@ class ScheduleDraftTest {
             ).toTermSchedule()
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("无效星期"))
+        assertPluginError(R.string.plugin_error_draft_invalid_day_of_week, error, 8)
     }
 
     @Test
@@ -74,6 +76,6 @@ class ScheduleDraftTest {
             ).toTermSchedule(PluginRuntimeLimits(maxCourses = 0))
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("课程数量过多"))
+        assertPluginError(R.string.plugin_error_draft_too_many_courses, error)
     }
 }

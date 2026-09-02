@@ -1,5 +1,7 @@
 package com.x500x.cursimple.core.plugin.packageformat
 
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.assertPluginError
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
@@ -63,7 +65,7 @@ class PluginPackageReaderTest {
             )
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("路径穿越"))
+        assertPluginError(R.string.plugin_error_package_path_traversal, error, "../main.js")
     }
 
     @Test
@@ -78,7 +80,7 @@ class PluginPackageReaderTest {
             )
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("重复文件"))
+        assertPluginError(R.string.plugin_error_package_duplicate_file, error, "dir/main.js")
     }
 
     @Test
@@ -92,7 +94,7 @@ class PluginPackageReaderTest {
             )
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("入口文件"))
+        assertPluginError(R.string.plugin_error_package_missing_entry_file, error, "missing.js")
     }
 
     private fun manifestJson(entry: String): String {
@@ -178,7 +180,10 @@ class PluginInstallerPackageTest {
 
         assertFalse(preview.checksumVerified)
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("插件摘要校验失败"))
+        assertPluginError(
+            R.string.plugin_error_install_checksum_rejected,
+            (result as PluginInstallResult.Failure).error,
+        )
     }
 
     @Test
@@ -192,7 +197,10 @@ class PluginInstallerPackageTest {
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("摘要不能为空"))
+        assertPluginError(
+            R.string.plugin_error_checksum_empty,
+            (result as PluginInstallResult.Failure).error,
+        )
     }
 
     @Test
@@ -206,8 +214,11 @@ class PluginInstallerPackageTest {
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("覆盖不完整"))
-        assertTrue(result.message.contains("main.js"))
+        assertPluginError(
+            R.string.plugin_error_checksum_coverage_missing,
+            (result as PluginInstallResult.Failure).error,
+            "main.js",
+        )
     }
 
     @Test
@@ -221,7 +232,11 @@ class PluginInstallerPackageTest {
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("不存在"))
+        assertPluginError(
+            R.string.plugin_error_checksum_unknown_file,
+            (result as PluginInstallResult.Failure).error,
+            "missing.js",
+        )
     }
 
     @Test
@@ -235,7 +250,11 @@ class PluginInstallerPackageTest {
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("格式无效"))
+        assertPluginError(
+            R.string.plugin_error_checksum_format_invalid,
+            (result as PluginInstallResult.Failure).error,
+            "main.js",
+        )
     }
 
     @Test
@@ -249,7 +268,11 @@ class PluginInstallerPackageTest {
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("只支持 SHA-256"))
+        assertPluginError(
+            R.string.plugin_error_checksum_algorithm_unsupported,
+            (result as PluginInstallResult.Failure).error,
+            "MD5",
+        )
     }
 
     @Test
@@ -263,7 +286,11 @@ class PluginInstallerPackageTest {
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("插件 ID"))
+        assertPluginError(
+            R.string.plugin_error_plugin_id_charset,
+            (result as PluginInstallResult.Failure).error,
+            "../evil",
+        )
     }
 
     @Test
@@ -277,7 +304,11 @@ class PluginInstallerPackageTest {
         val result = installer.installPackage(packageBytes, PluginInstallSource.Local)
 
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("插件 ID"))
+        assertPluginError(
+            R.string.plugin_error_plugin_id_charset,
+            (result as PluginInstallResult.Failure).error,
+            "edu/demo",
+        )
     }
 
     @Test
@@ -317,7 +348,7 @@ class PluginInstallerPackageTest {
             )
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("路径穿越"))
+        assertPluginError(R.string.plugin_error_package_path_traversal, error, "../escape.txt")
     }
 
     @Test

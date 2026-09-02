@@ -162,7 +162,7 @@ class ScheduleHolidayDisplayTest {
         )
 
         assertNull(week.days[2].holidayLabel)
-        assertEquals("按${monday.monthValue}/${monday.dayOfMonth}周一", week.days[2].overrideLabel)
+        assertEquals(SourceDateLabel(monday.monthValue, monday.dayOfMonth, 1), week.days[2].overrideLabel)
     }
 
     @Test

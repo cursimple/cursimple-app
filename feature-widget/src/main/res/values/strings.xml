@@ -6,4 +6,74 @@
     <string name="widget_label_today">每日课程</string>
     <string name="widget_label_next">下一节课</string>
     <string name="widget_label_reminder">课程提醒</string>
+
+    <string name="widget_catalog_next_description">紧凑显示当前与下一节课程，附时间和地点</string>
+    <string name="widget_catalog_today_description">查看任意日期的课程列表，可一键切换和回到今天</string>
+    <string name="widget_catalog_reminder_description">未来即将触发的课程提醒清单</string>
+
+    <string name="widget_month_day">%1$d月%2$d日</string>
+    <string name="widget_title_date_tag">%1$s · %2$s</string>
+    <string name="widget_date_weekday">%1$s%2$s</string>
+
+    <string name="widget_day_tag_yesterday">昨天</string>
+    <string name="widget_day_tag_today">今天</string>
+    <string name="widget_day_tag_tomorrow">明天</string>
+    <string name="widget_day_tag_ahead">+%1$d天</string>
+    <string name="widget_day_tag_behind">-%1$d天</string>
+
+    <string name="widget_holiday_default">放假</string>
+    <string name="widget_empty_holiday">%1$s · 全天无课</string>
+    <string name="widget_empty_term_start_missing">未设开学日期 · 点按设置</string>
+    <string name="widget_empty_before_term_start">未开学</string>
+    <string name="widget_empty_before_term_start_date">未开学 · %1$d月%2$d日开学</string>
+    <string name="widget_empty_yesterday">昨日没有课程</string>
+    <string name="widget_empty_today">今日没有课程，享受一天</string>
+    <string name="widget_empty_tomorrow">明日没有课程</string>
+    <string name="widget_empty_other_day">当日没有课程</string>
+
+    <string name="widget_subtitle_holiday">%1$s · %2$s</string>
+    <string name="widget_subtitle_term_start_missing">%1$s · 未设开学日期</string>
+    <string name="widget_subtitle_before_term_start">%1$s · 未开学</string>
+    <string name="widget_subtitle_source">%1$s · 按%2$s课</string>
+
+    <string name="widget_next_header_today">今日课程</string>
+    <string name="widget_next_header_tomorrow">明日课程</string>
+    <string name="widget_next_header_holiday">%1$s · %2$s</string>
+    <string name="widget_next_header_source">%1$s · 按%2$s</string>
+    <string name="widget_next_header_status">%1$s · %2$s</string>
+    <string name="widget_next_empty_no_more_today">今天没有更多课程</string>
+    <string name="widget_next_empty_today">今天没有课程</string>
+    <string name="widget_next_empty_tomorrow">明天没有课程</string>
+    <string name="widget_next_empty_other_day">当天没有课程</string>
+
+    <string name="widget_status_live">上课中</string>
+    <string name="widget_status_exam_live">考试中</string>
+    <string name="widget_status_upcoming">即将开始</string>
+    <string name="widget_status_finished">已结束</string>
+
+    <string name="widget_countdown_minutes">%1$d分钟后</string>
+    <string name="widget_countdown_hours">%1$d小时后</string>
+    <string name="widget_countdown_hours_minutes">%1$d小时%2$d分后</string>
+
+    <string name="widget_node_range">%1$d-%2$d节</string>
+    <string name="widget_course_subtitle_placeholder">待定</string>
+    <string name="widget_exam_title">考试 · %1$s</string>
+    <string name="widget_course_reminder_badge">提醒</string>
+
+    <string name="widget_reminder_badge_count">%1$d 条</string>
+    <string name="widget_reminder_empty_no_rules">尚未设置提醒规则</string>
+    <string name="widget_reminder_empty_no_rules_sub">在应用内为课程添加提醒</string>
+    <string name="widget_reminder_empty_none_upcoming">暂无即将到来的提醒</string>
+    <string name="widget_reminder_empty_none_upcoming_sub">未来一段时间没有规划</string>
+    <string name="widget_reminder_date_today">今天</string>
+    <string name="widget_reminder_date_tomorrow">明天</string>
+    <string name="widget_reminder_date_day_after">后天</string>
+    <string name="widget_reminder_countdown_now">即将</string>
+    <string name="widget_reminder_countdown_minutes">%1$d分钟</string>
+    <string name="widget_reminder_countdown_hours">%1$d小时</string>
+    <string name="widget_reminder_countdown_hours_minutes">%1$d小时%2$d分</string>
+    <string name="widget_reminder_countdown_days">%1$d天后</string>
+    <string name="widget_reminder_default_title">课程提醒</string>
+    <string name="widget_reminder_default_message">课程即将开始</string>
+    <string name="widget_reminder_snoozed_message">已延后 5 分钟</string>
 </resources>

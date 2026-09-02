@@ -61,7 +61,10 @@ private class ScheduleCourseListFactory(
         row.setTextViewText(R.id.course_title, rowData.title)
         row.setTextViewText(R.id.course_subtitle, rowData.subtitle)
         row.setViewVisibility(R.id.course_badge, if (rowData.hasReminder) View.VISIBLE else View.GONE)
-        row.setTextViewText(R.id.course_badge, if (rowData.hasReminder) "提醒" else "")
+        row.setTextViewText(
+            R.id.course_badge,
+            if (rowData.hasReminder) context.getString(R.string.widget_course_reminder_badge) else "",
+        )
         return row
     }
 

@@ -12,4 +12,16 @@
     <string name="kernel_weekday_saturday">Sat</string>
     <string name="kernel_weekday_sunday">Sun</string>
     <string name="kernel_weekday_unknown">Unknown</string>
+
+    <string name="kernel_holiday_new_year">New Year</string>
+    <string name="kernel_holiday_spring_festival_eve">Chinese New Year Eve</string>
+    <string name="kernel_holiday_spring_festival">Chinese New Year</string>
+    <string name="kernel_holiday_qingming">Qingming Festival</string>
+    <string name="kernel_holiday_qingming_makeup">Qingming Festival (observed)</string>
+    <string name="kernel_holiday_labour_day">Labour Day</string>
+    <string name="kernel_holiday_labour_day_makeup">Labour Day (observed)</string>
+    <string name="kernel_holiday_dragon_boat">Dragon Boat Festival</string>
+    <string name="kernel_holiday_mid_autumn">Mid-Autumn Festival</string>
+    <string name="kernel_holiday_national_day">National Day</string>
+    <string name="kernel_holiday_national_day_makeup">National Day (observed)</string>
 </resources>

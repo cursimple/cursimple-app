@@ -47,20 +47,20 @@ data class AutoSilenceReadiness(
             AutoSilenceMode.Silent, AutoSilenceMode.DoNotDisturb -> notificationPolicyGranted
         }
 
-    /** 阻止开启的原因，为 null 表示可以开启。 */
-    val blockingReason: String?
+    /** 阻止开启的原因的文案资源，为 null 表示可以开启。 */
+    val blockingReasonRes: Int?
         get() = when {
-            !permissionSatisfied -> "需要「勿扰权限」，否则系统不允许本应用切换手机状态"
+            !permissionSatisfied -> R.string.autosilence_block_no_dnd_permission
             mode == AutoSilenceMode.DoNotDisturb && !doNotDisturbAllowsAlarms ->
-                "系统勿扰设置里没有放行闹钟，开启后课程提醒会被一起静音"
+                R.string.autosilence_block_dnd_mutes_alarms
 
             else -> null
         }
 
     /** 不阻止开启，但需要提示用户的问题。 */
-    val warning: String?
-        get() = if (blockingReason == null && !alarmVolumeAudible) {
-            "系统闹钟音量为 0，课程提醒不会出声"
+    val warningRes: Int?
+        get() = if (blockingReasonRes == null && !alarmVolumeAudible) {
+            R.string.autosilence_warn_alarm_volume_zero
         } else {
             null
         }
@@ -240,13 +240,18 @@ object AutoSilenceController {
         reason: String,
     ) {
         val mode = prefs.autoSilence.mode
-        val blockingReason = readiness(context, mode).blockingReason
-        if (blockingReason != null) {
+        val blockingReasonRes = readiness(context, mode).blockingReasonRes
+        if (blockingReasonRes != null) {
+            val blockingReason = context.getString(blockingReasonRes)
             ReminderLogger.warn(
                 "reminder.auto_silence.apply.blocked",
                 mapOf("mode" to mode.name, "reason" to reason, "blocking" to blockingReason),
             )
-            showProblemNotification(context, "自动静音没有生效", blockingReason)
+            showProblemNotification(
+                context,
+                context.getString(R.string.autosilence_not_applied),
+                blockingReason,
+            )
             return
         }
 
@@ -276,8 +281,8 @@ object AutoSilenceController {
             )
             showProblemNotification(
                 context,
-                "自动静音没有生效",
-                "系统拒绝了切换请求，请在系统设置里确认已授予勿扰权限",
+                context.getString(R.string.autosilence_not_applied),
+                context.getString(R.string.autosilence_switch_rejected),
             )
             return
         }
@@ -342,8 +347,8 @@ object AutoSilenceController {
             )
             showProblemNotification(
                 context,
-                "手机还没恢复响铃",
-                "系统拒绝了恢复请求，请手动把铃声模式调回来，并检查勿扰权限是否被收回",
+                context.getString(R.string.autosilence_not_restored),
+                context.getString(R.string.autosilence_restore_rejected),
             )
             return
         }
@@ -447,19 +452,19 @@ object AutoSilenceController {
             null
         }
         val text = buildString {
-            append(modeLabel(mode))
+            append(context.getString(modeLabelRes(mode)))
             if (endText != null) {
                 append(" · ")
                 append(endText)
-                append(" 自动恢复")
+                append(context.getString(R.string.autosilence_restore_suffix))
             }
         }
         postNotification(
             context = context,
             channelId = CHANNEL_STATUS,
-            channelName = "上课自动静音",
+            channelName = context.getString(R.string.autosilence_channel_status),
             notificationId = NOTIFICATION_STATUS,
-            title = "上课中已自动静音",
+            title = context.getString(R.string.autosilence_active_title),
             text = text,
             ongoing = true,
             withRestoreAction = true,
@@ -470,7 +475,7 @@ object AutoSilenceController {
         postNotification(
             context = context,
             channelId = CHANNEL_ALERT,
-            channelName = "自动静音异常",
+            channelName = context.getString(R.string.autosilence_channel_problem),
             notificationId = NOTIFICATION_ALERT,
             title = title,
             text = text,
@@ -508,7 +513,7 @@ object AutoSilenceController {
                 .setOnlyAlertOnce(true)
                 .setOngoing(ongoing)
             if (withRestoreAction) {
-                builder.addAction(0, "立即恢复", restoreNowPendingIntent(context))
+                builder.addAction(0, context.getString(R.string.autosilence_restore_now), restoreNowPendingIntent(context))
             }
             NotificationManagerCompat.from(context).notify(notificationId, builder.build())
         }.onFailure { error ->
@@ -532,17 +537,17 @@ object AutoSilenceController {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         if (manager.getNotificationChannel(channelId) != null) return
         val channel = NotificationChannel(channelId, channelName, NotificationManager.IMPORTANCE_LOW).apply {
-            description = "上课时段自动静音的状态提示"
+            description = context.getString(R.string.autosilence_channel_description)
             setSound(null, null)
             enableVibration(false)
         }
         manager.createNotificationChannel(channel)
     }
 
-    private fun modeLabel(mode: AutoSilenceMode): String = when (mode) {
-        AutoSilenceMode.Vibrate -> "已切到仅震动"
-        AutoSilenceMode.Silent -> "已切到静音"
-        AutoSilenceMode.DoNotDisturb -> "已打开勿扰（仅优先级）"
+    private fun modeLabelRes(mode: AutoSilenceMode): Int = when (mode) {
+        AutoSilenceMode.Vibrate -> R.string.autosilence_mode_vibrate
+        AutoSilenceMode.Silent -> R.string.autosilence_mode_silent
+        AutoSilenceMode.DoNotDisturb -> R.string.autosilence_mode_dnd
     }
 
     private const val CHANNEL_STATUS = "auto_silence_status"

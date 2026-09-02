@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app.ai
 
+import com.x500x.cursimple.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -173,8 +174,15 @@ class AiScheduleImportClientTest {
             normalizeAiEndpoint("http://api.example.com/v1/chat/completions")
         }.exceptionOrNull()
 
-        assertTrue(error is IllegalArgumentException)
-        assertTrue(error!!.message!!.contains("HTTPS"))
+        assertTrue(error is AiImportException)
+        assertEquals(R.string.ai_error_https_required, (error as AiImportException).messageRes)
+    }
+
+    @Test
+    fun `accepts an https ai endpoint`() {
+        val normalized = normalizeAiEndpoint("https://api.example.com/v1/chat/completions")
+
+        assertTrue(normalized.startsWith("https://"))
     }
 
     private fun quoteJson(value: String): String =

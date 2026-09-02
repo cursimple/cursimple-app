@@ -30,6 +30,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderRule
+import com.x500x.cursimple.core.reminder.model.ReminderMessage
 import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
@@ -180,6 +181,9 @@ class SystemAlarmRegistryTest {
         assertEquals(AppAlarmOperationMode.ForegroundService, record.operationMode)
         assertTrue(record.displayTitle.orEmpty().contains("高等数学"))
         assertTrue(record.displayMessage.orEmpty().contains("08:00-09:35"))
+        assertEquals("高等数学", record.titleContent?.courseTitle)
+        assertEquals("08:00", record.messageContent?.startTime)
+        assertEquals("09:35", record.messageContent?.endTime)
     }
 
     @Test
@@ -442,6 +446,7 @@ class SystemAlarmRegistryTest {
         assertEquals("first-course", record.ruleId)
         assertEquals("math", record.courseId)
         assertTrue(record.displayTitle.orEmpty().contains("上午首次课"))
+        assertEquals(ReminderDayPeriod.Morning, record.titleContent?.firstCoursePeriod)
     }
 
     @Test
@@ -1060,6 +1065,7 @@ class SystemAlarmRegistryTest {
         val record = repository.records.value.single { it.alarmKey == snoozePlan.systemAlarmKey() }
         assertEquals(true, result.consumed)
         assertEquals(true, result.snoozeCreated)
+        assertEquals(ReminderMessage.SnoozedFiveMinutes, result.localizedMessage)
         assertEquals(listOf(sampleRule()), repository.getReminderRules())
         assertEquals(listOf("future", snoozePlan.systemAlarmKey()).sorted(), repository.records.value.map { it.alarmKey }.sorted())
         assertEquals(snoozePlan.systemAlarmKey(), record.alarmKey)
@@ -1233,7 +1239,8 @@ class SystemAlarmRegistryTest {
 
         assertFalse(result.succeeded)
         assertEquals(AlarmDispatchChannel.SystemClockApp, result.channel)
-        assertEquals(SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND, result.message)
+        assertEquals(SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND, result.localizedMessage)
+        assertEquals("", result.message)
     }
 
     @Test
@@ -1248,7 +1255,8 @@ class SystemAlarmRegistryTest {
 
         assertFalse(result.succeeded)
         assertEquals(record.alarmKey, result.alarmKey)
-        assertEquals(SystemAlarmClockMessages.DISMISS_REQUIRES_FOREGROUND, result.message)
+        assertEquals(SystemAlarmClockMessages.DISMISS_REQUIRES_FOREGROUND, result.localizedMessage)
+        assertEquals("", result.message)
     }
 
     @Test
@@ -1282,7 +1290,7 @@ class SystemAlarmRegistryTest {
         assertEquals(emptyList<SystemAlarmRecord>(), repository.records.value)
         assertEquals(
             SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND,
-            summary.results.single().message,
+            summary.results.single().localizedMessage,
         )
     }
 
@@ -1310,6 +1318,7 @@ class SystemAlarmRegistryTest {
         val result = coordinator.setAppAlarmEnabled(expiredRecord.alarmKey, enabled = true)
 
         assertFalse(result.succeeded)
+        assertEquals(ReminderMessage.AlarmTimePassed, result.localizedMessage)
         assertEquals(0, dispatcher.dispatchCount)
         assertFalse(repository.records.value.single().enabled)
     }
@@ -1362,7 +1371,7 @@ class SystemAlarmRegistryTest {
         val result = coordinator.setAppAlarmEnabled(record.alarmKey, enabled = true)
 
         assertFalse(result.succeeded)
-        assertEquals("dispatch boom", result.message)
+        assertEquals(ReminderMessage.EnableAlarmFailed("dispatch boom"), result.localizedMessage)
         assertFalse(repository.records.value.single().enabled)
     }
 
@@ -1386,7 +1395,7 @@ class SystemAlarmRegistryTest {
         val result = coordinator.setAppAlarmEnabled(record.alarmKey, enabled = false)
 
         assertFalse(result.succeeded)
-        assertEquals("dismiss boom", result.message)
+        assertEquals(ReminderMessage.DisableAlarmFailed("dismiss boom"), result.localizedMessage)
         assertTrue(repository.records.value.single().enabled)
     }
 

@@ -75,6 +75,8 @@ import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.booleanResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -110,7 +112,7 @@ import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
-import com.x500x.cursimple.core.kernel.model.weekdayLabel
+import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.data.note.CourseNoteIndex
@@ -528,7 +530,7 @@ fun ScheduleAppearancePreview(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MonthCornerCell(
-                    monthLabel = previewWeek.days.firstOrNull()?.monthLabel.orEmpty(),
+                    monthNumber = previewWeek.days.firstOrNull()?.monthNumber,
                     width = timeColumnWidth,
                     scheduleTextStyle = scheduleTextStyle,
                     customColorsAdaptToTheme = customColorsAdaptToTheme,
@@ -907,8 +909,8 @@ private fun DailyScheduleSection(
     val sourceWeekNumber = computeWeekNumberForDate(termStartDate, sourceDate).takeIf {
         sourceDate != targetDate
     } ?: targetWeekNumber
-    val overrideLabel = sourceDate.takeIf { it != targetDate }?.let(::formatSourceDateLabel)
-    val holidayLabel = dayResolution.takeIf { it.isHoliday }?.let { holidayDisplayLabel(it.holidayName) }
+    val overrideLabel = sourceDate.takeIf { it != targetDate }?.let { sourceDateLabel(it) }
+    val holidayLabel = dayResolution.takeIf { it.isHoliday }?.let { holidayDisplayLabel(it.holidayName, it.holidayNameRes) }
 
     Card(
         modifier = modifier,
@@ -996,7 +998,7 @@ private fun DailyScheduleSection(
 private fun DailyHeaderRow(
     date: LocalDate,
     isToday: Boolean,
-    overrideLabel: String?,
+    overrideLabel: SourceDateLabel?,
     holidayLabel: HolidayLabel? = null,
 ) {
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
@@ -1052,7 +1054,7 @@ private fun DailyHeaderRow(
                 shape = RoundedCornerShape(999.dp),
             ) {
                 Text(
-                    text = stringResource(R.string.schedule_override_day, overrideLabel),
+                    text = stringResource(R.string.schedule_override_day, LocalContext.current.formatSourceDateLabel(overrideLabel)),
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -1498,23 +1500,27 @@ internal fun detailWeekNumber(
     resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar).sourceDate,
 )
 
-private fun formatSourceDateLabel(date: LocalDate): String =
-    "${date.monthValue}/${date.dayOfMonth}${weekdayLabel(date.dayOfWeek.value)}"
-
 /** 假日在表头与空态里显示的名字来源。 */
 internal sealed interface HolidayLabel {
-    /** 日历条目自带名字。 */
+    /** 用户自建条目自带的名字，按原文显示。 */
     data class Named(val name: String) : HolidayLabel
+
+    /** 内置假日，名字随语言变化。 */
+    data class BuiltIn(val nameRes: Int) : HolidayLabel
 
     /** 用户手动加的假日可以没有名字，用通用文案。 */
     data object Unnamed : HolidayLabel
 }
 
-internal fun holidayDisplayLabel(holidayName: String?): HolidayLabel =
-    holidayName?.takeIf { it.isNotBlank() }?.let(HolidayLabel::Named) ?: HolidayLabel.Unnamed
+internal fun holidayDisplayLabel(holidayName: String?, holidayNameRes: Int? = null): HolidayLabel = when {
+    holidayNameRes != null -> HolidayLabel.BuiltIn(holidayNameRes)
+    !holidayName.isNullOrBlank() -> HolidayLabel.Named(holidayName)
+    else -> HolidayLabel.Unnamed
+}
 
 internal fun Context.holidayLabelText(label: HolidayLabel): String = when (label) {
     is HolidayLabel.Named -> label.name
+    is HolidayLabel.BuiltIn -> getString(label.nameRes)
     HolidayLabel.Unnamed -> getString(R.string.schedule_holiday_unnamed)
 }
 
@@ -1773,7 +1779,7 @@ private fun ScheduleGrid(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 MonthCornerCell(
-                    monthLabel = week.days.firstOrNull()?.monthLabel.orEmpty(),
+                    monthNumber = week.days.firstOrNull()?.monthNumber,
                     width = timeColumnWidth,
                     scheduleTextStyle = scheduleTextStyle,
                     customColorsAdaptToTheme = customColorsAdaptToTheme,
@@ -2114,7 +2120,7 @@ private fun DayHeader(
             softWrap = false,
         )
         Text(
-            text = day.dateLabel,
+            text = LocalContext.current.dayDateLabelText(day.dateLabel),
             fontSize = headerSize,
             fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium,
             color = if (day.isToday) todayContent else headerColor,
@@ -2133,7 +2139,7 @@ private fun DayHeader(
             )
         } else if (day.overrideLabel != null) {
             Text(
-                text = day.overrideLabel,
+                text = stringResource(R.string.schedule_override_source, LocalContext.current.formatSourceDateLabel(day.overrideLabel)),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.primary,
@@ -2146,7 +2152,7 @@ private fun DayHeader(
 
 @Composable
 private fun MonthCornerCell(
-    monthLabel: String,
+    monthNumber: Int?,
     width: androidx.compose.ui.unit.Dp,
     scheduleTextStyle: ScheduleTextStylePreferences,
     customColorsAdaptToTheme: Boolean,
@@ -2162,24 +2168,35 @@ private fun MonthCornerCell(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        if (monthLabel.isNotBlank()) {
-            val month = monthLabel.removeSuffix("月")
-            Text(
-                text = month,
-                fontSize = headerSize,
-                fontWeight = FontWeight.SemiBold,
-                color = muted,
-                maxLines = 1,
-                softWrap = false,
-            )
-            Text(
-                text = "月",
-                fontSize = headerSize,
-                fontWeight = FontWeight.Medium,
-                color = muted,
-                maxLines = 1,
-                softWrap = false,
-            )
+        if (monthNumber != null) {
+            // 中文把月份数字与「月」上下两行分开排；英文用月份缩写单行呈现
+            if (booleanResource(R.bool.schedule_month_stacked)) {
+                Text(
+                    text = monthNumber.toString(),
+                    fontSize = headerSize,
+                    fontWeight = FontWeight.SemiBold,
+                    color = muted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+                Text(
+                    text = stringResource(R.string.schedule_month_suffix),
+                    fontSize = headerSize,
+                    fontWeight = FontWeight.Medium,
+                    color = muted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            } else {
+                Text(
+                    text = stringArrayResource(R.array.schedule_month_of_year)[monthNumber - 1],
+                    fontSize = headerSize,
+                    fontWeight = FontWeight.SemiBold,
+                    color = muted,
+                    maxLines = 1,
+                    softWrap = false,
+                )
+            }
         }
     }
 }
@@ -2550,41 +2567,41 @@ private fun CourseBlock(
     }
 }
 
-private fun weekdayLabel(dayOfWeek: Int): String = when (dayOfWeek) {
-    1 -> "周一"
-    2 -> "周二"
-    3 -> "周三"
-    4 -> "周四"
-    5 -> "周五"
-    6 -> "周六"
-    7 -> "周日"
-    else -> "周$dayOfWeek"
-}
-
 @StringRes
-internal fun scheduleWeekdayFullRes(dayOfWeek: Int): Int = when (dayOfWeek) {
-    1 -> R.string.schedule_weekday_1
-    2 -> R.string.schedule_weekday_2
-    3 -> R.string.schedule_weekday_3
-    4 -> R.string.schedule_weekday_4
-    5 -> R.string.schedule_weekday_5
-    6 -> R.string.schedule_weekday_6
-    7 -> R.string.schedule_weekday_7
-    else -> R.string.schedule_weekday_1
-}
+internal fun scheduleWeekdayFullRes(dayOfWeek: Int): Int = weekdayNameRes(dayOfWeek)
 
 /**
  * [overrideLabel] 与 [holidayLabel] 不会同时有值：一天要么按别的日期上课，要么整天放假。
  * 两者分开存放，是为了让表头能按各自的语义着色，而不是让一个字段既表示调课又表示放假。
  */
 internal data class DayHeaderModel(
-    val monthLabel: String,
+    val monthNumber: Int?,
     val weekdayLabelRes: Int,
-    val dateLabel: String,
+    val dateLabel: DayDateLabel,
     val isToday: Boolean,
-    val overrideLabel: String? = null,
+    val overrideLabel: SourceDateLabel? = null,
     val holidayLabel: HolidayLabel? = null,
 )
+
+/** 日期格的显示内容：月首显示所在月份，其余显示当天日号。 */
+internal sealed interface DayDateLabel {
+    data class Day(val dayOfMonth: Int) : DayDateLabel
+    data class MonthStart(val month: Int) : DayDateLabel
+}
+
+/** 调课来源日期，逻辑层只给字段，文字由界面层按当前语言渲染。 */
+internal data class SourceDateLabel(val month: Int, val dayOfMonth: Int, val dayOfWeek: Int)
+
+internal fun sourceDateLabel(date: LocalDate): SourceDateLabel =
+    SourceDateLabel(date.monthValue, date.dayOfMonth, date.dayOfWeek.value)
+
+internal fun Context.formatSourceDateLabel(label: SourceDateLabel): String =
+    getString(R.string.schedule_source_date, label.month, label.dayOfMonth, getString(weekdayNameRes(label.dayOfWeek)))
+
+internal fun Context.dayDateLabelText(label: DayDateLabel): String = when (label) {
+    is DayDateLabel.Day -> label.dayOfMonth.toString()
+    is DayDateLabel.MonthStart -> resources.getStringArray(R.array.schedule_month_of_year)[label.month - 1]
+}
 
 internal data class WeekModel(
     val weekIndex: Int,
@@ -2834,14 +2851,14 @@ internal fun buildWeekModel(
         val date = weekStart.plusDays(index.toLong())
         val resolution = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
         DayHeaderModel(
-            monthLabel = if (index == 0) "${date.monthValue}月" else "",
+            monthNumber = if (index == 0) date.monthValue else null,
             weekdayLabelRes = shortWeekdayRes(date.dayOfWeek),
-            dateLabel = if (date.dayOfMonth == 1) "${date.monthValue}月" else date.dayOfMonth.toString(),
+            dateLabel = if (date.dayOfMonth == 1) DayDateLabel.MonthStart(date.monthValue) else DayDateLabel.Day(date.dayOfMonth),
             isToday = date == today,
             overrideLabel = if (!resolution.isHoliday && resolution.sourceDate != date) {
-                "按${formatSourceDateLabel(resolution.sourceDate)}"
+                sourceDateLabel(resolution.sourceDate)
             } else null,
-            holidayLabel = if (resolution.isHoliday) holidayDisplayLabel(resolution.holidayName) else null,
+            holidayLabel = if (resolution.isHoliday) holidayDisplayLabel(resolution.holidayName, resolution.holidayNameRes) else null,
         )
     }
     return WeekModel(
@@ -2855,13 +2872,13 @@ private fun appearancePreviewWeek(): WeekModel = WeekModel(
     weekIndex = 2,
     weekStart = LocalDate.of(2026, 3, 2),
     days = listOf(
-        DayHeaderModel(monthLabel = "3月", weekdayLabelRes = R.string.schedule_weekday_short_monday, dateLabel = "2", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_tuesday, dateLabel = "3", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_wednesday, dateLabel = "4", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_thursday, dateLabel = "5", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_friday, dateLabel = "6", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_saturday, dateLabel = "7", isToday = false),
-        DayHeaderModel(monthLabel = "", weekdayLabelRes = R.string.schedule_weekday_short_sunday, dateLabel = "8", isToday = false),
+        DayHeaderModel(monthNumber = 3, weekdayLabelRes = R.string.schedule_weekday_short_monday, dateLabel = DayDateLabel.Day(2), isToday = false),
+        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_tuesday, dateLabel = DayDateLabel.Day(3), isToday = false),
+        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_wednesday, dateLabel = DayDateLabel.Day(4), isToday = false),
+        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_thursday, dateLabel = DayDateLabel.Day(5), isToday = false),
+        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_friday, dateLabel = DayDateLabel.Day(6), isToday = false),
+        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_saturday, dateLabel = DayDateLabel.Day(7), isToday = false),
+        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_sunday, dateLabel = DayDateLabel.Day(8), isToday = false),
     ),
 )
 
