@@ -115,6 +115,7 @@
     <string name="schedule_exam_mute_this">取消本场</string>
     <string name="schedule_status_week_unknown">周次未知</string>
     <string name="schedule_status_other_week">非本周</string>
+    <string name="schedule_status_on_holiday">放假</string>
     <string name="schedule_status_manual">手动</string>
     <string name="schedule_status_this_week">本周</string>
     <string name="schedule_exam_countdown_today">就是今天</string>

@@ -31,6 +31,8 @@ enum class HolidayEntryKind {
 data class HolidayCalendarSettings(
     @SerialName("builtInEnabled") val builtInEnabled: Boolean = true,
     @SerialName("entries") val entries: List<HolidayCalendarEntry> = emptyList(),
+    /** 同步下来的放假安排，按年缓存，优先于内置快照。 */
+    @SerialName("syncedYears") val syncedYears: List<SyncedHolidayYear> = emptyList(),
 ) {
     companion object {
         /** 不做任何节假日判定。 */
@@ -45,13 +47,30 @@ fun HolidayCalendarEntry.localDate(): LocalDate? =
 fun HolidayCalendarSettings.userEntryOn(date: LocalDate): HolidayCalendarEntry? =
     entries.lastOrNull { it.localDate() == date }
 
-/** 内置数据中对 [date] 的声明，内置数据被关闭时为 null。 */
-fun HolidayCalendarSettings.builtInEntryOn(date: LocalDate): HolidayCalendarEntry? =
-    if (builtInEnabled) builtInHolidayEntryOn(date) else null
+/** 同步数据中对 [date] 的声明，该年没同步到时为 null。 */
+fun HolidayCalendarSettings.syncedEntryOn(date: LocalDate): HolidayCalendarEntry? {
+    if (!builtInEnabled) return null
+    val year = syncedYears.lastOrNull { it.year == date.year } ?: return null
+    return year.entries.lastOrNull { it.localDate() == date }
+}
 
-/** 合并用户条目与内置数据后 [date] 的声明。 */
+/** 该年是否已经有同步数据，用于决定内置快照要不要顶上。 */
+fun HolidayCalendarSettings.hasSyncedYear(year: Int): Boolean =
+    syncedYears.any { it.year == year && it.entries.isNotEmpty() }
+
+/**
+ * 内置数据中对 [date] 的声明，内置数据被关闭时为 null。
+ * 该年已有同步数据时不再回落到内置快照，避免两份数据混用出现半新半旧的假期。
+ */
+fun HolidayCalendarSettings.builtInEntryOn(date: LocalDate): HolidayCalendarEntry? = when {
+    !builtInEnabled -> null
+    hasSyncedYear(date.year) -> null
+    else -> builtInHolidayEntryOn(date)
+}
+
+/** 合并用户条目、同步数据与内置数据后 [date] 的声明。 */
 fun HolidayCalendarSettings.entryOn(date: LocalDate): HolidayCalendarEntry? =
-    userEntryOn(date) ?: builtInEntryOn(date)
+    userEntryOn(date) ?: syncedEntryOn(date) ?: builtInEntryOn(date)
 
 /** 写入一条用户条目，覆盖同一天已有的用户条目。 */
 fun HolidayCalendarSettings.withEntry(entry: HolidayCalendarEntry): HolidayCalendarSettings {
