@@ -246,6 +246,7 @@
     <string name="schedule_status_move_blocked">目标位置已有课程</string>
     <string name="schedule_status_move_manual_only">只能移动手动添加的课程</string>
     <string name="schedule_status_course_moved">已移动到%1$s第%2$d节</string>
+    <string name="schedule_status_course_span_changed">已改为第 %1$d-%2$d 节</string>
     <string name="schedule_status_manual_course_removed">已删除手动课程</string>
     <string name="schedule_status_bulk_reminder_no_schedule">%1$s；暂无课表可设置提醒</string>
     <string name="schedule_status_sample_loaded">已加载示例课表</string>

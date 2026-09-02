@@ -9,8 +9,14 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -73,6 +79,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -189,6 +196,7 @@ fun ScheduleRoute(
         onRemoveManualCourse = viewModel::removeManualCourse,
         onAddManualCourse = viewModel::addManualCourse,
         onMoveManualCourse = viewModel::moveManualCourse,
+        onResizeManualCourse = viewModel::resizeManualCourse,
         onMoveBlocked = viewModel::reportCourseMoveBlocked,
         onSaveCourseNote = viewModel::setCourseNote,
         onCreateBulkReminder = viewModel::createReminderForCourses,
@@ -222,6 +230,7 @@ fun ScheduleScreen(
     onRemoveManualCourse: (String) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
     onMoveManualCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
+    onResizeManualCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onMoveBlocked: () -> Unit = {},
     onSaveCourseNote: (CourseItem, String) -> Unit = { _, _ -> },
     onCreateBulkReminder: (Set<String>, Int, String?) -> Unit,
@@ -310,6 +319,7 @@ fun ScheduleScreen(
                             state.manualCourses.map { it.id }.toSet()
                         },
                         onMoveCourse = onMoveManualCourse,
+                        onResizeCourse = onResizeManualCourse,
                         onMoveBlocked = onMoveBlocked,
                         scheduleTextStyle = scheduleTextStyle,
                         scheduleCardStyle = scheduleCardStyle,
@@ -682,6 +692,7 @@ private fun WeeklyScheduleSection(
     onAddManualCourse: (CourseItem) -> Unit = {},
     movableCourseIds: Set<String> = emptySet(),
     onMoveCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
+    onResizeCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onMoveBlocked: () -> Unit = {},
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
@@ -886,6 +897,7 @@ private fun WeeklyScheduleSection(
                                 existingCourses = allCourses,
                                 movableCourseIds = movableCourseIds,
                                 onMoveCourse = onMoveCourse,
+                                onResizeCourse = onResizeCourse,
                                 onMoveBlocked = onMoveBlocked,
                             )
                         }
@@ -1755,6 +1767,7 @@ private fun ScheduleGrid(
     existingCourses: List<CourseItem> = emptyList(),
     movableCourseIds: Set<String> = emptySet(),
     onMoveCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
+    onResizeCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onMoveBlocked: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -1803,8 +1816,23 @@ private fun ScheduleGrid(
     var dragOffset by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf(androidx.compose.ui.geometry.Offset.Zero)
     }
-    val occupiedByOthers = androidx.compose.runtime.remember(activeEntries, draggingCourseId) {
-        draggingCourseId?.let { occupiedCellsExcluding(activeEntries, it) }.orEmpty()
+    var resizingCourseId by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<String?>(null)
+    }
+    var resizingEdge by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(CourseResizeEdge.Bottom)
+    }
+    var resizeOffsetY by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(0f)
+    }
+    val occupiedByOthers = androidx.compose.runtime.remember(
+        activeEntries,
+        draggingCourseId,
+        resizingCourseId,
+    ) {
+        (draggingCourseId ?: resizingCourseId)
+            ?.let { occupiedCellsExcluding(activeEntries, it) }
+            .orEmpty()
     }
 
     androidx.compose.foundation.layout.BoxWithConstraints(
@@ -2010,7 +2038,45 @@ private fun ScheduleGrid(
                                     onCellClick(sortedCourses, columnDate)
                                 },
                                 onLongClick = { onCourseLongClick(course.id) },
-                                dragEnabled = course.id in movableCourseIds && !multiSelectMode,
+                                dragEnabled = course.id in movableCourseIds &&
+                                    !multiSelectMode &&
+                                    resizingCourseId == null,
+                                resizeEnabled = course.id in movableCourseIds &&
+                                    !multiSelectMode &&
+                                    draggingCourseId == null,
+                                onResizeStart = { edge ->
+                                    resizingCourseId = course.id
+                                    resizingEdge = edge
+                                    resizeOffsetY = 0f
+                                },
+                                onResizeDelta = { delta -> resizeOffsetY += delta },
+                                onResizeStop = {
+                                    val settled = resizeOffsetY
+                                    val edge = resizingEdge
+                                    resizingCourseId = null
+                                    resizeOffsetY = 0f
+                                    val target = resolveCourseResizeTarget(
+                                        startRowIndex = placement.rowIndex,
+                                        rowSpan = placement.rowSpan,
+                                        edge = edge,
+                                        dragOffsetY = settled,
+                                        slotHeightPx = slotHeightPx,
+                                        slotCount = slots.size,
+                                        dayIndex = placement.dayIndex,
+                                        occupiedByOthers = occupiedByOthers,
+                                    )
+                                    when {
+                                        !target.isValid -> onMoveBlocked()
+                                        !target.isResizeFrom(placement.rowIndex, placement.rowSpan) -> Unit
+                                        else -> {
+                                            val dayOfWeek = columnDayOfWeeks.getOrNull(placement.dayIndex)
+                                            if (dayOfWeek != null) {
+                                                resizedCourseTime(target, dayOfWeek, slots)
+                                                    ?.let { time -> onResizeCourse(course.id, time) }
+                                            }
+                                        }
+                                    }
+                                },
                                 dragging = isDragging,
                                 dragPixelOffset = if (isDragging) dragOffset else androidx.compose.ui.geometry.Offset.Zero,
                                 onDragStart = {
@@ -2320,6 +2386,10 @@ private fun CourseBlock(
     onDragStart: () -> Unit = {},
     onDragDelta: (androidx.compose.ui.geometry.Offset) -> Unit = {},
     onDragStop: () -> Unit = {},
+    resizeEnabled: Boolean = false,
+    onResizeStart: (CourseResizeEdge) -> Unit = {},
+    onResizeDelta: (Float) -> Unit = {},
+    onResizeStop: () -> Unit = {},
     onClick: () -> Unit,
     onLongClick: () -> Unit,
 ) {
@@ -2540,6 +2610,54 @@ private fun CourseBlock(
                     tint = onColor,
                     modifier = Modifier.size(9.dp),
                 )
+            }
+        }
+
+        // 上下边缘的改跨度手柄，只对可编辑的课程渲染
+        if (interactive && resizeEnabled) {
+            listOf(
+                CourseResizeEdge.Top to Alignment.TopCenter,
+                CourseResizeEdge.Bottom to Alignment.BottomCenter,
+            ).forEach { (edge, alignment) ->
+                Box(
+                    modifier = Modifier
+                        .align(alignment)
+                        .fillMaxWidth()
+                        .height(14.dp)
+                        // 外层课表可纵向滚动，按下事件不当场吃掉就会被它接管，
+                        // 所以这里自己处理手势：按下即消费，滚动无从开始
+                        .pointerInput(edge, resizeEnabled) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                down.consume()
+                                onResizeStart(edge)
+                                var dragging = true
+                                while (dragging) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id }
+                                    if (change == null || !change.pressed) {
+                                        dragging = false
+                                    } else {
+                                        val delta = change.positionChange().y
+                                        if (delta != 0f) {
+                                            change.consume()
+                                            onResizeDelta(delta)
+                                        }
+                                    }
+                                }
+                                onResizeStop()
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(22.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(onColor.copy(alpha = 0.45f)),
+                    )
+                }
             }
         }
 
