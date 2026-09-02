@@ -96,6 +96,10 @@ import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
 import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
 import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
+import com.x500x.cursimple.core.data.widget.classSlotLabelOfBlock
+import com.x500x.cursimple.core.data.widget.classSlotLabelOfIndex
+import com.x500x.cursimple.core.data.widget.classSlotLabelText
+import com.x500x.cursimple.core.data.widget.slotBlockIndex
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -679,8 +683,9 @@ private fun WeeklyScheduleSection(
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     modifier: Modifier = Modifier,
 ) {
-    val slots = remember(schedule, timingProfile, manualCourses) {
-        displaySlots(schedule, timingProfile, manualCourses)
+    val slotContext = LocalContext.current
+    val slots = remember(slotContext, schedule, timingProfile, manualCourses) {
+        displaySlots(slotContext, schedule, timingProfile, manualCourses)
     }
     val allCourses = remember(schedule, manualCourses) {
         (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
@@ -896,8 +901,9 @@ private fun DailyScheduleSection(
     customColorsAdaptToTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val slots = remember(schedule, timingProfile, manualCourses) {
-        displaySlots(schedule, timingProfile, manualCourses)
+    val slotContext = LocalContext.current
+    val slots = remember(slotContext, schedule, timingProfile, manualCourses) {
+        displaySlots(slotContext, schedule, timingProfile, manualCourses)
     }
     val allCourses = remember(schedule, manualCourses) {
         (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
@@ -2953,6 +2959,7 @@ private fun appearancePreviewCourses(): List<CourseItem> = listOf(
 )
 
 private fun displaySlots(
+    context: Context,
     schedule: TermSchedule?,
     timingProfile: TermTimingProfile?,
     manualCourses: List<CourseItem> = emptyList(),
@@ -2973,23 +2980,31 @@ private fun displaySlots(
             DisplaySlot(
                 startNode = slot.startNode,
                 endNode = slot.endNode,
-                label = slot.label.ifBlank { "第${index + 1}节" },
+                label = context.classSlotLabelText(slot, index + 1),
                 startTime = slot.startTime,
                 endTime = slot.endTime,
             )
         }
-        val extraSlots = extraNodes.mapIndexed { offset, node ->
+        val extraSlots = extraNodes.map { node ->
             DisplaySlot(
                 startNode = node,
                 endNode = node,
-                label = "第${profileSlots.size + offset + 1}节",
+                label = context.classSlotLabelOfIndex(node),
                 startTime = "",
                 endTime = "",
             )
         }
         // 即使没有课时数据也补到至少 8 节，方便用户在下半段加课。
         val combined = baseSlots + extraSlots
-        val padded = padToMinimumSlots(combined, minimum = 8)
+        val blockCount = profileSlots.count { context.slotBlockIndex(it) != null }
+        val blockSpan = profileSlots.lastOrNull()?.let { it.endNode - it.startNode + 1 } ?: 1
+        val padded = padToMinimumSlots(
+            context = context,
+            slots = combined,
+            minimum = 8,
+            blockLabelFrom = (blockCount + 1).takeIf { blockCount == profileSlots.size },
+            nodesPerPad = blockSpan,
+        )
         return padded
     }
     val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
@@ -3001,23 +3016,36 @@ private fun displaySlots(
         DisplaySlot(
             startNode = startNode,
             endNode = endNode,
-            label = "第${index + 1}节",
+            label = context.classSlotLabelOfIndex(index + 1),
             startTime = "--:--",
             endTime = "--:--",
         )
     }
-    return padToMinimumSlots(derivedSlots, minimum = 8)
+    return padToMinimumSlots(context, derivedSlots, minimum = 8)
 }
 
-private fun padToMinimumSlots(slots: List<DisplaySlot>, minimum: Int): List<DisplaySlot> {
+/**
+ * 把节次补到 [minimum] 行，让用户能在下半段加课。
+ * [blockLabelFrom] 不为 null 时补出来的行沿用大节命名并从该序号往下排，每行占 [nodesPerPad] 个节号。
+ */
+private fun padToMinimumSlots(
+    context: Context,
+    slots: List<DisplaySlot>,
+    minimum: Int,
+    blockLabelFrom: Int? = null,
+    nodesPerPad: Int = 1,
+): List<DisplaySlot> {
     if (slots.size >= minimum) return slots
     val lastEnd = slots.maxOfOrNull { it.endNode } ?: 0
+    val span = nodesPerPad.coerceAtLeast(1)
     val pads = (slots.size until minimum).mapIndexed { offset, _ ->
-        val node = lastEnd + offset + 1
+        val startNode = lastEnd + offset * span + 1
+        val endNode = startNode + span - 1
+        val blockLabel = blockLabelFrom?.let { context.classSlotLabelOfBlock(it + offset) }
         DisplaySlot(
-            startNode = node,
-            endNode = node,
-            label = "第${slots.size + offset + 1}节",
+            startNode = startNode,
+            endNode = if (blockLabel == null) startNode else endNode,
+            label = blockLabel ?: context.classSlotLabelOfIndex(startNode),
             startTime = "",
             endTime = "",
         )
