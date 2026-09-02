@@ -145,12 +145,12 @@ private fun HeroCard(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "课简",
+                        text = stringResource(R.string.main_app_name),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        text = "CurSimple",
+                        text = stringResource(R.string.about_app_alt_name),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -273,7 +273,7 @@ private fun ProjectCard(
 private fun TechStackCard() {
     val items = listOf(
             "Kotlin" to "2.2.21",
-            "Jetpack Compose" to "BOM 2026.04",
+            "Jetpack Compose" to "BOM 2026.04.01",
             "Material 3" to "Compose M3",
             "AndroidX Glance" to stringResource(R.string.about_tech_glance),
             "WorkManager" to stringResource(R.string.about_tech_workmanager),
@@ -326,7 +326,7 @@ private fun TechStackCard() {
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "minSdk 24 · targetSdk 36 · ABI v7a / v8a / universal",
+                text = "minSdk 24 · targetSdk 36 · ABI v7a / v8a / x86 / x86_64 / universal",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
