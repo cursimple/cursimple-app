@@ -5,6 +5,7 @@ import android.content.Context
 import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
 import com.x500x.cursimple.app.holiday.HolidayCalendarSyncer
+import com.x500x.cursimple.app.holiday.HolidayEveNoticeWorker
 import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
 import com.x500x.cursimple.app.holiday.holidaySyncYears
 import com.x500x.cursimple.core.data.AppLocale
@@ -62,6 +63,7 @@ class ClassScheduleApplication : Application() {
         // 调度闹钟同步 WorkManager 任务
         AlarmSyncScheduler.schedulePeriodicSync(this)
         AlarmSyncScheduler.scheduleDailyGuard(this)
+        HolidayEveNoticeWorker.schedule(this)
 
         appScope.launch {
             appContainer.bootstrapJob.join()
