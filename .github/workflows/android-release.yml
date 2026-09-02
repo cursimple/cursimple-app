@@ -129,10 +129,20 @@ jobs:
             app/build/outputs/apk/release/update.json
           if-no-files-found: error
 
+      - name: Resolve release notes
+        shell: pwsh
+        run: |
+          $notes = "docs/release-notes/$env:GITHUB_REF_NAME.md"
+          if (-not (Test-Path -LiteralPath $notes)) {
+            throw "Release notes were not found at $notes."
+          }
+          "RELEASE_NOTES=$notes" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             app/build/outputs/apk/release/CurSimple-*.apk
             app/build/outputs/apk/release/update.json
+          body_path: ${{ env.RELEASE_NOTES }}
           generate_release_notes: true
