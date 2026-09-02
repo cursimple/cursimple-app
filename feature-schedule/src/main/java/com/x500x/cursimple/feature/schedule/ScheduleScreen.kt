@@ -122,6 +122,11 @@ import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.data.note.CourseNoteIndex
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
+import com.x500x.cursimple.core.kernel.time.columnDate
+import com.x500x.cursimple.core.kernel.time.columnDayOfWeeks
+import com.x500x.cursimple.core.kernel.time.displayWeekStartOf
+import com.x500x.cursimple.core.kernel.time.displayWeekTermIndex
 import com.x500x.cursimple.core.plugin.ui.CourseBadgeRule
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import com.x500x.cursimple.core.reminder.model.ReminderRule
@@ -469,17 +474,23 @@ fun ScheduleAppearancePreview(
     customColorsAdaptToTheme: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val previewWeek = remember { appearancePreviewWeek() }
+    val previewWeek = remember(scheduleDisplay.weekStartDay) {
+        appearancePreviewWeek(scheduleDisplay.weekStartDay)
+    }
     val previewSlots = remember { appearancePreviewSlots() }
     val previewCourses = remember { appearancePreviewCourses() }
-    val visibleDayIndices = remember(scheduleDisplay.saturdayVisible, scheduleDisplay.weekendVisible) {
-        visibleDayIndices(scheduleDisplay)
+    val columnDayOfWeeks = remember(
+        scheduleDisplay.saturdayVisible,
+        scheduleDisplay.weekendVisible,
+        scheduleDisplay.weekStartDay,
+    ) {
+        visibleColumnDayOfWeeks(scheduleDisplay)
     }
     val activeEntries = remember(
         previewCourses,
         previewSlots,
         scheduleDisplay.totalScheduleDisplayEnabled,
-        visibleDayIndices,
+        columnDayOfWeeks,
     ) {
         buildWeekRenderEntries(
             allCourses = previewCourses,
@@ -488,7 +499,7 @@ fun ScheduleAppearancePreview(
             totalScheduleDisplayEnabled = scheduleDisplay.totalScheduleDisplayEnabled,
             weekStart = previewWeek.weekStart,
             termStart = previewWeek.weekStart,
-            visibleDayIndices = visibleDayIndices,
+            columnDayOfWeeks = columnDayOfWeeks,
         )
     }
     val slotHeight = scheduleCardStyle.courseCardHeightDp.dp.coerceIn(56.dp, 120.dp)
@@ -511,8 +522,8 @@ fun ScheduleAppearancePreview(
                     Triple(main, sorted, sorted.size)
                 }
         }
-        val visibleDays = remember(previewWeek.days, visibleDayIndices) {
-            visibleDayIndices.mapNotNull { previewWeek.days.getOrNull(it) }
+        val visibleDays = remember(previewWeek.days, columnDayOfWeeks) {
+            previewWeek.days.filter { it.dayOfWeek in columnDayOfWeeks }
         }
         val availableWidth = (maxWidth - 8.dp).coerceAtLeast(0.dp)
         val dayColumnCount = visibleDays.size.coerceAtLeast(1)
@@ -688,8 +699,12 @@ private fun WeeklyScheduleSection(
     val allCourses = remember(schedule, manualCourses) {
         (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
     }
-    val visibleDayIndices = remember(scheduleDisplay.saturdayVisible, scheduleDisplay.weekendVisible) {
-        visibleDayIndices(scheduleDisplay)
+    val columnDayOfWeeks = remember(
+        scheduleDisplay.saturdayVisible,
+        scheduleDisplay.weekendVisible,
+        scheduleDisplay.weekStartDay,
+    ) {
+        visibleColumnDayOfWeeks(scheduleDisplay)
     }
 
     Card(
@@ -794,7 +809,14 @@ private fun WeeklyScheduleSection(
                         temporaryScheduleOverrides,
                         holidayCalendar,
                     ) {
-                        buildWeekModel(pageOffset, overrideTermStart, zone, temporaryScheduleOverrides, holidayCalendar)
+                        buildWeekModel(
+                            weekOffset = pageOffset,
+                            termStart = overrideTermStart,
+                            zone = zone,
+                            temporaryScheduleOverrides = temporaryScheduleOverrides,
+                            holidayCalendar = holidayCalendar,
+                            weekStartDay = scheduleDisplay.weekStartDay,
+                        )
                     }
                     val active = remember(
                         allCourses,
@@ -802,7 +824,7 @@ private fun WeeklyScheduleSection(
                         pageWeek.weekIndex,
                         pageWeek.weekStart,
                         scheduleDisplay.totalScheduleDisplayEnabled,
-                        visibleDayIndices,
+                        columnDayOfWeeks,
                         temporaryScheduleOverrides,
                         holidayCalendar,
                         overrideTermStart,
@@ -817,7 +839,7 @@ private fun WeeklyScheduleSection(
                             termStart = overrideTermStart,
                             temporaryScheduleOverrides = temporaryScheduleOverrides,
                             holidayCalendar = holidayCalendar,
-                            visibleDayIndices = visibleDayIndices,
+                            columnDayOfWeeks = columnDayOfWeeks,
                         )
                     }
                     if (pageWeek.weekIndex < 1 && active.isEmpty()) {
@@ -848,7 +870,7 @@ private fun WeeklyScheduleSection(
                                 uiSchema = uiSchema,
                                 reminderRules = reminderRules,
                                 courseNotes = courseNotes,
-                                visibleDayIndices = visibleDayIndices,
+                                columnDayOfWeeks = columnDayOfWeeks,
                                 scheduleTextStyle = scheduleTextStyle,
                                 scheduleCardStyle = scheduleCardStyle,
                                 scheduleBackground = scheduleBackground,
@@ -1717,7 +1739,7 @@ private fun ScheduleGrid(
     uiSchema: PluginUiSchema,
     reminderRules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
     courseNotes: CourseNoteIndex = CourseNoteIndex(),
-    visibleDayIndices: List<Int>,
+    columnDayOfWeeks: List<Int>,
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleBackground: ScheduleBackgroundPreferences,
@@ -1746,8 +1768,9 @@ private fun ScheduleGrid(
                 Triple(main, sorted, sorted.size)
             }
     }
-    val visibleDays = remember(week.days, visibleDayIndices) {
-        visibleDayIndices.mapNotNull { week.days.getOrNull(it) }
+    // week.days 已按显示窗口顺序排好，按可见星期过滤即得列序
+    val visibleDays = remember(week.days, columnDayOfWeeks) {
+        week.days.filter { it.dayOfWeek in columnDayOfWeeks }
     }
     val dayColumnCount = visibleDays.size.coerceAtLeast(1)
 
@@ -1982,13 +2005,9 @@ private fun ScheduleGrid(
                                 offsetX = dayColumnWidth * placement.dayIndex + 1.5.dp,
                                 offsetY = slotHeight * placement.rowIndex + 1.5.dp,
                                 onClick = {
-                                    val actualDayIndex = visibleDayIndices.getOrElse(placement.dayIndex) {
-                                        placement.dayIndex
-                                    }
-                                    onCellClick(
-                                        sortedCourses,
-                                        week.weekStart.plusDays(actualDayIndex.toLong()),
-                                    )
+                                    val columnDate = visibleDays.getOrNull(placement.dayIndex)?.date
+                                        ?: week.weekStart
+                                    onCellClick(sortedCourses, columnDate)
                                 },
                                 onLongClick = { onCourseLongClick(course.id) },
                                 dragEnabled = course.id in movableCourseIds && !multiSelectMode,
@@ -2024,7 +2043,7 @@ private fun ScheduleGrid(
                                         else -> movedCourseTime(
                                             target = target,
                                             rowSpan = placement.rowSpan,
-                                            visibleDayIndices = visibleDayIndices,
+                                            columnDayOfWeeks = columnDayOfWeeks,
                                             slots = slots,
                                         )?.let { time -> onMoveCourse(course.id, time) }
                                     }
@@ -2068,8 +2087,8 @@ private fun ScheduleGrid(
                                             modifier = Modifier
                                                 .size(36.dp)
                                                 .clickable(enabled = hintCell != null) {
-                                                    val actualDayIndex = visibleDayIndices.getOrElse(day) { day }
-                                                    addRequest = Triple(actualDayIndex + 1, slot.startNode, slot.endNode)
+                                                    val dayOfWeek = columnDayOfWeeks.getOrElse(day) { day + 1 }
+                                                    addRequest = Triple(dayOfWeek, slot.startNode, slot.endNode)
                                                     hintCell = null
                                                 },
                                         ) {
@@ -2604,6 +2623,10 @@ internal fun scheduleWeekdayFullRes(dayOfWeek: Int): Int = weekdayNameRes(dayOfW
  * 两者分开存放，是为了让表头能按各自的语义着色，而不是让一个字段既表示调课又表示放假。
  */
 internal data class DayHeaderModel(
+    /** 这一列的实际日期，消费方不再按列下标反推。 */
+    val date: LocalDate,
+    /** 星期值，1 为周一，7 为周日。 */
+    val dayOfWeek: Int,
     val monthNumber: Int?,
     val weekdayLabelRes: Int,
     val dateLabel: DayDateLabel,
@@ -2661,11 +2684,12 @@ internal data class CourseRenderEntry(
     val onHoliday: Boolean = false,
 )
 
-internal fun visibleDayIndices(display: ScheduleDisplayPreferences): List<Int> = when {
-    display.weekendVisible -> (0..6).toList()
-    display.saturdayVisible -> (0..5).toList()
-    else -> (0..4).toList()
-}
+/** 按列序排列的星期值。起始日一变「列下标 + 1 = 星期」就不成立，所以直接给星期本身。 */
+internal fun visibleColumnDayOfWeeks(display: ScheduleDisplayPreferences): List<Int> = columnDayOfWeeks(
+    weekStart = display.weekStartDay,
+    weekendVisible = display.weekendVisible,
+    saturdayVisible = display.saturdayVisible,
+)
 
 private data class ScheduleBackgroundImageState(
     val image: ImageBitmap? = null,
@@ -2873,15 +2897,19 @@ internal fun buildWeekModel(
     zone: ZoneId = ZoneId.systemDefault(),
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
+    weekStartDay: WeekStartDay = WeekStartDay.Monday,
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)
-    val weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).plusWeeks(weekOffset.toLong())
+    val weekStart = displayWeekStartOf(today, weekStartDay).plusWeeks(weekOffset.toLong())
     // 没有开学日期时用 1 让翻页算术成立；是否显示周次由 weekNumberKnown 单独决定
-    val weekIndex = computeWeekNumberForDate(termStart, weekStart) ?: 1
+    // 周日起时窗口第一天属于上一教学周，周次按窗口内的周一算，否则页头周次会和页内课程差一周
+    val weekIndex = termStart?.let { displayWeekTermIndex(it, weekStart) } ?: 1
     val days = (0..6).map { index ->
         val date = weekStart.plusDays(index.toLong())
         val resolution = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
         DayHeaderModel(
+            date = date,
+            dayOfWeek = date.dayOfWeek.value,
             monthNumber = if (index == 0) date.monthValue else null,
             weekdayLabelRes = shortWeekdayRes(date.dayOfWeek),
             dateLabel = if (date.dayOfMonth == 1) DayDateLabel.MonthStart(date.monthValue) else DayDateLabel.Day(date.dayOfMonth),
@@ -2899,19 +2927,26 @@ internal fun buildWeekModel(
     )
 }
 
-private fun appearancePreviewWeek(): WeekModel = WeekModel(
-    weekIndex = 2,
-    weekStart = LocalDate.of(2026, 3, 2),
-    days = listOf(
-        DayHeaderModel(monthNumber = 3, weekdayLabelRes = R.string.schedule_weekday_short_monday, dateLabel = DayDateLabel.Day(2), isToday = false),
-        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_tuesday, dateLabel = DayDateLabel.Day(3), isToday = false),
-        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_wednesday, dateLabel = DayDateLabel.Day(4), isToday = false),
-        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_thursday, dateLabel = DayDateLabel.Day(5), isToday = false),
-        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_friday, dateLabel = DayDateLabel.Day(6), isToday = false),
-        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_saturday, dateLabel = DayDateLabel.Day(7), isToday = false),
-        DayHeaderModel(monthNumber = null, weekdayLabelRes = R.string.schedule_weekday_short_sunday, dateLabel = DayDateLabel.Day(8), isToday = false),
-    ),
-)
+private fun appearancePreviewWeek(weekStartDay: WeekStartDay): WeekModel {
+    // 固定一周样例数据，只让列序跟随起始日，保证设置页预览与真实课表排列一致
+    val monday = LocalDate.of(2026, 3, 2)
+    val weekStart = if (weekStartDay == WeekStartDay.Sunday) monday.minusDays(1) else monday
+    return WeekModel(
+        weekIndex = 2,
+        weekStart = weekStart,
+        days = (0..6).map { index ->
+            val date = weekStart.plusDays(index.toLong())
+            DayHeaderModel(
+                date = date,
+                dayOfWeek = date.dayOfWeek.value,
+                monthNumber = if (index == 0) date.monthValue else null,
+                weekdayLabelRes = shortWeekdayRes(date.dayOfWeek),
+                dateLabel = DayDateLabel.Day(date.dayOfMonth),
+                isToday = false,
+            )
+        },
+    )
+}
 
 private fun appearancePreviewSlots(): List<DisplaySlot> = listOf(
     DisplaySlot(startNode = 1, endNode = 1, label = "1", startTime = "08:00", endTime = "08:50"),
@@ -3179,7 +3214,7 @@ internal fun buildWeekRenderEntries(
     termStart: LocalDate? = null,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-    visibleDayIndices: List<Int> = (0..6).toList(),
+    columnDayOfWeeks: List<Int> = (1..7).toList(),
 ): List<CourseRenderEntry> {
     data class Resolved(
         val course: CourseItem,
@@ -3192,20 +3227,20 @@ internal fun buildWeekRenderEntries(
         fun isInactive(weekNumberKnown: Boolean): Boolean =
             onHoliday || (weekNumberKnown && !course.isActiveInWeek(sourceWeekIndex))
     }
-    val visibleColumns = visibleDayIndices
-        .filter { it in 0..6 }
+    // 列序由 columnDayOfWeeks 决定，星期几落在第几列不再等于「星期 - 1」
+    val visibleColumns = columnDayOfWeeks
+        .filter { it in 1..7 }
         .distinct()
-        .mapIndexed { columnIndex, dayIndex -> dayIndex to columnIndex }
+        .mapIndexed { columnIndex, dayOfWeek -> dayOfWeek to columnIndex }
         .toMap()
 
     val displayCourses = allCourses.visibleScheduleCourses()
     // 周次未知时既不按周过滤，也不给任何课程打“非本周”，界面不对周次做断言
     val showEveryCourse = totalScheduleDisplayEnabled || !weekNumberKnown
-    val needsPerDayResolution = temporaryScheduleOverrides.isNotEmpty() ||
-        holidayCalendar != HolidayCalendarSettings.NONE
-    val resolved = if (weekStart != null && needsPerDayResolution) {
-        visibleColumns.keys.sorted().flatMap { dayIndex ->
-            val actualDate = weekStart.plusDays(dayIndex.toLong())
+    // 拿得到列日期就一律按列解析：周日起时最左那列属于上一教学周，不按列解析会显示错周次的课
+    val resolved = if (weekStart != null) {
+        visibleColumns.keys.flatMap { dayOfWeek ->
+            val actualDate = columnDate(weekStart, dayOfWeek)
             val resolution = resolveScheduleDay(actualDate, temporaryScheduleOverrides, holidayCalendar)
             // 假日当天照常排出课程，只是渲染成不可用态；提醒仍按假日跳过。
             val sourceDate = resolution.sourceDate
@@ -3219,7 +3254,7 @@ internal fun buildWeekRenderEntries(
             source
                 .filter { it.time.dayOfWeek == sourceDayOfWeek }
                 .mapNotNull { course ->
-                    val columnIndex = visibleColumns[dayIndex] ?: return@mapNotNull null
+                    val columnIndex = visibleColumns[dayOfWeek] ?: return@mapNotNull null
                     val placement = coursePlacement(course, slots, columnIndex) ?: return@mapNotNull null
                     Resolved(
                         course = course,
@@ -3242,8 +3277,7 @@ internal fun buildWeekRenderEntries(
         }
         source
             .mapNotNull { course ->
-                val actualDayIndex = course.time.dayOfWeek - 1
-                val columnIndex = visibleColumns[actualDayIndex] ?: return@mapNotNull null
+                val columnIndex = visibleColumns[course.time.dayOfWeek] ?: return@mapNotNull null
                 val placement = coursePlacement(course, slots, columnIndex) ?: return@mapNotNull null
                 Resolved(
                     course = course,

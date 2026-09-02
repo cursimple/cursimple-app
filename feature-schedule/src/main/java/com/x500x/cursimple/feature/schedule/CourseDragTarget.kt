@@ -42,20 +42,20 @@ internal fun CourseDragTarget.isMoveFrom(startDayIndex: Int, startRowIndex: Int)
 
 /**
  * 把落点格子换算成课程的星期与节次。
- * [visibleDayIndices] 把显示列还原成真实星期，[slots] 决定跨行课程的首尾节次。
+ * [columnDayOfWeeks] 按列序给出每列的星期值，[slots] 决定跨行课程的首尾节次。
  * 落点超出可用范围时返回 null。
  */
 internal fun movedCourseTime(
     target: CourseDragTarget,
     rowSpan: Int,
-    visibleDayIndices: List<Int>,
+    columnDayOfWeeks: List<Int>,
     slots: List<DisplaySlot>,
 ): CourseTimeSlot? {
-    val dayIndex = visibleDayIndices.getOrNull(target.dayIndex) ?: return null
+    val dayOfWeek = columnDayOfWeeks.getOrNull(target.dayIndex) ?: return null
     val first = slots.getOrNull(target.rowIndex) ?: return null
     val last = slots.getOrNull(target.rowIndex + rowSpan - 1) ?: return null
     return CourseTimeSlot(
-        dayOfWeek = dayIndex + 1,
+        dayOfWeek = dayOfWeek,
         startNode = first.startNode,
         endNode = last.endNode,
     )

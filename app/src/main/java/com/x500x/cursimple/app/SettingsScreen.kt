@@ -21,6 +21,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -153,6 +155,7 @@ import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.feature.widget.ScheduleWidgetUpdater
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
@@ -313,6 +316,7 @@ fun AppSettingsRoute(
     onScheduleNodeColumnTimeEnabledChange: (Boolean) -> Unit,
     onScheduleSaturdayVisibleChange: (Boolean) -> Unit,
     onScheduleWeekendVisibleChange: (Boolean) -> Unit,
+    onScheduleWeekStartDayChange: (WeekStartDay) -> Unit,
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
     onScheduleLocationPrefixAtEnabledChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
@@ -888,6 +892,10 @@ fun AppSettingsRoute(
                     stringResource(R.string.settings_display_node_time_subtitle),
                     scheduleDisplay.nodeColumnTimeEnabled,
                     onScheduleNodeColumnTimeEnabledChange,
+                )
+                WeekStartDayRow(
+                    selected = scheduleDisplay.weekStartDay,
+                    onSelect = onScheduleWeekStartDayChange,
                 )
                 SettingsSwitchRow(
                     Icons.Rounded.CalendarMonth,
@@ -3723,4 +3731,51 @@ private fun Context.holidaySyncMessage(outcomes: List<HolidaySyncOutcome>): Stri
     outcomes.filterIsInstance<HolidaySyncOutcome.Unreachable>().firstOrNull()
         ?.let { return getString(R.string.settings_holiday_sync_unreachable, it.year) }
     return getString(R.string.settings_holiday_sync_fresh)
+}
+
+/** 一周起始日选择。两个取值对等，用并排按钮而不是开关。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_display_week_start_title),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.settings_display_week_start_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                WeekStartDay.entries.forEach { day ->
+                    val label = when (day) {
+                        WeekStartDay.Monday -> R.string.settings_display_week_start_monday
+                        WeekStartDay.Sunday -> R.string.settings_display_week_start_sunday
+                    }
+                    if (day == selected) {
+                        Button(onClick = { onSelect(day) }) {
+                            Text(stringResource(label), maxLines = 2)
+                        }
+                    } else {
+                        OutlinedButton(onClick = { onSelect(day) }) {
+                            Text(stringResource(label), maxLines = 2)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

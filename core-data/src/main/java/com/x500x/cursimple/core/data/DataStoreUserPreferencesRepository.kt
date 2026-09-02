@@ -25,6 +25,7 @@ import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.localDate
 import com.x500x.cursimple.core.kernel.model.withEntry
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
@@ -284,6 +285,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setScheduleSaturdayVisible(visible: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE] = visible }
+    }
+
+    override suspend fun setScheduleWeekStartDay(day: WeekStartDay) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_WEEK_START_DAY] = day.name }
     }
 
     override suspend fun setScheduleWeekendVisible(visible: Boolean) {
@@ -797,6 +802,9 @@ class DataStoreUserPreferencesRepository(
             nodeColumnTimeEnabled = this[KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED] ?: true,
             saturdayVisible = this[KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE] ?: true,
             weekendVisible = this[KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE] ?: true,
+            weekStartDay = this[KEY_SCHEDULE_DISPLAY_WEEK_START_DAY]
+                ?.let { raw -> runCatching { WeekStartDay.valueOf(raw) }.getOrNull() }
+                ?: WeekStartDay.Monday,
             locationVisible = this[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] ?: true,
             locationPrefixAtEnabled = this[KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
@@ -855,6 +863,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
+        remove(KEY_SCHEDULE_DISPLAY_WEEK_START_DAY)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE)
@@ -919,6 +928,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED = booleanPreferencesKey("schedule_display_node_column_time_enabled")
         val KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE = booleanPreferencesKey("schedule_display_saturday_visible")
         val KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE = booleanPreferencesKey("schedule_display_weekend_visible")
+        val KEY_SCHEDULE_DISPLAY_WEEK_START_DAY = stringPreferencesKey("schedule_display_week_start_day")
         val KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE = booleanPreferencesKey("schedule_display_location_visible")
         val KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED =
             booleanPreferencesKey("schedule_display_location_prefix_at_enabled")

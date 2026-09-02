@@ -98,6 +98,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -110,6 +111,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImportExportScreen(
+    weekStartDay: WeekStartDay = WeekStartDay.Monday,
     schedule: TermSchedule?,
     manualCourses: List<CourseItem>,
     termName: String?,
@@ -232,6 +234,7 @@ fun ImportExportScreen(
                 timingProfile = timingProfile,
                 overrides = temporaryScheduleOverrides,
                 holidayCalendar = holidayCalendar,
+                weekStartDay = weekStartDay,
             )
             imageBusy = false
             val intent = outcome.intent
