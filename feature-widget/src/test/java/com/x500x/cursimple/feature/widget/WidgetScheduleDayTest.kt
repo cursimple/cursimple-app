@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,15 +23,36 @@ class WidgetScheduleDayTest {
     private val monday = LocalDate.of(2026, 9, 28)
 
     @Test
-    fun `a built-in holiday clears the courses and names the day`() {
+    fun `a built-in holiday keeps the courses, marks them and names the day`() {
         val day = resolveDay(nationalDay, holidayCalendar = HolidayCalendarSettings())
 
-        assertEquals(emptyList<CourseItem>(), day.courses)
+        assertTrue(day.onHoliday)
+        assertTrue(day.courses.isNotEmpty())
         assertEquals(
             WidgetHolidayLabel.BuiltIn(builtInHolidayNameResOn(nationalDay)!!),
             day.holidayLabel,
         )
         assertEquals(nationalDay, day.sourceDate)
+    }
+
+    @Test
+    fun `a make-up override on a holiday still takes the source day's courses`() {
+        val day = resolveDay(
+            nationalDay,
+            holidayCalendar = HolidayCalendarSettings(),
+            overrides = listOf(
+                TemporaryScheduleOverride(
+                    id = "makeup",
+                    type = TemporaryScheduleOverrideType.MakeUp,
+                    targetDate = nationalDay.toString(),
+                    sourceDate = monday.toString(),
+                ),
+            ),
+        )
+
+        // 临时调课明示当天要上课，因此推翻内置假日，不该按放假标记
+        assertFalse(day.onHoliday)
+        assertEquals(monday, day.sourceDate)
     }
 
     @Test
@@ -117,7 +139,8 @@ class WidgetScheduleDayTest {
             ),
         )
 
-        assertEquals(emptyList<CourseItem>(), day.courses)
+        assertTrue(day.onHoliday)
+        assertTrue(day.courses.isNotEmpty())
         assertEquals(WidgetHolidayLabel.Named("校庆"), day.holidayLabel)
         assertEquals(nationalDay, day.sourceDate)
     }

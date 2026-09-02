@@ -6,6 +6,7 @@ import android.content.Intent
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
+import androidx.core.content.ContextCompat
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import kotlinx.coroutines.Dispatchers
@@ -60,6 +61,15 @@ private class ScheduleCourseListFactory(
         row.setTextViewText(R.id.course_time, rowData.timeRange)
         row.setTextViewText(R.id.course_title, rowData.title)
         row.setTextViewText(R.id.course_subtitle, rowData.subtitle)
+        if (rowData.onHoliday) {
+            // 放假当天的行整体调灰，与课表里的不可用态保持一致
+            val primary = ContextCompat.getColor(context, R.color.widget_row_holiday_primary)
+            val secondary = ContextCompat.getColor(context, R.color.widget_row_holiday_secondary)
+            row.setTextColor(R.id.course_title, primary)
+            row.setTextColor(R.id.course_nodes, secondary)
+            row.setTextColor(R.id.course_time, secondary)
+            row.setTextColor(R.id.course_subtitle, secondary)
+        }
         row.setViewVisibility(R.id.course_badge, if (rowData.hasReminder) View.VISIBLE else View.GONE)
         row.setTextViewText(
             R.id.course_badge,
