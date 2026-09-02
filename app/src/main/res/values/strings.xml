@@ -541,6 +541,7 @@
     <string name="settings_toast_dev_time_forced">已强制时间：%1$s</string>
     <string name="settings_dev_time_picker_title">选择调试时间</string>
     <string name="screen_schedule">课表</string>
+    <string name="screen_courses">全部课程</string>
     <string name="screen_plugins">插件</string>
     <string name="screen_reminders">提醒</string>
     <string name="screen_settings">设置</string>

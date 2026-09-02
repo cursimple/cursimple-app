@@ -45,6 +45,16 @@ class DataStoreManualCourseRepository(
         }
     }
 
+    override suspend fun updateCourse(course: CourseItem) {
+        val termId = termProfileRepository?.activeTermId().orEmpty()
+        store.edit { prefs ->
+            val current = decode(prefs, termId)
+            if (current.none { it.id == course.id }) return@edit
+            val next = current.map { if (it.id == course.id) course else it }
+            prefs[coursesKey(termId)] = json.encodeToString(serializer, next)
+        }
+    }
+
     override suspend fun removeCourse(courseId: String) {
         val termId = termProfileRepository?.activeTermId().orEmpty()
         store.edit { prefs ->

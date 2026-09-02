@@ -541,6 +541,7 @@
     <string name="settings_toast_dev_time_forced">Time forced to %1$s</string>
     <string name="settings_dev_time_picker_title">Pick a debug time</string>
     <string name="screen_schedule">Timetable</string>
+    <string name="screen_courses">Courses</string>
     <string name="screen_plugins">Plugins</string>
     <string name="screen_reminders">Reminders</string>
     <string name="screen_settings">Settings</string>
