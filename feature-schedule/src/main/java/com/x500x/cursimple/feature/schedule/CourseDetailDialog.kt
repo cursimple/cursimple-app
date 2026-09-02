@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -71,6 +73,7 @@ import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import com.x500x.cursimple.feature.schedule.time.today
 import java.time.LocalDate
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CourseDetailDialog(
     courses: List<CourseItem>,
@@ -155,8 +158,8 @@ fun CourseDetailDialog(
         ) {
             Column(
                 modifier = Modifier
-                    .verticalScroll(rememberScrollState())
-                    .heightIn(max = 680.dp),
+                    .heightIn(max = 680.dp)
+                    .verticalScroll(rememberScrollState()),
             ) {
                 // 顶部彩色头条
                 Box(
@@ -312,10 +315,10 @@ fun CourseDetailDialog(
                         }
                     }
 
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         if (manual) {
                             OutlinedButton(
@@ -333,7 +336,6 @@ fun CourseDetailDialog(
                         }
                         OutlinedButton(
                             onClick = { onSetReminder(course) },
-                            modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         ) {
                             Icon(
@@ -357,6 +359,7 @@ fun CourseDetailDialog(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CourseNoteSection(
     courseKey: String,
@@ -371,7 +374,10 @@ private fun CourseNoteSection(
     val tooLong = draftLength > maxLength
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
             Box(
                 modifier = Modifier
                     .size(36.dp)
@@ -392,6 +398,7 @@ private fun CourseNoteSection(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
+                maxLines = 2,
             )
             if (!editing) {
                 TextButton(onClick = { editing = true }) {
