@@ -153,6 +153,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleWeekendVisible(visible) }
     }
 
+    fun setCourseDragEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setCourseDragEnabled(enabled) }
+    }
+
     fun setScheduleWeekStartDay(day: WeekStartDay) {
         viewModelScope.launch {
             repository.setScheduleWeekStartDay(day)
