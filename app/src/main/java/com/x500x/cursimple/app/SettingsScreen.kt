@@ -1349,7 +1349,7 @@ private fun TimingProfileSettingsSection() {
     androidx.compose.runtime.LaunchedEffect(Unit) {
         val existing = repository.timingProfileFlow.first()
         if (existing != null && drafts.isEmpty()) {
-            drafts.addAll(existing.slotTimes.map { it.toDraftInput() })
+            drafts.addAll(existing.slotTimes.mapIndexed { index, slot -> slot.toDraftInput(context, index + 1) })
         }
     }
 
@@ -1476,7 +1476,7 @@ private fun TimingProfileSettingsSection() {
                 }
                 withContext(Dispatchers.Main) {
                     drafts.clear()
-                    drafts.addAll(result.slots.map { it.toDraftInput() })
+                    drafts.addAll(result.slots.mapIndexed { index, slot -> slot.toDraftInput(context, index + 1) })
                     Toast.makeText(
                         context,
                         context.getString(R.string.settings_toast_timing_saved, result.slots.size),
@@ -1515,7 +1515,9 @@ private fun TimingProfileSettingsSection() {
             onDismiss = { showTemplatePicker = false },
             onSelect = { template ->
                 drafts.clear()
-                drafts.addAll(template.slotTimes(context).map { it.toDraftInput() })
+                drafts.addAll(
+                    template.slotTimes(context).mapIndexed { index, slot -> slot.toDraftInput(context, index + 1) },
+                )
                 errors = emptyList()
                 showTemplatePicker = false
             },
