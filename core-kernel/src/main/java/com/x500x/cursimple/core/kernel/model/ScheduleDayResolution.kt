@@ -11,6 +11,8 @@ data class ScheduleDayResolution(
     val sourceDate: LocalDate,
     val isHoliday: Boolean,
     val holidayName: String?,
+    /** 内置假日的文案资源，用户自建的假日为 null，按用户填的名字显示。 */
+    val holidayNameRes: Int? = null,
 )
 
 /**
@@ -40,5 +42,6 @@ fun resolveScheduleDay(
         sourceDate = if (holiday) date else resolveTemporaryScheduleSourceDate(date, overrides),
         isHoliday = holiday,
         holidayName = if (holiday) effectiveEntry?.name?.takeIf { it.isNotBlank() } else null,
+        holidayNameRes = if (holiday && userEntry == null) builtInHolidayNameResOn(date) else null,
     )
 }

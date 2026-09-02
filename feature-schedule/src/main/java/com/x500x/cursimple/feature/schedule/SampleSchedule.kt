@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import android.content.Context
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 
@@ -11,8 +12,9 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
  * - 短期课（仅 5-12 周）
  * - 早 / 中 / 晚不同节次
  * - 周末课
+ * 课程名、教师名与地点按当前语言取自资源，只有语言无关的英文名直接内联。
  */
-internal fun sampleManualCourses(): List<CourseItem> {
+internal fun sampleManualCourses(context: Context): List<CourseItem> {
     val all = (1..16).toList()
     val odd = all.filter { it % 2 == 1 }
     val even = all.filter { it % 2 == 0 }
@@ -22,35 +24,35 @@ internal fun sampleManualCourses(): List<CourseItem> {
         // ───── 周一
         course(
             id = "sample-monday-math",
-            title = "高等数学",
-            teacher = "李教授",
-            location = "教学楼A101",
+            title = context.getString(R.string.schedule_sample_monday_math_title),
+            teacher = context.getString(R.string.schedule_sample_monday_math_teacher),
+            location = context.getString(R.string.schedule_sample_monday_math_location),
             day = 1, start = 1, end = 2,
             weeks = all,
         ),
         // 同一时段、单周
         course(
             id = "sample-monday-c",
-            title = "C 程序设计",
-            teacher = "王老师",
-            location = "实验楼B202",
+            title = context.getString(R.string.schedule_sample_monday_c_title),
+            teacher = context.getString(R.string.schedule_sample_monday_c_teacher),
+            location = context.getString(R.string.schedule_sample_monday_c_location),
             day = 1, start = 3, end = 4,
             weeks = odd,
         ),
         // 同一时段、双周（与上面同位置但相反周次）
         course(
             id = "sample-monday-ds",
-            title = "数据结构",
-            teacher = "张老师",
-            location = "实验楼B202",
+            title = context.getString(R.string.schedule_sample_monday_ds_title),
+            teacher = context.getString(R.string.schedule_sample_monday_ds_teacher),
+            location = context.getString(R.string.schedule_sample_monday_ds_location),
             day = 1, start = 3, end = 4,
             weeks = even,
         ),
         course(
             id = "sample-monday-python",
-            title = "Python 入门",
-            teacher = "赵老师",
-            location = "机房C301",
+            title = context.getString(R.string.schedule_sample_monday_python_title),
+            teacher = context.getString(R.string.schedule_sample_monday_python_teacher),
+            location = context.getString(R.string.schedule_sample_monday_python_location),
             day = 1, start = 5, end = 6,
             weeks = short,
         ),
@@ -58,17 +60,17 @@ internal fun sampleManualCourses(): List<CourseItem> {
         // ───── 周二
         course(
             id = "sample-tuesday-physics",
-            title = "大学物理",
-            teacher = "陈教授",
-            location = "教学楼A203",
+            title = context.getString(R.string.schedule_sample_tuesday_physics_title),
+            teacher = context.getString(R.string.schedule_sample_tuesday_physics_teacher),
+            location = context.getString(R.string.schedule_sample_tuesday_physics_location),
             day = 2, start = 1, end = 3,
             weeks = all,
         ),
         course(
             id = "sample-tuesday-english",
-            title = "英语听说",
+            title = context.getString(R.string.schedule_sample_tuesday_english_title),
             teacher = "Lisa",
-            location = "外语楼D102",
+            location = context.getString(R.string.schedule_sample_tuesday_english_location),
             day = 2, start = 7, end = 8,
             weeks = all,
         ),
@@ -76,25 +78,25 @@ internal fun sampleManualCourses(): List<CourseItem> {
         // ───── 周三
         course(
             id = "sample-wednesday-linear",
-            title = "线性代数",
-            teacher = "刘老师",
-            location = "教学楼A101",
+            title = context.getString(R.string.schedule_sample_wednesday_linear_title),
+            teacher = context.getString(R.string.schedule_sample_wednesday_linear_teacher),
+            location = context.getString(R.string.schedule_sample_wednesday_linear_location),
             day = 3, start = 1, end = 2,
             weeks = odd,
         ),
         course(
             id = "sample-wednesday-prob",
-            title = "概率论",
-            teacher = "林老师",
-            location = "教学楼A101",
+            title = context.getString(R.string.schedule_sample_wednesday_prob_title),
+            teacher = context.getString(R.string.schedule_sample_wednesday_prob_teacher),
+            location = context.getString(R.string.schedule_sample_wednesday_prob_location),
             day = 3, start = 1, end = 2,
             weeks = even,
         ),
         course(
             id = "sample-wednesday-marx",
-            title = "马克思主义基本原理",
-            teacher = "周老师",
-            location = "教学楼A301",
+            title = context.getString(R.string.schedule_sample_wednesday_marx_title),
+            teacher = context.getString(R.string.schedule_sample_wednesday_marx_teacher),
+            location = context.getString(R.string.schedule_sample_wednesday_marx_location),
             day = 3, start = 5, end = 6,
             weeks = all,
         ),
@@ -102,17 +104,17 @@ internal fun sampleManualCourses(): List<CourseItem> {
         // ───── 周四
         course(
             id = "sample-thursday-os",
-            title = "操作系统",
-            teacher = "孙教授",
-            location = "实验楼B305",
+            title = context.getString(R.string.schedule_sample_thursday_os_title),
+            teacher = context.getString(R.string.schedule_sample_thursday_os_teacher),
+            location = context.getString(R.string.schedule_sample_thursday_os_location),
             day = 4, start = 3, end = 5,
             weeks = all,
         ),
         course(
             id = "sample-thursday-advprog",
-            title = "高级编程技术",
-            teacher = "吴老师",
-            location = "实验楼B202",
+            title = context.getString(R.string.schedule_sample_thursday_advprog_title),
+            teacher = context.getString(R.string.schedule_sample_thursday_advprog_teacher),
+            location = context.getString(R.string.schedule_sample_thursday_advprog_location),
             day = 4, start = 9, end = 10,
             weeks = all,
         ),
@@ -120,17 +122,17 @@ internal fun sampleManualCourses(): List<CourseItem> {
         // ───── 周五
         course(
             id = "sample-friday-network",
-            title = "计算机网络",
-            teacher = "郑教授",
-            location = "实验楼B203",
+            title = context.getString(R.string.schedule_sample_friday_network_title),
+            teacher = context.getString(R.string.schedule_sample_friday_network_teacher),
+            location = context.getString(R.string.schedule_sample_friday_network_location),
             day = 5, start = 1, end = 2,
             weeks = all,
         ),
         course(
             id = "sample-friday-pe",
-            title = "体育（羽毛球）",
-            teacher = "周教练",
-            location = "体育馆",
+            title = context.getString(R.string.schedule_sample_friday_pe_title),
+            teacher = context.getString(R.string.schedule_sample_friday_pe_teacher),
+            location = context.getString(R.string.schedule_sample_friday_pe_location),
             day = 5, start = 5, end = 6,
             weeks = all,
         ),
@@ -138,9 +140,9 @@ internal fun sampleManualCourses(): List<CourseItem> {
         // ───── 周六
         course(
             id = "sample-saturday-elab",
-            title = "电子技术实验",
-            teacher = "李实验员",
-            location = "实验楼E101",
+            title = context.getString(R.string.schedule_sample_saturday_elab_title),
+            teacher = context.getString(R.string.schedule_sample_saturday_elab_teacher),
+            location = context.getString(R.string.schedule_sample_saturday_elab_location),
             day = 6, start = 3, end = 4,
             weeks = all,
         ),
@@ -148,9 +150,9 @@ internal fun sampleManualCourses(): List<CourseItem> {
         // ───── 周日
         course(
             id = "sample-sunday-culture",
-            title = "中西文化对比（慕课）",
-            teacher = "教务处",
-            location = "线上",
+            title = context.getString(R.string.schedule_sample_sunday_culture_title),
+            teacher = context.getString(R.string.schedule_sample_sunday_culture_teacher),
+            location = context.getString(R.string.schedule_sample_sunday_culture_location),
             day = 7, start = 1, end = 2,
             weeks = odd,
         ),

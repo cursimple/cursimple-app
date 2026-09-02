@@ -6,4 +6,74 @@
     <string name="widget_label_today">Daily classes</string>
     <string name="widget_label_next">Next class</string>
     <string name="widget_label_reminder">Class reminders</string>
+
+    <string name="widget_catalog_next_description">Current and next class at a glance, with time and place</string>
+    <string name="widget_catalog_today_description">Classes for any date, with one-tap day switching and jump back to today</string>
+    <string name="widget_catalog_reminder_description">Class reminders about to fire</string>
+
+    <string name="widget_month_day">%1$d/%2$d</string>
+    <string name="widget_title_date_tag">%1$s · %2$s</string>
+    <string name="widget_date_weekday">%1$s %2$s</string>
+
+    <string name="widget_day_tag_yesterday">Yesterday</string>
+    <string name="widget_day_tag_today">Today</string>
+    <string name="widget_day_tag_tomorrow">Tomorrow</string>
+    <string name="widget_day_tag_ahead">+%1$dd</string>
+    <string name="widget_day_tag_behind">-%1$dd</string>
+
+    <string name="widget_holiday_default">Holiday</string>
+    <string name="widget_empty_holiday">%1$s · No classes</string>
+    <string name="widget_empty_term_start_missing">No term start · Tap to set</string>
+    <string name="widget_empty_before_term_start">Not started</string>
+    <string name="widget_empty_before_term_start_date">Not started · from %1$d/%2$d</string>
+    <string name="widget_empty_yesterday">No classes yesterday</string>
+    <string name="widget_empty_today">No classes today, enjoy</string>
+    <string name="widget_empty_tomorrow">No classes tomorrow</string>
+    <string name="widget_empty_other_day">No classes that day</string>
+
+    <string name="widget_subtitle_holiday">%1$s · %2$s</string>
+    <string name="widget_subtitle_term_start_missing">%1$s · No term start</string>
+    <string name="widget_subtitle_before_term_start">%1$s · Not started</string>
+    <string name="widget_subtitle_source">%1$s · Using %2$s</string>
+
+    <string name="widget_next_header_today">Today</string>
+    <string name="widget_next_header_tomorrow">Tomorrow</string>
+    <string name="widget_next_header_holiday">%1$s · %2$s</string>
+    <string name="widget_next_header_source">%1$s · Using %2$s</string>
+    <string name="widget_next_header_status">%1$s · %2$s</string>
+    <string name="widget_next_empty_no_more_today">No more classes today</string>
+    <string name="widget_next_empty_today">No classes today</string>
+    <string name="widget_next_empty_tomorrow">No classes tomorrow</string>
+    <string name="widget_next_empty_other_day">No classes that day</string>
+
+    <string name="widget_status_live">In class</string>
+    <string name="widget_status_exam_live">In exam</string>
+    <string name="widget_status_upcoming">Starting soon</string>
+    <string name="widget_status_finished">Ended</string>
+
+    <string name="widget_countdown_minutes">in %1$dm</string>
+    <string name="widget_countdown_hours">in %1$dh</string>
+    <string name="widget_countdown_hours_minutes">in %1$dh %2$dm</string>
+
+    <string name="widget_node_range">P%1$d-%2$d</string>
+    <string name="widget_course_subtitle_placeholder">TBD</string>
+    <string name="widget_exam_title">Exam · %1$s</string>
+    <string name="widget_course_reminder_badge">Alert</string>
+
+    <string name="widget_reminder_badge_count">%1$d</string>
+    <string name="widget_reminder_empty_no_rules">No reminder rules yet</string>
+    <string name="widget_reminder_empty_no_rules_sub">Add reminders to a class in the app</string>
+    <string name="widget_reminder_empty_none_upcoming">No upcoming reminders</string>
+    <string name="widget_reminder_empty_none_upcoming_sub">Nothing scheduled for a while</string>
+    <string name="widget_reminder_date_today">Today</string>
+    <string name="widget_reminder_date_tomorrow">Tomorrow</string>
+    <string name="widget_reminder_date_day_after">In 2d</string>
+    <string name="widget_reminder_countdown_now">Soon</string>
+    <string name="widget_reminder_countdown_minutes">%1$dm</string>
+    <string name="widget_reminder_countdown_hours">%1$dh</string>
+    <string name="widget_reminder_countdown_hours_minutes">%1$dh %2$dm</string>
+    <string name="widget_reminder_countdown_days">in %1$dd</string>
+    <string name="widget_reminder_default_title">Class reminder</string>
+    <string name="widget_reminder_default_message">Class starting soon</string>
+    <string name="widget_reminder_snoozed_message">Snoozed 5 min</string>
 </resources>

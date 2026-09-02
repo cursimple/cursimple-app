@@ -13,11 +13,14 @@ import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.ReminderDayPeriod
+import com.x500x.cursimple.core.reminder.model.ReminderNotificationMessage
+import com.x500x.cursimple.core.reminder.model.ReminderNotificationTitle
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.model.isLegacy
+import com.x500x.cursimple.core.reminder.model.stableText
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -176,61 +179,50 @@ class ReminderPlanner {
             .atZone(zone)
             .toInstant()
             .toEpochMilli()
+        val titleContent = buildTitleContent(course, slot, rule.advanceMinutes, titlePeriod)
+        val messageContent = buildMessageContent(course, courseDate, slot)
         return ReminderPlan(
             planId = "${rule.ruleId}_${course.id}_$trigger",
             ruleId = rule.ruleId,
             pluginId = rule.pluginId,
-            title = buildTitle(course, courseDate, slot, rule.advanceMinutes, titlePeriod),
-            message = buildMessage(course, courseDate, slot),
+            title = titleContent.stableText(),
+            message = messageContent.stableText(),
+            titleContent = titleContent,
+            messageContent = messageContent,
             triggerAtMillis = trigger,
             ringtoneUri = rule.ringtoneUri,
             courseId = course.id,
         )
     }
 
-    private fun buildTitle(
+    private fun buildTitleContent(
         course: CourseItem,
-        courseDate: LocalDate,
         slot: ClassSlotTime,
         advanceMinutes: Int,
         period: ReminderDayPeriod? = null,
-    ): String {
-        val weekday = weekdayName(course.time.dayOfWeek)
-        val startTime = slot.startTime
-        val advance = if (advanceMinutes > 0) "（提前${advanceMinutes}分钟）" else ""
-        val prefix = when (period) {
-            ReminderDayPeriod.Morning -> "上午首次课："
-            ReminderDayPeriod.Afternoon -> "下午首次课："
-            ReminderDayPeriod.Evening -> "晚上首次课："
-            null -> ""
-        }
-        val title = if (course.category == CourseCategory.Exam) "考试：${course.title}" else course.title
-        return "${weekday} ${startTime} $prefix$title$advance"
-    }
+    ): ReminderNotificationTitle = ReminderNotificationTitle(
+        dayOfWeek = course.time.dayOfWeek,
+        startTime = slot.startTime,
+        courseTitle = course.title,
+        exam = course.category == CourseCategory.Exam,
+        firstCoursePeriod = period,
+        advanceMinutes = advanceMinutes,
+    )
 
-    private fun buildMessage(
+    private fun buildMessageContent(
         course: CourseItem,
         courseDate: LocalDate,
         slot: ClassSlotTime,
-    ): String {
-        val date = "${courseDate.monthValue}月${courseDate.dayOfMonth}日"
-        val weekday = weekdayName(course.time.dayOfWeek)
-        val timeRange = "${slot.startTime}-${slot.endTime}"
-        val nodes = "第${course.time.startNode}-${course.time.endNode}节"
-        val location = course.location.ifBlank { "待定教室" }
-        return "$date $weekday $timeRange · $nodes · $location"
-    }
-
-    private fun weekdayName(dayOfWeek: Int): String = when (dayOfWeek) {
-        1 -> "周一"
-        2 -> "周二"
-        3 -> "周三"
-        4 -> "周四"
-        5 -> "周五"
-        6 -> "周六"
-        7 -> "周日"
-        else -> "周$dayOfWeek"
-    }
+    ): ReminderNotificationMessage = ReminderNotificationMessage(
+        month = courseDate.monthValue,
+        dayOfMonth = courseDate.dayOfMonth,
+        dayOfWeek = course.time.dayOfWeek,
+        startTime = slot.startTime,
+        endTime = slot.endTime,
+        startNode = course.time.startNode,
+        endNode = course.time.endNode,
+        location = course.location,
+    )
 
     private fun ReminderRule.matches(course: CourseItem): Boolean {
         return when (scopeType) {

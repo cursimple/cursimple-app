@@ -51,6 +51,8 @@ import com.x500x.cursimple.app.update.AppUpdateChecker
 import com.x500x.cursimple.app.update.AppUpdateDownloadResult
 import com.x500x.cursimple.app.update.AppUpdateInfo
 import com.x500x.cursimple.app.update.AppUpdateInstaller
+import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.update.updateStatusText
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -64,7 +66,7 @@ fun UpdateCheckSection(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val checker = remember { AppUpdateChecker() }
+    val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
     var checking by rememberSaveable { mutableStateOf(false) }
     var downloading by rememberSaveable { mutableStateOf(false) }
     var statusMessage by rememberSaveable { mutableStateOf(context.getString(R.string.update_status_default)) }
@@ -94,7 +96,7 @@ fun UpdateCheckSection(
                     AppUpdateInstaller.openInstall(context, result.file)
                 }
                 is AppUpdateDownloadResult.Failure -> {
-                    statusMessage = result.message
+                    statusMessage = context.updateStatusText(result.reason)
                 }
             }
             downloading = false
@@ -120,7 +122,7 @@ fun UpdateCheckSection(
                         statusMessage = context.getString(R.string.update_status_available, result.info.versionName)
                     }
                 }
-                is AppUpdateCheckResult.Failure -> statusMessage = result.message
+                is AppUpdateCheckResult.Failure -> statusMessage = context.updateStatusText(result.reason)
             }
             checking = false
         }
@@ -200,7 +202,7 @@ fun AutomaticUpdateCheckPrompt(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val checker = remember { AppUpdateChecker() }
+    val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
     var checkedThisSession by rememberSaveable { mutableStateOf(false) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloading by rememberSaveable { mutableStateOf(false) }
@@ -226,7 +228,7 @@ fun AutomaticUpdateCheckPrompt(
                     AppUpdateInstaller.openInstall(context, result.file)
                 }
                 is AppUpdateDownloadResult.Failure -> {
-                    Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.updateStatusText(result.reason), Toast.LENGTH_SHORT).show()
                 }
             }
             downloading = false

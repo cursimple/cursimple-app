@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.core.plugin.PluginArgumentException
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
@@ -7,6 +8,7 @@ import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.security.PluginSignatureStatus
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -20,34 +22,52 @@ class PluginInstallPreviewLabelsTest {
         )
 
         assertEquals(
-            "GitHub 仓库 owner/plugin-repo",
+            PluginInstallOriginLabel.GitHubRepo("owner/plugin-repo"),
             pluginInstallOriginLabel(PluginInstallSource.Remote, origin),
         )
-        assertEquals("本地文件", pluginInstallOriginLabel(PluginInstallSource.Local, null))
-        assertEquals("应用内置", pluginInstallOriginLabel(PluginInstallSource.Bundled, null))
-        assertEquals("远程下载", pluginInstallOriginLabel(PluginInstallSource.Remote, null))
+        assertEquals(
+            PluginInstallOriginLabel.LocalFile,
+            pluginInstallOriginLabel(PluginInstallSource.Local, null),
+        )
+        assertEquals(
+            PluginInstallOriginLabel.Bundled,
+            pluginInstallOriginLabel(PluginInstallSource.Bundled, null),
+        )
+        assertEquals(
+            PluginInstallOriginLabel.Remote,
+            pluginInstallOriginLabel(PluginInstallSource.Remote, null),
+        )
     }
 
     @Test
-    fun `checksum label states what the digest actually covers`() {
-        assertEquals("通过（包内文件与 checksums.json 一致）", pluginChecksumLabel(true))
-        assertEquals("未通过", pluginChecksumLabel(false))
+    fun `checksum label separates a verified digest from a failed one`() {
+        assertEquals(R.string.plugin_install_checksum_verified, pluginChecksumLabelRes(true))
+        assertEquals(R.string.plugin_install_checksum_failed, pluginChecksumLabelRes(false))
     }
 
     @Test
     fun `signature label separates unsigned from verified`() {
-        assertEquals("未签名", pluginSignatureLabel(PluginSignatureStatus.Absent, null))
         assertEquals(
-            "有效，公钥指纹 AB:CD",
+            PluginSignatureLabel.Unsigned,
+            pluginSignatureLabel(PluginSignatureStatus.Absent, null),
+        )
+        assertEquals(
+            PluginSignatureLabel.Valid("AB:CD"),
             pluginSignatureLabel(PluginSignatureStatus.Valid, "AB:CD"),
         )
-        assertEquals("有效", pluginSignatureLabel(PluginSignatureStatus.Valid, null))
-        assertEquals("无效", pluginSignatureLabel(PluginSignatureStatus.Invalid, null))
+        assertEquals(
+            PluginSignatureLabel.ValidWithoutFingerprint,
+            pluginSignatureLabel(PluginSignatureStatus.Valid, null),
+        )
+        assertEquals(
+            PluginSignatureLabel.Invalid,
+            pluginSignatureLabel(PluginSignatureStatus.Invalid, null),
+        )
     }
 
     @Test
-    fun `permission labels pair a description with the raw id`() {
-        val labels = pluginPermissionLabels(
+    fun `permission list keeps the declaration order and drops duplicates`() {
+        val list = pluginPermissionList(
             listOf(
                 PluginPermission.WebReadCookies,
                 PluginPermission.NetworkFetch,
@@ -55,28 +75,33 @@ class PluginInstallPreviewLabelsTest {
             ),
         )
 
-        assertEquals(2, labels.size)
-        assertEquals("读取网页登录 Cookie（web.read_cookies）", labels.first())
-        assertTrue(labels.last().contains("network.fetch"))
+        assertEquals(
+            PluginPermissionList.Declared(
+                listOf(PluginPermission.WebReadCookies, PluginPermission.NetworkFetch),
+            ),
+            list,
+        )
+        assertEquals(
+            R.string.plugin_permission_web_read_cookies,
+            pluginPermissionNameRes(PluginPermission.WebReadCookies),
+        )
+        assertEquals(
+            R.string.plugin_permission_network_fetch,
+            pluginPermissionNameRes(PluginPermission.NetworkFetch),
+        )
     }
 
     @Test
-    fun `permission labels cover every declared permission`() {
-        PluginPermission.entries.forEach { permission ->
-            val label = pluginPermissionLabels(listOf(permission)).single()
-            assertTrue(label.contains(permission.id))
-            assertFalse(label.startsWith("（"))
-        }
+    fun `every declared permission gets its own description`() {
+        val resIds = PluginPermission.entries.map(::pluginPermissionNameRes)
+
+        resIds.forEach { assertNotEquals(0, it) }
+        assertEquals(PluginPermission.entries.size, resIds.toSet().size)
     }
 
     @Test
     fun `empty permission list is spelled out`() {
-        assertEquals(listOf("未声明任何权限"), pluginPermissionLabels(emptyList()))
-    }
-
-    @Test
-    fun `empty host allowlist explains that the plugin cannot navigate`() {
-        assertTrue(pluginAllowedHostsEmptyLabel().contains("未声明"))
+        assertEquals(PluginPermissionList.Empty, pluginPermissionList(emptyList()))
     }
 
     @Test
@@ -85,7 +110,7 @@ class PluginInstallPreviewLabelsTest {
 
         assertTrue(canConfirmPluginInstall(preview))
         assertNull(pluginInstallBlockReason(preview))
-        assertTrue(installPreviewStatusMessage(preview).contains("已通过完整性预检"))
+        assertEquals(PluginMarketStatus.PreviewReady, installPreviewStatus(preview))
     }
 
     @Test
@@ -101,30 +126,38 @@ class PluginInstallPreviewLabelsTest {
         val preview = preview(checksumVerified = false, signature = PluginSignatureStatus.Absent)
 
         assertFalse(canConfirmPluginInstall(preview))
-        assertTrue(pluginInstallBlockReason(preview).orEmpty().contains("checksums.json"))
-        assertTrue(installPreviewStatusMessage(preview).contains("摘要校验未通过"))
+        assertEquals(PluginInstallBlockReason.ChecksumMismatch, pluginInstallBlockReason(preview))
+        assertEquals(PluginMarketStatus.PreviewChecksumRejected, installPreviewStatus(preview))
     }
 
     @Test
     fun `broken signature blocks the confirm button`() {
+        val signatureError = PluginArgumentException(R.string.plugin_install_block_signature)
         val preview = preview(
             checksumVerified = true,
             signature = PluginSignatureStatus.Invalid,
-            signatureMessage = "插件签名与包内摘要清单不匹配",
+            signatureError = signatureError,
         )
 
         assertFalse(canConfirmPluginInstall(preview))
         assertEquals(
-            "签名校验未通过：插件签名与包内摘要清单不匹配",
+            PluginInstallBlockReason.SignatureRejected(signatureError),
             pluginInstallBlockReason(preview),
         )
-        assertTrue(installPreviewStatusMessage(preview).contains("签名校验未通过"))
+        assertEquals(PluginMarketStatus.PreviewSignatureRejected, installPreviewStatus(preview))
+
+        val withoutDetail = preview(checksumVerified = true, signature = PluginSignatureStatus.Invalid)
+
+        assertEquals(
+            PluginInstallBlockReason.SignatureRejected(null),
+            pluginInstallBlockReason(withoutDetail),
+        )
     }
 
     private fun preview(
         checksumVerified: Boolean,
         signature: PluginSignatureStatus,
-        signatureMessage: String? = null,
+        signatureError: Throwable? = null,
     ): PluginInstallPreview {
         return PluginInstallPreview(
             manifest = PluginManifest(
@@ -140,7 +173,7 @@ class PluginInstallPreviewLabelsTest {
             source = PluginInstallSource.Remote,
             signatureStatus = signature,
             signerFingerprint = if (signature == PluginSignatureStatus.Valid) "AB:CD" else null,
-            signatureMessage = signatureMessage,
+            signatureError = signatureError,
         )
     }
 }

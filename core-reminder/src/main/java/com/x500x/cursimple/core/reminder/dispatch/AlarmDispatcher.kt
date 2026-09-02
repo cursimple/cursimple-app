@@ -11,10 +11,14 @@ import android.os.Build
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
+import com.x500x.cursimple.core.reminder.model.ReminderMessage
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import com.x500x.cursimple.core.reminder.model.appAlarmRequestCode
+import com.x500x.cursimple.core.reminder.model.reminderNotificationTitleText
+import com.x500x.cursimple.core.reminder.model.reminderPlanMessageText
+import com.x500x.cursimple.core.reminder.model.reminderPlanTitleText
 import com.x500x.cursimple.core.reminder.model.systemAlarmKey
 import com.x500x.cursimple.core.reminder.model.systemAlarmLabel
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
@@ -54,8 +58,8 @@ class ProcessImportanceActivityStartGate : ForegroundActivityStartGate {
 }
 
 object SystemAlarmClockMessages {
-    const val DISPATCH_REQUIRES_FOREGROUND = "应用未在前台，系统时钟无法创建闹钟，请打开应用后重试"
-    const val DISMISS_REQUIRES_FOREGROUND = "应用未在前台，系统时钟无法删除闹钟，请打开应用后重试"
+    val DISPATCH_REQUIRES_FOREGROUND: ReminderMessage = ReminderMessage.SystemClockDispatchRequiresForeground
+    val DISMISS_REQUIRES_FOREGROUND: ReminderMessage = ReminderMessage.SystemClockDismissRequiresForeground
 }
 
 object AppAlarmClockIntents {
@@ -222,7 +226,8 @@ class SystemAlarmClockDispatcher(
             return AlarmDispatchResult(
                 channel = AlarmDispatchChannel.SystemClockApp,
                 succeeded = false,
-                message = SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND,
+                message = "",
+                localizedMessage = SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND,
             )
         }
         val trigger = Instant.ofEpochMilli(plan.triggerAtMillis).atZone(java.time.ZoneId.systemDefault())
@@ -353,8 +358,8 @@ private fun appAlarmServiceIntent(
         putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, plan.planId)
         putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, plan.courseId)
         putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, plan.triggerAtMillis)
-        putExtra(AppAlarmClockIntents.EXTRA_TITLE, plan.title)
-        putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, plan.message)
+        putExtra(AppAlarmClockIntents.EXTRA_TITLE, context.reminderPlanTitleText(plan))
+        putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, context.reminderPlanMessageText(plan))
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, plan.ringtoneUri)
         plan.alertMode?.let { putExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE, it.name) }
         plan.ringDurationSeconds?.let { putExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS, it) }
@@ -374,7 +379,10 @@ private fun appAlarmServiceIntent(
         putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, record.planId)
         putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, record.courseId)
         putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, record.triggerAtMillis)
-        putExtra(AppAlarmClockIntents.EXTRA_TITLE, record.displayTitle.orEmpty())
+        putExtra(
+            AppAlarmClockIntents.EXTRA_TITLE,
+            record.titleContent?.let { context.reminderNotificationTitleText(it) } ?: record.displayTitle.orEmpty(),
+        )
         putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, record.message)
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, record.ringtoneUriOverride)
         record.alertModeOverride?.let { putExtra(AppAlarmClockIntents.EXTRA_ALERT_MODE, it.name) }
@@ -440,7 +448,8 @@ class SystemAlarmClockDismisser(
             return AlarmDismissResult(
                 alarmKey = record.alarmKey,
                 succeeded = false,
-                message = SystemAlarmClockMessages.DISMISS_REQUIRES_FOREGROUND,
+                message = "",
+                localizedMessage = SystemAlarmClockMessages.DISMISS_REQUIRES_FOREGROUND,
             )
         }
         val label = record.alarmLabel ?: record.message

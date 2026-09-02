@@ -102,6 +102,7 @@ internal object ReminderDataSource {
             plans = plans,
             records = alarmRecords,
             nowMillis = now,
+            defaults = appContext.reminderWidgetTextDefaults(),
         )
 
         val rows = entries.map { entry ->
@@ -110,17 +111,29 @@ internal object ReminderDataSource {
             val isSoon = (entry.triggerAtMillis - now) <= 60 * 60 * 1000L
             ReminderRowData(
                 id = entry.id,
-                dateLabel = formatDateLabel(ts.toLocalDate(), today),
+                dateLabel = appContext.formatDateLabel(ts.toLocalDate(), today),
                 timeLabel = ts.toLocalTime().withSecond(0).withNano(0).toString().substring(0, 5),
                 title = entry.title,
                 message = entry.message,
-                countdown = formatCountdown(entry.triggerAtMillis - now),
+                countdown = appContext.formatCountdown(entry.triggerAtMillis - now),
                 accentPrimary = isToday || isSoon,
             )
         }
 
-        val emptyTitle = if (rules.isEmpty()) "尚未设置提醒规则" else "暂无即将到来的提醒"
-        val emptySubtitle = if (rules.isEmpty()) "在应用内为课程添加提醒" else "未来一段时间没有规划"
+        val emptyTitle = appContext.getString(
+            if (rules.isEmpty()) {
+                R.string.widget_reminder_empty_no_rules
+            } else {
+                R.string.widget_reminder_empty_none_upcoming
+            },
+        )
+        val emptySubtitle = appContext.getString(
+            if (rules.isEmpty()) {
+                R.string.widget_reminder_empty_no_rules_sub
+            } else {
+                R.string.widget_reminder_empty_none_upcoming_sub
+            },
+        )
 
         return ReminderWidgetData(
             widgetTheme = widgetTheme,
@@ -131,30 +144,37 @@ internal object ReminderDataSource {
         )
     }
 
-    private fun formatDateLabel(date: LocalDate, today: LocalDate): String {
+    private fun Context.formatDateLabel(date: LocalDate, today: LocalDate): String {
         val days = java.time.temporal.ChronoUnit.DAYS.between(today, date).toInt()
         return when (days) {
-            0 -> "今天"
-            1 -> "明天"
-            2 -> "后天"
+            0 -> getString(R.string.widget_reminder_date_today)
+            1 -> getString(R.string.widget_reminder_date_tomorrow)
+            2 -> getString(R.string.widget_reminder_date_day_after)
             else -> DateTimeFormatter.ofPattern("M/d").format(date)
         }
     }
 
-    private fun formatCountdown(diffMillis: Long): String {
-        if (diffMillis <= 0) return "即将"
+    private fun Context.formatCountdown(diffMillis: Long): String {
+        if (diffMillis <= 0) return getString(R.string.widget_reminder_countdown_now)
         val totalMinutes = Duration.ofMillis(diffMillis).toMinutes()
         return when {
-            totalMinutes < 60 -> "${totalMinutes}分钟"
+            totalMinutes < 60 ->
+                getString(R.string.widget_reminder_countdown_minutes, totalMinutes.toInt())
+
             totalMinutes < 24 * 60 -> {
-                val h = totalMinutes / 60
-                val m = totalMinutes % 60
-                if (m == 0L) "${h}小时" else "${h}小时${m}分"
+                val h = (totalMinutes / 60).toInt()
+                val m = (totalMinutes % 60).toInt()
+                if (m == 0) {
+                    getString(R.string.widget_reminder_countdown_hours, h)
+                } else {
+                    getString(R.string.widget_reminder_countdown_hours_minutes, h, m)
+                }
             }
-            else -> {
-                val days = totalMinutes / (24 * 60)
-                "${days}天后"
-            }
+
+            else -> getString(
+                R.string.widget_reminder_countdown_days,
+                (totalMinutes / (24 * 60)).toInt(),
+            )
         }
     }
 

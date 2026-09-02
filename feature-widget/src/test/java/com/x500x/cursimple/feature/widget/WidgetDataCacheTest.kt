@@ -61,7 +61,6 @@ class WidgetDataCacheTest {
             offset = offset,
             manualOffset = 0,
             targetDate = date,
-            weekdayLabel = "星期一",
             sourceDate = date,
             rows = emptyList(),
         )

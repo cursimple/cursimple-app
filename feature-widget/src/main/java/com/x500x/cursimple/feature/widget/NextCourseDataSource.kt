@@ -10,7 +10,6 @@ import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
-import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
 import java.time.Duration
@@ -104,55 +103,68 @@ internal object NextCourseDataSource {
         val firstUpcoming = visibleEntries.firstOrNull { it.status == CourseStatus.Upcoming }?.course
 
         val badgeText: String? = when {
-            live != null -> "上课中"
+            live != null -> appContext.getString(R.string.widget_status_live)
             firstUpcoming != null -> {
                 val startTime = timingProfile?.courseStartTime(firstUpcoming)
                 val mins = startTime?.let { Duration.between(now, it).toMinutes() }
-                if (mins != null && mins in 1..600) formatCountdownMinutes(mins) else null
+                if (mins != null && mins in 1..600) appContext.countdownText(mins) else null
             }
             else -> null
         }
 
-        val todayHeader = nextCourseDayHeader(
+        val dayHeader = nextCourseDayHeader(
             targetDate = targetDate,
             sourceDate = sourceDate,
             today = today,
             holidayLabel = displayDay.holidayLabel,
         )
+        val dayHeaderText = appContext.nextCourseDayHeaderText(dayHeader)
+        val plainToday = dayHeader is NextCourseDayHeader.Plain && !dayHeader.tomorrow
+        val nextCourseLabel = appContext.getString(R.string.widget_label_next)
         val headerLabel = when {
-            live != null -> "$todayHeader · ${if (live.category == CourseCategory.Exam) "考试中" else "上课中"}"
-            firstUpcoming != null -> if (todayHeader != "今日课程") todayHeader else "下一节课"
-            displayCourses.isNotEmpty() -> "$todayHeader · 已结束"
-            else -> if (todayHeader != "今日课程") todayHeader else "下一节课"
+            live != null -> appContext.getString(
+                R.string.widget_next_header_status,
+                dayHeaderText,
+                appContext.getString(
+                    widgetCourseStatusRes(CourseStatus.Live, live.category == CourseCategory.Exam),
+                ),
+            )
+
+            firstUpcoming != null -> if (plainToday) nextCourseLabel else dayHeaderText
+            displayCourses.isNotEmpty() -> appContext.getString(
+                R.string.widget_next_header_status,
+                dayHeaderText,
+                appContext.getString(R.string.widget_status_finished),
+            )
+
+            else -> if (plainToday) nextCourseLabel else dayHeaderText
         }
-        val emptyTitle = nextCourseEmptyTitle(
-            weekIndex = displayDay.weekIndex,
-            termStartDate = termStart,
-            targetDate = targetDate,
-            today = today,
-            hasCourses = displayCourses.isNotEmpty(),
-            holidayLabel = displayDay.holidayLabel,
+        val emptyTitle = appContext.nextCourseEmptyText(
+            nextCourseEmptyLabel(
+                weekIndex = displayDay.weekIndex,
+                termStartDate = termStart,
+                targetDate = targetDate,
+                today = today,
+                hasCourses = displayCourses.isNotEmpty(),
+                holidayLabel = displayDay.holidayLabel,
+            ),
         )
 
         val rows = visibleEntries.map { entry ->
             val course = entry.course
-            val timeRange = timingProfile?.courseClockRange(course, separator = " – ")
-                ?: "${course.time.startNode}-${course.time.endNode}节"
-            val period = "${course.time.startNode}-${course.time.endNode}节"
-            val label = when (entry.status) {
-                CourseStatus.Live -> if (course.category == CourseCategory.Exam) "考试中" else "上课中"
-                CourseStatus.Upcoming -> "即将开始"
-                CourseStatus.Past -> "已结束"
-            }
+            val period = appContext.widgetNodeRangeText(course.time.startNode, course.time.endNode)
+            val timeRange = timingProfile?.courseClockRange(course, separator = " – ") ?: period
+            val exam = course.category == CourseCategory.Exam
+            val label = appContext.getString(widgetCourseStatusRes(entry.status, exam))
             val sub = listOf(course.location, course.teacher)
                 .filter { it.isNotBlank() }
                 .joinToString(" · ")
-                .ifBlank { "待定" }
+                .ifBlank { appContext.getString(R.string.widget_course_subtitle_placeholder) }
             NextCourseRow(
                 id = course.id,
                 label = label,
                 period = period,
-                title = if (course.category == CourseCategory.Exam) "考试 · ${course.title}" else course.title,
+                title = appContext.widgetCourseTitleText(course.title, exam),
                 time = timeRange,
                 sub = sub,
                 isFocus = course === live || (live == null && course === firstUpcoming),
@@ -169,28 +181,14 @@ internal object NextCourseDataSource {
         )
     }
 
-    private fun formatCountdownMinutes(minutes: Long): String {
-        if (minutes < 60) return "${minutes}分钟后"
-        val h = minutes / 60
-        val m = minutes % 60
-        return if (m == 0L) "${h}小时后" else "${h}小时${m}分后"
+    private fun Context.countdownText(minutes: Long): String {
+        if (minutes < 60) return getString(R.string.widget_countdown_minutes, minutes.toInt())
+        val h = (minutes / 60).toInt()
+        val m = (minutes % 60).toInt()
+        return if (m == 0) {
+            getString(R.string.widget_countdown_hours, h)
+        } else {
+            getString(R.string.widget_countdown_hours_minutes, h, m)
+        }
     }
 }
-
-/** 表头前缀；放假当天补上假日名，来源日期与目标日期不同时补上“按X月X日周X”。 */
-internal fun nextCourseDayHeader(
-    targetDate: LocalDate,
-    sourceDate: LocalDate,
-    today: LocalDate,
-    holidayLabel: String? = null,
-): String {
-    val dayLabel = if (targetDate == today) "今日课程" else "明日课程"
-    return when {
-        holidayLabel != null -> "$dayLabel · $holidayLabel"
-        sourceDate != targetDate -> "$dayLabel · 按${sourceDateLabel(sourceDate)}"
-        else -> dayLabel
-    }
-}
-
-private fun sourceDateLabel(date: LocalDate): String =
-    "${date.monthValue}月${date.dayOfMonth}日${weekdayLabel(date.dayOfWeek.value)}"

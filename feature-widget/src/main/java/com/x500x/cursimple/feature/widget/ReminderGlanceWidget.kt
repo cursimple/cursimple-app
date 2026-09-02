@@ -24,10 +24,24 @@ internal data class ReminderWidgetEntry(
     val message: String,
 )
 
+/** 计划或记录没带文案时的兜底称呼，由界面层按当前语言给出。 */
+internal data class ReminderWidgetTextDefaults(
+    val title: String,
+    val planMessage: String,
+    val snoozedMessage: String,
+)
+
+internal fun Context.reminderWidgetTextDefaults(): ReminderWidgetTextDefaults = ReminderWidgetTextDefaults(
+    title = getString(R.string.widget_reminder_default_title),
+    planMessage = getString(R.string.widget_reminder_default_message),
+    snoozedMessage = getString(R.string.widget_reminder_snoozed_message),
+)
+
 internal fun buildReminderWidgetEntries(
     plans: List<ReminderPlan>,
     records: List<SystemAlarmRecord>,
     nowMillis: Long,
+    defaults: ReminderWidgetTextDefaults,
 ): List<ReminderWidgetEntry> {
     val planEntries = plans
         .asSequence()
@@ -36,8 +50,8 @@ internal fun buildReminderWidgetEntries(
             ReminderWidgetEntry(
                 id = "plan:${plan.planId}:${plan.triggerAtMillis}",
                 triggerAtMillis = plan.triggerAtMillis,
-                title = plan.title.ifBlank { "课程提醒" },
-                message = plan.message.ifBlank { "课程即将开始" },
+                title = plan.title.ifBlank { defaults.title },
+                message = plan.message.ifBlank { defaults.planMessage },
             )
         }
     val snoozeEntries = records
@@ -50,8 +64,8 @@ internal fun buildReminderWidgetEntries(
                 id = "record:${record.backend.name}:${record.alarmKey}",
                 triggerAtMillis = record.triggerAtMillis,
                 title = firstNotBlank(record.displayTitle, record.alarmLabel, record.message)
-                    ?: "课程提醒",
-                message = firstNotBlank(record.displayMessage) ?: "已延后 5 分钟",
+                    ?: defaults.title,
+                message = firstNotBlank(record.displayMessage) ?: defaults.snoozedMessage,
             )
         }
     return (planEntries + snoozeEntries)
@@ -141,7 +155,10 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
             views.applyOpenAppClick(context, R.id.reminder_root, appWidgetId, data.widgetTheme)
             if (data.totalCount > 0) {
                 views.setViewVisibility(R.id.reminder_badge, View.VISIBLE)
-                views.setTextViewText(R.id.reminder_badge, "${data.totalCount} 条")
+                views.setTextViewText(
+                    R.id.reminder_badge,
+                    context.getString(R.string.widget_reminder_badge_count, data.totalCount),
+                )
             } else {
                 views.setViewVisibility(R.id.reminder_badge, View.GONE)
             }

@@ -1,5 +1,7 @@
 package com.x500x.cursimple.app.util
 
+import androidx.annotation.StringRes
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -26,25 +28,25 @@ import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 
-/** 一门无法导出的课程及原因，供界面告知用户而不是静默丢弃。 */
+/** 一门无法导出的课程及原因，供界面告知用户而不是静默丢弃。[reason] 为文案资源 id。 */
 data class IcsSkippedCourse(
     val title: String,
     val dayOfWeek: Int,
     val startNode: Int,
     val endNode: Int,
-    val reason: String,
+    @StringRes val reason: Int,
 )
 
 /**
  * ICS 生成结果。
- * [content] 始终是一份合法的 iCalendar 文本；[failureReason] 非空表示因缺少必要配置整份日历没有任何事件。
+ * [content] 始终是一份合法的 iCalendar 文本；[failureReason] 非空（文案资源 id）表示因缺少必要配置整份日历没有任何事件。
  */
 data class IcsExportResult(
     val content: String,
     val eventCount: Int,
     val occurrenceCount: Int,
     val skipped: List<IcsSkippedCourse>,
-    val failureReason: String?,
+    @StringRes val failureReason: Int?,
 )
 
 /**
@@ -98,7 +100,7 @@ object ScheduleIcsBuilder {
                 eventCount = 0,
                 occurrenceCount = 0,
                 skipped = emptyList(),
-                failureReason = "未设置开学日期，无法计算上课日期",
+                failureReason = R.string.ics_failure_no_term_start,
             )
         }
         if (timingProfile == null) {
@@ -106,8 +108,8 @@ object ScheduleIcsBuilder {
                 content = emptyCalendar(termName, generatedAt),
                 eventCount = 0,
                 occurrenceCount = 0,
-                skipped = planningCourses.map { it.toSkipped("未设置节次上课时间") },
-                failureReason = "未设置节次上课时间，无法确定每节课的起止时刻",
+                skipped = planningCourses.map { it.toSkipped(R.string.ics_skip_no_timing) },
+                failureReason = R.string.ics_failure_no_timing,
             )
         }
 
@@ -146,7 +148,7 @@ object ScheduleIcsBuilder {
                 val startTime = startSlot?.parseStart()
                 val endTime = endSlot?.parseEnd()
                 if (startTime == null || endTime == null) {
-                    skippedKeys.getOrPut(key) { course.toSkipped("缺少节次上课时间") }
+                    skippedKeys.getOrPut(key) { course.toSkipped(R.string.ics_skip_missing_period) }
                     continue
                 }
                 val startDateTime = date.atTime(startTime)
@@ -299,7 +301,7 @@ object ScheduleIcsBuilder {
     private fun sanitizeUid(raw: String): String =
         raw.map { ch -> if (ch.isLetterOrDigit() || ch == '-' || ch == '_') ch else '_' }.joinToString("")
 
-    private fun CourseItem.toSkipped(reason: String): IcsSkippedCourse =
+    private fun CourseItem.toSkipped(@StringRes reason: Int): IcsSkippedCourse =
         IcsSkippedCourse(
             title = title,
             dayOfWeek = time.dayOfWeek,

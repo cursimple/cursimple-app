@@ -34,6 +34,7 @@ class ReminderWidgetRecordsTest {
             plans = listOf(plan),
             records = listOf(snoozeRecord, normalRecord),
             nowMillis = nowMillis,
+            defaults = defaults,
         )
 
         assertEquals(2, entries.size)
@@ -54,6 +55,7 @@ class ReminderWidgetRecordsTest {
                 ),
             ),
             nowMillis = 1_000L,
+            defaults = defaults,
         )
 
         assertEquals(emptyList<ReminderWidgetEntry>(), entries)
@@ -74,11 +76,38 @@ class ReminderWidgetRecordsTest {
                 ),
             ),
             nowMillis = 1_000L,
+            defaults = defaults,
         )
 
         assertEquals("课表提醒 · 大学英语 · 08:00", entries.single().title)
-        assertEquals("已延后 5 分钟", entries.single().message)
+        assertEquals(defaults.snoozedMessage, entries.single().message)
     }
+
+    @Test
+    fun `a blank plan falls back to the supplied default wording`() {
+        val entries = buildReminderWidgetEntries(
+            plans = listOf(
+                reminderPlan(
+                    planId = "plan-blank",
+                    triggerAtMillis = 2_000L,
+                    title = "",
+                    message = "",
+                ),
+            ),
+            records = emptyList(),
+            nowMillis = 1_000L,
+            defaults = defaults,
+        )
+
+        assertEquals(defaults.title, entries.single().title)
+        assertEquals(defaults.planMessage, entries.single().message)
+    }
+
+    private val defaults = ReminderWidgetTextDefaults(
+        title = "default-title",
+        planMessage = "default-plan-message",
+        snoozedMessage = "default-snoozed-message",
+    )
 
     private fun reminderPlan(
         planId: String,

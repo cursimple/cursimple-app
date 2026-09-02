@@ -4,11 +4,13 @@ import android.content.Context
 import android.os.Build
 import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.app.download.DownloadCandidate
+import com.x500x.cursimple.app.download.DownloadFailureReason
 import com.x500x.cursimple.app.download.DownloadMirrorPool
 import com.x500x.cursimple.app.download.DownloadPurpose
 import com.x500x.cursimple.app.download.DownloadRequest
 import com.x500x.cursimple.app.download.MirrorDownloadResult
 import com.x500x.cursimple.app.download.MirrorDownloader
+import com.x500x.cursimple.app.download.MirrorDownloaderLabels
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -22,9 +24,11 @@ import java.security.MessageDigest
 import kotlin.system.measureTimeMillis
 
 class AppUpdateChecker(
+    downloaderLabels: MirrorDownloaderLabels,
     private val repository: String = "cursimple/cursimple-app",
     private val mirrorPool: DownloadMirrorPool = DownloadMirrorPool(),
     private val downloader: MirrorDownloader = MirrorDownloader(
+        labels = downloaderLabels,
         mirrorPool = mirrorPool,
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
     ),
@@ -49,7 +53,7 @@ class AppUpdateChecker(
                 is UpdateSourceSelection.UnusableBody,
                 is UpdateSourceSelection.Unreachable,
                 -> return@withContext AppUpdateCheckResult.Failure(
-                    updateSourceFailureMessage(selection) ?: "检查更新失败，请稍后重试。",
+                    updateSourceFailureMessage(selection) ?: UpdateStatusReason.CheckRetry,
                 )
             }
 
@@ -86,7 +90,7 @@ class AppUpdateChecker(
                 UpdateAssetSelection.NoAsset,
                 is UpdateAssetSelection.NoCompatibleAbi,
                 -> return@withContext AppUpdateCheckResult.Failure(
-                    updateAssetFailureMessage(assetSelection) ?: "更新清单没有匹配当前设备的安装包。",
+                    updateAssetFailureMessage(assetSelection) ?: UpdateStatusReason.AssetNoMatch,
                 )
             }
             val candidates = probeDownloadCandidates(apkAsset.downloadUrl)
@@ -102,7 +106,7 @@ class AppUpdateChecker(
                 ),
             )
         }.getOrElse { error ->
-            AppUpdateCheckResult.Failure("检查更新失败：${describeUpdateError(error)}")
+            AppUpdateCheckResult.Failure(UpdateStatusReason.CheckError(describeUpdateError(error)))
         }
     }
 
@@ -118,13 +122,15 @@ class AppUpdateChecker(
             target = target,
         ) { file ->
             val actual = sha256(file)
-            require(actual.equals(info.asset.sha256, ignoreCase = true)) { "校验失败" }
+            if (!actual.equals(info.asset.sha256, ignoreCase = true)) {
+                throw UpdateException(UpdateErrorReason.ChecksumFailed)
+            }
         }
         when (result) {
             is MirrorDownloadResult.Success -> AppUpdateDownloadResult.Success(target, result.candidate.sourceName)
             is MirrorDownloadResult.Failure -> {
                 runCatching { target.delete() }
-                AppUpdateDownloadResult.Failure(updateDownloadFailureMessage(result.message))
+                AppUpdateDownloadResult.Failure(downloadFailureStatus(result.reason))
             }
         }
     }
@@ -171,7 +177,7 @@ class AppUpdateChecker(
     }
 
     private suspend fun downloadUpdateManifest(manifestUrl: String, tagName: String): String {
-        val failures = mutableListOf<String>()
+        val reasons = mutableListOf<DownloadFailureReason>()
         for (request in updateManifestRequests(manifestUrl, tagName)) {
             when (val result = downloader.downloadText(
                 request = request,
@@ -179,11 +185,18 @@ class AppUpdateChecker(
                 validate = { JSONObject(it) },
             )) {
                 is MirrorDownloadResult.Success -> return result.value
-                is MirrorDownloadResult.Failure -> failures += result.message
+                is MirrorDownloadResult.Failure -> reasons += result.reason
             }
         }
-        val detail = failures.firstNotNullOfOrNull { readableFailureDetail(it) } ?: "没有可用的下载源"
-        throw IllegalStateException("无法下载更新清单（$detail）")
+        val detail = reasons.firstNotNullOfOrNull { reason ->
+            when (reason) {
+                is DownloadFailureReason.Thrown -> describeUpdateError(reason.error).takeIf {
+                    it != UpdateErrorReason.Unknown
+                }
+                DownloadFailureReason.NoSource -> null
+            }
+        } ?: UpdateErrorReason.NoSource
+        throw UpdateException(UpdateErrorReason.ManifestDownloadFailed(detail))
     }
 
     private fun updateManifestRequests(manifestUrl: String, tagName: String): List<DownloadRequest> {
@@ -249,7 +262,7 @@ class AppUpdateChecker(
                     }.getOrElse { error ->
                         UpdateSourceAttempt(
                             sourceName = candidate.sourceName,
-                            errorMessage = describeUpdateError(error),
+                            errorReason = describeUpdateError(error),
                         )
                     }
                 }
@@ -302,7 +315,7 @@ class AppUpdateChecker(
             }
             connection.use { conn -> conn.responseCode }
         }.getOrElse { error ->
-            throw IllegalStateException("测速失败：${describeUpdateError(error)}")
+            throw UpdateException(UpdateErrorReason.ProbeFailed(describeUpdateError(error)))
         }
         check(getStatus in 200..399) { "HTTP $getStatus" }
     }

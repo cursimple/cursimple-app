@@ -9,38 +9,47 @@ class NextCourseHeaderTest {
 
     @Test
     fun `header keeps the plain day label without a temporary override`() {
-        assertEquals("今日课程", nextCourseDayHeader(today, today, today))
+        assertEquals(
+            NextCourseDayHeader.Plain(tomorrow = false),
+            nextCourseDayHeader(today, today, today),
+        )
         val tomorrow = today.plusDays(1)
-        assertEquals("明日课程", nextCourseDayHeader(tomorrow, tomorrow, today))
+        assertEquals(
+            NextCourseDayHeader.Plain(tomorrow = true),
+            nextCourseDayHeader(tomorrow, tomorrow, today),
+        )
     }
 
     @Test
     fun `header shows the source date when today follows another day's schedule`() {
+        val sourceDate = LocalDate.of(2026, 9, 7)
         assertEquals(
-            "今日课程 · 按9月7日周一",
-            nextCourseDayHeader(today, LocalDate.of(2026, 9, 7), today),
+            NextCourseDayHeader.TemporarySource(tomorrow = false, sourceDate = sourceDate),
+            nextCourseDayHeader(today, sourceDate, today),
         )
     }
 
     @Test
     fun `header shows the source date for tomorrow as well`() {
         val tomorrow = today.plusDays(1)
+        val sourceDate = LocalDate.of(2026, 9, 10)
         assertEquals(
-            "明日课程 · 按9月10日周四",
-            nextCourseDayHeader(tomorrow, LocalDate.of(2026, 9, 10), today),
+            NextCourseDayHeader.TemporarySource(tomorrow = true, sourceDate = sourceDate),
+            nextCourseDayHeader(tomorrow, sourceDate, today),
         )
     }
 
     @Test
     fun `header names the holiday instead of the source date`() {
+        val nationalDay = WidgetHolidayLabel.Named("国庆节")
         assertEquals(
-            "今日课程 · 国庆节",
-            nextCourseDayHeader(today, today, today, holidayLabel = "国庆节"),
+            NextCourseDayHeader.Holiday(tomorrow = false, label = nationalDay),
+            nextCourseDayHeader(today, today, today, holidayLabel = nationalDay),
         )
         val tomorrow = today.plusDays(1)
         assertEquals(
-            "明日课程 · 国庆节",
-            nextCourseDayHeader(tomorrow, tomorrow, today, holidayLabel = "国庆节"),
+            NextCourseDayHeader.Holiday(tomorrow = true, label = nationalDay),
+            nextCourseDayHeader(tomorrow, tomorrow, today, holidayLabel = nationalDay),
         )
     }
 }

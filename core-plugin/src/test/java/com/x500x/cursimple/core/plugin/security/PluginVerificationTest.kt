@@ -1,11 +1,14 @@
 package com.x500x.cursimple.core.plugin.security
 
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.assertPluginError
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.install.PluginInstaller
 import com.x500x.cursimple.core.plugin.install.PluginRegistryRepository
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
+import com.x500x.cursimple.core.plugin.pluginErrorOf
 import com.x500x.cursimple.core.plugin.storage.PluginFileStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,7 +55,7 @@ class Base64DecodeTest {
     fun `decoder rejects characters outside the standard alphabet`() {
         val error = runCatching { decodeBase64("AB*D") }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("非法字符"))
+        assertPluginError(R.string.plugin_error_base64_illegal_character, error)
     }
 }
 
@@ -67,7 +70,7 @@ class PluginChecksumVerifierTest {
             verifier.verify(layout, PluginChecksums(files = emptyMap()))
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("摘要不能为空"))
+        assertPluginError(R.string.plugin_error_checksum_empty, error)
     }
 
     @Test
@@ -81,8 +84,7 @@ class PluginChecksumVerifierTest {
             )
         }.exceptionOrNull()
 
-        assertTrue(error?.message.orEmpty().contains("覆盖不完整"))
-        assertTrue(error?.message.orEmpty().contains("main.js"))
+        assertPluginError(R.string.plugin_error_checksum_coverage_missing, error, "main.js")
     }
 
     @Test
@@ -184,7 +186,7 @@ class PluginSignatureVerifierTest {
         val result = verifier.resolve(layout, json)
 
         assertEquals(PluginSignatureStatus.Invalid, result.status)
-        assertTrue(result.message.orEmpty().contains("不匹配"))
+        assertPluginError(R.string.plugin_error_signature_checksum_mismatch, result.error)
     }
 
     @Test
@@ -200,7 +202,12 @@ class PluginSignatureVerifierTest {
         val result = verifier.resolve(layout, json)
 
         assertEquals(PluginSignatureStatus.Invalid, result.status)
-        assertTrue(result.message.orEmpty().contains("只能覆盖"))
+        assertPluginError(
+            R.string.plugin_error_signature_scope,
+            result.error,
+            PluginPackageLayout.CHECKSUMS_FILE,
+            "main.js",
+        )
     }
 
     @Test
@@ -215,7 +222,7 @@ class PluginSignatureVerifierTest {
         val result = verifier.resolve(layout, json)
 
         assertEquals(PluginSignatureStatus.Invalid, result.status)
-        assertTrue(result.message.orEmpty().contains("强度不足"))
+        assertPluginError(R.string.plugin_error_signature_key_too_weak, result.error, 1024)
     }
 
     @Test
@@ -234,7 +241,11 @@ class PluginSignatureVerifierTest {
         val result = verifier.resolve(layout, json)
 
         assertEquals(PluginSignatureStatus.Invalid, result.status)
-        assertTrue(result.message.orEmpty().contains("不受支持"))
+        assertPluginError(
+            R.string.plugin_error_signature_algorithm_unsupported,
+            result.error,
+            "SHA1withRSA",
+        )
     }
 
     @Test
@@ -291,7 +302,12 @@ class PluginInstallerSignatureTest {
         assertEquals(PluginSignatureStatus.Invalid, preview.signatureStatus)
         assertFalse(preview.installable)
         assertTrue(result is PluginInstallResult.Failure)
-        assertTrue((result as PluginInstallResult.Failure).message.contains("插件签名校验失败"))
+        val failure = (result as PluginInstallResult.Failure).error
+        assertPluginError(R.string.plugin_error_install_signature_rejected_detail, failure)
+        assertPluginError(
+            R.string.plugin_error_signature_checksum_mismatch,
+            pluginErrorOf(failure).second.single() as Throwable,
+        )
     }
 
     @Test

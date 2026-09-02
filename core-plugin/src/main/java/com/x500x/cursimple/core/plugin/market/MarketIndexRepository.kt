@@ -1,6 +1,9 @@
 package com.x500x.cursimple.core.plugin.market
 
 import com.x500x.cursimple.core.plugin.security.PluginSignatureVerifier
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.pluginCheck
+import com.x500x.cursimple.core.plugin.pluginRequire
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -28,7 +31,7 @@ class MarketIndexRepository(
                 payload = canonicalPayload,
                 signatureBase64 = signedIndex.signature.signatureBase64,
             )
-            require(verified) { "市场索引签名无效" }
+            pluginRequire(verified, R.string.plugin_error_market_index_signature_invalid)
             return@withContext signedIndex.payload
         }
         runCatching { json.decodeFromString<MarketIndexPayload>(raw) }
@@ -61,7 +64,11 @@ class MarketIndexRepository(
         fun defaultFetchText(client: OkHttpClient, url: String): String {
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "加载市场索引失败: ${response.code}" }
+                pluginCheck(
+                    response.isSuccessful,
+                    R.string.plugin_error_market_index_load_failed,
+                    response.code,
+                )
                 return response.body.string()
             }
         }
@@ -69,7 +76,11 @@ class MarketIndexRepository(
         fun defaultDownloadBytes(client: OkHttpClient, url: String): ByteArray {
             val request = Request.Builder().url(url).build()
             client.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "下载插件包失败: ${response.code}" }
+                pluginCheck(
+                    response.isSuccessful,
+                    R.string.plugin_error_package_download_failed,
+                    response.code,
+                )
                 return response.body.bytes()
             }
         }

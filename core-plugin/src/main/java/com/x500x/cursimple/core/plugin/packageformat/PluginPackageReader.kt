@@ -1,8 +1,11 @@
 package com.x500x.cursimple.core.plugin.packageformat
 
-import kotlinx.serialization.json.Json
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.pluginRequire
+import com.x500x.cursimple.core.plugin.pluginRequireNotNull
 import java.io.ByteArrayInputStream
 import java.util.zip.ZipInputStream
+import kotlinx.serialization.json.Json
 
 class PluginPackageReader(
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
@@ -17,11 +20,21 @@ class PluginPackageReader(
                 val entry = zip.nextEntry ?: break
                 if (!entry.isDirectory) {
                     val normalizedPath = normalizePluginPackagePath(entry.name)
-                    require(normalizedPath !in files) { "插件包包含重复文件: $normalizedPath" }
-                    require(files.size < maxFileCount) { "插件包文件数量超过限制: $maxFileCount" }
-                    val content = requireNotNull(zip.readAtMostBytes(maxUncompressedBytes - totalBytes)) {
-                        "插件包解压后体积超过限制: $maxUncompressedBytes"
-                    }
+                    pluginRequire(
+                        normalizedPath !in files,
+                        R.string.plugin_error_package_duplicate_file,
+                        normalizedPath,
+                    )
+                    pluginRequire(
+                        files.size < maxFileCount,
+                        R.string.plugin_error_package_file_count_exceeded,
+                        maxFileCount,
+                    )
+                    val content = pluginRequireNotNull(
+                        zip.readAtMostBytes(maxUncompressedBytes - totalBytes),
+                        R.string.plugin_error_package_size_exceeded,
+                        maxUncompressedBytes,
+                    )
                     totalBytes += content.size.toLong()
                     files[normalizedPath] = content
                 }
@@ -30,7 +43,7 @@ class PluginPackageReader(
         }
         val layout = PluginPackageLayout(normalizePackageRoot(files))
         val manifest = layout.decodeValidatedManifest(json)
-        require(manifest.entry.isNotBlank()) { "插件 manifest 缺少 entry" }
+        pluginRequire(manifest.entry.isNotBlank(), R.string.plugin_error_manifest_missing_entry)
         return layout
     }
 
@@ -58,17 +71,25 @@ class PluginPackageReader(
 
 internal fun normalizePluginPackagePath(rawPath: String): String {
     val path = rawPath.replace('\\', '/').trim()
-    require(path.isNotBlank()) { "插件包包含空路径" }
-    require(!path.startsWith("/")) { "插件包包含绝对路径: $rawPath" }
-    require(!WINDOWS_DRIVE_PATH.matches(path)) { "插件包包含 Windows 盘符路径: $rawPath" }
+    pluginRequire(path.isNotBlank(), R.string.plugin_error_package_blank_path)
+    pluginRequire(!path.startsWith("/"), R.string.plugin_error_package_absolute_path, rawPath)
+    pluginRequire(
+        !WINDOWS_DRIVE_PATH.matches(path),
+        R.string.plugin_error_package_windows_drive_path,
+        rawPath,
+    )
     val segments = path.split('/')
-    require(segments.none { it == ".." }) { "插件包包含路径穿越: $rawPath" }
-    require(segments.none { it.isBlank() || it == "." }) { "插件包包含非法路径: $rawPath" }
+    pluginRequire(segments.none { it == ".." }, R.string.plugin_error_package_path_traversal, rawPath)
+    pluginRequire(
+        segments.none { it.isBlank() || it == "." },
+        R.string.plugin_error_package_illegal_path,
+        rawPath,
+    )
     return segments.joinToString("/")
 }
 
 internal fun requireSafePluginId(id: String): String {
-    require(SAFE_PLUGIN_ID.matches(id)) { "插件 ID 只能包含字母、数字、点、下划线和连字符: $id" }
+    pluginRequire(SAFE_PLUGIN_ID.matches(id), R.string.plugin_error_plugin_id_charset, id)
     return id
 }
 

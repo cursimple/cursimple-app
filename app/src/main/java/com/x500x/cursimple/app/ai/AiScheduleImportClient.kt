@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.ai
 
 import android.content.Context
+import com.x500x.cursimple.R
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -35,7 +36,7 @@ class AiScheduleImportClient(
     private val json: Json = AiImportJson,
 ) {
     fun importFromImage(context: Context, imageUri: Uri, config: AiImportConfig): AiScheduleImportPayload {
-        require(config.isComplete) { "请先在设置页配置 AI API URL 和 Key" }
+        aiImportRequire(config.isComplete, R.string.ai_error_config_incomplete)
         val dataUrl = context.imageDataUrl(imageUri)
         val endpoint = normalizeAiEndpoint(config.apiUrl)
         val requestJson = buildRequestJson(endpoint, config, dataUrl).toString()
@@ -47,7 +48,7 @@ class AiScheduleImportClient(
             .build()
         val requestClient = client.withAiImportTimeout(config.timeoutSeconds)
         val bodyText = requestClient.newCall(request).execute().use { response ->
-            check(response.isSuccessful) { "AI 请求失败：HTTP ${response.code}" }
+            aiImportRequire(response.isSuccessful, R.string.ai_error_request_failed, response.code)
             response.body.string()
         }
         return parseAiScheduleImportContent(extractAiTextContent(bodyText, json), json)
@@ -119,16 +120,16 @@ class AiScheduleImportClient(
     private fun Context.imageDataUrl(uri: Uri): String {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         contentResolver.openInputStream(uri).use { stream ->
-            requireNotNull(stream) { "无法打开图片" }
+            if (stream == null) aiImportError(R.string.ai_error_open_image)
             BitmapFactory.decodeStream(stream, null, bounds)
         }
         val decodeOptions = BitmapFactory.Options().apply {
             inSampleSize = aiImageSampleSize(bounds.outWidth, bounds.outHeight, MAX_IMAGE_SIDE)
         }
         val bitmap = contentResolver.openInputStream(uri).use { stream ->
-            requireNotNull(stream) { "无法打开图片" }
+            if (stream == null) aiImportError(R.string.ai_error_open_image)
             BitmapFactory.decodeStream(stream, null, decodeOptions)
-        } ?: error("图片格式不支持")
+        } ?: aiImportError(R.string.ai_error_image_format)
         val scaled = bitmap.scaleDown(MAX_IMAGE_SIDE)
         val bytes = ByteArrayOutputStream().use { output ->
             scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
@@ -201,7 +202,7 @@ internal fun extractAiTextContent(
     json: Json = AiImportJson,
 ): String {
     val root = json.parseToJsonElement(bodyText).asObjectOrNull()
-        ?: error("AI 响应格式不是 JSON 对象")
+        ?: aiImportError(R.string.ai_error_not_json_object)
     root["output_text"]?.asTextOrNull()?.takeIf(String::isNotBlank)?.let { return it }
     root["choices"]?.asArrayOrNull()
         ?.firstOrNull()
@@ -220,7 +221,7 @@ internal fun extractAiTextContent(
         }
     }
     root["content"]?.asTextOrNull()?.takeIf(String::isNotBlank)?.let { return it }
-    error("AI 响应中没有可用文本")
+    aiImportError(R.string.ai_error_no_text)
 }
 
 internal fun parseAiScheduleImportContent(
@@ -231,15 +232,15 @@ internal fun parseAiScheduleImportContent(
     val root = when (rootElement) {
         is JsonObject -> rootElement
         is JsonArray -> buildJsonObject { put("courses", rootElement) }
-        else -> error("AI 返回的 JSON 不是课表对象")
+        else -> aiImportError(R.string.ai_error_not_schedule)
     }
     val schedule = parseSchedule(root)
     val manualCourses = parseCourseArray(
         root.getAny("manualCourses", "manual_courses", "manual", "手动课程")?.asArrayOrNull(),
         dailyDayOfWeek = null,
-        sourceName = "手动课程",
+        sourceName = AiImportTextArg(R.string.ai_source_manual_courses),
     )
-    require(schedule != null || manualCourses.isNotEmpty()) { "AI 未识别到课程数据" }
+    aiImportRequire(schedule != null || manualCourses.isNotEmpty(), R.string.ai_error_no_courses)
     schedule?.let(::validateImportedSchedule)
     return AiScheduleImportPayload(schedule = schedule, manualCourses = manualCourses)
 }
@@ -257,7 +258,7 @@ private fun extractAiJsonPayload(text: String): String {
     }
     val arrayStart = candidate.indexOf('[')
     val arrayEnd = candidate.lastIndexOf(']')
-    require(arrayStart >= 0 && arrayEnd > arrayStart) { "AI 未返回 JSON 数据" }
+    aiImportRequire(arrayStart >= 0 && arrayEnd > arrayStart, R.string.ai_error_no_json)
     return candidate.substring(arrayStart, arrayEnd + 1)
 }
 
@@ -295,7 +296,7 @@ private fun parseDailySchedules(source: JsonObject): List<DailySchedule> {
                     dailyObject.getAny("courses", "classes", "lessons", "items", "课程", "课程列表")
                         ?.asArrayOrNull(),
                     dailyDayOfWeek = dailyDay,
-                    sourceName = "每日课程",
+                    sourceName = AiImportTextArg(R.string.ai_source_daily_courses),
                 )
                 groupCourses(courses)
             }
@@ -316,19 +317,19 @@ private fun parseFlatCourses(source: JsonObject): List<CourseItem> {
     val courses = source.getAny("courses", "classes", "lessons", "items", "courseItems", "课程", "课程列表")
         ?.asArrayOrNull()
         ?: return emptyList()
-    return parseCourseArray(courses, dailyDayOfWeek = null, sourceName = "课程")
+    return parseCourseArray(courses, dailyDayOfWeek = null, sourceName = AiImportTextArg(R.string.ai_source_courses))
 }
 
 private fun parseCourseArray(
     courses: JsonArray?,
     dailyDayOfWeek: Int?,
-    sourceName: String,
+    sourceName: Any,
 ): List<CourseItem> {
     if (courses == null) return emptyList()
     return ensureUniqueCourseIds(
         courses.mapIndexed { index, element ->
             val courseObject = element.asObjectOrNull()
-                ?: error("AI 返回的${sourceName}第 ${index + 1} 项不是课程对象")
+                ?: aiImportError(R.string.ai_error_item_not_course, sourceName, index + 1)
             parseCourse(courseObject, dailyDayOfWeek, index)
         },
     )
@@ -342,12 +343,12 @@ private fun parseCourse(
     val title = course.getAny("title", "name", "courseName", "课程名", "课程名称", "课程")
         ?.asTextOrNull()
         ?.takeIf(String::isNotBlank)
-        ?: error("AI 返回的第 ${index + 1} 门课程缺少课程名称")
+        ?: aiImportError(R.string.ai_error_missing_title, index + 1)
     val time = course.getAny("time", "slot", "courseTime", "上课时间", "时间")?.asObjectOrNull()
     val dayOfWeek = parseDayOfWeek(
         time?.getAny("dayOfWeek", "weekday", "day", "星期", "周几")
             ?: course.getAny("dayOfWeek", "weekday", "day", "星期", "周几"),
-    ) ?: dailyDayOfWeek ?: error("AI 返回的课程「$title」缺少星期")
+    ) ?: dailyDayOfWeek ?: aiImportError(R.string.ai_error_missing_weekday, title)
     val nodeRange = parseNodeRange(
         time?.getAny("nodes", "sections", "periods", "period", "node", "节次", "上课节次")
             ?: course.getAny("nodes", "sections", "periods", "period", "node", "节次", "上课节次"),
@@ -355,7 +356,7 @@ private fun parseCourse(
     val startNode = parseNode(
         time?.getAny("startNode", "startSection", "startPeriod", "sectionStart", "periodStart", "start", "开始节次")
             ?: course.getAny("startNode", "startSection", "startPeriod", "sectionStart", "periodStart", "start", "开始节次"),
-    ) ?: nodeRange?.first ?: error("AI 返回的课程「$title」缺少开始节次")
+    ) ?: nodeRange?.first ?: aiImportError(R.string.ai_error_missing_start_node, title)
     val endNode = parseNode(
         time?.getAny("endNode", "endSection", "endPeriod", "sectionEnd", "periodEnd", "end", "结束节次")
             ?: course.getAny("endNode", "endSection", "endPeriod", "sectionEnd", "periodEnd", "end", "结束节次"),
@@ -609,18 +610,18 @@ private fun buildCourseId(
 
 private fun validateImportedSchedule(schedule: TermSchedule) {
     val courses = schedule.dailySchedules.flatMap { daily ->
-        require(daily.dayOfWeek in 1..7) { "AI 返回了无效星期: ${daily.dayOfWeek}" }
+        aiImportRequire(daily.dayOfWeek in 1..7, R.string.ai_error_invalid_weekday, daily.dayOfWeek)
         daily.courses.onEach { course ->
-            require(course.id.isNotBlank()) { "AI 返回了空课程 ID" }
-            require(course.title.isNotBlank()) { "AI 返回了空课程名称" }
-            require(course.time.dayOfWeek in 1..7) { "AI 返回了无效课程星期: ${course.time.dayOfWeek}" }
-            require(course.time.dayOfWeek == daily.dayOfWeek) { "AI 课程星期与日程分组不一致" }
-            require(course.time.startNode in 1..32) { "AI 返回了无效开始节次: ${course.time.startNode}" }
-            require(course.time.endNode in course.time.startNode..32) { "AI 返回了无效结束节次: ${course.time.endNode}" }
-            require(course.weeks.all { it in 1..60 }) { "AI 返回了无效教学周" }
+            aiImportRequire(course.id.isNotBlank(), R.string.ai_error_empty_course_id)
+            aiImportRequire(course.title.isNotBlank(), R.string.ai_error_empty_course_title)
+            aiImportRequire(course.time.dayOfWeek in 1..7, R.string.ai_error_invalid_course_weekday, course.time.dayOfWeek)
+            aiImportRequire(course.time.dayOfWeek == daily.dayOfWeek, R.string.ai_error_weekday_mismatch)
+            aiImportRequire(course.time.startNode in 1..32, R.string.ai_error_invalid_start_node, course.time.startNode)
+            aiImportRequire(course.time.endNode in course.time.startNode..32, R.string.ai_error_invalid_end_node, course.time.endNode)
+            aiImportRequire(course.weeks.all { it in 1..60 }, R.string.ai_error_invalid_week)
         }
     }
-    require(courses.size <= 1000) { "AI 返回的课程数量过多" }
+    aiImportRequire(courses.size <= 1000, R.string.ai_error_too_many_courses)
 }
 
 private val WEEK_OR_NODE_RANGE_REGEX = Regex("(\\d{1,2})\\s*(?:-|~|—|–|至|到)\\s*(\\d{1,2})")
@@ -662,6 +663,6 @@ internal fun aiImageSampleSize(width: Int, height: Int, maxSide: Int): Int {
 
 internal fun requireHttpsAiEndpoint(url: String): String {
     val scheme = runCatching { URI(url).scheme?.lowercase() }.getOrNull()
-    require(scheme == "https") { "AI API URL 必须使用 HTTPS，不能使用明文 HTTP" }
+    aiImportRequire(scheme == "https", R.string.ai_error_https_required)
     return url
 }

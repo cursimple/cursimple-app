@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_error_package_duplicate_file">插件包包含重复文件: %1$s</string>
+    <string name="plugin_error_package_file_count_exceeded">插件包文件数量超过限制: %1$d</string>
+    <string name="plugin_error_package_size_exceeded">插件包解压后体积超过限制: %1$d</string>
+    <string name="plugin_error_manifest_missing_entry">插件 manifest 缺少 entry</string>
+    <string name="plugin_error_package_blank_path">插件包包含空路径</string>
+    <string name="plugin_error_package_absolute_path">插件包包含绝对路径: %1$s</string>
+    <string name="plugin_error_package_windows_drive_path">插件包包含 Windows 盘符路径: %1$s</string>
+    <string name="plugin_error_package_path_traversal">插件包包含路径穿越: %1$s</string>
+    <string name="plugin_error_package_illegal_path">插件包包含非法路径: %1$s</string>
+    <string name="plugin_error_plugin_id_charset">插件 ID 只能包含字母、数字、点、下划线和连字符: %1$s</string>
+    <string name="plugin_error_package_missing_file">插件包缺少文件: %1$s</string>
+    <string name="plugin_error_package_missing_entry_file">插件包缺少入口文件: %1$s</string>
+
+    <string name="plugin_error_checksum_algorithm_unsupported">插件摘要只支持 SHA-256: %1$s</string>
+    <string name="plugin_error_checksum_empty">插件摘要不能为空</string>
+    <string name="plugin_error_checksum_unknown_file">插件摘要包含不存在的文件: %1$s</string>
+    <string name="plugin_error_checksum_format_invalid">插件摘要格式无效: %1$s</string>
+    <string name="plugin_error_checksum_coverage">插件摘要文件覆盖不完整</string>
+    <string name="plugin_error_checksum_coverage_missing">插件摘要文件覆盖不完整，缺少: %1$s</string>
+    <string name="plugin_error_checksum_coverage_extra">插件摘要文件覆盖不完整，多余: %1$s</string>
+    <string name="plugin_error_checksum_coverage_missing_extra">插件摘要文件覆盖不完整，缺少: %1$s，多余: %2$s</string>
+
+    <string name="plugin_error_signature_scope">插件签名只能覆盖 %1$s: %2$s</string>
+    <string name="plugin_error_signature_checksum_mismatch">插件签名与包内摘要清单不匹配</string>
+    <string name="plugin_error_signature_unparseable">插件签名无法解析</string>
+    <string name="plugin_error_signature_algorithm_unsupported">插件签名算法不受支持: %1$s</string>
+    <string name="plugin_error_signature_missing_public_key">插件签名缺少公钥</string>
+    <string name="plugin_error_signature_key_too_weak">插件签名公钥强度不足: %1$d 位</string>
+    <string name="plugin_error_base64_illegal_character">Base64 内容包含非法字符</string>
+
+    <string name="plugin_error_draft_too_many_courses">插件返回的课程数量过多</string>
+    <string name="plugin_error_draft_blank_course_title">插件返回了空课程名称</string>
+    <string name="plugin_error_draft_invalid_day_of_week">插件返回了无效星期: %1$d</string>
+    <string name="plugin_error_draft_invalid_start_node">插件返回了无效开始节次: %1$d</string>
+    <string name="plugin_error_draft_invalid_end_node">插件返回了无效结束节次: %1$d</string>
+    <string name="plugin_error_draft_invalid_weeks">插件返回了无效教学周</string>
+
+    <string name="plugin_error_record_missing_entry">插件记录缺少入口文件</string>
+    <string name="plugin_error_file_path_escape">插件文件路径越界: %1$s</string>
+
+    <string name="plugin_error_component_install_failed">组件安装失败</string>
+    <string name="plugin_error_component_manifest_missing_id">组件 manifest 缺少 id</string>
+    <string name="plugin_error_component_manifest_missing_version">组件 manifest 缺少 version</string>
+    <string name="plugin_error_component_sha256_format_invalid">组件 SHA-256 格式无效</string>
+    <string name="plugin_error_component_abi_incompatible">组件 ABI 不兼容: %1$s</string>
+    <string name="plugin_error_component_package_empty">组件包没有有效文件</string>
+    <string name="plugin_error_component_package_unlisted_files">组件包包含 manifest.files 未声明文件: %1$s</string>
+    <string name="plugin_error_component_package_missing_file">组件包缺少文件: %1$s</string>
+    <string name="plugin_error_component_sha256_mismatch">组件 SHA-256 校验失败</string>
+    <string name="plugin_error_component_install_dir_escape">组件安装目录越界</string>
+    <string name="plugin_error_component_package_path_escape">组件包路径越界: %1$s</string>
+    <string name="plugin_error_component_package_duplicate_file">组件包包含重复文件: %1$s</string>
+    <string name="plugin_error_component_package_file_count_exceeded">组件包文件数量超过限制: %1$d</string>
+    <string name="plugin_error_component_package_size_exceeded">组件包解压后体积超过限制: %1$d</string>
+    <string name="plugin_error_component_package_missing_manifest">组件包缺少 manifest.json</string>
+    <string name="plugin_error_component_package_blank_path">组件包包含空路径</string>
+    <string name="plugin_error_component_package_absolute_path">组件包包含绝对路径: %1$s</string>
+    <string name="plugin_error_component_package_windows_drive_path">组件包包含 Windows 盘符路径: %1$s</string>
+    <string name="plugin_error_component_package_path_traversal">组件包包含路径穿越: %1$s</string>
+    <string name="plugin_error_component_package_illegal_path">组件包包含非法路径: %1$s</string>
+
+    <string name="plugin_error_install_failed">安装插件失败</string>
+    <string name="plugin_error_install_checksum_rejected">插件摘要校验失败</string>
+    <string name="plugin_error_install_signature_rejected">插件签名校验失败</string>
+    <string name="plugin_error_install_signature_rejected_detail">插件签名校验失败: %1$s</string>
+
+    <string name="plugin_error_compatibility_api_undeclared">插件包没有声明接口版本，无法确认与当前版本兼容</string>
+    <string name="plugin_error_compatibility_api_invalid">插件声明的接口版本无效</string>
+    <string name="plugin_error_compatibility_api_too_new">插件需要接口版本 %1$d，当前应用只支持到 %2$d</string>
+
+    <string name="plugin_error_incompatible_platform">插件与当前插件平台不兼容</string>
+    <string name="plugin_message_runtime_ready">插件运行时已准备，需要在 WebView 会话中执行入口脚本</string>
+    <string name="plugin_message_needs_components">插件需要安装组件后才能运行</string>
+    <string name="plugin_error_sync_start_failed">插件同步启动失败</string>
+    <string name="plugin_error_sync_resume_failed">插件同步恢复失败</string>
+    <string name="plugin_error_web_session_missing">待恢复的 Web 会话不存在</string>
+    <string name="plugin_error_web_session_mismatch">Web 会话与插件不匹配</string>
+    <string name="plugin_error_schedule_write_permission_missing">插件未声明 schedule.write 权限</string>
+    <string name="plugin_error_schedule_draft_missing">插件未提交课程草稿</string>
+    <string name="plugin_error_schedule_draft_too_large">插件课程草稿超过输出大小限制</string>
+    <string name="plugin_error_chromium_component_undeclared">插件声明 Chromium Web 引擎但未声明 Chromium 组件</string>
+    <string name="plugin_error_web_engine_unsupported">插件声明了不支持的 Web 引擎: %1$s</string>
+    <string name="plugin_error_plugin_not_found">未找到插件: %1$s</string>
+
+    <string name="plugin_error_start_url_label_explicit">插件起始地址</string>
+    <string name="plugin_error_start_url_label_manifest">插件 manifest startUrl</string>
+    <string name="plugin_error_start_url_missing_host">%1$s 缺少域名</string>
+    <string name="plugin_error_start_url_host_not_allowed">%1$s 不在 allowedHosts 中: %2$s</string>
+    <string name="plugin_error_start_url_missing">插件缺少可打开的起始地址</string>
+    <string name="plugin_error_start_url_invalid">插件起始地址无效: %1$s</string>
+    <string name="plugin_error_start_url_scheme">插件起始地址必须使用 http 或 https</string>
+    <string name="plugin_error_allowed_host_blank">插件 allowedHosts 包含空域名</string>
+    <string name="plugin_error_allowed_host_not_domain">插件 allowedHosts 只能声明域名: %1$s</string>
+    <string name="plugin_error_allowed_host_invalid">插件 allowedHosts 域名无效: %1$s</string>
+
+    <string name="plugin_error_registry_repo_invalid">无效的注册表仓库：%1$s</string>
+    <string name="plugin_error_plugin_repo_invalid">无效的插件仓库：%1$s</string>
+    <string name="plugin_error_release_manifest_missing_filename">插件 release manifest 缺少 filename</string>
+    <string name="plugin_error_release_manifest_missing_version">插件 release manifest 缺少 version</string>
+    <string name="plugin_error_release_filename_path">插件 release 文件名不能包含路径: %1$s</string>
+    <string name="plugin_error_http_request_failed">请求失败 %1$d: %2$s</string>
+    <string name="plugin_error_market_index_signature_invalid">市场索引签名无效</string>
+    <string name="plugin_error_market_index_load_failed">加载市场索引失败: %1$d</string>
+    <string name="plugin_error_package_download_failed">下载插件包失败: %1$d</string>
+</resources>

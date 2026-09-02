@@ -33,6 +33,10 @@ import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
 import com.x500x.cursimple.core.reminder.ReminderSyncWindows
+import com.x500x.cursimple.core.reminder.R as ReminderR
+import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
+import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
+import com.x500x.cursimple.core.reminder.model.reminderMessageText
 import com.x500x.cursimple.core.reminder.model.FirstCourseCandidateScope
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
@@ -121,6 +125,13 @@ class ScheduleViewModel(
 
     private fun text(resId: Int, vararg formatArgs: Any): String =
         resources.getString(resId, *formatArgs)
+
+    /** 闹钟下发结果的提示按当前语言渲染，逻辑层给的类型化结果优先于已渲染文本。 */
+    private fun AlarmDispatchResult.displayText(): String =
+        localizedMessage?.let { resources.reminderMessageText(it) } ?: message
+
+    private fun AlarmDismissResult.displayText(): String =
+        localizedMessage?.let { resources.reminderMessageText(it) } ?: message
 
     private val _uiState = MutableStateFlow(ScheduleUiState())
     val uiState: StateFlow<ScheduleUiState> = _uiState
@@ -515,7 +526,7 @@ class ScheduleViewModel(
 
     fun loadSampleCourses() {
         viewModelScope.launch {
-            manualCourseRepository.replaceAll(sampleManualCourses())
+            manualCourseRepository.replaceAll(sampleManualCourses(resources))
             val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
             _uiState.update {
                 it.copy(
@@ -695,7 +706,7 @@ class ScheduleViewModel(
         viewModelScope.launch {
             val result = reminderCoordinator.deleteAlarmRecord(alarmKey, backend)
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) result.message else text(R.string.schedule_status_alarm_cancel_failed, result.message))
+                it.copy(statusMessage = if (result.succeeded) result.displayText() else text(R.string.schedule_status_alarm_cancel_failed, result.displayText()))
             }
         }
     }
@@ -704,7 +715,7 @@ class ScheduleViewModel(
         viewModelScope.launch {
             val result = reminderCoordinator.setAppAlarmEnabled(alarmKey, enabled)
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) result.message else text(R.string.schedule_status_alarm_toggle_failed, result.message))
+                it.copy(statusMessage = if (result.succeeded) result.displayText() else text(R.string.schedule_status_alarm_toggle_failed, result.displayText()))
             }
         }
     }
@@ -713,7 +724,7 @@ class ScheduleViewModel(
         viewModelScope.launch {
             val result = reminderCoordinator.updateAppAlarmSettings(alarmKey, settings)
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) text(R.string.schedule_status_alarm_settings_updated) else text(R.string.schedule_status_alarm_settings_failed, result.message))
+                it.copy(statusMessage = if (result.succeeded) text(R.string.schedule_status_alarm_settings_updated) else text(R.string.schedule_status_alarm_settings_failed, result.displayText()))
             }
         }
     }
@@ -729,12 +740,12 @@ class ScheduleViewModel(
             val result = reminderCoordinator.createManualAppAlarm(
                 pluginId = pluginId,
                 triggerAtMillis = triggerAtMillis,
-                title = title,
-                message = message,
+                title = title.ifBlank { text(ReminderR.string.reminder_manual_alarm_default_title) },
+                message = message.ifBlank { text(ReminderR.string.reminder_manual_alarm_default_message) },
                 settings = settings,
             )
             _uiState.update {
-                it.copy(statusMessage = if (result.succeeded) text(R.string.schedule_status_manual_alarm_created) else text(R.string.schedule_status_manual_alarm_failed, result.message))
+                it.copy(statusMessage = if (result.succeeded) text(R.string.schedule_status_manual_alarm_created) else text(R.string.schedule_status_manual_alarm_failed, result.displayText()))
             }
         }
     }
@@ -1062,7 +1073,7 @@ class ScheduleViewModel(
                     text(
                         R.string.schedule_status_alarm_failed_count,
                         summary.failedCount,
-                        summary.results.first { !it.succeeded }.message,
+                        summary.results.first { !it.succeeded }.displayText(),
                     ),
                 )
             }
@@ -1126,11 +1137,14 @@ class ScheduleViewModel(
                         ),
                         error,
                     )
+                    val detail = resources.scheduleValidationErrorText(error)
+                        ?: error.message
+                        ?: text(R.string.schedule_status_sync_invalid_schedule)
                     _uiState.update {
                         it.copy(
                             isSyncing = false,
                             pendingWebSession = null,
-                            statusMessage = text(R.string.schedule_status_sync_failed, error.message ?: text(R.string.schedule_status_sync_invalid_schedule)),
+                            statusMessage = text(R.string.schedule_status_sync_failed, detail),
                         )
                     }
                     return
@@ -1349,18 +1363,18 @@ private fun resolveSelectedPluginKey(
 
 internal fun validatePluginSchedule(schedule: TermSchedule): TermSchedule {
     val courses = schedule.dailySchedules.flatMap { daily ->
-        require(daily.dayOfWeek in 1..7) { "插件返回了无效星期: ${daily.dayOfWeek}" }
+        scheduleValidationRequire(daily.dayOfWeek in 1..7, R.string.schedule_validation_invalid_weekday, daily.dayOfWeek)
         daily.courses.onEach { course ->
-            require(course.id.isNotBlank()) { "插件返回了空课程 ID" }
-            require(course.title.isNotBlank()) { "插件返回了空课程名称" }
-            require(course.time.dayOfWeek in 1..7) { "插件返回了无效课程星期: ${course.time.dayOfWeek}" }
-            require(course.time.dayOfWeek == daily.dayOfWeek) { "插件课程星期与日程分组不一致" }
-            require(course.time.startNode in 1..32) { "插件返回了无效开始节次: ${course.time.startNode}" }
-            require(course.time.endNode in course.time.startNode..32) { "插件返回了无效结束节次: ${course.time.endNode}" }
-            require(course.weeks.all { it in 1..60 }) { "插件返回了无效教学周" }
+            scheduleValidationRequire(course.id.isNotBlank(), R.string.schedule_validation_blank_course_id)
+            scheduleValidationRequire(course.title.isNotBlank(), R.string.schedule_validation_blank_course_title)
+            scheduleValidationRequire(course.time.dayOfWeek in 1..7, R.string.schedule_validation_invalid_course_weekday, course.time.dayOfWeek)
+            scheduleValidationRequire(course.time.dayOfWeek == daily.dayOfWeek, R.string.schedule_validation_weekday_mismatch)
+            scheduleValidationRequire(course.time.startNode in 1..32, R.string.schedule_validation_invalid_start_node, course.time.startNode)
+            scheduleValidationRequire(course.time.endNode in course.time.startNode..32, R.string.schedule_validation_invalid_end_node, course.time.endNode)
+            scheduleValidationRequire(course.weeks.all { it in 1..60 }, R.string.schedule_validation_invalid_weeks)
         }
     }
-    require(courses.size <= 1000) { "插件返回的课程数量过多" }
+    scheduleValidationRequire(courses.size <= 1000, R.string.schedule_validation_too_many_courses)
     return schedule
 }
 

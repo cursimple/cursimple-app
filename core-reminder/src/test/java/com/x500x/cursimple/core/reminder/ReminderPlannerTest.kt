@@ -142,6 +142,9 @@ class ReminderPlannerTest {
         assertEquals(listOf("early-study"), plans.map { it.courseId })
         assertEquals(true, plans.single().title.contains("07:00"))
         assertEquals(true, plans.single().message.contains("07:00-07:40"))
+        assertEquals(20, plans.single().titleContent?.advanceMinutes)
+        assertEquals("07:00", plans.single().messageContent?.startTime)
+        assertEquals("07:40", plans.single().messageContent?.endTime)
         assertEquals(
             java.time.LocalDateTime.of(2026, 2, 23, 6, 40)
                 .atZone(java.time.ZoneId.systemDefault())
@@ -235,6 +238,11 @@ class ReminderPlannerTest {
 
         assertEquals(listOf("exam-math"), plans.map { it.courseId })
         assertEquals(true, plans.single().title.contains("考试：高等数学期末"))
+        val titleContent = plans.single().titleContent
+        assertEquals(true, titleContent?.exam)
+        assertEquals("高等数学期末", titleContent?.courseTitle)
+        assertEquals(40, titleContent?.advanceMinutes)
+        assertEquals(null, titleContent?.firstCoursePeriod)
     }
 
     @Test

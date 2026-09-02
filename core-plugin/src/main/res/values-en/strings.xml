@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_error_package_duplicate_file">Plugin package contains a duplicate file: %1$s</string>
+    <string name="plugin_error_package_file_count_exceeded">Plugin package exceeds the file count limit: %1$d</string>
+    <string name="plugin_error_package_size_exceeded">Unpacked plugin package exceeds the size limit: %1$d</string>
+    <string name="plugin_error_manifest_missing_entry">Plugin manifest is missing entry</string>
+    <string name="plugin_error_package_blank_path">Plugin package contains an empty path</string>
+    <string name="plugin_error_package_absolute_path">Plugin package contains an absolute path: %1$s</string>
+    <string name="plugin_error_package_windows_drive_path">Plugin package contains a Windows drive path: %1$s</string>
+    <string name="plugin_error_package_path_traversal">Plugin package contains a path traversal: %1$s</string>
+    <string name="plugin_error_package_illegal_path">Plugin package contains an invalid path: %1$s</string>
+    <string name="plugin_error_plugin_id_charset">Plugin ID may only contain letters, digits, dots, underscores and hyphens: %1$s</string>
+    <string name="plugin_error_package_missing_file">Plugin package is missing a file: %1$s</string>
+    <string name="plugin_error_package_missing_entry_file">Plugin package is missing the entry script: %1$s</string>
+
+    <string name="plugin_error_checksum_algorithm_unsupported">Plugin checksums only support SHA-256: %1$s</string>
+    <string name="plugin_error_checksum_empty">Plugin checksums must not be empty</string>
+    <string name="plugin_error_checksum_unknown_file">Plugin checksums list a file that is not in the package: %1$s</string>
+    <string name="plugin_error_checksum_format_invalid">Plugin checksum format is invalid: %1$s</string>
+    <string name="plugin_error_checksum_coverage">Plugin checksums do not cover every file</string>
+    <string name="plugin_error_checksum_coverage_missing">Plugin checksums do not cover every file, missing: %1$s</string>
+    <string name="plugin_error_checksum_coverage_extra">Plugin checksums do not cover every file, unexpected: %1$s</string>
+    <string name="plugin_error_checksum_coverage_missing_extra">Plugin checksums do not cover every file, missing: %1$s, unexpected: %2$s</string>
+
+    <string name="plugin_error_signature_scope">Plugin signature may only cover %1$s: %2$s</string>
+    <string name="plugin_error_signature_checksum_mismatch">Plugin signature does not match the checksum manifest in the package</string>
+    <string name="plugin_error_signature_unparseable">Plugin signature cannot be parsed</string>
+    <string name="plugin_error_signature_algorithm_unsupported">Plugin signature algorithm is not supported: %1$s</string>
+    <string name="plugin_error_signature_missing_public_key">Plugin signature is missing its public key</string>
+    <string name="plugin_error_signature_key_too_weak">Plugin signature public key is too weak: %1$d bits</string>
+    <string name="plugin_error_base64_illegal_character">Base64 content contains an invalid character</string>
+
+    <string name="plugin_error_draft_too_many_courses">The plugin returned too many courses</string>
+    <string name="plugin_error_draft_blank_course_title">The plugin returned an empty course name</string>
+    <string name="plugin_error_draft_invalid_day_of_week">The plugin returned an invalid weekday: %1$d</string>
+    <string name="plugin_error_draft_invalid_start_node">The plugin returned an invalid start period: %1$d</string>
+    <string name="plugin_error_draft_invalid_end_node">The plugin returned an invalid end period: %1$d</string>
+    <string name="plugin_error_draft_invalid_weeks">The plugin returned an invalid teaching week</string>
+
+    <string name="plugin_error_record_missing_entry">The plugin record has no entry script</string>
+    <string name="plugin_error_file_path_escape">Plugin file path escapes the plugin directory: %1$s</string>
+
+    <string name="plugin_error_component_install_failed">Component installation failed</string>
+    <string name="plugin_error_component_manifest_missing_id">Component manifest is missing id</string>
+    <string name="plugin_error_component_manifest_missing_version">Component manifest is missing version</string>
+    <string name="plugin_error_component_sha256_format_invalid">Component SHA-256 format is invalid</string>
+    <string name="plugin_error_component_abi_incompatible">Component ABI is not compatible: %1$s</string>
+    <string name="plugin_error_component_package_empty">Component package has no usable files</string>
+    <string name="plugin_error_component_package_unlisted_files">Component package contains files not declared in manifest.files: %1$s</string>
+    <string name="plugin_error_component_package_missing_file">Component package is missing a file: %1$s</string>
+    <string name="plugin_error_component_sha256_mismatch">Component SHA-256 check failed</string>
+    <string name="plugin_error_component_install_dir_escape">Component install directory escapes the component root</string>
+    <string name="plugin_error_component_package_path_escape">Component package path escapes the install directory: %1$s</string>
+    <string name="plugin_error_component_package_duplicate_file">Component package contains a duplicate file: %1$s</string>
+    <string name="plugin_error_component_package_file_count_exceeded">Component package exceeds the file count limit: %1$d</string>
+    <string name="plugin_error_component_package_size_exceeded">Unpacked component package exceeds the size limit: %1$d</string>
+    <string name="plugin_error_component_package_missing_manifest">Component package is missing manifest.json</string>
+    <string name="plugin_error_component_package_blank_path">Component package contains an empty path</string>
+    <string name="plugin_error_component_package_absolute_path">Component package contains an absolute path: %1$s</string>
+    <string name="plugin_error_component_package_windows_drive_path">Component package contains a Windows drive path: %1$s</string>
+    <string name="plugin_error_component_package_path_traversal">Component package contains a path traversal: %1$s</string>
+    <string name="plugin_error_component_package_illegal_path">Component package contains an invalid path: %1$s</string>
+
+    <string name="plugin_error_install_failed">Failed to install the plugin</string>
+    <string name="plugin_error_install_checksum_rejected">Plugin checksum verification failed</string>
+    <string name="plugin_error_install_signature_rejected">Plugin signature verification failed</string>
+    <string name="plugin_error_install_signature_rejected_detail">Plugin signature verification failed: %1$s</string>
+
+    <string name="plugin_error_compatibility_api_undeclared">The plugin package declares no API version, so it cannot be confirmed compatible with this build</string>
+    <string name="plugin_error_compatibility_api_invalid">The API version declared by the plugin is invalid</string>
+    <string name="plugin_error_compatibility_api_too_new">The plugin requires API version %1$d, but this app supports up to %2$d</string>
+
+    <string name="plugin_error_incompatible_platform">The plugin is not compatible with the current plugin platform</string>
+    <string name="plugin_message_runtime_ready">The plugin runtime is ready; the entry script still has to run inside a WebView session</string>
+    <string name="plugin_message_needs_components">The plugin needs its components installed before it can run</string>
+    <string name="plugin_error_sync_start_failed">Failed to start the plugin sync</string>
+    <string name="plugin_error_sync_resume_failed">Failed to resume the plugin sync</string>
+    <string name="plugin_error_web_session_missing">The web session to resume no longer exists</string>
+    <string name="plugin_error_web_session_mismatch">The web session does not match the plugin</string>
+    <string name="plugin_error_schedule_write_permission_missing">The plugin does not declare the schedule.write permission</string>
+    <string name="plugin_error_schedule_draft_missing">The plugin did not submit a schedule draft</string>
+    <string name="plugin_error_schedule_draft_too_large">The plugin schedule draft exceeds the output size limit</string>
+    <string name="plugin_error_chromium_component_undeclared">The plugin requires the Chromium web engine but declares no Chromium component</string>
+    <string name="plugin_error_web_engine_unsupported">The plugin declares an unsupported web engine: %1$s</string>
+    <string name="plugin_error_plugin_not_found">Plugin not found: %1$s</string>
+
+    <string name="plugin_error_start_url_label_explicit">Plugin start URL</string>
+    <string name="plugin_error_start_url_label_manifest">Plugin manifest startUrl</string>
+    <string name="plugin_error_start_url_missing_host">%1$s has no host</string>
+    <string name="plugin_error_start_url_host_not_allowed">%1$s is not listed in allowedHosts: %2$s</string>
+    <string name="plugin_error_start_url_missing">The plugin has no start URL to open</string>
+    <string name="plugin_error_start_url_invalid">Plugin start URL is invalid: %1$s</string>
+    <string name="plugin_error_start_url_scheme">Plugin start URL must use http or https</string>
+    <string name="plugin_error_allowed_host_blank">Plugin allowedHosts contains an empty host</string>
+    <string name="plugin_error_allowed_host_not_domain">Plugin allowedHosts may only declare hosts: %1$s</string>
+    <string name="plugin_error_allowed_host_invalid">Plugin allowedHosts host is invalid: %1$s</string>
+
+    <string name="plugin_error_registry_repo_invalid">Invalid registry repository: %1$s</string>
+    <string name="plugin_error_plugin_repo_invalid">Invalid plugin repository: %1$s</string>
+    <string name="plugin_error_release_manifest_missing_filename">Plugin release manifest is missing filename</string>
+    <string name="plugin_error_release_manifest_missing_version">Plugin release manifest is missing version</string>
+    <string name="plugin_error_release_filename_path">Plugin release file name must not contain a path: %1$s</string>
+    <string name="plugin_error_http_request_failed">Request failed with %1$d: %2$s</string>
+    <string name="plugin_error_market_index_signature_invalid">Market index signature is invalid</string>
+    <string name="plugin_error_market_index_load_failed">Failed to load the market index: %1$d</string>
+    <string name="plugin_error_package_download_failed">Failed to download the plugin package: %1$d</string>
+</resources>

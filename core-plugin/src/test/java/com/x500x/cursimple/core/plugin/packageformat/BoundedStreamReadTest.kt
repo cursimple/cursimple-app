@@ -1,5 +1,7 @@
 package com.x500x.cursimple.core.plugin.packageformat
 
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.assertPluginError
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.FilterInputStream
@@ -77,7 +79,7 @@ class PluginPackageSizeLimitTest {
         val error = runCatching { reader.read(bombPackageBytes()) }.exceptionOrNull()
 
         assertTrue(error is IllegalArgumentException)
-        assertTrue(error?.message.orEmpty().contains("解压后体积超过限制"))
+        assertPluginError(R.string.plugin_error_package_size_exceeded, error, 4096L)
     }
 
     @Test
