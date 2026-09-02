@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +41,7 @@ fun ComponentMarketScreen(
     onInstallRemoteEntry: (ComponentMarketEntry) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -60,9 +62,9 @@ fun ComponentMarketScreen(
                 )
             }
 
-            uiState.statusMessage?.let { message ->
+            uiState.status?.let { status ->
                 item {
-                    StatusCard(message = message)
+                    StatusCard(message = context.componentMarketStatusText(status))
                 }
             }
 

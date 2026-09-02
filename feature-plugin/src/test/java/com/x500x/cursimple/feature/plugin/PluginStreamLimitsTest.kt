@@ -37,7 +37,40 @@ class PluginStreamLimitsTest {
         }.exceptionOrNull()
 
         assertTrue(error is IllegalArgumentException)
-        assertTrue(error?.message.orEmpty().contains("超过大小限制"))
+        assertTrue(error is PluginPackageTooLargeException)
+        assertEquals(1024L, (error as PluginPackageTooLargeException).limitBytes)
+    }
+
+    @Test
+    fun `oversized package maps to a size limit status`() {
+        val error = PluginPackageTooLargeException(MAX_LOCAL_PACKAGE_BYTES)
+
+        assertEquals(
+            PluginMarketStatus.PackageTooLarge(MAX_LOCAL_PACKAGE_BYTES),
+            pluginPackageReadFailure(error),
+        )
+        assertEquals(
+            ComponentMarketStatus.PackageTooLarge(MAX_LOCAL_PACKAGE_BYTES),
+            componentPackageReadFailure(error),
+        )
+    }
+
+    @Test
+    fun `other read failures carry the underlying message`() {
+        val error = IllegalStateException("无法读取文件内容")
+
+        assertEquals(
+            PluginMarketStatus.ReadPackageFailed("无法读取文件内容"),
+            pluginPackageReadFailure(error),
+        )
+        assertEquals(
+            ComponentMarketStatus.ReadPackageFailed("无法读取文件内容"),
+            componentPackageReadFailure(error),
+        )
+        assertEquals(
+            PluginMarketStatus.ReadPackageFailed(null),
+            pluginPackageReadFailure(IllegalStateException()),
+        )
     }
 
     @Test

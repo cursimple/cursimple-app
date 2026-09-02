@@ -11,6 +11,8 @@ import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.install.PluginInstaller
 import com.x500x.cursimple.core.plugin.install.PluginRegistryRepository
+import com.x500x.cursimple.core.plugin.install.pluginCompatibilityText
+import com.x500x.cursimple.core.plugin.install.resolvePluginCompatibility
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
@@ -41,6 +43,7 @@ class PluginManager(
     private val marketIndexRepository: MarketIndexRepository = MarketIndexRepository(),
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
 ) {
+    private val appContext = context.applicationContext
     private val fileStore = PluginFileStore(context, json)
     private val installer = PluginInstaller(
         registryRepository = registryRepository,
@@ -245,9 +248,7 @@ class PluginManager(
         return try {
             val record = requirePlugin(request.pluginId)
             if (record.compatibilityStatus == PluginCompatibilityStatus.Incompatible) {
-                return WorkflowExecutionResult.Failure(
-                    record.compatibilityMessage ?: "插件与当前插件平台不兼容",
-                )
+                return WorkflowExecutionResult.Failure(incompatibleMessage(record))
             }
 
             val manifest = fileStore.loadManifest(record)
@@ -263,6 +264,7 @@ class PluginManager(
                 return WorkflowExecutionResult.NeedsComponents(
                     pluginId = record.pluginId,
                     components = missingComponents,
+                    message = appContext.getString(R.string.plugin_message_needs_components),
                 ).also {
                     logRuntimeResult("plugin.sync.start.result", request.pluginId, startedAt, it, traceId)
                 }
@@ -274,7 +276,7 @@ class PluginManager(
             val timingProfile = fileStore.loadTimingProfile(record)
             val token = UUID.randomUUID().toString()
             val sessionId = "${record.pluginId}-${token.take(8)}"
-            val messages = listOf("插件运行时已准备，需要在 WebView 会话中执行入口脚本")
+            val messages = listOf(appContext.getString(R.string.plugin_message_runtime_ready))
             val session = PendingPluginSession(
                 record = record,
                 manifest = manifest,
@@ -310,7 +312,9 @@ class PluginManager(
                 mapOf("elapsedMs" to elapsedSince(startedAt)),
                 error,
             )
-            WorkflowExecutionResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "插件同步启动失败")
+            WorkflowExecutionResult.Failure(
+                appContext.pluginErrorTextOr(error, R.string.plugin_error_sync_start_failed),
+            )
         }
     }
 
@@ -340,25 +344,34 @@ class PluginManager(
         )
         return try {
             val session = pendingSessions.remove(token)
-                ?: return WorkflowExecutionResult.Failure("待恢复的 Web 会话不存在")
+                ?: return WorkflowExecutionResult.Failure(
+                    appContext.getString(R.string.plugin_error_web_session_missing),
+                )
             val matchesSession = if (normalizedKey.contains(':')) {
                 session.record.installKey == normalizedKey
             } else {
                 session.record.pluginId == normalizedKey
             }
             if (!matchesSession) {
-                return WorkflowExecutionResult.Failure("Web 会话与插件不匹配")
+                return WorkflowExecutionResult.Failure(
+                    appContext.getString(R.string.plugin_error_web_session_mismatch),
+                )
             }
             if (PluginPermission.ScheduleWrite !in session.manifest.permissions) {
-                return WorkflowExecutionResult.Failure("插件未声明 schedule.write 权限")
+                return WorkflowExecutionResult.Failure(
+                    appContext.getString(R.string.plugin_error_schedule_write_permission_missing),
+                )
             }
 
             val draftJson = packet.scheduleDraftJson?.takeIf { it.isNotBlank() }
-                ?: return WorkflowExecutionResult.Failure("插件未提交课程草稿")
+                ?: return WorkflowExecutionResult.Failure(
+                    appContext.getString(R.string.plugin_error_schedule_draft_missing),
+                )
             val draftBytes = draftJson.toByteArray(Charsets.UTF_8)
-            require(draftBytes.size <= session.manifest.limits.maxOutputBytes) {
-                "插件课程草稿超过输出大小限制"
-            }
+            pluginRequire(
+                draftBytes.size <= session.manifest.limits.maxOutputBytes,
+                R.string.plugin_error_schedule_draft_too_large,
+            )
             val draft = json.decodeFromString<ScheduleDraft>(draftJson)
             val effectiveDraft = if (draft.termId.isBlank() && session.input.termId.isNotBlank()) {
                 draft.copy(termId = session.input.termId)
@@ -381,7 +394,9 @@ class PluginManager(
                 mapOf("tokenPrefix" to token.take(8), "elapsedMs" to elapsedSince(startedAt)),
                 error,
             )
-            WorkflowExecutionResult.Failure(error.message?.takeIf(String::isNotBlank) ?: "插件同步恢复失败")
+            WorkflowExecutionResult.Failure(
+                appContext.pluginErrorTextOr(error, R.string.plugin_error_sync_resume_failed),
+            )
         }
     }
 
@@ -413,7 +428,7 @@ class PluginManager(
         val declared = manifest.components.filter { it.required }.toMutableList()
         if (manifest.webEngine.preferred == PluginWebEngineRequirement.ENGINE_CHROMIUM) {
             val chromiumComponent = manifest.webEngine.chromiumComponent
-                ?: throw IllegalArgumentException("插件声明 Chromium Web 引擎但未声明 Chromium 组件")
+                ?: pluginError(R.string.plugin_error_chromium_component_undeclared)
             declared += PluginComponentRequirement(
                 id = chromiumComponent,
                 type = "engine_chromium",
@@ -430,7 +445,10 @@ class PluginManager(
             -> null
 
             else -> WorkflowExecutionResult.Failure(
-                "插件声明了不支持的 Web 引擎: ${manifest.webEngine.preferred}",
+                appContext.getString(
+                    R.string.plugin_error_web_engine_unsupported,
+                    manifest.webEngine.preferred,
+                ),
             )
         }
     }
@@ -443,6 +461,13 @@ class PluginManager(
         )
     }
 
+    /** 旧记录里存过渲染好的原因，没有时按记录声明的接口版本现算。 */
+    private fun incompatibleMessage(record: InstalledPluginRecord): String {
+        return record.compatibilityMessage?.takeIf(String::isNotBlank)
+            ?: appContext.pluginCompatibilityText(resolvePluginCompatibility(record.apiVersion))
+            ?: appContext.getString(R.string.plugin_error_incompatible_platform)
+    }
+
     private suspend fun requirePlugin(pluginKey: String): InstalledPluginRecord {
         val normalizedKey = pluginKey.trim()
         val record = if (normalizedKey.contains(':')) {
@@ -450,7 +475,7 @@ class PluginManager(
         } else {
             registryRepository.find(normalizedKey)
         }
-        return record ?: error("未找到插件: $pluginKey")
+        return record ?: pluginStateError(R.string.plugin_error_plugin_not_found, pluginKey)
     }
 
     private fun logRuntimeResult(
@@ -576,32 +601,48 @@ internal fun resolveWebSessionStartUrl(
 ): String {
     val explicitUrl = requestBaseUrl.trim()
     if (explicitUrl.isNotBlank()) {
-        return validateStartUrl(explicitUrl, allowedHosts, "插件起始地址")
+        return validateStartUrl(
+            explicitUrl,
+            allowedHosts,
+            PluginTextArg(R.string.plugin_error_start_url_label_explicit),
+        )
     }
 
     val declaredStartUrl = manifestStartUrl?.trim().orEmpty()
     if (declaredStartUrl.isNotBlank()) {
-        return validateStartUrl(declaredStartUrl, allowedHosts, "插件 manifest startUrl")
+        return validateStartUrl(
+            declaredStartUrl,
+            allowedHosts,
+            PluginTextArg(R.string.plugin_error_start_url_label_manifest),
+        )
     }
 
     val firstHost = allowedHosts.firstOrNull { it.isNotBlank() }
-        ?: throw IllegalArgumentException("插件缺少可打开的起始地址")
+        ?: pluginError(R.string.plugin_error_start_url_missing)
     val normalizedHost = normalizeAllowedHost(firstHost)
     return "https://$normalizedHost"
 }
 
-private fun validateStartUrl(value: String, allowedHosts: List<String>, label: String): String {
+private fun validateStartUrl(value: String, allowedHosts: List<String>, label: PluginTextArg): String {
     val uri = parseHttpUri(value)
     val host = uri.host?.lowercase().orEmpty()
-    require(host.isNotBlank()) { "$label 缺少域名" }
-    require(isAllowedHost(host, allowedHosts)) { "$label 不在 allowedHosts 中: $host" }
+    pluginRequire(host.isNotBlank(), R.string.plugin_error_start_url_missing_host, label)
+    pluginRequire(
+        isAllowedHost(host, allowedHosts),
+        R.string.plugin_error_start_url_host_not_allowed,
+        label,
+        host,
+    )
     return uri.toString()
 }
 
 private fun parseHttpUri(value: String): URI {
     val uri = runCatching { URI(value) }
-        .getOrElse { throw IllegalArgumentException("插件起始地址无效: $value") }
-    require(uri.scheme == "http" || uri.scheme == "https") { "插件起始地址必须使用 http 或 https" }
+        .getOrElse { pluginError(R.string.plugin_error_start_url_invalid, value) }
+    pluginRequire(
+        uri.scheme == "http" || uri.scheme == "https",
+        R.string.plugin_error_start_url_scheme,
+    )
     return uri
 }
 
@@ -614,12 +655,12 @@ private fun isAllowedHost(host: String, allowedHosts: List<String>): Boolean {
 
 private fun normalizeAllowedHost(rawHost: String): String {
     val host = rawHost.trim().lowercase()
-    require(host.isNotBlank()) { "插件 allowedHosts 包含空域名" }
-    require(!host.contains("://")) { "插件 allowedHosts 只能声明域名: $rawHost" }
-    require(!host.contains('/')) { "插件 allowedHosts 只能声明域名: $rawHost" }
+    pluginRequire(host.isNotBlank(), R.string.plugin_error_allowed_host_blank)
+    pluginRequire(!host.contains("://"), R.string.plugin_error_allowed_host_not_domain, rawHost)
+    pluginRequire(!host.contains('/'), R.string.plugin_error_allowed_host_not_domain, rawHost)
     val uri = runCatching { URI("https://$host") }
-        .getOrElse { throw IllegalArgumentException("插件 allowedHosts 域名无效: $rawHost") }
+        .getOrElse { pluginError(R.string.plugin_error_allowed_host_invalid, rawHost) }
     val normalized = uri.host?.lowercase().orEmpty()
-    require(normalized.isNotBlank()) { "插件 allowedHosts 域名无效: $rawHost" }
+    pluginRequire(normalized.isNotBlank(), R.string.plugin_error_allowed_host_invalid, rawHost)
     return normalized
 }

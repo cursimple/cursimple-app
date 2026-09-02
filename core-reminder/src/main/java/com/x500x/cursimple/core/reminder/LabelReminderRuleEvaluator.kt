@@ -15,8 +15,11 @@ import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
 import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
+import com.x500x.cursimple.core.reminder.model.ReminderNotificationMessage
+import com.x500x.cursimple.core.reminder.model.ReminderNotificationTitle
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.ReminderRule
+import com.x500x.cursimple.core.reminder.model.stableText
 import com.x500x.cursimple.core.reminder.model.systemAlarmKey
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -207,35 +210,43 @@ internal class LabelReminderRuleEvaluator {
             .atZone(zone)
             .toInstant()
             .toEpochMilli()
+        val titleContent = buildTitleContent(daily, rule.advanceMinutes)
+        val messageContent = buildMessageContent(daily)
         return ReminderPlan(
             planId = "${rule.ruleId}_${daily.course.id}_$trigger",
             ruleId = rule.ruleId,
             pluginId = rule.pluginId,
-            title = buildTitle(daily, rule.advanceMinutes),
-            message = buildMessage(daily),
+            title = titleContent.stableText(),
+            message = messageContent.stableText(),
+            titleContent = titleContent,
+            messageContent = messageContent,
             triggerAtMillis = trigger,
             ringtoneUri = rule.ringtoneUri,
             courseId = daily.course.id,
         )
     }
 
-    private fun buildTitle(
+    private fun buildTitleContent(
         daily: DailyReminderObject,
         advanceMinutes: Int,
-    ): String {
-        val weekday = weekdayName(daily.date.dayOfWeek.value)
-        val advance = if (advanceMinutes > 0) "（提前${advanceMinutes}分钟）" else ""
-        return "${weekday} ${daily.slot.startTime} ${daily.course.title}$advance"
-    }
+    ): ReminderNotificationTitle = ReminderNotificationTitle(
+        dayOfWeek = daily.date.dayOfWeek.value,
+        startTime = daily.slot.startTime,
+        courseTitle = daily.course.title,
+        advanceMinutes = advanceMinutes,
+    )
 
-    private fun buildMessage(daily: DailyReminderObject): String {
-        val date = "${daily.date.monthValue}月${daily.date.dayOfMonth}日"
-        val weekday = weekdayName(daily.date.dayOfWeek.value)
-        val timeRange = "${daily.slot.startTime}-${daily.slot.endTime}"
-        val nodes = "第${daily.course.time.startNode}-${daily.course.time.endNode}节"
-        val location = daily.course.location.ifBlank { "待定教室" }
-        return "$date $weekday $timeRange · $nodes · $location"
-    }
+    private fun buildMessageContent(daily: DailyReminderObject): ReminderNotificationMessage =
+        ReminderNotificationMessage(
+            month = daily.date.monthValue,
+            dayOfMonth = daily.date.dayOfMonth,
+            dayOfWeek = daily.date.dayOfWeek.value,
+            startTime = daily.slot.startTime,
+            endTime = daily.slot.endTime,
+            startNode = daily.course.time.startNode,
+            endNode = daily.course.time.endNode,
+            location = daily.course.location,
+        )
 
     private fun reminderSlot(
         course: CourseItem,
@@ -260,16 +271,5 @@ internal class LabelReminderRuleEvaluator {
             endTime = end,
             label = label,
         )
-    }
-
-    private fun weekdayName(dayOfWeek: Int): String = when (dayOfWeek) {
-        1 -> "周一"
-        2 -> "周二"
-        3 -> "周三"
-        4 -> "周四"
-        5 -> "周五"
-        6 -> "周六"
-        7 -> "周日"
-        else -> "周$dayOfWeek"
     }
 }

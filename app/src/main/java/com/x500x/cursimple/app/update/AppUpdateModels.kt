@@ -30,10 +30,10 @@ sealed interface AppUpdateCheckResult {
     data object ManifestMissing : AppUpdateCheckResult
     data object UpToDate : AppUpdateCheckResult
     data class Available(val info: AppUpdateInfo) : AppUpdateCheckResult
-    data class Failure(val message: String) : AppUpdateCheckResult
+    data class Failure(val reason: UpdateStatusReason) : AppUpdateCheckResult
 }
 
 sealed interface AppUpdateDownloadResult {
     data class Success(val file: File, val sourceName: String) : AppUpdateDownloadResult
-    data class Failure(val message: String) : AppUpdateDownloadResult
+    data class Failure(val reason: UpdateStatusReason) : AppUpdateDownloadResult
 }

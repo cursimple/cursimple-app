@@ -315,6 +315,8 @@ data class ReminderPlan(
     val pluginId: String,
     val title: String,
     val message: String,
+    val titleContent: ReminderNotificationTitle? = null,
+    val messageContent: ReminderNotificationMessage? = null,
     val triggerAtMillis: Long,
     val ringtoneUri: String?,
     val alertMode: AlarmAlertMode? = null,
@@ -334,6 +336,7 @@ data class TriggeredAppAlarmFinishResult(
     val consumed: Boolean,
     val snoozeCreated: Boolean = false,
     val message: String = "",
+    val localizedMessage: ReminderMessage? = null,
 )
 
 data class ReminderSyncWindow(
@@ -366,6 +369,8 @@ data class SystemAlarmRecord(
     @SerialName("operationMode") val operationMode: AppAlarmOperationMode = AppAlarmOperationMode.LegacyBroadcast,
     @SerialName("displayTitle") val displayTitle: String? = null,
     @SerialName("displayMessage") val displayMessage: String? = null,
+    @SerialName("titleContent") val titleContent: ReminderNotificationTitle? = null,
+    @SerialName("messageContent") val messageContent: ReminderNotificationMessage? = null,
     @SerialName("enabled") val enabled: Boolean = true,
     @SerialName("ringDurationSeconds") val ringDurationSeconds: Int? = null,
     @SerialName("repeatIntervalSeconds") val repeatIntervalSeconds: Int? = null,
@@ -424,6 +429,8 @@ fun ReminderPlan.toAppAlarmRecord(
         operationMode = operationMode,
         displayTitle = title,
         displayMessage = message,
+        titleContent = titleContent,
+        messageContent = messageContent,
         ringDurationSeconds = ringDurationSeconds,
         repeatIntervalSeconds = repeatIntervalSeconds,
         repeatCount = repeatCount,
@@ -433,6 +440,7 @@ fun ReminderPlan.toAppAlarmRecord(
     )
 }
 
+/** 系统时钟按标签匹配删除闹钟，下发与登记必须给出同一份标签，因此这里不随界面语言变化。 */
 fun ReminderPlan.systemAlarmLabel(): String {
     val trigger = Instant.ofEpochMilli(triggerAtMillis).atZone(ZoneId.systemDefault())
     val time = "${trigger.hour.toString().padStart(2, '0')}:${trigger.minute.toString().padStart(2, '0')}"
@@ -448,10 +456,12 @@ data class AlarmDispatchResult(
     val channel: AlarmDispatchChannel,
     val succeeded: Boolean,
     val message: String,
+    val localizedMessage: ReminderMessage? = null,
 )
 
 data class AlarmDismissResult(
     val alarmKey: String,
     val succeeded: Boolean,
     val message: String,
+    val localizedMessage: ReminderMessage? = null,
 )

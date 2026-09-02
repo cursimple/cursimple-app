@@ -71,6 +71,8 @@ import com.x500x.cursimple.core.reminder.model.EditableAppAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
 import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
+import com.x500x.cursimple.core.reminder.model.reminderNotificationMessageText
+import com.x500x.cursimple.core.reminder.model.reminderNotificationTitleText
 import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderRule
@@ -420,16 +422,22 @@ private fun AlarmRecordRow(
     onSetEnabled: (Boolean) -> Unit,
 ) {
     val zone = ZoneId.systemDefault()
+    val context = LocalContext.current
+    // 有类型内容就按当前语言渲染，旧数据只有语言无关的展示文本时回退到它
+    val title = record.titleContent?.let { context.reminderNotificationTitleText(it) }
+        ?: record.displayTitle ?: record.alarmLabel ?: record.message
+    val message = record.messageContent?.let { context.reminderNotificationMessageText(it) }
+        ?: record.displayMessage ?: record.message
     SurfaceRow {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(formatAlarmTime(record.triggerAtMillis, zone), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(formatAlarmDay(record.triggerAtMillis, zone), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(record.displayTitle ?: record.alarmLabel ?: record.message, fontWeight = FontWeight.SemiBold)
+            Text(title, fontWeight = FontWeight.SemiBold)
             Text(
                 listOf(
-                    record.displayMessage ?: record.message,
+                    message,
                     stringResource(R.string.schedule_alarm_ring_seconds, record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS),
                     stringResource(R.string.schedule_alarm_interval_seconds, record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS),
                     stringResource(R.string.schedule_alarm_count_times, record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT),

@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.webdav
 
 import com.xayah.libsardine.DavResource
+import com.x500x.cursimple.R
 import com.xayah.libsardine.impl.OkHttpSardine
 import com.xayah.libsardine.impl.SardineException
 import okhttp3.OkHttpClient
@@ -17,7 +18,7 @@ class WebDavClient(
         .build(),
 ) {
     fun test(config: WebDavConfig) {
-        require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
+        webDavRequire(config.isComplete, R.string.webdav_config_incomplete)
         runWebDav {
             webDav(config).list(config.url.directoryUrl(), 0)
         }
@@ -48,7 +49,7 @@ class WebDavClient(
     }
 
     fun download(config: WebDavConfig, href: String): ByteArray {
-        require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
+        webDavRequire(config.isComplete, R.string.webdav_config_incomplete)
         val baseUrl = config.url.directoryUrl()
         val url = requireSameWebDavOrigin(
             baseUrl = baseUrl,
@@ -68,7 +69,7 @@ class WebDavClient(
     }
 
     private fun ensureBackupCollectionWith(dav: OkHttpSardine, config: WebDavConfig): String {
-        require(config.isComplete) { "请先完整填写 WebDAV URL、账号和密码" }
+        webDavRequire(config.isComplete, R.string.webdav_config_incomplete)
         val appDir = config.url.directoryUrl().resolveDirectory(APP_DIR)
         val backupDir = appDir.resolveDirectory(BACKUP_DIR)
         dav.createDirectoryIfMissing(appDir)
@@ -125,24 +126,34 @@ class WebDavClient(
     }
 
     private fun IOException.toReadableException(): IOException {
-        if (message?.startsWith("WebDAV 请求失败：") == true) return this
+        if (this is WebDavRequestException) return this
         if (this is SardineException) {
-            val hint = when (statusCode) {
-                HTTP_BAD_REQUEST -> "请检查 WebDAV URL 是否为服务商提供的目录地址，并确保以 / 结尾；坚果云通常是 https://dav.jianguoyun.com/dav/"
-                HTTP_UNAUTHORIZED -> "请检查账号、密码或应用专用密码；坚果云需要使用第三方应用管理里生成的应用密码"
-                HTTP_FORBIDDEN -> "账号无权访问或写入该 WebDAV 目录；若使用坚果云且账号密码正确，请检查可写目录、上传流量或账号状态"
-                HTTP_NOT_FOUND -> "WebDAV 目录不存在或 URL 写错"
+            val hintRes = when (statusCode) {
+                HTTP_BAD_REQUEST -> R.string.webdav_hint_bad_request
+                HTTP_UNAUTHORIZED -> R.string.webdav_hint_unauthorized
+                HTTP_FORBIDDEN -> R.string.webdav_hint_forbidden
+                HTTP_NOT_FOUND -> R.string.webdav_hint_not_found
                 else -> null
             }
-            val message = buildString {
-                append("WebDAV 请求失败：HTTP ")
+            val status = buildString {
                 append(statusCode)
                 responsePhrase?.takeIf(String::isNotBlank)?.let { append(" ").append(it) }
-                if (hint != null) append("。").append(hint)
             }
-            return IOException(message, this)
+            return if (hintRes == null) {
+                WebDavRequestException(R.string.webdav_request_failed_status, listOf(status), this)
+            } else {
+                WebDavRequestException(
+                    messageRes = R.string.webdav_request_failed_status_hint,
+                    formatArgs = listOf(status, WebDavTextArg(hintRes)),
+                    cause = this,
+                )
+            }
         }
-        return IOException("WebDAV 请求失败：${message ?: "网络或服务端异常"}", this)
+        return WebDavRequestException(
+            messageRes = R.string.webdav_request_failed_reason,
+            formatArgs = listOf(message ?: WebDavTextArg(R.string.webdav_generic_failure)),
+            cause = this,
+        )
     }
 
     private companion object {
@@ -159,7 +170,7 @@ class WebDavClient(
 }
 
 internal fun normalizeSecureWebDavDirectoryUrl(rawUrl: String): String {
-    val trimmedRaw = rawUrl.trim().ifBlank { error("WebDAV URL 不能为空") }
+    val trimmedRaw = rawUrl.trim().ifBlank { webDavError(R.string.webdav_url_blank) }
     val url = requireHttpsWebDavUrl(
         if (trimmedRaw.contains("://")) trimmedRaw else "https://$trimmedRaw",
     )
@@ -172,10 +183,11 @@ internal fun requireSameWebDavOrigin(baseUrl: String, url: String): String {
     val targetUri = runCatching { URI(url) }.getOrNull()
     val baseHost = baseUri?.host
     val targetHost = targetUri?.host
-    require(!baseHost.isNullOrBlank() && !targetHost.isNullOrBlank()) { "WebDAV 备份地址无法解析" }
-    require(targetHost.equals(baseHost, ignoreCase = true) && webDavPort(targetUri) == webDavPort(baseUri)) {
-        "WebDAV 备份地址与配置的服务器不一致"
-    }
+    webDavRequire(!baseHost.isNullOrBlank() && !targetHost.isNullOrBlank(), R.string.webdav_backup_url_unparseable)
+    webDavRequire(
+        targetHost.equals(baseHost, ignoreCase = true) && webDavPort(targetUri) == webDavPort(baseUri),
+        R.string.webdav_backup_host_mismatch,
+    )
     return url
 }
 
@@ -188,6 +200,6 @@ private const val DEFAULT_HTTPS_PORT = 443
 
 internal fun requireHttpsWebDavUrl(url: String): String {
     val scheme = runCatching { URI(url).scheme?.lowercase() }.getOrNull()
-    require(scheme == "https") { "WebDAV URL 必须使用 HTTPS，不能使用明文 HTTP" }
+    webDavRequire(scheme == "https", R.string.webdav_https_required)
     return url
 }

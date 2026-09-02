@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -121,8 +123,13 @@ fun CourseDetailDialog(
     } else {
         stringResource(R.string.schedule_node_range, course.time.startNode, course.time.endNode)
     }
-    val classTimeText = remember(course, timingProfile) { resolveClassTime(course, timingProfile) }
-    val weeksText = remember(course.weeks) { describeWeeksDetail(course.weeks) }
+    val context = LocalContext.current
+    val classTimeText = remember(course, timingProfile, context) {
+        context.classTimeText(resolveClassTime(course, timingProfile))
+    }
+    val weeksText = remember(course.weeks, context) {
+        context.weeksDetailText(describeWeeksDetail(course.weeks))
+    }
     val today = LocalAppZone.current.today()
     // targetDate 是点开这一格时对应的日期，对考试来说就是这场考试的日期。
     val examCountdown = remember(course, targetDate, today) {
@@ -600,39 +607,74 @@ private fun examCountdownText(countdown: ExamCountdown): String = when (countdow
     else -> stringResource(R.string.schedule_exam_countdown_days, countdown.daysRemaining)
 }
 
-private fun resolveClassTime(course: CourseItem, timingProfile: TermTimingProfile?): String {
+/** 上课时间的呈现形态：命中节次时间表给区间，否则按大节或节次编号。 */
+internal sealed interface ClassTimeInfo {
+    data class Range(val startTime: String, val endTime: String) : ClassTimeInfo
+    data class MajorPeriod(val index: Int) : ClassTimeInfo
+    data class MajorPeriodRange(val start: Int, val end: Int) : ClassTimeInfo
+    data class NodeRange(val start: Int, val end: Int) : ClassTimeInfo
+}
+
+private fun resolveClassTime(course: CourseItem, timingProfile: TermTimingProfile?): ClassTimeInfo {
     val slots: List<ClassSlotTime> = timingProfile?.slotTimes.orEmpty().sortedBy { it.startNode }
     val matchStart = slots.firstOrNull { course.time.startNode in it.startNode..it.endNode }
     val matchEnd = slots.firstOrNull { course.time.endNode in it.startNode..it.endNode }
     if (matchStart != null && matchEnd != null) {
-        return "${matchStart.startTime} - ${matchEnd.endTime}"
+        return ClassTimeInfo.Range(matchStart.startTime, matchEnd.endTime)
     }
     // 超出 timing 配置的节次：按 profile 行数 + 顺次给"第 N 大节"
     val baseCount = slots.size
     val extraStart = course.time.startNode - (slots.lastOrNull()?.endNode ?: 0)
     val extraEnd = course.time.endNode - (slots.lastOrNull()?.endNode ?: 0)
     return if (extraStart >= 1 && extraEnd >= 1) {
-        if (extraStart == extraEnd) "第 ${baseCount + extraStart} 大节"
-        else "第 ${baseCount + extraStart}-${baseCount + extraEnd} 大节"
+        if (extraStart == extraEnd) ClassTimeInfo.MajorPeriod(baseCount + extraStart)
+        else ClassTimeInfo.MajorPeriodRange(baseCount + extraStart, baseCount + extraEnd)
     } else {
-        "第 ${course.time.startNode}-${course.time.endNode} 节"
+        ClassTimeInfo.NodeRange(course.time.startNode, course.time.endNode)
     }
 }
 
-private fun describeWeeksDetail(weeks: List<Int>): String {
-    if (weeks.isEmpty()) return "全部周（未指定具体周次）"
+internal fun Context.classTimeText(info: ClassTimeInfo): String = when (info) {
+    is ClassTimeInfo.Range -> getString(R.string.schedule_class_time_range, info.startTime, info.endTime)
+    is ClassTimeInfo.MajorPeriod -> getString(R.string.schedule_major_period_single, info.index)
+    is ClassTimeInfo.MajorPeriodRange -> getString(R.string.schedule_major_period_range, info.start, info.end)
+    is ClassTimeInfo.NodeRange -> getString(R.string.schedule_node_range, info.start, info.end)
+}
+
+/** 上课周次的呈现形态。[weeksList] 为空表示未指定周次，其余附上逐个周次列表。 */
+internal sealed interface WeeksDetail {
+    object Unspecified : WeeksDetail
+    data class Consecutive(val first: Int, val last: Int, val count: Int, val weeksList: String) : WeeksDetail
+    data class Odd(val first: Int, val last: Int, val count: Int, val weeksList: String) : WeeksDetail
+    data class Even(val first: Int, val last: Int, val count: Int, val weeksList: String) : WeeksDetail
+    data class Count(val count: Int, val weeksList: String) : WeeksDetail
+}
+
+private fun describeWeeksDetail(weeks: List<Int>): WeeksDetail {
+    if (weeks.isEmpty()) return WeeksDetail.Unspecified
     val sorted = weeks.sorted().distinct()
     val first = sorted.first()
     val last = sorted.last()
     val full = (first..last).toList()
     val odd = full.filter { it % 2 == 1 }
     val even = full.filter { it % 2 == 0 }
-    val pattern = when {
-        sorted == full -> "$first-$last 周（连续 ${sorted.size} 周）"
-        sorted == odd -> "$first-$last 周（单周，共 ${sorted.size} 周）"
-        sorted == even -> "$first-$last 周（双周，共 ${sorted.size} 周）"
-        else -> "${sorted.size} 个周次"
-    }
     val list = sorted.joinToString(", ")
-    return "$pattern\n$list"
+    return when {
+        sorted == full -> WeeksDetail.Consecutive(first, last, sorted.size, list)
+        sorted == odd -> WeeksDetail.Odd(first, last, sorted.size, list)
+        sorted == even -> WeeksDetail.Even(first, last, sorted.size, list)
+        else -> WeeksDetail.Count(sorted.size, list)
+    }
+}
+
+internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail) {
+    WeeksDetail.Unspecified -> getString(R.string.schedule_weeks_detail_unspecified)
+    is WeeksDetail.Consecutive ->
+        getString(R.string.schedule_weeks_detail_consecutive, detail.first, detail.last, detail.count) + "\n" + detail.weeksList
+    is WeeksDetail.Odd ->
+        getString(R.string.schedule_weeks_detail_odd, detail.first, detail.last, detail.count) + "\n" + detail.weeksList
+    is WeeksDetail.Even ->
+        getString(R.string.schedule_weeks_detail_even, detail.first, detail.last, detail.count) + "\n" + detail.weeksList
+    is WeeksDetail.Count ->
+        getString(R.string.schedule_weeks_detail_count, detail.count) + "\n" + detail.weeksList
 }

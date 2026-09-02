@@ -12,6 +12,7 @@ import java.net.URL
 import kotlin.system.measureTimeMillis
 
 class MirrorDownloader(
+    private val labels: MirrorDownloaderLabels,
     private val mirrorPool: DownloadMirrorPool = DownloadMirrorPool(),
     private val probeRoundSize: Int = 4,
     private val userAgent: String = "CurSimple",
@@ -61,8 +62,10 @@ class MirrorDownloader(
                         MirrorDownloadResult.Success(text, bytesResult.candidate, bytesResult.failures)
                     }.getOrElse { error ->
                         MirrorDownloadResult.Failure(
-                            message = error.message ?: "本地文件校验失败",
-                            failures = bytesResult.failures + DownloadFailure("本地文件", error.message ?: "校验失败"),
+                            message = error.message ?: labels.localFileVerifyFailed,
+                            reason = DownloadFailureReason.Thrown(error),
+                            failures = bytesResult.failures +
+                                DownloadFailure(labels.localFileSource, error.message ?: labels.verifyFailed),
                         )
                     }
                 }
@@ -83,6 +86,7 @@ class MirrorDownloader(
     ): MirrorDownloadResult<T> = coroutineScope {
         val remaining = mirrorPool.candidates(request).toMutableList()
         val failures = mutableListOf<DownloadFailure>()
+        var firstError: Throwable? = null
         while (remaining.isNotEmpty()) {
             val sampled = remaining
                 .take(probeRoundSize.coerceAtLeast(1))
@@ -95,7 +99,8 @@ class MirrorDownloader(
                             latency = measureTimeMillis { probe(candidate.url) }
                             MeasuredDownloadCandidate(candidate, latency)
                         }.getOrElse { error ->
-                            failures += DownloadFailure(candidate.sourceName, error.message ?: "测速失败")
+                            firstError = firstError ?: error
+                            failures += DownloadFailure(candidate.sourceName, error.message ?: labels.probeFailed)
                             null
                         }
                     }
@@ -106,7 +111,8 @@ class MirrorDownloader(
             for (item in measured) {
                 val result = runCatching { fetch(item.candidate) }
                     .getOrElse { error ->
-                        failures += DownloadFailure(item.candidate.sourceName, error.message ?: "下载失败")
+                        firstError = firstError ?: error
+                        failures += DownloadFailure(item.candidate.sourceName, error.message ?: labels.downloadFailed)
                         null
                     }
                 if (result != null) {
@@ -119,7 +125,8 @@ class MirrorDownloader(
             }
         }
         MirrorDownloadResult.Failure(
-            message = failures.firstOrNull()?.message ?: "没有可用下载源",
+            message = failures.firstOrNull()?.message ?: labels.noSource,
+            reason = firstError?.let { DownloadFailureReason.Thrown(it) } ?: DownloadFailureReason.NoSource,
             failures = failures.toList(),
         )
     }
@@ -136,11 +143,12 @@ class MirrorDownloader(
             }
             val bytes = file.readBytes()
             validate(bytes)
-            MirrorDownloadResult.Success(bytes, DownloadCandidate("本地文件", file.absolutePath))
+            MirrorDownloadResult.Success(bytes, DownloadCandidate(labels.localFileSource, file.absolutePath))
         }.getOrElse { error ->
             MirrorDownloadResult.Failure(
-                message = error.message ?: "读取本地文件失败",
-                failures = listOf(DownloadFailure("本地文件", error.message ?: "读取失败")),
+                message = error.message ?: labels.localFileReadFailed,
+                reason = DownloadFailureReason.Thrown(error),
+                failures = listOf(DownloadFailure(labels.localFileSource, error.message ?: labels.readFailed)),
             )
         }
     }
@@ -161,12 +169,13 @@ class MirrorDownloader(
                 target.outputStream().use { output -> input.copyTo(output) }
             }
             validate(target)
-            MirrorDownloadResult.Success(target, DownloadCandidate("本地文件", source.absolutePath))
+            MirrorDownloadResult.Success(target, DownloadCandidate(labels.localFileSource, source.absolutePath))
         }.getOrElse { error ->
             runCatching { target.delete() }
             MirrorDownloadResult.Failure(
-                message = error.message ?: "读取本地文件失败",
-                failures = listOf(DownloadFailure("本地文件", error.message ?: "读取失败")),
+                message = error.message ?: labels.localFileReadFailed,
+                reason = DownloadFailureReason.Thrown(error),
+                failures = listOf(DownloadFailure(labels.localFileSource, error.message ?: labels.readFailed)),
             )
         }
     }

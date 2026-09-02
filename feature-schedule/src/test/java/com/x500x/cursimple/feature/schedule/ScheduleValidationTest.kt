@@ -58,9 +58,10 @@ class ScheduleValidationTest {
             ),
         )
 
-        assertThrows(IllegalArgumentException::class.java) {
+        val error = assertThrows(ScheduleValidationException::class.java) {
             validatePluginSchedule(schedule)
         }
+        assertEquals(R.string.schedule_validation_invalid_weekday, error.messageRes)
     }
 
     @Test
@@ -82,9 +83,10 @@ class ScheduleValidationTest {
             ),
         )
 
-        assertThrows(IllegalArgumentException::class.java) {
+        val error = assertThrows(ScheduleValidationException::class.java) {
             validatePluginSchedule(schedule)
         }
+        assertEquals(R.string.schedule_validation_invalid_end_node, error.messageRes)
     }
 
     @Test

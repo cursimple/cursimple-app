@@ -16,7 +16,7 @@ internal data class WidgetScheduleDay(
     val targetDate: LocalDate,
     val sourceDate: LocalDate,
     val weekIndex: Int?,
-    val holidayLabel: String?,
+    val holidayLabel: WidgetHolidayLabel?,
     val courses: List<CourseItem>,
 )
 
@@ -50,7 +50,7 @@ internal fun resolveWidgetScheduleDay(
         targetDate = targetDate,
         sourceDate = sourceDate,
         weekIndex = weekIndex,
-        holidayLabel = if (resolution.isHoliday) widgetHolidayLabel(resolution.holidayName) else null,
+        holidayLabel = if (resolution.isHoliday) widgetHolidayLabel(resolution.holidayName, resolution.holidayNameRes) else null,
         courses = courses,
     )
 }

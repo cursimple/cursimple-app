@@ -6,6 +6,8 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.pluginRequire
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.security.MessageDigest
@@ -39,14 +41,26 @@ data class ScheduleDraft(
     }
 
     private fun validateAndNormalizeCourses(limits: PluginRuntimeLimits): List<CourseItem> {
-        require(courses.size <= limits.maxCourses) { "插件返回的课程数量过多" }
+        pluginRequire(courses.size <= limits.maxCourses, R.string.plugin_error_draft_too_many_courses)
         return courses.mapIndexed { index, draft ->
             val title = draft.title.trim()
-            require(title.isNotBlank()) { "插件返回了空课程名称" }
-            require(draft.dayOfWeek in 1..7) { "插件返回了无效星期: ${draft.dayOfWeek}" }
-            require(draft.startNode in 1..32) { "插件返回了无效开始节次: ${draft.startNode}" }
-            require(draft.endNode in draft.startNode..32) { "插件返回了无效结束节次: ${draft.endNode}" }
-            require(draft.weeks.all { it in 1..60 }) { "插件返回了无效教学周" }
+            pluginRequire(title.isNotBlank(), R.string.plugin_error_draft_blank_course_title)
+            pluginRequire(
+                draft.dayOfWeek in 1..7,
+                R.string.plugin_error_draft_invalid_day_of_week,
+                draft.dayOfWeek,
+            )
+            pluginRequire(
+                draft.startNode in 1..32,
+                R.string.plugin_error_draft_invalid_start_node,
+                draft.startNode,
+            )
+            pluginRequire(
+                draft.endNode in draft.startNode..32,
+                R.string.plugin_error_draft_invalid_end_node,
+                draft.endNode,
+            )
+            pluginRequire(draft.weeks.all { it in 1..60 }, R.string.plugin_error_draft_invalid_weeks)
             val id = draft.id?.trim()?.takeIf(String::isNotBlank)
                 ?: stableCourseId(index, draft)
             CourseItem(

@@ -10,12 +10,10 @@ import android.os.Bundle
 import android.view.View
 import android.widget.RemoteViews
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
-import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import java.time.format.DateTimeFormatter
 
 open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
@@ -108,18 +106,20 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
 
             views.setTextViewText(
                 R.id.widget_title,
-                "${dateFormatter.format(dayData.targetDate)} · ${WidgetDayLabels.tag(dayData.offset)}",
+                context.getString(
+                    R.string.widget_title_date_tag,
+                    context.widgetMonthDayText(dayData.targetDate),
+                    context.widgetDayTagText(widgetDayTag(dayData.offset)),
+                ),
             )
             val subtitle = scheduleWidgetSubtitle(
-                weekdayLabel = dayData.weekdayLabel,
+                dayOfWeek = dayData.targetDate.dayOfWeek.value,
                 termStartMissing = dayData.termStartMissing,
                 beforeTermStart = dayData.beforeTermStart,
-                sourceLabel = dayData.sourceDate
-                    .takeIf { it != dayData.targetDate }
-                    ?.let { sourceDateLabel(it) },
+                sourceDate = dayData.sourceDate.takeIf { it != dayData.targetDate },
                 holidayLabel = dayData.holidayLabel,
             )
-            views.setTextViewText(R.id.widget_subtitle, subtitle)
+            views.setTextViewText(R.id.widget_subtitle, context.scheduleWidgetSubtitleText(subtitle))
             views.setViewVisibility(
                 R.id.widget_subtitle,
                 if (sizeClass == WidgetSizeClass.Compact) View.GONE else View.VISIBLE,
@@ -163,12 +163,14 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme)
             views.setInt(R.id.widget_empty, "setBackgroundResource", widgetRowVariantBackground(dayData.themeAccent))
-            val emptyText = scheduleWidgetEmptyText(
-                termStartMissing = dayData.termStartMissing,
-                beforeTermStart = dayData.beforeTermStart,
-                termStartDate = dayData.termStartDate,
-                offset = dayData.offset,
-                holidayLabel = dayData.holidayLabel,
+            val emptyText = context.scheduleWidgetEmptyText(
+                scheduleWidgetEmptyLabel(
+                    termStartMissing = dayData.termStartMissing,
+                    beforeTermStart = dayData.beforeTermStart,
+                    termStartDate = dayData.termStartDate,
+                    offset = dayData.offset,
+                    holidayLabel = dayData.holidayLabel,
+                ),
             )
             views.setTextViewText(R.id.widget_empty, emptyText)
             return views
@@ -200,9 +202,6 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
 
-        private val dateFormatter = DateTimeFormatter.ofPattern("M月d日")
-        private fun sourceDateLabel(date: java.time.LocalDate): String =
-            "${dateFormatter.format(date)}${weekdayLabel(date.dayOfWeek.value)}"
     }
 }
 

@@ -12,6 +12,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -35,6 +36,25 @@ class ScheduleImageLayoutTest {
     }
 
     private fun isWide(ch: Char): Boolean = ch.code >= 0x2E80
+
+    /** 复刻当前中文文案，验证排版逻辑不受文案外移影响。 */
+    private val labels = ScheduleImageLabels(
+        defaultTitle = "课表",
+        holidayFallbackName = "假日",
+        holidayNameOfRes = { "内置假日" },
+        holidayAllDayOff = "全天无课",
+        overflowMoreDetail = "见图下备注",
+        noTimingFailure = "未设置节次上课时间",
+        weekdayName = { day -> weekdayLabel(day) },
+        dateLabel = { date -> "${date.monthValue}月${date.dayOfMonth}日" },
+        weekLabel = { week -> "第 $week 周" },
+        makeUpNote = { source -> "调$source" },
+        overflowTitle = { hidden -> "还有 $hidden 门" },
+        conflictFootnote = { weekday, nodeLabel, titles ->
+            "$weekday ${nodeLabel}节同时有 ${titles.size} 门：${titles.joinToString("、")}"
+        },
+        emptyWeekFailure = { week -> "第 $week 周没有课程" },
+    )
 
     private fun profile(vararg slots: ClassSlotTime): TermTimingProfile =
         TermTimingProfile(termStartDate = termStart.toString(), slotTimes = slots.toList())
@@ -92,6 +112,7 @@ class ScheduleImageLayoutTest {
         overrides = overrides,
         holidayCalendar = holidayCalendar,
         measurer = measurer,
+        labels = labels,
         metrics = metrics,
     )
 

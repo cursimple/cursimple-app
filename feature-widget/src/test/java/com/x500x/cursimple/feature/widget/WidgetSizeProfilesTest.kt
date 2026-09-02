@@ -14,19 +14,26 @@ import java.time.LocalTime
 class WidgetSizeProfilesTest {
     @Test
     fun `day offset labels support unbounded daily switching`() {
-        assertEquals("昨天", WidgetDayLabels.tag(-1))
-        assertEquals("今天", WidgetDayLabels.tag(0))
-        assertEquals("明天", WidgetDayLabels.tag(1))
-        assertEquals("+7天", WidgetDayLabels.tag(7))
-        assertEquals("-8天", WidgetDayLabels.tag(-8))
+        assertEquals(WidgetDayTag.Yesterday, widgetDayTag(-1))
+        assertEquals(WidgetDayTag.Today, widgetDayTag(0))
+        assertEquals(WidgetDayTag.Tomorrow, widgetDayTag(1))
+        assertEquals(WidgetDayTag.Ahead(7), widgetDayTag(7))
+        assertEquals(WidgetDayTag.Behind(8), widgetDayTag(-8))
     }
 
     @Test
     fun `empty labels stay date aware`() {
-        assertEquals("昨日没有课程", WidgetDayLabels.empty(-1))
-        assertEquals("今日没有课程，享受一天", WidgetDayLabels.empty(0))
-        assertEquals("明日没有课程", WidgetDayLabels.empty(1))
-        assertEquals("当日没有课程", WidgetDayLabels.empty(5))
+        listOf(-1, 0, 1, 5).forEach { offset ->
+            assertEquals(
+                ScheduleWidgetEmptyLabel.NoCourses(offset),
+                scheduleWidgetEmptyLabel(
+                    termStartMissing = false,
+                    beforeTermStart = false,
+                    termStartDate = LocalDate.of(2026, 9, 7),
+                    offset = offset,
+                ),
+            )
+        }
     }
 
     @Test
@@ -157,11 +164,11 @@ class WidgetSizeProfilesTest {
     private fun nextCourseRow(id: String): NextCourseRow =
         NextCourseRow(
             id = id,
-            label = "即将开始",
-            period = "1-2节",
+            label = "starting",
+            period = "P1-2",
             title = id,
             time = "08:00 – 09:35",
-            sub = "待定",
+            sub = "tbd",
             isFocus = false,
             isPast = false,
         )
@@ -169,11 +176,11 @@ class WidgetSizeProfilesTest {
     private fun reminderRow(id: String): ReminderRowData =
         ReminderRowData(
             id = id,
-            dateLabel = "今天",
+            dateLabel = "today",
             timeLabel = "08:00",
             title = id,
-            message = "课程即将开始",
-            countdown = "10分钟后",
+            message = "starting soon",
+            countdown = "in 10m",
             accentPrimary = true,
         )
 

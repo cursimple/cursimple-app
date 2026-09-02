@@ -1,6 +1,7 @@
 package com.x500x.cursimple.feature.widget
 
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.builtInHolidayNameResOn
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
@@ -25,8 +26,25 @@ class WidgetScheduleDayTest {
         val day = resolveDay(nationalDay, holidayCalendar = HolidayCalendarSettings())
 
         assertEquals(emptyList<CourseItem>(), day.courses)
-        assertEquals("国庆节", day.holidayLabel)
+        assertEquals(
+            WidgetHolidayLabel.BuiltIn(builtInHolidayNameResOn(nationalDay)!!),
+            day.holidayLabel,
+        )
         assertEquals(nationalDay, day.sourceDate)
+    }
+
+    @Test
+    fun `a user written holiday keeps the name the user typed`() {
+        val day = resolveDay(
+            nationalDay,
+            holidayCalendar = HolidayCalendarSettings(
+                entries = listOf(
+                    HolidayCalendarEntry(nationalDay.toString(), HolidayEntryKind.Holiday, "校庆"),
+                ),
+            ),
+        )
+
+        assertEquals(WidgetHolidayLabel.Named("校庆"), day.holidayLabel)
     }
 
     @Test
@@ -100,7 +118,7 @@ class WidgetScheduleDayTest {
         )
 
         assertEquals(emptyList<CourseItem>(), day.courses)
-        assertEquals("校庆", day.holidayLabel)
+        assertEquals(WidgetHolidayLabel.Named("校庆"), day.holidayLabel)
         assertEquals(nationalDay, day.sourceDate)
     }
 
@@ -113,7 +131,7 @@ class WidgetScheduleDayTest {
             ),
         )
 
-        assertEquals("放假", day.holidayLabel)
+        assertEquals(WidgetHolidayLabel.Unnamed, day.holidayLabel)
     }
 
     private fun resolveDay(

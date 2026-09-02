@@ -1,7 +1,12 @@
 package com.x500x.cursimple.core.plugin.component
 
 import android.os.Build
+import com.x500x.cursimple.core.plugin.PluginArgumentException
+import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.packageformat.readAtMostBytes
+import com.x500x.cursimple.core.plugin.pluginReasonOr
+import com.x500x.cursimple.core.plugin.pluginRequire
+import com.x500x.cursimple.core.plugin.pluginRequireNotNull
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -52,7 +57,7 @@ class PluginComponentInstaller(
             PluginComponentInstallResult.Failure(
                 PluginComponentInstallFailure(
                     code = "install_failed",
-                    message = error.message ?: "组件安装失败",
+                    error = pluginReasonOr(error, R.string.plugin_error_component_install_failed),
                 ),
             )
         }
@@ -62,29 +67,49 @@ class PluginComponentInstaller(
         manifest: PluginComponentPackageManifest,
         layout: ComponentPackageLayout,
     ) {
-        require(manifest.id.isNotBlank()) { "组件 manifest 缺少 id" }
-        require(manifest.version.isNotBlank()) { "组件 manifest 缺少 version" }
-        require(manifest.sha256.matches(SHA_256_REGEX)) { "组件 SHA-256 格式无效" }
+        pluginRequire(manifest.id.isNotBlank(), R.string.plugin_error_component_manifest_missing_id)
+        pluginRequire(
+            manifest.version.isNotBlank(),
+            R.string.plugin_error_component_manifest_missing_version,
+        )
+        pluginRequire(
+            manifest.sha256.matches(SHA_256_REGEX),
+            R.string.plugin_error_component_sha256_format_invalid,
+        )
         if (!manifest.abi.isNullOrBlank()) {
-            require(manifest.abi in supportedAbis) { "组件 ABI 不兼容: ${manifest.abi}" }
+            pluginRequire(
+                manifest.abi in supportedAbis,
+                R.string.plugin_error_component_abi_incompatible,
+                manifest.abi,
+            )
         }
         val payloadFiles = manifest.files.ifEmpty {
             layout.files.keys.filterNot { it == MANIFEST_FILE }
         }
-        require(payloadFiles.isNotEmpty()) { "组件包没有有效文件" }
+        pluginRequire(payloadFiles.isNotEmpty(), R.string.plugin_error_component_package_empty)
         if (manifest.files.isNotEmpty()) {
             val unlistedFiles = layout.files.keys
                 .filterNot { it == MANIFEST_FILE }
                 .filterNot { it in manifest.files }
-            require(unlistedFiles.isEmpty()) {
-                "组件包包含 manifest.files 未声明文件: ${unlistedFiles.sorted().joinToString()}"
+            if (unlistedFiles.isNotEmpty()) {
+                throw PluginArgumentException(
+                    R.string.plugin_error_component_package_unlisted_files,
+                    listOf(unlistedFiles.sorted().joinToString()),
+                )
             }
         }
         payloadFiles.forEach { file ->
-            require(file in layout.files) { "组件包缺少文件: $file" }
+            pluginRequire(
+                file in layout.files,
+                R.string.plugin_error_component_package_missing_file,
+                file,
+            )
         }
         val actual = sha256PayloadFiles(payloadFiles.sorted(), layout)
-        require(actual.equals(manifest.sha256, ignoreCase = true)) { "组件 SHA-256 校验失败" }
+        pluginRequire(
+            actual.equals(manifest.sha256, ignoreCase = true),
+            R.string.plugin_error_component_sha256_mismatch,
+        )
     }
 
     private fun installLayout(
@@ -99,9 +124,9 @@ class PluginComponentInstaller(
         val safeAbi = manifest.abi?.replace(Regex("[^A-Za-z0-9._-]"), "_") ?: "any"
         val sourceTag = source.name.lowercase()
         val targetDir = File(componentRoot, "$safeId-$safeVersion-$safeAbi-$sourceTag").canonicalFile
-        requireContained(componentRoot, targetDir, "组件安装目录越界")
+        requireContained(componentRoot, targetDir, R.string.plugin_error_component_install_dir_escape)
         if (targetDir.exists()) {
-            requireContained(componentRoot, targetDir, "组件安装目录越界")
+            requireContained(componentRoot, targetDir, R.string.plugin_error_component_install_dir_escape)
             targetDir.deleteRecursively()
         }
         targetDir.mkdirs()
@@ -109,17 +134,21 @@ class PluginComponentInstaller(
             .filterKeys { it != MANIFEST_FILE }
             .forEach { (path, bytes) ->
                 val target = File(targetDir, path).canonicalFile
-                requireContained(targetDir, target, "组件包路径越界: $path")
+                requireContained(targetDir, target, R.string.plugin_error_component_package_path_escape, path)
                 target.parentFile?.mkdirs()
                 target.writeBytes(bytes)
             }
         return targetDir
     }
 
-    private fun requireContained(root: File, target: File, message: String) {
+    private fun requireContained(root: File, target: File, messageRes: Int, vararg formatArgs: Any) {
         val rootPath = root.canonicalFile.path
         val targetPath = target.canonicalFile.path
-        require(targetPath == rootPath || targetPath.startsWith(rootPath + File.separator)) { message }
+        pluginRequire(
+            targetPath == rootPath || targetPath.startsWith(rootPath + File.separator),
+            messageRes,
+            *formatArgs,
+        )
     }
 
     private fun readComponentPackage(bytes: ByteArray): ComponentPackageLayout {
@@ -130,29 +159,55 @@ class PluginComponentInstaller(
                 val entry = zip.nextEntry ?: break
                 if (!entry.isDirectory) {
                     val normalized = normalizePackagePath(entry.name)
-                    require(normalized !in files) { "组件包包含重复文件: $normalized" }
-                    require(files.size < maxFileCount) { "组件包文件数量超过限制: $maxFileCount" }
-                    val content = requireNotNull(zip.readAtMostBytes(maxUncompressedBytes - totalBytes)) {
-                        "组件包解压后体积超过限制: $maxUncompressedBytes"
-                    }
+                    pluginRequire(
+                        normalized !in files,
+                        R.string.plugin_error_component_package_duplicate_file,
+                        normalized,
+                    )
+                    pluginRequire(
+                        files.size < maxFileCount,
+                        R.string.plugin_error_component_package_file_count_exceeded,
+                        maxFileCount,
+                    )
+                    val content = pluginRequireNotNull(
+                        zip.readAtMostBytes(maxUncompressedBytes - totalBytes),
+                        R.string.plugin_error_component_package_size_exceeded,
+                        maxUncompressedBytes,
+                    )
                     totalBytes += content.size.toLong()
                     files[normalized] = content
                 }
                 zip.closeEntry()
             }
         }
-        require(MANIFEST_FILE in files) { "组件包缺少 manifest.json" }
+        pluginRequire(MANIFEST_FILE in files, R.string.plugin_error_component_package_missing_manifest)
         return ComponentPackageLayout(files)
     }
 
     private fun normalizePackagePath(rawPath: String): String {
         val path = rawPath.replace('\\', '/').trim()
-        require(path.isNotBlank()) { "组件包包含空路径" }
-        require(!path.startsWith("/")) { "组件包包含绝对路径: $rawPath" }
-        require(!WINDOWS_DRIVE_PATH.matches(path)) { "组件包包含 Windows 盘符路径: $rawPath" }
+        pluginRequire(path.isNotBlank(), R.string.plugin_error_component_package_blank_path)
+        pluginRequire(
+            !path.startsWith("/"),
+            R.string.plugin_error_component_package_absolute_path,
+            rawPath,
+        )
+        pluginRequire(
+            !WINDOWS_DRIVE_PATH.matches(path),
+            R.string.plugin_error_component_package_windows_drive_path,
+            rawPath,
+        )
         val segments = path.split('/')
-        require(segments.none { it == ".." }) { "组件包包含路径穿越: $rawPath" }
-        require(segments.none { it.isBlank() || it == "." }) { "组件包包含非法路径: $rawPath" }
+        pluginRequire(
+            segments.none { it == ".." },
+            R.string.plugin_error_component_package_path_traversal,
+            rawPath,
+        )
+        pluginRequire(
+            segments.none { it.isBlank() || it == "." },
+            R.string.plugin_error_component_package_illegal_path,
+            rawPath,
+        )
         return segments.joinToString("/")
     }
 
@@ -160,7 +215,10 @@ class PluginComponentInstaller(
         val files: Map<String, ByteArray>,
     ) {
         fun requireFile(path: String): ByteArray {
-            return files[path] ?: throw IllegalArgumentException("组件包缺少文件: $path")
+            return files[path] ?: throw PluginArgumentException(
+                R.string.plugin_error_component_package_missing_file,
+                listOf(path),
+            )
         }
     }
 

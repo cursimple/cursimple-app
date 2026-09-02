@@ -11,6 +11,7 @@ import com.x500x.cursimple.app.download.DownloadPurpose
 import com.x500x.cursimple.app.download.DownloadRequest
 import com.x500x.cursimple.app.download.MirrorDownloadResult
 import com.x500x.cursimple.app.download.MirrorDownloader
+import com.x500x.cursimple.app.download.mirrorDownloaderLabels
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -77,6 +78,7 @@ class AppContainer(
     private val courseNoteStore = DataStoreCourseNoteRepository(app, termProfileRepository)
     val courseNoteRepository: CourseNoteRepository = courseNoteStore
     private val sharedDownloader = MirrorDownloader(
+        labels = app.mirrorDownloaderLabels(),
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
     )
     private val marketIndexRepository = MarketIndexRepository(

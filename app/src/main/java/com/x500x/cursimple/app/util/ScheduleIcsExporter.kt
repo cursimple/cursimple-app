@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
@@ -58,7 +59,8 @@ object ScheduleIcsExporter {
                 eventCount = 0,
                 occurrenceCount = 0,
                 skipped = result.skipped,
-                failureReason = result.failureReason ?: "当前学期没有可导出的课程",
+                failureReason = result.failureReason?.let { context.getString(it) }
+                    ?: context.getString(R.string.ics_no_exportable_courses),
             )
         }
         val file = writeIcsFile(context, termName, result.content)
@@ -67,7 +69,7 @@ object ScheduleIcsExporter {
                 eventCount = result.eventCount,
                 occurrenceCount = result.occurrenceCount,
                 skipped = result.skipped,
-                failureReason = "写入日历文件失败",
+                failureReason = context.getString(R.string.ics_write_failed),
             )
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = Intent(Intent.ACTION_SEND).apply {

@@ -1,9 +1,13 @@
 package com.x500x.cursimple.core.plugin.install
 
+import com.x500x.cursimple.core.plugin.PluginArgumentException
+import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageReader
+import com.x500x.cursimple.core.plugin.pluginReasonOr
+import com.x500x.cursimple.core.plugin.pluginRequire
 import com.x500x.cursimple.core.plugin.security.PluginChecksumVerifier
 import com.x500x.cursimple.core.plugin.security.PluginSignatureStatus
 import com.x500x.cursimple.core.plugin.security.PluginSignatureVerifier
@@ -89,15 +93,15 @@ class PluginInstaller(
                 mapOf("source" to source, "bytes" to bytes.size, "elapsedMs" to elapsedSince(startedAt)),
                 it,
             )
-            PluginInstallResult.Failure(it.message ?: "安装插件失败")
+            PluginInstallResult.Failure(pluginReasonOr(it, R.string.plugin_error_install_failed))
         }
     }
 
     private fun verifyLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
         val preview = previewPackageFromLayout(layout, source)
-        require(preview.checksumVerified) { "插件摘要校验失败" }
-        require(preview.signatureStatus != PluginSignatureStatus.Invalid) {
-            preview.signatureMessage?.let { "插件签名校验失败: $it" } ?: "插件签名校验失败"
+        pluginRequire(preview.checksumVerified, R.string.plugin_error_install_checksum_rejected)
+        if (preview.signatureStatus == PluginSignatureStatus.Invalid) {
+            throw signatureRejected(preview.signatureError)
         }
         return preview
     }
@@ -112,7 +116,16 @@ class PluginInstaller(
             source = source,
             signatureStatus = signature.status,
             signerFingerprint = signature.signerFingerprint,
-            signatureMessage = signature.message,
+            signatureError = signature.error,
+        )
+    }
+
+    /** 拿不到具体原因时用不带占位符的那条文案。 */
+    private fun signatureRejected(detail: Throwable?): PluginArgumentException {
+        val reason = detail ?: return PluginArgumentException(R.string.plugin_error_install_signature_rejected)
+        return PluginArgumentException(
+            R.string.plugin_error_install_signature_rejected_detail,
+            listOf(reason),
         )
     }
 
@@ -138,7 +151,6 @@ class PluginInstaller(
             webEngine = webEngine,
             components = components,
             compatibilityStatus = compatibility.status,
-            compatibilityMessage = compatibility.message,
             isBundled = bundled,
         )
     }

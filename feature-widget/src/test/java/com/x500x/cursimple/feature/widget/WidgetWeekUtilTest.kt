@@ -72,25 +72,9 @@ class WidgetWeekUtilTest {
 
     @Test
     fun `empty label tells the user the term has not started`() {
-        assertEquals("未开学 · 9月7日开学", WidgetDayLabels.beforeTermStart(termStart))
-        assertEquals("未开学", WidgetDayLabels.beforeTermStart(null))
-    }
-
-    @Test
-    fun `empty label separates a missing term start date from a free day`() {
-        assertEquals("未设开学日期 · 点按设置", WidgetDayLabels.missingTermStart())
         assertEquals(
-            WidgetDayLabels.missingTermStart(),
-            scheduleWidgetEmptyText(
-                termStartMissing = true,
-                beforeTermStart = false,
-                termStartDate = null,
-                offset = 0,
-            ),
-        )
-        assertEquals(
-            "未开学 · 9月7日开学",
-            scheduleWidgetEmptyText(
+            ScheduleWidgetEmptyLabel.BeforeTermStart(termStart),
+            scheduleWidgetEmptyLabel(
                 termStartMissing = false,
                 beforeTermStart = true,
                 termStartDate = termStart,
@@ -98,8 +82,39 @@ class WidgetWeekUtilTest {
             ),
         )
         assertEquals(
-            "今日没有课程，享受一天",
-            scheduleWidgetEmptyText(
+            ScheduleWidgetEmptyLabel.BeforeTermStart(null),
+            scheduleWidgetEmptyLabel(
+                termStartMissing = false,
+                beforeTermStart = true,
+                termStartDate = null,
+                offset = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `empty label separates a missing term start date from a free day`() {
+        assertEquals(
+            ScheduleWidgetEmptyLabel.TermStartMissing,
+            scheduleWidgetEmptyLabel(
+                termStartMissing = true,
+                beforeTermStart = false,
+                termStartDate = null,
+                offset = 0,
+            ),
+        )
+        assertEquals(
+            ScheduleWidgetEmptyLabel.BeforeTermStart(termStart),
+            scheduleWidgetEmptyLabel(
+                termStartMissing = false,
+                beforeTermStart = true,
+                termStartDate = termStart,
+                offset = 0,
+            ),
+        )
+        assertEquals(
+            ScheduleWidgetEmptyLabel.NoCourses(0),
+            scheduleWidgetEmptyLabel(
                 termStartMissing = false,
                 beforeTermStart = false,
                 termStartDate = termStart,
@@ -111,20 +126,20 @@ class WidgetWeekUtilTest {
     @Test
     fun `subtitle marks a missing term start date`() {
         assertEquals(
-            "星期一 · 未设开学日期",
-            scheduleWidgetSubtitle("星期一", termStartMissing = true, beforeTermStart = false, sourceLabel = null),
+            ScheduleWidgetSubtitle.TermStartMissing(MONDAY),
+            scheduleWidgetSubtitle(MONDAY, termStartMissing = true, beforeTermStart = false, sourceDate = null),
         )
         assertEquals(
-            "星期一 · 未开学",
-            scheduleWidgetSubtitle("星期一", termStartMissing = false, beforeTermStart = true, sourceLabel = null),
+            ScheduleWidgetSubtitle.BeforeTermStart(MONDAY),
+            scheduleWidgetSubtitle(MONDAY, termStartMissing = false, beforeTermStart = true, sourceDate = null),
         )
         assertEquals(
-            "星期一 · 按9月7日周一课",
-            scheduleWidgetSubtitle("星期一", termStartMissing = false, beforeTermStart = false, sourceLabel = "9月7日周一"),
+            ScheduleWidgetSubtitle.TemporarySource(MONDAY, termStart),
+            scheduleWidgetSubtitle(MONDAY, termStartMissing = false, beforeTermStart = false, sourceDate = termStart),
         )
         assertEquals(
-            "星期一",
-            scheduleWidgetSubtitle("星期一", termStartMissing = false, beforeTermStart = false, sourceLabel = null),
+            ScheduleWidgetSubtitle.Weekday(MONDAY),
+            scheduleWidgetSubtitle(MONDAY, termStartMissing = false, beforeTermStart = false, sourceDate = null),
         )
     }
 
@@ -133,8 +148,8 @@ class WidgetWeekUtilTest {
         val today = LocalDate.of(2026, 9, 21)
 
         assertEquals(
-            WidgetDayLabels.missingTermStart(),
-            nextCourseEmptyTitle(
+            NextCourseEmptyLabel.TermStartMissing,
+            nextCourseEmptyLabel(
                 weekIndex = null,
                 termStartDate = null,
                 targetDate = today,
@@ -143,8 +158,8 @@ class WidgetWeekUtilTest {
             ),
         )
         assertEquals(
-            "未开学 · 9月7日开学",
-            nextCourseEmptyTitle(
+            NextCourseEmptyLabel.BeforeTermStart(termStart),
+            nextCourseEmptyLabel(
                 weekIndex = 0,
                 termStartDate = termStart,
                 targetDate = today,
@@ -153,8 +168,8 @@ class WidgetWeekUtilTest {
             ),
         )
         assertEquals(
-            "今天没有课程",
-            nextCourseEmptyTitle(
+            NextCourseEmptyLabel.NoneToday,
+            nextCourseEmptyLabel(
                 weekIndex = 3,
                 termStartDate = termStart,
                 targetDate = today,
@@ -163,8 +178,8 @@ class WidgetWeekUtilTest {
             ),
         )
         assertEquals(
-            "今天没有更多课程",
-            nextCourseEmptyTitle(
+            NextCourseEmptyLabel.NoMoreToday,
+            nextCourseEmptyLabel(
                 weekIndex = 3,
                 termStartDate = termStart,
                 targetDate = today,
@@ -173,8 +188,8 @@ class WidgetWeekUtilTest {
             ),
         )
         assertEquals(
-            "明天没有课程",
-            nextCourseEmptyTitle(
+            NextCourseEmptyLabel.NoneTomorrow,
+            nextCourseEmptyLabel(
                 weekIndex = 3,
                 termStartDate = termStart,
                 targetDate = today.plusDays(1),
@@ -187,36 +202,37 @@ class WidgetWeekUtilTest {
     @Test
     fun `holiday wording outranks the term state on both widgets`() {
         val today = LocalDate.of(2026, 10, 1)
+        val nationalDay = WidgetHolidayLabel.Named("国庆节")
 
         assertEquals(
-            "国庆节 · 全天无课",
-            scheduleWidgetEmptyText(
+            ScheduleWidgetEmptyLabel.Holiday(nationalDay),
+            scheduleWidgetEmptyLabel(
                 termStartMissing = true,
                 beforeTermStart = true,
                 termStartDate = termStart,
                 offset = 0,
-                holidayLabel = "国庆节",
+                holidayLabel = nationalDay,
             ),
         )
         assertEquals(
-            "星期四 · 国庆节",
+            ScheduleWidgetSubtitle.Holiday(THURSDAY, nationalDay),
             scheduleWidgetSubtitle(
-                "星期四",
+                THURSDAY,
                 termStartMissing = true,
                 beforeTermStart = true,
-                sourceLabel = "9月28日周一",
-                holidayLabel = "国庆节",
+                sourceDate = LocalDate.of(2026, 9, 28),
+                holidayLabel = nationalDay,
             ),
         )
         assertEquals(
-            "国庆节 · 全天无课",
-            nextCourseEmptyTitle(
+            NextCourseEmptyLabel.Holiday(nationalDay),
+            nextCourseEmptyLabel(
                 weekIndex = null,
                 termStartDate = termStart,
                 targetDate = today,
                 today = today,
                 hasCourses = false,
-                holidayLabel = "国庆节",
+                holidayLabel = nationalDay,
             ),
         )
     }
@@ -228,4 +244,9 @@ class WidgetWeekUtilTest {
             weeks = weeks,
             time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
         )
+
+    private companion object {
+        const val MONDAY = 1
+        const val THURSDAY = 4
+    }
 }

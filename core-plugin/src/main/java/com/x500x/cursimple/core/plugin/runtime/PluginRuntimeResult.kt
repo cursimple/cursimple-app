@@ -20,7 +20,7 @@ sealed interface WorkflowExecutionResult {
     data class NeedsComponents(
         val pluginId: String,
         val components: List<PluginComponentRequirement>,
-        val message: String = "插件需要安装组件后才能运行",
+        val message: String,
     ) : WorkflowExecutionResult
 
     data class AwaitingWebSession(

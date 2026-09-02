@@ -14,7 +14,6 @@ import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
-import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
@@ -25,6 +24,36 @@ import kotlin.math.floor
 fun interface ScheduleImageTextMeasurer {
     fun measure(text: String, fontSize: Float, bold: Boolean): Float
 }
+
+/** 课表图片里所有需要按语言渲染的文字，由持有 Context 的调用方填好后传入排版函数。 */
+class ScheduleImageLabels(
+    /** 没有学期名时的默认标题。 */
+    val defaultTitle: String,
+    /** 假日没有名字时的占位名。 */
+    val holidayFallbackName: String,
+    /** 把内置假日的文案资源解析成当前语言的名字。 */
+    val holidayNameOfRes: (Int) -> String,
+    /** 假日格里“全天无课”一行。 */
+    val holidayAllDayOff: String,
+    /** 同格课程超额时汇总块的说明行。 */
+    val overflowMoreDetail: String,
+    /** 没有节次配置时的失败原因。 */
+    val noTimingFailure: String,
+    /** 星期几名称。 */
+    val weekdayName: (Int) -> String,
+    /** 某一天的日期标注。 */
+    val dateLabel: (LocalDate) -> String,
+    /** 第几教学周。 */
+    val weekLabel: (Int) -> String,
+    /** 调课来源日的表头标注。 */
+    val makeUpNote: (String) -> String,
+    /** 同格课程超额时汇总块的标题。 */
+    val overflowTitle: (Int) -> String,
+    /** 同格多门课冲突时写在图下的备注。 */
+    val conflictFootnote: (weekday: String, nodeLabel: String, titles: List<String>) -> String,
+    /** 某一周没有任何课程时的失败原因。 */
+    val emptyWeekFailure: (Int) -> String,
+)
 
 /** 课表图片各区块的像素尺寸与字号，全部以最终位图像素为单位。 */
 data class ScheduleImageMetrics(
@@ -193,6 +222,7 @@ object ScheduleImageLayout {
         overrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings,
         measurer: ScheduleImageTextMeasurer,
+        labels: ScheduleImageLabels,
         metrics: ScheduleImageMetrics = ScheduleImageMetrics(),
     ): ScheduleImageLayoutResult {
         val slots = timingProfile.slotTimes
@@ -200,7 +230,7 @@ object ScheduleImageLayout {
             .sortedWith(compareBy({ it.startNode }, { it.endNode }))
         val safeWeek = weekNumber.coerceAtLeast(1)
         if (slots.isEmpty()) {
-            return emptyResult(metrics, safeWeek, termName, "未设置节次上课时间")
+            return emptyResult(metrics, safeWeek, termName, labels, labels.noTimingFailure)
         }
 
         val weekMonday = weekStartDate(termStartDate, safeWeek)
@@ -250,11 +280,12 @@ object ScheduleImageLayout {
             ScheduleImageDayHeader(
                 dayOfWeek = day,
                 rect = ScheduleImageRect(left, gridTop, left + metrics.dayColumnWidth, bodyTop),
-                weekdayLabel = weekdayLabel(day),
-                dateLabel = "${date.monthValue}月${date.dayOfMonth}日",
+                weekdayLabel = labels.weekdayName(day),
+                dateLabel = labels.dateLabel(date),
                 noteLabel = when {
                     resolution.isHoliday -> null
-                    resolution.sourceDate != date -> "调${weekdayLabel(resolution.sourceDate.dayOfWeek.value)}"
+                    resolution.sourceDate != date ->
+                        labels.makeUpNote(labels.weekdayName(resolution.sourceDate.dayOfWeek.value))
                     else -> null
                 },
                 isWeekend = day >= DayOfWeek.SATURDAY.value,
@@ -279,7 +310,9 @@ object ScheduleImageLayout {
             val left = columnLeft(day)
             val rect = ScheduleImageRect(left, bodyTop, left + metrics.dayColumnWidth, bodyBottom)
             val content = rect.inset(metrics.blockPadding + metrics.blockGap)
-            val name = resolution.holidayName?.takeIf { it.isNotBlank() } ?: "假日"
+            val name = resolution.holidayNameRes?.let(labels.holidayNameOfRes)
+                ?: resolution.holidayName?.takeIf { it.isNotBlank() }
+                ?: labels.holidayFallbackName
             val nameLines = ScheduleImageText.wrap(
                 text = name,
                 maxWidth = content.width,
@@ -292,7 +325,7 @@ object ScheduleImageLayout {
                 dayOfWeek = day,
                 rect = rect,
                 contentRect = content,
-                lines = nameLines + "全天无课",
+                lines = nameLines + labels.holidayAllDayOff,
                 fontSize = metrics.holidayFontSize,
                 lineHeight = metrics.holidayLineHeight,
             )
@@ -343,15 +376,19 @@ object ScheduleImageLayout {
                             scale = scale,
                             metrics = metrics,
                             measurer = measurer,
+                            labels = labels,
                         ),
                     )
                 }
                 if (group.size >= metrics.footnoteLaneThreshold) {
                     val startNode = group.minOf { it.course.time.startNode }
                     val endNode = group.maxOf { it.course.time.endNode }
-                    val titles = group.joinToString("、") { it.course.title }
                     footnoteSources.add(
-                        "${weekdayLabel(day)} ${nodeLabel(startNode, endNode)}节同时有 ${group.size} 门：$titles",
+                        labels.conflictFootnote(
+                            labels.weekdayName(day),
+                            nodeLabel(startNode, endNode),
+                            group.map { it.course.title },
+                        ),
                     )
                 }
             }
@@ -381,8 +418,8 @@ object ScheduleImageLayout {
             width = ceil(gridRight + metrics.outerPadding).toInt(),
             height = ceil(contentBottom + metrics.outerPadding).toInt(),
             metrics = metrics,
-            title = termName?.trim()?.takeIf { it.isNotEmpty() } ?: "课表",
-            subtitle = "第 $safeWeek 周 · ${dateRangeLabel(weekMonday, weekEnd)}",
+            title = termName?.trim()?.takeIf { it.isNotEmpty() } ?: labels.defaultTitle,
+            subtitle = "${labels.weekLabel(safeWeek)} · ${labels.dateLabel(weekMonday)} - ${labels.dateLabel(weekEnd)}",
             weekNumber = safeWeek,
             gridRect = ScheduleImageRect(gridLeft, gridTop, gridRight, bodyBottom),
             bodyRect = ScheduleImageRect(gridLeft, bodyTop, gridRight, bodyBottom),
@@ -394,7 +431,7 @@ object ScheduleImageLayout {
             footnotes = footnotes,
             footnoteTop = footnoteTop,
             courseCount = courseCount,
-            failureReason = if (courseCount == 0 && holidays.isEmpty()) "第 $safeWeek 周没有课程" else null,
+            failureReason = if (courseCount == 0 && holidays.isEmpty()) labels.emptyWeekFailure(safeWeek) else null,
         )
     }
 
@@ -527,6 +564,7 @@ object ScheduleImageLayout {
         scale: Float,
         metrics: ScheduleImageMetrics,
         measurer: ScheduleImageTextMeasurer,
+        labels: ScheduleImageLabels,
     ): ScheduleImageBlock {
         val rowStart = group.minOf { it.rowStart }
         val rowEnd = group.maxOf { it.rowEnd }
@@ -536,10 +574,10 @@ object ScheduleImageLayout {
         val detailFontSize = metrics.detailFontSize * scale
         val titleLineHeight = metrics.titleLineHeight * scale
         val detailLineHeight = metrics.detailLineHeight * scale
-        val title = "还有 $hiddenCount 门"
+        val title = labels.overflowTitle(hiddenCount)
         val lines = composeBlockLines(
             title = title,
-            details = listOf("见图下备注"),
+            details = listOf(labels.overflowMoreDetail),
             content = content,
             titleFontSize = titleFontSize,
             detailFontSize = detailFontSize,
@@ -652,13 +690,11 @@ object ScheduleImageLayout {
     private fun nodeLabel(startNode: Int, endNode: Int): String =
         if (startNode == endNode) "$startNode" else "$startNode-$endNode"
 
-    private fun dateRangeLabel(start: LocalDate, end: LocalDate): String =
-        "${start.monthValue}月${start.dayOfMonth}日 - ${end.monthValue}月${end.dayOfMonth}日"
-
     private fun emptyResult(
         metrics: ScheduleImageMetrics,
         weekNumber: Int,
         termName: String?,
+        labels: ScheduleImageLabels,
         reason: String,
     ): ScheduleImageLayoutResult {
         val right = metrics.outerPadding + metrics.nodeColumnWidth + MIN_DAY_COLUMNS * metrics.dayColumnWidth
@@ -668,8 +704,8 @@ object ScheduleImageLayout {
             width = ceil(right + metrics.outerPadding).toInt(),
             height = ceil(bottom + metrics.outerPadding).toInt(),
             metrics = metrics,
-            title = termName?.trim()?.takeIf { it.isNotEmpty() } ?: "课表",
-            subtitle = "第 $weekNumber 周",
+            title = termName?.trim()?.takeIf { it.isNotEmpty() } ?: labels.defaultTitle,
+            subtitle = labels.weekLabel(weekNumber),
             weekNumber = weekNumber,
             gridRect = empty,
             bodyRect = empty,

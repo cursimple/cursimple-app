@@ -11,7 +11,6 @@ import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
-import com.x500x.cursimple.core.plugin.security.PluginSignatureStatus
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,13 +19,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-
-/** 预检结束后展示在市场页顶部的状态文案。 */
-internal fun installPreviewStatusMessage(preview: PluginInstallPreview): String = when {
-    !preview.checksumVerified -> "插件包摘要校验未通过，不能安装"
-    preview.signatureStatus == PluginSignatureStatus.Invalid -> "插件包签名校验未通过，不能安装"
-    else -> "插件包已通过完整性预检，请确认下方权限与站点"
-}
 
 /** 待安装插件包的来源，本地文件安装时为 null。 */
 data class PluginInstallOrigin(
@@ -40,7 +32,7 @@ data class PluginMarketUiState(
     val installPreview: PluginInstallPreview? = null,
     val installPreviewOrigin: PluginInstallOrigin? = null,
     val isLoading: Boolean = false,
-    val statusMessage: String? = null,
+    val status: PluginMarketStatus? = null,
     val lastLoadedRegistry: String? = null,
     val lastLoadedAtMillis: Long = 0L,
 )
@@ -84,8 +76,8 @@ class PluginMarketViewModel(
         }
     }
 
-    fun setStatusMessage(message: String?) {
-        _uiState.update { it.copy(statusMessage = message) }
+    fun setStatus(status: PluginMarketStatus?) {
+        _uiState.update { it.copy(status = status) }
     }
 
     /**
@@ -111,22 +103,26 @@ class PluginMarketViewModel(
     fun loadRegistry(registryRepo: String) {
         val slug = registryRepo.trim()
         if (slug.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先在设置-插件中配置注册表仓库") }
+            _uiState.update { it.copy(status = PluginMarketStatus.RegistryNotConfigured) }
             return
         }
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载插件市场...") }
+            _uiState.update { it.copy(isLoading = true, status = PluginMarketStatus.LoadingMarket) }
             runCatching { gitHubRegistryRepository.fetchAll(slug) }
                 .onSuccess { repos ->
                     val now = nowMillis()
-                    val message = if (repos.isEmpty()) "插件市场为空" else "已加载 ${repos.size} 个插件"
+                    val status = if (repos.isEmpty()) {
+                        PluginMarketStatus.MarketEmpty
+                    } else {
+                        PluginMarketStatus.MarketLoaded(repos.size)
+                    }
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             marketRepos = repos,
                             lastLoadedRegistry = slug,
                             lastLoadedAtMillis = now,
-                            statusMessage = message,
+                            status = status,
                         )
                     }
                     val encoded = runCatching { json.encodeToString(repos) }.getOrNull().orEmpty()
@@ -136,7 +132,7 @@ class PluginMarketViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            statusMessage = error.message ?: "加载插件市场失败",
+                            status = PluginMarketStatus.MarketLoadFailed(error),
                         )
                     }
                 }
@@ -151,20 +147,23 @@ class PluginMarketViewModel(
         val asset = repo.latestRelease
         if (asset == null) {
             _uiState.update {
-                it.copy(statusMessage = "${repo.fullName} 还没有带 ZIP 资产的 Release，无法安装。")
+                it.copy(status = PluginMarketStatus.ReleaseAssetMissing(repo.fullName))
             }
             return
         }
         viewModelScope.launch {
             _uiState.update {
-                it.copy(isLoading = true, statusMessage = "正在下载 ${asset.assetName}（${asset.tagName}）...")
+                it.copy(
+                    isLoading = true,
+                    status = PluginMarketStatus.DownloadingAsset(asset.assetName, asset.tagName),
+                )
             }
             val bytes = runCatching { pluginManager.downloadRemotePackage(asset.downloadUrl) }
                 .getOrElse { error ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            statusMessage = error.message ?: "下载插件包失败",
+                            status = PluginMarketStatus.DownloadFailed(error),
                         )
                     }
                     return@launch
@@ -184,7 +183,7 @@ class PluginMarketViewModel(
         val bytes = pendingBytes ?: return
         val source = pendingSource ?: PluginInstallSource.Local
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在安装插件...") }
+            _uiState.update { it.copy(isLoading = true, status = PluginMarketStatus.Installing) }
             when (val result = pluginManager.installPackage(bytes, source)) {
                 is PluginInstallResult.Success -> {
                     pendingBytes = null
@@ -194,7 +193,7 @@ class PluginMarketViewModel(
                             isLoading = false,
                             installPreview = null,
                             installPreviewOrigin = null,
-                            statusMessage = "已安装插件：${result.record.name}",
+                            status = PluginMarketStatus.Installed(result.record.name),
                         )
                     }
                 }
@@ -203,7 +202,7 @@ class PluginMarketViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            statusMessage = result.message,
+                            status = PluginMarketStatus.InstallFailed(result.error),
                         )
                     }
                 }
@@ -221,11 +220,10 @@ class PluginMarketViewModel(
         viewModelScope.launch {
             runCatching { pluginManager.removePlugin(pluginKey) }
                 .onSuccess {
-                    _uiState.update { it.copy(statusMessage = "已移除插件：$pluginKey") }
+                    _uiState.update { it.copy(status = PluginMarketStatus.Removed(pluginKey)) }
                 }
                 .onFailure { error ->
-                    val errorMessage = error.message ?: "移除插件失败"
-                    _uiState.update { it.copy(statusMessage = errorMessage) }
+                    _uiState.update { it.copy(status = PluginMarketStatus.RemoveFailed(error.message)) }
                 }
         }
     }
@@ -236,7 +234,7 @@ class PluginMarketViewModel(
         origin: PluginInstallOrigin?,
     ) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在解析插件包...") }
+            _uiState.update { it.copy(isLoading = true, status = PluginMarketStatus.ParsingPackage) }
             runCatching { pluginManager.previewPackage(bytes, source) }
                 .onSuccess { preview ->
                     pendingBytes = bytes
@@ -246,17 +244,16 @@ class PluginMarketViewModel(
                             isLoading = false,
                             installPreview = preview,
                             installPreviewOrigin = origin,
-                            statusMessage = installPreviewStatusMessage(preview),
+                            status = installPreviewStatus(preview),
                         )
                     }
                 }
-                .onFailure {
-                    val errorMessage = it.message ?: "解析插件包失败"
+                .onFailure { error ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             installPreviewOrigin = null,
-                            statusMessage = errorMessage,
+                            status = PluginMarketStatus.ParsePackageFailed(error),
                         )
                     }
                 }

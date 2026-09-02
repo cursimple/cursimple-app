@@ -1664,7 +1664,7 @@ private fun AutoSilenceSettingsSection() {
         }
     }
 
-    val blockingReason = readiness.blockingReason
+    val blockingReason = readiness.blockingReasonRes?.let { stringResource(it) }
     if (blockingReason != null) {
         Card(
             modifier = Modifier
@@ -1696,7 +1696,8 @@ private fun AutoSilenceSettingsSection() {
             }
         }
     }
-    readiness.warning?.let { warning ->
+    readiness.warningRes?.let { warningRes ->
+        val warning = stringResource(warningRes)
         Text(
             text = warning,
             style = MaterialTheme.typography.bodySmall,
@@ -1714,9 +1715,9 @@ private fun AutoSilenceSettingsSection() {
         },
         checked = autoSilence.enabled,
         onCheckedChange = { enabled ->
-            val reason = AutoSilenceController.readiness(context, autoSilence.mode).blockingReason
-            if (enabled && reason != null) {
-                Toast.makeText(context, reason, Toast.LENGTH_LONG).show()
+            val reasonRes = AutoSilenceController.readiness(context, autoSilence.mode).blockingReasonRes
+            if (enabled && reasonRes != null) {
+                Toast.makeText(context, context.getString(reasonRes), Toast.LENGTH_LONG).show()
             } else {
                 scope.launch {
                     withContext(Dispatchers.IO) {
@@ -1814,14 +1815,14 @@ private fun AutoSilenceSettingsSection() {
                             subtitle = autoSilenceModeDescription(mode),
                             onClick = {
                                 showModePicker = false
-                                val reason = AutoSilenceController.readiness(context, mode).blockingReason
-                                if (reason != null && autoSilence.enabled) {
-                                    Toast.makeText(context, reason, Toast.LENGTH_LONG).show()
+                                val reasonRes = AutoSilenceController.readiness(context, mode).blockingReasonRes
+                                if (reasonRes != null && autoSilence.enabled) {
+                                    Toast.makeText(context, context.getString(reasonRes), Toast.LENGTH_LONG).show()
                                 }
                                 scope.launch {
                                     withContext(Dispatchers.IO) {
                                         repository.setAutoSilenceMode(mode)
-                                        if (reason != null) {
+                                        if (reasonRes != null) {
                                             repository.setAutoSilenceEnabled(false)
                                         }
                                         AutoSilenceController.evaluate(

@@ -19,13 +19,6 @@
     <string name="schedule_add_course_parity_empty">No %1$s in the selected week range. Pick another range or choose all weeks.</string>
     <string name="schedule_action_cancel">Cancel</string>
     <string name="schedule_action_save">Save</string>
-    <string name="schedule_weekday_1">Mon</string>
-    <string name="schedule_weekday_2">Tue</string>
-    <string name="schedule_weekday_3">Wed</string>
-    <string name="schedule_weekday_4">Thu</string>
-    <string name="schedule_weekday_5">Fri</string>
-    <string name="schedule_weekday_6">Sat</string>
-    <string name="schedule_weekday_7">Sun</string>
     <string name="schedule_node_single">Period %1$d</string>
     <string name="schedule_node_range">Periods %1$d-%2$d</string>
     <string name="schedule_quick_add_title">Add a course here</string>
@@ -353,4 +346,87 @@
     <string name="schedule_weekday_short_friday">Fri</string>
     <string name="schedule_weekday_short_saturday">Sat</string>
     <string name="schedule_weekday_short_sunday">Sun</string>
+    <!-- 表头月份角标与调课来源 -->
+    <bool name="schedule_month_stacked">false</bool>
+    <string-array name="schedule_month_of_year">
+        <item>Jan</item>
+        <item>Feb</item>
+        <item>Mar</item>
+        <item>Apr</item>
+        <item>May</item>
+        <item>Jun</item>
+        <item>Jul</item>
+        <item>Aug</item>
+        <item>Sep</item>
+        <item>Oct</item>
+        <item>Nov</item>
+        <item>Dec</item>
+    </string-array>
+    <string name="schedule_month_suffix"></string>
+    <string name="schedule_source_date">%1$d/%2$d %3$s</string>
+    <string name="schedule_override_source">%1$s</string>
+    <!-- 课程详情：上课时间与周次 -->
+    <string name="schedule_class_time_range">%1$s - %2$s</string>
+    <string name="schedule_major_period_single">Major period %1$d</string>
+    <string name="schedule_major_period_range">Major periods %1$d-%2$d</string>
+    <string name="schedule_weeks_detail_unspecified">All weeks (no specific weeks set)</string>
+    <string name="schedule_weeks_detail_consecutive">Weeks %1$d-%2$d (%3$d consecutive weeks)</string>
+    <string name="schedule_weeks_detail_odd">Weeks %1$d-%2$d (odd weeks, %3$d total)</string>
+    <string name="schedule_weeks_detail_even">Weeks %1$d-%2$d (even weeks, %3$d total)</string>
+    <string name="schedule_weeks_detail_count">%1$d weeks</string>
+    <!-- 插件课表校验失败提示 -->
+    <string name="schedule_validation_invalid_weekday">Plugin returned an invalid weekday: %1$d</string>
+    <string name="schedule_validation_blank_course_id">Plugin returned a blank course ID</string>
+    <string name="schedule_validation_blank_course_title">Plugin returned a blank course title</string>
+    <string name="schedule_validation_invalid_course_weekday">Plugin returned an invalid course weekday: %1$d</string>
+    <string name="schedule_validation_weekday_mismatch">Plugin course weekday does not match its daily group</string>
+    <string name="schedule_validation_invalid_start_node">Plugin returned an invalid start period: %1$d</string>
+    <string name="schedule_validation_invalid_end_node">Plugin returned an invalid end period: %1$d</string>
+    <string name="schedule_validation_invalid_weeks">Plugin returned invalid teaching weeks</string>
+    <string name="schedule_validation_too_many_courses">Plugin returned too many courses</string>
+    <!-- 示例课表数据 -->
+    <string name="schedule_sample_monday_math_title">Calculus</string>
+    <string name="schedule_sample_monday_math_teacher">Prof. Li</string>
+    <string name="schedule_sample_monday_math_location">Building A, Room 101</string>
+    <string name="schedule_sample_monday_c_title">C Programming</string>
+    <string name="schedule_sample_monday_c_teacher">Mr. Wang</string>
+    <string name="schedule_sample_monday_c_location">Lab Building B, Room 202</string>
+    <string name="schedule_sample_monday_ds_title">Data Structures</string>
+    <string name="schedule_sample_monday_ds_teacher">Mr. Zhang</string>
+    <string name="schedule_sample_monday_ds_location">Lab Building B, Room 202</string>
+    <string name="schedule_sample_monday_python_title">Intro to Python</string>
+    <string name="schedule_sample_monday_python_teacher">Ms. Zhao</string>
+    <string name="schedule_sample_monday_python_location">Computer Lab C, Room 301</string>
+    <string name="schedule_sample_tuesday_physics_title">University Physics</string>
+    <string name="schedule_sample_tuesday_physics_teacher">Prof. Chen</string>
+    <string name="schedule_sample_tuesday_physics_location">Building A, Room 203</string>
+    <string name="schedule_sample_tuesday_english_title">English Listening &amp; Speaking</string>
+    <string name="schedule_sample_tuesday_english_location">Foreign Languages Building D, Room 102</string>
+    <string name="schedule_sample_wednesday_linear_title">Linear Algebra</string>
+    <string name="schedule_sample_wednesday_linear_teacher">Mr. Liu</string>
+    <string name="schedule_sample_wednesday_linear_location">Building A, Room 101</string>
+    <string name="schedule_sample_wednesday_prob_title">Probability Theory</string>
+    <string name="schedule_sample_wednesday_prob_teacher">Mr. Lin</string>
+    <string name="schedule_sample_wednesday_prob_location">Building A, Room 101</string>
+    <string name="schedule_sample_wednesday_marx_title">Principles of Marxism</string>
+    <string name="schedule_sample_wednesday_marx_teacher">Mr. Zhou</string>
+    <string name="schedule_sample_wednesday_marx_location">Building A, Room 301</string>
+    <string name="schedule_sample_thursday_os_title">Operating Systems</string>
+    <string name="schedule_sample_thursday_os_teacher">Prof. Sun</string>
+    <string name="schedule_sample_thursday_os_location">Lab Building B, Room 305</string>
+    <string name="schedule_sample_thursday_advprog_title">Advanced Programming</string>
+    <string name="schedule_sample_thursday_advprog_teacher">Mr. Wu</string>
+    <string name="schedule_sample_thursday_advprog_location">Lab Building B, Room 202</string>
+    <string name="schedule_sample_friday_network_title">Computer Networks</string>
+    <string name="schedule_sample_friday_network_teacher">Prof. Zheng</string>
+    <string name="schedule_sample_friday_network_location">Lab Building B, Room 203</string>
+    <string name="schedule_sample_friday_pe_title">PE (Badminton)</string>
+    <string name="schedule_sample_friday_pe_teacher">Coach Zhou</string>
+    <string name="schedule_sample_friday_pe_location">Gymnasium</string>
+    <string name="schedule_sample_saturday_elab_title">Electronics Lab</string>
+    <string name="schedule_sample_saturday_elab_teacher">Lab Tech Li</string>
+    <string name="schedule_sample_saturday_elab_location">Lab Building E, Room 101</string>
+    <string name="schedule_sample_sunday_culture_title">East-West Cultures (MOOC)</string>
+    <string name="schedule_sample_sunday_culture_teacher">Academic Office</string>
+    <string name="schedule_sample_sunday_culture_location">Online</string>
 </resources>

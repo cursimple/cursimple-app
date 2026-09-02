@@ -87,7 +87,7 @@ data class PluginInstallPreview(
     val source: PluginInstallSource,
     val signatureStatus: PluginSignatureStatus = PluginSignatureStatus.Absent,
     val signerFingerprint: String? = null,
-    val signatureMessage: String? = null,
+    val signatureError: Throwable? = null,
 ) {
     /** 摘要通过且包内签名（若存在）有效时才允许安装。 */
     val installable: Boolean
@@ -96,7 +96,9 @@ data class PluginInstallPreview(
 
 sealed interface PluginInstallResult {
     data class Success(val record: InstalledPluginRecord) : PluginInstallResult
-    data class Failure(val message: String) : PluginInstallResult
+
+    /** [error] 由界面层渲染成当前语言的文案。 */
+    data class Failure(val error: Throwable) : PluginInstallResult
 }
 
 interface PluginRegistryRepository {

@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.webdav
 
 import org.junit.Assert.assertEquals
+import com.x500x.cursimple.R
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,7 +29,7 @@ class WebDavClientTest {
         }.exceptionOrNull()
 
         assertTrue(error is IllegalArgumentException)
-        assertTrue(error!!.message!!.contains("HTTPS"))
+        assertEquals(R.string.webdav_https_required, (error as WebDavArgumentException).messageRes)
     }
 
     @Test
@@ -52,7 +53,7 @@ class WebDavClientTest {
         }.exceptionOrNull()
 
         assertTrue(error is IllegalArgumentException)
-        assertTrue(error!!.message!!.contains("与配置的服务器不一致"))
+        assertEquals(R.string.webdav_backup_host_mismatch, (error as WebDavArgumentException).messageRes)
     }
 
     @Test
@@ -65,6 +66,6 @@ class WebDavClientTest {
         }.exceptionOrNull()
 
         assertTrue(error is IllegalArgumentException)
-        assertTrue(error!!.message!!.contains("与配置的服务器不一致"))
+        assertEquals(R.string.webdav_backup_host_mismatch, (error as WebDavArgumentException).messageRes)
     }
 }

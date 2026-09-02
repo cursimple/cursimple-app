@@ -15,4 +15,33 @@
     <string name="reminder_system_clock_delete_denied">系统拒绝删除闹钟</string>
     <string name="reminder_system_clock_delete_failed">删除系统闹钟失败</string>
 
+    <string name="reminder_rebuild_app_alarm_failed">重建 App 自管闹钟失败</string>
+    <string name="reminder_cancel_alarm_failed">取消闹钟失败</string>
+    <string name="reminder_disable_alarm_failed">关闭闹钟失败</string>
+    <string name="reminder_enable_alarm_failed">启用闹钟失败</string>
+    <string name="reminder_delete_alarm_failed">删除闹钟失败</string>
+    <string name="reminder_snooze_setup_failed">延后闹钟设置失败</string>
+    <string name="reminder_registration_missing">闹钟登记已不存在</string>
+    <string name="reminder_expired_registration_removed">已移除过期闹钟登记</string>
+    <string name="reminder_alarm_time_passed">闹钟时间已过，无法重新启用</string>
+    <string name="reminder_alarm_dismissed">闹钟已关闭</string>
+    <string name="reminder_snoozed_five_minutes">已延后 5 分钟</string>
+    <string name="reminder_manual_alarm_default_title">手动闹钟</string>
+    <string name="reminder_manual_alarm_default_message">手动创建的提醒</string>
+
+    <string name="reminder_system_clock_dispatch_requires_foreground">应用未在前台，系统时钟无法创建闹钟，请打开应用后重试</string>
+    <string name="reminder_system_clock_dismiss_requires_foreground">应用未在前台，系统时钟无法删除闹钟，请打开应用后重试</string>
+
+    <string name="reminder_notification_title">%1$s %2$s %3$s</string>
+    <string name="reminder_notification_title_exam">考试：%1$s</string>
+    <string name="reminder_notification_title_first_course_morning">上午首次课：%1$s</string>
+    <string name="reminder_notification_title_first_course_afternoon">下午首次课：%1$s</string>
+    <string name="reminder_notification_title_first_course_evening">晚上首次课：%1$s</string>
+    <string name="reminder_notification_title_advance">%1$s（提前%2$d分钟）</string>
+    <string name="reminder_notification_message">%1$s %2$s %3$s-%4$s · %5$s · %6$s</string>
+    <string name="reminder_notification_date">%1$d月%2$d日</string>
+    <string name="reminder_notification_nodes">第%1$d-%2$d节</string>
+    <string name="reminder_notification_location_tbd">待定教室</string>
+    <string name="reminder_weekday_other">周%1$d</string>
+
 </resources>
