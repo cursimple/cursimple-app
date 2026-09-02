@@ -58,6 +58,7 @@ import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.NotificationsOff
+import androidx.compose.material.icons.rounded.OpenWith
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
@@ -317,6 +318,7 @@ fun AppSettingsRoute(
     onScheduleSaturdayVisibleChange: (Boolean) -> Unit,
     onScheduleWeekendVisibleChange: (Boolean) -> Unit,
     onScheduleWeekStartDayChange: (WeekStartDay) -> Unit,
+    onCourseDragEnabledChange: (Boolean) -> Unit,
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
     onScheduleLocationPrefixAtEnabledChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
@@ -892,6 +894,13 @@ fun AppSettingsRoute(
                     stringResource(R.string.settings_display_node_time_subtitle),
                     scheduleDisplay.nodeColumnTimeEnabled,
                     onScheduleNodeColumnTimeEnabledChange,
+                )
+                SettingsSwitchRow(
+                    Icons.Rounded.OpenWith,
+                    stringResource(R.string.settings_display_course_drag_title),
+                    stringResource(R.string.settings_display_course_drag_subtitle),
+                    scheduleDisplay.courseDragEnabled,
+                    onCourseDragEnabledChange,
                 )
                 WeekStartDayRow(
                     selected = scheduleDisplay.weekStartDay,
