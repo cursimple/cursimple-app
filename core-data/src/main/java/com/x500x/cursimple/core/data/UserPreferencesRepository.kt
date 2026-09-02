@@ -211,6 +211,8 @@ data class ScheduleDisplayPreferences(
     val totalScheduleDisplayEnabled: Boolean = true,
     /** 一周从哪天开始显示，不影响教学周编号。 */
     val weekStartDay: WeekStartDay = WeekStartDay.Monday,
+    /** 允许在课表上拖动调整课程。默认关闭，避免误触改动课表。 */
+    val courseDragEnabled: Boolean = false,
 )
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
@@ -344,6 +346,8 @@ interface UserPreferencesRepository {
     suspend fun setScheduleWeekendVisible(visible: Boolean)
 
     suspend fun setScheduleWeekStartDay(day: WeekStartDay)
+
+    suspend fun setCourseDragEnabled(enabled: Boolean)
     suspend fun setScheduleLocationVisible(visible: Boolean)
     suspend fun setScheduleLocationPrefixAtEnabled(enabled: Boolean)
     suspend fun setScheduleTeacherVisible(visible: Boolean)

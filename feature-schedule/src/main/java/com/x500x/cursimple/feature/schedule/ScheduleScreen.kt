@@ -50,6 +50,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -181,6 +182,21 @@ fun ScheduleRoute(
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    // 拖动是易误触的操作，改动先记在这里等用户确认，确认前不落库
+    var pendingDrag by remember { mutableStateOf<PendingCourseDrag?>(null) }
+    pendingDrag?.let { pending ->
+        CourseDragConfirmDialog(
+            pending = pending,
+            onDismiss = { pendingDrag = null },
+            onConfirm = {
+                when (pending.kind) {
+                    PendingCourseDrag.Kind.Move -> viewModel.moveManualCourse(pending.courseId, pending.time)
+                    PendingCourseDrag.Kind.Resize -> viewModel.resizeManualCourse(pending.courseId, pending.time)
+                }
+                pendingDrag = null
+            },
+        )
+    }
     ScheduleScreen(
         state = state,
         weekOffset = weekOffset,
@@ -195,8 +211,12 @@ fun ScheduleRoute(
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveManualCourse = viewModel::removeManualCourse,
         onAddManualCourse = viewModel::addManualCourse,
-        onMoveManualCourse = viewModel::moveManualCourse,
-        onResizeManualCourse = viewModel::resizeManualCourse,
+        onMoveManualCourse = { id, time ->
+            pendingDrag = PendingCourseDrag(id, courseTitleOf(state, id), time, PendingCourseDrag.Kind.Move)
+        },
+        onResizeManualCourse = { id, time ->
+            pendingDrag = PendingCourseDrag(id, courseTitleOf(state, id), time, PendingCourseDrag.Kind.Resize)
+        },
         onMoveBlocked = viewModel::reportCourseMoveBlocked,
         onSaveCourseNote = viewModel::setCourseNote,
         onCreateBulkReminder = viewModel::createReminderForCourses,
@@ -315,8 +335,12 @@ fun ScheduleScreen(
                         onCourseLongClick = onLongClickHandler,
                         onWeekOffsetChange = onWeekOffsetChange,
                         onAddManualCourse = onAddManualCourse,
-                        movableCourseIds = remember(state.manualCourses) {
-                            state.manualCourses.map { it.id }.toSet()
+                        movableCourseIds = remember(state.manualCourses, scheduleDisplay.courseDragEnabled) {
+                            if (scheduleDisplay.courseDragEnabled) {
+                                state.manualCourses.map { it.id }.toSet()
+                            } else {
+                                emptySet()
+                            }
                         },
                         onMoveCourse = onMoveManualCourse,
                         onResizeCourse = onResizeManualCourse,
@@ -3455,4 +3479,59 @@ private fun timeColumnWidth(availableWidth: Dp): Dp {
     }
     val scale = LocalDensity.current.fontScale.coerceIn(1f, 1.8f)
     return (base * scale).coerceAtMost(availableWidth * 0.3f)
+}
+
+/** 等待确认的拖动改动。 */
+internal data class PendingCourseDrag(
+    val courseId: String,
+    val courseTitle: String,
+    val time: CourseTimeSlot,
+    val kind: Kind,
+) {
+    enum class Kind { Move, Resize }
+}
+
+private fun courseTitleOf(state: ScheduleUiState, courseId: String): String =
+    state.manualCourses.firstOrNull { it.id == courseId }?.title.orEmpty()
+
+@Composable
+private fun CourseDragConfirmDialog(
+    pending: PendingCourseDrag,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_drag_confirm_title)) },
+        text = {
+            Text(
+                when (pending.kind) {
+                    PendingCourseDrag.Kind.Move -> stringResource(
+                        R.string.schedule_drag_confirm_move,
+                        pending.courseTitle,
+                        stringResource(weekdayNameRes(pending.time.dayOfWeek)),
+                        pending.time.startNode,
+                        pending.time.endNode,
+                    )
+
+                    PendingCourseDrag.Kind.Resize -> stringResource(
+                        R.string.schedule_drag_confirm_resize,
+                        pending.courseTitle,
+                        pending.time.startNode,
+                        pending.time.endNode,
+                    )
+                },
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onConfirm) {
+                Text(stringResource(R.string.schedule_drag_confirm_apply))
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.schedule_drag_confirm_cancel))
+            }
+        },
+    )
 }

@@ -287,6 +287,10 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE] = visible }
     }
 
+    override suspend fun setCourseDragEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED] = enabled }
+    }
+
     override suspend fun setScheduleWeekStartDay(day: WeekStartDay) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_WEEK_START_DAY] = day.name }
     }
@@ -805,6 +809,7 @@ class DataStoreUserPreferencesRepository(
             weekStartDay = this[KEY_SCHEDULE_DISPLAY_WEEK_START_DAY]
                 ?.let { raw -> runCatching { WeekStartDay.valueOf(raw) }.getOrNull() }
                 ?: WeekStartDay.Monday,
+            courseDragEnabled = this[KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED] ?: false,
             locationVisible = this[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] ?: true,
             locationPrefixAtEnabled = this[KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
@@ -864,6 +869,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_WEEK_START_DAY)
+        remove(KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE)
@@ -929,6 +935,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE = booleanPreferencesKey("schedule_display_saturday_visible")
         val KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE = booleanPreferencesKey("schedule_display_weekend_visible")
         val KEY_SCHEDULE_DISPLAY_WEEK_START_DAY = stringPreferencesKey("schedule_display_week_start_day")
+        val KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED =
+            booleanPreferencesKey("schedule_display_course_drag_enabled")
         val KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE = booleanPreferencesKey("schedule_display_location_visible")
         val KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED =
             booleanPreferencesKey("schedule_display_location_prefix_at_enabled")
