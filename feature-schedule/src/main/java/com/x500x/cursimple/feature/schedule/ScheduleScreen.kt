@@ -75,6 +75,7 @@ import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -86,6 +87,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -514,11 +516,7 @@ fun ScheduleAppearancePreview(
         }
         val availableWidth = (maxWidth - 8.dp).coerceAtLeast(0.dp)
         val dayColumnCount = visibleDays.size.coerceAtLeast(1)
-        val timeColumnWidth = when {
-            availableWidth < 360.dp -> 44.dp
-            availableWidth < 420.dp -> 48.dp
-            else -> 52.dp
-        }
+        val timeColumnWidth = timeColumnWidth(availableWidth)
         val gridWidth = (availableWidth - timeColumnWidth).coerceAtLeast(0.dp)
         val dayColumnWidth = (gridWidth / dayColumnCount).coerceAtLeast(36.dp)
         val gridHeight = slotHeight * previewSlots.size
@@ -1764,11 +1762,7 @@ private fun ScheduleGrid(
     androidx.compose.foundation.layout.BoxWithConstraints(
         modifier = modifier.verticalScroll(rememberScrollState()),
     ) {
-        val timeColumnWidth = when {
-            maxWidth < 360.dp -> 44.dp
-            maxWidth < 420.dp -> 48.dp
-            else -> 52.dp
-        }
+        val timeColumnWidth = timeColumnWidth(maxWidth)
         // 调课与假日都会在日期下方多出一行说明，表头需要更高
         val dayHeaderMinHeight =
             if (visibleDays.any { it.overrideLabel != null || it.holidayLabel != null }) 66.dp else 52.dp
@@ -3259,3 +3253,17 @@ private fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
     DayOfWeek.SUNDAY -> R.string.schedule_weekday_short_sunday
 }
 
+/**
+ * 节次列的宽度。系统字号放大时同比放宽，避免标签被折断成每行一两个字；
+ * 上限为可用宽度的三成，保证课程列还有位置。
+ */
+@Composable
+private fun timeColumnWidth(availableWidth: Dp): Dp {
+    val base = when {
+        availableWidth < 360.dp -> 44.dp
+        availableWidth < 420.dp -> 48.dp
+        else -> 52.dp
+    }
+    val scale = LocalDensity.current.fontScale.coerceIn(1f, 1.8f)
+    return (base * scale).coerceAtMost(availableWidth * 0.3f)
+}
