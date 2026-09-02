@@ -16,6 +16,7 @@
     <string name="week_picker_before_term">Term not started · %1$d week(s) until week 1</string>
     <string name="week_picker_current_week">Now</string>
 
+    <string name="about_app_alt_name">课简</string>
     <string name="about_version_label">Version</string>
     <string name="about_developer_badge">Developer</string>
     <string name="about_dev_mode_enabled">Developer mode is on</string>

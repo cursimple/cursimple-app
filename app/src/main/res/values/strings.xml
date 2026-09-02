@@ -16,6 +16,7 @@
     <string name="week_picker_before_term">尚未开学 · 距第 1 周还有 %1$d 周</string>
     <string name="week_picker_current_week">本周</string>
 
+    <string name="about_app_alt_name">CurSimple</string>
     <string name="about_version_label">版本号</string>
     <string name="about_developer_badge">开发者</string>
     <string name="about_dev_mode_enabled">您已开启开发者模式</string>
