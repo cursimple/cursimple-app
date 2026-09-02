@@ -296,6 +296,14 @@
     <string name="settings_holiday_subtitle_with_manual">%1$s · %2$d manual adjustments</string>
     <string name="settings_holiday_builtin_none">No built-in data</string>
     <string name="settings_holiday_builtin_years">Covers the %1$s holiday schedule</string>
+    <string name="settings_holiday_sync_title">Update holiday data</string>
+    <string name="settings_holiday_sync_never">Not synced yet, using the bundled snapshot</string>
+    <string name="settings_holiday_sync_years">Synced %1$s · from %2$s</string>
+    <string name="settings_holiday_sync_running">Syncing…</string>
+    <string name="settings_holiday_sync_done">Holiday data updated</string>
+    <string name="settings_holiday_sync_fresh">Already up to date</string>
+    <string name="settings_holiday_sync_unreachable">No source could provide the %1$d data</string>
+    <string name="settings_holiday_sync_unusable">The %1$d data that came back is unusable</string>
     <string name="settings_holiday_year_separator">", "</string>
     <string name="settings_holiday_kind_holiday">Holiday: no classes, no reminders</string>
     <string name="settings_holiday_kind_workday">Make-up class day: classes as usual</string>

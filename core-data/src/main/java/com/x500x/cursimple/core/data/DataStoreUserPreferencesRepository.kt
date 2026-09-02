@@ -21,6 +21,7 @@ import com.x500x.cursimple.core.data.exportSnapshot
 import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.localDate
 import com.x500x.cursimple.core.kernel.model.withEntry
@@ -73,6 +74,7 @@ class DataStoreUserPreferencesRepository(
             holidayCalendar = HolidayCalendarSettings(
                 builtInEnabled = prefs[KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED] ?: true,
                 entries = decodeHolidayCalendarEntries(prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON]),
+                syncedYears = decodeSyncedHolidayYears(prefs[KEY_HOLIDAY_CALENDAR_SYNCED_JSON]),
             ),
             debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
@@ -664,6 +666,27 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs.remove(KEY_HOLIDAY_CALENDAR_ENTRIES_JSON) }
     }
 
+    override suspend fun putSyncedHolidayYears(years: List<SyncedHolidayYear>) {
+        if (years.isEmpty()) return
+        store.edit { prefs ->
+            val merged = decodeSyncedHolidayYears(prefs[KEY_HOLIDAY_CALENDAR_SYNCED_JSON])
+                .filterNot { cached -> years.any { it.year == cached.year } }
+                .plus(years)
+                .sortedBy { it.year }
+            prefs[KEY_HOLIDAY_CALENDAR_SYNCED_JSON] = json.encodeToString(merged)
+        }
+    }
+
+    override suspend fun clearSyncedHolidayYears() {
+        store.edit { prefs -> prefs.remove(KEY_HOLIDAY_CALENDAR_SYNCED_JSON) }
+    }
+
+    private fun decodeSyncedHolidayYears(raw: String?): List<SyncedHolidayYear> {
+        return raw
+            ?.let { value -> runCatching { json.decodeFromString<List<SyncedHolidayYear>>(value) }.getOrNull() }
+            .orEmpty()
+    }
+
     private fun decodeHolidayCalendarEntries(raw: String?): List<HolidayCalendarEntry> {
         return raw
             ?.let { value -> runCatching { json.decodeFromString<List<HolidayCalendarEntry>>(value) }.getOrNull() }
@@ -889,6 +912,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON = stringPreferencesKey("temporary_schedule_overrides_json")
         val KEY_HOLIDAY_CALENDAR_BUILT_IN_ENABLED = booleanPreferencesKey("holiday_calendar_built_in_enabled")
         val KEY_HOLIDAY_CALENDAR_ENTRIES_JSON = stringPreferencesKey("holiday_calendar_entries_json")
+        val KEY_HOLIDAY_CALENDAR_SYNCED_JSON = stringPreferencesKey("holiday_calendar_synced_json")
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")

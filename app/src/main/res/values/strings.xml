@@ -296,6 +296,14 @@
     <string name="settings_holiday_subtitle_with_manual">%1$s · %2$d 条手动调整</string>
     <string name="settings_holiday_builtin_none">暂无内置数据</string>
     <string name="settings_holiday_builtin_years">已收录 %1$s 年放假安排</string>
+    <string name="settings_holiday_sync_title">更新节假日数据</string>
+    <string name="settings_holiday_sync_never">尚未同步，正在用内置快照</string>
+    <string name="settings_holiday_sync_years">已同步 %1$s 年 · 来源 %2$s</string>
+    <string name="settings_holiday_sync_running">正在同步…</string>
+    <string name="settings_holiday_sync_done">节假日数据已更新</string>
+    <string name="settings_holiday_sync_fresh">数据已是最新</string>
+    <string name="settings_holiday_sync_unreachable">所有下载源都取不到 %1$d 年数据</string>
+    <string name="settings_holiday_sync_unusable">取到的 %1$d 年数据不可用</string>
     <string name="settings_holiday_year_separator">、</string>
     <string name="settings_holiday_kind_holiday">假日，不出课不提醒</string>
     <string name="settings_holiday_kind_workday">调休上课日，照常出课</string>

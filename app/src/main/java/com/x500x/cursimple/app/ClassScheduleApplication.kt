@@ -2,6 +2,11 @@ package com.x500x.cursimple.app
 
 import android.app.Application
 import android.content.Context
+import com.x500x.cursimple.app.download.MirrorDownloader
+import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.holiday.HolidayCalendarSyncer
+import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
+import com.x500x.cursimple.app.holiday.holidaySyncYears
 import com.x500x.cursimple.core.data.AppLocale
 import android.os.Build
 import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
@@ -19,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -59,6 +65,11 @@ class ClassScheduleApplication : Application() {
 
         appScope.launch {
             appContainer.bootstrapJob.join()
+            syncHolidayCalendar()
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
             appContainer.scheduleSystemAlarmChecks()
             appContainer.tryRunSharedAlarmPoll(ReminderSyncReason.WidgetRefresh)
         }
@@ -95,4 +106,25 @@ class ClassScheduleApplication : Application() {
                 }
         }
     }
+
+    /**
+     * 取回当年与次年的放假安排。
+     * 缓存足够新时同步器自己跳过，不会每次启动都联网；取不到就沿用已有数据。
+     */
+    private suspend fun syncHolidayCalendar() {
+        runCatching {
+            val repository = appContainer.userPreferencesRepository
+            val cached = repository.preferencesFlow.first().holidayCalendar.syncedYears
+            val syncer = HolidayCalendarSyncer(MirrorDownloader(labels = mirrorDownloaderLabels()))
+            val updated = syncer
+                .sync(years = holidaySyncYears(BeijingTime.today()), cached = cached)
+                .filterIsInstance<HolidaySyncOutcome.Updated>()
+                .map { it.year }
+            if (updated.isNotEmpty()) {
+                repository.putSyncedHolidayYears(updated)
+                appContainer.refreshWidgets()
+            }
+        }
+    }
+
 }
