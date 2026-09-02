@@ -7,11 +7,11 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -183,7 +183,7 @@ class ScheduleIcsBuilderTest {
         val result = build(schedule = scheduleOf(mondayCourse(startNode = 5, endNode = 6)))
         assertEquals(0, result.eventCount)
         assertEquals(1, result.skipped.size)
-        assertTrue(result.skipped.first().reason.contains("缺少节次"))
+        assertEquals(R.string.ics_skip_missing_period, result.skipped.first().reason)
         assertNull(result.failureReason)
     }
 
@@ -201,15 +201,16 @@ class ScheduleIcsBuilderTest {
     fun `缺少节次档案时整体失败并列出全部课程`() {
         val result = build(schedule = scheduleOf(mondayCourse(weeks = listOf(1))), profile = null)
         assertEquals(0, result.eventCount)
-        assertNotNull(result.failureReason)
+        assertEquals(R.string.ics_failure_no_timing, result.failureReason)
         assertEquals(1, result.skipped.size)
+        assertEquals(R.string.ics_skip_no_timing, result.skipped.first().reason)
     }
 
     @Test
     fun `未设开学日期时失败`() {
         val result = build(schedule = scheduleOf(mondayCourse(weeks = listOf(1))), start = null)
         assertEquals(0, result.eventCount)
-        assertNotNull(result.failureReason)
+        assertEquals(R.string.ics_failure_no_term_start, result.failureReason)
     }
 
     @Test

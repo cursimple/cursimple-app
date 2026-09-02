@@ -1,5 +1,7 @@
 package com.x500x.cursimple.core.plugin.component
 
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.assertPluginError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
@@ -87,7 +89,11 @@ class PluginComponentInstallerTest {
         )
 
         assertTrue(result is PluginComponentInstallResult.Failure)
-        assertTrue((result as PluginComponentInstallResult.Failure).reason.message.contains("ABI 不兼容"))
+        assertPluginError(
+            R.string.plugin_error_component_abi_incompatible,
+            (result as PluginComponentInstallResult.Failure).reason.error,
+            "arm64-v8a",
+        )
     }
 
     @Test
@@ -112,8 +118,11 @@ class PluginComponentInstallerTest {
         )
 
         assertTrue(result is PluginComponentInstallResult.Failure)
-        assertTrue((result as PluginComponentInstallResult.Failure).reason.message.contains("未声明文件"))
-        assertTrue(result.reason.message.contains("models/unlisted.onnx"))
+        assertPluginError(
+            R.string.plugin_error_component_package_unlisted_files,
+            (result as PluginComponentInstallResult.Failure).reason.error,
+            "models/unlisted.onnx",
+        )
     }
 
     @Test
@@ -136,7 +145,11 @@ class PluginComponentInstallerTest {
         )
 
         assertTrue(result is PluginComponentInstallResult.Failure)
-        assertTrue((result as PluginComponentInstallResult.Failure).reason.message.contains("解压后体积超过限制"))
+        assertPluginError(
+            R.string.plugin_error_component_package_size_exceeded,
+            (result as PluginComponentInstallResult.Failure).reason.error,
+            4096L,
+        )
     }
 
     private fun componentManifest(

@@ -1,6 +1,11 @@
 package com.x500x.cursimple.core.plugin.security
 
+import com.x500x.cursimple.core.plugin.PluginArgumentException
+import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
+import com.x500x.cursimple.core.plugin.pluginReasonOr
+import com.x500x.cursimple.core.plugin.pluginRequire
+import com.x500x.cursimple.core.plugin.pluginRequireNotNull
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -41,37 +46,60 @@ enum class PluginSignatureStatus {
 data class PluginSignatureResult(
     val status: PluginSignatureStatus,
     val signerFingerprint: String? = null,
-    val message: String? = null,
+    val error: Throwable? = null,
 )
 
 class PluginChecksumVerifier {
     fun verify(layout: PluginPackageLayout, checksums: PluginChecksums): Boolean {
-        require(checksums.algorithm.equals(SHA_256, ignoreCase = true)) {
-            "插件摘要只支持 SHA-256: ${checksums.algorithm}"
-        }
-        require(checksums.files.isNotEmpty()) { "插件摘要不能为空" }
+        pluginRequire(
+            checksums.algorithm.equals(SHA_256, ignoreCase = true),
+            R.string.plugin_error_checksum_algorithm_unsupported,
+            checksums.algorithm,
+        )
+        pluginRequire(checksums.files.isNotEmpty(), R.string.plugin_error_checksum_empty)
         checksums.files.forEach { (path, expected) ->
-            require(path in layout.files) { "插件摘要包含不存在的文件: $path" }
-            require(SHA_256_HEX.matches(expected)) { "插件摘要格式无效: $path" }
+            pluginRequire(path in layout.files, R.string.plugin_error_checksum_unknown_file, path)
+            pluginRequire(
+                SHA_256_HEX.matches(expected),
+                R.string.plugin_error_checksum_format_invalid,
+                path,
+            )
         }
         val requiredFiles = layout.files.keys
             .filterNot { it in OPTIONAL_METADATA_FILES }
             .toSet()
         val checksumFiles = checksums.files.keys.toSet()
-        require(checksumFiles == requiredFiles) {
-            val missing = (requiredFiles - checksumFiles).sorted()
-            val extra = (checksumFiles - requiredFiles).sorted()
-            buildString {
-                append("插件摘要文件覆盖不完整")
-                if (missing.isNotEmpty()) append("，缺少: ").append(missing.joinToString())
-                if (extra.isNotEmpty()) append("，多余: ").append(extra.joinToString())
-            }
+        if (checksumFiles != requiredFiles) {
+            throw coverageError(
+                missing = (requiredFiles - checksumFiles).sorted(),
+                extra = (checksumFiles - requiredFiles).sorted(),
+            )
         }
         val digest = MessageDigest.getInstance(checksums.algorithm)
         return checksums.files.all { (path, expected) ->
             val actual = digest.digest(layout.requireFile(path)).joinToString("") { "%02x".format(it) }
             actual.equals(expected, ignoreCase = true)
         }
+    }
+
+    /** 缺少与多余两段都是可选的，四种组合各有一条文案，避免占位符对不上参数。 */
+    private fun coverageError(missing: List<String>, extra: List<String>): PluginArgumentException = when {
+        missing.isNotEmpty() && extra.isNotEmpty() -> PluginArgumentException(
+            R.string.plugin_error_checksum_coverage_missing_extra,
+            listOf(missing.joinToString(), extra.joinToString()),
+        )
+
+        missing.isNotEmpty() -> PluginArgumentException(
+            R.string.plugin_error_checksum_coverage_missing,
+            listOf(missing.joinToString()),
+        )
+
+        extra.isNotEmpty() -> PluginArgumentException(
+            R.string.plugin_error_checksum_coverage_extra,
+            listOf(extra.joinToString()),
+        )
+
+        else -> PluginArgumentException(R.string.plugin_error_checksum_coverage)
     }
 
     private companion object {
@@ -97,9 +125,12 @@ class PluginSignatureVerifier {
             val info = json.decodeFromString<PluginSignatureInfo>(
                 layout.readText(PluginPackageLayout.SIGNATURE_FILE),
             )
-            require(info.signedFile == PluginPackageLayout.CHECKSUMS_FILE) {
-                "插件签名只能覆盖 ${PluginPackageLayout.CHECKSUMS_FILE}: ${info.signedFile}"
-            }
+            pluginRequire(
+                info.signedFile == PluginPackageLayout.CHECKSUMS_FILE,
+                R.string.plugin_error_signature_scope,
+                PluginPackageLayout.CHECKSUMS_FILE,
+                info.signedFile,
+            )
             val publicKey = parsePemPublicKey(info.publicKeyPem)
             val verified = verifyWithKey(
                 publicKey = publicKey,
@@ -115,13 +146,13 @@ class PluginSignatureVerifier {
             } else {
                 PluginSignatureResult(
                     status = PluginSignatureStatus.Invalid,
-                    message = "插件签名与包内摘要清单不匹配",
+                    error = PluginArgumentException(R.string.plugin_error_signature_checksum_mismatch),
                 )
             }
         }.getOrElse { error ->
             PluginSignatureResult(
                 status = PluginSignatureStatus.Invalid,
-                message = error.message ?: "插件签名无法解析",
+                error = pluginReasonOr(error, R.string.plugin_error_signature_unparseable),
             )
         }
     }
@@ -146,8 +177,11 @@ class PluginSignatureVerifier {
         payload: ByteArray,
         signatureBase64: String,
     ): Boolean {
-        val normalizedAlgorithm = SUPPORTED_ALGORITHMS.firstOrNull { it.equals(algorithm, ignoreCase = true) }
-        require(normalizedAlgorithm != null) { "插件签名算法不受支持: $algorithm" }
+        val normalizedAlgorithm = pluginRequireNotNull(
+            SUPPORTED_ALGORITHMS.firstOrNull { it.equals(algorithm, ignoreCase = true) },
+            R.string.plugin_error_signature_algorithm_unsupported,
+            algorithm,
+        )
         val signature = Signature.getInstance(normalizedAlgorithm)
         signature.initVerify(publicKey)
         signature.update(payload)
@@ -159,11 +193,15 @@ class PluginSignatureVerifier {
             .replace("-----BEGIN PUBLIC KEY-----", "")
             .replace("-----END PUBLIC KEY-----", "")
             .replace("\\s".toRegex(), "")
-        require(normalized.isNotBlank()) { "插件签名缺少公钥" }
+        pluginRequire(normalized.isNotBlank(), R.string.plugin_error_signature_missing_public_key)
         val decoded = decodeBase64(normalized)
         val publicKey = KeyFactory.getInstance("RSA").generatePublic(X509EncodedKeySpec(decoded))
         val modulusBits = (publicKey as? RSAPublicKey)?.modulus?.bitLength() ?: 0
-        require(modulusBits >= MIN_RSA_KEY_BITS) { "插件签名公钥强度不足: $modulusBits 位" }
+        pluginRequire(
+            modulusBits >= MIN_RSA_KEY_BITS,
+            R.string.plugin_error_signature_key_too_weak,
+            modulusBits,
+        )
         return publicKey
     }
 
@@ -191,7 +229,7 @@ internal fun decodeBase64(value: String): ByteArray {
         if (symbol == '=') break
         if (symbol.isWhitespace()) continue
         val index = BASE64_ALPHABET.indexOf(symbol)
-        require(index >= 0) { "Base64 内容包含非法字符" }
+        pluginRequire(index >= 0, R.string.plugin_error_base64_illegal_character)
         buffer = (buffer shl 6) or index
         bits += 6
         if (bits >= 8) {

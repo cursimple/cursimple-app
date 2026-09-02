@@ -8,6 +8,8 @@ import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
 import com.x500x.cursimple.core.plugin.packageformat.normalizePluginPackagePath
 import com.x500x.cursimple.core.plugin.packageformat.requireSafePluginId
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.pluginRequire
 import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -52,7 +54,7 @@ class PluginFileStore(
     }
 
     fun loadEntryScript(record: InstalledPluginRecord): String {
-        require(record.entry.isNotBlank()) { "插件记录缺少入口文件" }
+        pluginRequire(record.entry.isNotBlank(), R.string.plugin_error_record_missing_entry)
         return readText(record, record.entry)
     }
 
@@ -79,8 +81,10 @@ class PluginFileStore(
     private fun requireContained(root: File, target: File) {
         val rootPath = root.canonicalFile.path
         val targetPath = target.canonicalFile.path
-        require(targetPath == rootPath || targetPath.startsWith(rootPath + File.separator)) {
-            "插件文件路径越界: $targetPath"
-        }
+        pluginRequire(
+            targetPath == rootPath || targetPath.startsWith(rootPath + File.separator),
+            R.string.plugin_error_file_path_escape,
+            targetPath,
+        )
     }
 }

@@ -6,6 +6,8 @@ import java.net.HttpURLConnection
 
 internal const val STREAM_READ_BUFFER_BYTES = 8 * 1024
 
+internal const val BYTES_PER_MEGABYTE = 1024L * 1024L
+
 /** 本地导入的插件包/组件包上限。 */
 internal const val MAX_LOCAL_PACKAGE_BYTES = 64L * 1024L * 1024L
 
@@ -44,11 +46,14 @@ internal fun InputStream.readAtMostBytes(limit: Long): ByteArray? {
     return output.toByteArray()
 }
 
+/** 安装包超过 [limitBytes] 字节的上限。 */
+internal class PluginPackageTooLargeException(val limitBytes: Long) : IllegalArgumentException()
+
 /**
  * 读取本地选中的安装包，超过 [limit] 时中止并抛出，避免整包进内存。
  */
 internal fun InputStream.readLocalPackageBytes(limit: Long = MAX_LOCAL_PACKAGE_BYTES): ByteArray {
-    return readAtMostBytes(limit) ?: throw IllegalArgumentException("安装包超过大小限制: ${limit / (1024L * 1024L)} MB")
+    return readAtMostBytes(limit) ?: throw PluginPackageTooLargeException(limit)
 }
 
 internal fun HttpURLConnection.applyNetworkCaptureTimeouts() {

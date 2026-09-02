@@ -28,7 +28,7 @@ data class ComponentMarketUiState(
     val installedComponents: List<InstalledPluginComponentRecord> = emptyList(),
     val knownComponents: List<ComponentMarketEntry> = emptyList(),
     val isLoading: Boolean = false,
-    val statusMessage: String? = null,
+    val status: ComponentMarketStatus? = null,
 )
 
 class ComponentMarketViewModel(
@@ -51,18 +51,18 @@ class ComponentMarketViewModel(
         }
     }
 
-    fun setStatusMessage(message: String?) {
-        _uiState.update { it.copy(statusMessage = message) }
+    fun setStatus(status: ComponentMarketStatus?) {
+        _uiState.update { it.copy(status = status) }
     }
 
     fun loadRemoteMarket(indexUrl: String) {
         val url = indexUrl.trim()
         if (url.isBlank()) {
-            _uiState.update { it.copy(statusMessage = "请先在设置-插件中配置组件市场索引 URL") }
+            _uiState.update { it.copy(status = ComponentMarketStatus.IndexUrlNotConfigured) }
             return
         }
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在加载远程组件...") }
+            _uiState.update { it.copy(isLoading = true, status = ComponentMarketStatus.LoadingRemote) }
             runCatching { fetchComponentIndex(url) }
                 .onSuccess { entries ->
                     val marketEntries = distinctMarketEntries(
@@ -72,7 +72,7 @@ class ComponentMarketViewModel(
                         it.copy(
                             isLoading = false,
                             knownComponents = marketEntries,
-                            statusMessage = "已加载 ${marketEntries.size} 个组件",
+                            status = ComponentMarketStatus.RemoteLoaded(marketEntries.size),
                         )
                     }
                 }
@@ -80,7 +80,7 @@ class ComponentMarketViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            statusMessage = error.message ?: "加载远程组件失败",
+                            status = ComponentMarketStatus.RemoteLoadFailed(error),
                         )
                     }
                 }
@@ -89,7 +89,7 @@ class ComponentMarketViewModel(
 
     fun installLocalPackage(bytes: ByteArray) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在安装本地组件...") }
+            _uiState.update { it.copy(isLoading = true, status = ComponentMarketStatus.InstallingLocal) }
             handleInstallResult(installer.installLocalPackage(bytes))
         }
     }
@@ -97,7 +97,7 @@ class ComponentMarketViewModel(
     fun installRemoteEntry(entry: ComponentMarketEntry) {
         val url = entry.downloadUrl
         if (url.isNullOrBlank()) {
-            _uiState.update { it.copy(statusMessage = "该组件没有可下载地址") }
+            _uiState.update { it.copy(status = ComponentMarketStatus.DownloadUrlMissing) }
             return
         }
         installRemotePackage(url)
@@ -105,17 +105,17 @@ class ComponentMarketViewModel(
 
     private fun installRemotePackage(url: String) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, statusMessage = "正在下载组件包...") }
+            _uiState.update { it.copy(isLoading = true, status = ComponentMarketStatus.DownloadingPackage) }
             runCatching { downloadPackage(url) }
                 .onSuccess { bytes ->
-                    _uiState.update { it.copy(statusMessage = "正在安装远程组件...") }
+                    _uiState.update { it.copy(status = ComponentMarketStatus.InstallingRemote) }
                     handleInstallResult(installer.installRemotePackage(bytes))
                 }
                 .onFailure { error ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            statusMessage = error.message ?: "下载组件包失败",
+                            status = ComponentMarketStatus.DownloadFailed(error),
                         )
                     }
                 }
@@ -128,7 +128,7 @@ class ComponentMarketViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = "已安装组件：${result.record.id}",
+                        status = ComponentMarketStatus.Installed(result.record.id),
                     )
                 }
             }
@@ -137,7 +137,7 @@ class ComponentMarketViewModel(
                 _uiState.update {
                     it.copy(
                         isLoading = false,
-                        statusMessage = result.reason.message,
+                        status = ComponentMarketStatus.InstallFailed(result.reason.error),
                     )
                 }
             }

@@ -31,6 +31,7 @@ import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
 import com.x500x.cursimple.core.reminder.model.TriggeredAppAlarmFinishAction
+import com.x500x.cursimple.core.reminder.model.reminderMessageText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -196,6 +197,9 @@ class AlarmRingingService : Service() {
                     ruleId = alarm.ruleId,
                     action = action,
                 )
+                val resultMessage = result.localizedMessage
+                    ?.let { applicationContext.reminderMessageText(it) }
+                    ?: result.message
                 ReminderLogger.info(
                     "reminder.app_alarm_clock.ringing.finish_result",
                     mapOf(
@@ -203,7 +207,7 @@ class AlarmRingingService : Service() {
                         "ruleId" to alarm.ruleId,
                         "snooze" to snooze,
                         "snoozeCreated" to result.snoozeCreated,
-                        "message" to result.message,
+                        "message" to resultMessage,
                     ),
                 )
                 // 延后没排上时界面表现与成功完全一致，必须告诉用户闹钟不会再响
@@ -211,7 +215,7 @@ class AlarmRingingService : Service() {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
                             applicationContext,
-                            getString(R.string.alarm_snooze_failed_reason, result.message),
+                            getString(R.string.alarm_snooze_failed_reason, resultMessage),
                             Toast.LENGTH_LONG,
                         ).show()
                     }

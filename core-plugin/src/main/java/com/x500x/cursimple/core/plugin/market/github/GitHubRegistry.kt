@@ -1,5 +1,8 @@
 package com.x500x.cursimple.core.plugin.market.github
 
+import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.pluginCheck
+import com.x500x.cursimple.core.plugin.pluginRequire
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -87,7 +90,7 @@ class GitHubRegistryRepository(
     suspend fun fetchRegistry(registryRepo: String, branch: String = PLUGIN_STARS_BRANCH): List<GitHubRepoSummary> =
         withContext(Dispatchers.IO) {
             val slug = registryRepo.trim().trim('/')
-            require(slug.matches(REPO_SLUG_REGEX)) { "无效的注册表仓库：$slug" }
+            pluginRequire(slug.matches(REPO_SLUG_REGEX), R.string.plugin_error_registry_repo_invalid, slug)
             val url = "https://raw.githubusercontent.com/$slug/$branch/$PLUGIN_STARS_FILE"
             val raw = fetchText(url)
             val parsed = runCatching { json.decodeFromString<PluginStarsPayload>(raw) }.getOrNull()
@@ -102,13 +105,20 @@ class GitHubRegistryRepository(
      */
     suspend fun fetchLatestReleaseAsset(repoSlug: String): GitHubReleaseAsset? = withContext(Dispatchers.IO) {
         runCatching {
-            require(repoSlug.matches(REPO_SLUG_REGEX)) { "无效的插件仓库：$repoSlug" }
+            pluginRequire(
+                repoSlug.matches(REPO_SLUG_REGEX),
+                R.string.plugin_error_plugin_repo_invalid,
+                repoSlug,
+            )
             val raw = fetchText(latestReleaseDownloadUrl(repoSlug, RELEASE_MANIFEST_FILE))
             val manifest = json.decodeFromString<LatestPluginReleaseManifest>(raw)
             val filename = manifest.filename.ifBlank { manifest.name }.trim()
             val version = manifest.version.trim()
-            require(filename.isNotBlank()) { "插件 release manifest 缺少 filename" }
-            require(version.isNotBlank()) { "插件 release manifest 缺少 version" }
+            pluginRequire(
+                filename.isNotBlank(),
+                R.string.plugin_error_release_manifest_missing_filename,
+            )
+            pluginRequire(version.isNotBlank(), R.string.plugin_error_release_manifest_missing_version)
             GitHubReleaseAsset(
                 tagName = version,
                 assetName = filename,
@@ -144,7 +154,7 @@ class GitHubRegistryRepository(
                 .header("Accept", "application/json, text/plain;q=0.9, */*;q=0.8")
                 .build()
             client.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "请求失败 ${response.code}: $url" }
+                pluginCheck(response.isSuccessful, R.string.plugin_error_http_request_failed, response.code, url)
                 return response.body.string()
             }
         }
@@ -182,7 +192,11 @@ class GitHubRegistryRepository(
         }
 
         private fun latestReleaseDownloadUrl(repoSlug: String, filename: String): String {
-            require(!filename.contains('/')) { "插件 release 文件名不能包含路径: $filename" }
+            pluginRequire(
+                !filename.contains('/'),
+                R.string.plugin_error_release_filename_path,
+                filename,
+            )
             val encodedFilename = URLEncoder.encode(filename, Charsets.UTF_8.name()).replace("+", "%20")
             return "https://github.com/$repoSlug/releases/latest/download/$encodedFilename"
         }

@@ -24,8 +24,8 @@ object WidgetCatalog {
         return listOf(
             WidgetCatalogEntry(
                 id = "next",
-                title = "下一节课",
-                description = "紧凑显示当前与下一节课程，附时间和地点",
+                title = context.getString(R.string.widget_label_next),
+                description = context.getString(R.string.widget_catalog_next_description),
                 provider = ComponentName(pkg, NextCourseGlanceWidgetReceiver::class.java.name),
                 vendorProviders = listOf(
                     ComponentName(pkg, "com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiverMIUI"),
@@ -33,8 +33,8 @@ object WidgetCatalog {
             ),
             WidgetCatalogEntry(
                 id = "today",
-                title = "每日课程",
-                description = "查看任意日期的课程列表，可一键切换和回到今天",
+                title = context.getString(R.string.widget_label_today),
+                description = context.getString(R.string.widget_catalog_today_description),
                 provider = ComponentName(pkg, ScheduleGlanceWidgetReceiver::class.java.name),
                 vendorProviders = listOf(
                     ComponentName(pkg, "com.x500x.cursimple.feature.widget.ScheduleGlanceWidgetReceiverMIUI"),
@@ -42,8 +42,8 @@ object WidgetCatalog {
             ),
             WidgetCatalogEntry(
                 id = "reminder",
-                title = "课程提醒",
-                description = "未来即将触发的课程提醒清单",
+                title = context.getString(R.string.widget_label_reminder),
+                description = context.getString(R.string.widget_catalog_reminder_description),
                 provider = ComponentName(pkg, ReminderGlanceWidgetReceiver::class.java.name),
                 vendorProviders = listOf(
                     ComponentName(pkg, "com.x500x.cursimple.feature.widget.ReminderGlanceWidgetReceiverMIUI"),

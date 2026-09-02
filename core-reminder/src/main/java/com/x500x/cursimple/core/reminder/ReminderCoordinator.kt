@@ -23,6 +23,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
+import com.x500x.cursimple.core.reminder.model.ReminderMessage
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
 import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderNodeRange
@@ -224,7 +225,8 @@ class ReminderCoordinator(
                 AlarmDispatchResult(
                     channel = AlarmDispatchChannel.AppAlarmClock,
                     succeeded = false,
-                    message = error.message ?: "重建 App 自管闹钟失败",
+                    message = "",
+                    localizedMessage = ReminderMessage.RebuildAppAlarmFailed(error.message),
                 )
             }
             results += result
@@ -282,14 +284,16 @@ class ReminderCoordinator(
             ?: return@withLock AlarmDismissResult(
                 alarmKey = alarmKey,
                 succeeded = true,
-                message = "闹钟登记已不存在",
+                message = "",
+                localizedMessage = ReminderMessage.RegistrationMissing,
             )
         if (record.triggerAtMillis <= System.currentTimeMillis()) {
             repository.removeSystemAlarmRecord(record.alarmKey, record.backend)
             return@withLock AlarmDismissResult(
                 alarmKey = record.alarmKey,
                 succeeded = true,
-                message = "已移除过期闹钟登记",
+                message = "",
+                localizedMessage = ReminderMessage.ExpiredRegistrationRemoved,
             )
         }
         val dismisser = when (record.backend) {
@@ -307,7 +311,8 @@ class ReminderCoordinator(
             AlarmDismissResult(
                 alarmKey = record.alarmKey,
                 succeeded = false,
-                message = error.message ?: "取消闹钟失败",
+                message = "",
+                localizedMessage = ReminderMessage.CancelAlarmFailed(error.message),
             )
         }
         if (result.succeeded) {
@@ -323,7 +328,12 @@ class ReminderCoordinator(
     ): AlarmDismissResult = SYSTEM_ALARM_LOCK.withLock {
         val record = repository.getSystemAlarmRecords()
             .firstOrNull { it.alarmKey == alarmKey && it.backend == ReminderAlarmBackend.AppAlarmClock }
-            ?: return@withLock AlarmDismissResult(alarmKey, true, "闹钟登记已不存在")
+            ?: return@withLock AlarmDismissResult(
+                alarmKey = alarmKey,
+                succeeded = true,
+                message = "",
+                localizedMessage = ReminderMessage.RegistrationMissing,
+            )
         if (!enabled) {
             val result = runCatching {
                 appDismisser.dismiss(record)
@@ -336,7 +346,8 @@ class ReminderCoordinator(
                 AlarmDismissResult(
                     alarmKey = alarmKey,
                     succeeded = false,
-                    message = error.message ?: "关闭闹钟失败",
+                    message = "",
+                    localizedMessage = ReminderMessage.DisableAlarmFailed(error.message),
                 )
             }
             if (result.succeeded) {
@@ -358,7 +369,8 @@ class ReminderCoordinator(
             return@withLock AlarmDismissResult(
                 alarmKey = alarmKey,
                 succeeded = false,
-                message = "闹钟时间已过，无法重新启用",
+                message = "",
+                localizedMessage = ReminderMessage.AlarmTimePassed,
             )
         }
         val plan = record.toReminderPlan()
@@ -373,7 +385,8 @@ class ReminderCoordinator(
             AlarmDispatchResult(
                 channel = AlarmDispatchChannel.AppAlarmClock,
                 succeeded = false,
-                message = error.message ?: "启用闹钟失败",
+                message = "",
+                localizedMessage = ReminderMessage.EnableAlarmFailed(error.message),
             )
         }
         if (result.succeeded) {
@@ -389,6 +402,7 @@ class ReminderCoordinator(
             alarmKey = alarmKey,
             succeeded = result.succeeded,
             message = result.message,
+            localizedMessage = result.localizedMessage,
         )
     }
 
@@ -401,7 +415,8 @@ class ReminderCoordinator(
             ?: return@withLock AlarmDispatchResult(
                 channel = AlarmDispatchChannel.AppAlarmClock,
                 succeeded = false,
-                message = "闹钟登记已不存在",
+                message = "",
+                localizedMessage = ReminderMessage.RegistrationMissing,
             )
         val next = record.copy(
             triggerAtMillis = settings.triggerAtMillis ?: record.triggerAtMillis,
@@ -439,8 +454,8 @@ class ReminderCoordinator(
             planId = "manual-${UUID.randomUUID()}",
             ruleId = "manual-app-alarm",
             pluginId = pluginId.ifBlank { "manual" },
-            title = title.ifBlank { "手动闹钟" },
-            message = message.ifBlank { "手动创建的提醒" },
+            title = title,
+            message = message,
             triggerAtMillis = triggerAtMillis,
             ringtoneUri = settings.ringtoneUriOverride?.takeIf { it.isNotBlank() },
             alertMode = settings.alertModeOverride,
@@ -734,6 +749,8 @@ class ReminderCoordinator(
                             },
                             displayTitle = plan.title,
                             displayMessage = plan.message,
+                            titleContent = plan.titleContent,
+                            messageContent = plan.messageContent,
                             enabled = true,
                             ringDurationSeconds = plan.ringDurationSeconds.takeIf {
                                 settings.backend == ReminderAlarmBackend.AppAlarmClock
@@ -948,7 +965,8 @@ class ReminderCoordinator(
                 AlarmDismissResult(
                     alarmKey = record.alarmKey,
                     succeeded = false,
-                    message = error.message ?: "删除闹钟失败",
+                    message = "",
+                    localizedMessage = ReminderMessage.DeleteAlarmFailed(error.message),
                 )
             }
             if (result.succeeded) {
@@ -974,7 +992,7 @@ class ReminderCoordinator(
     ): TriggeredAppAlarmFinishResult = when (action) {
         TriggeredAppAlarmFinishAction.Dismiss -> TriggeredAppAlarmFinishResult(
             consumed = true,
-            message = "闹钟已关闭",
+            localizedMessage = ReminderMessage.AlarmDismissed,
         )
 
         is TriggeredAppAlarmFinishAction.Snooze -> {
@@ -989,7 +1007,8 @@ class ReminderCoordinator(
                 AlarmDispatchResult(
                     channel = AlarmDispatchChannel.AppAlarmClock,
                     succeeded = false,
-                    message = error.message ?: "延后闹钟设置失败",
+                    message = "",
+                    localizedMessage = ReminderMessage.SnoozeSetupFailed(error.message),
                 )
             }
             if (result.succeeded) {
@@ -1001,13 +1020,14 @@ class ReminderCoordinator(
                 TriggeredAppAlarmFinishResult(
                     consumed = true,
                     snoozeCreated = true,
-                    message = "已延后 5 分钟",
+                    localizedMessage = ReminderMessage.SnoozedFiveMinutes,
                 )
             } else {
                 TriggeredAppAlarmFinishResult(
                     consumed = true,
                     snoozeCreated = false,
                     message = result.message,
+                    localizedMessage = result.localizedMessage,
                 )
             }
         }
@@ -1111,6 +1131,8 @@ private fun SystemAlarmRecord.toReminderPlan(): ReminderPlan =
         pluginId = pluginId,
         title = displayTitle ?: alarmLabel ?: message,
         message = displayMessage ?: message,
+        titleContent = titleContent,
+        messageContent = messageContent,
         triggerAtMillis = triggerAtMillis,
         ringtoneUri = ringtoneUriOverride,
         alertMode = alertModeOverride,

@@ -83,8 +83,10 @@ import com.x500x.cursimple.app.util.QrScannerView
 import com.x500x.cursimple.app.util.ScheduleShareCodec
 import com.x500x.cursimple.app.util.ScheduleSharePayload
 import com.x500x.cursimple.app.ai.AiImportConfig
+import com.x500x.cursimple.app.ai.aiImportErrorText
 import com.x500x.cursimple.app.ai.AiScheduleImportClient
 import com.x500x.cursimple.app.webdav.WebDavBackupFile
+import com.x500x.cursimple.app.webdav.webDavErrorText
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.util.ScheduleIcsExporter
@@ -284,7 +286,9 @@ fun ImportExportScreen(
                     context,
                     context.getString(
                         R.string.ie_ai_import_failed,
-                        it.message ?: context.getString(R.string.ie_unknown_error),
+                        context.aiImportErrorText(it)
+                            ?: it.message
+                            ?: context.getString(R.string.ie_unknown_error),
                     ),
                     Toast.LENGTH_SHORT,
                 ).show()
@@ -357,7 +361,9 @@ fun ImportExportScreen(
                         context,
                         context.getString(
                             R.string.ie_restore_failed,
-                            error.message ?: context.getString(R.string.ie_unknown_error),
+                            context.webDavErrorText(error)
+                                ?: error.message
+                                ?: context.getString(R.string.ie_unknown_error),
                         ),
                         Toast.LENGTH_SHORT,
                     ).show()
@@ -553,7 +559,9 @@ fun ImportExportScreen(
                                 context,
                                 context.getString(
                                     R.string.ie_upload_failed,
-                                    it.message ?: context.getString(R.string.ie_unknown_error),
+                                    context.webDavErrorText(it)
+                                        ?: it.message
+                                        ?: context.getString(R.string.ie_unknown_error),
                                 ),
                                 Toast.LENGTH_SHORT,
                             ).show()
@@ -583,7 +591,9 @@ fun ImportExportScreen(
                                 context,
                                 context.getString(
                                     R.string.ie_list_backups_failed,
-                                    it.message ?: context.getString(R.string.ie_unknown_error),
+                                    context.webDavErrorText(it)
+                                        ?: it.message
+                                        ?: context.getString(R.string.ie_unknown_error),
                                 ),
                                 Toast.LENGTH_SHORT,
                             ).show()
@@ -818,7 +828,9 @@ fun ImportExportScreen(
                                         context,
                                         context.getString(
                                             R.string.ie_import_failed,
-                                            it.message ?: context.getString(R.string.ie_unknown_error),
+                                            context.webDavErrorText(it)
+                                        ?: it.message
+                                        ?: context.getString(R.string.ie_unknown_error),
                                         ),
                                         Toast.LENGTH_SHORT,
                                     ).show()

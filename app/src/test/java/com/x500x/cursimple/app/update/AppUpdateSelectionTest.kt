@@ -1,7 +1,7 @@
 package com.x500x.cursimple.app.update
 
+import com.x500x.cursimple.app.download.DownloadFailureReason
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -29,8 +29,8 @@ class AppUpdateSelectionTest {
     private fun status(sourceName: String, statusCode: Int, latencyMillis: Long) =
         UpdateSourceAttempt(sourceName, response(sourceName, statusCode, latencyMillis))
 
-    private fun failed(sourceName: String, message: String) =
-        UpdateSourceAttempt(sourceName, response = null, errorMessage = message)
+    private fun failed(sourceName: String, reason: UpdateErrorReason) =
+        UpdateSourceAttempt(sourceName, response = null, errorReason = reason)
 
     private val jsonBody: (String) -> Boolean = { it.trimStart().startsWith("{") }
 
@@ -72,7 +72,7 @@ class AppUpdateSelectionTest {
         )
 
         assertEquals(UpdateSourceSelection.UnusableBody("ghfast.top"), selection)
-        assertNotNull(updateSourceFailureMessage(selection))
+        assertEquals(UpdateStatusReason.SourceUnusableBody("ghfast.top"), updateSourceFailureMessage(selection))
     }
 
     @Test
@@ -92,16 +92,16 @@ class AppUpdateSelectionTest {
     fun `all sources failing reports unreachable instead of no release`() {
         val selection = UpdateSourceSelector.select(
             listOf(
-                failed("ghfast.top", "无法解析服务器地址"),
-                failed("GitHub 源站", "连接超时"),
+                failed("ghfast.top", UpdateErrorReason.UnknownHost),
+                failed("GitHub 源站", UpdateErrorReason.Timeout),
             ),
         )
 
         assertTrue(selection is UpdateSourceSelection.Unreachable)
-        val message = updateSourceFailureMessage(selection)
-        assertNotNull(message)
-        assertTrue(message!!.contains("检查更新失败"))
-        assertTrue(message.contains("无法解析服务器地址"))
+        assertEquals(
+            UpdateStatusReason.SourceUnreachable(UpdateErrorReason.UnknownHost),
+            updateSourceFailureMessage(selection),
+        )
     }
 
     @Test
@@ -109,7 +109,7 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(emptyList())
 
         assertEquals(UpdateSourceSelection.Unreachable(emptyList()), selection)
-        assertEquals("检查更新失败：没有可用的更新源。", updateSourceFailureMessage(selection))
+        assertEquals(UpdateStatusReason.SourceNoneAvailable, updateSourceFailureMessage(selection))
     }
 
     @Test
@@ -175,13 +175,13 @@ class AppUpdateSelectionTest {
             listOf(
                 status("ghfast.top", 404, 40),
                 status("gh-proxy.com", 502, 300),
-                failed("GitHub 源站", "连接超时"),
+                failed("GitHub 源站", UpdateErrorReason.Timeout),
             ),
         )
 
         assertEquals(UpdateSourceSelection.HttpError("gh-proxy.com", 502), selection)
         assertEquals(
-            "检查更新失败：gh-proxy.com 返回 HTTP 502，请稍后重试。",
+            UpdateStatusReason.SourceHttpError("gh-proxy.com", 502),
             updateSourceFailureMessage(selection),
         )
     }
@@ -236,11 +236,13 @@ class AppUpdateSelectionTest {
             ),
             selection,
         )
-        val message = updateAssetFailureMessage(selection)
-        assertNotNull(message)
-        assertTrue(message!!.contains("没有适配本机的安装包"))
-        assertTrue(message.contains("arm64-v8a"))
-        assertTrue(message.contains("x86、x86_64"))
+        assertEquals(
+            UpdateStatusReason.AssetNoCompatibleAbi(
+                deviceAbi = "arm64-v8a",
+                availableAbis = listOf("x86", "x86_64"),
+            ),
+            updateAssetFailureMessage(selection),
+        )
     }
 
     @Test
@@ -248,7 +250,7 @@ class AppUpdateSelectionTest {
         val selection = UpdateAssetSelector.select(assets = emptyList(), deviceAbis = listOf("arm64-v8a"))
 
         assertEquals(UpdateAssetSelection.NoAsset, selection)
-        assertEquals("更新清单没有提供可用的安装包，请前往 Release 页面手动下载。", updateAssetFailureMessage(selection))
+        assertEquals(UpdateStatusReason.AssetNoPackage, updateAssetFailureMessage(selection))
     }
 
     @Test
@@ -271,31 +273,55 @@ class AppUpdateSelectionTest {
     }
 
     @Test
-    fun `network errors are described in readable text`() {
-        assertEquals("无法解析服务器地址", describeUpdateError(UnknownHostException("api.github.com")))
-        assertEquals("连接超时", describeUpdateError(SocketTimeoutException("connect timed out")))
-        assertEquals("无法连接服务器", describeUpdateError(ConnectException("Connection refused")))
+    fun `network errors are described in readable reasons`() {
+        assertEquals(UpdateErrorReason.UnknownHost, describeUpdateError(UnknownHostException("api.github.com")))
+        assertEquals(UpdateErrorReason.Timeout, describeUpdateError(SocketTimeoutException("connect timed out")))
+        assertEquals(UpdateErrorReason.ConnectFailed, describeUpdateError(ConnectException("Connection refused")))
     }
 
     @Test
     fun `english exception text is not surfaced to the user`() {
-        assertEquals("未知错误", describeUpdateError(IllegalStateException("Unexpected end of stream")))
-        assertEquals("未知错误", describeUpdateError(IllegalStateException("")))
+        assertEquals(UpdateErrorReason.Unknown, describeUpdateError(IllegalStateException("Unexpected end of stream")))
+        assertEquals(UpdateErrorReason.Unknown, describeUpdateError(IllegalStateException("")))
     }
 
     @Test
     fun `chinese messages and http status details pass through`() {
-        assertEquals("无法下载更新清单（HTTP 404）", describeUpdateError(IllegalStateException("无法下载更新清单（HTTP 404）")))
-        assertEquals("HTTP 503", readableFailureDetail("HTTP 503"))
-        assertNull(readableFailureDetail("Unable to resolve host \"api.github.com\""))
-        assertNull(readableFailureDetail(null))
+        assertEquals(
+            UpdateErrorReason.Passthrough("无法下载更新清单（HTTP 404）"),
+            describeUpdateError(IllegalStateException("无法下载更新清单（HTTP 404）")),
+        )
+        assertEquals(UpdateErrorReason.HttpStatus(503), readableErrorReason("HTTP 503"))
+        assertNull(readableErrorReason("Unable to resolve host \"api.github.com\""))
+        assertNull(readableErrorReason(null))
     }
 
     @Test
-    fun `download failure message replaces unreadable details`() {
-        assertEquals("下载失败：请检查网络后重试", updateDownloadFailureMessage("Software caused connection abort"))
-        assertEquals("下载失败：校验失败", updateDownloadFailureMessage("校验失败"))
-        assertEquals("下载失败：HTTP 404", updateDownloadFailureMessage("HTTP 404"))
+    fun `update exception carries its typed reason across boundaries`() {
+        assertEquals(
+            UpdateErrorReason.ChecksumFailed,
+            describeUpdateError(UpdateException(UpdateErrorReason.ChecksumFailed)),
+        )
+    }
+
+    @Test
+    fun `download failure maps unreadable details to a retry hint`() {
+        assertEquals(
+            UpdateStatusReason.DownloadRetry,
+            downloadFailureStatus(DownloadFailureReason.Thrown(IllegalStateException("Software caused connection abort"))),
+        )
+        assertEquals(
+            UpdateStatusReason.DownloadDetail(UpdateErrorReason.ChecksumFailed),
+            downloadFailureStatus(DownloadFailureReason.Thrown(UpdateException(UpdateErrorReason.ChecksumFailed))),
+        )
+        assertEquals(
+            UpdateStatusReason.DownloadDetail(UpdateErrorReason.HttpStatus(404)),
+            downloadFailureStatus(DownloadFailureReason.Thrown(IllegalStateException("HTTP 404"))),
+        )
+        assertEquals(
+            UpdateStatusReason.DownloadDetail(UpdateErrorReason.NoSource),
+            downloadFailureStatus(DownloadFailureReason.NoSource),
+        )
     }
 
     private fun asset(abi: String) = AppUpdateAsset(
@@ -307,14 +333,26 @@ class AppUpdateSelectionTest {
 
     @Test
     fun `a manifest without a version code cannot be called up to date`() {
-        assertNotNull(updateManifestVersionProblem(versionCode = -1, versionName = "1.2.0"))
-        assertNotNull(updateManifestVersionProblem(versionCode = 0, versionName = "1.2.0"))
+        assertEquals(
+            UpdateStatusReason.ManifestVersionCodeMissing,
+            updateManifestVersionProblem(versionCode = -1, versionName = "1.2.0"),
+        )
+        assertEquals(
+            UpdateStatusReason.ManifestVersionCodeMissing,
+            updateManifestVersionProblem(versionCode = 0, versionName = "1.2.0"),
+        )
     }
 
     @Test
     fun `a manifest without a version name is rejected`() {
-        assertNotNull(updateManifestVersionProblem(versionCode = 42, versionName = ""))
-        assertNotNull(updateManifestVersionProblem(versionCode = 42, versionName = "   "))
+        assertEquals(
+            UpdateStatusReason.ManifestVersionNameMissing,
+            updateManifestVersionProblem(versionCode = 42, versionName = ""),
+        )
+        assertEquals(
+            UpdateStatusReason.ManifestVersionNameMissing,
+            updateManifestVersionProblem(versionCode = 42, versionName = "   "),
+        )
     }
 
     @Test
