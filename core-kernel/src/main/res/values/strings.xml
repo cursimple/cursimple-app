@@ -17,11 +17,8 @@
     <string name="kernel_holiday_spring_festival_eve">除夕</string>
     <string name="kernel_holiday_spring_festival">春节</string>
     <string name="kernel_holiday_qingming">清明节</string>
-    <string name="kernel_holiday_qingming_makeup">清明节补假</string>
     <string name="kernel_holiday_labour_day">劳动节</string>
-    <string name="kernel_holiday_labour_day_makeup">劳动节补假</string>
     <string name="kernel_holiday_dragon_boat">端午节</string>
     <string name="kernel_holiday_mid_autumn">中秋节</string>
     <string name="kernel_holiday_national_day">国庆节</string>
-    <string name="kernel_holiday_national_day_makeup">国庆节补假</string>
 </resources>
