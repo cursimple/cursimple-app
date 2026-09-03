@@ -443,6 +443,23 @@ class AppContainer(
         }
     }
 
+    /**
+     * 切到活动学期绑定的那套作息。
+     * 学期没有绑定、或绑定的作息已被删除时保持当前选中项不变。
+     */
+    suspend fun applyActiveTermTimingProfile() {
+        awaitBootstrap()
+        val activeTermId = termProfileRepository.activeTermId()
+        if (activeTermId.isBlank()) return
+        val boundId = termProfileRepository.termsFlow.first()
+            .firstOrNull { it.id == activeTermId }
+            ?.timingProfileId
+            ?: return
+        val library = widgetPreferencesRepository.timingProfileLibraryFlow.first()
+        if (library.profiles.none { it.id == boundId }) return
+        widgetPreferencesRepository.activateTimingProfile(boundId)
+    }
+
     suspend fun normalizeTimingProfileForActiveTerm(timingProfile: TermTimingProfile?): TermTimingProfile? {
         if (timingProfile == null) {
             return null

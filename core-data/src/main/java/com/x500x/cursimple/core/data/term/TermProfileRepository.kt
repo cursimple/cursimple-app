@@ -12,6 +12,9 @@ interface TermProfileRepository {
     suspend fun createTerm(name: String, termStartDateIso: String?): TermProfile
     suspend fun renameTerm(id: String, name: String)
     suspend fun setTermStartDate(id: String, dateIso: String?)
+
+    /** 把学期绑到一套作息上；[timingProfileId] 为 null 时解除绑定。 */
+    suspend fun setTermTimingProfile(id: String, timingProfileId: String?)
     suspend fun deleteTerm(id: String)
     suspend fun setActiveTerm(id: String)
 

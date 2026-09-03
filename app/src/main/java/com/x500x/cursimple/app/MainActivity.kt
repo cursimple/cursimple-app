@@ -210,7 +210,10 @@ class MainActivity : ComponentActivity() {
                         factory = TermProfileViewModelFactory(
                             termRepo = container.termProfileRepository,
                             userPrefs = container.userPreferencesRepository,
-                            onActiveTermChanged = { container.refreshWidgets() },
+                            onActiveTermChanged = {
+                                container.applyActiveTermTimingProfile()
+                                container.refreshWidgets()
+                            },
                         ),
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
