@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="glance_appwidget_description">課簡 · 每日課程</string>
+    <string name="next_course_widget_description">課簡 · 下一節課</string>
+    <string name="reminder_widget_description">課簡 · 課程提醒</string>
+    <string name="widget_label_today">每日課程</string>
+    <string name="widget_label_next">下一節課</string>
+    <string name="widget_label_reminder">課程提醒</string>
+
+    <string name="widget_catalog_next_description">緊湊顯示當前與下一節課程，附時間和地點</string>
+    <string name="widget_catalog_today_description">檢視任意日期的課程列表，可一鍵切換和回到今天</string>
+    <string name="widget_catalog_reminder_description">未來即將觸發的課程提醒清單</string>
+
+    <string name="widget_month_day">%1$d月%2$d日</string>
+    <string name="widget_title_date_tag">%1$s · %2$s</string>
+    <string name="widget_date_weekday">%1$s%2$s</string>
+
+    <string name="widget_day_tag_yesterday">昨天</string>
+    <string name="widget_day_tag_today">今天</string>
+    <string name="widget_day_tag_tomorrow">明天</string>
+    <string name="widget_day_tag_ahead">+%1$d天</string>
+    <string name="widget_day_tag_behind">-%1$d天</string>
+
+    <string name="widget_holiday_default">放假</string>
+    <string name="widget_empty_holiday">%1$s · 全天無課</string>
+    <string name="widget_empty_term_start_missing">未設開學日期 · 點按設定</string>
+    <string name="widget_empty_before_term_start">未開學</string>
+    <string name="widget_empty_before_term_start_date">未開學 · %1$d月%2$d日開學</string>
+    <string name="widget_empty_yesterday">昨日沒有課程</string>
+    <string name="widget_empty_today">今日沒有課程，享受一天</string>
+    <string name="widget_empty_tomorrow">明日沒有課程</string>
+    <string name="widget_empty_other_day">當日沒有課程</string>
+
+    <string name="widget_subtitle_holiday">%1$s · %2$s</string>
+    <string name="widget_subtitle_term_start_missing">%1$s · 未設開學日期</string>
+    <string name="widget_subtitle_before_term_start">%1$s · 未開學</string>
+    <string name="widget_subtitle_source">%1$s · 按%2$s課</string>
+
+    <string name="widget_next_header_today">今日課程</string>
+    <string name="widget_next_header_tomorrow">明日課程</string>
+    <string name="widget_next_header_holiday">%1$s · %2$s</string>
+    <string name="widget_next_header_source">%1$s · 按%2$s</string>
+    <string name="widget_next_header_status">%1$s · %2$s</string>
+    <string name="widget_next_empty_no_more_today">今天沒有更多課程</string>
+    <string name="widget_next_empty_today">今天沒有課程</string>
+    <string name="widget_next_empty_tomorrow">明天沒有課程</string>
+    <string name="widget_next_empty_other_day">當天沒有課程</string>
+
+    <string name="widget_status_live">上課中</string>
+    <string name="widget_status_exam_live">考試中</string>
+    <string name="widget_status_upcoming">即將開始</string>
+    <string name="widget_status_finished">已結束</string>
+
+    <string name="widget_countdown_minutes">%1$d分鐘後</string>
+    <string name="widget_countdown_hours">%1$d小時後</string>
+    <string name="widget_countdown_hours_minutes">%1$d小時%2$d分後</string>
+
+    <string name="widget_node_range">%1$d-%2$d節</string>
+    <string name="widget_course_subtitle_placeholder">待定</string>
+    <string name="widget_exam_title">考試 · %1$s</string>
+    <string name="widget_course_reminder_badge">提醒</string>
+
+    <string name="widget_reminder_badge_count">%1$d 條</string>
+    <string name="widget_reminder_empty_no_rules">尚未設定提醒規則</string>
+    <string name="widget_reminder_empty_no_rules_sub">在應用內為課程新增提醒</string>
+    <string name="widget_reminder_empty_none_upcoming">暫無即將到來的提醒</string>
+    <string name="widget_reminder_empty_none_upcoming_sub">未來一段時間沒有規劃</string>
+    <string name="widget_reminder_date_today">今天</string>
+    <string name="widget_reminder_date_tomorrow">明天</string>
+    <string name="widget_reminder_date_day_after">後天</string>
+    <string name="widget_reminder_countdown_now">即將</string>
+    <string name="widget_reminder_countdown_minutes">%1$d分鐘</string>
+    <string name="widget_reminder_countdown_hours">%1$d小時</string>
+    <string name="widget_reminder_countdown_hours_minutes">%1$d小時%2$d分</string>
+    <string name="widget_reminder_countdown_days">%1$d天后</string>
+    <string name="widget_reminder_default_title">課程提醒</string>
+    <string name="widget_reminder_default_message">課程即將開始</string>
+    <string name="widget_reminder_snoozed_message">已延後 5 分鐘</string>
+</resources>

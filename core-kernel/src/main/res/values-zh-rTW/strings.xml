@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kernel_week_index">第 %1$d 周</string>
+    <string name="kernel_week_not_started">未開學</string>
+    <string name="kernel_week_term_start_missing">未設定開學日期</string>
+
+    <string name="kernel_weekday_monday">週一</string>
+    <string name="kernel_weekday_tuesday">週二</string>
+    <string name="kernel_weekday_wednesday">週三</string>
+    <string name="kernel_weekday_thursday">週四</string>
+    <string name="kernel_weekday_friday">週五</string>
+    <string name="kernel_weekday_saturday">週六</string>
+    <string name="kernel_weekday_sunday">週日</string>
+    <string name="kernel_weekday_unknown">未知</string>
+
+    <string name="kernel_holiday_new_year">元旦</string>
+    <string name="kernel_holiday_spring_festival_eve">除夕</string>
+    <string name="kernel_holiday_spring_festival">春節</string>
+    <string name="kernel_holiday_qingming">清明節</string>
+    <string name="kernel_holiday_labour_day">勞動節</string>
+    <string name="kernel_holiday_dragon_boat">端午節</string>
+    <string name="kernel_holiday_mid_autumn">中秋節</string>
+    <string name="kernel_holiday_national_day">國慶節</string>
+</resources>
