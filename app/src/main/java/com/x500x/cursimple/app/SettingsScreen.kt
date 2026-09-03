@@ -153,7 +153,11 @@ import com.x500x.cursimple.core.data.widget.timingDraftErrorText
 import com.x500x.cursimple.core.data.widget.timingTemplates
 import com.x500x.cursimple.core.data.widget.toDraftInput
 import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
+import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.TimingProfileEntry
+import com.x500x.cursimple.core.kernel.model.TimingProfileLibrary
+import com.x500x.cursimple.core.kernel.model.active
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
@@ -1381,18 +1385,78 @@ private fun TimingProfileSettingsSection() {
     val scope = rememberCoroutineScope()
     val repository = remember(context) { DataStoreWidgetPreferencesRepository(context.applicationContext) }
     val userPreferencesRepository = remember(context) { DataStoreUserPreferencesRepository(context.applicationContext) }
+    val termRepository = remember(context) { DataStoreTermProfileRepository(context.applicationContext) }
     val manuallyEdited by repository.timingProfileManuallyEditedFlow.collectAsState(initial = false)
+    val library by repository.timingProfileLibraryFlow.collectAsState(initial = TimingProfileLibrary())
+    val activeProfileId = library.active?.id
 
     val drafts = remember { mutableStateListOf<SlotDraftInput>() }
     var errors by remember { mutableStateOf<List<TimingDraftError>>(emptyList()) }
     var showTemplatePicker by remember { mutableStateOf(false) }
+    var creatingProfile by remember { mutableStateOf(false) }
+    val newProfileName = stringResource(R.string.settings_timing_profile_default_name)
 
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        val existing = repository.timingProfileFlow.first()
-        if (existing != null && drafts.isEmpty()) {
-            drafts.addAll(existing.slotTimes.mapIndexed { index, slot -> slot.toDraftInput(context, index + 1) })
+    // 切换作息时把编辑区换成那一套的内容，否则改动会落到另一套上
+    androidx.compose.runtime.LaunchedEffect(activeProfileId) {
+        val slots = repository.timingProfileLibraryFlow.first().active?.slotTimes.orEmpty()
+        drafts.clear()
+        drafts.addAll(slots.mapIndexed { index, slot -> slot.toDraftInput(context, index + 1) })
+        errors = emptyList()
+    }
+
+    // 选中一套作息同时把当前学期绑到它上面，之后学期之间来回切会自动带上各自的作息
+    fun switchProfile(entry: TimingProfileEntry) {
+        scope.launch {
+            repository.activateTimingProfile(entry.id)
+            val activeTermId = termRepository.activeTermId()
+            if (activeTermId.isNotBlank()) {
+                termRepository.setTermTimingProfile(activeTermId, entry.id)
+            }
+            withContext(Dispatchers.IO) {
+                ScheduleWidgetUpdater.refreshAll(context.applicationContext)
+                AutoSilenceController.evaluate(context.applicationContext, reason = "timing_profile_switched")
+            }
         }
     }
+
+    if (creatingProfile) {
+        TimingProfileNameDialog(
+            initial = newProfileName,
+            onDismiss = { creatingProfile = false },
+            onConfirm = { name ->
+                creatingProfile = false
+                scope.launch {
+                    repository.createTimingProfile(name, emptyList())
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_timing_profile_created, name.trim()),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                }
+            },
+        )
+    }
+
+    TimingProfileLibrarySection(
+        library = library,
+        onActivate = ::switchProfile,
+        onCreate = { creatingProfile = true },
+        onRename = { entry, name -> scope.launch { repository.renameTimingProfile(entry.id, name) } },
+        onDuplicate = { entry, name -> scope.launch { repository.duplicateTimingProfile(entry.id, name) } },
+        onDelete = { entry ->
+            scope.launch {
+                repository.deleteTimingProfile(entry.id)
+                withContext(Dispatchers.IO) {
+                    ScheduleWidgetUpdater.refreshAll(context.applicationContext)
+                    AutoSilenceController.evaluate(context.applicationContext, reason = "timing_profile_deleted")
+                }
+            }
+        },
+    )
+
+    SettingsSectionHeader(stringResource(R.string.settings_dest_timing_profile))
 
     fun updateRow(index: Int, transform: (SlotDraftInput) -> SlotDraftInput) {
         drafts[index] = transform(drafts[index])
