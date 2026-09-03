@@ -428,32 +428,55 @@ private fun AlarmRecordRow(
         ?: record.displayTitle ?: record.alarmLabel ?: record.message
     val message = record.messageContent?.let { context.reminderNotificationMessageText(it) }
         ?: record.displayMessage ?: record.message
-    SurfaceRow {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(formatAlarmTime(record.triggerAtMillis, zone), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text(formatAlarmDay(record.triggerAtMillis, zone), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val detail = listOf(
+        message,
+        stringResource(R.string.schedule_alarm_ring_seconds, record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS),
+        stringResource(R.string.schedule_alarm_interval_seconds, record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS),
+        stringResource(R.string.schedule_alarm_count_times, record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT),
+        stringResource(alarmRingtoneLabelRes(record.ringtoneUriOverride)),
+        stringResource(alarmAlertModeLabelRes(record.alertModeOverride)),
+    ).joinToString(" · ")
+    // 时间、开关和按钮宽度固定，放大字号后会把描述挤成一列单字，因此描述独占整行
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = formatAlarmTime(record.triggerAtMillis, zone),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = formatAlarmDay(record.triggerAtMillis, zone),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = record.enabled, onCheckedChange = onSetEnabled)
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.schedule_cd_edit_alarm))
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_cd_delete_alarm))
+                }
+            }
             Text(title, fontWeight = FontWeight.SemiBold)
             Text(
-                listOf(
-                    message,
-                    stringResource(R.string.schedule_alarm_ring_seconds, record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS),
-                    stringResource(R.string.schedule_alarm_interval_seconds, record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS),
-                    stringResource(R.string.schedule_alarm_count_times, record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT),
-                    stringResource(alarmRingtoneLabelRes(record.ringtoneUriOverride)),
-                    stringResource(alarmAlertModeLabelRes(record.alertModeOverride)),
-                ).joinToString(" · "),
+                text = detail,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
-        Switch(checked = record.enabled, onCheckedChange = onSetEnabled)
-        IconButton(onClick = onEdit) {
-            Icon(Icons.Rounded.Edit, contentDescription = stringResource(R.string.schedule_cd_edit_alarm))
-        }
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_cd_delete_alarm))
         }
     }
 }
