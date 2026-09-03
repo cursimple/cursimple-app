@@ -179,6 +179,7 @@
     <string name="schedule_alarm_card_count">APP 自管鬧鐘 %1$d 個</string>
     <string name="schedule_action_refresh">重新整理</string>
     <string name="schedule_new_alarm">新建鬧鐘</string>
+    <string name="schedule_alarm_not_registered">未在系統中註冊，不會響鈴 · 點上方重新整理重建</string>
     <string name="schedule_alarm_none_pending">沒有等待觸發的 APP 自管鬧鐘</string>
     <string name="schedule_alarm_ring_seconds">響鈴 %1$d 秒</string>
     <string name="schedule_alarm_interval_seconds">間隔 %1$d 秒</string>

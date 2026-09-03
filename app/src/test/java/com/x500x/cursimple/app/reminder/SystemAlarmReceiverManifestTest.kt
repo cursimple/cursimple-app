@@ -23,6 +23,8 @@ class SystemAlarmReceiverManifestTest {
                 "android.intent.action.TIME_SET",
                 "android.intent.action.TIMEZONE_CHANGED",
                 "android.intent.action.DATE_CHANGED",
+                // 切换语言后闹钟标签要按新语言重新生成
+                "android.intent.action.LOCALE_CHANGED",
                 "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED",
             ),
             receiver.intentActions(),
