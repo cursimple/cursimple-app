@@ -149,56 +149,35 @@ fun PluginWebSessionScreen(
             pageReadyAtMs.value = System.currentTimeMillis()
         }
     }
-    val statusText = androidx.compose.runtime.derivedStateOf {
-        val packets = capturedPackets.value
-        val latestPacket = packets.values.maxByOrNull { it.timestamp }
-        val cookieCount = latestPacket?.cookies?.size ?: 0
-        val lsCount = latestPacket?.localStorageSnapshot?.size ?: 0
-        val ssCount = latestPacket?.sessionStorageSnapshot?.size ?: 0
-        val activeUploadStage = uploadStage.value
-        when {
-            activeUploadStage != null -> {
-                context.getString(
-                    R.string.plugin_web_status_uploading,
-                    context.getString(activeUploadStage.labelRes),
-                    activeUploadStage.step,
+    val status = androidx.compose.runtime.remember {
+        androidx.compose.runtime.derivedStateOf {
+            val packets = capturedPackets.value
+            val latestPacket = packets.values.maxByOrNull { it.timestamp }
+            val activeUploadStage = uploadStage.value
+            when {
+                activeUploadStage != null ->
+                    PluginWebStatus.Uploading(activeUploadStage.labelRes, activeUploadStage.step)
+                pageError.value != null -> PluginWebStatus.PageError(pageError.value)
+                blockedUrl.value != null -> PluginWebStatus.Blocked(blockedUrl.value)
+                popupUrl.value != null -> PluginWebStatus.Popup(popupUrl.value)
+                pendingCompletion.value != null -> PluginWebStatus.PendingCompletion
+                consoleError.value != null -> PluginWebStatus.ConsoleError(consoleError.value)
+                requiredPacketCount > 0 -> PluginWebStatus.Packets(
+                    captured = packets.count { it.value.id in requiredCapturePacketIds(request) },
+                    required = requiredPacketCount,
+                    cookies = latestPacket?.cookies?.size ?: 0,
+                    localStorage = latestPacket?.localStorageSnapshot?.size ?: 0,
+                    sessionStorage = latestPacket?.sessionStorageSnapshot?.size ?: 0,
                 )
+                packets.isNotEmpty() -> PluginWebStatus.WaitingData
+                loadProgress.value in 1..99 -> PluginWebStatus.Loading(loadProgress.value)
+                pageTitle.value.isNotBlank() -> PluginWebStatus.Opened(pageTitle.value)
+                currentUrl.value.isNotBlank() -> PluginWebStatus.Visiting(currentUrl.value)
+                else -> PluginWebStatus.WaitingPage
             }
-            pageError.value != null ->
-                context.getString(R.string.plugin_web_status_page_error, pageError.value)
-            blockedUrl.value != null ->
-                context.getString(R.string.plugin_web_status_blocked, blockedUrl.value)
-            popupUrl.value != null ->
-                context.getString(R.string.plugin_web_status_popup, popupUrl.value)
-            pendingCompletion.value != null ->
-                context.getString(R.string.plugin_web_status_pending_completion)
-            consoleError.value != null ->
-                context.getString(R.string.plugin_web_status_console_error, consoleError.value)
-            requiredPacketCount > 0 -> {
-                val captured = packets.count { it.value.id in requiredCapturePacketIds(request) }
-                buildString {
-                    append(
-                        context.getString(
-                            R.string.plugin_web_status_packets,
-                            captured,
-                            requiredPacketCount,
-                        ),
-                    )
-                    if (cookieCount > 0) append(" · cookies $cookieCount")
-                    if (lsCount > 0) append(" · localStorage $lsCount")
-                    if (ssCount > 0) append(" · sessionStorage $ssCount")
-                }
-            }
-            packets.isNotEmpty() -> context.getString(R.string.plugin_web_status_waiting_data)
-            loadProgress.value in 1..99 ->
-                context.getString(R.string.plugin_web_status_loading, loadProgress.value)
-            pageTitle.value.isNotBlank() ->
-                context.getString(R.string.plugin_web_status_opened, pageTitle.value)
-            currentUrl.value.isNotBlank() ->
-                context.getString(R.string.plugin_web_status_visiting, currentUrl.value)
-            else -> context.getString(R.string.plugin_web_status_waiting_page)
         }
     }
+    val statusText = pluginWebStatusText(status.value)
 
     fun isForegroundWebView(view: WebView?): Boolean {
         val popupWebView = popupWebViewState.value
@@ -686,7 +665,7 @@ fun PluginWebSessionScreen(
         ) {
             if (!showWorkingOverlay.value) {
                 Text(
-                    text = statusText.value,
+                    text = statusText,
                     modifier = Modifier.align(Alignment.CenterStart),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
