@@ -487,7 +487,12 @@ class AlarmRingingService : Service() {
             ).apply {
                 description = getString(R.string.alarm_channel_description)
                 enableVibration(true)
+                // 声音由服务自己按闹钟音轨播放，渠道不再出声，避免响两遍
                 setSound(null, null)
+                // 勿扰模式下仍要出通知，否则全屏响铃页不会弹出
+                setBypassDnd(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                setShowBadge(false)
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
