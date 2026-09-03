@@ -179,6 +179,7 @@
     <string name="schedule_alarm_card_count">%1$d in-app alarms</string>
     <string name="schedule_action_refresh">Refresh</string>
     <string name="schedule_new_alarm">New alarm</string>
+    <string name="schedule_alarm_not_registered">Not registered with the system and will not ring · tap refresh above</string>
     <string name="schedule_alarm_none_pending">No in-app alarms pending</string>
     <string name="schedule_alarm_ring_seconds">Ring %1$ds</string>
     <string name="schedule_alarm_interval_seconds">Interval %1$ds</string>

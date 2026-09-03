@@ -77,6 +77,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
+import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockRegistrationVerifier
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import com.x500x.cursimple.core.reminder.model.isLegacy
 import java.time.Instant
@@ -379,12 +380,19 @@ private fun AlarmManagementCard(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onCreate) { Text(stringResource(R.string.schedule_new_alarm)) }
         }
+        // 记录还在但系统里已经没有对应闹钟时，界面要说出来，不然它就是个不会响的摆设
+        val unregisteredKeys = remember(appRecords) {
+            val verifier = AppAlarmClockRegistrationVerifier(context)
+            appRecords.filterNot { runCatching { verifier.isRegistered(it) }.getOrDefault(true) }
+                .mapTo(mutableSetOf()) { it.alarmKey }
+        }
         if (appRecords.isEmpty()) {
             EmptySurface(stringResource(R.string.schedule_alarm_none_pending))
         } else {
             appRecords.forEach { record ->
                 AlarmRecordRow(
                     record = record,
+                    registered = record.alarmKey !in unregisteredKeys,
                     onEdit = { onEdit(record) },
                     onDelete = { onDelete(record) },
                     onSetEnabled = { onSetAppAlarmEnabled(record.alarmKey, it) },
@@ -397,6 +405,7 @@ private fun AlarmManagementCard(
 @Composable
 private fun AlarmRecordRow(
     record: SystemAlarmRecord,
+    registered: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onSetEnabled: (Boolean) -> Unit,
@@ -457,6 +466,13 @@ private fun AlarmRecordRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (!registered && record.enabled) {
+                Text(
+                    text = stringResource(R.string.schedule_alarm_not_registered),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
         }
     }
 }
