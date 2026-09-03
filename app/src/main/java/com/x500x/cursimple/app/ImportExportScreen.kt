@@ -509,6 +509,16 @@ fun ImportExportScreen(
                 onAction = { exportIcs() },
             )
 
+            SystemCalendarPanel(
+                canExport = canExport,
+                termStartDate = termStartDate,
+                schedule = schedule,
+                manualCourses = manualCourses,
+                timingProfile = timingProfile,
+                overrides = temporaryScheduleOverrides,
+                holidayCalendar = holidayCalendar,
+            )
+
             ScheduleImagePanel(
                 weekNumber = imageWeek,
                 maxWeekNumber = maxImageWeek,

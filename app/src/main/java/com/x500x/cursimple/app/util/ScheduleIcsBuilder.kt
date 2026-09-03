@@ -2,31 +2,22 @@ package com.x500x.cursimple.app.util
 
 import androidx.annotation.StringRes
 import com.x500x.cursimple.R
-import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
-import com.x500x.cursimple.core.kernel.model.coursesOfDay
-import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
-import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
-import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
-import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.time.zone.ZoneOffsetTransition
 import kotlin.math.abs
-import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
-import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 
 /** 一门无法导出的课程及原因，供界面告知用户而不是静默丢弃。[reason] 为文案资源 id。 */
 data class IcsSkippedCourse(
@@ -62,19 +53,11 @@ object ScheduleIcsBuilder {
     private val BASIC_LOCAL: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss")
     private val BASIC_UTC: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
 
-    private data class Occurrence(
-        val date: LocalDate,
-        val start: LocalDateTime,
-        val end: LocalDateTime,
-        val displaced: Boolean,
-    )
-
     private data class CourseGroup(
         val course: CourseItem,
         val slotLabel: String?,
-    ) {
-        val occurrences: MutableList<Occurrence> = mutableListOf()
-    }
+        val occurrences: List<CourseOccurrence>,
+    )
 
     fun build(
         termName: String?,
@@ -88,101 +71,39 @@ object ScheduleIcsBuilder {
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
         defaultWeekCount: Int = 20,
     ): IcsExportResult {
-        val importedByDay: Map<Int, List<CourseItem>> = (1..7).associateWith { day ->
-            schedule?.coursesOfDay(day).orEmpty().visibleScheduleCourses()
-        }
-        val visibleManual = manualCourses.visibleScheduleCourses()
-        val planningCourses = importedByDay.values.flatten() + visibleManual
-
-        if (termStartDate == null) {
+        val plan = planScheduleOccurrences(
+            termStartDate = termStartDate,
+            schedule = schedule,
+            manualCourses = manualCourses,
+            timingProfile = timingProfile,
+            overrides = overrides,
+            holidayCalendar = holidayCalendar,
+            defaultWeekCount = defaultWeekCount,
+        )
+        if (plan.failureReason != null) {
             return IcsExportResult(
                 content = emptyCalendar(termName, generatedAt),
                 eventCount = 0,
                 occurrenceCount = 0,
-                skipped = emptyList(),
-                failureReason = R.string.ics_failure_no_term_start,
-            )
-        }
-        if (timingProfile == null) {
-            return IcsExportResult(
-                content = emptyCalendar(termName, generatedAt),
-                eventCount = 0,
-                occurrenceCount = 0,
-                skipped = planningCourses.map { it.toSkipped(R.string.ics_skip_no_timing) },
-                failureReason = R.string.ics_failure_no_timing,
+                skipped = plan.skipped,
+                failureReason = plan.failureReason,
             )
         }
 
-        val termStartMonday = termStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-        val weekCount = (planningCourses.mapNotNull { it.weeks.maxOrNull() }.maxOrNull() ?: defaultWeekCount)
-            .coerceAtLeast(1)
-        val termEnd = termStartMonday.plusDays(weekCount.toLong() * 7 - 1)
-
-        val overrideTargets = overrides.flatMap { it.targetDates() }
-        val iterationStart = (overrideTargets + termStartMonday).minOrNull() ?: termStartMonday
-        val iterationEnd = (overrideTargets + termEnd).maxOrNull() ?: termEnd
-
-        val groups = LinkedHashMap<String, CourseGroup>()
-        val skippedKeys = LinkedHashMap<String, IcsSkippedCourse>()
-
-        var date = iterationStart
-        while (!date.isAfter(iterationEnd)) {
-            val dayResolution = resolveScheduleDay(date, overrides, holidayCalendar)
-            if (dayResolution.isHoliday) {
-                date = date.plusDays(1)
-                continue
-            }
-            val sourceDate = dayResolution.sourceDate
-            val weekIndex = resolveTermWeekNumber(termStartDate, sourceDate)
-            val dayOfWeek = sourceDate.dayOfWeek.value
-            val candidates = filterTemporaryCancelledCourses(
-                date = date,
-                courses = importedByDay[dayOfWeek].orEmpty() + visibleManual.filter { it.time.dayOfWeek == dayOfWeek },
-                overrides = overrides,
-            ).filter { isTermWeekNumberActive(weekIndex, it.weeks) }
-
-            for (course in candidates) {
-                val key = courseKey(course)
-                val startSlot = timingProfile.coveringSlot(course.time.startNode)
-                val endSlot = timingProfile.coveringSlot(course.time.endNode)
-                val startTime = startSlot?.parseStart()
-                val endTime = endSlot?.parseEnd()
-                if (startTime == null || endTime == null) {
-                    skippedKeys.getOrPut(key) { course.toSkipped(R.string.ics_skip_missing_period) }
-                    continue
-                }
-                val startDateTime = date.atTime(startTime)
-                val endDateTime = if (endTime.isAfter(startTime)) {
-                    date.atTime(endTime)
-                } else {
-                    date.plusDays(1).atTime(endTime)
-                }
-                val group = groups.getOrPut(key) {
-                    CourseGroup(course = course, slotLabel = startSlot.label.takeIf { it.isNotBlank() })
-                }
-                group.occurrences.add(
-                    Occurrence(
-                        date = date,
-                        start = startDateTime,
-                        end = endDateTime,
-                        displaced = sourceDate != date,
-                    ),
-                )
-            }
-            date = date.plusDays(1)
-        }
-
+        val groups = plan.courses.map { CourseGroup(it.course, it.slotLabel, it.occurrences) }
         val events = mutableListOf<String>()
         var occurrenceCount = 0
-        for (group in groups.values) {
+        for (group in groups) {
             val (blocks, count) = group.toEvents(zone, generatedAt)
             events.addAll(blocks)
             occurrenceCount += count
         }
 
-        val allDates = groups.values.flatMap { it.occurrences }.map { it.date }
+        val allDates = groups.flatMap { it.occurrences }.map { it.date }
+        val termStartMonday = requireNotNull(termStartDate)
+            .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         val tzWindowStart = allDates.minOrNull() ?: termStartMonday
-        val tzWindowEnd = allDates.maxOrNull() ?: termEnd
+        val tzWindowEnd = allDates.maxOrNull() ?: termStartMonday
 
         val body = buildString {
             append(calendarHeaderLines(termName, zone).joinToString("\r\n") { fold(it) })
@@ -203,7 +124,7 @@ object ScheduleIcsBuilder {
             content = body,
             eventCount = events.size,
             occurrenceCount = occurrenceCount,
-            skipped = skippedKeys.values.toList(),
+            skipped = plan.skipped,
             failureReason = null,
         )
     }
@@ -292,32 +213,11 @@ object ScheduleIcsBuilder {
     private fun nodeLabel(startNode: Int, endNode: Int): String =
         if (startNode == endNode) "第${startNode}节" else "第${startNode}-${endNode}节"
 
-    private fun courseKey(course: CourseItem): String =
-        "${course.id}|${course.time.dayOfWeek}|${course.time.startNode}|${course.time.endNode}|${course.title}"
-
     private fun uidBase(course: CourseItem): String =
         "${sanitizeUid(course.id)}-w${course.time.dayOfWeek}-n${course.time.startNode}-${course.time.endNode}"
 
     private fun sanitizeUid(raw: String): String =
         raw.map { ch -> if (ch.isLetterOrDigit() || ch == '-' || ch == '_') ch else '_' }.joinToString("")
-
-    private fun CourseItem.toSkipped(@StringRes reason: Int): IcsSkippedCourse =
-        IcsSkippedCourse(
-            title = title,
-            dayOfWeek = time.dayOfWeek,
-            startNode = time.startNode,
-            endNode = time.endNode,
-            reason = reason,
-        )
-
-    private fun TermTimingProfile.coveringSlot(node: Int): ClassSlotTime? =
-        slotTimes.firstOrNull { it.startNode <= node && node <= it.endNode }
-
-    private fun ClassSlotTime.parseStart(): LocalTime? =
-        runCatching { LocalTime.parse(startTime) }.getOrNull()
-
-    private fun ClassSlotTime.parseEnd(): LocalTime? =
-        runCatching { LocalTime.parse(endTime) }.getOrNull()
 
     private fun calendarHeaderLines(termName: String?, zone: ZoneId): List<String> {
         val lines = mutableListOf(
