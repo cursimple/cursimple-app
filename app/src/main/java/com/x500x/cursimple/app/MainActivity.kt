@@ -118,7 +118,6 @@ import com.x500x.cursimple.feature.plugin.PluginMarketViewModel
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
 import com.x500x.cursimple.feature.schedule.AddCourseDialog
 import com.x500x.cursimple.feature.schedule.CourseLibraryRoute
-import com.x500x.cursimple.feature.schedule.ManageScheduleSheet
 import com.x500x.cursimple.feature.schedule.ScheduleRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewMode
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
@@ -285,10 +284,7 @@ class MainActivity : ComponentActivity() {
                     var showAppLanguageDialog by rememberSaveable { mutableStateOf(false) }
                     var showWidgetThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
-                    var showManageSheet by rememberSaveable { mutableStateOf(false) }
                     var showClearTermStartConfirm by rememberSaveable { mutableStateOf(false) }
-                    var showClearEverythingConfirm by rememberSaveable { mutableStateOf(false) }
-                    var showClearManualConfirm by rememberSaveable { mutableStateOf(false) }
                     var showWidgetPicker by rememberSaveable { mutableStateOf(false) }
                     var showClearSheet by rememberSaveable { mutableStateOf(false) }
                     val webDavClient = remember { WebDavClient() }
@@ -741,13 +737,11 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.Reminders -> SettingsRoute(
                                         viewModel = scheduleViewModel,
-                                        alarmBackend = prefs.alarmBackend,
                                         alarmRingtoneUri = prefs.alarmRingtoneUri,
                                         alarmAlertMode = prefs.alarmAlertMode,
                                         alarmRingDurationSeconds = prefs.alarmRingDurationSeconds,
                                         alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
                                         alarmRepeatCount = prefs.alarmRepeatCount,
-                                        onAlarmBackendChange = prefsViewModel::setAlarmBackend,
                                         onAlarmRingtoneUriChange = prefsViewModel::setAlarmRingtoneUri,
                                         onAlarmAlertModeChange = prefsViewModel::setAlarmAlertMode,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
@@ -770,7 +764,6 @@ class MainActivity : ComponentActivity() {
                                             prefs.scheduleCustomColorsAdaptToTheme,
                                         widgetThemePreferences = widgetPrefs,
                                         currentWeekIndex = currentWeekIndex,
-                                        alarmBackend = prefs.alarmBackend,
                                         alarmRingDurationSeconds = prefs.alarmRingDurationSeconds,
                                         alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
                                         alarmRepeatCount = prefs.alarmRepeatCount,
@@ -833,7 +826,6 @@ class MainActivity : ComponentActivity() {
                                         onScheduleLocationPrefixAtEnabledChange = prefsViewModel::setScheduleLocationPrefixAtEnabled,
                                         onScheduleTeacherVisibleChange = prefsViewModel::setScheduleTeacherVisible,
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
-                                        onAlarmBackendChange = prefsViewModel::setAlarmBackend,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
                                         onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
                                         onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
@@ -1121,44 +1113,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    if (showClearEverythingConfirm) {
-                        androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { showClearEverythingConfirm = false },
-                            title = { Text(stringResource(R.string.main_clear_everything_title)) },
-                            text = {
-                                Text(stringResource(R.string.main_clear_everything_body))
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    scheduleViewModel.clearAllSchedules()
-                                    showClearEverythingConfirm = false
-                                }) { Text(stringResource(R.string.main_clear_all)) }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showClearEverythingConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
-                            },
-                        )
-                    }
-
-                    if (showClearManualConfirm) {
-                        androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { showClearManualConfirm = false },
-                            title = { Text(stringResource(R.string.main_clear_manual_title)) },
-                            text = {
-                                Text(stringResource(R.string.main_clear_manual_body))
-                            },
-                            confirmButton = {
-                                TextButton(onClick = {
-                                    scheduleViewModel.clearManualCourses()
-                                    showClearManualConfirm = false
-                                }) { Text(stringResource(R.string.main_clear_all)) }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showClearManualConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
-                            },
-                        )
-                    }
-
                     if (showAddCourseDialog) {
                         AddCourseDialog(
                             existingCourses = scheduleState.manualCourses +
@@ -1200,32 +1154,6 @@ class MainActivity : ComponentActivity() {
                                 showWeekMenu = false
                             },
                             onDismiss = { showWeekMenu = false },
-                        )
-                    }
-
-                    if (showManageSheet) {
-                        ManageScheduleSheet(
-                            manualCourses = scheduleState.manualCourses,
-                            importedCourses = scheduleState.schedule?.dailySchedules.orEmpty()
-                                .flatMap { it.courses },
-                            onDismiss = { showManageSheet = false },
-                            onAddSingleCourse = {
-                                showManageSheet = false
-                                showAddCourseDialog = true
-                            },
-                            onLoadSample = {
-                                scheduleViewModel.loadSampleCourses()
-                                showManageSheet = false
-                            },
-                            onClearAll = {
-                                showManageSheet = false
-                                showClearManualConfirm = true
-                            },
-                            onClearEverything = {
-                                showManageSheet = false
-                                showClearEverythingConfirm = true
-                            },
-                            onRemoveCourse = scheduleViewModel::removeManualCourse,
                         )
                     }
 

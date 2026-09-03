@@ -83,8 +83,11 @@ class DataStoreUserPreferencesRepository(
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
             },
             disclaimerAccepted = prefs[KEY_DISCLAIMER_ACCEPTED] ?: false,
+            // 系统时钟通道只能在应用位于前台时创建闹钟，且表达不了一天以外的时间，
+            // 选中它等于没有闹钟，因此存过这个值的一律读成 App 自管闹钟
             alarmBackend = prefs[KEY_ALARM_BACKEND]
                 ?.let { runCatching { ReminderAlarmBackend.valueOf(it) }.getOrNull() }
+                ?.takeIf { it == ReminderAlarmBackend.AppAlarmClock }
                 ?: ReminderAlarmBackend.AppAlarmClock,
             alarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]?.takeIf { it.isNotBlank() },
             alarmAlertMode = prefs[KEY_ALARM_ALERT_MODE]

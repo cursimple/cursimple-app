@@ -591,20 +591,6 @@ class ScheduleViewModel(
         }
     }
 
-    fun loadSampleCourses() {
-        viewModelScope.launch {
-            manualCourseRepository.replaceAll(sampleManualCourses(resources))
-            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
-            _uiState.update {
-                it.copy(
-                    statusMessage = systemAlarmSyncMessage(
-                        successMessage = text(R.string.schedule_status_sample_loaded),
-                        summary = dispatchSummary,
-                    ),
-                )
-            }
-        }
-    }
 
     fun clearManualCourses() {
         viewModelScope.launch {

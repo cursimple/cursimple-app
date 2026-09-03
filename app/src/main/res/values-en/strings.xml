@@ -529,11 +529,6 @@
     <string name="settings_accent_purple">Dusk Purple</string>
     <string name="settings_accent_orange">Warm Clay</string>
     <string name="settings_accent_pink">Blossom Pink</string>
-    <string name="settings_alarm_backend_title">Alarm channel</string>
-    <string name="settings_alarm_backend_app">In-app alarms</string>
-    <string name="settings_alarm_backend_system">System Clock app alarms</string>
-    <string name="settings_alarm_backend_app_desc">Uses AlarmManager.setAlarmClock, so the app controls the ringing.</string>
-    <string name="settings_alarm_backend_system_desc">Creates and deletes alarms in the system Clock app.</string>
     <string name="settings_toast_open_settings_failed">Could not open settings: %1$s</string>
     <string name="settings_webdav_subtitle_configured">%1$s · account configured</string>
     <string name="settings_webdav_subtitle_unconfigured">%1$s · no account configured</string>
@@ -668,11 +663,7 @@
     <string name="main_clear_term_start_body">Once cleared the current week cannot be worked out until you set it again. Continue?</string>
     <string name="main_clear">Clear</string>
     <string name="main_cancel">Cancel</string>
-    <string name="main_clear_everything_title">Clear everything</string>
-    <string name="main_clear_everything_body">This deletes manually added courses, the timetable synced by plugins, and every reminder rule. It cannot be undone. Continue?</string>
     <string name="main_clear_all">Clear</string>
-    <string name="main_clear_manual_title">Clear manual courses</string>
-    <string name="main_clear_manual_body">This deletes every manually added course and leaves the plugin-synced timetable untouched. It cannot be undone. Continue?</string>
     <string name="main_app_name">CurSimple</string>
     <string name="main_drawer_term_start_unset">Term start date not set</string>
     <string name="main_drawer_current_week">Currently week %1$d</string>

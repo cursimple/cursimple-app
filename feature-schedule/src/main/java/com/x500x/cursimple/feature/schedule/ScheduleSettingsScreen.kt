@@ -87,13 +87,11 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ScheduleSettingsRoute(
     viewModel: ScheduleViewModel,
-    alarmBackend: ReminderAlarmBackend,
     alarmRingtoneUri: String?,
     alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
-    onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
     onAlarmRingtoneUriChange: (String?) -> Unit,
     onAlarmAlertModeChange: (AlarmAlertMode) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
@@ -106,13 +104,11 @@ fun ScheduleSettingsRoute(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     ScheduleSettingsScreen(
         state = state,
-        alarmBackend = alarmBackend,
         alarmRingtoneUri = alarmRingtoneUri,
         alarmAlertMode = alarmAlertMode,
         alarmRingDurationSeconds = alarmRingDurationSeconds,
         alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
         alarmRepeatCount = alarmRepeatCount,
-        onAlarmBackendChange = onAlarmBackendChange,
         onAlarmRingtoneUriChange = onAlarmRingtoneUriChange,
         onAlarmAlertModeChange = onAlarmAlertModeChange,
         onAlarmRingDurationSecondsChange = onAlarmRingDurationSecondsChange,
@@ -138,13 +134,11 @@ fun ScheduleSettingsRoute(
 @Composable
 fun ScheduleSettingsScreen(
     state: ScheduleUiState,
-    alarmBackend: ReminderAlarmBackend,
     alarmRingtoneUri: String?,
     alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
-    onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
     onAlarmRingtoneUriChange: (String?) -> Unit,
     onAlarmAlertModeChange: (AlarmAlertMode) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
@@ -165,7 +159,6 @@ fun ScheduleSettingsScreen(
     onCreateManualAlarm: (Long, String, String, EditableAppAlarmSettings) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showBackendDialog by rememberSaveable { mutableStateOf(false) }
     var editingRule by remember { mutableStateOf<ReminderRule?>(null) }
     var showRuleEditor by rememberSaveable { mutableStateOf(false) }
     var showPlaceholderDialog by rememberSaveable { mutableStateOf(false) }
@@ -252,13 +245,11 @@ fun ScheduleSettingsScreen(
             )
 
             ReminderDefaultsCard(
-                alarmBackend = alarmBackend,
-                alarmRingtoneUri = alarmRingtoneUri,
+                        alarmRingtoneUri = alarmRingtoneUri,
                 alarmAlertMode = alarmAlertMode,
                 alarmRingDurationSeconds = alarmRingDurationSeconds,
                 alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
                 alarmRepeatCount = alarmRepeatCount,
-                onPickBackend = { showBackendDialog = true },
                 onUseDefaultRingtone = { onAlarmRingtoneUriChange(null) },
                 onPickSystemRingtone = {
                     onPickSystemRingtone { uri ->
@@ -290,17 +281,6 @@ fun ScheduleSettingsScreen(
                 },
             )
         }
-    }
-
-    if (showBackendDialog) {
-        AlarmBackendDialog(
-            selected = alarmBackend,
-            onSelect = {
-                onAlarmBackendChange(it)
-                showBackendDialog = false
-            },
-            onDismiss = { showBackendDialog = false },
-        )
     }
 
     if (showRuleEditor) {
@@ -589,13 +569,11 @@ private fun RuleRow(
 
 @Composable
 private fun ReminderDefaultsCard(
-    alarmBackend: ReminderAlarmBackend,
     alarmRingtoneUri: String?,
     alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
-    onPickBackend: () -> Unit,
     onUseDefaultRingtone: () -> Unit,
     onPickSystemRingtone: () -> Unit,
     onPickLocalAudio: () -> Unit,
@@ -606,7 +584,6 @@ private fun ReminderDefaultsCard(
 ) {
     CardSurface {
         HeaderRow(Icons.Rounded.Settings, stringResource(R.string.schedule_defaults_title), stringResource(R.string.schedule_defaults_subtitle))
-        SettingRow(stringResource(R.string.schedule_backend_row_title), stringResource(alarmBackendFullLabelRes(alarmBackend)), onClick = onPickBackend)
         AlarmRingtoneSelector(
             ringtoneUri = alarmRingtoneUri,
             onUseDefault = onUseDefaultRingtone,
@@ -897,39 +874,6 @@ private fun NumberSettingRow(
     }
 }
 
-@Composable
-private fun AlarmBackendDialog(
-    selected: ReminderAlarmBackend,
-    onSelect: (ReminderAlarmBackend) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.schedule_backend_dialog_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ReminderAlarmBackend.entries.forEach { backend ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onSelect(backend) }
-                            .padding(horizontal = 8.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = backend == selected, onClick = { onSelect(backend) })
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text(stringResource(alarmBackendFullLabelRes(backend)))
-                            Text(stringResource(alarmBackendDescriptionRes(backend)), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_close)) } },
-    )
-}
 
 @Composable
 private fun AlarmPermissionRow(onOpenSettings: () -> Unit) {
@@ -1002,18 +946,6 @@ private fun launchExactAlarmSettings(context: Context) {
     }.onFailure { error ->
         Toast.makeText(context, context.getString(R.string.schedule_open_settings_failed, error.message), Toast.LENGTH_SHORT).show()
     }
-}
-
-@StringRes
-private fun alarmBackendFullLabelRes(backend: ReminderAlarmBackend): Int = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> R.string.schedule_backend_app_label
-    ReminderAlarmBackend.SystemClockApp -> R.string.schedule_backend_system_label
-}
-
-@StringRes
-private fun alarmBackendDescriptionRes(backend: ReminderAlarmBackend): Int = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> R.string.schedule_backend_app_desc
-    ReminderAlarmBackend.SystemClockApp -> R.string.schedule_backend_system_desc
 }
 
 private fun formatAlarmTime(millis: Long, zone: ZoneId): String =
