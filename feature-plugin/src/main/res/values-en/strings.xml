@@ -27,6 +27,11 @@
     <string name="plugin_market_tab_plugins">Plugins</string>
     <string name="plugin_market_tab_components">Components</string>
 
+    <string name="plugin_repo_action_update">Update to %1$s</string>
+    <string name="plugin_repo_action_installed">Installed %1$s</string>
+    <string name="plugin_repo_action_uninstall">Uninstall</string>
+    <string name="plugin_repo_state_installed">Installed</string>
+    <string name="plugin_repo_state_update">Update available</string>
     <string name="plugin_repo_action_processing">Working…</string>
     <string name="plugin_repo_action_install">Install %1$s</string>
     <string name="plugin_repo_action_open_github">View on GitHub</string>

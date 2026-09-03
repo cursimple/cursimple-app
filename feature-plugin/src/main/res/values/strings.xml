@@ -27,6 +27,11 @@
     <string name="plugin_market_tab_plugins">插件</string>
     <string name="plugin_market_tab_components">组件</string>
 
+    <string name="plugin_repo_action_update">更新到 %1$s</string>
+    <string name="plugin_repo_action_installed">已安装 %1$s</string>
+    <string name="plugin_repo_action_uninstall">卸载</string>
+    <string name="plugin_repo_state_installed">已安装</string>
+    <string name="plugin_repo_state_update">可更新</string>
     <string name="plugin_repo_action_processing">处理中...</string>
     <string name="plugin_repo_action_install">安装 %1$s</string>
     <string name="plugin_repo_action_open_github">在 GitHub 查看</string>

@@ -64,12 +64,16 @@ class PluginManager(
         return installer.previewPackage(bytes, source)
     }
 
-    suspend fun installPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallResult {
+    suspend fun installPackage(
+        bytes: ByteArray,
+        source: PluginInstallSource,
+        sourceRepo: String? = null,
+    ): PluginInstallResult {
         PluginLogger.info(
             "plugin.manager.install.start",
             mapOf("source" to source, "bytes" to bytes.size),
         )
-        return installer.installPackage(bytes, source)
+        return installer.installPackage(bytes, source, sourceRepo)
     }
 
     suspend fun removePlugin(pluginKey: String) {

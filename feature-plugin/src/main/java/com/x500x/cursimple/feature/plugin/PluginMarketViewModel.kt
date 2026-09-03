@@ -184,7 +184,8 @@ class PluginMarketViewModel(
         val source = pendingSource ?: PluginInstallSource.Local
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, status = PluginMarketStatus.Installing) }
-            when (val result = pluginManager.installPackage(bytes, source)) {
+            val sourceRepo = _uiState.value.installPreviewOrigin?.repoSlug
+            when (val result = pluginManager.installPackage(bytes, source, sourceRepo)) {
                 is PluginInstallResult.Success -> {
                     pendingBytes = null
                     pendingSource = null
