@@ -87,6 +87,16 @@ internal fun SystemCalendarPanel(
     var lastRecordAt by remember { mutableStateOf(0L) }
     var pendingOverwrite by remember { mutableStateOf(false) }
 
+    val resources = LocalContext.current.resources
+    val permissionDeniedText = stringResource(R.string.calendar_toast_permission_denied)
+    val nothingToUndoText = stringResource(R.string.calendar_toast_nothing_to_undo)
+    val failedUnknownText = stringResource(R.string.calendar_toast_failed_unknown)
+    // 带占位符的先取原文，写入结果出来后再填数
+    val skippedFormat = stringResource(R.string.calendar_export_skipped)
+    val exportedFormat = stringResource(R.string.calendar_toast_exported)
+    val undoneFormat = stringResource(R.string.calendar_toast_undone)
+    val failedFormat = stringResource(R.string.calendar_toast_failed)
+
     fun reloadRecord() {
         val record = SystemCalendarExportStore.read(context)
         lastRecordEventCount = record?.eventIds?.size ?: 0
@@ -136,22 +146,17 @@ internal fun SystemCalendarPanel(
             val message = when (result) {
                 is SystemCalendarWriteResult.Success -> {
                     val skippedNote = if (result.skipped.isNotEmpty()) {
-                        "\n" + context.getString(R.string.calendar_export_skipped, result.skipped.size)
+                        "\n" + skippedFormat.format(result.skipped.size)
                     } else {
                         ""
                     }
-                    context.getString(
-                        R.string.calendar_toast_exported,
-                        result.eventCount,
-                        result.occurrenceCount,
-                    ) + skippedNote
+                    exportedFormat.format(result.eventCount, result.occurrenceCount) + skippedNote
                 }
-                SystemCalendarWriteResult.PermissionDenied ->
-                    context.getString(R.string.calendar_toast_permission_denied)
-                is SystemCalendarWriteResult.MissingConfig -> context.getString(result.reason)
+                SystemCalendarWriteResult.PermissionDenied -> permissionDeniedText
+                is SystemCalendarWriteResult.MissingConfig -> resources.getString(result.reason)
                 is SystemCalendarWriteResult.Failed -> result.message
-                    ?.let { context.getString(R.string.calendar_toast_failed, it) }
-                    ?: context.getString(R.string.calendar_toast_failed_unknown)
+                    ?.let { failedFormat.format(it) }
+                    ?: failedUnknownText
             }
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
@@ -165,15 +170,12 @@ internal fun SystemCalendarPanel(
             busy = false
             reloadRecord()
             val message = when (result) {
-                is SystemCalendarUndoResult.Success ->
-                    context.getString(R.string.calendar_toast_undone, result.removedCount)
-                SystemCalendarUndoResult.NothingToUndo ->
-                    context.getString(R.string.calendar_toast_nothing_to_undo)
-                SystemCalendarUndoResult.PermissionDenied ->
-                    context.getString(R.string.calendar_toast_permission_denied)
+                is SystemCalendarUndoResult.Success -> undoneFormat.format(result.removedCount)
+                SystemCalendarUndoResult.NothingToUndo -> nothingToUndoText
+                SystemCalendarUndoResult.PermissionDenied -> permissionDeniedText
                 is SystemCalendarUndoResult.Failed -> result.message
-                    ?.let { context.getString(R.string.calendar_toast_failed, it) }
-                    ?: context.getString(R.string.calendar_toast_failed_unknown)
+                    ?.let { failedFormat.format(it) }
+                    ?: failedUnknownText
             }
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }

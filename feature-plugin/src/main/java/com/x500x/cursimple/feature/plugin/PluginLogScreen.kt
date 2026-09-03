@@ -81,6 +81,8 @@ fun PluginLogScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val clipLabel = stringResource(R.string.plugin_log_title)
+    val clearedText = stringResource(R.string.plugin_log_cleared)
+    val copiedOneText = stringResource(R.string.plugin_log_copied_one)
     val listState = rememberLazyListState()
 
     val filtered = remember(entries, levelFilter, sourceFilter, query, pinnedTraceId) {
@@ -92,6 +94,7 @@ fun PluginLogScreen(
                 (q.isEmpty() || entry.matches(q))
         }
     }
+    val copiedCountText = stringResource(R.string.plugin_log_copied_count, filtered.size)
 
     Scaffold(
         modifier = modifier,
@@ -113,7 +116,7 @@ fun PluginLogScreen(
                             clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(clipLabel, lines)))
                             Toast.makeText(
                                 context,
-                                context.getString(R.string.plugin_log_copied_count, filtered.size),
+                                copiedCountText,
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }
@@ -127,7 +130,7 @@ fun PluginLogScreen(
                         buffer.clear()
                         Toast.makeText(
                             context,
-                            context.getString(R.string.plugin_log_cleared),
+                            clearedText,
                             Toast.LENGTH_SHORT,
                         ).show()
                     }) {
@@ -192,13 +195,13 @@ fun PluginLogScreen(
                             onPinTrace = { entry.traceId?.let { pinnedTraceId = it } },
                             onCopy = {
                                 coroutineScope.launch {
-                                    val label = context.getString(R.string.plugin_log_title)
+                                    val label = clipLabel
                                     clipboard.setClipEntry(
                                         ClipEntry(ClipData.newPlainText(label, entry.toJsonLine())),
                                     )
                                     Toast.makeText(
                                         context,
-                                        context.getString(R.string.plugin_log_copied_one),
+                                        copiedOneText,
                                         Toast.LENGTH_SHORT,
                                     ).show()
                                 }
