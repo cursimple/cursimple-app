@@ -72,7 +72,12 @@ class ClassScheduleApplication : Application() {
 
         appScope.launch {
             appContainer.bootstrapJob.join()
-            appContainer.scheduleSystemAlarmChecks()
+            // 强制停止会清空本应用全部已注册的闹钟，且此后广播与 WorkManager 都不再投递，
+            // 只有用户重新打开应用这一个时机能发现并补回来
+            runCatching { appContainer.ensureAlarmRuntimeHealth() }
+                .onFailure { error ->
+                    ReminderLogger.warn("reminder.startup.health_check.failure", emptyMap(), error)
+                }
             appContainer.tryRunSharedAlarmPoll(ReminderSyncReason.WidgetRefresh)
         }
 
