@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reminder_exact_alarm_permission_off">精確鬧鐘許可權未開啟</string>
+    <string name="reminder_app_alarm_set">App 自管鬧鐘已設定</string>
+    <string name="reminder_exact_alarm_denied">系統拒絕設定精確鬧鐘</string>
+    <string name="reminder_app_alarm_set_failed">設定 App 自管鬧鐘失敗</string>
+    <string name="reminder_app_alarm_cancelled">App 自管鬧鐘已取消</string>
+    <string name="reminder_app_alarm_cancel_failed">取消 App 自管鬧鐘失敗</string>
+
+    <string name="reminder_system_clock_create_accepted">系統時鐘已接受建立請求</string>
+    <string name="reminder_system_clock_unavailable">系統時鐘應用不可用</string>
+    <string name="reminder_system_clock_create_denied">系統拒絕建立鬧鐘</string>
+    <string name="reminder_system_clock_create_failed">建立系統鬧鐘失敗</string>
+    <string name="reminder_system_clock_delete_accepted">系統時鐘已接受刪除請求</string>
+    <string name="reminder_system_clock_delete_denied">系統拒絕刪除鬧鐘</string>
+    <string name="reminder_system_clock_delete_failed">刪除系統鬧鐘失敗</string>
+
+    <string name="reminder_rebuild_app_alarm_failed">重建 App 自管鬧鐘失敗</string>
+    <string name="reminder_cancel_alarm_failed">取消鬧鐘失敗</string>
+    <string name="reminder_disable_alarm_failed">關閉鬧鐘失敗</string>
+    <string name="reminder_enable_alarm_failed">啟用鬧鐘失敗</string>
+    <string name="reminder_delete_alarm_failed">刪除鬧鐘失敗</string>
+    <string name="reminder_snooze_setup_failed">延後鬧鐘設定失敗</string>
+    <string name="reminder_registration_missing">鬧鐘登記已不存在</string>
+    <string name="reminder_expired_registration_removed">已移除過期鬧鐘登記</string>
+    <string name="reminder_alarm_time_passed">鬧鐘時間已過，無法重新啟用</string>
+    <string name="reminder_alarm_dismissed">鬧鐘已關閉</string>
+    <string name="reminder_snoozed_five_minutes">已延後 5 分鐘</string>
+    <string name="reminder_manual_alarm_default_title">手動鬧鐘</string>
+    <string name="reminder_manual_alarm_default_message">手動建立的提醒</string>
+
+    <string name="reminder_system_clock_dispatch_requires_foreground">應用未在前臺，系統時鐘無法建立鬧鐘，請開啟應用後重試</string>
+    <string name="reminder_system_clock_dismiss_requires_foreground">應用未在前臺，系統時鐘無法刪除鬧鐘，請開啟應用後重試</string>
+
+    <string name="reminder_notification_title">%1$s %2$s %3$s</string>
+    <string name="reminder_notification_title_exam">考試：%1$s</string>
+    <string name="reminder_notification_title_first_course_morning">上午首次課：%1$s</string>
+    <string name="reminder_notification_title_first_course_afternoon">下午首次課：%1$s</string>
+    <string name="reminder_notification_title_first_course_evening">晚上首次課：%1$s</string>
+    <string name="reminder_notification_title_advance">%1$s（提前%2$d分鐘）</string>
+    <string name="reminder_notification_message">%1$s %2$s %3$s-%4$s · %5$s · %6$s</string>
+    <string name="reminder_notification_date">%1$d月%2$d日</string>
+    <string name="reminder_notification_nodes">第%1$d-%2$d節</string>
+    <string name="reminder_notification_location_tbd">待定教室</string>
+    <string name="reminder_weekday_other">周%1$d</string>
+
+</resources>
