@@ -72,5 +72,6 @@ object AppLocale {
 fun AppLanguage.toLocale(): Locale? = when (this) {
     AppLanguage.System -> null
     AppLanguage.Chinese -> Locale.SIMPLIFIED_CHINESE
+    AppLanguage.TraditionalChinese -> Locale.TRADITIONAL_CHINESE
     AppLanguage.English -> Locale.ENGLISH
 }
