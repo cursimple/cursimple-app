@@ -766,6 +766,8 @@ private fun WeeklyScheduleSection(
                 )
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val lastEdgeToastAt = androidx.compose.runtime.remember { androidx.compose.runtime.mutableLongStateOf(0L) }
+                val firstWeekText = stringResource(R.string.schedule_edge_first_week)
+                val lastWeekText = stringResource(R.string.schedule_edge_last_week)
                 val edgeNestedScroll = androidx.compose.runtime.remember(pagerState, pageCount) {
                     object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
                         override fun onPostScroll(
@@ -782,7 +784,7 @@ private fun WeeklyScheduleSection(
                                     lastEdgeToastAt.longValue = now
                                     android.widget.Toast.makeText(
                                         context,
-                                        if (atStart) context.getString(R.string.schedule_edge_first_week) else context.getString(R.string.schedule_edge_last_week),
+                                        if (atStart) firstWeekText else lastWeekText,
                                         android.widget.Toast.LENGTH_SHORT,
                                     ).show()
                                 }
@@ -967,10 +969,6 @@ private fun DailyScheduleSection(
     val today = LocalAppZone.current.today()
     val dayResolution = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
     val sourceDate = dayResolution.sourceDate
-    val targetDayOfWeek = sourceDate.dayOfWeek.value
-    val sourceWeekNumber = computeWeekNumberForDate(termStartDate, sourceDate).takeIf {
-        sourceDate != targetDate
-    } ?: targetWeekNumber
     val overrideLabel = sourceDate.takeIf { it != targetDate }?.let { sourceDateLabel(it) }
     val holidayLabel = dayResolution.takeIf { it.isHoliday }?.let { holidayDisplayLabel(it.holidayName, it.holidayNameRes) }
 
@@ -998,10 +996,11 @@ private fun DailyScheduleSection(
             }
 
 
+            // 目标状态必须是日期本身，否则进出两侧会渲染同一天，滑动切换看不出区别
             AnimatedContent(
-                targetState = dayOffset,
+                targetState = targetDate,
                 transitionSpec = {
-                    val direction = if (targetState > initialState) 1 else -1
+                    val direction = if (targetState.isAfter(initialState)) 1 else -1
                     (slideInHorizontally(animationSpec = tween(260)) { full -> full * direction } +
                         fadeIn(animationSpec = tween(260)))
                         .togetherWith(
@@ -1011,20 +1010,27 @@ private fun DailyScheduleSection(
                 },
                 label = "day-list",
                 modifier = Modifier.fillMaxSize(),
-            ) { _ ->
+            ) { animatedDate ->
+                val animatedResolution =
+                    resolveScheduleDay(animatedDate, temporaryScheduleOverrides, holidayCalendar)
+                val animatedSourceDate = animatedResolution.sourceDate
+                val animatedWeekNumber =
+                    computeWeekNumberForDate(termStartDate, animatedSourceDate).takeIf {
+                        animatedSourceDate != animatedDate
+                    } ?: targetWeekNumber
                 // 还没开学时不按周过滤，课程照常列出并按不可用态显示
-                val beforeTerm = sourceWeekNumber != null && sourceWeekNumber < 1
+                val beforeTerm = animatedWeekNumber != null && animatedWeekNumber < 1
                 val active = allCourses
-                    .filter { it.time.dayOfWeek == targetDayOfWeek }
-                    .filter { beforeTerm || sourceWeekNumber == null || it.isActiveInWeek(sourceWeekNumber) }
+                    .filter { it.time.dayOfWeek == animatedSourceDate.dayOfWeek.value }
+                    .filter { beforeTerm || animatedWeekNumber == null || it.isActiveInWeek(animatedWeekNumber) }
                     .sortedBy { it.time.startNode }
                 DayList(
                     slots = slots,
                     courses = active,
-                    onHoliday = holidayLabel != null,
+                    onHoliday = animatedResolution.isHoliday,
                     beforeTerm = beforeTerm,
                     timingProfile = timingProfile,
-                    targetDate = targetDate,
+                    targetDate = animatedDate,
                     temporaryScheduleOverrides = temporaryScheduleOverrides,
                     reminderRules = reminderRules,
                     courseNotes = courseNotes,
@@ -2861,6 +2867,9 @@ private fun ScheduleGridBackground(
         val imageUri = scheduleBackground.imageUri?.takeIf(String::isNotBlank)
         if (scheduleBackground.type == ScheduleBackgroundType.Image && imageUri != null) {
             val context = LocalContext.current
+            val openFailedText = stringResource(R.string.schedule_bg_open_failed)
+            val decodeFailedText = stringResource(R.string.schedule_bg_decode_failed)
+            val readFailedText = stringResource(R.string.schedule_bg_read_failed)
             val imageState by androidx.compose.runtime.produceState(
                 initialValue = ScheduleBackgroundImageState(),
                 key1 = imageUri,
@@ -2868,13 +2877,13 @@ private fun ScheduleGridBackground(
                 value = withContext(Dispatchers.IO) {
                     runCatching {
                         context.contentResolver.openInputStream(Uri.parse(imageUri)).use { input ->
-                            requireNotNull(input) { context.getString(R.string.schedule_bg_open_failed) }
-                            requireNotNull(BitmapFactory.decodeStream(input)) { context.getString(R.string.schedule_bg_decode_failed) }
+                            requireNotNull(input) { openFailedText }
+                            requireNotNull(BitmapFactory.decodeStream(input)) { decodeFailedText }
                                 .asImageBitmap()
                         }
                     }.fold(
                         onSuccess = { ScheduleBackgroundImageState(image = it) },
-                        onFailure = { ScheduleBackgroundImageState(errorMessage = it.message ?: context.getString(R.string.schedule_bg_read_failed)) },
+                        onFailure = { ScheduleBackgroundImageState(errorMessage = it.message ?: readFailedText) },
                     )
                 }
             }
