@@ -146,3 +146,4 @@ jobs:
             app/build/outputs/apk/release/update.json
           body_path: ${{ env.RELEASE_NOTES }}
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
