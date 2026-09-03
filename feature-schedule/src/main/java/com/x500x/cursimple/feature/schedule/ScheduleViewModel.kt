@@ -860,6 +860,9 @@ class ScheduleViewModel(
 
     fun refreshReminderAlarmsNow() {
         viewModelScope.launch {
+            // 课表推导出的闹钟之外，注册表里的手动闹钟也要重建，
+            // 应用被强制停止后系统会把两者一起清掉
+            runCatching { reminderCoordinator.recreateAppManagedAlarmsFromRegistry() }
             val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
             _uiState.update {
                 it.copy(
