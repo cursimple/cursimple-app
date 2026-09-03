@@ -268,7 +268,6 @@ fun AppSettingsRoute(
     scheduleCustomColorsAdaptToTheme: Boolean,
     widgetThemePreferences: WidgetThemePreferences,
     currentWeekIndex: Int,
-    alarmBackend: ReminderAlarmBackend,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
@@ -327,7 +326,6 @@ fun AppSettingsRoute(
     onScheduleLocationPrefixAtEnabledChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
-    onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
@@ -401,7 +399,6 @@ fun AppSettingsRoute(
     }
     var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
     var showHolidayEditor by rememberSaveable { mutableStateOf(false) }
-    var showAlarmBackendDialog by rememberSaveable { mutableStateOf(false) }
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
     var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -1123,16 +1120,6 @@ fun AppSettingsRoute(
             onRemove = onRemoveHolidayCalendarEntry,
             onClear = onClearHolidayCalendarEntries,
             onDismiss = { showHolidayEditor = false },
-        )
-    }
-    if (showAlarmBackendDialog) {
-        AlarmBackendDialog(
-            selected = alarmBackend,
-            onSelect = {
-                onAlarmBackendChange(it)
-                showAlarmBackendDialog = false
-            },
-            onDismiss = { showAlarmBackendDialog = false },
         )
     }
 }
@@ -2391,63 +2378,8 @@ private fun AlarmNumberSettingRow(
     }
 }
 
-@Composable
-private fun AlarmBackendDialog(
-    selected: ReminderAlarmBackend,
-    onSelect: (ReminderAlarmBackend) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.settings_alarm_backend_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ReminderAlarmBackend.entries.forEach { backend ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onSelect(backend) }
-                            .padding(vertical = 6.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        RadioButton(
-                            selected = selected == backend,
-                            onClick = { onSelect(backend) },
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = alarmBackendLabel(backend),
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                text = alarmBackendDescription(backend),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
-        },
-    )
-}
 
-@Composable
-private fun alarmBackendLabel(backend: ReminderAlarmBackend): String = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> stringResource(R.string.settings_alarm_backend_app)
-    ReminderAlarmBackend.SystemClockApp -> stringResource(R.string.settings_alarm_backend_system)
-}
 
-@Composable
-private fun alarmBackendDescription(backend: ReminderAlarmBackend): String = when (backend) {
-    ReminderAlarmBackend.AppAlarmClock -> stringResource(R.string.settings_alarm_backend_app_desc)
-    ReminderAlarmBackend.SystemClockApp -> stringResource(R.string.settings_alarm_backend_system_desc)
-}
 
 private fun launchSettingsIntent(context: Context, intent: Intent) {
     runCatching {
@@ -3699,13 +3631,11 @@ private fun SettingsSwitchRow(
 @Composable
 fun SettingsRoute(
     viewModel: ScheduleViewModel,
-    alarmBackend: ReminderAlarmBackend,
     alarmRingtoneUri: String?,
     alarmAlertMode: AlarmAlertMode,
     alarmRingDurationSeconds: Int,
     alarmRepeatIntervalSeconds: Int,
     alarmRepeatCount: Int,
-    onAlarmBackendChange: (ReminderAlarmBackend) -> Unit,
     onAlarmRingtoneUriChange: (String?) -> Unit,
     onAlarmAlertModeChange: (AlarmAlertMode) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
@@ -3717,13 +3647,11 @@ fun SettingsRoute(
 ) {
     ScheduleSettingsRoute(
         viewModel = viewModel,
-        alarmBackend = alarmBackend,
         alarmRingtoneUri = alarmRingtoneUri,
         alarmAlertMode = alarmAlertMode,
         alarmRingDurationSeconds = alarmRingDurationSeconds,
         alarmRepeatIntervalSeconds = alarmRepeatIntervalSeconds,
         alarmRepeatCount = alarmRepeatCount,
-        onAlarmBackendChange = onAlarmBackendChange,
         onAlarmRingtoneUriChange = onAlarmRingtoneUriChange,
         onAlarmAlertModeChange = onAlarmAlertModeChange,
         onAlarmRingDurationSecondsChange = onAlarmRingDurationSecondsChange,
