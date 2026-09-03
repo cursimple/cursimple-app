@@ -1018,6 +1018,13 @@ class MainActivity : ComponentActivity() {
                         null -> Unit
                     }
 
+                    // 非课表页按返回键退回课表，只有课表页才把返回交给系统去关应用
+                    androidx.activity.compose.BackHandler(
+                        enabled = subScreen == null && currentScreen != AppScreen.Schedule,
+                    ) {
+                        currentScreen = AppScreen.Schedule
+                    }
+
                     if (showDatePicker) {
                         TermStartDatePicker(
                             initial = prefs.termStartDate,
