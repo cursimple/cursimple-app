@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_error_package_duplicate_file">外掛包包含重複檔案: %1$s</string>
+    <string name="plugin_error_package_file_count_exceeded">外掛包檔案數量超過限制: %1$d</string>
+    <string name="plugin_error_package_size_exceeded">外掛包解壓後體積超過限制: %1$d</string>
+    <string name="plugin_error_manifest_missing_entry">外掛 manifest 缺少 entry</string>
+    <string name="plugin_error_package_blank_path">外掛包包含空路徑</string>
+    <string name="plugin_error_package_absolute_path">外掛包包含絕對路徑: %1$s</string>
+    <string name="plugin_error_package_windows_drive_path">外掛包包含 Windows 磁碟機代號路徑: %1$s</string>
+    <string name="plugin_error_package_path_traversal">外掛包包含路徑穿越: %1$s</string>
+    <string name="plugin_error_package_illegal_path">外掛包包含非法路徑: %1$s</string>
+    <string name="plugin_error_plugin_id_charset">外掛 ID 只能包含字母、數字、點、下劃線和連字元: %1$s</string>
+    <string name="plugin_error_package_missing_file">外掛包缺少檔案: %1$s</string>
+    <string name="plugin_error_package_missing_entry_file">外掛包缺少入口檔案: %1$s</string>
+
+    <string name="plugin_error_checksum_algorithm_unsupported">外掛摘要只支援 SHA-256: %1$s</string>
+    <string name="plugin_error_checksum_empty">外掛摘要不能為空</string>
+    <string name="plugin_error_checksum_unknown_file">外掛摘要包含不存在的檔案: %1$s</string>
+    <string name="plugin_error_checksum_format_invalid">外掛摘要格式無效: %1$s</string>
+    <string name="plugin_error_checksum_coverage">外掛摘要檔案覆蓋不完整</string>
+    <string name="plugin_error_checksum_coverage_missing">外掛摘要檔案覆蓋不完整，缺少: %1$s</string>
+    <string name="plugin_error_checksum_coverage_extra">外掛摘要檔案覆蓋不完整，多餘: %1$s</string>
+    <string name="plugin_error_checksum_coverage_missing_extra">外掛摘要檔案覆蓋不完整，缺少: %1$s，多餘: %2$s</string>
+
+    <string name="plugin_error_signature_scope">外掛簽名只能覆蓋 %1$s: %2$s</string>
+    <string name="plugin_error_signature_checksum_mismatch">外掛簽名與包內摘要清單不匹配</string>
+    <string name="plugin_error_signature_unparseable">外掛簽名無法解析</string>
+    <string name="plugin_error_signature_algorithm_unsupported">外掛簽名演算法不受支援: %1$s</string>
+    <string name="plugin_error_signature_missing_public_key">外掛簽名缺少公鑰</string>
+    <string name="plugin_error_signature_key_too_weak">外掛簽名公鑰強度不足: %1$d 位</string>
+    <string name="plugin_error_base64_illegal_character">Base64 內容包含非法字元</string>
+
+    <string name="plugin_error_draft_too_many_courses">外掛返回的課程數量過多</string>
+    <string name="plugin_error_draft_blank_course_title">外掛返回了空課程名稱</string>
+    <string name="plugin_error_draft_invalid_day_of_week">外掛返回了無效星期: %1$d</string>
+    <string name="plugin_error_draft_invalid_start_node">外掛返回了無效開始節次: %1$d</string>
+    <string name="plugin_error_draft_invalid_end_node">外掛返回了無效結束節次: %1$d</string>
+    <string name="plugin_error_draft_invalid_weeks">外掛返回了無效教學周</string>
+
+    <string name="plugin_error_record_missing_entry">外掛記錄缺少入口檔案</string>
+    <string name="plugin_error_file_path_escape">外掛檔案路徑越界: %1$s</string>
+
+    <string name="plugin_error_component_install_failed">元件安裝失敗</string>
+    <string name="plugin_error_component_manifest_missing_id">元件 manifest 缺少 id</string>
+    <string name="plugin_error_component_manifest_missing_version">元件 manifest 缺少 version</string>
+    <string name="plugin_error_component_sha256_format_invalid">元件 SHA-256 格式無效</string>
+    <string name="plugin_error_component_abi_incompatible">元件 ABI 不相容: %1$s</string>
+    <string name="plugin_error_component_package_empty">元件包沒有有效檔案</string>
+    <string name="plugin_error_component_package_unlisted_files">元件包包含 manifest.files 未宣告檔案: %1$s</string>
+    <string name="plugin_error_component_package_missing_file">元件包缺少檔案: %1$s</string>
+    <string name="plugin_error_component_sha256_mismatch">元件 SHA-256 校驗失敗</string>
+    <string name="plugin_error_component_install_dir_escape">元件安裝目錄越界</string>
+    <string name="plugin_error_component_package_path_escape">元件包路徑越界: %1$s</string>
+    <string name="plugin_error_component_package_duplicate_file">元件包包含重複檔案: %1$s</string>
+    <string name="plugin_error_component_package_file_count_exceeded">元件包檔案數量超過限制: %1$d</string>
+    <string name="plugin_error_component_package_size_exceeded">元件包解壓後體積超過限制: %1$d</string>
+    <string name="plugin_error_component_package_missing_manifest">元件包缺少 manifest.json</string>
+    <string name="plugin_error_component_package_blank_path">元件包包含空路徑</string>
+    <string name="plugin_error_component_package_absolute_path">元件包包含絕對路徑: %1$s</string>
+    <string name="plugin_error_component_package_windows_drive_path">元件包包含 Windows 磁碟機代號路徑: %1$s</string>
+    <string name="plugin_error_component_package_path_traversal">元件包包含路徑穿越: %1$s</string>
+    <string name="plugin_error_component_package_illegal_path">元件包包含非法路徑: %1$s</string>
+
+    <string name="plugin_error_install_failed">安裝外掛失敗</string>
+    <string name="plugin_error_install_checksum_rejected">外掛摘要校驗失敗</string>
+    <string name="plugin_error_install_signature_rejected">外掛簽名校驗失敗</string>
+    <string name="plugin_error_install_signature_rejected_detail">外掛簽名校驗失敗: %1$s</string>
+
+    <string name="plugin_error_compatibility_api_undeclared">外掛包沒有宣告介面版本，無法確認與當前版本相容</string>
+    <string name="plugin_error_compatibility_api_invalid">外掛宣告的介面版本無效</string>
+    <string name="plugin_error_compatibility_api_too_new">外掛需要介面版本 %1$d，當前應用只支援到 %2$d</string>
+
+    <string name="plugin_error_incompatible_platform">外掛與當前外掛平臺不相容</string>
+    <string name="plugin_message_runtime_ready">外掛執行時已準備，需要在 WebView 會話中執行入口指令碼</string>
+    <string name="plugin_message_needs_components">外掛需要安裝元件後才能執行</string>
+    <string name="plugin_error_sync_start_failed">外掛同步啟動失敗</string>
+    <string name="plugin_error_sync_resume_failed">外掛同步恢復失敗</string>
+    <string name="plugin_error_web_session_missing">待恢復的 Web 會話不存在</string>
+    <string name="plugin_error_web_session_mismatch">Web 會話與外掛不匹配</string>
+    <string name="plugin_error_schedule_write_permission_missing">外掛未宣告 schedule.write 許可權</string>
+    <string name="plugin_error_schedule_draft_missing">外掛未提交課程草稿</string>
+    <string name="plugin_error_schedule_draft_too_large">外掛課程草稿超過輸出大小限制</string>
+    <string name="plugin_error_chromium_component_undeclared">外掛宣告 Chromium Web 引擎但未宣告 Chromium 元件</string>
+    <string name="plugin_error_web_engine_unsupported">外掛宣告瞭不支援的 Web 引擎: %1$s</string>
+    <string name="plugin_error_plugin_not_found">未找到外掛: %1$s</string>
+
+    <string name="plugin_error_start_url_label_explicit">外掛起始地址</string>
+    <string name="plugin_error_start_url_label_manifest">外掛 manifest startUrl</string>
+    <string name="plugin_error_start_url_missing_host">%1$s 缺少域名</string>
+    <string name="plugin_error_start_url_host_not_allowed">%1$s 不在 allowedHosts 中: %2$s</string>
+    <string name="plugin_error_start_url_missing">外掛缺少可開啟的起始地址</string>
+    <string name="plugin_error_start_url_invalid">外掛起始地址無效: %1$s</string>
+    <string name="plugin_error_start_url_scheme">外掛起始地址必須使用 http 或 https</string>
+    <string name="plugin_error_allowed_host_blank">外掛 allowedHosts 包含空域名</string>
+    <string name="plugin_error_allowed_host_not_domain">外掛 allowedHosts 只能宣告域名: %1$s</string>
+    <string name="plugin_error_allowed_host_invalid">外掛 allowedHosts 域名無效: %1$s</string>
+
+    <string name="plugin_error_registry_repo_invalid">無效的登錄檔倉庫：%1$s</string>
+    <string name="plugin_error_plugin_repo_invalid">無效的外掛倉庫：%1$s</string>
+    <string name="plugin_error_release_manifest_missing_filename">外掛 release manifest 缺少 filename</string>
+    <string name="plugin_error_release_manifest_missing_version">外掛 release manifest 缺少 version</string>
+    <string name="plugin_error_release_filename_path">外掛 release 檔名不能包含路徑: %1$s</string>
+    <string name="plugin_error_http_request_failed">請求失敗 %1$d: %2$s</string>
+    <string name="plugin_error_market_index_signature_invalid">市場索引簽名無效</string>
+    <string name="plugin_error_market_index_load_failed">載入市場索引失敗: %1$d</string>
+    <string name="plugin_error_package_download_failed">下載外掛包失敗: %1$d</string>
+</resources>

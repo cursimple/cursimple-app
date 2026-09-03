@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="data_timing_error_no_slots">請至少新增一個節次時間段</string>
+    <string name="data_timing_error_node_not_number">第 %1$d 行：節次必須填數字</string>
+    <string name="data_timing_error_node_out_of_range">第 %1$d 行：節次必須在 %2$d-%3$d 之間</string>
+    <string name="data_timing_error_node_reversed">第 %1$d 行：起始節不能大於結束節</string>
+    <string name="data_timing_error_time_format">第 %1$d 行：時間格式應為 HH:mm</string>
+    <string name="data_timing_error_time_reversed">第 %1$d 行：開始時間必須早於結束時間</string>
+    <string name="data_timing_error_node_overlap">節次區間重疊：第 %1$d-%2$d 節與第 %3$d-%4$d 節</string>
+
+    <string name="data_timing_template_single11_name">單節制 · 11 節</string>
+    <string name="data_timing_template_single11_summary">上午 4 節、下午 4 節、晚上 3 節，示例時間，請按本校作息調整</string>
+    <string name="data_timing_template_block5_name">大節制 · 5 大節</string>
+    <string name="data_timing_template_block5_summary">每大節連排 2 小節，示例時間，請按本校作息調整</string>
+    <string name="data_timing_template_single8_name">單節制 · 8 節（無晚課）</string>
+    <string name="data_timing_template_single8_summary">上午 4 節、下午 4 節，示例時間，請按本校作息調整</string>
+
+    <string name="data_timing_slot_label_period">第%1$d節</string>
+    <string name="data_timing_slot_label_block_1">第一大節</string>
+    <string name="data_timing_slot_label_block_2">第二大節</string>
+    <string name="data_timing_slot_label_block_3">第三大節</string>
+    <string name="data_timing_slot_label_block_4">第四大節</string>
+    <string name="data_timing_slot_label_block_5">第五大節</string>
+    <string name="data_timing_slot_label_block_6">第六大節</string>
+    <string name="data_timing_slot_label_block_7">第七大節</string>
+    <string name="data_timing_slot_label_block_8">第八大節</string>
+
+    <string name="data_term_default_name">新學期</string>
+    <string name="data_term_bootstrap_default_name">預設學期</string>
+
+    <string name="data_plugin_legacy_missing_api_version">舊版外掛記錄缺少 API 版本</string>
+    <string name="data_plugin_legacy_missing_entry">舊版外掛記錄缺少 JS 入口檔案</string>
+</resources>

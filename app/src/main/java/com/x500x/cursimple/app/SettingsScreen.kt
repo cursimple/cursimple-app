@@ -3667,6 +3667,8 @@ fun SettingsRoute(
 internal fun appLanguageLabel(language: AppLanguage): String = when (language) {
     AppLanguage.System -> stringResource(R.string.settings_language_system)
     AppLanguage.Chinese -> stringResource(R.string.settings_language_chinese)
+    // 语言名用该语言自身书写，不随界面语言变化
+    AppLanguage.TraditionalChinese -> "繁體中文"
     AppLanguage.English -> "English"
 }
 

@@ -38,6 +38,7 @@ enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
 enum class AppLanguage(val tag: String) {
     System(""),
     Chinese("zh-CN"),
+    TraditionalChinese("zh-TW"),
     English("en"),
 }
 
