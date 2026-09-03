@@ -14,6 +14,8 @@ data class TermProfile(
     /** ISO yyyy-MM-dd 格式；为 null 表示尚未设置，需要询问用户。 */
     @SerialName("termStartDate") val termStartDate: String? = null,
     @SerialName("createdAt") val createdAt: Long = System.currentTimeMillis(),
+    /** 绑定的作息 id；为 null 表示跟随当前选中的那一套。 */
+    @SerialName("timingProfileId") val timingProfileId: String? = null,
 )
 
 /** 活动学期的开学日期（ISO yyyy-MM-dd）；列表里没有该学期时为 null。 */

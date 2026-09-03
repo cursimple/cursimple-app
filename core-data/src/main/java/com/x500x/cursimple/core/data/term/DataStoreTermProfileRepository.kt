@@ -72,6 +72,15 @@ class DataStoreTermProfileRepository(
         }
     }
 
+    override suspend fun setTermTimingProfile(id: String, timingProfileId: String?) {
+        store.edit { prefs ->
+            val list = readTerms(prefs).map {
+                if (it.id == id) it.copy(timingProfileId = timingProfileId) else it
+            }
+            prefs[KEY_TERMS_JSON] = json.encodeToString(listSerializer, list)
+        }
+    }
+
     override suspend fun setTermStartDate(id: String, dateIso: String?) {
         store.edit { prefs ->
             val list = readTerms(prefs).map {
