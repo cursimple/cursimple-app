@@ -28,6 +28,8 @@ data class InstalledPluginRecord(
     @SerialName("compatibilityStatus") val compatibilityStatus: PluginCompatibilityStatus = PluginCompatibilityStatus.Compatible,
     @SerialName("compatibilityMessage") val compatibilityMessage: String? = null,
     @SerialName("isBundled") val isBundled: Boolean = false,
+    /** 装自插件市场时记下来源仓库，市场据此判断已装与可更新；本地包安装为 null。 */
+    @SerialName("sourceRepo") val sourceRepo: String? = null,
 ) {
     val installKey: String get() = pluginInstallKey(pluginId, source)
 }

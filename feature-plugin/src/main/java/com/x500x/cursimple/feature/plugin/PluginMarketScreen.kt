@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,7 +33,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Extension
@@ -281,6 +285,12 @@ private fun PluginListContent(
         }
     }
 
+    // 详情页要先退回列表，否则系统返回键会一路退出应用
+    androidx.activity.compose.BackHandler(enabled = detailPluginKey != null || detailRepoSlug != null) {
+        detailPluginKey = null
+        detailRepoSlug = null
+    }
+
     if (detailPlugin != null) {
         PluginDetailScreen(
             plugin = detailPlugin,
@@ -300,10 +310,16 @@ private fun PluginListContent(
     if (detailRepo != null) {
         GitHubRepoDetailScreen(
             repo = detailRepo,
+            installState = resolveRepoInstallState(
+                repoSlug = detailRepo.fullName,
+                latestTag = detailRepo.latestRelease?.tagName,
+                installed = uiState.installedPlugins,
+            ),
             isLoading = uiState.isLoading,
             onBack = { detailRepoSlug = null },
             onOpenRepo = { onOpenRepo(detailRepo.htmlUrl) },
             onInstall = { onInstallFromGitHub(detailRepo) },
+            onUninstall = onRemovePlugin,
             modifier = modifier,
         )
         return
@@ -372,6 +388,7 @@ private fun PluginListContent(
             item {
                 MarketGrid(
                     repos = uiState.marketRepos,
+                    installed = uiState.installedPlugins,
                     onOpenDetail = { repo -> detailRepoSlug = repo.fullName },
                 )
             }
@@ -420,6 +437,7 @@ private fun MarketSectionHeader(registryRepo: String) {
 @Composable
 private fun MarketGrid(
     repos: List<GitHubRepoSummary>,
+    installed: List<InstalledPluginRecord>,
     onOpenDetail: (GitHubRepoSummary) -> Unit,
 ) {
     val rows = (repos.size + 1) / 2
@@ -435,7 +453,15 @@ private fun MarketGrid(
         userScrollEnabled = false,
     ) {
         items(repos, key = { it.fullName }) { repo ->
-            GitHubRepoCard(repo = repo, onClick = { onOpenDetail(repo) })
+            GitHubRepoCard(
+                repo = repo,
+                installState = resolveRepoInstallState(
+                    repoSlug = repo.fullName,
+                    latestTag = repo.latestRelease?.tagName,
+                    installed = installed,
+                ),
+                onClick = { onOpenDetail(repo) },
+            )
         }
     }
 }
@@ -443,6 +469,7 @@ private fun MarketGrid(
 @Composable
 private fun GitHubRepoCard(
     repo: GitHubRepoSummary,
+    installState: PluginRepoInstallState,
     onClick: () -> Unit,
 ) {
     Card(
@@ -501,6 +528,7 @@ private fun GitHubRepoCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.weight(1f))
+                InstallStatePill(installState)
                 VersionPill(tag = repo.latestRelease?.tagName)
             }
         }
@@ -567,13 +595,16 @@ private fun OwnerAvatar(owner: String, size: Dp) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GitHubRepoDetailScreen(
     repo: GitHubRepoSummary,
+    installState: PluginRepoInstallState,
     isLoading: Boolean,
     onBack: () -> Unit,
     onOpenRepo: () -> Unit,
     onInstall: () -> Unit,
+    onUninstall: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -588,7 +619,7 @@ private fun GitHubRepoDetailScreen(
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onBack) { Text(stringResource(R.string.plugin_action_back)) }
+                    DetailBackButton(onBack)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = stringResource(R.string.plugin_detail_title),
@@ -648,14 +679,22 @@ private fun GitHubRepoDetailScreen(
                             Spacer(modifier = Modifier.weight(1f))
                             VersionPill(tag = repo.latestRelease?.tagName)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
                             val hasRelease = repo.latestRelease != null
-                            Button(
-                                onClick = onInstall,
-                                enabled = hasRelease && !isLoading,
-                            ) {
+                            val installed = installState.installedRecord
+                            // 已装且版本一致时按钮只作状态展示，不再重复安装
+                            val actionEnabled = hasRelease && !isLoading &&
+                                installState !is PluginRepoInstallState.Installed
+                            Button(onClick = onInstall, enabled = actionEnabled) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Download,
+                                    imageVector = if (installState is PluginRepoInstallState.Installed) {
+                                        Icons.Rounded.Check
+                                    } else {
+                                        Icons.Rounded.Download
+                                    },
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp),
                                 )
@@ -663,12 +702,31 @@ private fun GitHubRepoDetailScreen(
                                 val label = when {
                                     isLoading -> stringResource(R.string.plugin_repo_action_processing)
                                     !hasRelease -> stringResource(R.string.plugin_market_version_missing)
+                                    installState is PluginRepoInstallState.Installed -> stringResource(
+                                        R.string.plugin_repo_action_installed,
+                                        installState.record.version,
+                                    )
+                                    installState is PluginRepoInstallState.Updatable -> stringResource(
+                                        R.string.plugin_repo_action_update,
+                                        installState.latestTag,
+                                    )
                                     else -> stringResource(
                                         R.string.plugin_repo_action_install,
                                         repo.latestRelease!!.tagName,
                                     )
                                 }
-                                Text(label)
+                                Text(label, maxLines = 2)
+                            }
+                            if (installed != null) {
+                                OutlinedButton(onClick = { onUninstall(installed.installKey) }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp),
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(stringResource(R.string.plugin_repo_action_uninstall), maxLines = 2)
+                                }
                             }
                             OutlinedButton(onClick = onOpenRepo) {
                                 Icon(
@@ -677,7 +735,7 @@ private fun GitHubRepoDetailScreen(
                                     modifier = Modifier.size(18.dp),
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.plugin_repo_action_open_github))
+                                Text(stringResource(R.string.plugin_repo_action_open_github), maxLines = 2)
                             }
                         }
                     }
@@ -1035,9 +1093,7 @@ private fun PluginDetailScreen(
         ) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = onBack) {
-                        Text(stringResource(R.string.plugin_action_back))
-                    }
+                    DetailBackButton(onBack)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = stringResource(R.string.plugin_detail_title),
@@ -1538,3 +1594,44 @@ private val PACKAGE_MIME_TYPES = arrayOf(
     "application/octet-stream",
     "*/*",
 )
+
+/** 已装或可更新时在卡片上标一下，未安装时不占位。 */
+@Composable
+private fun InstallStatePill(state: PluginRepoInstallState) {
+    val labelRes = when (state) {
+        is PluginRepoInstallState.Installed -> R.string.plugin_repo_state_installed
+        is PluginRepoInstallState.Updatable -> R.string.plugin_repo_state_update
+        PluginRepoInstallState.NotInstalled -> return
+    }
+    val container = if (state is PluginRepoInstallState.Updatable) {
+        MaterialTheme.colorScheme.tertiaryContainer
+    } else {
+        MaterialTheme.colorScheme.secondaryContainer
+    }
+    Surface(shape = RoundedCornerShape(50), color = container) {
+        Text(
+            text = stringResource(labelRes),
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+        )
+    }
+    Spacer(modifier = Modifier.width(4.dp))
+}
+
+/** 详情页左上角的返回，带边框以便和旁边的标题区分开。 */
+@Composable
+private fun DetailBackButton(onBack: () -> Unit) {
+    OutlinedButton(
+        onClick = onBack,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(stringResource(R.string.plugin_action_back), maxLines = 1)
+    }
+}
