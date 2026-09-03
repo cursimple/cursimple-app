@@ -56,7 +56,11 @@ class PluginInstaller(
         }
     }
 
-    suspend fun installPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallResult {
+    suspend fun installPackage(
+        bytes: ByteArray,
+        source: PluginInstallSource,
+        sourceRepo: String? = null,
+    ): PluginInstallResult {
         val startedAt = System.currentTimeMillis()
         PluginLogger.info(
             "plugin.install.start",
@@ -70,7 +74,7 @@ class PluginInstaller(
                 source = source,
                 storagePath = targetDir.absolutePath,
                 bundled = false,
-            )
+            ).copy(sourceRepo = sourceRepo?.trim()?.takeIf { it.isNotBlank() })
             registryRepository.saveInstalledPlugin(record)
             PluginLogger.info(
                 "plugin.install.success",
