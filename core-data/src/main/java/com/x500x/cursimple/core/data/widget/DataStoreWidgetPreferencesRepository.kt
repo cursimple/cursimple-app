@@ -14,7 +14,23 @@ import com.x500x.cursimple.core.data.exportSnapshot
 import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.data.shouldReleasePersistedUriPermission
 import com.x500x.cursimple.core.data.ThemeAccent
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.MutablePreferences
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TIMING_PROFILE_ID
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TIMING_PROFILE_NAME_KEY
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.TimingProfileEntry
+import com.x500x.cursimple.core.kernel.model.TimingProfileLibrary
+import com.x500x.cursimple.core.kernel.model.activating
+import com.x500x.cursimple.core.kernel.model.active
+import com.x500x.cursimple.core.kernel.model.duplicating
+import com.x500x.cursimple.core.kernel.model.legacyTimingProfileLibrary
+import com.x500x.cursimple.core.kernel.model.removing
+import com.x500x.cursimple.core.kernel.model.renaming
+import com.x500x.cursimple.core.kernel.model.resolveWith
+import com.x500x.cursimple.core.kernel.model.updatingActive
+import com.x500x.cursimple.core.kernel.model.upserting
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -35,12 +51,15 @@ class DataStoreWidgetPreferencesRepository(
     }
 
     override val timingProfileFlow: Flow<TermTimingProfile?> = store.data.map { preferences ->
-        preferences[KEY_TIMING_PROFILE_JSON]
-            ?.let { raw -> runCatching { json.decodeFromString<TermTimingProfile>(raw) }.getOrNull() }
+        preferences.timingProfileLibrary().active?.resolveWith(preferences.termStartDate())
+    }
+
+    override val timingProfileLibraryFlow: Flow<TimingProfileLibrary> = store.data.map { preferences ->
+        preferences.timingProfileLibrary()
     }
 
     override val timingProfileManuallyEditedFlow: Flow<Boolean> = store.data.map { preferences ->
-        preferences[KEY_TIMING_PROFILE_MANUAL] ?: false
+        preferences.timingProfileLibrary().active?.manuallyEdited ?: false
     }
 
     override val themePreferencesFlow: Flow<WidgetThemePreferences> = store.data.map { preferences ->
@@ -101,24 +120,111 @@ class DataStoreWidgetPreferencesRepository(
     override suspend fun saveTimingProfile(profile: TermTimingProfile?) {
         store.edit { preferences ->
             if (profile == null) {
-                preferences.remove(KEY_TIMING_PROFILE_JSON)
+                preferences.writeTimingProfileLibrary(TimingProfileLibrary())
+                preferences.remove(KEY_TERM_START_DATE)
             } else {
-                preferences[KEY_TIMING_PROFILE_JSON] = json.encodeToString(profile)
+                preferences.writeActiveSlotTimes(profile, manuallyEdited = null)
             }
         }
     }
 
     override suspend fun saveManualTimingProfile(profile: TermTimingProfile) {
         store.edit { preferences ->
-            preferences[KEY_TIMING_PROFILE_JSON] = json.encodeToString(profile)
-            preferences[KEY_TIMING_PROFILE_MANUAL] = true
+            preferences.writeActiveSlotTimes(profile, manuallyEdited = true)
         }
     }
 
     override suspend fun clearManualTimingProfileFlag() {
         store.edit { preferences ->
-            preferences.remove(KEY_TIMING_PROFILE_MANUAL)
+            val library = preferences.timingProfileLibrary()
+            preferences.writeTimingProfileLibrary(library.updatingActive { it.copy(manuallyEdited = false) })
         }
+    }
+
+    override suspend fun createTimingProfile(name: String, slotTimes: List<ClassSlotTime>): String {
+        val id = newTimingProfileId()
+        store.edit { preferences ->
+            val library = preferences.timingProfileLibrary()
+            val entry = TimingProfileEntry(
+                id = id,
+                name = name.trim(),
+                slotTimes = slotTimes,
+                timezone = library.active?.timezone.orEmpty(),
+                manuallyEdited = true,
+            )
+            preferences.writeTimingProfileLibrary(library.upserting(entry).activating(id))
+        }
+        return id
+    }
+
+    override suspend fun duplicateTimingProfile(id: String, name: String): String? {
+        val newId = newTimingProfileId()
+        var created = false
+        store.edit { preferences ->
+            val library = preferences.timingProfileLibrary()
+            val next = library.duplicating(id, newId, name)
+            created = next != library
+            if (created) preferences.writeTimingProfileLibrary(next)
+        }
+        return newId.takeIf { created }
+    }
+
+    override suspend fun renameTimingProfile(id: String, name: String) {
+        store.edit { preferences ->
+            preferences.writeTimingProfileLibrary(preferences.timingProfileLibrary().renaming(id, name))
+        }
+    }
+
+    override suspend fun deleteTimingProfile(id: String) {
+        store.edit { preferences ->
+            preferences.writeTimingProfileLibrary(preferences.timingProfileLibrary().removing(id))
+        }
+    }
+
+    override suspend fun activateTimingProfile(id: String) {
+        store.edit { preferences ->
+            preferences.writeTimingProfileLibrary(preferences.timingProfileLibrary().activating(id))
+        }
+    }
+
+    /**
+     * 作息库缺失时按旧的单份数据推导，读到什么就是什么，不回写。
+     * 任何一次写入都会落到作息库键上，此后旧键不再参与。
+     */
+    private fun Preferences.timingProfileLibrary(): TimingProfileLibrary {
+        this[KEY_TIMING_PROFILE_LIBRARY_JSON]
+            ?.let { raw -> runCatching { json.decodeFromString<TimingProfileLibrary>(raw) }.getOrNull() }
+            ?.let { return it }
+        return legacyTimingProfileLibrary(legacyTimingProfile(), this[KEY_TIMING_PROFILE_MANUAL] ?: false)
+    }
+
+    private fun Preferences.legacyTimingProfile(): TermTimingProfile? =
+        this[KEY_TIMING_PROFILE_JSON]
+            ?.let { raw -> runCatching { json.decodeFromString<TermTimingProfile>(raw) }.getOrNull() }
+
+    private fun Preferences.termStartDate(): String =
+        this[KEY_TERM_START_DATE] ?: legacyTimingProfile()?.termStartDate.orEmpty()
+
+    private fun MutablePreferences.writeTimingProfileLibrary(library: TimingProfileLibrary) {
+        this[KEY_TIMING_PROFILE_LIBRARY_JSON] = json.encodeToString(library)
+        remove(KEY_TIMING_PROFILE_JSON)
+        remove(KEY_TIMING_PROFILE_MANUAL)
+    }
+
+    /** 把整份节次时间表写进选中项；一套都没有时先建一套。 */
+    private fun MutablePreferences.writeActiveSlotTimes(profile: TermTimingProfile, manuallyEdited: Boolean?) {
+        val library = timingProfileLibrary()
+        val current = library.active ?: TimingProfileEntry(
+            id = DEFAULT_TIMING_PROFILE_ID,
+            nameKey = DEFAULT_TIMING_PROFILE_NAME_KEY,
+        )
+        val updated = current.copy(
+            slotTimes = profile.slotTimes,
+            timezone = profile.timezone,
+            manuallyEdited = manuallyEdited ?: current.manuallyEdited,
+        )
+        writeTimingProfileLibrary(library.upserting(updated))
+        this[KEY_TERM_START_DATE] = profile.termStartDate
     }
 
     override suspend fun setWidgetThemeAccent(accent: ThemeAccent) {
@@ -198,6 +304,8 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
         val KEY_TIMING_PROFILE_MANUAL = booleanPreferencesKey("widget_timing_profile_manual")
+        val KEY_TIMING_PROFILE_LIBRARY_JSON = stringPreferencesKey("widget_timing_profile_library_json")
+        val KEY_TERM_START_DATE = stringPreferencesKey("widget_timing_term_start_date")
         val KEY_WIDGET_THEME_ACCENT = stringPreferencesKey("widget_theme_accent")
         val KEY_WIDGET_BACKGROUND_MODE = stringPreferencesKey("widget_background_mode")
         val KEY_WIDGET_BACKGROUND_IMAGE_URI = stringPreferencesKey("widget_background_image_uri")
@@ -206,5 +314,7 @@ class DataStoreWidgetPreferencesRepository(
         const val MAX_OFFSET = 3650
 
         fun widgetDayOffsetKey(appWidgetId: Int) = intPreferencesKey("widget_day_offset__$appWidgetId")
+
+        fun newTimingProfileId(): String = "timing-" + java.util.UUID.randomUUID().toString()
     }
 }
