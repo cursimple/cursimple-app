@@ -171,7 +171,6 @@
     <string name="schedule_backend_system_desc">调用系统时钟 App 创建和删除闹钟。</string>
     <string name="schedule_day_today">今天</string>
     <string name="schedule_day_tomorrow">明天</string>
-    <string name="schedule_backend_row_title">闹钟通道</string>
     <string name="schedule_open_settings_failed">无法打开设置：%1$s</string>
     <string name="schedule_section_rules_title">规则设置</string>
     <string name="schedule_section_rules_subtitle">按节次的条件和动作生成提醒</string>

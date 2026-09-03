@@ -171,7 +171,6 @@
     <string name="schedule_backend_system_desc">Creates and deletes alarms via the system Clock app.</string>
     <string name="schedule_day_today">Today</string>
     <string name="schedule_day_tomorrow">Tomorrow</string>
-    <string name="schedule_backend_row_title">Alarm channel</string>
     <string name="schedule_open_settings_failed">Cannot open settings: %1$s</string>
     <string name="schedule_section_rules_title">Rule settings</string>
     <string name="schedule_section_rules_subtitle">Generate reminders from per-period conditions and actions</string>

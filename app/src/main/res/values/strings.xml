@@ -529,11 +529,6 @@
     <string name="settings_accent_purple">暮霭紫</string>
     <string name="settings_accent_orange">暖陶橙</string>
     <string name="settings_accent_pink">樱花粉</string>
-    <string name="settings_alarm_backend_title">闹钟通道</string>
-    <string name="settings_alarm_backend_app">App 自管闹钟</string>
-    <string name="settings_alarm_backend_system">系统时钟 App 闹钟</string>
-    <string name="settings_alarm_backend_app_desc">使用 AlarmManager.setAlarmClock，由本 App 控制响铃。</string>
-    <string name="settings_alarm_backend_system_desc">使用系统时钟 App 创建和删除闹钟。</string>
     <string name="settings_toast_open_settings_failed">无法打开设置：%1$s</string>
     <string name="settings_webdav_subtitle_configured">%1$s · 已配置账号</string>
     <string name="settings_webdav_subtitle_unconfigured">%1$s · 未配置账号</string>
@@ -668,11 +663,7 @@
     <string name="main_clear_term_start_body">清除后将无法计算当前周次，需要重新设置。确定继续？</string>
     <string name="main_clear">清除</string>
     <string name="main_cancel">取消</string>
-    <string name="main_clear_everything_title">清空全部课表</string>
-    <string name="main_clear_everything_body">将删除手动添加的课程、插件同步的课表，以及全部提醒规则。此操作不可恢复，确定继续？</string>
     <string name="main_clear_all">清空</string>
-    <string name="main_clear_manual_title">清空手动课表</string>
-    <string name="main_clear_manual_body">将删除所有手动添加的课程，不影响插件同步的课表。此操作不可恢复，确定继续？</string>
     <string name="main_app_name">课简</string>
     <string name="main_drawer_term_start_unset">未设置开学日期</string>
     <string name="main_drawer_current_week">当前 第 %1$d 周</string>
