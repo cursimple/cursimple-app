@@ -283,6 +283,10 @@ class MainActivity : ComponentActivity() {
                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
                     )
+                    ReleaseAnnouncementGate(
+                        lastSeenVersionCode = prefs.lastSeenVersionCode,
+                        onSeen = prefsViewModel::setLastSeenVersionCode,
+                    )
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAppLanguageDialog by rememberSaveable { mutableStateOf(false) }
@@ -814,7 +818,6 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setScheduleTodayHeaderBackgroundColorArgb,
                                         onScheduleTextHorizontalCenterChange = prefsViewModel::setScheduleTextHorizontalCenter,
                                         onScheduleTextVerticalCenterChange = prefsViewModel::setScheduleTextVerticalCenter,
-                                        onScheduleTextFullCenterChange = prefsViewModel::setScheduleTextFullCenter,
                                         onScheduleCourseCornerRadiusDpChange = prefsViewModel::setScheduleCourseCornerRadiusDp,
                                         onScheduleCourseCardHeightDpChange = prefsViewModel::setScheduleCourseCardHeightDp,
                                         onScheduleOpacityPercentChange = prefsViewModel::setScheduleOpacityPercent,
@@ -838,7 +841,6 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setCourseDragEnabled,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
-                                        onScheduleLocationPrefixAtEnabledChange = prefsViewModel::setScheduleLocationPrefixAtEnabled,
                                         onScheduleTeacherVisibleChange = prefsViewModel::setScheduleTeacherVisible,
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,

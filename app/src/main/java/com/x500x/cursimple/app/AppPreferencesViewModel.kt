@@ -85,10 +85,6 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleTextVerticalCenter(enabled) }
     }
 
-    fun setScheduleTextFullCenter(enabled: Boolean) {
-        viewModelScope.launch { repository.setScheduleTextFullCenter(enabled) }
-    }
-
     fun setScheduleCourseCornerRadiusDp(radiusDp: Int) {
         viewModelScope.launch { repository.setScheduleCourseCornerRadiusDp(radiusDp) }
     }
@@ -166,10 +162,6 @@ class AppPreferencesViewModel(
 
     fun setScheduleLocationVisible(visible: Boolean) {
         viewModelScope.launch { repository.setScheduleLocationVisible(visible) }
-    }
-
-    fun setScheduleLocationPrefixAtEnabled(enabled: Boolean) {
-        viewModelScope.launch { repository.setScheduleLocationPrefixAtEnabled(enabled) }
     }
 
     fun setScheduleTeacherVisible(visible: Boolean) {
@@ -288,6 +280,10 @@ class AppPreferencesViewModel(
             repository.setDebugForcedDateTime(dateTime)
             refreshScheduleOutputs()
         }
+    }
+
+    fun setLastSeenVersionCode(versionCode: Int) {
+        viewModelScope.launch { repository.setLastSeenVersionCode(versionCode) }
     }
 
     fun setBetaUpdatesEnabled(enabled: Boolean) {

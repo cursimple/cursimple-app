@@ -677,10 +677,10 @@ fun ScheduleAppearancePreview(
                                 scheduleCardStyle = scheduleCardStyle,
                                 scheduleDisplay = scheduleDisplay,
                                 customColorsAdaptToTheme = customColorsAdaptToTheme,
-                                width = dayColumnWidth - 3.dp,
+                                width = dayColumnWidth - 2.dp,
                                 height = courseHeight,
-                                offsetX = dayColumnWidth * placement.dayIndex + 1.5.dp,
-                                offsetY = slotHeight * placement.rowIndex + 1.5.dp,
+                                offsetX = dayColumnWidth * placement.dayIndex + 1.dp,
+                                offsetY = slotHeight * placement.rowIndex + 1.dp,
                                 interactive = false,
                                 onClick = {},
                                 onLongClick = {},
@@ -2012,11 +2012,11 @@ private fun ScheduleGrid(
                                 ?.first?.placement?.rowSpan ?: 1
                             Box(
                                 modifier = Modifier
-                                    .width(dayColumnWidth - 3.dp)
+                                    .width(dayColumnWidth - 2.dp)
                                     .height(slotHeight * span - 3.dp)
                                     .offset(
-                                        x = dayColumnWidth * target.dayIndex + 1.5.dp,
-                                        y = slotHeight * target.rowIndex + 1.5.dp,
+                                        x = dayColumnWidth * target.dayIndex + 1.dp,
+                                        y = slotHeight * target.rowIndex + 1.dp,
                                     )
                                     .background(
                                         color = if (target.isValid) {
@@ -2062,10 +2062,10 @@ private fun ScheduleGrid(
                                 scheduleCardStyle = scheduleCardStyle,
                                 scheduleDisplay = scheduleDisplay,
                                 customColorsAdaptToTheme = customColorsAdaptToTheme,
-                                width = dayColumnWidth - 3.dp,
+                                width = dayColumnWidth - 2.dp,
                                 height = courseHeight,
-                                offsetX = dayColumnWidth * placement.dayIndex + 1.5.dp,
-                                offsetY = slotHeight * placement.rowIndex + 1.5.dp,
+                                offsetX = dayColumnWidth * placement.dayIndex + 1.dp,
+                                offsetY = slotHeight * placement.rowIndex + 1.dp,
                                 onClick = {
                                     val columnDate = visibleDays.getOrNull(placement.dayIndex)?.date
                                         ?: week.weekStart
@@ -2168,11 +2168,11 @@ private fun ScheduleGrid(
                                 if (slot != null) {
                                     Box(
                                         modifier = Modifier
-                                            .width(dayColumnWidth - 3.dp)
+                                            .width(dayColumnWidth - 2.dp)
                                             .height(slotHeight - 3.dp)
                                             .offset(
-                                                x = dayColumnWidth * day + 1.5.dp,
-                                                y = slotHeight * slotIdx + 1.5.dp,
+                                                x = dayColumnWidth * day + 1.dp,
+                                                y = slotHeight * slotIdx + 1.dp,
                                             )
                                             .alpha(hintAlpha)
                                             .background(
@@ -2436,8 +2436,8 @@ private fun CourseBlock(
     } else {
         scheduleTextStyle.courseTextSizeSp
     }
-    val horizontalCentered = scheduleTextStyle.fullCenter || scheduleTextStyle.horizontalCenter
-    val verticalCentered = scheduleTextStyle.fullCenter || scheduleTextStyle.verticalCenter
+    val horizontalCentered = scheduleTextStyle.horizontalCenter
+    val verticalCentered = scheduleTextStyle.verticalCenter
     val containerColor = when {
         inactive -> accents.inactiveContainer
         isExam -> MaterialTheme.colorScheme.errorContainer
@@ -2548,7 +2548,7 @@ private fun CourseBlock(
             // 左侧深色竖条
             Box(
                 modifier = Modifier
-                    .width(3.dp)
+                    .width(2.dp)
                     .fillMaxHeight()
                     .background(onColor.copy(alpha = if (inactive) 0.4f else 0.9f)),
             )
@@ -2558,8 +2558,8 @@ private fun CourseBlock(
                     .weight(1f)
                     .fillMaxHeight()
                     .padding(
-                        start = 4.dp,
-                        end = 4.dp,
+                        start = 3.dp,
+                        end = 3.dp,
                         top = if (hasCountBadge && !verticalCentered) 16.dp else 4.dp,
                         bottom = 4.dp,
                     ),
@@ -2986,7 +2986,7 @@ private fun Color.withOpacityPercent(percent: Int): Color = copy(alpha = alpha *
 private fun formatCourseLocation(
     location: String,
     scheduleDisplay: ScheduleDisplayPreferences,
-): String = if (scheduleDisplay.locationPrefixAtEnabled) "@$location" else location
+): String = "@$location"
 
 private data class CourseDetailRequest(
     val courses: List<CourseItem>,
@@ -3223,17 +3223,14 @@ private fun displaySlots(
         return padded
     }
     val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
-    val derived = allCourses
-        .map { it.time.startNode to it.time.endNode }
-        .distinct()
-        .sortedBy { it.first }
-    val derivedSlots = derived.mapIndexed { index, (startNode, endNode) ->
+    val maxNode = allCourses.maxOfOrNull { maxOf(it.time.startNode, it.time.endNode) } ?: 0
+    val derivedSlots = (1..maxNode).map { node ->
         DisplaySlot(
-            startNode = startNode,
-            endNode = endNode,
-            label = context.classSlotLabelOfIndex(index + 1),
-            startTime = "--:--",
-            endTime = "--:--",
+            startNode = node,
+            endNode = node,
+            label = context.classSlotLabelOfIndex(node),
+            startTime = "",
+            endTime = "",
         )
     }
     return padToMinimumSlots(context, derivedSlots, minimum = 8)
@@ -3486,9 +3483,9 @@ private fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
 @Composable
 private fun timeColumnWidth(availableWidth: Dp): Dp {
     val base = when {
-        availableWidth < 360.dp -> 44.dp
-        availableWidth < 420.dp -> 48.dp
-        else -> 52.dp
+        availableWidth < 360.dp -> 38.dp
+        availableWidth < 420.dp -> 42.dp
+        else -> 44.dp
     }
     val scale = LocalDensity.current.fontScale.coerceIn(1f, 1.8f)
     return (base * scale).coerceAtMost(availableWidth * 0.3f)

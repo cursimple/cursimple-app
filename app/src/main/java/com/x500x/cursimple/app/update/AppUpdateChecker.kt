@@ -91,7 +91,11 @@ class AppUpdateChecker(
             updateManifestVersionProblem(remoteVersionCode, remoteVersionName)?.let {
                 return@withContext AppUpdateCheckResult.Failure(it)
             }
-            if (remoteVersionCode <= BuildConfig.VERSION_CODE) {
+            // 关掉测试版后本地还留着预发布版，此时线上正式版版本号更低，作为回退目标返回
+            val rollback = !includePrerelease &&
+                isPrereleaseVersionName(BuildConfig.VERSION_NAME) &&
+                remoteVersionCode < BuildConfig.VERSION_CODE
+            if (remoteVersionCode <= BuildConfig.VERSION_CODE && !rollback) {
                 return@withContext AppUpdateCheckResult.UpToDate
             }
             val assetSelection = UpdateAssetSelector.select(
@@ -107,20 +111,37 @@ class AppUpdateChecker(
                 )
             }
             val candidates = probeDownloadCandidates(apkAsset.downloadUrl)
-            AppUpdateCheckResult.Available(
-                AppUpdateInfo(
-                    versionCode = remoteVersionCode,
-                    versionName = remoteVersionName,
-                    tagName = manifestTag,
-                    releaseUrl = htmlUrl,
-                    releaseNotes = releaseNotes,
-                    asset = apkAsset,
-                    candidates = candidates,
-                ),
+            val info = AppUpdateInfo(
+                versionCode = remoteVersionCode,
+                versionName = remoteVersionName,
+                tagName = manifestTag,
+                releaseUrl = htmlUrl,
+                releaseNotes = releaseNotes,
+                asset = apkAsset,
+                candidates = candidates,
             )
+            if (rollback) AppUpdateCheckResult.Rollback(info) else AppUpdateCheckResult.Available(info)
         }.getOrElse { error ->
             AppUpdateCheckResult.Failure(UpdateStatusReason.CheckError(describeUpdateError(error)))
         }
+    }
+
+    /** 取某个 tag 的发布说明，用于安装完成后展示本次更新内容。 */
+    suspend fun releaseNotes(tagName: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val attempts = requestAllSources(
+                candidates = mirrorPool.candidates(
+                    DownloadRequest(
+                        purpose = DownloadPurpose.GithubRelease,
+                        url = "https://api.github.com/repos/$repository/releases/tags/$tagName",
+                    ),
+                ),
+                accept = "application/vnd.github+json",
+            )
+            val response = (UpdateSourceSelector.select(attempts, ::isJsonObjectBody)
+                as? UpdateSourceSelection.Success)?.response ?: return@withContext null
+            JSONObject(response.body).optString("body").trim().takeIf { it.isNotBlank() }
+        }.getOrNull()
     }
 
     suspend fun download(context: Context, info: AppUpdateInfo): AppUpdateDownloadResult = withContext(Dispatchers.IO) {
