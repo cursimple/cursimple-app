@@ -290,6 +290,14 @@ class AppPreferencesViewModel(
         }
     }
 
+    fun setBetaUpdatesEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setBetaUpdatesEnabled(enabled) }
+    }
+
+    fun setAppTimeZoneId(zoneId: String?) {
+        viewModelScope.launch { repository.setAppTimeZoneId(zoneId) }
+    }
+
     fun setAutoUpdateEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setAutoUpdateEnabled(enabled) }
     }

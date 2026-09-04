@@ -59,6 +59,7 @@ import java.io.File
 @Composable
 fun UpdateCheckSection(
     autoCheckEnabled: Boolean,
+    betaUpdatesEnabled: Boolean,
     ignoredUpdateVersionCode: Int?,
     onAutoCheckEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
@@ -109,7 +110,7 @@ fun UpdateCheckSection(
             checking = true
             statusMessage = context.getString(R.string.update_status_checking)
             dismissPendingUpdate()
-            when (val result = checker.check()) {
+            when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
                 AppUpdateCheckResult.NoRelease -> statusMessage = context.getString(R.string.update_status_no_release)
                 AppUpdateCheckResult.ManifestMissing -> statusMessage = context.getString(R.string.update_status_manifest_missing)
                 AppUpdateCheckResult.UpToDate -> statusMessage = context.getString(R.string.update_status_up_to_date)
@@ -197,6 +198,7 @@ fun UpdateCheckSection(
 @Composable
 fun AutomaticUpdateCheckPrompt(
     autoCheckEnabled: Boolean,
+    betaUpdatesEnabled: Boolean,
     ignoredUpdateVersionCode: Int?,
     onIgnoreUpdateVersion: (Int?) -> Unit,
 ) {
@@ -242,7 +244,7 @@ fun AutomaticUpdateCheckPrompt(
         }
         if (checkedThisSession) return@LaunchedEffect
         checkedThisSession = true
-        when (val result = checker.check()) {
+        when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
             is AppUpdateCheckResult.Available -> {
                 if (ignoredUpdateVersionCode != result.info.versionCode) {
                     pendingUpdate = result.info
