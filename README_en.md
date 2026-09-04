@@ -163,8 +163,8 @@ CLASS_VIEWER_KEY_PASSWORD=replace with the key password
 The version lives in exactly one place, `gradle.properties`:
 
 ```properties
-app.versionCode=8
-app.versionName=0.7.0-beta.3
+app.versionCode=9
+app.versionName=0.7.0-beta.4
 ```
 
 ### Modules
