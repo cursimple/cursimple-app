@@ -27,6 +27,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Event
@@ -872,21 +874,45 @@ private fun NumberSettingRow(
     step: Int,
     onValueChange: (Int) -> Unit,
 ) {
-    SurfaceRow {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text("$value $unit", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(
+                text = "$value $unit",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+            IconButton(
+                onClick = { onValueChange((value - step).coerceAtLeast(min)) },
+                enabled = value > min,
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Remove,
+                    contentDescription = stringResource(R.string.schedule_alarm_decrease),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            IconButton(
+                onClick = { onValueChange((value + step).coerceAtMost(max)) },
+                enabled = value < max,
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = stringResource(R.string.schedule_alarm_increase),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
-        OutlinedButton(
-            onClick = { onValueChange((value - step).coerceAtLeast(min)) },
-            enabled = value > min,
-            contentPadding = PaddingValues(horizontal = 10.dp),
-        ) { Text("-") }
-        OutlinedButton(
-            onClick = { onValueChange((value + step).coerceAtMost(max)) },
-            enabled = value < max,
-            contentPadding = PaddingValues(horizontal = 10.dp),
-        ) { Text("+") }
     }
 }
 
