@@ -324,7 +324,6 @@ fun AppSettingsRoute(
     onScheduleTodayHeaderBackgroundColorArgbChange: (Long) -> Unit,
     onScheduleTextHorizontalCenterChange: (Boolean) -> Unit,
     onScheduleTextVerticalCenterChange: (Boolean) -> Unit,
-    onScheduleTextFullCenterChange: (Boolean) -> Unit,
     onScheduleCourseCornerRadiusDpChange: (Int) -> Unit,
     onScheduleCourseCardHeightDpChange: (Int) -> Unit,
     onScheduleOpacityPercentChange: (Int) -> Unit,
@@ -344,7 +343,6 @@ fun AppSettingsRoute(
     onScheduleWeekStartDayChange: (WeekStartDay) -> Unit,
     onCourseDragEnabledChange: (Boolean) -> Unit,
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
-    onScheduleLocationPrefixAtEnabledChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
@@ -845,13 +843,6 @@ fun AppSettingsRoute(
                         checked = scheduleTextStyle.verticalCenter,
                         onCheckedChange = onScheduleTextVerticalCenterChange,
                     )
-                    SettingsSwitchRow(
-                        icon = Icons.Rounded.CenterFocusStrong,
-                        title = stringResource(R.string.settings_text_center_full_title),
-                        subtitle = stringResource(R.string.settings_text_center_full_subtitle),
-                        checked = scheduleTextStyle.fullCenter,
-                        onCheckedChange = onScheduleTextFullCenterChange,
-                    )
                 }
             }
 
@@ -953,21 +944,12 @@ fun AppSettingsRoute(
                         selected = scheduleDisplay.weekStartDay,
                         onSelect = onScheduleWeekStartDayChange,
                     )
-                    SettingsSwitchRow(
-                        icon = Icons.Rounded.CalendarMonth,
-                        title = stringResource(R.string.settings_display_saturday_title),
-                        subtitle = stringResource(R.string.settings_display_saturday_subtitle),
-                        checked = scheduleDisplay.saturdayVisible || scheduleDisplay.weekendVisible,
-                        onCheckedChange = onScheduleSaturdayVisibleChange,
-                    )
-                    SettingsSwitchRow(
-                        icon = Icons.Rounded.Weekend,
-                        title = stringResource(R.string.settings_display_weekend_title),
-                        subtitle = stringResource(R.string.settings_display_weekend_subtitle),
-                        checked = scheduleDisplay.weekendVisible,
-                        onCheckedChange = {
-                            onScheduleWeekendVisibleChange(it)
-                            if (it) onScheduleSaturdayVisibleChange(true)
+                    VisibleDaysRow(
+                        saturdayVisible = scheduleDisplay.saturdayVisible,
+                        weekendVisible = scheduleDisplay.weekendVisible,
+                        onSelect = { days ->
+                            onScheduleSaturdayVisibleChange(days >= 6)
+                            onScheduleWeekendVisibleChange(days == 7)
                         },
                     )
                     SettingsSwitchRow(
@@ -997,13 +979,6 @@ fun AppSettingsRoute(
                         subtitle = stringResource(R.string.settings_display_location_subtitle),
                         checked = scheduleDisplay.locationVisible,
                         onCheckedChange = onScheduleLocationVisibleChange,
-                    )
-                    SettingsSwitchRow(
-                        icon = Icons.Rounded.AlternateEmail,
-                        title = stringResource(R.string.settings_display_location_at_title),
-                        subtitle = stringResource(R.string.settings_display_location_at_subtitle),
-                        checked = scheduleDisplay.locationPrefixAtEnabled,
-                        onCheckedChange = onScheduleLocationPrefixAtEnabledChange,
                     )
                     SettingsSwitchRow(
                         icon = Icons.Rounded.Person,
@@ -2648,6 +2623,58 @@ private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> 
                         OutlinedButton(onClick = { onSelect(day) }) {
                             Text(stringResource(label), maxLines = 2)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 五天、六天、整周三选一，替代原先相互牵连的两个开关。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun VisibleDaysRow(
+    saturdayVisible: Boolean,
+    weekendVisible: Boolean,
+    onSelect: (Int) -> Unit,
+) {
+    val selected = when {
+        weekendVisible -> 7
+        saturdayVisible -> 6
+        else -> 5
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_display_days_title),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.settings_display_days_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    5 to R.string.settings_display_days_five,
+                    6 to R.string.settings_display_days_six,
+                    7 to R.string.settings_display_days_seven,
+                ).forEach { (days, label) ->
+                    if (days == selected) {
+                        Button(onClick = { onSelect(days) }) { Text(stringResource(label), maxLines = 1) }
+                    } else {
+                        OutlinedButton(onClick = { onSelect(days) }) { Text(stringResource(label), maxLines = 1) }
                     }
                 }
             }

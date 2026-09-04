@@ -104,6 +104,7 @@ class DataStoreUserPreferencesRepository(
             autoSilenceSession = prefs.toAutoSilenceSession(),
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,
             betaUpdatesEnabled = prefs[KEY_BETA_UPDATES_ENABLED] ?: false,
+            lastSeenVersionCode = prefs[KEY_LAST_SEEN_VERSION_CODE] ?: 0,
             appTimeZoneId = prefs[KEY_APP_TIME_ZONE_ID]?.takeIf { it.isNotBlank() },
             ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
             pluginRegistryRepo = prefs[KEY_PLUGIN_REGISTRY_REPO]
@@ -199,10 +200,6 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setScheduleTextVerticalCenter(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_TEXT_VERTICAL_CENTER] = enabled }
-    }
-
-    override suspend fun setScheduleTextFullCenter(enabled: Boolean) {
-        store.edit { prefs -> prefs[KEY_SCHEDULE_TEXT_FULL_CENTER] = enabled }
     }
 
     override suspend fun setScheduleCourseCornerRadiusDp(radiusDp: Int) {
@@ -306,10 +303,6 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setScheduleLocationVisible(visible: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] = visible }
-    }
-
-    override suspend fun setScheduleLocationPrefixAtEnabled(enabled: Boolean) {
-        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED] = enabled }
     }
 
     override suspend fun setScheduleTeacherVisible(visible: Boolean) {
@@ -457,6 +450,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setBetaUpdatesEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_BETA_UPDATES_ENABLED] = enabled }
+    }
+
+    override suspend fun setLastSeenVersionCode(versionCode: Int) {
+        store.edit { prefs -> prefs[KEY_LAST_SEEN_VERSION_CODE] = versionCode }
     }
 
     override suspend fun setAppTimeZoneId(zoneId: String?) {
@@ -771,7 +768,6 @@ class DataStoreUserPreferencesRepository(
                 this.contains(KEY_SCHEDULE_TODAY_HEADER_BACKGROUND_COLOR_ARGB),
             horizontalCenter = this[KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER] ?: false,
             verticalCenter = this[KEY_SCHEDULE_TEXT_VERTICAL_CENTER] ?: false,
-            fullCenter = this[KEY_SCHEDULE_TEXT_FULL_CENTER] ?: false,
         )
     }
 
@@ -827,7 +823,6 @@ class DataStoreUserPreferencesRepository(
                 ?: WeekStartDay.Monday,
             courseDragEnabled = this[KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED] ?: false,
             locationVisible = this[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] ?: true,
-            locationPrefixAtEnabled = this[KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
             totalScheduleDisplayEnabled = this[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
         )
@@ -997,6 +992,7 @@ class DataStoreUserPreferencesRepository(
             longPreferencesKey("auto_silence_session_suppressed_until_millis")
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
         val KEY_BETA_UPDATES_ENABLED = booleanPreferencesKey("beta_updates_enabled")
+        val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
         val KEY_APP_TIME_ZONE_ID = stringPreferencesKey("app_time_zone_id")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")

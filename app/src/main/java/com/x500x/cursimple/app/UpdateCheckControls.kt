@@ -45,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.update.AppUpdateCheckResult
 import com.x500x.cursimple.app.update.AppUpdateChecker
@@ -72,11 +73,13 @@ fun UpdateCheckSection(
     var downloading by rememberSaveable { mutableStateOf(false) }
     var statusMessage by rememberSaveable { mutableStateOf(context.getString(R.string.update_status_default)) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var pendingRollback by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var autoCheckedForCurrentEntry by rememberSaveable { mutableStateOf(false) }
 
     fun dismissPendingUpdate() {
         pendingUpdate = null
+        pendingRollback = null
         downloadedApk = null
     }
 
@@ -122,6 +125,10 @@ fun UpdateCheckSection(
                         pendingUpdate = result.info
                         statusMessage = context.getString(R.string.update_status_available, result.info.versionName)
                     }
+                }
+                is AppUpdateCheckResult.Rollback -> {
+                    pendingRollback = result.info
+                    statusMessage = context.getString(R.string.update_status_rollback, result.info.versionName)
                 }
                 is AppUpdateCheckResult.Failure -> statusMessage = context.updateStatusText(result.reason)
             }
@@ -172,6 +179,16 @@ fun UpdateCheckSection(
                 statusMessage = context.getString(R.string.update_status_ignored_manual, info.versionName)
                 dismissPendingUpdate()
             },
+            onDismiss = { dismissPendingUpdate() },
+        )
+    }
+
+    pendingRollback?.let { info ->
+        UpdateRollbackDialog(
+            info = info,
+            downloading = downloading,
+            downloadedApk = downloadedApk,
+            onDownload = { downloadAndInstall(info) },
             onDismiss = { dismissPendingUpdate() },
         )
     }
@@ -249,6 +266,118 @@ fun AutomaticUpdateCheckPrompt(
             onDismiss = { dismissPendingUpdate() },
         )
     }
+}
+
+/**
+ * 安装完新版本后首次进入时展示本次更新内容。
+ * [lastSeenVersionCode] 为 0 时视作全新安装，不弹公告。
+ */
+@Composable
+fun ReleaseAnnouncementGate(
+    lastSeenVersionCode: Int,
+    onSeen: (Int) -> Unit,
+) {
+    val context = LocalContext.current
+    val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
+    var notes by remember { mutableStateOf<String?>(null) }
+    var visible by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(lastSeenVersionCode) {
+        if (lastSeenVersionCode == 0) {
+            onSeen(BuildConfig.VERSION_CODE)
+            return@LaunchedEffect
+        }
+        if (lastSeenVersionCode >= BuildConfig.VERSION_CODE) return@LaunchedEffect
+        visible = true
+        onSeen(BuildConfig.VERSION_CODE)
+        notes = checker.releaseNotes("v${BuildConfig.VERSION_NAME}")
+    }
+
+    if (!visible) return
+    AlertDialog(
+        onDismissRequest = { visible = false },
+        title = { Text(stringResource(R.string.update_announcement_title, BuildConfig.VERSION_NAME)) },
+        text = {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 300.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text(
+                    text = notes ?: stringResource(R.string.update_announcement_loading),
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { visible = false }) {
+                Text(stringResource(R.string.update_announcement_dismiss))
+            }
+        },
+    )
+}
+
+@Composable
+private fun UpdateRollbackDialog(
+    info: AppUpdateInfo,
+    downloading: Boolean,
+    downloadedApk: File?,
+    onDownload: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.update_rollback_title, info.versionName)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = stringResource(R.string.update_rollback_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = stringResource(R.string.update_dialog_changelog),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 180.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text(
+                        text = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
+                        modifier = Modifier
+                            .verticalScroll(rememberScrollState())
+                            .padding(12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDownload, enabled = !downloading) {
+                Text(
+                    when {
+                        downloading -> stringResource(R.string.update_dialog_downloading)
+                        downloadedApk?.exists() == true -> stringResource(R.string.update_dialog_install)
+                        else -> stringResource(R.string.update_rollback_action)
+                    },
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+        },
+    )
 }
 
 @Composable

@@ -29,3 +29,6 @@ internal fun pickUpdateRelease(
             .thenBy { it.index },
     )
     .firstOrNull()
+
+/** 版本名带连字符后缀（alpha、beta、rc 之类）的即预发布版。 */
+internal fun isPrereleaseVersionName(versionName: String): Boolean = versionName.contains('-')

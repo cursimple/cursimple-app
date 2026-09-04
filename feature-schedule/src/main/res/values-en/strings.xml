@@ -53,6 +53,16 @@
     <string name="schedule_manual_alarm_title">New in-app alarm</string>
     <string name="schedule_alarm_date_label">Date</string>
     <string name="schedule_alarm_time_label">Time</string>
+    <string name="schedule_alarm_duration_row">Ring duration</string>
+    <string name="schedule_alarm_interval_row">Repeat interval</string>
+    <string name="schedule_alarm_count_row">Repeat count</string>
+    <string name="schedule_alarm_unit_seconds">%1$d s</string>
+    <string name="schedule_alarm_unit_times">%1$d times</string>
+    <string name="schedule_alarm_section_when">Time</string>
+    <string name="schedule_alarm_section_content">Content</string>
+    <string name="schedule_alarm_section_ring">Ringing</string>
+    <string name="schedule_alarm_decrease">Decrease</string>
+    <string name="schedule_alarm_increase">Increase</string>
     <string name="schedule_alarm_title_label">Title</string>
     <string name="schedule_alarm_message_label">Message</string>
     <string name="schedule_alarm_duration_label">Duration (s)</string>

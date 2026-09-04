@@ -53,6 +53,16 @@
     <string name="schedule_manual_alarm_title">新建 APP 自管鬧鐘</string>
     <string name="schedule_alarm_date_label">日期</string>
     <string name="schedule_alarm_time_label">時間</string>
+    <string name="schedule_alarm_duration_row">響鈴時長</string>
+    <string name="schedule_alarm_interval_row">重複間隔</string>
+    <string name="schedule_alarm_count_row">重複次數</string>
+    <string name="schedule_alarm_unit_seconds">%1$d 秒</string>
+    <string name="schedule_alarm_unit_times">%1$d 次</string>
+    <string name="schedule_alarm_section_when">時間</string>
+    <string name="schedule_alarm_section_content">內容</string>
+    <string name="schedule_alarm_section_ring">響鈴</string>
+    <string name="schedule_alarm_decrease">減少</string>
+    <string name="schedule_alarm_increase">增加</string>
     <string name="schedule_alarm_title_label">標題</string>
     <string name="schedule_alarm_message_label">訊息</string>
     <string name="schedule_alarm_duration_label">時長秒</string>
