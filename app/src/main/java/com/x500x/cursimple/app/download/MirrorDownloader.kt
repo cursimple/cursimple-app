@@ -4,6 +4,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
@@ -17,6 +19,9 @@ class MirrorDownloader(
     private val probeRoundSize: Int = 4,
     private val userAgent: String = "CurSimple",
 ) {
+    /** 记住每类下载上次成功的镜像，下次先单独试它。 */
+    private val preferredSources = java.util.concurrent.ConcurrentHashMap<DownloadPurpose, String>()
+
     suspend fun downloadBytes(
         request: DownloadRequest,
         validate: (ByteArray) -> Unit = {},
@@ -73,11 +78,75 @@ class MirrorDownloader(
                 is MirrorDownloadResult.Failure -> bytesResult
             }
         }
-        downloadMeasured(request) { candidate ->
+        // 文本体积小，直接并发取最快返回的那个，省掉探测那一轮往返
+        downloadRaced(request) { candidate ->
             val text = requestText(candidate.url, accept)
             validate(text)
             text
         }
+    }
+
+    /**
+     * 并发向若干镜像发起同一次请求，取最先成功的那个。
+     *
+     * 探测再下载要走两次往返，而小文件的下载本身就等价于探测。
+     * 上次成功的镜像排在最前单独试一轮，命中时整次只有一个请求。
+     */
+    private suspend fun <T> downloadRaced(
+        request: DownloadRequest,
+        fetch: (DownloadCandidate) -> T,
+    ): MirrorDownloadResult<T> = coroutineScope {
+        val rounds = raceRounds(
+            candidates = mirrorPool.candidates(request),
+            preferredUrl = preferredSources[request.purpose],
+            roundSize = probeRoundSize.coerceAtLeast(1),
+        )
+        val failures = java.util.Collections.synchronizedList(mutableListOf<DownloadFailure>())
+        val firstError = java.util.concurrent.atomic.AtomicReference<Throwable?>(null)
+        for (round in rounds) {
+            val winner = raceRound(round, fetch, failures, firstError)
+            if (winner != null) {
+                preferredSources[request.purpose] = winner.first.url
+                return@coroutineScope MirrorDownloadResult.Success(
+                    value = winner.second,
+                    candidate = winner.first,
+                    failures = failures.toList(),
+                )
+            }
+        }
+        MirrorDownloadResult.Failure(
+            message = failures.firstOrNull()?.message ?: labels.noSource,
+            reason = firstError.get()?.let { DownloadFailureReason.Thrown(it) } ?: DownloadFailureReason.NoSource,
+            failures = failures.toList(),
+        )
+    }
+
+    /** 同时发起一轮请求，任一成功即返回并取消其余；全部失败时返回 null。 */
+    private suspend fun <T> raceRound(
+        candidates: List<DownloadCandidate>,
+        fetch: (DownloadCandidate) -> T,
+        failures: MutableList<DownloadFailure>,
+        firstError: java.util.concurrent.atomic.AtomicReference<Throwable?>,
+    ): Pair<DownloadCandidate, T>? = coroutineScope {
+        val winner = kotlinx.coroutines.CompletableDeferred<Pair<DownloadCandidate, T>?>()
+        val jobs = candidates.map { candidate ->
+            launch {
+                runCatching { fetch(candidate) }
+                    .onSuccess { winner.complete(candidate to it) }
+                    .onFailure { error ->
+                        firstError.compareAndSet(null, error)
+                        failures += DownloadFailure(candidate.sourceName, error.message ?: labels.downloadFailed)
+                    }
+            }
+        }
+        val watcher = launch {
+            jobs.joinAll()
+            winner.complete(null)
+        }
+        val result = winner.await()
+        jobs.forEach { it.cancel() }
+        watcher.cancel()
+        result
     }
 
     private suspend fun <T> downloadMeasured(
@@ -243,4 +312,22 @@ class MirrorDownloader(
     private companion object {
         const val NETWORK_TIMEOUT_MILLIS = 8_000
     }
+}
+
+/**
+ * 把镜像候选切成一轮轮并发请求。
+ *
+ * 上次成功的镜像单独占第一轮，命中时整次只发一个请求；其余按 [roundSize] 分批，
+ * 免得一次把十几个镜像全打一遍。
+ */
+internal fun raceRounds(
+    candidates: List<DownloadCandidate>,
+    preferredUrl: String?,
+    roundSize: Int,
+): List<List<DownloadCandidate>> {
+    if (candidates.isEmpty()) return emptyList()
+    val size = roundSize.coerceAtLeast(1)
+    val preferred = candidates.firstOrNull { it.url == preferredUrl }
+        ?: return candidates.chunked(size)
+    return listOf(listOf(preferred)) + candidates.filterNot { it.url == preferred.url }.chunked(size)
 }

@@ -221,6 +221,7 @@ private enum class SettingsDestination {
 enum class SettingsDestinationKey {
     WebDav,
     AiImport,
+    ScheduleBackground,
 }
 
 enum class SettingsReturnTargetKey {
@@ -230,6 +231,16 @@ enum class SettingsReturnTargetKey {
 private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (this) {
     SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
+    SettingsDestinationKey.ScheduleBackground -> SettingsDestination.ScheduleBackground
+}
+
+/** 深链跳转时补齐的上级页面，返回键沿这条链逐级回退。 */
+private fun SettingsDestination.parentChain(): List<SettingsDestination> = when (this) {
+    SettingsDestination.ScheduleBackground -> listOf(
+        SettingsDestination.ScheduleSettings,
+        SettingsDestination.ScheduleAppearance,
+    )
+    else -> emptyList()
 }
 
 @Composable
@@ -394,7 +405,11 @@ fun AppSettingsRoute(
     }
     androidx.compose.runtime.LaunchedEffect(openDestination) {
         val requested = openDestination?.toDestination() ?: return@LaunchedEffect
-        backStack = listOf(SettingsDestination.Root.name, requested.name)
+        backStack = buildList {
+            add(SettingsDestination.Root.name)
+            requested.parentChain().forEach { add(it.name) }
+            add(requested.name)
+        }
         settingsReturnReady = false
         onOpenDestinationConsumed()
     }
@@ -421,13 +436,26 @@ fun AppSettingsRoute(
         }
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
+    var pendingBackgroundSource by remember { mutableStateOf<android.net.Uri?>(null) }
+    pendingBackgroundSource?.let { source ->
+        ScheduleBackgroundCropDialog(
+            source = source,
+            frameAspect = SCHEDULE_BACKGROUND_FRAME_ASPECT,
+            onDismiss = { pendingBackgroundSource = null },
+            onCropped = { cropped ->
+                pendingBackgroundSource = null
+                onScheduleBackgroundImageUriChange(cropped.toString())
+            },
+        )
+    }
     val scheduleBackgroundLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             val persisted = runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }.isSuccess
             if (persisted) {
-                onScheduleBackgroundImageUriChange(uri.toString())
+                // 先让用户按课表比例裁切并确认，再落到设置里
+                pendingBackgroundSource = uri
             } else {
                 Toast.makeText(
                     context,
@@ -2581,3 +2609,6 @@ private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> 
         }
     }
 }
+
+/** 课表大致的宽高比，裁切框按它预览。 */
+private const val SCHEDULE_BACKGROUND_FRAME_ASPECT = 0.62f

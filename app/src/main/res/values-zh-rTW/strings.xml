@@ -429,6 +429,8 @@
     <string name="calendar_toast_failed">寫入失敗：%1$s</string>
     <string name="calendar_toast_failed_unknown">寫入失敗</string>
     <string name="calendar_export_skipped">%1$d 門課因缺少節次時間未寫入</string>
+    <string name="settings_background_crop_title">調整背景</string>
+    <string name="settings_background_crop_hint">預覽框按課表比例顯示。拖動移動畫面，雙指縮放調整取圖範圍。</string>
     <string name="settings_beta_updates_title">測試版更新</string>
     <string name="settings_beta_updates_on">已開啟 · 更新檢查會包含預發布版本</string>
     <string name="settings_beta_updates_off">關閉 · 只檢查正式版本</string>
@@ -681,6 +683,8 @@
     <string name="main_drawer_term_start_unset">未設定開學日期</string>
     <string name="main_drawer_current_week">當前 第 %1$d 周</string>
     <string name="main_drawer_before_term">尚未開學 · 距第 1 周還有 %1$d 周</string>
+    <string name="main_drawer_theme_shortcut">換主題</string>
+    <string name="main_drawer_background_shortcut">換背景</string>
     <string name="main_drawer_version">課簡 · v%1$s</string>
     <string name="main_confirm">確定</string>
     <string name="main_term_start_prompt">請設定開學日期，用於計算當前周次和正確顯示課表。</string>

@@ -429,6 +429,8 @@
     <string name="calendar_toast_failed">Write failed: %1$s</string>
     <string name="calendar_toast_failed_unknown">Write failed</string>
     <string name="calendar_export_skipped">%1$d courses skipped for missing period times</string>
+    <string name="settings_background_crop_title">Adjust background</string>
+    <string name="settings_background_crop_hint">The frame matches the timetable\'s shape. Drag to move, pinch to zoom.</string>
     <string name="settings_beta_updates_title">Beta updates</string>
     <string name="settings_beta_updates_on">On · update checks include prereleases</string>
     <string name="settings_beta_updates_off">Off · stable releases only</string>
@@ -681,6 +683,8 @@
     <string name="main_drawer_term_start_unset">Term start date not set</string>
     <string name="main_drawer_current_week">Currently week %1$d</string>
     <string name="main_drawer_before_term">Term not started · %1$d weeks until week 1</string>
+    <string name="main_drawer_theme_shortcut">Theme</string>
+    <string name="main_drawer_background_shortcut">Background</string>
     <string name="main_drawer_version">CurSimple · v%1$s</string>
     <string name="main_confirm">OK</string>
     <string name="main_term_start_prompt">Set the term start date so the current week can be worked out and the timetable shown correctly.</string>
