@@ -163,8 +163,8 @@ CLASS_VIEWER_KEY_PASSWORD=替换为密钥密码
 版本号只在 `gradle.properties` 里维护一处：
 
 ```properties
-app.versionCode=8
-app.versionName=0.7.0-beta.3
+app.versionCode=9
+app.versionName=0.7.0-beta.4
 ```
 
 ### 模块结构
