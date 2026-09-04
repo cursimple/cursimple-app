@@ -53,6 +53,7 @@ import com.x500x.cursimple.app.update.AppUpdateDownloadResult
 import com.x500x.cursimple.app.update.AppUpdateInfo
 import com.x500x.cursimple.app.update.AppUpdateInstaller
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.update.UpdatePanelStatus
 import com.x500x.cursimple.app.update.updateStatusText
 import kotlinx.coroutines.launch
 import java.io.File
@@ -71,7 +72,7 @@ fun UpdateCheckSection(
     val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
     var checking by rememberSaveable { mutableStateOf(false) }
     var downloading by rememberSaveable { mutableStateOf(false) }
-    var statusMessage by rememberSaveable { mutableStateOf(context.getString(R.string.update_status_default)) }
+    var status by remember { mutableStateOf<UpdatePanelStatus>(UpdatePanelStatus.Idle) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var pendingRollback by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
@@ -92,15 +93,15 @@ fun UpdateCheckSection(
         }
         scope.launch {
             downloading = true
-            statusMessage = context.getString(R.string.update_status_downloading, info.asset.fileName)
+            status = UpdatePanelStatus.Downloading(info.asset.fileName)
             when (val result = checker.download(context, info)) {
                 is AppUpdateDownloadResult.Success -> {
                     downloadedApk = result.file
-                    statusMessage = context.getString(R.string.update_status_downloaded, result.sourceName)
+                    status = UpdatePanelStatus.Downloaded(result.sourceName)
                     AppUpdateInstaller.openInstall(context, result.file)
                 }
                 is AppUpdateDownloadResult.Failure -> {
-                    statusMessage = context.updateStatusText(result.reason)
+                    status = UpdatePanelStatus.Failed(result.reason)
                 }
             }
             downloading = false
@@ -111,26 +112,26 @@ fun UpdateCheckSection(
         if (checking) return
         scope.launch {
             checking = true
-            statusMessage = context.getString(R.string.update_status_checking)
+            status = UpdatePanelStatus.Checking
             dismissPendingUpdate()
             when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
-                AppUpdateCheckResult.NoRelease -> statusMessage = context.getString(R.string.update_status_no_release)
-                AppUpdateCheckResult.ManifestMissing -> statusMessage = context.getString(R.string.update_status_manifest_missing)
-                AppUpdateCheckResult.UpToDate -> statusMessage = context.getString(R.string.update_status_up_to_date)
+                AppUpdateCheckResult.NoRelease -> status = UpdatePanelStatus.NoRelease
+                AppUpdateCheckResult.ManifestMissing -> status = UpdatePanelStatus.ManifestMissing
+                AppUpdateCheckResult.UpToDate -> status = UpdatePanelStatus.UpToDate
                 is AppUpdateCheckResult.Available -> {
                     val ignored = !manual && ignoredUpdateVersionCode == result.info.versionCode
                     if (ignored) {
-                        statusMessage = context.getString(R.string.update_status_ignored, result.info.versionName)
+                        status = UpdatePanelStatus.Ignored(result.info.versionName)
                     } else {
                         pendingUpdate = result.info
-                        statusMessage = context.getString(R.string.update_status_available, result.info.versionName)
+                        status = UpdatePanelStatus.Available(result.info.versionName)
                     }
                 }
                 is AppUpdateCheckResult.Rollback -> {
                     pendingRollback = result.info
-                    statusMessage = context.getString(R.string.update_status_rollback, result.info.versionName)
+                    status = UpdatePanelStatus.Rollback(result.info.versionName)
                 }
-                is AppUpdateCheckResult.Failure -> statusMessage = context.updateStatusText(result.reason)
+                is AppUpdateCheckResult.Failure -> status = UpdatePanelStatus.Failed(result.reason)
             }
             checking = false
         }
@@ -161,7 +162,7 @@ fun UpdateCheckSection(
         UpdateActionRow(
             icon = Icons.Rounded.SystemUpdate,
             title = stringResource(R.string.update_check_title),
-            subtitle = statusMessage,
+            subtitle = updatePanelStatusText(status),
             enabled = !checking && !downloading,
             buttonText = if (checking) stringResource(R.string.update_check_checking) else stringResource(R.string.update_check_button),
             onClick = { checkUpdate(manual = true) },
@@ -176,7 +177,7 @@ fun UpdateCheckSection(
             onUpdate = { downloadAndInstall(info) },
             onIgnore = {
                 onIgnoreUpdateVersion(info.versionCode)
-                statusMessage = context.getString(R.string.update_status_ignored_manual, info.versionName)
+                status = UpdatePanelStatus.IgnoredManual(info.versionName)
                 dismissPendingUpdate()
             },
             onDismiss = { dismissPendingUpdate() },
@@ -442,6 +443,24 @@ private fun UpdateAvailableDialog(
             }
         },
     )
+}
+
+/** 状态种类到当前语言文字的渲染，随应用内语言切换重算。 */
+@Composable
+private fun updatePanelStatusText(status: UpdatePanelStatus): String = when (status) {
+    UpdatePanelStatus.Idle -> stringResource(R.string.update_status_default)
+    UpdatePanelStatus.Checking -> stringResource(R.string.update_status_checking)
+    UpdatePanelStatus.NoRelease -> stringResource(R.string.update_status_no_release)
+    UpdatePanelStatus.ManifestMissing -> stringResource(R.string.update_status_manifest_missing)
+    UpdatePanelStatus.UpToDate -> stringResource(R.string.update_status_up_to_date)
+    is UpdatePanelStatus.Available -> stringResource(R.string.update_status_available, status.versionName)
+    is UpdatePanelStatus.Rollback -> stringResource(R.string.update_status_rollback, status.versionName)
+    is UpdatePanelStatus.Ignored -> stringResource(R.string.update_status_ignored, status.versionName)
+    is UpdatePanelStatus.IgnoredManual ->
+        stringResource(R.string.update_status_ignored_manual, status.versionName)
+    is UpdatePanelStatus.Downloading -> stringResource(R.string.update_status_downloading, status.fileName)
+    is UpdatePanelStatus.Downloaded -> stringResource(R.string.update_status_downloaded, status.sourceName)
+    is UpdatePanelStatus.Failed -> LocalContext.current.updateStatusText(status.reason)
 }
 
 @Composable
