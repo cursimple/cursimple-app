@@ -431,6 +431,10 @@
     <string name="settings_display_total_on">周檢視顯示本學期全部課程，非本週課程置灰標註</string>
     <string name="settings_display_week_start_title">一週從哪天開始</string>
     <string name="settings_display_days_title">顯示天數</string>
+    <string name="settings_display_row_fit_title">縱向排布</string>
+    <string name="settings_display_row_fit_subtitle">課表一螢幕放不下時怎麼處理</string>
+    <string name="settings_display_row_fit_fit">平鋪全部</string>
+    <string name="settings_display_row_fit_scroll">固定列高捲動</string>
     <string name="settings_display_days_subtitle">課表橫向顯示到週幾</string>
     <string name="settings_display_days_five">週一至週五</string>
     <string name="settings_display_days_six">週一至週六</string>

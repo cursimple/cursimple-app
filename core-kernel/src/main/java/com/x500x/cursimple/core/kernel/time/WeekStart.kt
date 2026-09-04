@@ -53,3 +53,9 @@ fun columnDate(displayWeekStart: LocalDate, dayOfWeek: Int): LocalDate {
     val offset = (dayOfWeek - displayWeekStart.dayOfWeek.value + 7) % 7
     return displayWeekStart.plusDays(offset.toLong())
 }
+
+/** 课表纵向排布：整屏平铺全部节次，或固定行高纵向滚动。 */
+enum class ScheduleRowFitMode {
+    Fit,
+    Scroll,
+}

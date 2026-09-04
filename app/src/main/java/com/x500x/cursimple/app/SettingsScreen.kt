@@ -175,6 +175,7 @@ import com.x500x.cursimple.core.kernel.model.TimingProfileLibrary
 import com.x500x.cursimple.core.kernel.model.active
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.feature.widget.ScheduleWidgetUpdater
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
@@ -340,6 +341,7 @@ fun AppSettingsRoute(
     onScheduleNodeColumnTimeEnabledChange: (Boolean) -> Unit,
     onScheduleSaturdayVisibleChange: (Boolean) -> Unit,
     onScheduleWeekendVisibleChange: (Boolean) -> Unit,
+    onScheduleRowFitModeChange: (ScheduleRowFitMode) -> Unit,
     onScheduleWeekStartDayChange: (WeekStartDay) -> Unit,
     onCourseDragEnabledChange: (Boolean) -> Unit,
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
@@ -951,6 +953,10 @@ fun AppSettingsRoute(
                             onScheduleSaturdayVisibleChange(days >= 6)
                             onScheduleWeekendVisibleChange(days == 7)
                         },
+                    )
+                    RowFitModeRow(
+                        selected = scheduleDisplay.rowFitMode,
+                        onSelect = onScheduleRowFitModeChange,
                     )
                     SettingsSwitchRow(
                         icon = Icons.AutoMirrored.Rounded.MenuBook,
@@ -2623,6 +2629,48 @@ private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> 
                         OutlinedButton(onClick = { onSelect(day) }) {
                             Text(stringResource(label), maxLines = 2)
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 平铺与滚动二选一，平铺把全部节次压进一屏，滚动保留设定行高并在右侧给出滑块。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFitMode) -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_display_row_fit_title),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(R.string.settings_display_row_fit_subtitle),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    ScheduleRowFitMode.Fit to R.string.settings_display_row_fit_fit,
+                    ScheduleRowFitMode.Scroll to R.string.settings_display_row_fit_scroll,
+                ).forEach { (mode, label) ->
+                    if (mode == selected) {
+                        Button(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
+                    } else {
+                        OutlinedButton(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
                     }
                 }
             }

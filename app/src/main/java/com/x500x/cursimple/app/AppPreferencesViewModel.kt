@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.data.UserPreferences
 import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
+import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
@@ -143,6 +144,10 @@ class AppPreferencesViewModel(
 
     fun setScheduleSaturdayVisible(visible: Boolean) {
         viewModelScope.launch { repository.setScheduleSaturdayVisible(visible) }
+    }
+
+    fun setScheduleRowFitMode(mode: ScheduleRowFitMode) {
+        viewModelScope.launch { repository.setScheduleRowFitMode(mode) }
     }
 
     fun setScheduleWeekendVisible(visible: Boolean) {
