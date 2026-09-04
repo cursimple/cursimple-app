@@ -351,3 +351,33 @@ fun Context.updateStatusText(reason: UpdateStatusReason): String = when (reason)
         getString(R.string.update_download_detail, updateErrorText(reason.detail))
     UpdateStatusReason.DownloadRetry -> getString(R.string.update_download_retry)
 }
+
+/**
+ * 更新面板当前展示的状态。
+ * 只记录种类与参数，文字在界面层按当前语言渲染，切换应用内语言后才会跟着变。
+ */
+sealed interface UpdatePanelStatus {
+    data object Idle : UpdatePanelStatus
+
+    data object Checking : UpdatePanelStatus
+
+    data object NoRelease : UpdatePanelStatus
+
+    data object ManifestMissing : UpdatePanelStatus
+
+    data object UpToDate : UpdatePanelStatus
+
+    data class Available(val versionName: String) : UpdatePanelStatus
+
+    data class Rollback(val versionName: String) : UpdatePanelStatus
+
+    data class Ignored(val versionName: String) : UpdatePanelStatus
+
+    data class IgnoredManual(val versionName: String) : UpdatePanelStatus
+
+    data class Downloading(val fileName: String) : UpdatePanelStatus
+
+    data class Downloaded(val sourceName: String) : UpdatePanelStatus
+
+    data class Failed(val reason: UpdateStatusReason) : UpdatePanelStatus
+}
