@@ -84,7 +84,6 @@ class UserPreferencesTest {
         assertTrue(display.saturdayVisible)
         assertTrue(display.weekendVisible)
         assertTrue(display.locationVisible)
-        assertTrue(display.locationPrefixAtEnabled)
         assertTrue(display.teacherVisible)
         assertTrue(display.totalScheduleDisplayEnabled)
     }

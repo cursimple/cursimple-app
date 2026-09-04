@@ -136,7 +136,6 @@ data class ScheduleTextStylePreferences(
     val todayHeaderBackgroundColorCustomized: Boolean = false,
     val horizontalCenter: Boolean = false,
     val verticalCenter: Boolean = false,
-    val fullCenter: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_COURSE_TEXT_SIZE_SP = 13
@@ -207,7 +206,6 @@ data class ScheduleDisplayPreferences(
     val saturdayVisible: Boolean = true,
     val weekendVisible: Boolean = true,
     val locationVisible: Boolean = true,
-    val locationPrefixAtEnabled: Boolean = true,
     val teacherVisible: Boolean = true,
     val totalScheduleDisplayEnabled: Boolean = true,
     /** 一周从哪天开始显示，不影响教学周编号。 */
@@ -296,6 +294,8 @@ data class UserPreferences(
     val autoUpdateEnabled: Boolean = false,
     /** 更新检查是否带上预发布版本。 */
     val betaUpdatesEnabled: Boolean = false,
+    /** 上次看过更新公告时的版本号，0 表示还没记录过。 */
+    val lastSeenVersionCode: Int = 0,
     /** 应用使用的时区；为空表示跟随设备。 */
     val appTimeZoneId: String? = null,
     val ignoredUpdateVersionCode: Int? = null,
@@ -332,7 +332,6 @@ interface UserPreferencesRepository {
     suspend fun setScheduleTodayHeaderBackgroundColorArgb(argb: Long)
     suspend fun setScheduleTextHorizontalCenter(enabled: Boolean)
     suspend fun setScheduleTextVerticalCenter(enabled: Boolean)
-    suspend fun setScheduleTextFullCenter(enabled: Boolean)
     suspend fun setScheduleCourseCornerRadiusDp(radiusDp: Int)
     suspend fun setScheduleCourseCardHeightDp(heightDp: Int)
     suspend fun setScheduleOpacityPercent(percent: Int)
@@ -354,7 +353,6 @@ interface UserPreferencesRepository {
 
     suspend fun setCourseDragEnabled(enabled: Boolean)
     suspend fun setScheduleLocationVisible(visible: Boolean)
-    suspend fun setScheduleLocationPrefixAtEnabled(enabled: Boolean)
     suspend fun setScheduleTeacherVisible(visible: Boolean)
     suspend fun setTotalScheduleDisplayEnabled(enabled: Boolean)
     suspend fun setPluginEnabled(pluginKey: String, enabled: Boolean)
@@ -391,6 +389,8 @@ interface UserPreferencesRepository {
     suspend fun saveAutoSilenceSession(session: AutoSilenceSession)
     suspend fun clearAutoSilenceSession(suppressedUntilMillis: Long)
     suspend fun setBetaUpdatesEnabled(enabled: Boolean)
+
+    suspend fun setLastSeenVersionCode(versionCode: Int)
 
     suspend fun setAppTimeZoneId(zoneId: String?)
 

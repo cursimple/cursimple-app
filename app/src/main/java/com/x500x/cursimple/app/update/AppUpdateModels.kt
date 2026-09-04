@@ -30,6 +30,9 @@ sealed interface AppUpdateCheckResult {
     data object ManifestMissing : AppUpdateCheckResult
     data object UpToDate : AppUpdateCheckResult
     data class Available(val info: AppUpdateInfo) : AppUpdateCheckResult
+
+    /** 当前装的是测试版，而线上正式版版本号更低，可以回退过去。 */
+    data class Rollback(val info: AppUpdateInfo) : AppUpdateCheckResult
     data class Failure(val reason: UpdateStatusReason) : AppUpdateCheckResult
 }
 
