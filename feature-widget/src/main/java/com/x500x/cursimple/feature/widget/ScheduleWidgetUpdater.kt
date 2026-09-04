@@ -12,6 +12,8 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import kotlinx.coroutines.CoroutineScope
+import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
@@ -24,6 +26,22 @@ object ScheduleWidgetUpdater {
         ScheduleGlanceWidgetReceiver.updateWidgets(app)
         NextCourseGlanceWidgetReceiver.updateWidgets(app)
         ReminderGlanceWidgetReceiver.updateWidgets(app)
+        // 作息或课表变化后边界随之改变，这里是所有变更路径的汇聚点
+        rescheduleBoundaryRefresh(app)
+    }
+
+    /** 按当前作息重排节次边界刷新；取不到作息时保持已排的槽位不动。 */
+    private suspend fun rescheduleBoundaryRefresh(context: Context) {
+        runCatching {
+            val slots = DataStoreWidgetPreferencesRepository(context)
+                .timingProfileFlow
+                .first()
+                ?.slotTimes
+                .orEmpty()
+            WidgetBoundaryRefreshScheduler.reschedule(context, slots)
+        }.onFailure { error ->
+            ReminderLogger.warn("widget.boundary_refresh.reschedule.failure", emptyMap(), error)
+        }
     }
 }
 
