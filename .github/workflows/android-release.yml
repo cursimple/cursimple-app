@@ -35,6 +35,24 @@ jobs:
           CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
         run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
 
+      - name: Verify tag matches app.versionName
+        shell: pwsh
+        run: |
+          $properties = @{}
+          foreach ($rawLine in Get-Content -LiteralPath "gradle.properties") {
+            $line = $rawLine.Trim()
+            if ($line -eq "" -or $line.StartsWith("#")) { continue }
+            $separator = $line.IndexOf("=")
+            if ($separator -lt 1) { continue }
+            $properties[$line.Substring(0, $separator).Trim()] = $line.Substring($separator + 1).Trim()
+          }
+          $versionName = $properties["app.versionName"]
+          $expected = "v$versionName"
+          if ($env:GITHUB_REF_NAME -ne $expected) {
+            throw "Tag $($env:GITHUB_REF_NAME) does not match app.versionName ($expected). Bump gradle.properties first."
+          }
+          Write-Output "Tag matches app.versionName: $expected"
+
       - name: Configure release ABI splits
         shell: pwsh
         run: |

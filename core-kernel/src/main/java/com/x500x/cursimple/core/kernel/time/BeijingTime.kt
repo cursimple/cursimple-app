@@ -10,7 +10,8 @@ import java.util.concurrent.atomic.AtomicReference
 /**
  * 应用统一的当前时间来源。
  *
- * 应用时区等于设备时区：[zone] 返回 [ZoneId.systemDefault]，不再固定为某个地区时区。
+ * 应用时区默认等于设备时区。用户在设置里指定时区后由 [setOverrideZone] 覆盖，
+ * 出国或跨时区上课时课表仍按学校所在时区计算。
  * 带 [ZoneId] 参数的函数按传入时区计算，调用方通过传入 [zone] 获得设备本地结果。
  *
  * 开发者模式可以用 [setForcedNow] / [setForcedToday] 覆盖当前时间。被覆盖的值是墙上时钟，
@@ -19,7 +20,14 @@ import java.util.concurrent.atomic.AtomicReference
  */
 object BeijingTime {
     val zone: ZoneId
-        get() = ZoneId.systemDefault()
+        get() = overrideZone.get() ?: ZoneId.systemDefault()
+
+    private val overrideZone = AtomicReference<ZoneId?>(null)
+
+    /** 指定应用使用的时区；null 表示跟随设备。 */
+    fun setOverrideZone(zone: ZoneId?) {
+        overrideZone.set(zone)
+    }
 
     private val forcedDateTime = AtomicReference<LocalDateTime?>(null)
 

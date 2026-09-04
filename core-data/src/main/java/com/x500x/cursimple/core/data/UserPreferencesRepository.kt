@@ -294,6 +294,10 @@ data class UserPreferences(
     val autoSilence: AutoSilencePreferences = AutoSilencePreferences(),
     val autoSilenceSession: AutoSilenceSession = AutoSilenceSession(),
     val autoUpdateEnabled: Boolean = false,
+    /** 更新检查是否带上预发布版本。 */
+    val betaUpdatesEnabled: Boolean = false,
+    /** 应用使用的时区；为空表示跟随设备。 */
+    val appTimeZoneId: String? = null,
     val ignoredUpdateVersionCode: Int? = null,
     val pluginRegistryRepo: String = DEFAULT_PLUGIN_REGISTRY_REPO,
     val pluginMarketCacheJson: String = "",
@@ -386,6 +390,10 @@ interface UserPreferencesRepository {
     suspend fun setAutoSilenceMode(mode: AutoSilenceMode)
     suspend fun saveAutoSilenceSession(session: AutoSilenceSession)
     suspend fun clearAutoSilenceSession(suppressedUntilMillis: Long)
+    suspend fun setBetaUpdatesEnabled(enabled: Boolean)
+
+    suspend fun setAppTimeZoneId(zoneId: String?)
+
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
     suspend fun setPluginRegistryRepo(repo: String)

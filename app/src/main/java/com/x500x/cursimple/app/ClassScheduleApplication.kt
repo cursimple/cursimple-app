@@ -95,6 +95,20 @@ class ClassScheduleApplication : Application() {
         appScope.launch {
             appContainer.bootstrapJob.join()
             appContainer.userPreferencesRepository.preferencesFlow
+                .map { it.appTimeZoneId }
+                .distinctUntilChanged()
+                .collect { zoneId ->
+                    // 时区无法解析时按跟随设备处理，不让一个坏值把全应用的时间算错
+                    BeijingTime.setOverrideZone(
+                        zoneId?.let { runCatching { java.time.ZoneId.of(it) }.getOrNull() },
+                    )
+                    appContainer.refreshWidgets()
+                }
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            appContainer.userPreferencesRepository.preferencesFlow
                 .map { it.themeAccent }
                 .distinctUntilChanged()
                 .drop(1)
