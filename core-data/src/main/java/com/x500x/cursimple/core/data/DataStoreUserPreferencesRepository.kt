@@ -103,6 +103,8 @@ class DataStoreUserPreferencesRepository(
             autoSilence = prefs.toAutoSilencePreferences(),
             autoSilenceSession = prefs.toAutoSilenceSession(),
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,
+            betaUpdatesEnabled = prefs[KEY_BETA_UPDATES_ENABLED] ?: false,
+            appTimeZoneId = prefs[KEY_APP_TIME_ZONE_ID]?.takeIf { it.isNotBlank() },
             ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
             pluginRegistryRepo = prefs[KEY_PLUGIN_REGISTRY_REPO]
                 ?.takeIf(String::isNotBlank)
@@ -450,6 +452,17 @@ class DataStoreUserPreferencesRepository(
             } else {
                 prefs.remove(KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS)
             }
+        }
+    }
+
+    override suspend fun setBetaUpdatesEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_BETA_UPDATES_ENABLED] = enabled }
+    }
+
+    override suspend fun setAppTimeZoneId(zoneId: String?) {
+        store.edit { prefs ->
+            val trimmed = zoneId?.trim().orEmpty()
+            if (trimmed.isEmpty()) prefs.remove(KEY_APP_TIME_ZONE_ID) else prefs[KEY_APP_TIME_ZONE_ID] = trimmed
         }
     }
 
@@ -983,6 +996,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS =
             longPreferencesKey("auto_silence_session_suppressed_until_millis")
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
+        val KEY_BETA_UPDATES_ENABLED = booleanPreferencesKey("beta_updates_enabled")
+        val KEY_APP_TIME_ZONE_ID = stringPreferencesKey("app_time_zone_id")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
