@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.core.reminder.ReminderDayPolicy
 import kotlinx.coroutines.flow.Flow
@@ -205,6 +206,7 @@ data class ScheduleDisplayPreferences(
     val nodeColumnTimeEnabled: Boolean = true,
     val saturdayVisible: Boolean = true,
     val weekendVisible: Boolean = true,
+    val rowFitMode: ScheduleRowFitMode = ScheduleRowFitMode.Fit,
     val locationVisible: Boolean = true,
     val teacherVisible: Boolean = true,
     val totalScheduleDisplayEnabled: Boolean = true,
@@ -348,6 +350,8 @@ interface UserPreferencesRepository {
     suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean)
     suspend fun setScheduleSaturdayVisible(visible: Boolean)
     suspend fun setScheduleWeekendVisible(visible: Boolean)
+
+    suspend fun setScheduleRowFitMode(mode: ScheduleRowFitMode)
 
     suspend fun setScheduleWeekStartDay(day: WeekStartDay)
 

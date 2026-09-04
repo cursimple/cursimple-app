@@ -709,6 +709,7 @@ class MainActivity : ComponentActivity() {
                                         dayOffset = dayOffset,
                                         onPrevDay = { dayOffset -= 1 },
                                         onNextDay = { dayOffset += 1 },
+                                        onDayOffsetChange = { dayOffset = it },
                                         onResetDay = { dayOffset = 0 },
                                         onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
                                         scheduleTextStyle = prefs.scheduleTextStyle,
@@ -840,6 +841,7 @@ class MainActivity : ComponentActivity() {
                                         onCourseDragEnabledChange =
                                             prefsViewModel::setCourseDragEnabled,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
+                                        onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
                                         onScheduleTeacherVisibleChange = prefsViewModel::setScheduleTeacherVisible,
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
