@@ -18,10 +18,10 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -142,35 +142,17 @@ fun UpdateCheckSection(
 
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = Icons.Rounded.SystemUpdate,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = stringResource(R.string.update_section_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-        Text(
-            text = stringResource(R.string.update_section_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         UpdateSwitchRow(
+            icon = Icons.Rounded.Autorenew,
             title = stringResource(R.string.update_auto_check_title),
             subtitle = if (autoCheckEnabled) stringResource(R.string.update_auto_check_on) else stringResource(R.string.update_auto_check_off),
             checked = autoCheckEnabled,
             onCheckedChange = onAutoCheckEnabledChange,
         )
         UpdateActionRow(
+            icon = Icons.Rounded.SystemUpdate,
             title = stringResource(R.string.update_check_title),
             subtitle = statusMessage,
             enabled = !checking && !downloading,
@@ -335,6 +317,7 @@ private fun UpdateAvailableDialog(
 
 @Composable
 private fun UpdateSwitchRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
     checked: Boolean,
@@ -356,6 +339,13 @@ private fun UpdateSwitchRow(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
@@ -378,6 +368,7 @@ private fun UpdateSwitchRow(
 
 @Composable
 private fun UpdateActionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     subtitle: String,
     enabled: Boolean,
@@ -393,6 +384,13 @@ private fun UpdateActionRow(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
