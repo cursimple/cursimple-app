@@ -274,6 +274,8 @@ fun AppSettingsRoute(
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
     autoUpdateEnabled: Boolean,
+    betaUpdatesEnabled: Boolean,
+    appTimeZoneId: String?,
     ignoredUpdateVersionCode: Int?,
     pluginRegistryRepo: String,
     componentMarketIndexUrl: String,
@@ -344,6 +346,8 @@ fun AppSettingsRoute(
     onClearWidgetBackgroundImage: () -> Unit,
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
+    onBetaUpdatesEnabledChange: (Boolean) -> Unit,
+    onAppTimeZoneChange: (String?) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
     onPluginRegistryRepoChange: (String) -> Unit,
     onComponentMarketIndexUrlChange: (String) -> Unit,
@@ -552,9 +556,15 @@ fun AppSettingsRoute(
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 UpdateCheckSection(
                     autoCheckEnabled = autoUpdateEnabled,
+                    betaUpdatesEnabled = betaUpdatesEnabled,
                     ignoredUpdateVersionCode = ignoredUpdateVersionCode,
                     onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
                     onIgnoreUpdateVersion = onIgnoreUpdateVersion,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                BetaUpdatesRow(
+                    enabled = betaUpdatesEnabled,
+                    onEnabledChange = onBetaUpdatesEnabledChange,
                 )
             }
 
@@ -565,6 +575,7 @@ fun AppSettingsRoute(
                     subtitle = appLanguageLabel(appLanguage),
                     onClick = onPickAppLanguage,
                 )
+                TimeZoneRow(zoneId = appTimeZoneId, onZoneChange = onAppTimeZoneChange)
                 SettingsActionRow(
                     icon = Icons.Rounded.Palette,
                     title = stringResource(R.string.settings_theme),
@@ -2366,7 +2377,7 @@ internal fun SettingsActionRow(
 }
 
 @Composable
-private fun SettingsSwitchRow(
+internal fun SettingsSwitchRow(
     icon: ImageVector,
     title: String,
     subtitle: String,

@@ -276,6 +276,7 @@ class MainActivity : ComponentActivity() {
                     }
                     AutomaticUpdateCheckPrompt(
                         autoCheckEnabled = prefs.autoUpdateEnabled,
+                        betaUpdatesEnabled = prefs.betaUpdatesEnabled,
                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
                     )
@@ -769,6 +770,8 @@ class MainActivity : ComponentActivity() {
                                         alarmRepeatCount = prefs.alarmRepeatCount,
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
                                         autoUpdateEnabled = prefs.autoUpdateEnabled,
+                                        betaUpdatesEnabled = prefs.betaUpdatesEnabled,
+                                        appTimeZoneId = prefs.appTimeZoneId,
                                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
                                         pluginRegistryRepo = prefs.pluginRegistryRepo,
                                         componentMarketIndexUrl = prefs.componentMarketIndexUrl,
@@ -848,6 +851,8 @@ class MainActivity : ComponentActivity() {
                                         onWidgetOpenAppOnDoubleClickChange =
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
+                                        onBetaUpdatesEnabledChange = prefsViewModel::setBetaUpdatesEnabled,
+                                        onAppTimeZoneChange = prefsViewModel::setAppTimeZoneId,
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
                                         onPluginRegistryRepoChange = prefsViewModel::setPluginRegistryRepo,
                                         onComponentMarketIndexUrlChange = prefsViewModel::setComponentMarketIndexUrl,

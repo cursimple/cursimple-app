@@ -16,6 +16,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
@@ -33,9 +34,14 @@ class AppUpdateChecker(
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
     ),
 ) {
-    suspend fun check(): AppUpdateCheckResult = withContext(Dispatchers.IO) {
+    suspend fun check(includePrerelease: Boolean = false): AppUpdateCheckResult = withContext(Dispatchers.IO) {
         runCatching {
-            val releaseUrl = "https://api.github.com/repos/$repository/releases/latest"
+            // 预发布不会出现在 latest 接口里，开启测试版更新时改取列表自行挑选
+            val releaseUrl = if (includePrerelease) {
+                "https://api.github.com/repos/$repository/releases?per_page=$RELEASE_PAGE_SIZE"
+            } else {
+                "https://api.github.com/repos/$repository/releases/latest"
+            }
             val attempts = requestAllSources(
                 candidates = mirrorPool.candidates(
                     DownloadRequest(
@@ -45,7 +51,9 @@ class AppUpdateChecker(
                 ),
                 accept = "application/vnd.github+json",
             )
-            val selection = UpdateSourceSelector.select(attempts, ::isJsonObjectBody)
+            val accepts: (String) -> Boolean =
+                if (includePrerelease) ::isJsonArrayBody else ::isJsonObjectBody
+            val selection = UpdateSourceSelector.select(attempts, accepts)
             val releaseResponse = when (selection) {
                 is UpdateSourceSelection.Success -> selection.response
                 UpdateSourceSelection.NotFound -> return@withContext AppUpdateCheckResult.NoRelease
@@ -57,7 +65,12 @@ class AppUpdateChecker(
                 )
             }
 
-            val release = JSONObject(releaseResponse.body)
+            val release = if (includePrerelease) {
+                pickReleaseFromList(releaseResponse.body)
+                    ?: return@withContext AppUpdateCheckResult.NoRelease
+            } else {
+                JSONObject(releaseResponse.body)
+            }
             val tagName = release.optString("tag_name")
             val htmlUrl = release.optString("html_url")
             val releaseBody = release.optString("body")
@@ -323,6 +336,26 @@ class AppUpdateChecker(
     private fun isJsonObjectBody(body: String): Boolean =
         runCatching { JSONObject(body) }.isSuccess
 
+    private fun isJsonArrayBody(body: String): Boolean =
+        runCatching { JSONArray(body) }.isSuccess
+
+    /** 从 Release 列表里挑出该更新到哪一个，挑不出时视作没有可用版本。 */
+    private fun pickReleaseFromList(body: String): JSONObject? {
+        val array = runCatching { JSONArray(body) }.getOrNull() ?: return null
+        val entries = (0 until array.length()).mapNotNull { index ->
+            val item = array.optJSONObject(index) ?: return@mapNotNull null
+            ReleaseEntry(
+                index = index,
+                tagName = item.optString("tag_name"),
+                draft = item.optBoolean("draft"),
+                prerelease = item.optBoolean("prerelease"),
+                publishedAt = item.optString("published_at"),
+            )
+        }
+        val picked = pickUpdateRelease(entries, includePrerelease = true) ?: return null
+        return array.optJSONObject(picked.index)
+    }
+
     private fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
@@ -346,6 +379,7 @@ class AppUpdateChecker(
 
     private companion object {
         const val UPDATE_MANIFEST_NAME = "update.json"
+        private const val RELEASE_PAGE_SIZE = 20
         val USER_AGENT = "CurSimple/${BuildConfig.VERSION_NAME}"
         const val NETWORK_TIMEOUT_MILLIS = 8_000
     }
