@@ -64,6 +64,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.rounded.Style
+import androidx.compose.material.icons.rounded.Wallpaper
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -441,6 +444,15 @@ class MainActivity : ComponentActivity() {
                                 onSelectScreen = {
                                     currentScreen = it
                                     scope.launch { drawerState.close() }
+                                },
+                                onPickThemeAccent = {
+                                    scope.launch { drawerState.close() }
+                                    showThemeAccentDialog = true
+                                },
+                                onPickScheduleBackground = {
+                                    scope.launch { drawerState.close() }
+                                    openSettingsDestination = SettingsDestinationKey.ScheduleBackground
+                                    currentScreen = AppScreen.Settings
                                 },
                             )
                         },
@@ -1229,6 +1241,8 @@ private fun AppDrawer(
     currentWeekIndex: Int,
     appVersionName: String,
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
+    onPickThemeAccent: () -> Unit,
+    onPickScheduleBackground: () -> Unit,
 ) {
     ModalDrawerSheet(
         modifier = Modifier.fillMaxWidth(0.68f),
@@ -1293,12 +1307,49 @@ private fun AppDrawer(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // 换配色和换背景都埋在设置的三级菜单里，这里给两个直达入口
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                DrawerAppearanceShortcut(
+                    icon = Icons.Rounded.Style,
+                    label = stringResource(R.string.main_drawer_theme_shortcut),
+                    onClick = onPickThemeAccent,
+                    modifier = Modifier.weight(1f),
+                )
+                DrawerAppearanceShortcut(
+                    icon = Icons.Rounded.Wallpaper,
+                    label = stringResource(R.string.main_drawer_background_shortcut),
+                    onClick = onPickScheduleBackground,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
             Text(
                 text = stringResource(R.string.main_drawer_version, appVersionName),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+    }
+}
+
+@Composable
+private fun DrawerAppearanceShortcut(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TextButton(
+        onClick = onClick,
+        modifier = modifier,
+        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+    ) {
+        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(text = label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 

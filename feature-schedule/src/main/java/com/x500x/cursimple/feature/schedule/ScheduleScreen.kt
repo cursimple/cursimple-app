@@ -1878,6 +1878,17 @@ private fun ScheduleGrid(
         val slotHeight = scheduleCardStyle.courseCardHeightDp.dp
         val gridHeight = slotHeight * slots.size
 
+        // 背景铺满整块课表，节次列与日期行都在其上，否则图片只盖住中间一块
+        ScheduleGridBackground(
+            scheduleBackground = scheduleBackground,
+            scheduleCardStyle = scheduleCardStyle,
+            customColorsAdaptToTheme = customColorsAdaptToTheme,
+            modifier = Modifier
+                .width(totalWidth)
+                .height(dayHeaderMinHeight + gridHeight)
+                .clip(RoundedCornerShape(16.dp)),
+        )
+
         Column {
             // 顶部周日期头
             Row(
@@ -1918,15 +1929,8 @@ private fun ScheduleGrid(
                 Box(
                     modifier = Modifier
                         .width(gridWidth)
-                        .height(gridHeight)
-                        .clip(RoundedCornerShape(16.dp)),
+                        .height(gridHeight),
                 ) {
-                    ScheduleGridBackground(
-                        scheduleBackground = scheduleBackground,
-                        scheduleCardStyle = scheduleCardStyle,
-                        customColorsAdaptToTheme = customColorsAdaptToTheme,
-                        modifier = Modifier.fillMaxSize(),
-                    )
                     val density = androidx.compose.ui.platform.LocalDensity.current
                     val darkTheme = isDarkColorScheme()
                     Box(
