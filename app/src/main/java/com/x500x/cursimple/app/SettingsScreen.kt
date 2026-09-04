@@ -42,10 +42,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Delete
@@ -53,18 +55,31 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.EventRepeat
+import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.FormatAlignCenter
 import androidx.compose.material.icons.rounded.ImageSearch
-import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.LineStyle
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.OpenWith
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Style
+import androidx.compose.material.icons.rounded.TextFields
+import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VerticalAlignCenter
+import androidx.compose.material.icons.rounded.VolumeOff
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.Weekend
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -198,11 +213,9 @@ import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
 private enum class SettingsDestination {
     Root,
-    Application,
     ScheduleData,
     TemporaryOverrides,
     Holidays,
-    ScheduleSettings,
     ScheduleAppearance,
     ScheduleTextStyle,
     ScheduleHeaderStyle,
@@ -236,22 +249,17 @@ private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (
 
 /** 深链跳转时补齐的上级页面，返回键沿这条链逐级回退。 */
 private fun SettingsDestination.parentChain(): List<SettingsDestination> = when (this) {
-    SettingsDestination.ScheduleBackground -> listOf(
-        SettingsDestination.ScheduleSettings,
-        SettingsDestination.ScheduleAppearance,
-    )
+    SettingsDestination.ScheduleBackground -> listOf(SettingsDestination.ScheduleAppearance)
     else -> emptyList()
 }
 
 @Composable
 private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.Root -> stringResource(R.string.settings_dest_root)
-    SettingsDestination.Application -> stringResource(R.string.settings_dest_application)
     SettingsDestination.ScheduleData -> stringResource(R.string.settings_dest_schedule_data)
     SettingsDestination.TemporaryOverrides -> stringResource(R.string.settings_dest_temporary_overrides)
     SettingsDestination.Holidays -> stringResource(R.string.settings_dest_holidays)
-    SettingsDestination.ScheduleSettings -> stringResource(R.string.settings_dest_schedule_settings)
-    SettingsDestination.ScheduleAppearance -> stringResource(R.string.settings_appearance)
+    SettingsDestination.ScheduleAppearance -> stringResource(R.string.settings_dest_schedule_style)
     SettingsDestination.ScheduleTextStyle -> stringResource(R.string.settings_text_style)
     SettingsDestination.ScheduleHeaderStyle -> stringResource(R.string.settings_header_style)
     SettingsDestination.ScheduleCardStyle -> stringResource(R.string.settings_card_style)
@@ -491,16 +499,8 @@ fun AppSettingsRoute(
             .padding(horizontal = 18.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            if (destination == SettingsDestination.Root) {
-                Icon(
-                    imageVector = Icons.Rounded.Tune,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-            } else {
+        if (destination != SettingsDestination.Root) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 IconButton(onClick = ::handleBack, modifier = Modifier.size(36.dp)) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -508,121 +508,143 @@ fun AppSettingsRoute(
                     )
                 }
                 Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = destination.title(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
-            Text(
-                text = destination.title(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
         }
 
         when (destination) {
             SettingsDestination.Root -> {
-                SettingsActionRow(
-                    Icons.Rounded.Palette,
-                    stringResource(R.string.settings_dest_application),
-                    stringResource(R.string.settings_row_application_subtitle),
-                    { navigate(SettingsDestination.Application) },
-                )
-                SettingsActionRow(
-                    Icons.Rounded.CalendarMonth,
-                    stringResource(R.string.settings_dest_schedule_data),
-                    stringResource(R.string.settings_row_schedule_data_subtitle),
-                    { navigate(SettingsDestination.ScheduleData) },
-                )
-                TimingProfileEntryRow { navigate(SettingsDestination.TimingProfile) }
-                SettingsActionRow(Icons.Rounded.EventRepeat, stringResource(R.string.settings_dest_temporary_overrides), temporaryOverridesSubtitle(temporaryScheduleOverrides), {
-                    navigate(SettingsDestination.TemporaryOverrides)
-                })
-                SettingsActionRow(Icons.Rounded.EventBusy, stringResource(R.string.settings_dest_holidays), holidayCalendarSubtitle(holidayCalendar), {
-                    navigate(SettingsDestination.Holidays)
-                })
-                SettingsActionRow(
-                    Icons.AutoMirrored.Rounded.MenuBook,
-                    stringResource(R.string.settings_dest_schedule_settings),
-                    stringResource(R.string.settings_row_schedule_settings_subtitle),
-                    {
-                        navigate(SettingsDestination.ScheduleSettings)
-                    },
-                )
-                SettingsActionRow(
-                    Icons.Rounded.Widgets,
-                    stringResource(R.string.settings_dest_widget_settings),
-                    stringResource(R.string.settings_row_widget_settings_subtitle),
-                    { navigate(SettingsDestination.WidgetSettings) },
-                )
-                SettingsActionRow(
-                    Icons.Rounded.Notifications,
-                    stringResource(R.string.settings_dest_auto_silence),
-                    stringResource(R.string.settings_row_auto_silence_subtitle),
-                    { navigate(SettingsDestination.AutoSilence) },
-                )
-                SettingsActionRow(
-                    Icons.Rounded.Code,
-                    stringResource(R.string.settings_dest_plugins),
-                    stringResource(R.string.settings_row_plugins_subtitle),
-                    { navigate(SettingsDestination.Plugins) },
-                )
-                SettingsActionRow(Icons.Rounded.Storage, "WebDAV", webDavSettingsSubtitle(webDavUrl, webDavUsername), {
-                    navigate(SettingsDestination.WebDav)
-                })
-                SettingsActionRow(Icons.Rounded.ImageSearch, stringResource(R.string.settings_dest_ai_import), aiImportSettingsSubtitle(aiImportApiUrl, aiImportModel), {
-                    navigate(SettingsDestination.AiImport)
-                })
-                SettingsActionRow(
-                    Icons.Rounded.Notifications,
-                    stringResource(R.string.settings_dest_permissions),
-                    stringResource(R.string.settings_row_permissions_subtitle),
-                    { navigate(SettingsDestination.Permissions) },
-                )
-                SettingsActionRow(
-                    icon = Icons.Rounded.Restore,
-                    title = stringResource(R.string.settings_reset_all_title),
-                    subtitle = stringResource(R.string.settings_reset_all_subtitle),
-                    onClick = { showResetAllSettingsConfirm = true },
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                UpdateCheckSection(
-                    autoCheckEnabled = autoUpdateEnabled,
-                    betaUpdatesEnabled = betaUpdatesEnabled,
-                    ignoredUpdateVersionCode = ignoredUpdateVersionCode,
-                    onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
-                    onIgnoreUpdateVersion = onIgnoreUpdateVersion,
-                )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                BetaUpdatesRow(
-                    enabled = betaUpdatesEnabled,
-                    onEnabledChange = onBetaUpdatesEnabledChange,
-                )
-            }
+                SettingsGroup(stringResource(R.string.settings_group_appearance)) {
+                    SettingsActionRow(
+                        icon = when (themeMode) {
+                            ThemeMode.Dark -> Icons.Rounded.Brightness4
+                            else -> Icons.Rounded.Brightness7
+                        },
+                        title = stringResource(R.string.settings_theme_mode_title),
+                        subtitle = when (themeMode) {
+                            ThemeMode.System -> stringResource(R.string.settings_theme_mode_system)
+                            ThemeMode.Light -> stringResource(R.string.settings_theme_mode_light)
+                            ThemeMode.Dark -> stringResource(R.string.settings_theme_mode_dark)
+                        },
+                        onClick = onPickThemeMode,
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Palette,
+                        title = stringResource(R.string.settings_theme),
+                        subtitle = themeAccentLabel,
+                        onClick = onPickThemeAccent,
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Style,
+                        title = stringResource(R.string.settings_dest_schedule_style),
+                        subtitle = stringResource(R.string.settings_row_schedule_style_subtitle),
+                        onClick = { navigate(SettingsDestination.ScheduleAppearance) },
+                    )
+                    SettingsActionRow(
+                        icon = Icons.AutoMirrored.Rounded.MenuBook,
+                        title = stringResource(R.string.settings_display),
+                        subtitle = stringResource(R.string.settings_row_schedule_display_subtitle),
+                        onClick = { navigate(SettingsDestination.ScheduleDisplay) },
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Widgets,
+                        title = stringResource(R.string.settings_dest_widget_settings),
+                        subtitle = stringResource(R.string.settings_row_widget_settings_subtitle),
+                        onClick = { navigate(SettingsDestination.WidgetSettings) },
+                    )
+                }
 
-            SettingsDestination.Application -> {
-                SettingsActionRow(
-                    icon = Icons.Rounded.Language,
-                    title = stringResource(R.string.settings_language),
-                    subtitle = appLanguageLabel(appLanguage),
-                    onClick = onPickAppLanguage,
-                )
-                TimeZoneRow(zoneId = appTimeZoneId, onZoneChange = onAppTimeZoneChange)
-                SettingsActionRow(
-                    icon = Icons.Rounded.Palette,
-                    title = stringResource(R.string.settings_theme),
-                    subtitle = themeAccentLabel,
-                    onClick = onPickThemeAccent,
-                )
-                SettingsActionRow(
-                    icon = when (themeMode) {
-                        ThemeMode.Dark -> Icons.Rounded.Brightness4
-                        else -> Icons.Rounded.Brightness7
-                    },
-                    title = stringResource(R.string.settings_appearance),
-                    subtitle = when (themeMode) {
-                        ThemeMode.System -> stringResource(R.string.settings_theme_mode_system)
-                        ThemeMode.Light -> stringResource(R.string.settings_theme_mode_light)
-                        ThemeMode.Dark -> stringResource(R.string.settings_theme_mode_dark)
-                    },
-                    onClick = onPickThemeMode,
-                )
+                SettingsGroup(stringResource(R.string.settings_group_schedule)) {
+                    SettingsActionRow(
+                        icon = Icons.Rounded.CalendarMonth,
+                        title = stringResource(R.string.settings_dest_schedule_data),
+                        subtitle = stringResource(R.string.settings_row_schedule_data_subtitle),
+                        onClick = { navigate(SettingsDestination.ScheduleData) },
+                    )
+                    TimingProfileEntryRow { navigate(SettingsDestination.TimingProfile) }
+                    SettingsActionRow(
+                        icon = Icons.Rounded.EventRepeat,
+                        title = stringResource(R.string.settings_dest_temporary_overrides),
+                        subtitle = temporaryOverridesSubtitle(temporaryScheduleOverrides),
+                        onClick = { navigate(SettingsDestination.TemporaryOverrides) },
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.EventBusy,
+                        title = stringResource(R.string.settings_dest_holidays),
+                        subtitle = holidayCalendarSubtitle(holidayCalendar),
+                        onClick = { navigate(SettingsDestination.Holidays) },
+                    )
+                }
+
+                SettingsGroup(stringResource(R.string.settings_group_reminder)) {
+                    SettingsActionRow(
+                        icon = Icons.Rounded.VolumeOff,
+                        title = stringResource(R.string.settings_dest_auto_silence),
+                        subtitle = stringResource(R.string.settings_row_auto_silence_subtitle),
+                        onClick = { navigate(SettingsDestination.AutoSilence) },
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Security,
+                        title = stringResource(R.string.settings_dest_permissions),
+                        subtitle = stringResource(R.string.settings_row_permissions_subtitle),
+                        onClick = { navigate(SettingsDestination.Permissions) },
+                    )
+                }
+
+                SettingsGroup(stringResource(R.string.settings_group_data)) {
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Extension,
+                        title = stringResource(R.string.settings_dest_plugins),
+                        subtitle = stringResource(R.string.settings_row_plugins_subtitle),
+                        onClick = { navigate(SettingsDestination.Plugins) },
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Storage,
+                        title = "WebDAV",
+                        subtitle = webDavSettingsSubtitle(webDavUrl, webDavUsername),
+                        onClick = { navigate(SettingsDestination.WebDav) },
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.ImageSearch,
+                        title = stringResource(R.string.settings_dest_ai_import),
+                        subtitle = aiImportSettingsSubtitle(aiImportApiUrl, aiImportModel),
+                        onClick = { navigate(SettingsDestination.AiImport) },
+                    )
+                }
+
+                SettingsGroup(stringResource(R.string.settings_group_general)) {
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Language,
+                        title = stringResource(R.string.settings_language),
+                        subtitle = appLanguageLabel(appLanguage),
+                        onClick = onPickAppLanguage,
+                    )
+                    TimeZoneRow(zoneId = appTimeZoneId, onZoneChange = onAppTimeZoneChange)
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Restore,
+                        title = stringResource(R.string.settings_reset_all_title),
+                        subtitle = stringResource(R.string.settings_reset_all_subtitle),
+                        onClick = { showResetAllSettingsConfirm = true },
+                    )
+                }
+
+                SettingsGroup(stringResource(R.string.update_section_title)) {
+                    UpdateCheckSection(
+                        autoCheckEnabled = autoUpdateEnabled,
+                        betaUpdatesEnabled = betaUpdatesEnabled,
+                        ignoredUpdateVersionCode = ignoredUpdateVersionCode,
+                        onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
+                        onIgnoreUpdateVersion = onIgnoreUpdateVersion,
+                    )
+                    BetaUpdatesRow(
+                        enabled = betaUpdatesEnabled,
+                        onEnabledChange = onBetaUpdatesEnabledChange,
+                    )
+                }
             }
 
             SettingsDestination.ScheduleData -> {
@@ -734,27 +756,6 @@ fun AppSettingsRoute(
                 }
             }
 
-            SettingsDestination.ScheduleSettings -> {
-                SettingsActionRow(
-                    Icons.Rounded.Palette,
-                    stringResource(R.string.settings_appearance),
-                    stringResource(R.string.settings_schedule_appearance_subtitle),
-                    { navigate(SettingsDestination.ScheduleAppearance) },
-                )
-                SettingsActionRow(
-                    Icons.AutoMirrored.Rounded.MenuBook,
-                    stringResource(R.string.settings_display),
-                    stringResource(R.string.settings_schedule_display_subtitle),
-                    { navigate(SettingsDestination.ScheduleDisplay) },
-                )
-                SettingsActionRow(
-                    icon = Icons.Rounded.Restore,
-                    title = stringResource(R.string.settings_reset_schedule_title),
-                    subtitle = stringResource(R.string.settings_reset_schedule_subtitle),
-                    onClick = { showResetScheduleAppearanceConfirm = true },
-                )
-            }
-
             SettingsDestination.ScheduleAppearance -> {
                 ScheduleAppearancePreview(
                     scheduleTextStyle = scheduleTextStyle,
@@ -775,69 +776,83 @@ fun AppSettingsRoute(
                     onScheduleCustomColorsAdaptToThemeChange,
                 )
                 SettingsActionRow(
-                    Icons.Rounded.Palette,
-                    stringResource(R.string.settings_text_style),
-                    stringResource(R.string.settings_text_style_subtitle),
-                    { navigate(SettingsDestination.ScheduleTextStyle) },
+                    icon = Icons.Rounded.TextFields,
+                    title = stringResource(R.string.settings_text_style),
+                    subtitle = stringResource(R.string.settings_text_style_subtitle),
+                    onClick = { navigate(SettingsDestination.ScheduleTextStyle) },
                 )
                 SettingsActionRow(
-                    Icons.Rounded.CalendarMonth,
-                    stringResource(R.string.settings_header_style),
-                    stringResource(R.string.settings_header_style_subtitle),
-                    { navigate(SettingsDestination.ScheduleHeaderStyle) },
+                    icon = Icons.Rounded.CalendarMonth,
+                    title = stringResource(R.string.settings_header_style),
+                    subtitle = stringResource(R.string.settings_header_style_subtitle),
+                    onClick = { navigate(SettingsDestination.ScheduleHeaderStyle) },
                 )
                 SettingsActionRow(
-                    Icons.Rounded.Tune,
-                    stringResource(R.string.settings_card_style),
-                    stringResource(R.string.settings_card_style_subtitle),
-                    { navigate(SettingsDestination.ScheduleCardStyle) },
+                    icon = Icons.Rounded.Tune,
+                    title = stringResource(R.string.settings_card_style),
+                    subtitle = stringResource(R.string.settings_card_style_subtitle),
+                    onClick = { navigate(SettingsDestination.ScheduleCardStyle) },
                 )
                 SettingsActionRow(
-                    Icons.Rounded.Download,
-                    stringResource(R.string.settings_schedule_background),
-                    backgroundSubtitle(scheduleBackground),
-                    { navigate(SettingsDestination.ScheduleBackground) },
+                    icon = Icons.Rounded.Wallpaper,
+                    title = stringResource(R.string.settings_schedule_background),
+                    subtitle = backgroundSubtitle(scheduleBackground),
+                    onClick = { navigate(SettingsDestination.ScheduleBackground) },
+                )
+                SettingsActionRow(
+                    icon = Icons.Rounded.Restore,
+                    title = stringResource(R.string.settings_reset_schedule_title),
+                    subtitle = stringResource(R.string.settings_reset_schedule_subtitle),
+                    onClick = { showResetScheduleAppearanceConfirm = true },
                 )
             }
 
             SettingsDestination.ScheduleTextStyle -> {
-                NumberStepperRow(stringResource(R.string.settings_course_text_size), scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
-                ColorAlphaRow(stringResource(R.string.settings_course_text_color), scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
-                if (scheduleCustomColorsAdaptToTheme) {
-                    ColorPreviewRow(
-                        stringResource(R.string.settings_current_theme_preview),
-                        scheduleTextStyle.courseTextColorArgb.adaptForegroundForPreview(darkTheme),
+                SettingsGroup(stringResource(R.string.settings_subgroup_course_text)) {
+                    NumberStepperRow(stringResource(R.string.settings_course_text_size), scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
+                    ColorAlphaRow(stringResource(R.string.settings_course_text_color), scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
+                    if (scheduleCustomColorsAdaptToTheme) {
+                        ColorPreviewRow(
+                            stringResource(R.string.settings_current_theme_preview),
+                            scheduleTextStyle.courseTextColorArgb.adaptForegroundForPreview(darkTheme),
+                        )
+                    }
+                }
+
+                SettingsGroup(stringResource(R.string.settings_subgroup_exam_text)) {
+                    NumberStepperRow(stringResource(R.string.settings_exam_text_size), scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
+                    ColorAlphaRow(stringResource(R.string.settings_exam_text_color), scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
+                    if (scheduleCustomColorsAdaptToTheme) {
+                        ColorPreviewRow(
+                            stringResource(R.string.settings_current_theme_preview),
+                            scheduleTextStyle.examTextColorArgb.adaptForegroundForPreview(darkTheme),
+                        )
+                    }
+                }
+
+                SettingsGroup(stringResource(R.string.settings_subgroup_alignment)) {
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.FormatAlignCenter,
+                        title = stringResource(R.string.settings_text_center_horizontal_title),
+                        subtitle = stringResource(R.string.settings_text_center_horizontal_subtitle),
+                        checked = scheduleTextStyle.horizontalCenter,
+                        onCheckedChange = onScheduleTextHorizontalCenterChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.VerticalAlignCenter,
+                        title = stringResource(R.string.settings_text_center_vertical_title),
+                        subtitle = stringResource(R.string.settings_text_center_vertical_subtitle),
+                        checked = scheduleTextStyle.verticalCenter,
+                        onCheckedChange = onScheduleTextVerticalCenterChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.CenterFocusStrong,
+                        title = stringResource(R.string.settings_text_center_full_title),
+                        subtitle = stringResource(R.string.settings_text_center_full_subtitle),
+                        checked = scheduleTextStyle.fullCenter,
+                        onCheckedChange = onScheduleTextFullCenterChange,
                     )
                 }
-                NumberStepperRow(stringResource(R.string.settings_exam_text_size), scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
-                ColorAlphaRow(stringResource(R.string.settings_exam_text_color), scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
-                if (scheduleCustomColorsAdaptToTheme) {
-                    ColorPreviewRow(
-                        stringResource(R.string.settings_current_theme_preview),
-                        scheduleTextStyle.examTextColorArgb.adaptForegroundForPreview(darkTheme),
-                    )
-                }
-                SettingsSwitchRow(
-                    Icons.Rounded.Tune,
-                    stringResource(R.string.settings_text_center_horizontal_title),
-                    stringResource(R.string.settings_text_center_horizontal_subtitle),
-                    scheduleTextStyle.horizontalCenter,
-                    onScheduleTextHorizontalCenterChange,
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.Tune,
-                    stringResource(R.string.settings_text_center_vertical_title),
-                    stringResource(R.string.settings_text_center_vertical_subtitle),
-                    scheduleTextStyle.verticalCenter,
-                    onScheduleTextVerticalCenterChange,
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.Tune,
-                    stringResource(R.string.settings_text_center_full_title),
-                    stringResource(R.string.settings_text_center_full_subtitle),
-                    scheduleTextStyle.fullCenter,
-                    onScheduleTextFullCenterChange,
-                )
             }
 
             SettingsDestination.ScheduleHeaderStyle -> {
@@ -867,26 +882,31 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleCardStyle -> {
-                NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
-                NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
-                NumberStepperRow(stringResource(R.string.settings_schedule_opacity), scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
-                NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
-                ColorAlphaRow(stringResource(R.string.settings_grid_border_color), scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
-                if (scheduleCustomColorsAdaptToTheme) {
-                    ColorPreviewRow(
-                        stringResource(R.string.settings_current_theme_preview),
-                        scheduleCardStyle.gridBorderColorArgb.adaptForegroundForPreview(darkTheme),
+                SettingsGroup(stringResource(R.string.settings_subgroup_card)) {
+                    NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
+                    NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
+                    NumberStepperRow(stringResource(R.string.settings_schedule_opacity), scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
+                    NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
+                }
+
+                SettingsGroup(stringResource(R.string.settings_subgroup_grid_border)) {
+                    ColorAlphaRow(stringResource(R.string.settings_grid_border_color), scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
+                    if (scheduleCustomColorsAdaptToTheme) {
+                        ColorPreviewRow(
+                            stringResource(R.string.settings_current_theme_preview),
+                            scheduleCardStyle.gridBorderColorArgb.adaptForegroundForPreview(darkTheme),
+                        )
+                    }
+                    NumberStepperRow(stringResource(R.string.settings_grid_border_opacity), scheduleCardStyle.gridBorderOpacityPercent, "%", 0, 100, 5, onScheduleGridBorderOpacityPercentChange)
+                    FloatStepperRow(stringResource(R.string.settings_grid_border_width), scheduleCardStyle.gridBorderWidthDp, "dp", 0f, 4f, 0.5f, onScheduleGridBorderWidthDpChange)
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.LineStyle,
+                        title = stringResource(R.string.settings_grid_border_dashed_title),
+                        subtitle = stringResource(R.string.settings_grid_border_dashed_subtitle),
+                        checked = scheduleCardStyle.gridBorderDashed,
+                        onCheckedChange = onScheduleGridBorderDashedChange,
                     )
                 }
-                NumberStepperRow(stringResource(R.string.settings_grid_border_opacity), scheduleCardStyle.gridBorderOpacityPercent, "%", 0, 100, 5, onScheduleGridBorderOpacityPercentChange)
-                FloatStepperRow(stringResource(R.string.settings_grid_border_width), scheduleCardStyle.gridBorderWidthDp, "dp", 0f, 4f, 0.5f, onScheduleGridBorderWidthDpChange)
-                SettingsSwitchRow(
-                    Icons.Rounded.Tune,
-                    stringResource(R.string.settings_grid_border_dashed_title),
-                    stringResource(R.string.settings_grid_border_dashed_subtitle),
-                    scheduleCardStyle.gridBorderDashed,
-                    onScheduleGridBorderDashedChange,
-                )
             }
 
             SettingsDestination.ScheduleBackground -> {
@@ -928,113 +948,126 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleDisplay -> {
-                SettingsSwitchRow(
-                    Icons.Rounded.Schedule,
-                    stringResource(R.string.settings_display_node_time_title),
-                    stringResource(R.string.settings_display_node_time_subtitle),
-                    scheduleDisplay.nodeColumnTimeEnabled,
-                    onScheduleNodeColumnTimeEnabledChange,
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.OpenWith,
-                    stringResource(R.string.settings_display_course_drag_title),
-                    stringResource(R.string.settings_display_course_drag_subtitle),
-                    scheduleDisplay.courseDragEnabled,
-                    onCourseDragEnabledChange,
-                )
-                WeekStartDayRow(
-                    selected = scheduleDisplay.weekStartDay,
-                    onSelect = onScheduleWeekStartDayChange,
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.CalendarMonth,
-                    stringResource(R.string.settings_display_saturday_title),
-                    stringResource(R.string.settings_display_saturday_subtitle),
-                    scheduleDisplay.saturdayVisible || scheduleDisplay.weekendVisible,
-                    onScheduleSaturdayVisibleChange,
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.CalendarMonth,
-                    stringResource(R.string.settings_display_weekend_title),
-                    stringResource(R.string.settings_display_weekend_subtitle),
-                    scheduleDisplay.weekendVisible,
-                    {
-                        onScheduleWeekendVisibleChange(it)
-                        if (it) onScheduleSaturdayVisibleChange(true)
-                    },
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.Schedule,
-                    stringResource(R.string.settings_display_location_title),
-                    stringResource(R.string.settings_display_location_subtitle),
-                    scheduleDisplay.locationVisible,
-                    onScheduleLocationVisibleChange,
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.Schedule,
-                    stringResource(R.string.settings_display_location_at_title),
-                    stringResource(R.string.settings_display_location_at_subtitle),
-                    scheduleDisplay.locationPrefixAtEnabled,
-                    onScheduleLocationPrefixAtEnabledChange,
-                )
-                SettingsSwitchRow(
-                    Icons.Rounded.Schedule,
-                    stringResource(R.string.settings_display_teacher_title),
-                    stringResource(R.string.settings_display_teacher_subtitle),
-                    scheduleDisplay.teacherVisible,
-                    onScheduleTeacherVisibleChange,
-                )
-                SettingsSwitchRow(
-                    icon = Icons.AutoMirrored.Rounded.MenuBook,
-                    title = stringResource(R.string.settings_display_total_title),
-                    subtitle = if (scheduleDisplay.totalScheduleDisplayEnabled) {
-                        stringResource(R.string.settings_display_total_on)
-                    } else {
-                        stringResource(R.string.settings_display_total_off)
-                    },
-                    checked = scheduleDisplay.totalScheduleDisplayEnabled,
-                    onCheckedChange = onTotalScheduleDisplayChange,
-                )
+                SettingsGroup(stringResource(R.string.settings_subgroup_visible_range)) {
+                    WeekStartDayRow(
+                        selected = scheduleDisplay.weekStartDay,
+                        onSelect = onScheduleWeekStartDayChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.CalendarMonth,
+                        title = stringResource(R.string.settings_display_saturday_title),
+                        subtitle = stringResource(R.string.settings_display_saturday_subtitle),
+                        checked = scheduleDisplay.saturdayVisible || scheduleDisplay.weekendVisible,
+                        onCheckedChange = onScheduleSaturdayVisibleChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.Weekend,
+                        title = stringResource(R.string.settings_display_weekend_title),
+                        subtitle = stringResource(R.string.settings_display_weekend_subtitle),
+                        checked = scheduleDisplay.weekendVisible,
+                        onCheckedChange = {
+                            onScheduleWeekendVisibleChange(it)
+                            if (it) onScheduleSaturdayVisibleChange(true)
+                        },
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.AutoMirrored.Rounded.MenuBook,
+                        title = stringResource(R.string.settings_display_total_title),
+                        subtitle = if (scheduleDisplay.totalScheduleDisplayEnabled) {
+                            stringResource(R.string.settings_display_total_on)
+                        } else {
+                            stringResource(R.string.settings_display_total_off)
+                        },
+                        checked = scheduleDisplay.totalScheduleDisplayEnabled,
+                        onCheckedChange = onTotalScheduleDisplayChange,
+                    )
+                }
+
+                SettingsGroup(stringResource(R.string.settings_subgroup_cell_info)) {
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.Schedule,
+                        title = stringResource(R.string.settings_display_node_time_title),
+                        subtitle = stringResource(R.string.settings_display_node_time_subtitle),
+                        checked = scheduleDisplay.nodeColumnTimeEnabled,
+                        onCheckedChange = onScheduleNodeColumnTimeEnabledChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.Place,
+                        title = stringResource(R.string.settings_display_location_title),
+                        subtitle = stringResource(R.string.settings_display_location_subtitle),
+                        checked = scheduleDisplay.locationVisible,
+                        onCheckedChange = onScheduleLocationVisibleChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.AlternateEmail,
+                        title = stringResource(R.string.settings_display_location_at_title),
+                        subtitle = stringResource(R.string.settings_display_location_at_subtitle),
+                        checked = scheduleDisplay.locationPrefixAtEnabled,
+                        onCheckedChange = onScheduleLocationPrefixAtEnabledChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.Person,
+                        title = stringResource(R.string.settings_display_teacher_title),
+                        subtitle = stringResource(R.string.settings_display_teacher_subtitle),
+                        checked = scheduleDisplay.teacherVisible,
+                        onCheckedChange = onScheduleTeacherVisibleChange,
+                    )
+                }
+
+                SettingsGroup(stringResource(R.string.settings_subgroup_interaction)) {
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.OpenWith,
+                        title = stringResource(R.string.settings_display_course_drag_title),
+                        subtitle = stringResource(R.string.settings_display_course_drag_subtitle),
+                        checked = scheduleDisplay.courseDragEnabled,
+                        onCheckedChange = onCourseDragEnabledChange,
+                    )
+                }
             }
 
             SettingsDestination.WidgetSettings -> {
-                SettingsActionRow(
-                    icon = Icons.Rounded.Palette,
-                    title = stringResource(R.string.settings_theme),
-                    subtitle = widgetThemeLabel(widgetThemePreferences),
-                    onClick = onPickWidgetThemeAccent,
-                )
-                SettingsActionRow(
-                    icon = Icons.Rounded.Widgets,
-                    title = stringResource(R.string.settings_widget_home_title),
-                    subtitle = stringResource(R.string.settings_widget_home_subtitle),
-                    onClick = onOpenWidgetPicker,
-                )
-                SettingsSwitchRow(
-                    icon = Icons.Rounded.Schedule,
-                    title = stringResource(R.string.settings_widget_open_app_title),
-                    subtitle = stringResource(R.string.settings_widget_open_app_subtitle),
-                    checked = widgetThemePreferences.openAppOnDoubleClickEnabled,
-                    onCheckedChange = onWidgetOpenAppOnDoubleClickChange,
-                )
-                SettingsActionRow(
-                    icon = Icons.Rounded.Download,
-                    title = stringResource(R.string.settings_widget_background_title),
-                    subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
-                        stringResource(R.string.settings_background_image_selected)
-                    } else {
-                        stringResource(R.string.settings_widget_background_theme)
-                    },
-                    onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
-                )
-                if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
-                    widgetThemePreferences.backgroundImageUri != null
-                ) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_widget_look)) {
                     SettingsActionRow(
-                        icon = Icons.Rounded.Delete,
-                        title = stringResource(R.string.settings_widget_background_clear_title),
-                        subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
-                        onClick = onClearWidgetBackgroundImage,
+                        icon = Icons.Rounded.Palette,
+                        title = stringResource(R.string.settings_theme),
+                        subtitle = widgetThemeLabel(widgetThemePreferences),
+                        onClick = onPickWidgetThemeAccent,
+                    )
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Wallpaper,
+                        title = stringResource(R.string.settings_widget_background_title),
+                        subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
+                            stringResource(R.string.settings_background_image_selected)
+                        } else {
+                            stringResource(R.string.settings_widget_background_theme)
+                        },
+                        onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
+                    )
+                    if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
+                        widgetThemePreferences.backgroundImageUri != null
+                    ) {
+                        SettingsActionRow(
+                            icon = Icons.Rounded.Delete,
+                            title = stringResource(R.string.settings_widget_background_clear_title),
+                            subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
+                            onClick = onClearWidgetBackgroundImage,
+                        )
+                    }
+                }
+
+                SettingsGroup(stringResource(R.string.settings_subgroup_widget_behavior)) {
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Widgets,
+                        title = stringResource(R.string.settings_widget_home_title),
+                        subtitle = stringResource(R.string.settings_widget_home_subtitle),
+                        onClick = onOpenWidgetPicker,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.TouchApp,
+                        title = stringResource(R.string.settings_widget_open_app_title),
+                        subtitle = stringResource(R.string.settings_widget_open_app_subtitle),
+                        checked = widgetThemePreferences.openAppOnDoubleClickEnabled,
+                        onCheckedChange = onWidgetOpenAppOnDoubleClickChange,
                     )
                 }
             }
@@ -1223,6 +1256,18 @@ private fun FloatStepperRow(
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
             ) { Text("+") }
         }
+    }
+}
+
+/** 设置列表的一个分组：标题加同类条目，条目间距比分组间距更紧。 */
+@Composable
+internal fun SettingsGroup(
+    title: String,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SettingsSectionHeader(title)
+        content()
     }
 }
 
