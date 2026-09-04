@@ -53,6 +53,8 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.verticalScroll
+import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
+import androidx.compose.foundation.ScrollState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -170,6 +172,7 @@ fun ScheduleRoute(
     dayOffset: Int = 0,
     onPrevDay: () -> Unit = {},
     onNextDay: () -> Unit = {},
+    onDayOffsetChange: (Int) -> Unit = {},
     onResetDay: () -> Unit = {},
     scheduleTextStyle: ScheduleTextStylePreferences = ScheduleTextStylePreferences(),
     scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
@@ -205,6 +208,7 @@ fun ScheduleRoute(
         overrideTermStart = overrideTermStart,
         viewMode = viewMode,
         dayOffset = dayOffset,
+        onDayOffsetChange = onDayOffsetChange,
         onCreateCourseReminder = viewModel::createReminderForCourse,
         onMuteExamReminder = viewModel::muteExamReminder,
         onRestoreExamReminder = viewModel::restoreExamReminder,
@@ -258,6 +262,7 @@ fun ScheduleScreen(
     onNextWeek: () -> Unit,
     onPrevDay: () -> Unit,
     onNextDay: () -> Unit,
+    onDayOffsetChange: (Int) -> Unit = {},
     onResetDay: () -> Unit,
     onOpenPluginMarket: () -> Unit,
     onWeekOffsetChange: (Int) -> Unit = {},
@@ -369,6 +374,7 @@ fun ScheduleScreen(
                         selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
                         multiSelectedIds = selectedIds,
                         dayOffset = dayOffset,
+                        onDayOffsetChange = onDayOffsetChange,
                         onCellClick = onCellClickHandler,
                         onCourseLongClick = onLongClickHandler,
                         onPrevDay = onPrevDay,
@@ -949,6 +955,7 @@ private fun DailyScheduleSection(
     selectedCourseId: String?,
     multiSelectedIds: Set<String>,
     dayOffset: Int,
+    onDayOffsetChange: (Int) -> Unit,
     onCellClick: (List<CourseItem>, LocalDate) -> Unit,
     onCourseLongClick: (String) -> Unit,
     onPrevDay: () -> Unit,
@@ -996,21 +1003,51 @@ private fun DailyScheduleSection(
             }
 
 
-            // 目标状态必须是日期本身，否则进出两侧会渲染同一天，滑动切换看不出区别
-            AnimatedContent(
-                targetState = targetDate,
-                transitionSpec = {
-                    val direction = if (targetState.isAfter(initialState)) 1 else -1
-                    (slideInHorizontally(animationSpec = tween(260)) { full -> full * direction } +
-                        fadeIn(animationSpec = tween(260)))
-                        .togetherWith(
-                            slideOutHorizontally(animationSpec = tween(260)) { full -> -full * direction } +
-                                fadeOut(animationSpec = tween(260))
-                        )
-                },
-                label = "day-list",
+            // 用分页器承载相邻日，拖动时左右两天会跟着露出来，松手才落到整页
+            val pageCount = DAY_PAGE_SPAN * 2 + 1
+            val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+                initialPage = (dayOffset + DAY_PAGE_SPAN).coerceIn(0, pageCount - 1),
+                pageCount = { pageCount },
+            )
+            val latestRequest = remember { androidx.compose.runtime.mutableIntStateOf(dayOffset) }
+            val reconciling = remember { androidx.compose.runtime.mutableStateOf(false) }
+            androidx.compose.runtime.LaunchedEffect(dayOffset) {
+                val target = (dayOffset + DAY_PAGE_SPAN).coerceIn(0, pageCount - 1)
+                if (pagerState.currentPage == target && latestRequest.intValue == dayOffset) {
+                    return@LaunchedEffect
+                }
+                latestRequest.intValue = dayOffset
+                if (pagerState.currentPage != target) {
+                    reconciling.value = true
+                    try {
+                        pagerState.animateScrollToPage(target)
+                    } finally {
+                        reconciling.value = false
+                    }
+                }
+            }
+            androidx.compose.runtime.LaunchedEffect(pagerState) {
+                androidx.compose.runtime.snapshotFlow {
+                    if (pagerState.isScrollInProgress) pagerState.targetPage else pagerState.currentPage
+                }
+                    .drop(1)
+                    .collect { page ->
+                        if (reconciling.value) return@collect
+                        val offset = page - DAY_PAGE_SPAN
+                        if (offset != latestRequest.intValue) {
+                            latestRequest.intValue = offset
+                            onDayOffsetChange(offset)
+                        }
+                    }
+            }
+
+            androidx.compose.foundation.pager.HorizontalPager(
+                state = pagerState,
                 modifier = Modifier.fillMaxSize(),
-            ) { animatedDate ->
+                beyondViewportPageCount = 1,
+                pageSpacing = 8.dp,
+            ) { page ->
+                val animatedDate = today.plusDays((page - DAY_PAGE_SPAN).toLong())
                 val animatedResolution =
                     resolveScheduleDay(animatedDate, temporaryScheduleOverrides, holidayCalendar)
                 val animatedSourceDate = animatedResolution.sourceDate
@@ -1038,8 +1075,6 @@ private fun DailyScheduleSection(
                     multiSelectedIds = multiSelectedIds,
                     onCellClick = onCellClick,
                     onCourseLongClick = onCourseLongClick,
-                    onPrevDay = onPrevDay,
-                    onNextDay = onNextDay,
                     scheduleTextStyle = scheduleTextStyle,
                     scheduleCardStyle = scheduleCardStyle,
                     scheduleDisplay = scheduleDisplay,
@@ -1135,35 +1170,15 @@ private fun DayList(
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>, LocalDate) -> Unit,
     onCourseLongClick: (String) -> Unit,
-    onPrevDay: () -> Unit,
-    onNextDay: () -> Unit,
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
 ) {
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    val swipeThresholdPx = with(density) { 80.dp.toPx() }
-    var dragAccumulated by remember { mutableStateOf(0f) }
-    val swipeModifier = Modifier.pointerInput(Unit) {
-        detectHorizontalDragGestures(
-            onDragStart = { dragAccumulated = 0f },
-            onDragEnd = {
-                when {
-                    dragAccumulated > swipeThresholdPx -> onPrevDay()
-                    dragAccumulated < -swipeThresholdPx -> onNextDay()
-                }
-                dragAccumulated = 0f
-            },
-            onDragCancel = { dragAccumulated = 0f },
-        ) { _, delta -> dragAccumulated += delta }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .then(swipeModifier),
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         slots.forEach { slot ->
@@ -1865,9 +1880,8 @@ private fun ScheduleGrid(
             .orEmpty()
     }
 
-    androidx.compose.foundation.layout.BoxWithConstraints(
-        modifier = modifier.verticalScroll(rememberScrollState()),
-    ) {
+    val gridScrollState = rememberScrollState()
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
         val timeColumnWidth = timeColumnWidth(maxWidth)
         // 调课与假日都会在日期下方多出一行说明，表头需要更高
         val dayHeaderMinHeight =
@@ -1875,7 +1889,13 @@ private fun ScheduleGrid(
         val totalWidth = maxWidth
         val dayColumnWidth = ((totalWidth - timeColumnWidth) / dayColumnCount).coerceAtLeast(36.dp)
         val gridWidth = dayColumnWidth * dayColumnCount
-        val slotHeight = scheduleCardStyle.courseCardHeightDp.dp
+        val fitMode = scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit
+        val slotHeight = if (fitMode && slots.isNotEmpty()) {
+            // 平铺时把剩余高度均分给每节，课名靠自身省略号收尾
+            ((maxHeight - dayHeaderMinHeight) / slots.size).coerceAtLeast(MIN_FIT_SLOT_HEIGHT)
+        } else {
+            scheduleCardStyle.courseCardHeightDp.dp
+        }
         val gridHeight = slotHeight * slots.size
 
         // 背景铺满整块课表，节次列与日期行都在其上，否则图片只盖住中间一块
@@ -1889,7 +1909,13 @@ private fun ScheduleGrid(
                 .clip(RoundedCornerShape(16.dp)),
         )
 
-        Column {
+        Column(
+            modifier = if (fitMode) {
+                Modifier
+            } else {
+                Modifier.verticalScroll(gridScrollState)
+            },
+        ) {
             // 顶部周日期头
             Row(
                 modifier = Modifier.heightIn(min = dayHeaderMinHeight),
@@ -2210,6 +2236,14 @@ private fun ScheduleGrid(
             }
         }
 
+        if (!fitMode) {
+            GridScrollIndicator(
+                scrollState = gridScrollState,
+                topInset = dayHeaderMinHeight,
+                modifier = Modifier.align(Alignment.TopEnd),
+            )
+        }
+
         addRequest?.let { (day, startNode, endNode) ->
             QuickAddCourseDialog(
                 dayOfWeek = day,
@@ -2226,6 +2260,47 @@ private fun ScheduleGrid(
         }
     }
 }
+
+/** 平铺以外的模式下课表要滚动，右侧画一条滑块告诉用户下面还有节次。 */
+@Composable
+private fun GridScrollIndicator(
+    scrollState: ScrollState,
+    topInset: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val range = scrollState.maxValue
+    if (range <= 0) return
+    val progress = (scrollState.value.toFloat() / range).coerceIn(0f, 1f)
+    BoxWithConstraints(
+        modifier = modifier
+            .padding(top = topInset + 4.dp, bottom = 4.dp, end = 2.dp)
+            .fillMaxHeight()
+            .width(4.dp),
+    ) {
+        val thumbHeight = (maxHeight * 0.28f).coerceAtLeast(28.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f)),
+        )
+        Box(
+            modifier = Modifier
+                .offset(y = (maxHeight - thumbHeight) * progress)
+                .height(thumbHeight)
+                .width(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.55f)),
+        )
+    }
+}
+
+/** 日视图向前后各铺这么多天，够覆盖一整学年。 */
+private const val DAY_PAGE_SPAN = 200
+
+/** 平铺时每节至少留出的高度，再挤就连课名都放不下。 */
+private val MIN_FIT_SLOT_HEIGHT = 52.dp
 
 @Composable
 private fun DayHeader(

@@ -431,6 +431,10 @@
     <string name="settings_display_total_on">The week view shows every course this term and grays out the ones outside this week</string>
     <string name="settings_display_week_start_title">Week starts on</string>
     <string name="settings_display_days_title">Days shown</string>
+    <string name="settings_display_row_fit_title">Vertical layout</string>
+    <string name="settings_display_row_fit_subtitle">What to do when the timetable does not fit one screen</string>
+    <string name="settings_display_row_fit_fit">Fit every period</string>
+    <string name="settings_display_row_fit_scroll">Fixed row height, scroll</string>
     <string name="settings_display_days_subtitle">How far across the week the timetable reaches</string>
     <string name="settings_display_days_five">Mon to Fri</string>
     <string name="settings_display_days_six">Mon to Sat</string>

@@ -25,6 +25,7 @@ import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.localDate
 import com.x500x.cursimple.core.kernel.model.withEntry
+import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
@@ -299,6 +300,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setScheduleWeekendVisible(visible: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE] = visible }
+    }
+
+    override suspend fun setScheduleRowFitMode(mode: ScheduleRowFitMode) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE] = mode.name }
     }
 
     override suspend fun setScheduleLocationVisible(visible: Boolean) {
@@ -818,6 +823,9 @@ class DataStoreUserPreferencesRepository(
             nodeColumnTimeEnabled = this[KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED] ?: true,
             saturdayVisible = this[KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE] ?: true,
             weekendVisible = this[KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE] ?: true,
+            rowFitMode = this[KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE]
+                ?.let { name -> runCatching { ScheduleRowFitMode.valueOf(name) }.getOrNull() }
+                ?: ScheduleRowFitMode.Fit,
             weekStartDay = this[KEY_SCHEDULE_DISPLAY_WEEK_START_DAY]
                 ?.let { raw -> runCatching { WeekStartDay.valueOf(raw) }.getOrNull() }
                 ?: WeekStartDay.Monday,
@@ -879,6 +887,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
+        remove(KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE)
         remove(KEY_SCHEDULE_DISPLAY_WEEK_START_DAY)
         remove(KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
@@ -945,6 +954,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED = booleanPreferencesKey("schedule_display_node_column_time_enabled")
         val KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE = booleanPreferencesKey("schedule_display_saturday_visible")
         val KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE = booleanPreferencesKey("schedule_display_weekend_visible")
+        val KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE = stringPreferencesKey("schedule_display_row_fit_mode")
         val KEY_SCHEDULE_DISPLAY_WEEK_START_DAY = stringPreferencesKey("schedule_display_week_start_day")
         val KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED =
             booleanPreferencesKey("schedule_display_course_drag_enabled")
