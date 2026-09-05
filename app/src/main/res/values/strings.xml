@@ -413,6 +413,13 @@
     <string name="settings_background_match_header_on">当前已使用表头区域的深浅模式底色</string>
     <string name="settings_background_match_header_off">使用表头区域的深浅模式底色作为课表背景</string>
     <string name="settings_background_image_title">背景图片</string>
+    <string name="settings_background_image_transparency">背景图透明度</string>
+    <string name="settings_background_preview_title">效果预览</string>
+    <string name="settings_background_preview_course">示例课程</string>
+    <string name="settings_background_preview_empty">还没有选择背景图</string>
+    <string name="settings_background_crop_reset">重置</string>
+    <string name="settings_background_crop_zoom">缩放 %1$.1f×</string>
+    <string name="settings_background_crop_frame_hint">框内为课表可见范围</string>
     <string name="settings_background_image_selected">已选择图片</string>
     <string name="settings_background_image_none">未选择</string>
     <string name="settings_background_image_clear_title">清除背景图片</string>
