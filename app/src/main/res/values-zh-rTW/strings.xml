@@ -413,6 +413,13 @@
     <string name="settings_background_match_header_on">當前已使用表頭區域的深淺模式底色</string>
     <string name="settings_background_match_header_off">使用表頭區域的深淺模式底色作為課表背景</string>
     <string name="settings_background_image_title">背景圖片</string>
+    <string name="settings_background_image_transparency">背景圖透明度</string>
+    <string name="settings_background_preview_title">效果預覽</string>
+    <string name="settings_background_preview_course">範例課程</string>
+    <string name="settings_background_preview_empty">還沒有選擇背景圖</string>
+    <string name="settings_background_crop_reset">重設</string>
+    <string name="settings_background_crop_zoom">縮放 %1$.1f×</string>
+    <string name="settings_background_crop_frame_hint">框內為課表可見範圍</string>
     <string name="settings_background_image_selected">已選擇圖片</string>
     <string name="settings_background_image_none">未選擇</string>
     <string name="settings_background_image_clear_title">清除背景圖片</string>

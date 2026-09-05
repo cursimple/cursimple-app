@@ -31,6 +31,13 @@ internal object WidgetAlarmGuardScheduler {
     fun ensureScheduled(context: Context) {
         val app = context.applicationContext
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val health = widgetGuardHealth(registeredSlotCount(app), GUARD_COUNT)
+        if (health != WidgetGuardHealth.Healthy) {
+            ReminderLogger.info(
+                "widget.alarm_guard.health",
+                mapOf("health" to health.name, "expected" to GUARD_COUNT),
+            )
+        }
         schedulePlan(SystemClock.elapsedRealtime()).forEach { slot ->
             runCatching {
                 scheduleSlot(
@@ -64,6 +71,21 @@ internal object WidgetAlarmGuardScheduler {
 
     internal fun requestCodeForIndex(index: Int): Int =
         REQUEST_CODE_BASE + index
+
+    /** 数一数还有多少条守护闹钟活着，用来判断链是否已经断掉。 */
+    private fun registeredSlotCount(context: Context): Int =
+        (0 until GUARD_COUNT).count { index ->
+            val intent = Intent(context, WidgetAlarmGuardReceiver::class.java).apply {
+                action = ACTION_GUARD_TICK
+                setPackage(context.packageName)
+            }
+            PendingIntent.getBroadcast(
+                context,
+                requestCodeForIndex(index),
+                intent,
+                PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+            ) != null
+        }
 
     private fun scheduleSlot(
         alarmManager: AlarmManager,

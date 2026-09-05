@@ -829,6 +829,8 @@ class MainActivity : ComponentActivity() {
                                         onScheduleGridBorderDashedChange = prefsViewModel::setScheduleGridBorderDashed,
                                         onScheduleBackgroundColorArgbChange = prefsViewModel::setScheduleBackgroundColorArgb,
                                         onScheduleBackgroundImageUriChange = prefsViewModel::setScheduleBackgroundImageUri,
+                                        onScheduleBackgroundImageTransparencyPercentChange =
+                                            prefsViewModel::setScheduleBackgroundImageTransparencyPercent,
                                         onClearScheduleBackgroundImage = prefsViewModel::clearScheduleBackgroundImage,
                                         onScheduleBackgroundUseHeaderColor =
                                             prefsViewModel::setScheduleBackgroundUseHeaderColor,

@@ -5,6 +5,11 @@ import android.net.Uri
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,6 +85,11 @@ internal fun ScheduleBackgroundCropDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Text(
+                    text = stringResource(R.string.settings_background_crop_frame_hint),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -111,6 +121,26 @@ internal fun ScheduleBackgroundCropDialog(
                                 },
                         )
                     }
+                    CropFrameOverlay(modifier = Modifier.fillMaxSize())
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_background_crop_zoom, zoom),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        enabled = zoom != 1f || offsetX != 0f || offsetY != 0f,
+                        onClick = {
+                            zoom = 1f
+                            offsetX = 0f
+                            offsetY = 0f
+                        },
+                    ) { Text(stringResource(R.string.settings_background_crop_reset)) }
                 }
             }
         },
@@ -140,4 +170,24 @@ internal fun ScheduleBackgroundCropDialog(
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
+}
+
+/** 取景框边线与三分辅助线，让用户看清哪一块会落到课表上。 */
+@Composable
+private fun CropFrameOverlay(modifier: Modifier = Modifier) {
+    val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+    val borderColor = MaterialTheme.colorScheme.primary
+    Canvas(modifier = modifier) {
+        val stroke = 1.dp.toPx()
+        for (index in 1..2) {
+            val x = size.width * index / 3f
+            drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), stroke)
+            val y = size.height * index / 3f
+            drawLine(lineColor, Offset(0f, y), Offset(size.width, y), stroke)
+        }
+        drawRect(
+            color = borderColor,
+            style = Stroke(width = 2.dp.toPx()),
+        )
+    }
 }

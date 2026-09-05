@@ -19,6 +19,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -337,6 +342,7 @@ fun AppSettingsRoute(
     onScheduleBackgroundColorArgbChange: (Long) -> Unit,
     onScheduleBackgroundImageUriChange: (String) -> Unit,
     onClearScheduleBackgroundImage: () -> Unit,
+    onScheduleBackgroundImageTransparencyPercentChange: (Int) -> Unit,
     onScheduleBackgroundUseHeaderColor: () -> Unit,
     onScheduleCustomColorsAdaptToThemeChange: (Boolean) -> Unit,
     onScheduleNodeColumnTimeEnabledChange: (Boolean) -> Unit,
@@ -904,6 +910,11 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleBackground -> {
+                ScheduleBackgroundPreview(
+                    scheduleBackground = scheduleBackground,
+                    scheduleCardStyle = scheduleCardStyle,
+                    customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
+                )
                 ColorAlphaRow(stringResource(R.string.settings_background_color), scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
                 if (scheduleCustomColorsAdaptToTheme) {
                     ColorPreviewRow(
@@ -932,6 +943,15 @@ fun AppSettingsRoute(
                     onClick = { scheduleBackgroundLauncher.launch(arrayOf("image/*")) },
                 )
                 if (scheduleBackground.type == ScheduleBackgroundType.Image || scheduleBackground.imageUri != null) {
+                    NumberStepperRow(
+                        stringResource(R.string.settings_background_image_transparency),
+                        scheduleBackground.imageTransparencyPercent,
+                        "%",
+                        0,
+                        100,
+                        5,
+                        onScheduleBackgroundImageTransparencyPercentChange,
+                    )
                     SettingsActionRow(
                         icon = Icons.Rounded.Delete,
                         title = stringResource(R.string.settings_background_image_clear_title),
@@ -2669,6 +2689,115 @@ private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> 
         }
     }
 }
+
+/**
+ * 背景效果预览。
+ * 按课表比例画出当前背景，图片与颜色都按实际透明度渲染，
+ * 上面叠一格示意课程，用户不必回到课表就能看出可读性。
+ */
+@Composable
+private fun ScheduleBackgroundPreview(
+    scheduleBackground: ScheduleBackgroundPreferences,
+    scheduleCardStyle: ScheduleCardStylePreferences,
+    customColorsAdaptToTheme: Boolean,
+) {
+    val context = LocalContext.current
+    val darkTheme = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val imageUri = scheduleBackground.imageUri?.takeIf(String::isNotBlank)
+    val bitmap by androidx.compose.runtime.produceState<ImageBitmap?>(
+        initialValue = null,
+        key1 = imageUri,
+    ) {
+        value = imageUri?.let { uri ->
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    context.contentResolver.openInputStream(android.net.Uri.parse(uri)).use { input ->
+                        android.graphics.BitmapFactory.decodeStream(requireNotNull(input))
+                            ?.asImageBitmap()
+                    }
+                }.getOrNull()
+            }
+        }
+    }
+    val baseColor = when (scheduleBackground.type) {
+        ScheduleBackgroundType.Header -> MaterialTheme.colorScheme.surface
+        ScheduleBackgroundType.Color,
+        ScheduleBackgroundType.Image,
+        -> Color(
+            adaptScheduleBackgroundColorArgb(
+                scheduleBackground.colorArgb,
+                darkTheme,
+                customColorsAdaptToTheme,
+            ).toULong() shl 32,
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = stringResource(R.string.settings_background_preview_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(baseColor.copy(alpha = baseColor.alpha * transparencyToAlpha(scheduleCardStyle.scheduleOpacityPercent))),
+            )
+            bitmap?.takeIf { scheduleBackground.type == ScheduleBackgroundType.Image }?.let { image ->
+                androidx.compose.foundation.Image(
+                    bitmap = image,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(
+                            transparencyToAlpha(scheduleCardStyle.scheduleOpacityPercent) *
+                                transparencyToAlpha(scheduleBackground.imageTransparencyPercent),
+                        ),
+                )
+            }
+            if (scheduleBackground.type == ScheduleBackgroundType.Image && imageUri == null) {
+                Text(
+                    text = stringResource(R.string.settings_background_preview_empty),
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            // 叠一格示意课程，用来判断背景之上文字还读不读得清
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 18.dp)
+                    .width(96.dp)
+                    .height(74.dp),
+                shape = RoundedCornerShape(scheduleCardStyle.courseCornerRadiusDp.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.settings_background_preview_course),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        maxLines = 2,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** 透明百分比换算成绘制用的 alpha，0 表示完全不透明。 */
+private fun transparencyToAlpha(percent: Int): Float = 1f - (percent.coerceIn(0, 100) / 100f)
 
 /** 平铺与滚动二选一，平铺把全部节次压进一屏，滚动保留设定行高并在右侧给出滑块。 */
 @OptIn(ExperimentalLayoutApi::class)

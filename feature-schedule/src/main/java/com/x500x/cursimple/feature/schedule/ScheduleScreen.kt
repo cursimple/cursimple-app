@@ -2973,7 +2973,11 @@ private fun ScheduleGridBackground(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        .alpha(scheduleCardStyle.scheduleOpacityPercent.asAlpha()),
+                        // 图片自身的透明度与课表整体透明度叠乘
+                        .alpha(
+                            scheduleCardStyle.scheduleOpacityPercent.asAlpha() *
+                                scheduleBackground.imageTransparencyPercent.asAlpha(),
+                        ),
                 )
             }
             imageState.errorMessage?.let { message ->

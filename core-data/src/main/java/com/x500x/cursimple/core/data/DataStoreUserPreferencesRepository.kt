@@ -246,6 +246,11 @@ class DataStoreUserPreferencesRepository(
         releasePersistedReadPermission(previousImageUri)
     }
 
+    override suspend fun setScheduleBackgroundImageTransparencyPercent(percent: Int) {
+        val coerced = ScheduleBackgroundPreferences.coerceImageTransparencyPercent(percent)
+        store.edit { prefs -> prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT] = coerced }
+    }
+
     override suspend fun setScheduleBackgroundImageUri(uri: String) {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -815,6 +820,10 @@ class DataStoreUserPreferencesRepository(
                     ?: ScheduleBackgroundPreferences.DEFAULT_BACKGROUND_COLOR_ARGB,
             ),
             imageUri = this[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]?.takeIf(String::isNotBlank),
+            imageTransparencyPercent = ScheduleBackgroundPreferences.coerceImageTransparencyPercent(
+                this[KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT]
+                    ?: ScheduleBackgroundPreferences.DEFAULT_IMAGE_TRANSPARENCY_PERCENT,
+            ),
         )
     }
 
@@ -883,6 +892,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_BACKGROUND_TYPE)
         remove(KEY_SCHEDULE_BACKGROUND_COLOR_ARGB)
         remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
+        remove(KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT)
         remove(KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME)
         remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
@@ -949,6 +959,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_BACKGROUND_TYPE = stringPreferencesKey("schedule_background_type")
         val KEY_SCHEDULE_BACKGROUND_COLOR_ARGB = longPreferencesKey("schedule_background_color_argb")
         val KEY_SCHEDULE_BACKGROUND_IMAGE_URI = stringPreferencesKey("schedule_background_image_uri")
+        val KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT =
+            intPreferencesKey("schedule_background_image_transparency_percent")
         val KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME =
             booleanPreferencesKey("schedule_custom_colors_adapt_to_theme")
         val KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED = booleanPreferencesKey("schedule_display_node_column_time_enabled")
