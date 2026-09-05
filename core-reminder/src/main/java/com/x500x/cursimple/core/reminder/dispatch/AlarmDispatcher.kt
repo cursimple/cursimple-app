@@ -88,17 +88,7 @@ class AppAlarmClockDispatcher(
     override suspend fun dispatch(plan: ReminderPlan): AlarmDispatchResult {
         val appContext = context.applicationContext
         val alarmManager = appContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        if (!alarmManager.canScheduleExactAlarmCompat()) {
-            ReminderLogger.warn(
-                "reminder.app_alarm_clock.dispatch.permission_missing",
-                mapOf("ruleId" to plan.ruleId, "planId" to plan.planId, "triggerAtMillis" to plan.triggerAtMillis),
-            )
-            return AlarmDispatchResult(
-                channel = AlarmDispatchChannel.AppAlarmClock,
-                succeeded = false,
-                message = context.getString(R.string.reminder_exact_alarm_permission_off),
-            )
-        }
+        val decision = alarmScheduleDecision(canScheduleExact = alarmManager.canScheduleExactAlarmCompat())
         val requestCode = plan.appAlarmRequestCode()
         val operation = appAlarmOperationIntent(appContext, plan, requestCode)
         val showIntent = appAlarmShowIntent(appContext, plan, requestCode)
@@ -109,21 +99,44 @@ class AppAlarmClockDispatcher(
                 "planId" to plan.planId,
                 "requestCode" to requestCode,
                 "triggerAtMillis" to plan.triggerAtMillis,
+                "primaryChannel" to decision.primary.name,
+                "backupChannel" to decision.backup,
             ),
         )
         return runCatching {
-            alarmManager.setAlarmClock(
-                AlarmManager.AlarmClockInfo(plan.triggerAtMillis, showIntent),
-                operation,
-            )
+            when (decision.primary) {
+                AlarmPrimaryChannel.AlarmClock -> alarmManager.setAlarmClock(
+                    AlarmManager.AlarmClockInfo(plan.triggerAtMillis, showIntent),
+                    operation,
+                )
+                // 精确排程被系统拒绝后仍要有下文，落在窗口里总好过完全不响
+                AlarmPrimaryChannel.Window -> alarmManager.setWindow(
+                    AlarmManager.RTC_WAKEUP,
+                    plan.triggerAtMillis,
+                    FALLBACK_WINDOW_MILLIS,
+                    operation,
+                )
+            }
+            if (decision.backup) {
+                scheduleBackupChannel(appContext, alarmManager, plan, requestCode)
+            }
             ReminderLogger.info(
                 "reminder.app_alarm_clock.dispatch.success",
-                mapOf("ruleId" to plan.ruleId, "planId" to plan.planId, "requestCode" to requestCode),
+                mapOf(
+                    "ruleId" to plan.ruleId,
+                    "planId" to plan.planId,
+                    "requestCode" to requestCode,
+                    "primaryChannel" to decision.primary.name,
+                    "backupChannel" to decision.backup,
+                ),
             )
             AlarmDispatchResult(
                 channel = AlarmDispatchChannel.AppAlarmClock,
                 succeeded = true,
-                message = context.getString(R.string.reminder_app_alarm_set),
+                message = when (decision.primary) {
+                    AlarmPrimaryChannel.AlarmClock -> context.getString(R.string.reminder_app_alarm_set)
+                    AlarmPrimaryChannel.Window -> context.getString(R.string.reminder_app_alarm_set_windowed)
+                },
             )
         }.getOrElse {
             val message = when (it) {
@@ -166,6 +179,7 @@ class AppAlarmClockDismisser(
         return runCatching {
             alarmManager.cancel(pendingIntent)
             pendingIntent.cancel()
+            cancelBackupChannel(appContext, alarmManager, record, requestCode)
             alarmManager.cancel(legacyReceiverIntent)
             legacyReceiverIntent.cancel()
             ReminderLogger.info(
@@ -274,6 +288,53 @@ class SystemAlarmClockDispatcher(
             )
         }
     }
+}
+
+/** 主通道被拒时兜底用的窗口跨度。 */
+private const val FALLBACK_WINDOW_MILLIS = 10 * 60 * 1000L
+
+/**
+ * 备通道：同一时刻再挂一条允许在休眠中触发的精确闹钟。
+ * 主通道被厂商清理掉时它还在，两条都到达时由到达去重挡住第二条。
+ */
+private fun scheduleBackupChannel(
+    context: Context,
+    alarmManager: AlarmManager,
+    plan: ReminderPlan,
+    primaryRequestCode: Int,
+) {
+    val backupCode = backupRequestCode(primaryRequestCode)
+    val operation = appAlarmServicePendingIntent(
+        context = context,
+        requestCode = backupCode,
+        intent = appAlarmServiceIntent(context, plan),
+    )
+    runCatching {
+        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, plan.triggerAtMillis, operation)
+    }.onFailure { error ->
+        ReminderLogger.warn(
+            "reminder.app_alarm_clock.dispatch.backup_failure",
+            mapOf("ruleId" to plan.ruleId, "planId" to plan.planId, "requestCode" to backupCode),
+            error,
+        )
+    }
+}
+
+private fun cancelBackupChannel(
+    context: Context,
+    alarmManager: AlarmManager,
+    record: SystemAlarmRecord,
+    primaryRequestCode: Int,
+) {
+    val backupCode = backupRequestCode(primaryRequestCode)
+    val operation = appAlarmServicePendingIntentOrNull(
+        context = context,
+        requestCode = backupCode,
+        intent = appAlarmServiceIntent(context, record),
+        flags = PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE,
+    ) ?: return
+    alarmManager.cancel(operation)
+    operation.cancel()
 }
 
 private fun AlarmManager.canScheduleExactAlarmCompat(): Boolean =
