@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.Code
@@ -1482,195 +1483,81 @@ private fun PermissionsSection(
     cameraLauncher: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    val alarmManager = remember(context) { context.getSystemService(Context.ALARM_SERVICE) as AlarmManager }
-    val powerManager = remember(context) { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
-    val notificationManager = remember(context) { context.getSystemService(NotificationManager::class.java) }
-    val exactAlarmEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
-    val notificationEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        NotificationManagerCompat.from(context).areNotificationsEnabled()
-    val fullScreenIntentEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
-        notificationManager.canUseFullScreenIntent()
-    val batteryOptimizationIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName)
-    val cameraEnabled = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
-        PackageManager.PERMISSION_GRANTED
-    val installPackagesEnabled = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
-        context.packageManager.canRequestPackageInstalls()
+    // 用户去系统设置改完权限再回来，这里必须重读，否则界面一直停在进页面那一刻的状态
+    val state = rememberPermissionState(context)
 
-    // 计算权限健康状态
-    val alarmPermissionsOk = exactAlarmEnabled && notificationEnabled && fullScreenIntentEnabled && batteryOptimizationIgnored
     val missingAlarmPermissions = buildList {
-        if (!notificationEnabled) add(context.getString(R.string.settings_permission_notification))
-        if (!exactAlarmEnabled) add(context.getString(R.string.settings_permission_exact_alarm))
-        if (!fullScreenIntentEnabled) add(context.getString(R.string.settings_permission_full_screen))
-        if (!batteryOptimizationIgnored) add(context.getString(R.string.settings_permission_background))
+        if (!state.notification) add(stringResource(R.string.settings_permission_notification))
+        if (!state.exactAlarm) add(stringResource(R.string.settings_permission_exact_alarm))
+        if (!state.fullScreenIntent) add(stringResource(R.string.settings_permission_full_screen))
+        if (!state.batteryOptimizationIgnored) add(stringResource(R.string.settings_permission_background))
     }
 
-    // 权限健康状态警告卡片
-    if (!alarmPermissionsOk) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Rounded.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.size(24.dp),
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = stringResource(R.string.settings_alarm_warning_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.settings_alarm_warning_body),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                missingAlarmPermissions.forEach { permission ->
-                    Text(
-                        text = "• $permission",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
-            }
-        }
-    }
+    PermissionSummaryCard(missing = missingAlarmPermissions)
 
     SettingsSectionHeader(stringResource(R.string.settings_section_grant))
-    SettingsActionRow(
+    PermissionRow(
         icon = Icons.Rounded.Notifications,
         title = stringResource(R.string.settings_permission_notification),
-        subtitle = if (notificationEnabled) {
-            stringResource(R.string.settings_permission_on)
-        } else {
-            stringResource(R.string.settings_permission_notification_off)
-        },
+        granted = state.notification,
+        offText = stringResource(R.string.settings_permission_notification_off),
+        onText = stringResource(R.string.settings_permission_runtime_hint),
         onClick = {
-            if (notificationEnabled) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_notification_granted),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            // 已授予时也要能进系统设置关掉，不然用户在这一页只有单向操作
+            if (!state.notification && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 notificationLauncher(Manifest.permission.POST_NOTIFICATIONS)
             } else {
                 launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
             }
         },
     )
-    SettingsActionRow(
+    PermissionRow(
         icon = Icons.Rounded.Schedule,
         title = stringResource(R.string.settings_permission_exact_alarm),
-        subtitle = if (exactAlarmEnabled) {
-            stringResource(R.string.settings_permission_on)
-        } else {
-            stringResource(R.string.settings_permission_exact_alarm_off)
-        },
-        onClick = {
-            if (exactAlarmEnabled) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_exact_alarm_granted),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            } else {
-                launchSettingsIntent(context, AlarmPermissionIntents.exactAlarmSettingsIntent(context))
-            }
-        },
+        granted = state.exactAlarm,
+        offText = stringResource(R.string.settings_permission_exact_alarm_off),
+        onText = stringResource(R.string.settings_permission_manage_hint),
+        onClick = { launchSettingsIntent(context, AlarmPermissionIntents.exactAlarmSettingsIntent(context)) },
     )
-    SettingsActionRow(
+    PermissionRow(
         icon = Icons.Rounded.Notifications,
         title = stringResource(R.string.settings_permission_full_screen),
-        subtitle = if (fullScreenIntentEnabled) {
-            stringResource(R.string.settings_permission_on)
-        } else {
-            stringResource(R.string.settings_permission_full_screen_off)
-        },
-        onClick = {
-            if (fullScreenIntentEnabled) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_full_screen_granted),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            } else {
-                launchSettingsIntent(context, AlarmPermissionIntents.fullScreenIntentSettingsIntent(context))
-            }
-        },
+        granted = state.fullScreenIntent,
+        offText = stringResource(R.string.settings_permission_full_screen_off),
+        onText = stringResource(R.string.settings_permission_manage_hint),
+        onClick = { launchSettingsIntent(context, AlarmPermissionIntents.fullScreenIntentSettingsIntent(context)) },
     )
-    SettingsActionRow(
+    PermissionRow(
         icon = Icons.Rounded.Restore,
         title = stringResource(R.string.settings_permission_battery_title),
-        subtitle = if (batteryOptimizationIgnored) {
-            stringResource(R.string.settings_permission_battery_on)
-        } else {
-            stringResource(R.string.settings_permission_battery_off)
-        },
-        onClick = {
-            if (batteryOptimizationIgnored) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_permission_battery_on),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            } else {
-                launchSettingsIntent(context, AlarmPermissionIntents.batteryOptimizationIntent(context))
-            }
-        },
+        granted = state.batteryOptimizationIgnored,
+        offText = stringResource(R.string.settings_permission_battery_off),
+        onText = stringResource(R.string.settings_permission_manage_hint),
+        onClick = { launchSettingsIntent(context, AlarmPermissionIntents.batteryOptimizationIntent(context)) },
     )
-    SettingsActionRow(
+    PermissionRow(
         icon = Icons.Rounded.Code,
         title = stringResource(R.string.settings_permission_camera),
-        subtitle = if (cameraEnabled) {
-            stringResource(R.string.settings_permission_on)
-        } else {
-            stringResource(R.string.settings_permission_camera_off)
-        },
+        granted = state.camera,
+        offText = stringResource(R.string.settings_permission_camera_off),
+        onText = stringResource(R.string.settings_permission_runtime_hint),
         onClick = {
-            if (cameraEnabled) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_camera_granted),
-                    Toast.LENGTH_SHORT,
-                ).show()
+            if (state.camera) {
+                launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
             } else {
                 cameraLauncher(Manifest.permission.CAMERA)
             }
         },
     )
-    SettingsActionRow(
+    PermissionRow(
         icon = Icons.Rounded.Download,
         title = stringResource(R.string.settings_permission_install),
-        subtitle = if (installPackagesEnabled) {
-            stringResource(R.string.settings_permission_install_on)
-        } else {
-            stringResource(R.string.settings_permission_install_off)
-        },
-        onClick = {
-            if (installPackagesEnabled) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_install_granted),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            } else {
-                launchSettingsIntent(context, unknownAppInstallSettingsIntent(context))
-            }
-        },
+        granted = state.installPackages,
+        offText = stringResource(R.string.settings_permission_install_off),
+        onText = stringResource(R.string.settings_permission_manage_hint),
+        onClick = { launchSettingsIntent(context, unknownAppInstallSettingsIntent(context)) },
     )
+
     SettingsSectionHeader(stringResource(R.string.settings_section_declared))
     SettingsActionRow(
         icon = Icons.Rounded.Tune,
@@ -1682,6 +1569,153 @@ private fun PermissionsSection(
                 context.getString(R.string.settings_toast_no_grant_needed),
                 Toast.LENGTH_SHORT,
             ).show()
+        },
+    )
+}
+
+/** 权限页关心的几项当前状态。 */
+private data class AppPermissionState(
+    val notification: Boolean,
+    val exactAlarm: Boolean,
+    val fullScreenIntent: Boolean,
+    val batteryOptimizationIgnored: Boolean,
+    val camera: Boolean,
+    val installPackages: Boolean,
+)
+
+private fun readPermissionState(context: Context): AppPermissionState {
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    val notificationManager = context.getSystemService(NotificationManager::class.java)
+    return AppPermissionState(
+        notification = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            NotificationManagerCompat.from(context).areNotificationsEnabled(),
+        exactAlarm = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms(),
+        fullScreenIntent = Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
+            notificationManager.canUseFullScreenIntent(),
+        batteryOptimizationIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName),
+        camera = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED,
+        installPackages = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            context.packageManager.canRequestPackageInstalls(),
+    )
+}
+
+/** 每次回到前台重读一次权限，跟随用户在系统设置里的改动。 */
+@Composable
+private fun rememberPermissionState(context: Context): AppPermissionState {
+    var state by remember { mutableStateOf(readPermissionState(context)) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                state = readPermissionState(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return state
+}
+
+@Composable
+private fun PermissionSummaryCard(missing: List<String>) {
+    val ok = missing.isEmpty()
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (ok) {
+                MaterialTheme.colorScheme.secondaryContainer
+            } else {
+                MaterialTheme.colorScheme.errorContainer
+            },
+        ),
+    ) {
+        val onColor = if (ok) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onErrorContainer
+        }
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (ok) Icons.Rounded.CheckCircle else Icons.Rounded.Warning,
+                    contentDescription = null,
+                    tint = onColor,
+                    modifier = Modifier.size(22.dp),
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(
+                        if (ok) R.string.settings_permissions_all_ok_title else R.string.settings_alarm_warning_title,
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = onColor,
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = stringResource(
+                    if (ok) R.string.settings_permissions_all_ok_body else R.string.settings_alarm_warning_body,
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = onColor,
+            )
+            missing.forEach { permission ->
+                Text(
+                    text = "\u2022 $permission",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onColor,
+                )
+            }
+        }
+    }
+}
+
+/** 名称、当前状态徽章与一句操作说明，点整行进对应的授予或系统设置入口。 */
+@Composable
+private fun PermissionRow(
+    icon: ImageVector,
+    title: String,
+    granted: Boolean,
+    offText: String,
+    onText: String,
+    onClick: () -> Unit,
+) {
+    SettingsActionRow(
+        icon = icon,
+        title = title,
+        subtitle = if (granted) onText else offText,
+        onClick = onClick,
+        trailing = {
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = if (granted) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.errorContainer
+                },
+            ) {
+                Text(
+                    text = stringResource(
+                        if (granted) {
+                            R.string.settings_permission_status_on
+                        } else {
+                            R.string.settings_permission_status_off
+                        },
+                    ),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (granted) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onErrorContainer
+                    },
+                )
+            }
         },
     )
 }
