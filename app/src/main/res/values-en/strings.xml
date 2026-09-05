@@ -665,6 +665,9 @@
     <string name="alarm_snooze_failed">Snooze failed, the alarm will not ring again</string>
     <string name="alarm_ringing_notification">Alarm ringing</string>
     <string name="alarm_channel_name">Class alarms</string>
+    <string name="alarm_missed_channel_name">Missed alarms</string>
+    <string name="alarm_missed_channel_description">Shown when an alarm could not ring on time</string>
+    <string name="alarm_missed_title">Missed the %1$s reminder</string>
     <string name="alarm_channel_description">Ringing for class reminders</string>
     <string name="widget_help_title">Home screen widget help</string>
     <string name="widget_help_intro">Different systems call the same entry point "widgets", "cards", or "plug-ins". If you cannot find it, search for CurSimple.</string>

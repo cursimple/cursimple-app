@@ -665,6 +665,9 @@
     <string name="alarm_snooze_failed">延後失敗，鬧鐘不會再響</string>
     <string name="alarm_ringing_notification">鬧鐘正在響鈴</string>
     <string name="alarm_channel_name">課程鬧鐘</string>
+    <string name="alarm_missed_channel_name">錯過的鬧鐘</string>
+    <string name="alarm_missed_channel_description">鬧鐘未能準時響起時在這裡告知</string>
+    <string name="alarm_missed_title">錯過了 %1$s 的提醒</string>
     <string name="alarm_channel_description">課程提醒響鈴</string>
     <string name="widget_help_title">桌面小元件幫助</string>
     <string name="widget_help_intro">不同系統會把同一個入口叫作「小元件」「小部件」「外掛」或「視窗小工具」。找不到時優先搜尋「課簡」。</string>

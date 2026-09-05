@@ -2,6 +2,7 @@
 <resources>
     <string name="reminder_exact_alarm_permission_off">精確鬧鐘許可權未開啟</string>
     <string name="reminder_app_alarm_set">App 自管鬧鐘已設定</string>
+    <string name="reminder_app_alarm_set_windowed">鬧鐘已設定 · 精確鬧鐘權限缺失，只能落在 10 分鐘視窗內</string>
     <string name="reminder_exact_alarm_denied">系統拒絕設定精確鬧鐘</string>
     <string name="reminder_app_alarm_set_failed">設定 App 自管鬧鐘失敗</string>
     <string name="reminder_app_alarm_cancelled">App 自管鬧鐘已取消</string>
