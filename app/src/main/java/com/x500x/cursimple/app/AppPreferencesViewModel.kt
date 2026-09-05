@@ -122,6 +122,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleBackgroundColorArgb(argb) }
     }
 
+    fun setScheduleBackgroundImageTransparencyPercent(percent: Int) {
+        viewModelScope.launch { repository.setScheduleBackgroundImageTransparencyPercent(percent) }
+    }
+
     fun setScheduleBackgroundImageUri(uri: String) {
         viewModelScope.launch { repository.setScheduleBackgroundImageUri(uri) }
     }

@@ -194,11 +194,15 @@ data class ScheduleBackgroundPreferences(
     val type: ScheduleBackgroundType = DEFAULT_BACKGROUND_TYPE,
     val colorArgb: Long = DEFAULT_BACKGROUND_COLOR_ARGB,
     val imageUri: String? = null,
+    /** 背景图自身的透明度，0 为不透明，与课表整体透明度叠乘。 */
+    val imageTransparencyPercent: Int = DEFAULT_IMAGE_TRANSPARENCY_PERCENT,
 ) {
     companion object {
         val DEFAULT_BACKGROUND_TYPE = ScheduleBackgroundType.Header
         const val DEFAULT_BACKGROUND_COLOR_ARGB = 0xFFFFFFFFL
+        const val DEFAULT_IMAGE_TRANSPARENCY_PERCENT = 0
         fun coerceArgb(value: Long): Long = value and 0xFFFF_FFFFL
+        fun coerceImageTransparencyPercent(value: Int): Int = value.coerceIn(0, 100)
     }
 }
 
@@ -344,6 +348,8 @@ interface UserPreferencesRepository {
     suspend fun setScheduleGridBorderDashed(enabled: Boolean)
     suspend fun setScheduleBackgroundColorArgb(argb: Long)
     suspend fun setScheduleBackgroundImageUri(uri: String)
+
+    suspend fun setScheduleBackgroundImageTransparencyPercent(percent: Int)
     suspend fun clearScheduleBackgroundImage()
     suspend fun setScheduleBackgroundUseHeaderColor()
     suspend fun setScheduleCustomColorsAdaptToTheme(enabled: Boolean)

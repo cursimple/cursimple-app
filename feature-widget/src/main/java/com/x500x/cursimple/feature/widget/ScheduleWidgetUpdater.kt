@@ -28,6 +28,12 @@ object ScheduleWidgetUpdater {
         ReminderGlanceWidgetReceiver.updateWidgets(app)
         // 作息或课表变化后边界随之改变，这里是所有变更路径的汇聚点
         rescheduleBoundaryRefresh(app)
+        // 守护链被清掉后没有自身事件能拉起来，借每次刷新把它补回去
+        runCatching {
+            WidgetAlarmGuardScheduler.ensureScheduled(app)
+        }.onFailure { error ->
+            ReminderLogger.warn("widget.alarm_guard.ensure_on_refresh.failure", emptyMap(), error)
+        }
     }
 
     /** 按当前作息重排节次边界刷新；取不到作息时保持已排的槽位不动。 */
