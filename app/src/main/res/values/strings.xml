@@ -665,6 +665,9 @@
     <string name="alarm_snooze_failed">延后失败，闹钟不会再响</string>
     <string name="alarm_ringing_notification">闹钟正在响铃</string>
     <string name="alarm_channel_name">课程闹钟</string>
+    <string name="alarm_missed_channel_name">错过的闹钟</string>
+    <string name="alarm_missed_channel_description">闹钟未能按时响起时在这里告知</string>
+    <string name="alarm_missed_title">错过了 %1$s 的提醒</string>
     <string name="alarm_channel_description">课程提醒响铃</string>
     <string name="widget_help_title">桌面小组件帮助</string>
     <string name="widget_help_intro">不同系统会把同一个入口叫作「小组件」「小部件」「插件」或「窗口小工具」。找不到时优先搜索「课简」。</string>

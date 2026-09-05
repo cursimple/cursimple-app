@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.widget.Toast
 import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.AudioFocusRequest
 import android.media.Ringtone
 import android.media.RingtoneManager
 import android.net.Uri
@@ -27,6 +29,10 @@ import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockIntents
+import com.x500x.cursimple.core.reminder.dispatch.alarmRampVolume
+import com.x500x.cursimple.core.reminder.dispatch.ALARM_VOLUME_RAMP_MILLIS
+import com.x500x.cursimple.core.reminder.dispatch.alarmArrivalOutcome
+import com.x500x.cursimple.core.reminder.dispatch.AlarmArrivalOutcome
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
 import com.x500x.cursimple.core.reminder.model.ReminderPlan
@@ -52,6 +58,12 @@ class AlarmRingingService : Service() {
     private var ringtone: Ringtone? = null
     private var activeVibrator: Vibrator? = null
     private var wakeLock: PowerManager.WakeLock? = null
+    private var volumeRampJob: Job? = null
+    private var audioFocusRequest: AudioFocusRequest? = null
+
+    /** 通话期间的音量折扣，1 表示不压低。 */
+    @Volatile
+    private var duckFactor: Float = 1f
     private var currentAlarm: ActiveAlarm? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -71,7 +83,7 @@ class AlarmRingingService : Service() {
                 requestFinish(reason = "user_snooze", snooze = true, intent = intent)
                 return START_NOT_STICKY
             }
-            ACTION_RING -> startRinging(intent)
+            ACTION_RING -> startRinging(intent, startId)
             else -> stopSelf(startId)
         }
         return START_NOT_STICKY
@@ -86,11 +98,52 @@ class AlarmRingingService : Service() {
         super.onDestroy()
     }
 
-    private fun startRinging(intent: Intent) {
+    private fun startRinging(intent: Intent, startId: Int) {
+        // 系统在派发闹钟时只给极短的唤醒时间，先抢锁再干活，否则中途 CPU 睡下就响一半
+        acquireWakeLock(STARTUP_WAKE_LOCK_MILLIS)
+        val alarm = intent.toActiveAlarm()
+        val claimed = alarm.alarmKey.isBlank() ||
+            AlarmArrivalLedger.claim(applicationContext, alarm.alarmKey, alarm.triggerAtMillis)
+        val outcome = alarmArrivalOutcome(
+            triggerAtMillis = alarm.triggerAtMillis,
+            nowMillis = System.currentTimeMillis(),
+            alreadyHandled = !claimed,
+            intentGeneration = intent.getLongExtra(EXTRA_GENERATION, 0L),
+            currentGeneration = AlarmArrivalLedger.currentGeneration(applicationContext),
+        )
+        when (outcome) {
+            AlarmArrivalOutcome.Duplicate, AlarmArrivalOutcome.Outdated -> {
+                ReminderLogger.info(
+                    "reminder.app_alarm_clock.ringing.skipped",
+                    mapOf("alarmKey" to alarm.alarmKey, "outcome" to outcome::class.simpleName.orEmpty()),
+                )
+                // 备通道紧随主通道到达，只能退掉自己这次启动，不能把正在响的服务一起停掉
+                retireStart(startId)
+                return
+            }
+            is AlarmArrivalOutcome.Missed -> {
+                ReminderLogger.warn(
+                    "reminder.app_alarm_clock.ringing.missed",
+                    mapOf("alarmKey" to alarm.alarmKey, "delayMillis" to outcome.delayMillis),
+                )
+                notifyMissedAlarm(alarm)
+                serviceScope.launch(Dispatchers.IO) {
+                    finishTriggeredAlarm(alarm, snooze = false)
+                    runPostFinishMaintenance()
+                    retireStart(startId)
+                }
+                return
+            }
+            is AlarmArrivalOutcome.RingLate -> ReminderLogger.warn(
+                "reminder.app_alarm_clock.ringing.late",
+                mapOf("alarmKey" to alarm.alarmKey, "delayMillis" to outcome.delayMillis),
+            )
+            AlarmArrivalOutcome.Ring -> Unit
+        }
+
         ringJob?.cancel()
         vibrationStopJob?.cancel()
         stopPlayback()
-        val alarm = intent.toActiveAlarm()
         currentAlarm = alarm
         runCatching {
             startForegroundCompat(alarm)
@@ -100,13 +153,25 @@ class AlarmRingingService : Service() {
                 mapOf("alarmKey" to alarm.alarmKey),
                 error,
             )
-            stopSelf()
+            // 没能进前台就把名册放回去，另一条通道到达时还有机会接手
+            if (alarm.alarmKey.isNotBlank()) {
+                AlarmArrivalLedger.release(applicationContext, alarm.alarmKey, alarm.triggerAtMillis)
+            }
+            retireStart(startId)
             return
         }
         serviceScope.launch(Dispatchers.IO) {
             AlarmRuntimeMaintenance.onAlarmStarted(applicationContext)
         }
         ringJob = serviceScope.launch {
+            if (!isRecordStillValid(alarm)) {
+                ReminderLogger.warn(
+                    "reminder.app_alarm_clock.ringing.record_gone",
+                    mapOf("alarmKey" to alarm.alarmKey),
+                )
+                finishRinging(alarm = null, reason = "record_gone", snooze = false)
+                return@launch
+            }
             val prefs = DataStoreUserPreferencesRepository(applicationContext).preferencesFlow.first()
             val repeatCount = (alarm.repeatCount ?: prefs.alarmRepeatCount).coerceIn(1, 10)
             val durationMillis = (alarm.ringDurationSeconds ?: prefs.alarmRingDurationSeconds)
@@ -115,13 +180,6 @@ class AlarmRingingService : Service() {
                 .coerceIn(5, 3600) * 1000L
             val alertMode = alarm.alertMode ?: prefs.alarmAlertMode
             val ringtoneUri = alarm.ringtoneUri ?: prefs.alarmRingtoneUri
-            val delayMillis = System.currentTimeMillis() - alarm.triggerAtMillis
-            if (alarm.triggerAtMillis > 0L && delayMillis > MISSED_ALARM_THRESHOLD_MILLIS) {
-                ReminderLogger.warn(
-                    "reminder.app_alarm_clock.ringing.late",
-                    mapOf("alarmKey" to alarm.alarmKey, "delayMillis" to delayMillis),
-                )
-            }
             repeat(repeatCount) { index ->
                 val round = index + 1
                 ReminderLogger.info(
@@ -147,6 +205,16 @@ class AlarmRingingService : Service() {
             }
             finishRinging(alarm = alarm, reason = "finished", snooze = false)
         }
+    }
+
+    /**
+     * 退掉一次不需要响铃的启动。
+     * 已经在响铃时什么都不做，响铃结束时的收尾会把服务一并停掉；
+     * 此时若按这次启动去停服务，正在响的那一条就会被一起掐断。
+     */
+    private fun retireStart(startId: Int) {
+        if (currentAlarm != null || ringJob?.isActive == true) return
+        stopSelf(startId)
     }
 
     private fun requestFinish(reason: String, snooze: Boolean, intent: Intent?) {
@@ -257,6 +325,23 @@ class AlarmRingingService : Service() {
         )
     }
 
+    /**
+     * 排程是易失的，记录才是唯一事实源。
+     * 规则被删除或禁用后遗留的排程若仍到达，这里挡住，避免响一个已经不存在的闹钟。
+     * 手动创建的闹钟和取不到记录的情况一律放行，宁可多响也不能漏响。
+     */
+    private suspend fun isRecordStillValid(alarm: ActiveAlarm): Boolean {
+        if (alarm.alarmKey.isBlank()) return true
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                val records = DataStoreReminderRepository(applicationContext).getSystemAlarmRecords()
+                if (records.isEmpty()) return@runCatching true
+                val record = records.firstOrNull { it.alarmKey == alarm.alarmKey }
+                record == null || record.enabled
+            }.getOrDefault(true)
+        }
+    }
+
     private suspend fun runPostFinishMaintenance() {
         withContext(Dispatchers.IO) {
             AlarmRuntimeMaintenance.onAlarmFinished(applicationContext)
@@ -304,7 +389,13 @@ class AlarmRingingService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(fullScreenIntent)
-            .setFullScreenIntent(fullScreenIntent, true)
+            .apply {
+                if (canUseFullScreenIntentCompat()) {
+                    setFullScreenIntent(fullScreenIntent, true)
+                } else {
+                    ReminderLogger.warn("reminder.app_alarm_clock.ringing.full_screen_denied", emptyMap())
+                }
+            }
             .addAction(0, getString(R.string.alarm_stop), stopIntent)
             .addAction(0, getString(R.string.alarm_snooze), snoozeIntent)
 
@@ -354,6 +445,7 @@ class AlarmRingingService : Service() {
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)?.let(::add)
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)?.let(::add)
             }.distinct()
+            requestAudioFocus(attributes)
             for (uri in candidates) {
                 val candidate = runCatching {
                     RingtoneManager.getRingtone(applicationContext, uri)
@@ -362,15 +454,67 @@ class AlarmRingingService : Service() {
                     audioAttributes = attributes
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         isLooping = true
+                        volume = alarmRampVolume(0L)
                     }
                     play()
                 }
-                if (ringtone?.isPlaying == true) return
+                if (ringtone?.isPlaying == true) {
+                    startVolumeRamp()
+                    return
+                }
             }
             ReminderLogger.warn("reminder.app_alarm_clock.ringing.tone.empty", emptyMap())
         }.onFailure { error ->
             ReminderLogger.warn("reminder.app_alarm_clock.ringing.tone.failure", emptyMap(), error)
         }
+    }
+
+    /** 音量从起点线性爬到满，同时持有音频焦点，通话打进来时自动压低。 */
+    private fun startVolumeRamp() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
+        volumeRampJob?.cancel()
+        val startedAt = System.currentTimeMillis()
+        volumeRampJob = serviceScope.launch {
+            while (true) {
+                val elapsed = System.currentTimeMillis() - startedAt
+                val target = alarmRampVolume(elapsed) * duckFactor
+                runCatching { ringtone?.volume = target }
+                if (elapsed >= ALARM_VOLUME_RAMP_MILLIS && duckFactor == 1f) break
+                delay(VOLUME_RAMP_STEP_MILLIS)
+            }
+        }
+    }
+
+    private fun requestAudioFocus(attributes: AudioAttributes) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        runCatching {
+            val manager = getSystemService(AudioManager::class.java) ?: return
+            val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(attributes)
+                .setWillPauseWhenDucked(false)
+                .setOnAudioFocusChangeListener { change ->
+                    // 来电会短暂拿走焦点，压低而不是停掉，通话结束后自动恢复
+                    duckFactor = when (change) {
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
+                        AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK,
+                        -> DUCKED_VOLUME_FACTOR
+                        else -> 1f
+                    }
+                    if (duckFactor != 1f) startVolumeRamp()
+                }
+                .build()
+            audioFocusRequest = request
+            manager.requestAudioFocus(request)
+        }.onFailure { error ->
+            ReminderLogger.warn("reminder.app_alarm_clock.ringing.audio_focus.failure", emptyMap(), error)
+        }
+    }
+
+    private fun abandonAudioFocus() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val request = audioFocusRequest ?: return
+        audioFocusRequest = null
+        runCatching { getSystemService(AudioManager::class.java)?.abandonAudioFocusRequest(request) }
     }
 
     private fun alarmAudioAttributes(): AudioAttributes = AudioAttributes.Builder()
@@ -379,6 +523,10 @@ class AlarmRingingService : Service() {
         .build()
 
     private fun stopTone() {
+        volumeRampJob?.cancel()
+        volumeRampJob = null
+        duckFactor = 1f
+        abandonAudioFocus()
         runCatching {
             ringtone?.stop()
             ringtone = null
@@ -436,6 +584,14 @@ class AlarmRingingService : Service() {
         }
     }
 
+    /** API 34 起全屏通知权限默认只授予闹钟与通话类应用，被收回时全屏响铃页弹不出来。 */
+    private fun canUseFullScreenIntentCompat(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
+        return runCatching {
+            getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
+        }.getOrDefault(true)
+    }
+
     private fun acquireWakeLock(timeoutMillis: Long) {
         runCatching {
             releaseWakeLock()
@@ -477,6 +633,45 @@ class AlarmRingingService : Service() {
         }
     }
 
+    /** 彻底错过的闹钟不能静默吞掉，用户需要知道自己睡过头了。 */
+    private fun notifyMissedAlarm(alarm: ActiveAlarm) {
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    MISSED_CHANNEL_ID,
+                    getString(R.string.alarm_missed_channel_name),
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = getString(R.string.alarm_missed_channel_description)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                }
+                getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            }
+            val time = java.time.Instant.ofEpochMilli(alarm.triggerAtMillis)
+                .atZone(java.time.ZoneId.systemDefault())
+                .toLocalTime()
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+            val notification = NotificationCompat.Builder(this, MISSED_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(getString(R.string.alarm_missed_title, time))
+                .setContentText(alarm.title.ifBlank { alarm.message })
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setAutoCancel(true)
+                .build()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                ReminderLogger.warn("reminder.app_alarm_clock.ringing.missed_notify.denied", emptyMap())
+                return@runCatching
+            }
+            androidx.core.app.NotificationManagerCompat.from(this)
+                .notify(MISSED_NOTIFICATION_ID + (alarm.alarmKey.hashCode() and 0xFF), notification)
+        }.onFailure { error ->
+            ReminderLogger.warn("reminder.app_alarm_clock.ringing.missed_notify.failure", emptyMap(), error)
+        }
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         runCatching {
@@ -511,7 +706,14 @@ class AlarmRingingService : Service() {
         private const val SNOOZE_REQUEST_CODE = 7403
         private const val FULL_SCREEN_REQUEST_CODE = 7404
         private const val WAKE_LOCK_EXTRA_MILLIS = 10_000L
-        private const val MISSED_ALARM_THRESHOLD_MILLIS = 5 * 60 * 1000L
+
+        /** 从服务启动到首轮响铃之间的保护窗口。 */
+        private const val STARTUP_WAKE_LOCK_MILLIS = 60_000L
+        private const val VOLUME_RAMP_STEP_MILLIS = 500L
+        private const val DUCKED_VOLUME_FACTOR = 0.2f
+        private const val MISSED_CHANNEL_ID = "course_alarm_missed"
+        private const val MISSED_NOTIFICATION_ID = 7500
+        const val EXTRA_GENERATION = "com.x500x.cursimple.extra.ALARM_GENERATION"
         private const val SNOOZE_DELAY_MILLIS = 5 * 60 * 1000L
     }
 }

@@ -16,9 +16,12 @@ class SystemAlarmReceiverManifestTest {
 
         assertNotNull(receiver)
         assertEquals("false", receiver!!.androidAttribute("exported"))
+        // 直接启动阶段就要重排，不必等用户解锁
+        assertEquals("true", receiver.androidAttribute("directBootAware"))
         assertEquals(
             setOf(
                 "android.intent.action.BOOT_COMPLETED",
+                "android.intent.action.LOCKED_BOOT_COMPLETED",
                 "android.intent.action.MY_PACKAGE_REPLACED",
                 "android.intent.action.TIME_SET",
                 "android.intent.action.TIMEZONE_CHANGED",

@@ -2,6 +2,7 @@
 <resources>
     <string name="reminder_exact_alarm_permission_off">Exact alarm permission is off</string>
     <string name="reminder_app_alarm_set">App-managed alarm set</string>
+    <string name="reminder_app_alarm_set_windowed">Alarm set, but without exact alarm permission it can only land within a 10 minute window</string>
     <string name="reminder_exact_alarm_denied">The system denied the exact alarm</string>
     <string name="reminder_app_alarm_set_failed">Failed to set the app-managed alarm</string>
     <string name="reminder_app_alarm_cancelled">App-managed alarm cancelled</string>
