@@ -755,6 +755,9 @@
     <string name="main_pick_first_monday">選擇第 1 周的週一</string>
     <string name="main_set_current_week_title">設定當前周</string>
     <string name="main_set_current_week_body">輸入今天所在的教學周，應用會用今天日期反推開學日期。</string>
+    <string name="main_set_current_week_confirm_title">把第 %1$d 週設為目前週？</string>
+    <string name="main_set_current_week_confirm_body">開學日期會改成 %1$s，課表週次、提醒和小工具都按新日期重新計算。</string>
+    <string name="main_set_current_week_confirm_action">設為目前週</string>
     <string name="main_current_week_label">當前周</string>
     <string name="main_week_must_be_positive">請輸入大於 0 的週數</string>
     <string name="main_set">設定</string>
