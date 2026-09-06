@@ -14,6 +14,11 @@
     <string name="plugin_market_installed_empty_title">還沒有任何外掛</string>
     <string name="plugin_market_installed_empty_subtitle">從本地 ZIP 安裝後會顯示在這裡。當前版本不再自動安裝內建示例外掛。</string>
     <string name="plugin_market_section_market">外掛市場</string>
+    <string name="plugin_market_browse_all">瀏覽全部 %1$d 個插件</string>
+    <string name="plugin_market_browse_title">插件市場</string>
+    <string name="plugin_market_search_hint">搜尋插件名、作者或描述</string>
+    <string name="plugin_market_search_empty">沒有符合「%1$s」的插件</string>
+    <string name="plugin_market_search_count">共 %1$d 個插件</string>
     <string name="plugin_market_registry_unset">未配置登錄檔倉庫</string>
     <string name="plugin_market_repo_no_description">（無描述）</string>
     <string name="plugin_market_version_missing">未找到版本</string>

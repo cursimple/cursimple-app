@@ -14,6 +14,11 @@
     <string name="plugin_market_installed_empty_title">还没有任何插件</string>
     <string name="plugin_market_installed_empty_subtitle">从本地 ZIP 安装后会显示在这里。当前版本不再自动安装内置示例插件。</string>
     <string name="plugin_market_section_market">插件市场</string>
+    <string name="plugin_market_browse_all">浏览全部 %1$d 个插件</string>
+    <string name="plugin_market_browse_title">插件市场</string>
+    <string name="plugin_market_search_hint">搜索插件名、作者或描述</string>
+    <string name="plugin_market_search_empty">没有匹配「%1$s」的插件</string>
+    <string name="plugin_market_search_count">共 %1$d 个插件</string>
     <string name="plugin_market_registry_unset">未配置注册表仓库</string>
     <string name="plugin_market_repo_no_description">（无描述）</string>
     <string name="plugin_market_version_missing">未找到版本</string>

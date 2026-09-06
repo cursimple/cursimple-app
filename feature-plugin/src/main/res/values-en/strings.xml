@@ -14,6 +14,11 @@
     <string name="plugin_market_installed_empty_title">No plugins yet</string>
     <string name="plugin_market_installed_empty_subtitle">Plugins installed from a local ZIP show up here. This version no longer installs the bundled sample plugins automatically.</string>
     <string name="plugin_market_section_market">Plugin marketplace</string>
+    <string name="plugin_market_browse_all">Browse all %1$d plugins</string>
+    <string name="plugin_market_browse_title">Plugin marketplace</string>
+    <string name="plugin_market_search_hint">Search by name, author or description</string>
+    <string name="plugin_market_search_empty">No plugin matches "%1$s"</string>
+    <string name="plugin_market_search_count">%1$d plugins</string>
     <string name="plugin_market_registry_unset">No registry repository configured</string>
     <string name="plugin_market_repo_no_description">(No description)</string>
     <string name="plugin_market_version_missing">No release found</string>
