@@ -36,6 +36,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,6 +46,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -324,9 +326,11 @@ fun ReleaseAnnouncementGate(
     onSeen: (Int) -> Unit,
 ) {
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
-    var notes by remember { mutableStateOf<String?>(null) }
+    var notes by remember { mutableStateOf<ReleaseNotesState>(ReleaseNotesState.Loading) }
     var visible by rememberSaveable { mutableStateOf(false) }
+    var attempt by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(lastSeenVersionCode) {
         if (lastSeenVersionCode == 0) {
@@ -336,28 +340,48 @@ fun ReleaseAnnouncementGate(
         if (lastSeenVersionCode >= BuildConfig.VERSION_CODE) return@LaunchedEffect
         visible = true
         onSeen(BuildConfig.VERSION_CODE)
-        notes = checker.releaseNotes("v${BuildConfig.VERSION_NAME}")
+    }
+
+    LaunchedEffect(visible, attempt) {
+        if (!visible) return@LaunchedEffect
+        notes = ReleaseNotesState.Loading
+        val text = checker.releaseNotes(releaseTagName())
+        notes = if (text.isNullOrBlank()) ReleaseNotesState.Unavailable else ReleaseNotesState.Loaded(text)
     }
 
     if (!visible) return
     AlertDialog(
         onDismissRequest = { visible = false },
-        title = { Text(stringResource(R.string.update_announcement_title, BuildConfig.VERSION_NAME)) },
+        title = { Text(stringResource(R.string.update_announcement_title, releaseVersionName())) },
         text = {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 300.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(12.dp),
-            ) {
-                Text(
-                    text = notes ?: stringResource(R.string.update_announcement_loading),
-                    modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .padding(12.dp),
+            when (val state = notes) {
+                ReleaseNotesState.Loading -> Text(
+                    text = stringResource(R.string.update_announcement_loading),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                ReleaseNotesState.Unavailable -> Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.update_announcement_failed),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { attempt++ }) {
+                            Text(stringResource(R.string.update_announcement_retry))
+                        }
+                        TextButton(onClick = { uriHandler.openUri(releaseUrl()) }) {
+                            Text(stringResource(R.string.update_announcement_open_release))
+                        }
+                    }
+                }
+
+                is ReleaseNotesState.Loaded -> ReleaseNotesCard(
+                    markdown = state.text,
+                    maxHeight = 300.dp,
                 )
             }
         },
@@ -368,6 +392,23 @@ fun ReleaseAnnouncementGate(
         },
     )
 }
+
+/** 更新公告的正文状态。 */
+private sealed interface ReleaseNotesState {
+    data object Loading : ReleaseNotesState
+
+    data object Unavailable : ReleaseNotesState
+
+    data class Loaded(val text: String) : ReleaseNotesState
+}
+
+/** 去掉构建类型给版本名加的后缀。 */
+private fun releaseVersionName(): String = BuildConfig.VERSION_NAME.substringBefore("-ci")
+
+/** 当前构建对应的 Release 标签。 */
+private fun releaseTagName(): String = "v" + releaseVersionName()
+
+private fun releaseUrl(): String = AppUpdateChecker.releasePageUrl(releaseTagName())
 
 @Composable
 private fun UpdateRollbackDialog(
@@ -391,22 +432,10 @@ private fun UpdateRollbackDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 180.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Text(
-                        text = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
-                        modifier = Modifier
-                            .verticalScroll(rememberScrollState())
-                            .padding(12.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                ReleaseNotesCard(
+                    markdown = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
+                    maxHeight = 180.dp,
+                )
             }
         },
         confirmButton = {
@@ -451,22 +480,10 @@ private fun UpdateAvailableDialog(
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 220.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Text(
-                        text = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
-                        modifier = Modifier
-                            .verticalScroll(rememberScrollState())
-                            .padding(12.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                ReleaseNotesCard(
+                    markdown = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
+                    maxHeight = 220.dp,
+                )
                 UpdateSecondaryChoice(
                     title = stringResource(R.string.update_dialog_mute),
                     hint = stringResource(R.string.update_dialog_mute_hint),

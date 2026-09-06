@@ -133,6 +133,9 @@
     <string name="update_status_rollback">發現正式版 %1$s，可回退</string>
     <string name="update_announcement_title">已更新到 %1$s</string>
     <string name="update_announcement_loading">正在取得更新內容…</string>
+    <string name="update_announcement_failed">沒能取到這一版的更新內容，可能是網路不通。</string>
+    <string name="update_announcement_retry">重試</string>
+    <string name="update_announcement_open_release">開啟發布頁</string>
     <string name="update_announcement_dismiss">知道了</string>
     <string name="update_dialog_downloading">下載中...</string>
     <string name="update_dialog_install">安裝</string>
