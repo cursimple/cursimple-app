@@ -1,6 +1,7 @@
 package com.x500x.cursimple.core.reminder.model
 
 import com.x500x.cursimple.core.kernel.model.CourseCategory
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -442,7 +443,7 @@ fun ReminderPlan.toAppAlarmRecord(
 
 /** 系统时钟按标签匹配删除闹钟，下发与登记必须给出同一份标签，因此这里不随界面语言变化。 */
 fun ReminderPlan.systemAlarmLabel(): String {
-    val trigger = Instant.ofEpochMilli(triggerAtMillis).atZone(ZoneId.systemDefault())
+    val trigger = Instant.ofEpochMilli(triggerAtMillis).atZone(BeijingTime.zone)
     val time = "${trigger.hour.toString().padStart(2, '0')}:${trigger.minute.toString().padStart(2, '0')}"
     return "课表提醒 · $title · $time"
 }

@@ -69,7 +69,6 @@ class DataStoreUserPreferencesRepository(
             scheduleDisplay = prefs.toScheduleDisplay(),
             scheduleCustomColorsAdaptToTheme = prefs[KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME] ?: true,
             enabledPluginIds = prefs[KEY_ENABLED_PLUGIN_IDS].orEmpty().toSet(),
-            pluginsSeeded = prefs[KEY_PLUGINS_SEEDED] ?: false,
             temporaryScheduleOverrides = decodeTemporaryScheduleOverrides(
                 prefs[KEY_TEMPORARY_SCHEDULE_OVERRIDES_JSON],
             ),
@@ -100,7 +99,6 @@ class DataStoreUserPreferencesRepository(
                 .coerceIn(MIN_REPEAT_INTERVAL_SECONDS, MAX_REPEAT_INTERVAL_SECONDS),
             alarmRepeatCount = (prefs[KEY_ALARM_REPEAT_COUNT] ?: DEFAULT_REPEAT_COUNT)
                 .coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT),
-            lastAlarmPollAtMillis = prefs[KEY_LAST_ALARM_POLL_AT_MILLIS] ?: 0L,
             autoSilence = prefs.toAutoSilencePreferences(),
             autoSilenceSession = prefs.toAutoSilenceSession(),
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,

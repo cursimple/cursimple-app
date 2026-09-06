@@ -542,7 +542,7 @@ fun ScheduleAppearancePreview(
             columnDayOfWeeks = columnDayOfWeeks,
         )
     }
-    val slotHeight = scheduleCardStyle.courseCardHeightDp.dp.coerceIn(56.dp, 120.dp)
+    val slotHeight = scheduleCardStyle.courseCardHeightDp.dp
     val dayHeaderHeight = 52.dp
     val previewHeight = dayHeaderHeight + slotHeight * previewSlots.size + 16.dp
 
@@ -2302,6 +2302,9 @@ private const val DAY_PAGE_SPAN = 200
 /** 平铺时每节至少留出的高度，再挤就连课名都放不下。 */
 private val MIN_FIT_SLOT_HEIGHT = 52.dp
 
+/** 背景图解码后的长边上限，超过按 2 的幂降采样。 */
+private const val BACKGROUND_MAX_EDGE_PX = 2048
+
 @Composable
 private fun DayHeader(
     day: DayHeaderModel,
@@ -2955,9 +2958,19 @@ private fun ScheduleGridBackground(
             ) {
                 value = withContext(Dispatchers.IO) {
                     runCatching {
+                        // 按屏幕能显示的规模降采样，避免整张大图常驻内存
+                        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                         context.contentResolver.openInputStream(Uri.parse(imageUri)).use { input ->
                             requireNotNull(input) { openFailedText }
-                            requireNotNull(BitmapFactory.decodeStream(input)) { decodeFailedText }
+                            BitmapFactory.decodeStream(input, null, bounds)
+                        }
+                        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+                        var sample = 1
+                        while (longest > 0 && longest / sample > BACKGROUND_MAX_EDGE_PX) sample *= 2
+                        val options = BitmapFactory.Options().apply { inSampleSize = sample }
+                        context.contentResolver.openInputStream(Uri.parse(imageUri)).use { input ->
+                            requireNotNull(input) { openFailedText }
+                            requireNotNull(BitmapFactory.decodeStream(input, null, options)) { decodeFailedText }
                                 .asImageBitmap()
                         }
                     }.fold(
@@ -3128,7 +3141,7 @@ private fun MultiSelectActionBar(
 internal fun buildWeekModel(
     weekOffset: Int,
     termStart: LocalDate? = null,
-    zone: ZoneId = ZoneId.systemDefault(),
+    zone: ZoneId = BeijingTime.zone,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     weekStartDay: WeekStartDay = WeekStartDay.Monday,

@@ -5,6 +5,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.dispatch.AlarmDispatcher
 import com.x500x.cursimple.core.reminder.dispatch.AlarmDismisser
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockDispatcher
@@ -522,7 +523,7 @@ class ReminderCoordinator(
             dismissFailedCount = expiredAppDismissal.failedCount,
         )
         val settings = alarmSettingsProvider()
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val temporaryScheduleOverrides = temporaryScheduleOverridesProvider()
         val holidayCalendar = holidayCalendarProvider()
         val dayPolicy = dayPolicyProvider()
@@ -572,7 +573,7 @@ class ReminderCoordinator(
             expiredRecordClearedCount = expiredRecordClearedCount,
         )
         val settings = alarmSettingsProvider()
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val window = ReminderSyncWindow(
             startMillis = nowMillis,
             endMillis = nowMillis + NEAREST_RULE_ALARM_WINDOW_MILLIS,
@@ -653,7 +654,7 @@ class ReminderCoordinator(
         expiredAppDismissal: DismissStats,
         staleRecordRuleId: String? = null,
     ): SystemAlarmSyncSummary {
-        val systemClockZone = ZoneId.systemDefault()
+        val systemClockZone = BeijingTime.zone
         val plannedKeys = plans.mapTo(mutableSetOf()) { it.systemAlarmKey() }
         val outdatedAppOperationDismissal = if (settings.backend == ReminderAlarmBackend.AppAlarmClock) {
             dismissOutdatedAppAlarmOperationRecords(
@@ -1072,7 +1073,7 @@ object ReminderSyncWindows {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ): ReminderSyncWindow {
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
         return ReminderSyncWindow(
             startMillis = nowMillis,
@@ -1084,7 +1085,7 @@ object ReminderSyncWindows {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ): ReminderSyncWindow {
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val nextDay = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate().plusDays(1)
         return ReminderSyncWindow(
             startMillis = nextDay.atStartOfDay(zone).toInstant().toEpochMilli(),

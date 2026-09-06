@@ -50,9 +50,7 @@
     <string name="about_license_line">MIT License · Copyright © 2026 x500x</string>
     <string name="about_version_label">Version</string>
     <string name="about_advanced_badge">Developer</string>
-    <string name="about_dev_mode_enabled">Advanced tools is on</string>
     <string name="about_dev_mode_hint">Open Settings › Developer tools to find debugging tools and log export.</string>
-    <string name="about_project_title">Project</string>
     <string name="about_project_desc">CurSimple is a microkernel Android timetable app that runs hot-updatable school plugins through a manifest and WebView sessions.</string>
     <string name="about_tech_title">Tech stack</string>
     <string name="about_tech_glance">1.1.1 (home-screen widget)</string>
@@ -117,7 +115,6 @@
     <string name="update_status_available">New version v%1$s available.</string>
     <string name="update_status_ignored_manual">v%1$s ignored. You can still update from a manual check.</string>
     <string name="update_section_title">App updates</string>
-    <string name="update_section_desc">Check for and download new versions from GitHub Releases.</string>
     <string name="update_auto_check_title">Check for updates automatically</string>
     <string name="update_auto_check_on">Checks at launch, prompts once and keeps a dot here</string>
     <string name="update_auto_check_off">Manual checks only; a found update still keeps a dot here</string>
@@ -295,7 +292,6 @@
     <string name="settings_subgroup_widget_behavior">Behavior</string>
     <string name="settings_row_schedule_style_subtitle">Text, header, cards and background</string>
     <string name="settings_row_schedule_display_subtitle">Visible range, week numbers and row height</string>
-    <string name="settings_row_language_zone_subtitle">Interface language and time zone</string>
     <string name="settings_dest_schedule_data">Timetable data</string>
     <string name="settings_dest_temporary_overrides">Temporary changes</string>
     <string name="settings_dest_holidays">Holidays and make-up days</string>
@@ -367,7 +363,6 @@
     <string name="holiday_eve_notice_body">%1$d class reminders are still set for tomorrow. Turn them off?</string>
     <string name="holiday_eve_notice_action_mute">Turn off tomorrow</string>
     <string name="holiday_eve_channel_name">Holiday reminder notices</string>
-    <string name="holiday_eve_muted_toast">Class reminders for %1$s are off</string>
     <string name="settings_holiday_sync_never">Not synced yet, using the bundled snapshot</string>
     <string name="settings_holiday_sync_years">Synced %1$s · from %2$s</string>
     <string name="settings_holiday_sync_running">Syncing…</string>
@@ -389,7 +384,6 @@
     <string name="settings_reset_schedule_dialog_title">Reset timetable appearance and display</string>
     <string name="settings_reset_schedule_dialog_message">Text, header, card, background and display options will go back to their defaults. Your course data is not affected. Continue?</string>
     <string name="settings_toast_schedule_reset">Timetable appearance and display reset to defaults</string>
-    <string name="settings_schedule_display_subtitle">Columns, locations, teachers and the full timetable</string>
     <string name="settings_adapt_colors_title">Adapt custom colors to the light or dark theme</string>
     <string name="settings_adapt_colors_on">Custom timetable colors follow the current light or dark theme</string>
     <string name="settings_adapt_colors_off">Custom colors are used exactly as set</string>
@@ -410,6 +404,7 @@
     <string name="settings_today_header_background_color">Today\'s header background color</string>
     <string name="settings_card_corner_radius">Course card corner radius</string>
     <string name="settings_card_height">Course card height</string>
+    <string name="settings_card_height_fit_hint">Visible rows is set to fit all, so row height follows the screen; switch to fixed height to use this</string>
     <string name="settings_schedule_opacity">Timetable opacity</string>
     <string name="settings_inactive_course_opacity">Opacity of courses outside this week</string>
     <string name="settings_grid_border_color">Grid border color</string>
@@ -422,7 +417,7 @@
     <string name="settings_background_match_header_on">Currently using the header area\'s light or dark base color</string>
     <string name="settings_background_match_header_off">Use the header area\'s light or dark base color as the timetable background</string>
     <string name="settings_background_image_title">Background image</string>
-    <string name="settings_background_image_transparency">Background image transparency</string>
+    <string name="settings_background_image_transparency">Image transparency</string>
     <string name="settings_background_preview_title">Preview</string>
     <string name="settings_background_preview_course">Sample course</string>
     <string name="settings_background_preview_empty">No background image chosen yet</string>
@@ -482,7 +477,6 @@
     <string name="calendar_export_subtitle">Add the whole term to the phone calendar so it shows on the lock screen and in other calendar apps.</string>
     <string name="calendar_export_pick_account">Pick a calendar</string>
     <string name="calendar_export_no_account">No writable calendar account. Add one in the system calendar first.</string>
-    <string name="calendar_export_permission_title">Calendar permission needed</string>
     <string name="calendar_export_permission_body">Writing and undoing both need read and write access to the calendar.</string>
     <string name="calendar_export_permission_grant">Grant</string>
     <string name="calendar_export_action">Write</string>
@@ -512,7 +506,6 @@
     <string name="settings_time_zone_search">Search time zones</string>
     <string name="settings_time_zone_dialog_title">Pick a time zone</string>
     <string name="settings_time_zone_hint">When travelling across time zones, pin the school\'s zone so the timetable and reminders still follow class times.</string>
-    <string name="settings_toast_time_zone_saved">Time zone changed to %1$s</string>
     <string name="settings_timing_profiles_title">Timetable sets</string>
     <string name="settings_timing_profiles_hint">Keep several sets for different terms or campuses. The editor below always edits the selected one.</string>
     <string name="settings_timing_profile_default_name">Default</string>
@@ -525,12 +518,8 @@
     <string name="settings_timing_profile_delete">Delete</string>
     <string name="settings_timing_profile_delete_title">Delete this set?</string>
     <string name="settings_timing_profile_delete_body">"%1$s" will be removed. Terms bound to it fall back to the selected set.</string>
-    <string name="settings_timing_profile_delete_last">At least one set must remain</string>
     <string name="settings_timing_profile_name_hint">Set name</string>
     <string name="settings_timing_profile_copy_suffix">%1$s copy</string>
-    <string name="settings_timing_profile_bind_term">Follow the current term</string>
-    <string name="settings_timing_profile_bind_term_hint">Switching to this term will select this set automatically.</string>
-    <string name="settings_toast_timing_profile_switched">Switched to "%1$s"</string>
     <string name="settings_toast_timing_profile_created">Created "%1$s"</string>
     <string name="settings_timing_entry_subtitle_set">%1$d periods set · used for card times, reminders and exports</string>
     <string name="settings_timing_entry_subtitle_unset">Not set · manually added courses need it to show times, create reminders and export</string>
@@ -584,7 +573,6 @@
     <string name="settings_alarm_warning_body">These permissions are off, so class reminders may not fire:</string>
     <string name="settings_section_grant">Needs your permission</string>
     <string name="settings_section_declared">Declared at install</string>
-    <string name="settings_permission_on">Granted</string>
     <string name="settings_permission_status_on">On</string>
     <string name="settings_permission_status_off">Off</string>
     <string name="settings_permission_manage_hint">Opens system settings, where you can turn it on or off</string>
@@ -595,16 +583,11 @@
     <string name="settings_permission_exact_alarm_off">Not granted, the app cannot schedule its own alarms</string>
     <string name="settings_permission_full_screen_off">Not granted, the lock screen alarm page may not open on its own</string>
     <string name="settings_permission_battery_title">Battery optimization</string>
-    <string name="settings_permission_battery_on">Background running allowed</string>
     <string name="settings_permission_battery_off">Allowing background running makes the alarm service more reliable</string>
     <string name="settings_permission_camera">Camera permission</string>
     <string name="settings_permission_camera_off">Needed to scan a code and import a timetable</string>
     <string name="settings_permission_install">Install unknown apps permission</string>
-    <string name="settings_permission_install_on">Update packages can be installed</string>
     <string name="settings_permission_install_off">Needed to install an APK update</string>
-    <string name="settings_toast_exact_alarm_granted">Exact alarm permission granted</string>
-    <string name="settings_toast_full_screen_granted">Full-screen alarm permission granted</string>
-    <string name="settings_toast_install_granted">Install unknown apps permission granted</string>
     <string name="settings_declared_permissions_title">Network, wake lock and vibration</string>
     <string name="settings_declared_permissions_subtitle">Declared at install time, no separate approval needed</string>
     <string name="settings_toast_no_grant_needed">No separate approval needed</string>
@@ -612,6 +595,7 @@
     <string name="settings_toast_notification_denied">Notification permission not granted</string>
     <string name="settings_toast_camera_granted">Camera permission granted</string>
     <string name="settings_toast_camera_denied">Camera permission not granted</string>
+    <string name="settings_toast_permission_open_settings">The system no longer prompts; grant it in App info</string>
     <string name="settings_toast_background_image_permission_failed">Could not get access to that image, please pick it again</string>
     <string name="settings_toast_widget_background_image_permission_failed">Could not get access to that widget background image, please pick it again</string>
     <string name="settings_accent_green">Mint Green</string>
@@ -756,7 +740,6 @@
     <string name="main_clear_term_start_body">Once cleared the current week cannot be worked out until you set it again. Continue?</string>
     <string name="main_clear">Clear</string>
     <string name="main_cancel">Cancel</string>
-    <string name="main_clear_all">Clear</string>
     <string name="main_app_name">CurSimple</string>
     <string name="main_drawer_term_start_unset">Term start date not set</string>
     <string name="main_drawer_current_week">Currently week %1$d</string>

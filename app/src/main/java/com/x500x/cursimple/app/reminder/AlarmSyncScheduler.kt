@@ -5,6 +5,7 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -58,7 +59,7 @@ object AlarmSyncScheduler {
             .build()
 
         // 计算到凌晨 2:00 的初始延迟
-        val now = LocalDateTime.now()
+        val now = BeijingTime.nowDateTime()
         val targetTime = if (now.toLocalTime().isBefore(DAILY_GUARD_TIME)) {
             LocalDateTime.of(now.toLocalDate(), DAILY_GUARD_TIME)
         } else {
