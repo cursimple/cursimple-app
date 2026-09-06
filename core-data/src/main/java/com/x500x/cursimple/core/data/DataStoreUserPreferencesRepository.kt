@@ -62,6 +62,7 @@ class DataStoreUserPreferencesRepository(
                 ?.let { runCatching { AppLanguage.valueOf(it) }.getOrNull() }
                 ?: AppLanguage.System,
             termStartDate = prefs[KEY_TERM_START_EPOCH_DAY]?.let(LocalDate::ofEpochDay),
+            termStartUserDecided = prefs[KEY_TERM_START_USER_DECIDED] ?: false,
             advancedToolsEnabled = prefs[KEY_ADVANCED_TOOLS] ?: false,
             scheduleTextStyle = prefs.toScheduleTextStyle(),
             scheduleCardStyle = prefs.toScheduleCardStyle(),
@@ -83,6 +84,7 @@ class DataStoreUserPreferencesRepository(
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
             },
             disclaimerAccepted = prefs[KEY_DISCLAIMER_ACCEPTED] ?: false,
+            firstRunGuideCompleted = prefs[KEY_FIRST_RUN_GUIDE_COMPLETED] ?: false,
             // 系统时钟通道只能在应用位于前台时创建闹钟，且表达不了一天以外的时间，
             // 选中它等于没有闹钟，因此存过这个值的一律读成 App 自管闹钟
             alarmBackend = prefs[KEY_ALARM_BACKEND]
@@ -153,6 +155,12 @@ class DataStoreUserPreferencesRepository(
             } else {
                 prefs[KEY_TERM_START_EPOCH_DAY] = date.toEpochDay()
             }
+        }
+    }
+
+    override suspend fun setTermStartUserDecided(decided: Boolean) {
+        store.edit { prefs ->
+            if (decided) prefs[KEY_TERM_START_USER_DECIDED] = true else prefs.remove(KEY_TERM_START_USER_DECIDED)
         }
     }
 
@@ -352,6 +360,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setDisclaimerAccepted(accepted: Boolean) {
         store.edit { prefs -> prefs[KEY_DISCLAIMER_ACCEPTED] = accepted }
+    }
+
+    override suspend fun setFirstRunGuideCompleted(completed: Boolean) {
+        store.edit { prefs -> prefs[KEY_FIRST_RUN_GUIDE_COMPLETED] = completed }
     }
 
     override suspend fun setAlarmBackend(backend: ReminderAlarmBackend) {
@@ -964,6 +976,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_THEME_ACCENT = stringPreferencesKey("theme_accent")
         val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_TERM_START_EPOCH_DAY = longPreferencesKey("term_start_epoch_day")
+        val KEY_TERM_START_USER_DECIDED = booleanPreferencesKey("term_start_user_decided")
         val KEY_ADVANCED_TOOLS = booleanPreferencesKey("advanced_tools")
         val KEY_SCHEDULE_COURSE_TEXT_SIZE_SP = intPreferencesKey("schedule_course_text_size_sp")
         val KEY_SCHEDULE_COURSE_TEXT_COLOR_ARGB = longPreferencesKey("schedule_course_text_color_argb")
@@ -1015,6 +1028,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
         val KEY_DISCLAIMER_ACCEPTED = booleanPreferencesKey("disclaimer_accepted")
+        val KEY_FIRST_RUN_GUIDE_COMPLETED = booleanPreferencesKey("first_run_guide_completed")
         val KEY_ALARM_BACKEND = stringPreferencesKey("alarm_backend")
         val KEY_ALARM_RINGTONE_URI = stringPreferencesKey("alarm_ringtone_uri")
         val KEY_ALARM_ALERT_MODE = stringPreferencesKey("alarm_alert_mode")

@@ -318,6 +318,7 @@
     <string name="settings_language_chinese">简体中文</string>
     <string name="settings_term_start_title">Term start date</string>
     <string name="settings_term_start_unset">Tap to set (used to work out the current week)</string>
+    <string name="settings_term_start_from_plugin">From plugin sync</string>
     <string name="settings_current_week_title">Current week</string>
     <string name="settings_current_week_subtitle_set">%1$s · setting the week number updates the term start date</string>
     <string name="settings_current_week_subtitle_unset">Tap to enter which week today is in</string>
@@ -887,4 +888,18 @@
     <string name="image_failure_too_large">The image is too large and could not be generated</string>
     <string name="image_write_failed">Failed to write the image file</string>
     <string name="image_share_subject">%1$s week %2$d schedule</string>
+    <string name="guide_drawer_title">Everything starts here</string>
+    <string name="guide_drawer_body">Tap the menu at the top left to open the drawer: timetable, courses, plugins, reminders and settings.</string>
+    <string name="guide_sync_title">Bring your timetable in</string>
+    <string name="guide_sync_body">Open Plugins from the drawer, install your school\'s plugin and sign in to sync the timetable in one tap.</string>
+    <string name="guide_add_title">Or add courses yourself</string>
+    <string name="guide_add_body">Tap the plus at the top right to add a course, or tap an empty cell to add one right at that slot.</string>
+    <string name="guide_week_title">Switch weeks and views</string>
+    <string name="guide_week_body">Tap the week at the top to jump to another week; the button beside it toggles between week and day view.</string>
+    <string name="guide_grid_title">This is your timetable</string>
+    <string name="guide_grid_body">Tap a course for details, reminders or a one-off change. Set the term start date to get the week number right.</string>
+    <string name="guide_skip">Skip</string>
+    <string name="guide_previous">Back</string>
+    <string name="guide_next">Next</string>
+    <string name="guide_done">Get started</string>
 </resources>
