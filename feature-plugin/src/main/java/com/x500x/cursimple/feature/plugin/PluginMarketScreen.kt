@@ -25,6 +25,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
@@ -60,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -273,6 +279,7 @@ private fun PluginListContent(
 ) {
     var detailPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
     var detailRepoSlug by rememberSaveable { mutableStateOf<String?>(null) }
+    var browsingMarket by rememberSaveable { mutableStateOf(false) }
     val detailPlugin = detailPluginKey?.let { key ->
         uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
     }
@@ -286,9 +293,16 @@ private fun PluginListContent(
     }
 
     // 详情页要先退回列表，否则系统返回键会一路退出应用
-    androidx.activity.compose.BackHandler(enabled = detailPluginKey != null || detailRepoSlug != null) {
-        detailPluginKey = null
-        detailRepoSlug = null
+    androidx.activity.compose.BackHandler(
+        enabled = detailPluginKey != null || detailRepoSlug != null || browsingMarket,
+    ) {
+        when {
+            detailPluginKey != null || detailRepoSlug != null -> {
+                detailPluginKey = null
+                detailRepoSlug = null
+            }
+            else -> browsingMarket = false
+        }
     }
 
     if (detailPlugin != null) {
@@ -320,6 +334,17 @@ private fun PluginListContent(
             onOpenRepo = { onOpenRepo(detailRepo.htmlUrl) },
             onInstall = { onInstallFromGitHub(detailRepo) },
             onUninstall = onRemovePlugin,
+            modifier = modifier,
+        )
+        return
+    }
+
+    if (browsingMarket) {
+        MarketBrowseScreen(
+            repos = uiState.marketRepos,
+            installed = uiState.installedPlugins,
+            onBack = { browsingMarket = false },
+            onOpenDetail = { repo -> detailRepoSlug = repo.fullName },
             modifier = modifier,
         )
         return
@@ -385,12 +410,28 @@ private fun PluginListContent(
                 )
             }
         } else {
+            val preview = marketPreview(uiState.marketRepos)
             item {
                 MarketGrid(
-                    repos = uiState.marketRepos,
+                    repos = preview.visible,
                     installed = uiState.installedPlugins,
                     onOpenDetail = { repo -> detailRepoSlug = repo.fullName },
                 )
+            }
+            if (preview.hiddenCount > 0) {
+                item {
+                    OutlinedButton(
+                        onClick = { browsingMarket = true },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            stringResource(
+                                R.string.plugin_market_browse_all,
+                                uiState.marketRepos.size,
+                            ),
+                        )
+                    }
+                }
             }
         }
 
@@ -596,6 +637,93 @@ private fun OwnerAvatar(owner: String, size: Dp) {
 }
 
 @OptIn(ExperimentalLayoutApi::class)
+/**
+ * 完整的市场浏览页。
+ * 插件多到首页铺不下时从这里进，带搜索框，按名称、作者与描述筛。
+ */
+@Composable
+private fun MarketBrowseScreen(
+    repos: List<GitHubRepoSummary>,
+    installed: List<InstalledPluginRecord>,
+    onBack: () -> Unit,
+    onOpenDetail: (GitHubRepoSummary) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val filtered = remember(repos, query) { filterMarketRepos(repos, query) }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        DetailBackButton(onBack)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = stringResource(R.string.plugin_market_browse_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    OutlinedTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(imageVector = Icons.Rounded.Search, contentDescription = null)
+                        },
+                        trailingIcon = {
+                            if (query.isNotEmpty()) {
+                                IconButton(onClick = { query = "" }) {
+                                    Icon(imageVector = Icons.Rounded.Close, contentDescription = null)
+                                }
+                            }
+                        },
+                        placeholder = { Text(stringResource(R.string.plugin_market_search_hint)) },
+                    )
+                    Text(
+                        text = stringResource(R.string.plugin_market_search_count, filtered.size),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            if (filtered.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyStateCard(
+                        title = stringResource(R.string.plugin_market_search_empty, query.trim()),
+                        subtitle = stringResource(R.string.plugin_market_search_hint),
+                    )
+                }
+            } else {
+                items(filtered, key = { it.fullName }) { repo ->
+                    GitHubRepoCard(
+                        repo = repo,
+                        installState = resolveRepoInstallState(
+                            repoSlug = repo.fullName,
+                            latestTag = repo.latestRelease?.tagName,
+                            installed = installed,
+                        ),
+                        onClick = { onOpenDetail(repo) },
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun GitHubRepoDetailScreen(
     repo: GitHubRepoSummary,
