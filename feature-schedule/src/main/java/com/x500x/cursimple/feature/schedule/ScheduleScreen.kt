@@ -567,7 +567,7 @@ fun ScheduleAppearancePreview(
         }
         val availableWidth = (maxWidth - 8.dp).coerceAtLeast(0.dp)
         val dayColumnCount = visibleDays.size.coerceAtLeast(1)
-        val timeColumnWidth = timeColumnWidth(availableWidth)
+        val timeColumnWidth = timeColumnWidth(availableWidth, scheduleTextStyle.headerTextSizeSp, previewSlots.map { it.label })
         val gridWidth = (availableWidth - timeColumnWidth).coerceAtLeast(0.dp)
         val dayColumnWidth = (gridWidth / dayColumnCount).coerceAtLeast(36.dp)
         val gridHeight = slotHeight * previewSlots.size
@@ -1882,7 +1882,7 @@ private fun ScheduleGrid(
 
     val gridScrollState = rememberScrollState()
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
-        val timeColumnWidth = timeColumnWidth(maxWidth)
+        val timeColumnWidth = timeColumnWidth(maxWidth, scheduleTextStyle.headerTextSizeSp, slots.map { it.label })
         // 调课与假日都会在日期下方多出一行说明，表头需要更高
         val dayHeaderMinHeight =
             if (visibleDays.any { it.overrideLabel != null || it.holidayLabel != null }) 66.dp else 52.dp
@@ -2443,17 +2443,20 @@ private fun TimeCell(
     ) {
         Text(
             text = slot.label,
+            modifier = Modifier.weight(1f, fill = false),
             color = headerColor,
             fontSize = headerSize,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
         if (showTime) {
             Text(
                 text = slotTimeRange(slot),
                 color = headerColor.copy(alpha = 0.72f),
                 fontSize = (scheduleTextStyle.headerTextSizeSp - 3).coerceAtLeast(8).sp,
-                lineHeight = (scheduleTextStyle.headerTextSizeSp - 3).coerceAtLeast(8).sp,
+                lineHeight = ((scheduleTextStyle.headerTextSizeSp - 3).coerceAtLeast(8) + 2).sp,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
             )
@@ -3569,19 +3572,26 @@ private fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
 }
 
 /**
- * 节次列的宽度。系统字号放大时同比放宽，避免标签被折断成每行一两个字；
+ * 节次列的宽度。
+ *
+ * 至少要放得下「第一节」这样三个汉字的标签，否则标签会被折成每行一个字，
+ * 把下面的起止时间挤出行高。表头字号与系统字号放大时同比放宽，
  * 上限为可用宽度的三成，保证课程列还有位置。
  */
 @Composable
-private fun timeColumnWidth(availableWidth: Dp): Dp {
+private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: List<String>): Dp {
     val base = when {
         availableWidth < 360.dp -> 38.dp
         availableWidth < 420.dp -> 42.dp
         else -> 44.dp
     }
+    // 一个字宽约等于字号，最长标签的字宽加上左右内边距即为不折行所需的宽度
+    val labelWidth = (headerTextSizeSp * timeColumnLabelChars(labels)).dp + TIME_COLUMN_PADDING
     val scale = LocalDensity.current.fontScale.coerceIn(1f, 1.8f)
-    return (base * scale).coerceAtMost(availableWidth * 0.3f)
+    return (maxOf(base, labelWidth) * scale).coerceAtMost(availableWidth * 0.32f)
 }
+
+private val TIME_COLUMN_PADDING = 6.dp
 
 /** 等待确认的拖动改动。 */
 internal data class PendingCourseDrag(
