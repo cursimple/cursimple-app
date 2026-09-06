@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -18,7 +19,7 @@ import java.time.ZoneId
  */
 internal object WidgetBoundaryRefreshScheduler {
 
-    fun reschedule(context: Context, slots: List<ClassSlotTime>, zone: ZoneId = ZoneId.systemDefault()) {
+    fun reschedule(context: Context, slots: List<ClassSlotTime>, zone: ZoneId = BeijingTime.zone) {
         val app = context.applicationContext
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val boundaries = widgetRefreshBoundaries(slots, LocalDateTime.now(zone), limit = SLOT_COUNT)

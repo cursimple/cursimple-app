@@ -65,6 +65,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
@@ -86,6 +87,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 
 @Composable
 fun ScheduleSettingsRoute(
@@ -412,7 +414,7 @@ private fun AlarmRecordRow(
     onDelete: () -> Unit,
     onSetEnabled: (Boolean) -> Unit,
 ) {
-    val zone = ZoneId.systemDefault()
+    val zone = LocalAppZone.current
     val context = LocalContext.current
     // 有类型内容就按当前语言渲染，旧数据只有语言无关的展示文本时回退到它
     val title = record.titleContent?.let { context.reminderNotificationTitleText(it) }

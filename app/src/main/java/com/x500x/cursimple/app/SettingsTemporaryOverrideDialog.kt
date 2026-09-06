@@ -41,6 +41,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.util.UUID
@@ -58,7 +59,7 @@ internal fun TemporaryScheduleOverridesDialog(
     onClear: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val today = LocalDate.now()
+    val today = BeijingTime.today()
     var mode by rememberSaveable { mutableStateOf(TemporaryOverrideDialogMode.MakeUp) }
     var targetDate by rememberSaveable { mutableStateOf(today) }
     var sourceDate by rememberSaveable { mutableStateOf(today) }

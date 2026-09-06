@@ -9,6 +9,7 @@ import android.os.Build
 import com.x500x.cursimple.app.ClassScheduleApplication
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.endLocalTime
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 import kotlinx.coroutines.CoroutineScope
@@ -105,7 +106,7 @@ object SystemAlarmCheckScheduler {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ) {
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDateTime()
         var target = LocalDateTime.of(now.toLocalDate(), DAILY_CHECK_TIME)
         if (!target.isAfter(now)) {
@@ -125,7 +126,7 @@ object SystemAlarmCheckScheduler {
         timingProfile: TermTimingProfile,
         nowMillis: Long = System.currentTimeMillis(),
     ) {
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
         val slotEndTimes = timingProfile.slotTimes
             .mapNotNull { runCatching { it.endLocalTime() }.getOrNull() }

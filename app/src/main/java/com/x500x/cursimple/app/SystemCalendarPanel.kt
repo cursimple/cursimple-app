@@ -51,6 +51,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -77,7 +78,7 @@ internal fun SystemCalendarPanel(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val zone = remember { ZoneId.systemDefault() }
+    val zone = remember { BeijingTime.zone }
 
     var granted by remember { mutableStateOf(SystemCalendarExporter.hasWritePermission(context)) }
     var accounts by remember { mutableStateOf<List<SystemCalendarAccount>>(emptyList()) }

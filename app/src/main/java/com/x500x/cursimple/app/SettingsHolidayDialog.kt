@@ -38,6 +38,7 @@ import com.x500x.cursimple.core.kernel.model.entryOn
 import com.x500x.cursimple.core.kernel.model.localDate
 import com.x500x.cursimple.core.kernel.model.sortedUserEntries
 import com.x500x.cursimple.core.kernel.model.userEntryOn
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import java.time.LocalDate
 import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
@@ -51,7 +52,7 @@ internal fun HolidayCalendarDialog(
     onClear: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val today = LocalDate.now()
+    val today = BeijingTime.today()
     var targetDate by rememberSaveable { mutableStateOf(today) }
     var pickDate by rememberSaveable { mutableStateOf(false) }
     var name by rememberSaveable { mutableStateOf("") }

@@ -73,7 +73,7 @@ class HolidayEveNoticeWorker(
         private val NOTICE_TIME: LocalTime = LocalTime.of(20, 0)
 
         fun schedule(context: Context) {
-            val now = LocalDateTime.now()
+            val now = BeijingTime.nowDateTime()
             val target = if (now.toLocalTime().isBefore(NOTICE_TIME)) {
                 LocalDateTime.of(now.toLocalDate(), NOTICE_TIME)
             } else {
