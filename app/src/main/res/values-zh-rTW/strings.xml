@@ -119,8 +119,8 @@
     <string name="update_section_title">應用更新</string>
     <string name="update_section_desc">從 GitHub Release 檢查與下載新版本。</string>
     <string name="update_auto_check_title">自動檢查更新</string>
-    <string name="update_auto_check_on">發現新版本後詢問是否更新</string>
-    <string name="update_auto_check_off">僅手動檢查更新</string>
+    <string name="update_auto_check_on">啟動時自動檢查，發現新版本彈窗提醒並保留紅點</string>
+    <string name="update_auto_check_off">僅手動檢查，查到新版本後同樣會保留紅點</string>
     <string name="update_check_title">檢查更新</string>
     <string name="update_check_checking">檢查中...</string>
     <string name="update_check_button">檢查</string>
@@ -137,7 +137,13 @@
     <string name="update_dialog_downloading">下載中...</string>
     <string name="update_dialog_install">安裝</string>
     <string name="update_dialog_update">更新</string>
-    <string name="update_dialog_ignore">忽略本次更新</string>
+    <string name="update_dialog_ignore">忽略此版本</string>
+    <string name="update_dialog_later">下次再說</string>
+    <string name="update_dialog_mute">不再提醒此版本</string>
+    <string name="update_dialog_mute_hint">只在設定裡保留紅點</string>
+    <string name="update_dialog_ignore_hint">紅點一併消失，需自行到設定裡檢查</string>
+    <string name="update_status_muted">已對 v%1$s 關閉彈窗提醒，設定裡仍保留紅點。</string>
+    <string name="update_badge_desc">有新版本</string>
     <string name="update_no_release_notes">暫無變更說明。</string>
 
     <string name="widget_sheet_title">新增桌面小元件</string>
