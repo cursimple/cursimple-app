@@ -755,6 +755,9 @@
     <string name="main_pick_first_monday">Pick the Monday of week 1</string>
     <string name="main_set_current_week_title">Set the current week</string>
     <string name="main_set_current_week_body">Enter the teaching week today falls in and the term start date will be worked out from it.</string>
+    <string name="main_set_current_week_confirm_title">Set week %1$d as the current week?</string>
+    <string name="main_set_current_week_confirm_body">The term start date becomes %1$s, and week numbers, reminders and widgets are all recalculated from it.</string>
+    <string name="main_set_current_week_confirm_action">Set as current</string>
     <string name="main_current_week_label">Current week</string>
     <string name="main_week_must_be_positive">Enter a week number greater than 0</string>
     <string name="main_set">Set</string>

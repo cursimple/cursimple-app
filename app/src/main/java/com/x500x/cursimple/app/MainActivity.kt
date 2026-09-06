@@ -261,6 +261,7 @@ class MainActivity : ComponentActivity() {
                     val drawerGesturesEnabled = !scheduleState.isSyncing && scheduleState.pendingWebSession == null
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
                     var showCurrentWeekDialog by rememberSaveable { mutableStateOf(false) }
+                    var pendingCurrentWeek by rememberSaveable { mutableStateOf<Int?>(null) }
                     var showTermStartReminder by rememberSaveable { mutableStateOf(false) }
                     var autoPromptedThisSession by rememberSaveable { mutableStateOf(false) }
                     androidx.compose.runtime.LaunchedEffect(prefs.loaded, prefs.termStartDate, prefs.disclaimerAccepted) {
@@ -1191,14 +1192,40 @@ class MainActivity : ComponentActivity() {
                                 showWeekMenu = false
                             },
                             onSetSelectedAsCurrent = { selectedWeek ->
-                                setActiveTermStartDate(
-                                    deriveTermStartForCurrentWeek(today = today, currentWeek = selectedWeek),
-                                )
-                                weekOffset = 0
-                                dayOffset = 0
+                                // 这一步会改写开学日期，牵动所有周次与提醒，先让用户确认
+                                pendingCurrentWeek = selectedWeek
                                 showWeekMenu = false
                             },
                             onDismiss = { showWeekMenu = false },
+                        )
+                    }
+
+                    pendingCurrentWeek?.let { week ->
+                        val derivedStart = deriveTermStartForCurrentWeek(today = today, currentWeek = week)
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { pendingCurrentWeek = null },
+                            title = { Text(stringResource(R.string.main_set_current_week_confirm_title, week)) },
+                            text = {
+                                Text(
+                                    stringResource(
+                                        R.string.main_set_current_week_confirm_body,
+                                        DateTimeFormatter.ofPattern("yyyy/M/d").format(derivedStart),
+                                    ),
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    setActiveTermStartDate(derivedStart)
+                                    weekOffset = 0
+                                    dayOffset = 0
+                                    pendingCurrentWeek = null
+                                }) { Text(stringResource(R.string.main_set_current_week_confirm_action)) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { pendingCurrentWeek = null }) {
+                                    Text(stringResource(R.string.main_cancel))
+                                }
+                            },
                         )
                     }
 
