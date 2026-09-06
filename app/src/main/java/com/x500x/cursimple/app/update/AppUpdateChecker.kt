@@ -26,7 +26,7 @@ import kotlin.system.measureTimeMillis
 
 class AppUpdateChecker(
     downloaderLabels: MirrorDownloaderLabels,
-    private val repository: String = "cursimple/cursimple-app",
+    private val repository: String = DEFAULT_REPOSITORY,
     private val mirrorPool: DownloadMirrorPool = DownloadMirrorPool(),
     private val downloader: MirrorDownloader = MirrorDownloader(
         labels = downloaderLabels,
@@ -398,7 +398,14 @@ class AppUpdateChecker(
         }
     }
 
-    private companion object {
+    companion object {
+        /** 发布所在的仓库。 */
+        const val DEFAULT_REPOSITORY = "cursimple/cursimple-app"
+
+        /** 某个标签的发布页地址。 */
+        fun releasePageUrl(tagName: String): String =
+            "https://github.com/$DEFAULT_REPOSITORY/releases/tag/$tagName"
+
         const val UPDATE_MANIFEST_NAME = "update.json"
         private const val RELEASE_PAGE_SIZE = 20
         val USER_AGENT = "CurSimple/${BuildConfig.VERSION_NAME}"

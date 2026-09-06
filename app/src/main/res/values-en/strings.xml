@@ -133,6 +133,9 @@
     <string name="update_status_rollback">Stable %1$s found, roll back available</string>
     <string name="update_announcement_title">Updated to %1$s</string>
     <string name="update_announcement_loading">Loading release notes…</string>
+    <string name="update_announcement_failed">Could not load the notes for this version; the network may be unreachable.</string>
+    <string name="update_announcement_retry">Retry</string>
+    <string name="update_announcement_open_release">Open release page</string>
     <string name="update_announcement_dismiss">Got it</string>
     <string name="update_dialog_downloading">Downloading...</string>
     <string name="update_dialog_install">Install</string>
