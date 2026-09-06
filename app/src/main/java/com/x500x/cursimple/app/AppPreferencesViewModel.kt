@@ -311,6 +311,18 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setIgnoredUpdateVersionCode(versionCode) }
     }
 
+    fun setMutedUpdateVersionCode(versionCode: Int?) {
+        viewModelScope.launch { repository.setMutedUpdateVersionCode(versionCode) }
+    }
+
+    fun setUpdateNotice(versionCode: Int, versionName: String) {
+        viewModelScope.launch { repository.setUpdateNotice(versionCode, versionName) }
+    }
+
+    fun clearUpdateNotice() {
+        viewModelScope.launch { repository.clearUpdateNotice() }
+    }
+
     fun setPluginRegistryRepo(repo: String) {
         viewModelScope.launch { repository.setPluginRegistryRepo(repo) }
     }

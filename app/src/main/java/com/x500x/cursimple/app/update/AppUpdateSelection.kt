@@ -375,6 +375,9 @@ sealed interface UpdatePanelStatus {
 
     data class IgnoredManual(val versionName: String) : UpdatePanelStatus
 
+    /** 该版本只关掉了弹窗，设置入口的角标仍在。 */
+    data class Muted(val versionName: String) : UpdatePanelStatus
+
     data class Downloading(val fileName: String) : UpdatePanelStatus
 
     data class Downloaded(val sourceName: String) : UpdatePanelStatus
