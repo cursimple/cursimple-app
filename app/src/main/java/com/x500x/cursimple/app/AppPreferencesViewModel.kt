@@ -46,6 +46,14 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setTermStartDate(date) }
     }
 
+    fun setFirstRunGuideCompleted(completed: Boolean) {
+        viewModelScope.launch { repository.setFirstRunGuideCompleted(completed) }
+    }
+
+    fun markTermStartUserDecided() {
+        viewModelScope.launch { repository.setTermStartUserDecided(true) }
+    }
+
     fun setAdvancedToolsEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setAdvancedToolsEnabled(enabled) }
     }

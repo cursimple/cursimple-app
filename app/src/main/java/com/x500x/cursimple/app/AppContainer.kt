@@ -12,6 +12,7 @@ import com.x500x.cursimple.app.download.DownloadRequest
 import com.x500x.cursimple.app.download.MirrorDownloadResult
 import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.term.resolveCanonicalTermStart
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -470,7 +471,13 @@ class AppContainer(
             .firstOrNull { it.id == activeTermId }
         val activeTermStart = activeTerm?.termStartDate?.let(::parseIsoDate)
         val pluginTermStart = runCatching { timingProfile.termStartLocalDate() }.getOrNull()
-        val canonicalTermStart = activeTermStart ?: pluginTermStart
+        // 用户定过开学日期就不再被插件带的日期改写，包括他主动清空的情况
+        val userDecided = userPreferencesRepository.preferencesFlow.first().termStartUserDecided
+        val canonicalTermStart = resolveCanonicalTermStart(
+            userDecided = userDecided,
+            termStart = activeTermStart,
+            pluginTermStart = pluginTermStart,
+        )
 
         if (canonicalTermStart != null) {
             if (activeTermId.isNotBlank() && activeTermStart != canonicalTermStart) {

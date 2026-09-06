@@ -272,6 +272,8 @@ data class UserPreferences(
     val themeAccent: ThemeAccent = ThemeAccent.Green,
     val appLanguage: AppLanguage = AppLanguage.System,
     val termStartDate: LocalDate? = null,
+    /** 开学日期是否由用户自己定过。为假时才允许从插件同步的作息里继承。 */
+    val termStartUserDecided: Boolean = false,
     val advancedToolsEnabled: Boolean = false,
     val scheduleTextStyle: ScheduleTextStylePreferences = ScheduleTextStylePreferences(),
     val scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
@@ -287,6 +289,8 @@ data class UserPreferences(
     val reminderMutedDates: Set<String> = emptySet(),
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
+    /** 新手引导是否已经走完或被跳过。 */
+    val firstRunGuideCompleted: Boolean = false,
     val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
     val alarmRingtoneUri: String? = null,
     val alarmAlertMode: AlarmAlertMode = AlarmAlertMode.RingAndVibrate,
@@ -332,6 +336,9 @@ interface UserPreferencesRepository {
     suspend fun setThemeAccent(accent: ThemeAccent)
     suspend fun setAppLanguage(language: AppLanguage)
     suspend fun setTermStartDate(date: LocalDate?)
+
+    /** 记下开学日期已由用户决定，此后插件同步不再覆盖，包括用户主动清空的情况。 */
+    suspend fun setTermStartUserDecided(decided: Boolean)
     suspend fun setAdvancedToolsEnabled(enabled: Boolean)
     suspend fun setScheduleCourseTextSizeSp(sizeSp: Int)
     suspend fun setScheduleCourseTextColorArgb(argb: Long)
@@ -390,6 +397,8 @@ interface UserPreferencesRepository {
     suspend fun setReminderMuted(date: String, muted: Boolean)
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
+
+    suspend fun setFirstRunGuideCompleted(completed: Boolean)
     suspend fun setAlarmBackend(backend: ReminderAlarmBackend)
     suspend fun setAlarmRingtoneUri(uri: String?)
     suspend fun setAlarmAlertMode(mode: AlarmAlertMode)

@@ -144,6 +144,7 @@ import com.x500x.cursimple.app.holiday.holidaySyncYears
 import com.x500x.cursimple.app.util.PREVIEW_MAX_EDGE_PX
 import com.x500x.cursimple.app.util.decodeSampledImage
 import com.x500x.cursimple.app.permission.PermissionRequestOutcome
+import com.x500x.cursimple.app.term.isTermStartFromPlugin
 import com.x500x.cursimple.app.permission.findActivity
 import com.x500x.cursimple.app.permission.permissionRequestOutcome
 import com.x500x.cursimple.app.update.UpdateNoticeState
@@ -295,6 +296,7 @@ fun AppSettingsRoute(
     themeMode: ThemeMode,
     themeAccentLabel: String,
     termStartDate: LocalDate?,
+    termStartUserDecided: Boolean,
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleBackground: ScheduleBackgroundPreferences,
@@ -700,7 +702,12 @@ fun AppSettingsRoute(
                     subtitle = termStartDate?.let {
                         val fmt = DateTimeFormatter.ofPattern("yyyy/M/d")
                         val week = LocalContext.current.termWeekText(termWeekLabel(currentWeekIndex))
-                        "${fmt.format(it)} · $week"
+                        val source = if (isTermStartFromPlugin(termStartUserDecided, termStartDate)) {
+                            " · " + stringResource(R.string.settings_term_start_from_plugin)
+                        } else {
+                            ""
+                        }
+                        "${fmt.format(it)} · $week$source"
                     } ?: stringResource(R.string.settings_term_start_unset),
                     onClick = onPickTermStartDate,
                     trailing = if (termStartDate != null) {

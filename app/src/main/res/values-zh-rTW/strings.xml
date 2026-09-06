@@ -318,6 +318,7 @@
     <string name="settings_language_chinese">簡體中文</string>
     <string name="settings_term_start_title">開學日期</string>
     <string name="settings_term_start_unset">點選設定（用於計算當前周次）</string>
+    <string name="settings_term_start_from_plugin">來自插件同步</string>
     <string name="settings_current_week_title">當前周</string>
     <string name="settings_current_week_subtitle_set">%1$s · 可按週數反推開學日期</string>
     <string name="settings_current_week_subtitle_unset">點選輸入今天所在週數</string>
@@ -887,4 +888,18 @@
     <string name="image_failure_too_large">圖片過大，生成失敗</string>
     <string name="image_write_failed">寫入圖片檔案失敗</string>
     <string name="image_share_subject">%1$s 第 %2$d 周課表</string>
+    <string name="guide_drawer_title">從這裡進各個頁面</string>
+    <string name="guide_drawer_body">點左上角的選單打開側邊欄，課表、全部課程、插件、提醒和設定都在裡面。</string>
+    <string name="guide_sync_title">先把課表同步進來</string>
+    <string name="guide_sync_body">側邊欄進「插件」，裝上你學校的插件並登入教務系統，就能一鍵把課表同步過來。</string>
+    <string name="guide_add_title">也可以自己加課</string>
+    <string name="guide_add_body">點右上角的加號新增課程，或者直接點課表裡的空格子，在那個位置上加一節課。</string>
+    <string name="guide_week_title">切換週次和檢視</string>
+    <string name="guide_week_body">點頂部的週次可以翻到別的週，右邊的「週」在週檢視和日檢視之間切換。</string>
+    <string name="guide_grid_title">課表就在這裡</string>
+    <string name="guide_grid_body">點課程卡片看詳情、設提醒或臨時調課。開學日期設好之後，當前週次才算得準。</string>
+    <string name="guide_skip">跳過</string>
+    <string name="guide_previous">上一步</string>
+    <string name="guide_next">下一步</string>
+    <string name="guide_done">開始使用</string>
 </resources>
