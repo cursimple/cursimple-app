@@ -96,3 +96,85 @@ class ScheduleBackgroundCropTest {
         }
     }
 }
+
+class CropPanBoundsTest {
+    @Test
+    fun `a wide photo in a tall frame can be panned across its whole width`() {
+        // 竖长取景框配横图：图片按高度填满，左右各溢出一半
+        val bounds = cropPanBounds(
+            frameWidth = 310f,
+            frameHeight = 500f,
+            imageWidth = 4000,
+            imageHeight = 3000,
+            zoom = 1f,
+        )
+
+        // 填满高度后图片宽 4000 * (500/3000) = 666.7，溢出 356.7，两侧各 178.3
+        assertEquals(178.3f, bounds.maxX, 0.5f)
+        assertEquals(0f, bounds.maxY, 0.01f)
+    }
+
+    @Test
+    fun `an image matching the frame ratio has no slack until zoomed`() {
+        val flush = cropPanBounds(310f, 500f, 620, 1000, zoom = 1f)
+
+        assertEquals(0f, flush.maxX, 0.01f)
+        assertEquals(0f, flush.maxY, 0.01f)
+
+        val zoomed = cropPanBounds(310f, 500f, 620, 1000, zoom = 2f)
+
+        assertEquals(155f, zoomed.maxX, 0.5f)
+        assertEquals(250f, zoomed.maxY, 0.5f)
+    }
+
+    @Test
+    fun `zooming widens the slack proportionally`() {
+        val single = cropPanBounds(300f, 500f, 2000, 1000, zoom = 1f)
+        val double = cropPanBounds(300f, 500f, 2000, 1000, zoom = 2f)
+
+        assertTrue(double.maxX > single.maxX * 1.9f)
+    }
+
+    @Test
+    fun `a degenerate frame or image yields no slack`() {
+        assertEquals(0f, cropPanBounds(0f, 500f, 100, 100, 1f).maxX, 0.01f)
+        assertEquals(0f, cropPanBounds(300f, 500f, 0, 100, 1f).maxX, 0.01f)
+    }
+}
+
+class CropOffsetFractionTest {
+    @Test
+    fun `panning the image right takes the left of the photo`() {
+        assertEquals(-1f, cropOffsetFraction(translation = 120f, maxPan = 120f), 0.001f)
+        assertEquals(1f, cropOffsetFraction(translation = -120f, maxPan = 120f), 0.001f)
+    }
+
+    @Test
+    fun `no pan means centred`() {
+        assertEquals(0f, cropOffsetFraction(translation = 0f, maxPan = 120f), 0.001f)
+    }
+
+    @Test
+    fun `without slack the offset stays centred`() {
+        assertEquals(0f, cropOffsetFraction(translation = 50f, maxPan = 0f), 0.001f)
+    }
+
+    @Test
+    fun `an overshoot is clamped`() {
+        assertEquals(-1f, cropOffsetFraction(translation = 500f, maxPan = 120f), 0.001f)
+    }
+
+    @Test
+    fun `the preview offset lands on the same area the crop takes`() {
+        // 4000x3000 的横图放进 0.62 的竖框，把图片拖到最右端
+        val frameWidth = 310f
+        val frameHeight = frameWidth / 0.62f
+        val bounds = cropPanBounds(frameWidth, frameHeight, 4000, 3000, zoom = 1f)
+        val fraction = cropOffsetFraction(translation = bounds.maxX, maxPan = bounds.maxX)
+
+        val rect = cropSourceRect(4000, 3000, frameAspect = 0.62f, offsetXFraction = fraction)!!
+
+        assertEquals(0, rect.left)
+        assertEquals(3000, rect.height)
+    }
+}

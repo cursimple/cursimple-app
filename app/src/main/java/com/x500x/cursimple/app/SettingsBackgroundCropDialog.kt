@@ -2,7 +2,6 @@ package com.x500x.cursimple.app
 
 import android.graphics.BitmapFactory
 import android.net.Uri
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.Canvas
@@ -32,16 +31,20 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.x500x.cursimple.R
+import com.x500x.cursimple.app.util.CropPanBounds
 import com.x500x.cursimple.app.util.CropSourceRect
 import com.x500x.cursimple.app.util.ScheduleBackgroundImageStore
+import com.x500x.cursimple.app.util.cropOffsetFraction
+import com.x500x.cursimple.app.util.cropPanBounds
 import com.x500x.cursimple.app.util.cropSourceRect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -63,17 +66,24 @@ internal fun ScheduleBackgroundCropDialog(
     var zoom by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
+    var frameSize by remember { mutableStateOf(IntSize.Zero) }
     var working by remember { mutableStateOf(false) }
 
     val preview by produceState<ImageBitmap?>(initialValue = null, source) {
         value = withContext(Dispatchers.IO) {
-            runCatching {
-                context.contentResolver.openInputStream(source).use { input ->
-                    BitmapFactory.decodeStream(requireNotNull(input))?.asImageBitmap()
-                }
-            }.getOrNull()
+            runCatching { decodePreview(context, source) }.getOrNull()
         }
     }
+
+    val panBounds = preview?.let { bitmap ->
+        cropPanBounds(
+            frameWidth = frameSize.width.toFloat(),
+            frameHeight = frameSize.height.toFloat(),
+            imageWidth = bitmap.width,
+            imageHeight = bitmap.height,
+            zoom = zoom,
+        )
+    } ?: CropPanBounds(0f, 0f)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -96,29 +106,26 @@ internal fun ScheduleBackgroundCropDialog(
                         .aspectRatio(frameAspect.coerceIn(0.2f, 3f))
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .onSizeChanged { frameSize = it }
                         .pointerInput(source) {
                             detectTransformGestures { _, pan, gestureZoom, _ ->
-                                zoom = (zoom * gestureZoom).coerceIn(1f, 4f)
-                                // 平移量按预览框尺寸归一化，缩放越大可移动范围越大
-                                offsetX = (offsetX - pan.x / size.width * 2f).coerceIn(-1f, 1f)
-                                offsetY = (offsetY - pan.y / size.height * 2f).coerceIn(-1f, 1f)
+                                zoom = (zoom * gestureZoom).coerceIn(1f, 6f)
+                                // 拖动的像素按当前可移动余量折成偏移量，一路拖得到图片两端
+                                offsetX = (offsetX + cropOffsetFraction(pan.x, panBounds.maxX))
+                                    .coerceIn(-1f, 1f)
+                                offsetY = (offsetY + cropOffsetFraction(pan.y, panBounds.maxY))
+                                    .coerceIn(-1f, 1f)
                             }
                         },
                 ) {
                     preview?.let { bitmap ->
-                        Image(
+                        CropPreviewImage(
                             bitmap = bitmap,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer {
-                                    scaleX = zoom
-                                    scaleY = zoom
-                                    // 预览里的位移按框宽高折算，与落盘时的偏移口径一致
-                                    translationX = -offsetX * this.size.width * 0.25f
-                                    translationY = -offsetY * this.size.height * 0.25f
-                                },
+                            frameAspect = frameAspect,
+                            zoom = zoom,
+                            offsetX = offsetX,
+                            offsetY = offsetY,
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
                     CropFrameOverlay(modifier = Modifier.fillMaxSize())
@@ -172,6 +179,39 @@ internal fun ScheduleBackgroundCropDialog(
     )
 }
 
+/**
+ * 画出会被裁到的那一块。
+ *
+ * 取图区域由 [cropSourceRect] 算出，与确认后落盘用的是同一套参数，
+ * 因此框里看到的就是最终结果。
+ */
+@Composable
+private fun CropPreviewImage(
+    bitmap: ImageBitmap,
+    frameAspect: Float,
+    zoom: Float,
+    offsetX: Float,
+    offsetY: Float,
+    modifier: Modifier = Modifier,
+) {
+    Canvas(modifier = modifier) {
+        val rect = cropSourceRect(
+            imageWidth = bitmap.width,
+            imageHeight = bitmap.height,
+            frameAspect = frameAspect,
+            zoom = zoom,
+            offsetXFraction = offsetX,
+            offsetYFraction = offsetY,
+        ) ?: return@Canvas
+        drawImage(
+            image = bitmap,
+            srcOffset = IntOffset(rect.left, rect.top),
+            srcSize = IntSize(rect.width, rect.height),
+            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+        )
+    }
+}
+
 /** 取景框边线与三分辅助线，让用户看清哪一块会落到课表上。 */
 @Composable
 private fun CropFrameOverlay(modifier: Modifier = Modifier) {
@@ -191,3 +231,21 @@ private fun CropFrameOverlay(modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** 解码预览用的位图，长边按上限降采样，避免大图占满内存。 */
+private fun decodePreview(context: android.content.Context, source: Uri): ImageBitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(source).use { input ->
+        BitmapFactory.decodeStream(requireNotNull(input), null, bounds)
+    }
+    val longest = maxOf(bounds.outWidth, bounds.outHeight)
+    if (longest <= 0) return null
+    var sample = 1
+    while (longest / sample > PREVIEW_MAX_EDGE_PX) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    return context.contentResolver.openInputStream(source).use { input ->
+        BitmapFactory.decodeStream(requireNotNull(input), null, options)?.asImageBitmap()
+    }
+}
+
+private const val PREVIEW_MAX_EDGE_PX = 1600

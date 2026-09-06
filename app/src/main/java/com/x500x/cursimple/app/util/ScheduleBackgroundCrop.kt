@@ -51,3 +51,39 @@ fun cropSourceRect(
         height = height.toInt().coerceAtMost(imageHeight - top.toInt()).coerceAtLeast(1),
     )
 }
+
+/** 预览框里图片可平移的像素余量，超出这个范围就会露出空白。 */
+data class CropPanBounds(val maxX: Float, val maxY: Float)
+
+/**
+ * 算出预览框里图片还能平移多少像素。
+ *
+ * 图片先按填满取景框缩放，再乘 [zoom]，溢出取景框的部分对半分到两侧，
+ * 这个余量与 [cropSourceRect] 在原图里留出的空间是同一块，二者口径一致。
+ */
+fun cropPanBounds(
+    frameWidth: Float,
+    frameHeight: Float,
+    imageWidth: Int,
+    imageHeight: Int,
+    zoom: Float,
+): CropPanBounds {
+    if (frameWidth <= 0f || frameHeight <= 0f || imageWidth <= 0 || imageHeight <= 0) {
+        return CropPanBounds(0f, 0f)
+    }
+    val coverScale = maxOf(frameWidth / imageWidth, frameHeight / imageHeight)
+    val displayWidth = imageWidth * coverScale * zoom.coerceAtLeast(1f)
+    val displayHeight = imageHeight * coverScale * zoom.coerceAtLeast(1f)
+    return CropPanBounds(
+        maxX = ((displayWidth - frameWidth) / 2f).coerceAtLeast(0f),
+        maxY = ((displayHeight - frameHeight) / 2f).coerceAtLeast(0f),
+    )
+}
+
+/**
+ * 把预览里的像素平移折算成 [cropSourceRect] 用的偏移。
+ *
+ * 图片向右移意味着取的是原图左侧，所以两者符号相反；余量为零时只能居中。
+ */
+fun cropOffsetFraction(translation: Float, maxPan: Float): Float =
+    if (maxPan <= 0f) 0f else (-translation / maxPan).coerceIn(-1f, 1f)
