@@ -99,6 +99,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.x500x.cursimple.app.guide.FirstRunGuideOverlay
+import com.x500x.cursimple.app.guide.shouldShowFirstRunGuide
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.app.ai.AiImportConfig
 import com.x500x.cursimple.app.ai.AiScheduleImportClient
@@ -237,6 +239,7 @@ class MainActivity : ComponentActivity() {
                         ),
                     )
                     fun setActiveTermStartDate(date: LocalDate?) {
+                        prefsViewModel.markTermStartUserDecided()
                         val activeTermId = termProfileState.activeTermId
                         if (activeTermId.isNotBlank()) {
                             termProfileViewModel.setStartDate(activeTermId, date)
@@ -788,6 +791,7 @@ class MainActivity : ComponentActivity() {
                                         themeMode = prefs.themeMode,
                                         themeAccentLabel = themeAccentLabel(prefs.themeAccent),
                                         termStartDate = prefs.termStartDate,
+                                        termStartUserDecided = prefs.termStartUserDecided,
                                         scheduleTextStyle = prefs.scheduleTextStyle,
                                         scheduleCardStyle = prefs.scheduleCardStyle,
                                         scheduleBackground = prefs.scheduleBackground,
@@ -1226,6 +1230,20 @@ class MainActivity : ComponentActivity() {
                                 }
                                 showClearSheet = false
                             },
+                        )
+                    }
+
+                    // 引导压在内容最上层，等免责声明与开学日期提醒都过去之后再出现
+                    if (
+                        shouldShowFirstRunGuide(
+                            loaded = prefs.loaded,
+                            disclaimerAccepted = prefs.disclaimerAccepted,
+                            guideCompleted = prefs.firstRunGuideCompleted,
+                            blockingDialogVisible = showTermStartReminder || showDatePicker,
+                        )
+                    ) {
+                        FirstRunGuideOverlay(
+                            onFinish = { prefsViewModel.setFirstRunGuideCompleted(true) },
                         )
                     }
                     }
