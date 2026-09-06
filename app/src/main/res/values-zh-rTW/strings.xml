@@ -499,7 +499,7 @@
     <string name="calendar_toast_failed_unknown">寫入失敗</string>
     <string name="calendar_export_skipped">%1$d 門課因缺少節次時間未寫入</string>
     <string name="settings_background_crop_title">調整背景</string>
-    <string name="settings_background_crop_hint">預覽框按課表比例顯示。拖動移動畫面，雙指縮放調整取圖範圍。</string>
+    <string name="settings_background_crop_hint">預覽框按課表比例顯示。拖動移動畫面，可一路拖到圖片邊緣；雙指縮放調整取圖範圍。</string>
     <string name="settings_beta_updates_title">測試版更新</string>
     <string name="settings_beta_updates_on">已開啟 · 更新檢查會包含預發布版本</string>
     <string name="settings_beta_updates_off">關閉 · 只檢查正式版本</string>
