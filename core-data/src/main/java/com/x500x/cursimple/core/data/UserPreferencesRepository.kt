@@ -279,7 +279,6 @@ data class UserPreferences(
     val scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
     val scheduleCustomColorsAdaptToTheme: Boolean = false,
     val enabledPluginIds: Set<String> = emptySet(),
-    val pluginsSeeded: Boolean = false,
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     val holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
     /** 放假当天是否跳过提醒。默认照常提醒，安静与否交给用户决定。 */
@@ -294,7 +293,6 @@ data class UserPreferences(
     val alarmRingDurationSeconds: Int = DEFAULT_APP_ALARM_RING_DURATION_SECONDS,
     val alarmRepeatIntervalSeconds: Int = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
     val alarmRepeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
-    val lastAlarmPollAtMillis: Long = 0L,
     val autoSilence: AutoSilencePreferences = AutoSilencePreferences(),
     val autoSilenceSession: AutoSilenceSession = AutoSilenceSession(),
     val autoUpdateEnabled: Boolean = false,

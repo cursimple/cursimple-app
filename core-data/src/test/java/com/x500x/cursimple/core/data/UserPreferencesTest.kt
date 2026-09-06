@@ -103,7 +103,6 @@ class UserPreferencesTest {
         assertEquals(2 * 60, prefs.alarmRingDurationSeconds)
         assertEquals(60 * 5, prefs.alarmRepeatIntervalSeconds)
         assertEquals(5, prefs.alarmRepeatCount)
-        assertEquals(0L, prefs.lastAlarmPollAtMillis)
     }
 
     @Test

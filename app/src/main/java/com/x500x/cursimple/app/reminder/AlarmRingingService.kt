@@ -27,6 +27,7 @@ import androidx.core.app.NotificationCompat
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockIntents
 import com.x500x.cursimple.core.reminder.dispatch.alarmRampVolume
@@ -648,7 +649,7 @@ class AlarmRingingService : Service() {
                 getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
             }
             val time = java.time.Instant.ofEpochMilli(alarm.triggerAtMillis)
-                .atZone(java.time.ZoneId.systemDefault())
+                .atZone(BeijingTime.zone)
                 .toLocalTime()
                 .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
             val notification = NotificationCompat.Builder(this, MISSED_CHANNEL_ID)

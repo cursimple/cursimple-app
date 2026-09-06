@@ -41,11 +41,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.util.CropPanBounds
+import com.x500x.cursimple.app.util.PREVIEW_MAX_EDGE_PX
 import com.x500x.cursimple.app.util.CropSourceRect
 import com.x500x.cursimple.app.util.ScheduleBackgroundImageStore
 import com.x500x.cursimple.app.util.cropOffsetFraction
 import com.x500x.cursimple.app.util.cropPanBounds
 import com.x500x.cursimple.app.util.cropSourceRect
+import com.x500x.cursimple.app.util.decodeSampledImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -71,7 +73,7 @@ internal fun ScheduleBackgroundCropDialog(
 
     val preview by produceState<ImageBitmap?>(initialValue = null, source) {
         value = withContext(Dispatchers.IO) {
-            runCatching { decodePreview(context, source) }.getOrNull()
+            runCatching { decodeSampledImage(context, source, PREVIEW_MAX_EDGE_PX) }.getOrNull()
         }
     }
 
@@ -232,20 +234,3 @@ private fun CropFrameOverlay(modifier: Modifier = Modifier) {
     }
 }
 
-/** 解码预览用的位图，长边按上限降采样，避免大图占满内存。 */
-private fun decodePreview(context: android.content.Context, source: Uri): ImageBitmap? {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(source).use { input ->
-        BitmapFactory.decodeStream(requireNotNull(input), null, bounds)
-    }
-    val longest = maxOf(bounds.outWidth, bounds.outHeight)
-    if (longest <= 0) return null
-    var sample = 1
-    while (longest / sample > PREVIEW_MAX_EDGE_PX) sample *= 2
-    val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    return context.contentResolver.openInputStream(source).use { input ->
-        BitmapFactory.decodeStream(requireNotNull(input), null, options)?.asImageBitmap()
-    }
-}
-
-private const val PREVIEW_MAX_EDGE_PX = 1600

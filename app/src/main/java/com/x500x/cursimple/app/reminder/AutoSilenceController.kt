@@ -25,6 +25,7 @@ import com.x500x.cursimple.core.data.UserPreferences
 import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import kotlinx.coroutines.flow.first
 import java.time.Instant
@@ -108,7 +109,7 @@ object AutoSilenceController {
             return
         }
 
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val now = LocalDateTime.ofInstant(Instant.ofEpochMilli(nowMillis), zone)
         val blocks = loadClassBlocks(appContext, now.toLocalDate())
         if (blocks == null) {
@@ -382,7 +383,7 @@ object AutoSilenceController {
             cancelBoundaryAlarm(context)
             return
         }
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         val now = LocalDateTime.now(zone)
         val boundary = nextClassBoundaryAfter(now, blocks)
         if (boundary == null) {

@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.term.TermProfile
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -170,7 +171,7 @@ fun TermManagementScreen(
     pickDateTarget?.let { term ->
         TermDatePickerDialog(
             initial = term.termStartDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                ?: LocalDate.now(),
+                ?: BeijingTime.today(),
             onDismiss = { pickDateTarget = null },
             onConfirm = { date ->
                 onSetStartDate(term.id, date)
@@ -330,7 +331,7 @@ private fun CreateTermDialog(
     onConfirm: (String, LocalDate?) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
-    var date by remember { mutableStateOf<LocalDate?>(LocalDate.now()) }
+    var date by remember { mutableStateOf<LocalDate?>(BeijingTime.today()) }
     var showDate by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -384,7 +385,7 @@ private fun CreateTermDialog(
     )
     if (showDate) {
         TermDatePickerDialog(
-            initial = date ?: LocalDate.now(),
+            initial = date ?: BeijingTime.today(),
             onDismiss = { showDate = false },
             onConfirm = {
                 date = it

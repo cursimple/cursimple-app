@@ -59,6 +59,8 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
+import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 
 private val RING_DURATION_RANGE = 5..600
 private val RING_INTERVAL_RANGE = 5..3600
@@ -72,7 +74,7 @@ internal fun AppAlarmEditorDialog(
     onDismiss: () -> Unit,
     onSave: (EditableAppAlarmSettings) -> Unit,
 ) {
-    val zone = ZoneId.systemDefault()
+    val zone = LocalAppZone.current
     val trigger = Instant.ofEpochMilli(record.triggerAtMillis).atZone(zone).toLocalDateTime()
     AlarmEditor(
         title = stringResource(R.string.schedule_app_alarm_edit_title),
@@ -98,11 +100,13 @@ internal fun ManualAppAlarmDialog(
     onDismiss: () -> Unit,
     onCreate: (Long, String, String, EditableAppAlarmSettings) -> Unit,
 ) {
+    // 默认时刻按应用时区取，与确认时的换算口径一致
+    val zone = LocalAppZone.current
     AlarmEditor(
         title = stringResource(R.string.schedule_manual_alarm_title),
         confirmLabel = stringResource(R.string.schedule_action_create),
-        initialDate = LocalDate.now(),
-        initialTime = LocalTime.now().plusHours(1).withSecond(0).withNano(0),
+        initialDate = BeijingTime.todayIn(zone),
+        initialTime = BeijingTime.nowTimeIn(zone).plusHours(1).withSecond(0).withNano(0),
         initialRingtone = null,
         initialAlertMode = null,
         initialDuration = DEFAULT_APP_ALARM_RING_DURATION_SECONDS,
@@ -134,6 +138,7 @@ private fun AlarmEditor(
     onConfirm: (Long, String, String, EditableAppAlarmSettings) -> Unit,
     editableContent: Boolean = false,
 ) {
+    val editorZone = LocalAppZone.current
     val timeState = rememberTimePickerState(
         initialHour = initialTime.hour,
         initialMinute = initialTime.minute,
@@ -274,7 +279,7 @@ private fun AlarmEditor(
                 enabled = canConfirm,
                 onClick = {
                     val millis = LocalDateTime.of(date, LocalTime.of(timeState.hour, timeState.minute))
-                        .atZone(ZoneId.systemDefault())
+                        .atZone(editorZone)
                         .toInstant()
                         .toEpochMilli()
                     val settings = EditableAppAlarmSettings(

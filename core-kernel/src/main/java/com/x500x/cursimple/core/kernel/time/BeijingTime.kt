@@ -48,6 +48,10 @@ object BeijingTime {
 
     fun nowTimeIn(zone: ZoneId): LocalTime = forcedDateTime.get()?.toLocalTime() ?: LocalTime.now(zone)
 
+    fun nowDateTimeIn(zone: ZoneId): LocalDateTime = forcedDateTime.get() ?: LocalDateTime.now(zone)
+
+    fun nowDateTime(): LocalDateTime = nowDateTimeIn(zone)
+
     fun nowMillis(zone: ZoneId): Long {
         val forced = forcedDateTime.get() ?: return System.currentTimeMillis()
         return forced.atZone(zone).toInstant().toEpochMilli()

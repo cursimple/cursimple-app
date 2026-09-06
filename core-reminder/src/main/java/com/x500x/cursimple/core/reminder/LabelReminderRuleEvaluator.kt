@@ -13,6 +13,7 @@ import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
 import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderNotificationMessage
@@ -65,7 +66,7 @@ internal class LabelReminderRuleEvaluator {
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
         dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
     ): List<ReminderPlan> {
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         return candidateDates(
             schedule = schedule,
             timingProfile = timingProfile,

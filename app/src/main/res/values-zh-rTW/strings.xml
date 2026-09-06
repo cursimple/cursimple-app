@@ -50,9 +50,7 @@
     <string name="about_license_line">MIT 授權 · Copyright © 2026 x500x</string>
     <string name="about_version_label">版本號</string>
     <string name="about_advanced_badge">進階</string>
-    <string name="about_dev_mode_enabled">您已開啟進階工具</string>
     <string name="about_dev_mode_hint">請前往「設定 - 進階診斷」檢視除錯工具與日誌匯出。</string>
-    <string name="about_project_title">專案</string>
     <string name="about_project_desc">微核心架構的 Android 課表應用「課簡」，使用 manifest 和 WebView 會話執行可熱更新的學校外掛。</string>
     <string name="about_tech_title">技術棧</string>
     <string name="about_tech_glance">1.1.1（桌面小元件）</string>
@@ -117,7 +115,6 @@
     <string name="update_status_available">發現新版本 v%1$s。</string>
     <string name="update_status_ignored_manual">已忽略 v%1$s。手動檢查仍可更新。</string>
     <string name="update_section_title">應用更新</string>
-    <string name="update_section_desc">從 GitHub Release 檢查與下載新版本。</string>
     <string name="update_auto_check_title">自動檢查更新</string>
     <string name="update_auto_check_on">啟動時自動檢查，發現新版本彈窗提醒並保留紅點</string>
     <string name="update_auto_check_off">僅手動檢查，查到新版本後同樣會保留紅點</string>
@@ -295,7 +292,6 @@
     <string name="settings_subgroup_widget_behavior">行為</string>
     <string name="settings_row_schedule_style_subtitle">文字、表頭、卡片與背景</string>
     <string name="settings_row_schedule_display_subtitle">顯示範圍、週次與格子高度</string>
-    <string name="settings_row_language_zone_subtitle">介面語言與時區</string>
     <string name="settings_dest_schedule_data">課表資料</string>
     <string name="settings_dest_temporary_overrides">臨時調課</string>
     <string name="settings_dest_holidays">節假日與調休</string>
@@ -367,7 +363,6 @@
     <string name="holiday_eve_notice_body">明天仍有 %1$d 條課程提醒，需要關掉嗎？</string>
     <string name="holiday_eve_notice_action_mute">關掉明天的提醒</string>
     <string name="holiday_eve_channel_name">假期提醒建議</string>
-    <string name="holiday_eve_muted_toast">已關閉 %1$s 的課程提醒</string>
     <string name="settings_holiday_sync_never">尚未同步，正在用內建快照</string>
     <string name="settings_holiday_sync_years">已同步 %1$s 年 · 來源 %2$s</string>
     <string name="settings_holiday_sync_running">正在同步…</string>
@@ -389,7 +384,6 @@
     <string name="settings_reset_schedule_dialog_title">恢復課表外觀/顯示</string>
     <string name="settings_reset_schedule_dialog_message">將恢復文字、表頭、卡片、背景和顯示選項預設值，不會清除課程資料。確定繼續？</string>
     <string name="settings_toast_schedule_reset">課表外觀/顯示已恢復預設</string>
-    <string name="settings_schedule_display_subtitle">列、地點、老師和總課表</string>
     <string name="settings_adapt_colors_title">自定義顏色適應亮暗主題</string>
     <string name="settings_adapt_colors_on">按當前亮暗主題調整課表自定義顏色</string>
     <string name="settings_adapt_colors_off">自定義顏色保持原樣</string>
@@ -410,6 +404,7 @@
     <string name="settings_today_header_background_color">當前天表頭背景顏色</string>
     <string name="settings_card_corner_radius">課程卡片圓角半徑</string>
     <string name="settings_card_height">課程卡片高度</string>
+    <string name="settings_card_height_fit_hint">「顯示範圍」目前是平鋪全部，行高按螢幕自動分配；改成固定行高捲動後這裡才生效</string>
     <string name="settings_schedule_opacity">課表透明度</string>
     <string name="settings_inactive_course_opacity">非本週課程透明度</string>
     <string name="settings_grid_border_color">格子邊框顏色</string>
@@ -482,7 +477,6 @@
     <string name="calendar_export_subtitle">把整學期課表作為日程寫進手機日曆，鎖屏和其他日曆應用都能看到。</string>
     <string name="calendar_export_pick_account">選擇要寫入的日曆</string>
     <string name="calendar_export_no_account">沒有可寫入的日曆賬戶，請先在系統日曆裡新增一個賬戶。</string>
-    <string name="calendar_export_permission_title">需要日曆許可權</string>
     <string name="calendar_export_permission_body">寫入和撤銷都需要讀寫日曆的許可權。</string>
     <string name="calendar_export_permission_grant">去授權</string>
     <string name="calendar_export_action">寫入</string>
@@ -512,7 +506,6 @@
     <string name="settings_time_zone_search">搜尋時區</string>
     <string name="settings_time_zone_dialog_title">選擇時區</string>
     <string name="settings_time_zone_hint">出國或跨時區時，指定學校所在時區可讓課表與提醒仍按上課時間計算。</string>
-    <string name="settings_toast_time_zone_saved">時區已改為 %1$s</string>
     <string name="settings_timing_profiles_title">作息套數</string>
     <string name="settings_timing_profiles_hint">可以存多套作息分別對應不同學期或校區，下方編輯的始終是選中的那一套。</string>
     <string name="settings_timing_profile_default_name">預設作息</string>
@@ -525,12 +518,8 @@
     <string name="settings_timing_profile_delete">刪除</string>
     <string name="settings_timing_profile_delete_title">刪除這套作息？</string>
     <string name="settings_timing_profile_delete_body">「%1$s」將被刪除，繫結它的學期會改用當前選中的作息。</string>
-    <string name="settings_timing_profile_delete_last">至少要保留一套作息</string>
     <string name="settings_timing_profile_name_hint">作息名稱</string>
     <string name="settings_timing_profile_copy_suffix">%1$s 副本</string>
-    <string name="settings_timing_profile_bind_term">跟隨當前學期</string>
-    <string name="settings_timing_profile_bind_term_hint">開啟後切換到這個學期會自動選中當前這套作息。</string>
-    <string name="settings_toast_timing_profile_switched">已切換到「%1$s」</string>
     <string name="settings_toast_timing_profile_created">已新建「%1$s」</string>
     <string name="settings_timing_entry_subtitle_set">已設定 %1$d 個時間段 · 卡片時間、提醒和匯出都用它</string>
     <string name="settings_timing_entry_subtitle_unset">未設定 · 手動錄課需要它才能顯示時間、建提醒、匯出</string>
@@ -584,7 +573,6 @@
     <string name="settings_alarm_warning_body">以下許可權未開啟，可能導致課程提醒無法正常觸發：</string>
     <string name="settings_section_grant">授權</string>
     <string name="settings_section_declared">宣告</string>
-    <string name="settings_permission_on">已開啟</string>
     <string name="settings_permission_status_on">已開啟</string>
     <string name="settings_permission_status_off">未開啟</string>
     <string name="settings_permission_manage_hint">點擊進入系統設定，可開啟也可關閉</string>
@@ -595,16 +583,11 @@
     <string name="settings_permission_exact_alarm_off">未開啟，App 自管鬧鐘無法設定</string>
     <string name="settings_permission_full_screen_off">未開啟，鎖屏響鈴頁可能不會自動彈出</string>
     <string name="settings_permission_battery_title">省電最佳化</string>
-    <string name="settings_permission_battery_on">已允許後臺執行</string>
     <string name="settings_permission_battery_off">建議允許後臺執行，提升響鈴服務可靠性</string>
     <string name="settings_permission_camera">相機許可權</string>
     <string name="settings_permission_camera_off">掃碼匯入課表時需要</string>
     <string name="settings_permission_install">安裝未知應用許可權</string>
-    <string name="settings_permission_install_on">已允許安裝更新包</string>
     <string name="settings_permission_install_off">APK 更新安裝時需要</string>
-    <string name="settings_toast_exact_alarm_granted">精確鬧鐘許可權已開啟</string>
-    <string name="settings_toast_full_screen_granted">全屏響鈴許可權已開啟</string>
-    <string name="settings_toast_install_granted">安裝未知應用許可權已開啟</string>
     <string name="settings_declared_permissions_title">網路、喚醒與震動</string>
     <string name="settings_declared_permissions_subtitle">這些為安裝時宣告許可權，無需單獨授權</string>
     <string name="settings_toast_no_grant_needed">無需單獨授權</string>
@@ -612,6 +595,7 @@
     <string name="settings_toast_notification_denied">通知許可權未開啟</string>
     <string name="settings_toast_camera_granted">相機許可權已開啟</string>
     <string name="settings_toast_camera_denied">相機許可權未開啟</string>
+    <string name="settings_toast_permission_open_settings">系統已不再彈出授權視窗，請在應用程式資訊裡手動開啟</string>
     <string name="settings_toast_background_image_permission_failed">背景圖片授權失敗，請重新選擇</string>
     <string name="settings_toast_widget_background_image_permission_failed">小元件背景圖片授權失敗，請重新選擇</string>
     <string name="settings_accent_green">薄荷綠</string>
@@ -756,7 +740,6 @@
     <string name="main_clear_term_start_body">清除後將無法計算當前周次，需要重新設定。確定繼續？</string>
     <string name="main_clear">清除</string>
     <string name="main_cancel">取消</string>
-    <string name="main_clear_all">清空</string>
     <string name="main_app_name">課簡</string>
     <string name="main_drawer_term_start_unset">未設定開學日期</string>
     <string name="main_drawer_current_week">當前 第 %1$d 周</string>

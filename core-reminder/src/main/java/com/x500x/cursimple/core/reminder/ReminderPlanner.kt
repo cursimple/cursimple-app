@@ -107,7 +107,7 @@ class ReminderPlanner {
             )
         }
         if (rule.scopeType == ReminderScopeType.FirstCourseOfPeriod) {
-            val zone = ZoneId.systemDefault()
+            val zone = BeijingTime.zone
             return firstCourseEvaluator.expand(
                 rule = rule,
                 schedule = schedule,
@@ -161,7 +161,7 @@ class ReminderPlanner {
         val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: return emptyList()
         // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
-        val zone = ZoneId.systemDefault()
+        val zone = BeijingTime.zone
         return courseOccurrenceDates(
             course = course,
             termStart = termStart,

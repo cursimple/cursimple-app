@@ -20,6 +20,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
@@ -131,6 +132,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.x500x.cursimple.R
@@ -139,6 +141,11 @@ import com.x500x.cursimple.app.download.mirrorDownloaderLabels
 import com.x500x.cursimple.app.holiday.HolidayCalendarSyncer
 import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
 import com.x500x.cursimple.app.holiday.holidaySyncYears
+import com.x500x.cursimple.app.util.PREVIEW_MAX_EDGE_PX
+import com.x500x.cursimple.app.util.decodeSampledImage
+import com.x500x.cursimple.app.permission.PermissionRequestOutcome
+import com.x500x.cursimple.app.permission.findActivity
+import com.x500x.cursimple.app.permission.permissionRequestOutcome
 import com.x500x.cursimple.app.update.UpdateNoticeState
 import com.x500x.cursimple.core.data.AutoSilenceMode
 import com.x500x.cursimple.core.data.AutoSilencePreferences
@@ -440,21 +447,44 @@ fun AppSettingsRoute(
     var showHolidayEditor by rememberSaveable { mutableStateOf(false) }
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
     var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
-    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val message = if (granted) {
-            context.getString(R.string.settings_toast_notification_granted)
-        } else {
-            context.getString(R.string.settings_toast_notification_denied)
+    // 被永久拒绝后系统不再弹窗，此时必须改把用户送到应用详情页，否则按钮点了没有任何反应
+    fun handlePermissionResult(permission: String, granted: Boolean, grantedRes: Int, deniedRes: Int) {
+        val activity = context.findActivity()
+        val canAskAgain = activity?.let {
+            ActivityCompat.shouldShowRequestPermissionRationale(it, permission)
+        } ?: true
+        when (permissionRequestOutcome(granted, canAskAgain)) {
+            PermissionRequestOutcome.Granted ->
+                Toast.makeText(context, context.getString(grantedRes), Toast.LENGTH_SHORT).show()
+
+            PermissionRequestOutcome.Denied ->
+                Toast.makeText(context, context.getString(deniedRes), Toast.LENGTH_SHORT).show()
+
+            PermissionRequestOutcome.PermanentlyDenied -> {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_permission_open_settings),
+                    Toast.LENGTH_LONG,
+                ).show()
+                launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
+            }
         }
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    }
+    val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        handlePermissionResult(
+            permission = Manifest.permission.POST_NOTIFICATIONS,
+            granted = granted,
+            grantedRes = R.string.settings_toast_notification_granted,
+            deniedRes = R.string.settings_toast_notification_denied,
+        )
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val message = if (granted) {
-            context.getString(R.string.settings_toast_camera_granted)
-        } else {
-            context.getString(R.string.settings_toast_camera_denied)
-        }
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        handlePermissionResult(
+            permission = Manifest.permission.CAMERA,
+            granted = granted,
+            grantedRes = R.string.settings_toast_camera_granted,
+            deniedRes = R.string.settings_toast_camera_denied,
+        )
     }
     var pendingBackgroundSource by remember { mutableStateOf<android.net.Uri?>(null) }
     pendingBackgroundSource?.let { source ->
@@ -894,6 +924,9 @@ fun AppSettingsRoute(
                 SettingsGroup(stringResource(R.string.settings_subgroup_card)) {
                     NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
                     NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
+                    if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
+                        SettingsHintText(stringResource(R.string.settings_card_height_fit_hint))
+                    }
                     NumberStepperRow(stringResource(R.string.settings_schedule_opacity), scheduleCardStyle.scheduleOpacityPercent, "%", 0, 100, 5, onScheduleOpacityPercentChange)
                     NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
                 }
@@ -2251,7 +2284,7 @@ private fun AdvancedToolsSection(
                 stringResource(R.string.settings_dev_time_real)
             },
             onClick = {
-                pendingForcedDate = debugForcedDateTime?.toLocalDate() ?: LocalDate.now()
+                pendingForcedDate = debugForcedDateTime?.toLocalDate() ?: BeijingTime.today()
                 showForcedDatePicker = true
             },
         )
@@ -2372,7 +2405,7 @@ private fun AdvancedToolsSection(
 
     if (showForcedDatePicker) {
         SettingsDatePickerDialog(
-            initial = pendingForcedDate ?: debugForcedDateTime?.toLocalDate() ?: LocalDate.now(),
+            initial = pendingForcedDate ?: debugForcedDateTime?.toLocalDate() ?: BeijingTime.today(),
             onConfirm = { date ->
                 pendingForcedDate = date
                 showForcedDatePicker = false
@@ -2383,7 +2416,7 @@ private fun AdvancedToolsSection(
     }
 
     if (showForcedTimePicker) {
-        val baseDate = pendingForcedDate ?: debugForcedDateTime?.toLocalDate() ?: LocalDate.now()
+        val baseDate = pendingForcedDate ?: debugForcedDateTime?.toLocalDate() ?: BeijingTime.today()
         ForcedTimePickerDialog(
             initial = debugForcedDateTime?.toLocalTime() ?: LocalTime.of(8, 0),
             onDismiss = { showForcedTimePicker = false },
@@ -2616,7 +2649,7 @@ private fun HolidayCalendarSyncRow(syncedYears: List<SyncedHolidayYear>) {
             syncing = true
             scope.launch {
                 val outcomes = syncer.sync(
-                    years = holidaySyncYears(LocalDate.now()),
+                    years = holidaySyncYears(BeijingTime.today()),
                     cached = syncedYears,
                     force = true,
                 )
@@ -2720,10 +2753,7 @@ private fun ScheduleBackgroundPreview(
         value = imageUri?.let { uri ->
             withContext(Dispatchers.IO) {
                 runCatching {
-                    context.contentResolver.openInputStream(android.net.Uri.parse(uri)).use { input ->
-                        android.graphics.BitmapFactory.decodeStream(requireNotNull(input))
-                            ?.asImageBitmap()
-                    }
+                    decodeSampledImage(context, android.net.Uri.parse(uri), PREVIEW_MAX_EDGE_PX)
                 }.getOrNull()
             }
         }
@@ -2741,7 +2771,10 @@ private fun ScheduleBackgroundPreview(
         )
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         Text(
             text = stringResource(R.string.settings_background_preview_title),
             style = MaterialTheme.typography.labelLarge,
@@ -2750,8 +2783,9 @@ private fun ScheduleBackgroundPreview(
         )
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(150.dp)
+                .align(Alignment.CenterHorizontally)
+                .fillMaxWidth(0.55f)
+                .aspectRatio(SCHEDULE_BACKGROUND_FRAME_ASPECT)
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
@@ -2904,3 +2938,14 @@ private fun VisibleDaysRow(
 
 /** 课表大致的宽高比，裁切框按它预览。 */
 private const val SCHEDULE_BACKGROUND_FRAME_ASPECT = 0.62f
+
+/** 设置项下方的补充说明，用于解释某项在当前配置下不生效。 */
+@Composable
+private fun SettingsHintText(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier.padding(horizontal = 14.dp),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}

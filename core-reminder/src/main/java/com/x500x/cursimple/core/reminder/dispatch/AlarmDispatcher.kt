@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchChannel
 import com.x500x.cursimple.core.reminder.model.AlarmDispatchResult
 import com.x500x.cursimple.core.reminder.model.AlarmDismissResult
@@ -244,7 +245,7 @@ class SystemAlarmClockDispatcher(
                 localizedMessage = SystemAlarmClockMessages.DISPATCH_REQUIRES_FOREGROUND,
             )
         }
-        val trigger = Instant.ofEpochMilli(plan.triggerAtMillis).atZone(java.time.ZoneId.systemDefault())
+        val trigger = Instant.ofEpochMilli(plan.triggerAtMillis).atZone(BeijingTime.zone)
         val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             putExtra(android.provider.AlarmClock.EXTRA_HOUR, trigger.hour)
