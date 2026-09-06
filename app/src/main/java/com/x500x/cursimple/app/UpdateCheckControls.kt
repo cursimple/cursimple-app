@@ -4,6 +4,7 @@ package com.x500x.cursimple.app
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,8 +14,11 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -43,6 +47,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.BuildConfig
@@ -53,7 +59,10 @@ import com.x500x.cursimple.app.update.AppUpdateDownloadResult
 import com.x500x.cursimple.app.update.AppUpdateInfo
 import com.x500x.cursimple.app.update.AppUpdateInstaller
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.update.UpdateNoticeState
 import com.x500x.cursimple.app.update.UpdatePanelStatus
+import com.x500x.cursimple.app.update.shouldPromptUpdate
+import com.x500x.cursimple.app.update.shouldShowUpdateBadge
 import com.x500x.cursimple.app.update.updateStatusText
 import kotlinx.coroutines.launch
 import java.io.File
@@ -63,8 +72,12 @@ fun UpdateCheckSection(
     autoCheckEnabled: Boolean,
     betaUpdatesEnabled: Boolean,
     ignoredUpdateVersionCode: Int?,
+    updateNotice: UpdateNoticeState,
     onAutoCheckEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
+    onMuteUpdateVersion: (Int?) -> Unit,
+    onUpdateFound: (Int, String) -> Unit,
+    onUpdateNoticeCleared: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -115,16 +128,27 @@ fun UpdateCheckSection(
             status = UpdatePanelStatus.Checking
             dismissPendingUpdate()
             when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
-                AppUpdateCheckResult.NoRelease -> status = UpdatePanelStatus.NoRelease
+                AppUpdateCheckResult.NoRelease -> {
+                    onUpdateNoticeCleared()
+                    status = UpdatePanelStatus.NoRelease
+                }
                 AppUpdateCheckResult.ManifestMissing -> status = UpdatePanelStatus.ManifestMissing
-                AppUpdateCheckResult.UpToDate -> status = UpdatePanelStatus.UpToDate
+                AppUpdateCheckResult.UpToDate -> {
+                    onUpdateNoticeCleared()
+                    status = UpdatePanelStatus.UpToDate
+                }
                 is AppUpdateCheckResult.Available -> {
-                    val ignored = !manual && ignoredUpdateVersionCode == result.info.versionCode
-                    if (ignored) {
-                        status = UpdatePanelStatus.Ignored(result.info.versionName)
-                    } else {
-                        pendingUpdate = result.info
-                        status = UpdatePanelStatus.Available(result.info.versionName)
+                    onUpdateFound(result.info.versionCode, result.info.versionName)
+                    val ignored = ignoredUpdateVersionCode == result.info.versionCode
+                    val muted = updateNotice.mutedVersionCode == result.info.versionCode
+                    when {
+                        manual -> {
+                            pendingUpdate = result.info
+                            status = UpdatePanelStatus.Available(result.info.versionName)
+                        }
+                        ignored -> status = UpdatePanelStatus.Ignored(result.info.versionName)
+                        muted -> status = UpdatePanelStatus.Muted(result.info.versionName)
+                        else -> status = UpdatePanelStatus.Available(result.info.versionName)
                     }
                 }
                 is AppUpdateCheckResult.Rollback -> {
@@ -163,6 +187,7 @@ fun UpdateCheckSection(
             icon = Icons.Rounded.SystemUpdate,
             title = stringResource(R.string.update_check_title),
             subtitle = updatePanelStatusText(status),
+            badge = shouldShowUpdateBadge(updateNotice, BuildConfig.VERSION_CODE),
             enabled = !checking && !downloading,
             buttonText = if (checking) stringResource(R.string.update_check_checking) else stringResource(R.string.update_check_button),
             onClick = { checkUpdate(manual = true) },
@@ -178,6 +203,11 @@ fun UpdateCheckSection(
             onIgnore = {
                 onIgnoreUpdateVersion(info.versionCode)
                 status = UpdatePanelStatus.IgnoredManual(info.versionName)
+                dismissPendingUpdate()
+            },
+            onMute = {
+                onMuteUpdateVersion(info.versionCode)
+                status = UpdatePanelStatus.Muted(info.versionName)
                 dismissPendingUpdate()
             },
             onDismiss = { dismissPendingUpdate() },
@@ -199,13 +229,17 @@ fun UpdateCheckSection(
 fun AutomaticUpdateCheckPrompt(
     autoCheckEnabled: Boolean,
     betaUpdatesEnabled: Boolean,
-    ignoredUpdateVersionCode: Int?,
+    updateNotice: UpdateNoticeState,
     onIgnoreUpdateVersion: (Int?) -> Unit,
+    onMuteUpdateVersion: (Int?) -> Unit,
+    onUpdateFound: (Int, String) -> Unit,
+    onUpdateNoticeCleared: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
     var checkedThisSession by rememberSaveable { mutableStateOf(false) }
+    var promptedThisSession by rememberSaveable { mutableStateOf(false) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloading by rememberSaveable { mutableStateOf(false) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
@@ -246,10 +280,17 @@ fun AutomaticUpdateCheckPrompt(
         checkedThisSession = true
         when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
             is AppUpdateCheckResult.Available -> {
-                if (ignoredUpdateVersionCode != result.info.versionCode) {
+                onUpdateFound(result.info.versionCode, result.info.versionName)
+                val found = updateNotice.copy(
+                    versionCode = result.info.versionCode,
+                    versionName = result.info.versionName,
+                )
+                if (shouldPromptUpdate(found, BuildConfig.VERSION_CODE, promptedThisSession)) {
+                    promptedThisSession = true
                     pendingUpdate = result.info
                 }
             }
+            AppUpdateCheckResult.UpToDate, AppUpdateCheckResult.NoRelease -> onUpdateNoticeCleared()
             else -> Unit
         }
     }
@@ -262,6 +303,10 @@ fun AutomaticUpdateCheckPrompt(
             onUpdate = { downloadAndInstall(info) },
             onIgnore = {
                 onIgnoreUpdateVersion(info.versionCode)
+                dismissPendingUpdate()
+            },
+            onMute = {
+                onMuteUpdateVersion(info.versionCode)
                 dismissPendingUpdate()
             },
             onDismiss = { dismissPendingUpdate() },
@@ -388,6 +433,7 @@ private fun UpdateAvailableDialog(
     downloadedApk: File?,
     onUpdate: () -> Unit,
     onIgnore: () -> Unit,
+    onMute: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -421,6 +467,16 @@ private fun UpdateAvailableDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                UpdateSecondaryChoice(
+                    title = stringResource(R.string.update_dialog_mute),
+                    hint = stringResource(R.string.update_dialog_mute_hint),
+                    onClick = onMute,
+                )
+                UpdateSecondaryChoice(
+                    title = stringResource(R.string.update_dialog_ignore),
+                    hint = stringResource(R.string.update_dialog_ignore_hint),
+                    onClick = onIgnore,
+                )
             }
         },
         confirmButton = {
@@ -438,11 +494,39 @@ private fun UpdateAvailableDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onIgnore) {
-                Text(stringResource(R.string.update_dialog_ignore))
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.update_dialog_later))
             }
         },
     )
+}
+
+/** 更新弹窗里的次要选项：一行标题加一行说明，整行可点。 */
+@Composable
+private fun UpdateSecondaryChoice(
+    title: String,
+    hint: String,
+    onClick: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text(
+            text = hint,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 /** 状态种类到当前语言文字的渲染，随应用内语言切换重算。 */
@@ -458,6 +542,7 @@ private fun updatePanelStatusText(status: UpdatePanelStatus): String = when (sta
     is UpdatePanelStatus.Ignored -> stringResource(R.string.update_status_ignored, status.versionName)
     is UpdatePanelStatus.IgnoredManual ->
         stringResource(R.string.update_status_ignored_manual, status.versionName)
+    is UpdatePanelStatus.Muted -> stringResource(R.string.update_status_muted, status.versionName)
     is UpdatePanelStatus.Downloading -> stringResource(R.string.update_status_downloading, status.fileName)
     is UpdatePanelStatus.Downloaded -> stringResource(R.string.update_status_downloaded, status.sourceName)
     is UpdatePanelStatus.Failed -> LocalContext.current.updateStatusText(status.reason)
@@ -522,6 +607,7 @@ private fun UpdateActionRow(
     enabled: Boolean,
     buttonText: String,
     onClick: () -> Unit,
+    badge: Boolean = false,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -551,6 +637,10 @@ private fun UpdateActionRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (badge) {
+                UpdateBadgeDot()
+                Spacer(modifier = Modifier.width(10.dp))
+            }
             OutlinedButton(
                 onClick = onClick,
                 enabled = enabled,
@@ -560,4 +650,17 @@ private fun UpdateActionRow(
             }
         }
     }
+}
+
+/** 有新版本时的红点角标。 */
+@Composable
+fun UpdateBadgeDot(modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.update_badge_desc)
+    Box(
+        modifier = modifier
+            .size(8.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.error)
+            .semantics { contentDescription = description },
+    )
 }

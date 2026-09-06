@@ -119,8 +119,8 @@
     <string name="update_section_title">App updates</string>
     <string name="update_section_desc">Check for and download new versions from GitHub Releases.</string>
     <string name="update_auto_check_title">Check for updates automatically</string>
-    <string name="update_auto_check_on">Ask before updating when a new version is found</string>
-    <string name="update_auto_check_off">Manual checks only</string>
+    <string name="update_auto_check_on">Checks at launch, prompts once and keeps a dot here</string>
+    <string name="update_auto_check_off">Manual checks only; a found update still keeps a dot here</string>
     <string name="update_check_title">Check for updates</string>
     <string name="update_check_checking">Checking...</string>
     <string name="update_check_button">Check</string>
@@ -137,7 +137,13 @@
     <string name="update_dialog_downloading">Downloading...</string>
     <string name="update_dialog_install">Install</string>
     <string name="update_dialog_update">Update</string>
-    <string name="update_dialog_ignore">Skip this update</string>
+    <string name="update_dialog_ignore">Ignore this version</string>
+    <string name="update_dialog_later">Later</string>
+    <string name="update_dialog_mute">Stop reminding about this version</string>
+    <string name="update_dialog_mute_hint">Keeps the dot in Settings</string>
+    <string name="update_dialog_ignore_hint">Clears the dot as well; check Settings yourself</string>
+    <string name="update_status_muted">Reminders for v%1$s are off; the dot stays in Settings.</string>
+    <string name="update_badge_desc">Update available</string>
     <string name="update_no_release_notes">No release notes.</string>
 
     <string name="widget_sheet_title">Add a home-screen widget</string>

@@ -139,6 +139,7 @@ import com.x500x.cursimple.app.download.mirrorDownloaderLabels
 import com.x500x.cursimple.app.holiday.HolidayCalendarSyncer
 import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
 import com.x500x.cursimple.app.holiday.holidaySyncYears
+import com.x500x.cursimple.app.update.UpdateNoticeState
 import com.x500x.cursimple.core.data.AutoSilenceMode
 import com.x500x.cursimple.core.data.AutoSilencePreferences
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -303,6 +304,7 @@ fun AppSettingsRoute(
     betaUpdatesEnabled: Boolean,
     appTimeZoneId: String?,
     ignoredUpdateVersionCode: Int?,
+    updateNotice: UpdateNoticeState,
     pluginRegistryRepo: String,
     componentMarketIndexUrl: String,
     privateFilesProviderEnabled: Boolean,
@@ -375,6 +377,9 @@ fun AppSettingsRoute(
     onBetaUpdatesEnabledChange: (Boolean) -> Unit,
     onAppTimeZoneChange: (String?) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
+    onMuteUpdateVersion: (Int?) -> Unit,
+    onUpdateFound: (Int, String) -> Unit,
+    onUpdateNoticeCleared: () -> Unit,
     onPluginRegistryRepoChange: (String) -> Unit,
     onComponentMarketIndexUrlChange: (String) -> Unit,
     onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
@@ -644,8 +649,12 @@ fun AppSettingsRoute(
                         autoCheckEnabled = autoUpdateEnabled,
                         betaUpdatesEnabled = betaUpdatesEnabled,
                         ignoredUpdateVersionCode = ignoredUpdateVersionCode,
+                        updateNotice = updateNotice,
                         onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
                         onIgnoreUpdateVersion = onIgnoreUpdateVersion,
+                        onMuteUpdateVersion = onMuteUpdateVersion,
+                        onUpdateFound = onUpdateFound,
+                        onUpdateNoticeCleared = onUpdateNoticeCleared,
                     )
                     BetaUpdatesRow(
                         enabled = betaUpdatesEnabled,

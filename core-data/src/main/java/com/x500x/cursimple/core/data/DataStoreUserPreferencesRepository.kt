@@ -108,6 +108,9 @@ class DataStoreUserPreferencesRepository(
             lastSeenVersionCode = prefs[KEY_LAST_SEEN_VERSION_CODE] ?: 0,
             appTimeZoneId = prefs[KEY_APP_TIME_ZONE_ID]?.takeIf { it.isNotBlank() },
             ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
+            updateNoticeVersionCode = prefs[KEY_UPDATE_NOTICE_VERSION_CODE] ?: 0,
+            updateNoticeVersionName = prefs[KEY_UPDATE_NOTICE_VERSION_NAME].orEmpty(),
+            mutedUpdateVersionCode = prefs[KEY_MUTED_UPDATE_VERSION_CODE],
             pluginRegistryRepo = prefs[KEY_PLUGIN_REGISTRY_REPO]
                 ?.takeIf(String::isNotBlank)
                 ?: DEFAULT_PLUGIN_REGISTRY_REPO,
@@ -487,6 +490,30 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
+    override suspend fun setUpdateNotice(versionCode: Int, versionName: String) {
+        store.edit { prefs ->
+            prefs[KEY_UPDATE_NOTICE_VERSION_CODE] = versionCode
+            prefs[KEY_UPDATE_NOTICE_VERSION_NAME] = versionName
+        }
+    }
+
+    override suspend fun clearUpdateNotice() {
+        store.edit { prefs ->
+            prefs.remove(KEY_UPDATE_NOTICE_VERSION_CODE)
+            prefs.remove(KEY_UPDATE_NOTICE_VERSION_NAME)
+        }
+    }
+
+    override suspend fun setMutedUpdateVersionCode(versionCode: Int?) {
+        store.edit { prefs ->
+            if (versionCode == null) {
+                prefs.remove(KEY_MUTED_UPDATE_VERSION_CODE)
+            } else {
+                prefs[KEY_MUTED_UPDATE_VERSION_CODE] = versionCode
+            }
+        }
+    }
+
     override suspend fun setPluginRegistryRepo(repo: String) {
         store.edit { prefs -> prefs[KEY_PLUGIN_REGISTRY_REPO] = repo.trim() }
     }
@@ -583,6 +610,9 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_AUTO_SILENCE_MODE)
             prefs.remove(KEY_AUTO_UPDATE_ENABLED)
             prefs.remove(KEY_IGNORED_UPDATE_VERSION_CODE)
+            prefs.remove(KEY_UPDATE_NOTICE_VERSION_CODE)
+            prefs.remove(KEY_UPDATE_NOTICE_VERSION_NAME)
+            prefs.remove(KEY_MUTED_UPDATE_VERSION_CODE)
             prefs.remove(KEY_PLUGIN_REGISTRY_REPO)
             prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
             prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
@@ -1017,6 +1047,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
         val KEY_APP_TIME_ZONE_ID = stringPreferencesKey("app_time_zone_id")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
+        val KEY_UPDATE_NOTICE_VERSION_CODE = intPreferencesKey("update_notice_version_code")
+        val KEY_UPDATE_NOTICE_VERSION_NAME = stringPreferencesKey("update_notice_version_name")
+        val KEY_MUTED_UPDATE_VERSION_CODE = intPreferencesKey("muted_update_version_code")
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
         val KEY_PLUGIN_MARKET_CACHE_JSON = stringPreferencesKey("plugin_market_cache_json")

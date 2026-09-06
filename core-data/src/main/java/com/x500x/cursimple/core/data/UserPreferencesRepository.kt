@@ -305,6 +305,12 @@ data class UserPreferences(
     /** 应用使用的时区；为空表示跟随设备。 */
     val appTimeZoneId: String? = null,
     val ignoredUpdateVersionCode: Int? = null,
+    /** 最近一次检查发现的可更新版本号，0 表示没有发现。 */
+    val updateNoticeVersionCode: Int = 0,
+    /** 与 [updateNoticeVersionCode] 对应的版本名。 */
+    val updateNoticeVersionName: String = "",
+    /** 已选择不再弹窗提醒的版本号，角标仍然保留。 */
+    val mutedUpdateVersionCode: Int? = null,
     val pluginRegistryRepo: String = DEFAULT_PLUGIN_REGISTRY_REPO,
     val pluginMarketCacheJson: String = "",
     val pluginMarketCachedAtMillis: Long = 0L,
@@ -406,6 +412,14 @@ interface UserPreferencesRepository {
 
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
+
+    /** 记下检查到的可更新版本，用于设置入口的角标。 */
+    suspend fun setUpdateNotice(versionCode: Int, versionName: String)
+
+    /** 清掉角标，已是最新或检查不到新版本时调用。 */
+    suspend fun clearUpdateNotice()
+
+    suspend fun setMutedUpdateVersionCode(versionCode: Int?)
     suspend fun setPluginRegistryRepo(repo: String)
     suspend fun setPluginMarketCache(json: String, atMillis: Long, registry: String)
     suspend fun setComponentMarketIndexUrl(url: String)

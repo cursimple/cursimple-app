@@ -107,6 +107,8 @@ import com.x500x.cursimple.app.util.ScheduleMetadataExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.BuildConfig
+import com.x500x.cursimple.app.update.UpdateNoticeState
+import com.x500x.cursimple.app.update.shouldShowUpdateBadge
 import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ThemeAccent
@@ -243,6 +245,14 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
+                    val updateNotice = UpdateNoticeState(
+                        versionCode = prefs.updateNoticeVersionCode,
+                        versionName = prefs.updateNoticeVersionName,
+                        mutedVersionCode = prefs.mutedUpdateVersionCode,
+                        ignoredVersionCode = prefs.ignoredUpdateVersionCode,
+                    )
+                    val updateBadgeVisible = shouldShowUpdateBadge(updateNotice, BuildConfig.VERSION_CODE)
+
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
                     val drawerGesturesEnabled = !scheduleState.isSyncing && scheduleState.pendingWebSession == null
@@ -280,8 +290,11 @@ class MainActivity : ComponentActivity() {
                     AutomaticUpdateCheckPrompt(
                         autoCheckEnabled = prefs.autoUpdateEnabled,
                         betaUpdatesEnabled = prefs.betaUpdatesEnabled,
-                        ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
+                        updateNotice = updateNotice,
                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
+                        onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
+                        onUpdateFound = prefsViewModel::setUpdateNotice,
+                        onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
                     )
                     ReleaseAnnouncementGate(
                         lastSeenVersionCode = prefs.lastSeenVersionCode,
@@ -445,6 +458,7 @@ class MainActivity : ComponentActivity() {
                                 termStartDate = prefs.termStartDate,
                                 currentWeekIndex = currentWeekIndex,
                                 appVersionName = BuildConfig.VERSION_NAME,
+                                updateBadgeVisible = updateBadgeVisible,
                                 onSelectScreen = {
                                     currentScreen = it
                                     scope.launch { drawerState.close() }
@@ -790,6 +804,7 @@ class MainActivity : ComponentActivity() {
                                         betaUpdatesEnabled = prefs.betaUpdatesEnabled,
                                         appTimeZoneId = prefs.appTimeZoneId,
                                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
+                                        updateNotice = updateNotice,
                                         pluginRegistryRepo = prefs.pluginRegistryRepo,
                                         componentMarketIndexUrl = prefs.componentMarketIndexUrl,
                                         privateFilesProviderEnabled = prefs.privateFilesProviderEnabled,
@@ -872,6 +887,9 @@ class MainActivity : ComponentActivity() {
                                         onBetaUpdatesEnabledChange = prefsViewModel::setBetaUpdatesEnabled,
                                         onAppTimeZoneChange = prefsViewModel::setAppTimeZoneId,
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
+                                        onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
+                                        onUpdateFound = prefsViewModel::setUpdateNotice,
+                                        onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
                                         onPluginRegistryRepoChange = prefsViewModel::setPluginRegistryRepo,
                                         onComponentMarketIndexUrlChange = prefsViewModel::setComponentMarketIndexUrl,
                                         onPrivateFilesProviderEnabledChange =
@@ -1246,6 +1264,7 @@ private fun AppDrawer(
     termStartDate: LocalDate?,
     currentWeekIndex: Int,
     appVersionName: String,
+    updateBadgeVisible: Boolean,
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
     onPickThemeAccent: () -> Unit,
     onPickScheduleBackground: () -> Unit,
@@ -1298,6 +1317,9 @@ private fun AppDrawer(
                             modifier = Modifier.size(20.dp),
                         )
                     },
+                    badge = if (updateBadgeVisible && screen == MainActivity.AppScreen.Settings) {
+                        { UpdateBadgeDot() }
+                    } else null,
                     selected = screen == currentScreen,
                     onClick = { onSelectScreen(screen) },
                     modifier = Modifier.height(44.dp),
