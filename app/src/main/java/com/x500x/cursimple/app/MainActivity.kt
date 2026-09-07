@@ -100,6 +100,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.x500x.cursimple.app.guide.FirstRunGuideOverlay
+import com.x500x.cursimple.app.guide.GuideAnchor
+import com.x500x.cursimple.app.guide.LocalGuideAnchors
+import com.x500x.cursimple.app.guide.guideAnchor
+import com.x500x.cursimple.app.guide.rememberGuideAnchorBounds
 import com.x500x.cursimple.app.guide.shouldShowFirstRunGuide
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.app.ai.AiImportConfig
@@ -185,7 +189,11 @@ class MainActivity : ComponentActivity() {
                     }
                     if (prefs.loaded && prefs.disclaimerAccepted) {
                     val appZone = remember { BeijingTime.zone }
-                    androidx.compose.runtime.CompositionLocalProvider(LocalAppZone provides appZone) {
+                    val guideAnchors = rememberGuideAnchorBounds()
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        LocalAppZone provides appZone,
+                        LocalGuideAnchors provides guideAnchors,
+                    ) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
@@ -490,7 +498,9 @@ class MainActivity : ComponentActivity() {
                                     title = {
                                         if (currentScreen == AppScreen.Schedule) {
                                             Column(
-                                                modifier = Modifier.clickable { showWeekMenu = true },
+                                                modifier = Modifier
+                                                    .guideAnchor(GuideAnchor.WeekTitle)
+                                                    .clickable { showWeekMenu = true },
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
                                                 // 未设置开学日期或尚未开学时都不存在“当前周”，底色与徽章都不应出现
@@ -560,7 +570,10 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     navigationIcon = {
-                                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                        IconButton(
+                                            onClick = { scope.launch { drawerState.open() } },
+                                            modifier = Modifier.guideAnchor(GuideAnchor.Drawer),
+                                        ) {
                                             Icon(
                                                 imageVector = Icons.Rounded.Menu,
                                                 contentDescription = stringResource(R.string.main_open_drawer),
@@ -625,7 +638,10 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                             Box {
-                                                IconButton(onClick = { showAddMenu = true }) {
+                                                IconButton(
+                                                    onClick = { showAddMenu = true },
+                                                    modifier = Modifier.guideAnchor(GuideAnchor.Add),
+                                                ) {
                                                     Surface(
                                                         shape = CircleShape,
                                                         color = MaterialTheme.colorScheme.surfaceVariant,
