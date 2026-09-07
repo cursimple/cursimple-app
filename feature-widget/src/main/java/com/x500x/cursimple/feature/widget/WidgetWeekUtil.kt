@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.startLocalTime
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -28,7 +29,23 @@ internal fun isBeforeTermStart(weekIndex: Int?): Boolean =
 internal fun CourseItem.activeOnWeek(weekIndex: Int?): Boolean =
     weekIndex != null && isActiveInTermWeekNumber(weekIndex)
 
-internal enum class CourseStatus { Past, Live, Upcoming }
+/** 课程相对当前时刻的状态。 */
+internal enum class CourseStatus {
+    /** 已经下课。 */
+    Past,
+
+    /** 正在上。 */
+    Live,
+
+    /** 快开始了，[SOON_THRESHOLD_MINUTES] 分钟以内。 */
+    Soon,
+
+    /** 今天晚些时候或以后的课。 */
+    Upcoming,
+}
+
+/** 距开课多少分钟以内算即将开始。 */
+internal const val SOON_THRESHOLD_MINUTES: Long = 30
 
 internal data class NextCourseEntry(
     val course: CourseItem,
@@ -57,7 +74,7 @@ internal fun visibleNextCourseEntries(
         }
         .filter { it.status != CourseStatus.Past }
 
-private fun resolveCourseStatus(
+internal fun resolveCourseStatus(
     course: CourseItem,
     today: LocalDate,
     targetDate: LocalDate,
@@ -73,6 +90,7 @@ private fun resolveCourseStatus(
         startTime == null || endTime == null -> CourseStatus.Upcoming
         !now.isBefore(endTime) -> CourseStatus.Past
         !now.isBefore(startTime) -> CourseStatus.Live
+        Duration.between(now, startTime).toMinutes() <= SOON_THRESHOLD_MINUTES -> CourseStatus.Soon
         else -> CourseStatus.Upcoming
     }
 }

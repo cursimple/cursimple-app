@@ -49,6 +49,7 @@
     <string name="widget_status_live">上課中</string>
     <string name="widget_status_exam_live">考試中</string>
     <string name="widget_status_upcoming">即將開始</string>
+    <string name="widget_status_not_started">未開始</string>
     <string name="widget_status_finished">已結束</string>
 
     <string name="widget_countdown_minutes">%1$d分鐘後</string>

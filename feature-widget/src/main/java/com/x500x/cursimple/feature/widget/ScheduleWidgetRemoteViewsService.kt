@@ -55,7 +55,13 @@ private class ScheduleCourseListFactory(
         val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
         if (rowData == null) return row
 
-        row.setInt(R.id.course_row_root, "setBackgroundResource", widgetRowBackground(themeAccent))
+        // 正在上的那一节用更深的同色底，一眼能从一列课里挑出来
+        val background = if (rowData.status == CourseStatus.Live) {
+            widgetRowVariantBackground(themeAccent)
+        } else {
+            widgetRowBackground(themeAccent)
+        }
+        row.setInt(R.id.course_row_root, "setBackgroundResource", background)
         row.applyOpenAppFillInIntent(R.id.course_row_root, widgetTheme)
         row.setTextViewText(R.id.course_nodes, rowData.nodeRange)
         row.setTextViewText(R.id.course_time, rowData.timeRange)
@@ -70,11 +76,21 @@ private class ScheduleCourseListFactory(
             row.setTextColor(R.id.course_time, secondary)
             row.setTextColor(R.id.course_subtitle, secondary)
         }
-        row.setViewVisibility(R.id.course_badge, if (rowData.hasReminder) View.VISIBLE else View.GONE)
-        row.setTextViewText(
-            R.id.course_badge,
-            if (rowData.hasReminder) context.getString(R.string.widget_course_reminder_badge) else "",
-        )
+        // 上课中与即将开始比提醒标记更该被看到，同一个位置上让状态优先
+        val badgeText = when (rowData.status) {
+            CourseStatus.Live, CourseStatus.Soon ->
+                context.getString(widgetCourseStatusRes(rowData.status, rowData.isExam))
+            else -> if (rowData.hasReminder) context.getString(R.string.widget_course_reminder_badge) else null
+        }
+        row.setViewVisibility(R.id.course_badge, if (badgeText == null) View.GONE else View.VISIBLE)
+        row.setTextViewText(R.id.course_badge, badgeText.orEmpty())
+        if (rowData.status == CourseStatus.Live) {
+            row.setInt(R.id.course_badge, "setBackgroundResource", R.drawable.widget_bg_badge_live)
+            row.setTextColor(
+                R.id.course_badge,
+                ContextCompat.getColor(context, R.color.widget_badge_live_text),
+            )
+        }
         return row
     }
 
