@@ -105,7 +105,7 @@ internal object NextCourseDataSource {
             )
         }
         val live = visibleEntries.firstOrNull { it.status == CourseStatus.Live }?.course
-        val firstUpcoming = visibleEntries.firstOrNull { it.status == CourseStatus.Upcoming }?.course
+        val firstUpcoming = visibleEntries.firstOrNull { it.status != CourseStatus.Live }?.course
 
         val badgeText: String? = when {
             live != null -> appContext.getString(R.string.widget_status_live)

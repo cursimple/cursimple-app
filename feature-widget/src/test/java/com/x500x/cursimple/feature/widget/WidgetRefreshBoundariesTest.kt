@@ -26,13 +26,15 @@ class WidgetRefreshBoundariesTest {
     }
 
     @Test
-    fun `each slot contributes lead start and end`() {
+    fun `each slot contributes soon lead start and end`() {
         val result = widgetRefreshBoundaries(
             listOf(slot("08:00", "09:40")),
             now = at(7, 0),
             limit = 10,
         )
 
+        // 转入即将开始的那一刻也要刷，否则状态要等到下一次周期刷新才出现
+        assertTrue(at(7, 30) in result)
         assertTrue(at(7, 55) in result)
         assertTrue(at(8, 0) in result)
         assertTrue(at(9, 40) in result)
@@ -46,7 +48,8 @@ class WidgetRefreshBoundariesTest {
             limit = 10,
         )
 
-        // 课前和开始都过去了，只剩下课那一刻
+        // 即将开始、课前和开始都过去了，只剩下课那一刻
+        assertTrue(at(7, 30) !in result)
         assertTrue(at(7, 55) !in result)
         assertTrue(at(8, 0) !in result)
         assertTrue(at(9, 40) in result)
@@ -61,7 +64,7 @@ class WidgetRefreshBoundariesTest {
         )
 
         assertEquals(result.sorted(), result)
-        assertEquals(at(7, 55), result.first())
+        assertEquals(at(7, 30), result.first())
     }
 
     @Test
@@ -72,7 +75,7 @@ class WidgetRefreshBoundariesTest {
             limit = 2,
         )
 
-        assertEquals(listOf(at(7, 55), at(8, 0)), result)
+        assertEquals(listOf(at(7, 30), at(7, 55)), result)
     }
 
     @Test
@@ -85,9 +88,9 @@ class WidgetRefreshBoundariesTest {
 
         assertEquals(
             listOf(
+                day.plusDays(1).atTime(7, 30),
                 day.plusDays(1).atTime(7, 55),
                 day.plusDays(1).atTime(8, 0),
-                day.plusDays(1).atTime(9, 40),
             ),
             result,
         )

@@ -20,6 +20,7 @@ import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import kotlinx.coroutines.flow.first
 import java.time.LocalDate
+import java.time.LocalTime
 
 internal data class ScheduleWidgetCourseRow(
     val id: String,
@@ -30,6 +31,10 @@ internal data class ScheduleWidgetCourseRow(
     val hasReminder: Boolean,
     /** 放假当天的课程，行文字按不可用态显示。 */
     val onHoliday: Boolean = false,
+    /** 相对当前时刻的状态；不是今天、放假或没有作息时间时为空。 */
+    val status: CourseStatus? = null,
+    /** 考试与普通课程的状态文案不同。 */
+    val isExam: Boolean = false,
 ) {
     val stableId: Long = id.hashCode().toLong()
 }
@@ -80,6 +85,7 @@ internal object ScheduleWidgetDataSource {
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
+        val now = BeijingTime.nowTimeIn(zone)
         val manualOffset = if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             widgetPreferencesRepository.widgetDayOffsetFlow.first()
         } else {
@@ -94,6 +100,8 @@ internal object ScheduleWidgetDataSource {
         val currentDay = loadDate(
             context = appContext,
             targetDate = today,
+            today = today,
+            now = now,
             offset = 0,
             manualOffset = manualOffset,
             termStart = termStart,
@@ -105,10 +113,12 @@ internal object ScheduleWidgetDataSource {
             holidayCalendar = userPrefs.holidayCalendar,
             widgetTheme = widgetTheme,
         )
-        if (manualOffset == 0 && shouldShowNextDayAtNight(BeijingTime.nowTimeIn(zone), currentDay.courses, timingProfile)) {
+        if (manualOffset == 0 && shouldShowNextDayAtNight(now, currentDay.courses, timingProfile)) {
             return loadDate(
                 context = appContext,
                 targetDate = today.plusDays(1),
+                today = today,
+                now = now,
                 offset = 1,
                 manualOffset = manualOffset,
                 termStart = termStart,
@@ -126,6 +136,8 @@ internal object ScheduleWidgetDataSource {
         return loadDate(
             context = appContext,
             targetDate = today.plusDays(manualOffset.toLong()),
+            today = today,
+            now = now,
             offset = manualOffset,
             manualOffset = manualOffset,
             termStart = termStart,
@@ -142,6 +154,8 @@ internal object ScheduleWidgetDataSource {
     private suspend fun loadDate(
         context: Context,
         targetDate: LocalDate,
+        today: LocalDate,
+        now: LocalTime,
         offset: Int,
         manualOffset: Int,
         termStart: LocalDate?,
@@ -166,7 +180,22 @@ internal object ScheduleWidgetDataSource {
             schedule?.coursesOfDay(dayOfWeek).orEmpty() +
                 manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
         }
-        val rows = day.courses.map { it.toRow(context, timingProfile, reminderRules, day.onHoliday) }
+        val rows = day.courses.map {
+            it.toRow(
+                context = context,
+                timingProfile = timingProfile,
+                reminderRules = reminderRules,
+                onHoliday = day.onHoliday,
+                status = widgetRowStatus(
+                    course = it,
+                    today = today,
+                    targetDate = targetDate,
+                    now = now,
+                    timingProfile = timingProfile,
+                    onHoliday = day.onHoliday,
+                ),
+            )
+        }
 
         return LoadedDay(
             data = ScheduleWidgetDayData(
@@ -195,6 +224,7 @@ internal object ScheduleWidgetDataSource {
         timingProfile: TermTimingProfile?,
         reminderRules: List<ReminderRule>,
         onHoliday: Boolean,
+        status: CourseStatus?,
     ): ScheduleWidgetCourseRow {
         val nodeRange = context.widgetNodeRangeText(time.startNode, time.endNode)
         val timeRange = timingProfile?.courseClockRange(this) ?: nodeRange
@@ -210,8 +240,34 @@ internal object ScheduleWidgetDataSource {
             subtitle = subtitle,
             hasReminder = reminderRules.any { it.matchesWidgetCourse(this, timingProfile) },
             onHoliday = onHoliday,
+            status = status,
+            isExam = category == CourseCategory.Exam,
         )
     }
+}
+
+/**
+ * 行上要标的状态。
+ *
+ * 只有今天且不放假的课才有状态可言；放假当天课程照常列出但不判上课中，
+ * 没有作息时间就算不出起止时刻，同样不标。
+ */
+internal fun widgetRowStatus(
+    course: CourseItem,
+    today: LocalDate,
+    targetDate: LocalDate,
+    now: LocalTime,
+    timingProfile: TermTimingProfile?,
+    onHoliday: Boolean,
+): CourseStatus? {
+    if (onHoliday || timingProfile == null || targetDate != today) return null
+    return resolveCourseStatus(
+        course = course,
+        today = today,
+        targetDate = targetDate,
+        now = now,
+        timingProfile = timingProfile,
+    )
 }
 
 /** 所有小组件共用的开学日期来源，保证不同小组件算出同一个教学周。 */

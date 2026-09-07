@@ -8,13 +8,14 @@ import java.time.LocalTime
  * 小组件需要重画的时刻。
  *
  * 固定周期的守护链最坏会让上课状态滞后一整个周期，因此额外按节次边界排点：
- * 每节课的课前提前量、开始与结束各刷一次，状态切换的那一刻就能对上。
+ * 每节课转入即将开始、课前提前量、开始与结束各刷一次，状态切换的那一刻就能对上。
  */
 internal fun widgetRefreshBoundaries(
     slots: List<ClassSlotTime>,
     now: LocalDateTime,
     leadMinutes: Long = 5,
-    limit: Int = 6,
+    soonMinutes: Long = SOON_THRESHOLD_MINUTES,
+    limit: Int = 8,
 ): List<LocalDateTime> {
     if (slots.isEmpty() || limit <= 0) return emptyList()
     val today = now.toLocalDate()
@@ -28,6 +29,7 @@ internal fun widgetRefreshBoundaries(
             val startAt = date.atTime(start)
             // 结束不晚于开始说明这一节跨了午夜
             val endAt = if (end.isAfter(start)) date.atTime(end) else date.plusDays(1).atTime(end)
+            boundaries.add(startAt.minusMinutes(soonMinutes))
             boundaries.add(startAt.minusMinutes(leadMinutes))
             boundaries.add(startAt)
             boundaries.add(endAt)
