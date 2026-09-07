@@ -73,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
@@ -2638,6 +2639,7 @@ private fun CourseBlock(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .clipToBounds()
                     .padding(
                         start = 3.dp,
                         end = 3.dp,
@@ -2668,6 +2670,7 @@ private fun CourseBlock(
                         textAlign = TextAlign.Center,
                     )
                 }
+                // 地点与标记先按各自一行占位，标题拿剩下的高度，谁也不挤到谁
                 Text(
                     text = course.title,
                     color = titleColor,
@@ -2675,9 +2678,11 @@ private fun CourseBlock(
                     lineHeight = (titleSizeSp + 2).sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
+                    overflow = TextOverflow.Clip,
                     textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false),
                 )
                 if (scheduleDisplay.locationVisible && course.location.isNotBlank()) {
                     Text(
@@ -2685,9 +2690,9 @@ private fun CourseBlock(
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
-                        maxLines = Int.MAX_VALUE,
-                        softWrap = true,
-                        overflow = TextOverflow.Visible,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -2700,7 +2705,8 @@ private fun CourseBlock(
                         lineHeight = 11.sp,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
                     )
