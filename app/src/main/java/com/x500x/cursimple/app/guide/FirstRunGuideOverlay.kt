@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -29,12 +30,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -58,13 +61,25 @@ fun FirstRunGuideOverlay(
     var index by rememberSaveable { mutableIntStateOf(0) }
     val step = steps[index.coerceIn(steps.indices)]
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        SpotlightScrim(step.spotlight)
+    val anchors = LocalGuideAnchors.current
+    val spotlight = step.anchor?.let { anchors[it] }
 
-        val cardAtBottom = step.spotlight.centerY < 0.5f
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        SpotlightScrim(spotlight)
+
+        val placement = guideCardPlacement(
+            anchorCenterY = spotlight?.center?.y,
+            containerHeight = with(LocalDensity.current) { maxHeight.toPx() },
+        )
         Column(
             modifier = Modifier
-                .align(if (cardAtBottom) Alignment.BottomCenter else Alignment.TopCenter)
+                .align(
+                    when (placement) {
+                        GuideCardPlacement.Top -> Alignment.TopCenter
+                        GuideCardPlacement.Bottom -> Alignment.BottomCenter
+                        GuideCardPlacement.Center -> Alignment.Center
+                    },
+                )
                 .padding(horizontal = 20.dp, vertical = 48.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -126,9 +141,14 @@ fun FirstRunGuideOverlay(
     }
 }
 
-/** 半透明遮罩，中间按当前步骤挖出一块。 */
+/**
+ * 半透明遮罩，把这一步要讲的那块挖出来。
+ *
+ * 位置由元素自己上报，四周留一点余量让框比元素稍大；
+ * 还没上报到位置时只压遮罩不画框，不至于圈错地方。
+ */
 @Composable
-private fun SpotlightScrim(spotlight: GuideSpotlight) {
+private fun SpotlightScrim(spotlight: Rect?) {
     val scrimColor = Color.Black.copy(alpha = 0.62f)
     val ringColor = MaterialTheme.colorScheme.primary
     Canvas(
@@ -137,27 +157,31 @@ private fun SpotlightScrim(spotlight: GuideSpotlight) {
             .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
     ) {
         drawRect(scrimColor)
-        val left = size.width * spotlight.left
-        val top = size.height * spotlight.top
-        val width = size.width * (spotlight.right - spotlight.left)
-        val height = size.height * (spotlight.bottom - spotlight.top)
+        if (spotlight == null || spotlight.width <= 0f || spotlight.height <= 0f) return@Canvas
+        val padding = SPOTLIGHT_PADDING.toPx()
+        val left = (spotlight.left - padding).coerceAtLeast(0f)
+        val top = (spotlight.top - padding).coerceAtLeast(0f)
+        val right = (spotlight.right + padding).coerceAtMost(size.width)
+        val bottom = (spotlight.bottom + padding).coerceAtMost(size.height)
         val corner = CornerRadius(16.dp.toPx(), 16.dp.toPx())
         drawRoundRect(
             color = Color.Transparent,
             topLeft = Offset(left, top),
-            size = Size(width, height),
+            size = Size(right - left, bottom - top),
             cornerRadius = corner,
             blendMode = BlendMode.Clear,
         )
         drawRoundRect(
             color = ringColor,
             topLeft = Offset(left, top),
-            size = Size(width, height),
+            size = Size(right - left, bottom - top),
             cornerRadius = corner,
             style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()),
         )
     }
 }
+
+private val SPOTLIGHT_PADDING = 4.dp
 
 /** 进度点，让用户知道还有几步。 */
 @Composable

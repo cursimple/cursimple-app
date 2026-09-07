@@ -90,18 +90,44 @@ class GuideNavigationTest {
 
 class GuideStepsTest {
     @Test
-    fun `every step points at a real area of the screen`() {
-        FIRST_RUN_GUIDE_STEPS.forEach { step ->
-            val area = step.spotlight
-            assertTrue("left < right", area.left < area.right)
-            assertTrue("top < bottom", area.top < area.bottom)
-            assertTrue("在屏幕内", area.left >= 0f && area.right <= 1f)
-            assertTrue("在屏幕内", area.top >= 0f && area.bottom <= 1f)
-        }
+    fun `the guide has steps to show`() {
+        assertTrue(FIRST_RUN_GUIDE_STEPS.isNotEmpty())
     }
 
     @Test
-    fun `the guide has steps to show`() {
-        assertTrue(FIRST_RUN_GUIDE_STEPS.isNotEmpty())
+    fun `steps that point somewhere name a real element`() {
+        FIRST_RUN_GUIDE_STEPS.mapNotNull { it.anchor }.forEach { anchor ->
+            assertTrue(anchor in GuideAnchor.entries)
+        }
+    }
+}
+
+class GuideCardPlacementTest {
+    @Test
+    fun `a spotlight up top puts the card at the bottom`() {
+        assertEquals(
+            GuideCardPlacement.Bottom,
+            guideCardPlacement(anchorCenterY = 120f, containerHeight = 2400f),
+        )
+    }
+
+    @Test
+    fun `a spotlight down low puts the card up top`() {
+        assertEquals(
+            GuideCardPlacement.Top,
+            guideCardPlacement(anchorCenterY = 1800f, containerHeight = 2400f),
+        )
+    }
+
+    @Test
+    fun `a step with nothing to circle centres the card`() {
+        assertEquals(
+            GuideCardPlacement.Center,
+            guideCardPlacement(anchorCenterY = null, containerHeight = 2400f),
+        )
+        assertEquals(
+            GuideCardPlacement.Center,
+            guideCardPlacement(anchorCenterY = 100f, containerHeight = 0f),
+        )
     }
 }
