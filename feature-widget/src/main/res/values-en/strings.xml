@@ -49,6 +49,7 @@
     <string name="widget_status_live">In class</string>
     <string name="widget_status_exam_live">In exam</string>
     <string name="widget_status_upcoming">Starting soon</string>
+    <string name="widget_status_not_started">Later</string>
     <string name="widget_status_finished">Ended</string>
 
     <string name="widget_countdown_minutes">in %1$dm</string>

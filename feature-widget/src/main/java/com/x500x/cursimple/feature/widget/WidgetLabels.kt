@@ -278,7 +278,8 @@ internal fun Context.nextCourseDayHeaderText(header: NextCourseDayHeader): Strin
 @StringRes
 internal fun widgetCourseStatusRes(status: CourseStatus, exam: Boolean): Int = when (status) {
     CourseStatus.Live -> if (exam) R.string.widget_status_exam_live else R.string.widget_status_live
-    CourseStatus.Upcoming -> R.string.widget_status_upcoming
+    CourseStatus.Soon -> R.string.widget_status_upcoming
+    CourseStatus.Upcoming -> R.string.widget_status_not_started
     CourseStatus.Past -> R.string.widget_status_finished
 }
 

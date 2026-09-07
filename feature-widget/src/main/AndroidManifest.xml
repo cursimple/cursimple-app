@@ -6,9 +6,6 @@
             android:name=".ScheduleWidgetActionReceiver"
             android:exported="false" />
 
-        <receiver
-            android:name=".WidgetOpenAppReceiver"
-            android:exported="false" />
 
         <receiver
             android:name=".WidgetPinResultReceiver"
