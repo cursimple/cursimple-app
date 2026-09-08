@@ -3591,13 +3591,15 @@ private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: L
         availableWidth < 420.dp -> 42.dp
         else -> 44.dp
     }
-    // 一个字宽约等于字号，最长标签的字宽加上左右内边距即为不折行所需的宽度
-    val labelWidth = (headerTextSizeSp * timeColumnLabelChars(labels)).dp + TIME_COLUMN_PADDING
+    // 全角字实际步进略大于字号，标签字宽乘上步进系数再加左右内边距即为不折行所需的宽度
+    val labelWidth =
+        (headerTextSizeSp * timeColumnLabelChars(labels) * TIME_COLUMN_CHAR_WIDTH_FACTOR).dp + TIME_COLUMN_PADDING
     val scale = LocalDensity.current.fontScale.coerceIn(1f, 1.8f)
-    return (maxOf(base, labelWidth) * scale).coerceAtMost(availableWidth * 0.32f)
+    return (maxOf(base, labelWidth) * scale).coerceAtMost(availableWidth * 0.34f)
 }
 
-private val TIME_COLUMN_PADDING = 6.dp
+private const val TIME_COLUMN_CHAR_WIDTH_FACTOR = 1.12f
+private val TIME_COLUMN_PADDING = 8.dp
 
 /** 等待确认的拖动改动。 */
 internal data class PendingCourseDrag(
