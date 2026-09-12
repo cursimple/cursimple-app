@@ -34,6 +34,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -85,8 +86,10 @@ fun UpdateCheckSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
-    var checking by rememberSaveable { mutableStateOf(false) }
-    var downloading by rememberSaveable { mutableStateOf(false) }
+    // 用 remember 而非 rememberSaveable：清除它们的协程绑定在组合上，旋转/切语言 recreate 时会被取消，
+    // 若这两个标志跨重建存活就会永远卡在「检查中/下载中」；随重建归零后按钮恢复可用，用户可重试
+    var checking by remember { mutableStateOf(false) }
+    var downloading by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<UpdatePanelStatus>(UpdatePanelStatus.Idle) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var pendingRollback by remember { mutableStateOf<AppUpdateInfo?>(null) }
@@ -236,6 +239,7 @@ fun AutomaticUpdateCheckPrompt(
     onMuteUpdateVersion: (Int?) -> Unit,
     onUpdateFound: (Int, String) -> Unit,
     onUpdateNoticeCleared: () -> Unit,
+    onDialogVisibleChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -243,7 +247,8 @@ fun AutomaticUpdateCheckPrompt(
     var checkedThisSession by rememberSaveable { mutableStateOf(false) }
     var promptedThisSession by rememberSaveable { mutableStateOf(false) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var downloading by rememberSaveable { mutableStateOf(false) }
+    // 见上：清除标志的协程随重建取消，saveable 会卡在「下载中」，用 remember 让其归零
+    var downloading by remember { mutableStateOf(false) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
 
     fun dismissPendingUpdate() {
@@ -297,6 +302,14 @@ fun AutomaticUpdateCheckPrompt(
         }
     }
 
+    // 向上报告弹窗是否可见，供首启引导互斥（引导不应压在更新弹窗上）
+    LaunchedEffect(pendingUpdate != null) {
+        onDialogVisibleChange(pendingUpdate != null)
+    }
+    DisposableEffect(Unit) {
+        onDispose { onDialogVisibleChange(false) }
+    }
+
     pendingUpdate?.let { info ->
         UpdateAvailableDialog(
             info = info,
@@ -324,6 +337,7 @@ fun AutomaticUpdateCheckPrompt(
 fun ReleaseAnnouncementGate(
     lastSeenVersionCode: Int,
     onSeen: (Int) -> Unit,
+    onDialogVisibleChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -331,6 +345,11 @@ fun ReleaseAnnouncementGate(
     var notes by remember { mutableStateOf<ReleaseNotesState>(ReleaseNotesState.Loading) }
     var visible by rememberSaveable { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(visible) { onDialogVisibleChange(visible) }
+    DisposableEffect(Unit) {
+        onDispose { onDialogVisibleChange(false) }
+    }
 
     LaunchedEffect(lastSeenVersionCode) {
         if (lastSeenVersionCode == 0) {
