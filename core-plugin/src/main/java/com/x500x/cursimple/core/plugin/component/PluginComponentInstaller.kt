@@ -7,6 +7,8 @@ import com.x500x.cursimple.core.plugin.packageformat.readAtMostBytes
 import com.x500x.cursimple.core.plugin.pluginReasonOr
 import com.x500x.cursimple.core.plugin.pluginRequire
 import com.x500x.cursimple.core.plugin.pluginRequireNotNull
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -30,11 +32,12 @@ class PluginComponentInstaller(
         return installPackage(bytes, PluginComponentSource.Remote)
     }
 
+    // 组件包上限 200MB，解压+SHA-256+落盘全放 IO 线程，避免安装浏览器内核这类大组件时卡主线程 ANR
     private suspend fun installPackage(
         bytes: ByteArray,
         source: PluginComponentSource,
-    ): PluginComponentInstallResult {
-        return runCatching {
+    ): PluginComponentInstallResult = withContext(Dispatchers.IO) {
+        runCatching {
             val layout = readComponentPackage(bytes)
             val manifest = json.decodeFromString<PluginComponentPackageManifest>(
                 layout.requireFile(MANIFEST_FILE).toString(Charsets.UTF_8),

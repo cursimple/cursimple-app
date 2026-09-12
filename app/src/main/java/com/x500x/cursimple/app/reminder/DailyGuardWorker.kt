@@ -41,9 +41,12 @@ class DailyGuardWorker(
             appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
 
             // 2. 执行共享闹钟完整性检查（今天和明天）
+            // 绕过 40 分钟去重闸门：上一步 refreshScheduleOutputs 已把 poll 时间戳设为 now，
+            // 否则这里必被挡掉，2 点的「明日」窗口就永远同步不到
             val summaries = appContainer.runSharedAlarmIntegrityCheck(
                 reason = ReminderSyncReason.DailyNextDay,
                 includeTomorrow = true,
+                bypassPollClaim = true,
             )
 
             val endTime = System.currentTimeMillis()

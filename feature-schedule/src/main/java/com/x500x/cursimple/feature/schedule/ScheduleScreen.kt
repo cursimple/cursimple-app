@@ -126,6 +126,7 @@ import com.x500x.cursimple.core.kernel.model.cancelsCourseOn
 import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
+import com.x500x.cursimple.core.kernel.model.ScheduleDayResolution
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
@@ -846,12 +847,12 @@ private fun WeeklyScheduleSection(
                 ) { page ->
                     val pageOffset = page + safeMin
                     val pageWeek = remember(
-                        timingProfile,
                         pageOffset,
                         overrideTermStart,
                         zone,
                         temporaryScheduleOverrides,
                         holidayCalendar,
+                        scheduleDisplay.weekStartDay,
                     ) {
                         buildWeekModel(
                             weekOffset = pageOffset,
@@ -1049,19 +1050,34 @@ private fun DailyScheduleSection(
                 pageSpacing = 8.dp,
             ) { page ->
                 val animatedDate = today.plusDays((page - DAY_PAGE_SPAN).toLong())
-                val animatedResolution =
-                    resolveScheduleDay(animatedDate, temporaryScheduleOverrides, holidayCalendar)
-                val animatedSourceDate = animatedResolution.sourceDate
-                val animatedWeekNumber =
-                    computeWeekNumberForDate(termStartDate, animatedSourceDate).takeIf {
-                        animatedSourceDate != animatedDate
-                    } ?: targetWeekNumber
-                // 还没开学时不按周过滤，课程照常列出并按不可用态显示
-                val beforeTerm = animatedWeekNumber != null && animatedWeekNumber < 1
-                val active = allCourses
-                    .filter { it.time.dayOfWeek == animatedSourceDate.dayOfWeek.value }
-                    .filter { beforeTerm || animatedWeekNumber == null || it.isActiveInWeek(animatedWeekNumber) }
-                    .sortedBy { it.time.startNode }
+                // 解析当天 + 按星期/周次过滤+排序全量课程较重，beyondViewportPageCount=1 时约 3 页同时组合，
+                // 每次高亮/多选切换都会重组，缓存住避免每页每次重算
+                val dayEntry = remember(
+                    animatedDate,
+                    allCourses,
+                    temporaryScheduleOverrides,
+                    holidayCalendar,
+                    termStartDate,
+                    targetWeekNumber,
+                ) {
+                    val resolution =
+                        resolveScheduleDay(animatedDate, temporaryScheduleOverrides, holidayCalendar)
+                    val sourceDate = resolution.sourceDate
+                    val weekNumber =
+                        computeWeekNumberForDate(termStartDate, sourceDate).takeIf {
+                            sourceDate != animatedDate
+                        } ?: targetWeekNumber
+                    // 还没开学时不按周过滤，课程照常列出并按不可用态显示
+                    val beforeTerm = weekNumber != null && weekNumber < 1
+                    val courses = allCourses
+                        .filter { it.time.dayOfWeek == sourceDate.dayOfWeek.value }
+                        .filter { beforeTerm || weekNumber == null || it.isActiveInWeek(weekNumber) }
+                        .sortedBy { it.time.startNode }
+                    DailyPageEntry(resolution = resolution, beforeTerm = beforeTerm, courses = courses)
+                }
+                val animatedResolution = dayEntry.resolution
+                val beforeTerm = dayEntry.beforeTerm
+                val active = dayEntry.courses
                 DayList(
                     slots = slots,
                     courses = active,
@@ -3092,6 +3108,13 @@ private fun formatCourseLocation(
 private data class CourseDetailRequest(
     val courses: List<CourseItem>,
     val targetDate: LocalDate,
+)
+
+/** 日视图单页缓存：当天归属、是否开学前、已过滤排序的课程。 */
+private data class DailyPageEntry(
+    val resolution: ScheduleDayResolution,
+    val beforeTerm: Boolean,
+    val courses: List<CourseItem>,
 )
 
 private fun matchingTemporaryCancelRule(

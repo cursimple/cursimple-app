@@ -847,6 +847,66 @@ class ReminderPlannerTest {
         assertEquals(listOf("label-rule"), plans.map { it.ruleId }.distinct())
     }
 
+    @Test
+    fun malformedSlotTimeIsSkippedInsteadOfCrashing() {
+        val schedule = TermSchedule(
+            termId = "2026-spring",
+            updatedAt = "2026-04-27T08:00:00+08:00",
+            dailySchedules = listOf(
+                DailySchedule(
+                    dayOfWeek = 1,
+                    courses = listOf(
+                        CourseItem(
+                            id = "bad",
+                            title = "坏时间",
+                            weeks = listOf(1),
+                            time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+                        ),
+                        CourseItem(
+                            id = "good",
+                            title = "好时间",
+                            weeks = listOf(1),
+                            time = CourseTimeSlot(dayOfWeek = 1, startNode = 3, endNode = 4),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        // 插件/恢复数据可能写入非法时间串（"8:00" 非 ISO、"24:10" 越界），不能让它掀翻整轮同步
+        val profile = TermTimingProfile(
+            termStartDate = "2026-02-23",
+            slotTimes = listOf(
+                ClassSlotTime(1, 2, "8:00", "9:35"),
+                ClassSlotTime(3, 4, "10:00", "11:35"),
+            ),
+        )
+        val rule = ReminderRule(
+            ruleId = "r",
+            pluginId = "demo",
+            scopeType = ReminderScopeType.SingleCourse,
+            advanceMinutes = 15,
+            createdAt = "2026-02-23T00:00:00+08:00",
+            updatedAt = "2026-02-23T00:00:00+08:00",
+        )
+
+        // 坏节次的课被跳过、好节次的课正常生成，且不抛异常
+        val plans = planner.expandRule(
+            rule = rule.copy(courseId = "bad"),
+            schedule = schedule,
+            timingProfile = profile,
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+        assertEquals(emptyList<String>(), plans.map { it.courseId })
+
+        val goodPlans = planner.expandRule(
+            rule = rule.copy(ruleId = "r2", courseId = "good"),
+            schedule = schedule,
+            timingProfile = profile,
+            fromDate = java.time.LocalDate.of(2026, 2, 23),
+        )
+        assertEquals(listOf("good"), goodPlans.map { it.courseId })
+    }
+
     private fun preTermSchedule(weeks: List<Int>): TermSchedule = TermSchedule(
         termId = "2026-autumn",
         updatedAt = "2026-09-01T00:00:00+08:00",
