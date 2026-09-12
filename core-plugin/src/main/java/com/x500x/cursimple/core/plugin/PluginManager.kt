@@ -29,7 +29,9 @@ import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URI
@@ -56,24 +58,26 @@ class PluginManager(
 
     suspend fun getInstalledPlugins(): List<InstalledPluginRecord> = registryRepository.getInstalledPlugins()
 
-    suspend fun previewPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallPreview {
-        PluginLogger.info(
-            "plugin.manager.preview.start",
-            mapOf("source" to source, "bytes" to bytes.size),
-        )
-        return installer.previewPackage(bytes, source)
-    }
+    // 解压、SHA-256 校验、签名验签、逐文件落盘都是重活，统一切到 IO 线程，避免卡住调用方（多为主线程的 viewModelScope）
+    suspend fun previewPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallPreview =
+        withContext(Dispatchers.IO) {
+            PluginLogger.info(
+                "plugin.manager.preview.start",
+                mapOf("source" to source, "bytes" to bytes.size),
+            )
+            installer.previewPackage(bytes, source)
+        }
 
     suspend fun installPackage(
         bytes: ByteArray,
         source: PluginInstallSource,
         sourceRepo: String? = null,
-    ): PluginInstallResult {
+    ): PluginInstallResult = withContext(Dispatchers.IO) {
         PluginLogger.info(
             "plugin.manager.install.start",
             mapOf("source" to source, "bytes" to bytes.size),
         )
-        return installer.installPackage(bytes, source, sourceRepo)
+        installer.installPackage(bytes, source, sourceRepo)
     }
 
     suspend fun removePlugin(pluginKey: String) {

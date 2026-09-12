@@ -165,9 +165,15 @@ class DataStoreUserPreferencesRepository(
     }
 
     override suspend fun setDeveloperModeEnabled(enabled: Boolean) {
-        store.edit { prefs -> prefs[KEY_DEVELOPER_MODE] = enabled }
+        // 关开发者模式时把私有文件提供器一并关掉，放在同一次事务里，
+        // 避免中间态短暂出现「开发者模式已关但提供器仍开」
+        store.edit { prefs ->
+            prefs[KEY_DEVELOPER_MODE] = enabled
+            if (!enabled) {
+                prefs[KEY_PRIVATE_FILES_PROVIDER_ENABLED] = false
+            }
+        }
         if (!enabled) {
-            store.edit { prefs -> prefs[KEY_PRIVATE_FILES_PROVIDER_ENABLED] = false }
             mirrorPrivateFilesProviderEnabled(false)
             notifyPrivateFilesProviderRootsChanged()
         }

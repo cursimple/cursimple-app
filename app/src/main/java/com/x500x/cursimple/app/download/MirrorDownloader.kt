@@ -6,6 +6,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.HttpURLConnection
@@ -131,9 +132,17 @@ class MirrorDownloader(
         val winner = kotlinx.coroutines.CompletableDeferred<Pair<DownloadCandidate, T>?>()
         val jobs = candidates.map { candidate ->
             launch {
-                runCatching { fetch(candidate) }
+                // runInterruptible：赢家确定后取消落败协程时中断其线程，Android 的 HttpURLConnection
+                // 会立即中止阻塞的 socket 读，否则 coroutineScope 要等最慢镜像或 8s 超时才返回
+                runCatching { runInterruptible { fetch(candidate) } }
                     .onSuccess { winner.complete(candidate to it) }
                     .onFailure { error ->
+                        if (error is InterruptedException ||
+                            error is java.io.InterruptedIOException ||
+                            error is kotlinx.coroutines.CancellationException
+                        ) {
+                            return@launch
+                        }
                         firstError.compareAndSet(null, error)
                         failures += DownloadFailure(candidate.sourceName, error.message ?: labels.downloadFailed)
                     }
@@ -279,22 +288,27 @@ class MirrorDownloader(
     }
 
     private fun probe(url: String) {
+        // 探测用更短的超时：一批候选并发探测后要 awaitAll 排序，死镜像若按 8s 连接超时会把整轮拖满
         val headStatus = runCatching {
-            openConnection(url, "HEAD").use { it.responseCode }
+            openConnection(url, "HEAD", PROBE_TIMEOUT_MILLIS).use { it.responseCode }
         }.getOrNull()
         if (headStatus != null && headStatus in 200..399) {
             return
         }
-        val getStatus = openConnection(url, "GET").apply {
+        val getStatus = openConnection(url, "GET", PROBE_TIMEOUT_MILLIS).apply {
             setRequestProperty("Range", "bytes=0-0")
         }.use { it.responseCode }
         check(getStatus in 200..399) { "HTTP $getStatus" }
     }
 
-    private fun openConnection(url: String, method: String): HttpURLConnection {
+    private fun openConnection(
+        url: String,
+        method: String,
+        timeoutMillis: Int = NETWORK_TIMEOUT_MILLIS,
+    ): HttpURLConnection {
         return (URL(url).openConnection() as HttpURLConnection).apply {
-            connectTimeout = NETWORK_TIMEOUT_MILLIS
-            readTimeout = NETWORK_TIMEOUT_MILLIS
+            connectTimeout = timeoutMillis
+            readTimeout = timeoutMillis
             requestMethod = method
             instanceFollowRedirects = true
             setRequestProperty("User-Agent", userAgent)
@@ -311,6 +325,7 @@ class MirrorDownloader(
 
     private companion object {
         const val NETWORK_TIMEOUT_MILLIS = 8_000
+        const val PROBE_TIMEOUT_MILLIS = 4_000
     }
 }
 

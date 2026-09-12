@@ -51,6 +51,9 @@ class TermProfileViewModel(
         viewModelScope.launch {
             termRepo.setTermStartDate(id, date?.toString())
             if (id == state.value.activeTermId) {
+                // 用户在学期管理里改动/清空活动学期开学日期，与主课表入口一样算一次明确决定，
+                // 否则清空后会被下一次插件同步按插件学期起始悄悄写回
+                userPrefs.setTermStartUserDecided(true)
                 userPrefs.setTermStartDate(date)
             }
         }

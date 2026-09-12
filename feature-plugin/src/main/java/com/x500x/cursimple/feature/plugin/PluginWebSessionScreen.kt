@@ -149,7 +149,7 @@ fun PluginWebSessionScreen(
             pageReadyAtMs.value = System.currentTimeMillis()
         }
     }
-    val status = androidx.compose.runtime.remember {
+    val status = androidx.compose.runtime.remember(request.token) {
         androidx.compose.runtime.derivedStateOf {
             val packets = capturedPackets.value
             val latestPacket = packets.values.maxByOrNull { it.timestamp }
