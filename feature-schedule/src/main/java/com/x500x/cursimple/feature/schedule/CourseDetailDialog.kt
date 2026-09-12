@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -51,7 +50,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -224,51 +222,74 @@ fun CourseDetailDialog(
 
                 Column(
                     modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    DetailRow(
-                        icon = Icons.Rounded.AccessTime,
-                        title = stringResource(R.string.schedule_course_detail_class_time),
-                        body = classTimeText,
-                    )
-                    DetailRow(
-                        icon = Icons.Rounded.CalendarMonth,
-                        title = stringResource(R.string.schedule_course_detail_weeks),
-                        body = weeksText,
-                    )
-                    examCountdown?.let { countdown ->
-                        DetailRow(
-                            icon = Icons.Rounded.AccessTime,
-                            title = stringResource(R.string.schedule_course_detail_countdown),
-                            body = stringResource(
-                                R.string.schedule_course_detail_countdown_body,
-                                countdown.date.monthValue,
-                                countdown.date.dayOfMonth,
-                                examCountdownText(countdown),
-                            ),
-                        )
+                    // 关键信息归到一张卡里，图标轻量内联，避免一串圆形图标堆得又长又重
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            DetailRow(
+                                icon = Icons.Rounded.AccessTime,
+                                title = stringResource(R.string.schedule_course_detail_class_time),
+                                body = classTimeText,
+                            )
+                            DetailRow(
+                                icon = Icons.Rounded.CalendarMonth,
+                                title = stringResource(R.string.schedule_course_detail_weeks),
+                                body = weeksText,
+                            )
+                            examCountdown?.let { countdown ->
+                                DetailRow(
+                                    icon = Icons.Rounded.AccessTime,
+                                    title = stringResource(R.string.schedule_course_detail_countdown),
+                                    body = stringResource(
+                                        R.string.schedule_course_detail_countdown_body,
+                                        countdown.date.monthValue,
+                                        countdown.date.dayOfMonth,
+                                        examCountdownText(countdown),
+                                    ),
+                                )
+                            }
+                            if (course.location.isNotBlank()) {
+                                DetailRow(
+                                    icon = Icons.Rounded.LocationOn,
+                                    title = stringResource(R.string.schedule_course_detail_location),
+                                    body = course.location,
+                                )
+                            }
+                            if (course.teacher.isNotBlank()) {
+                                DetailRow(
+                                    icon = Icons.Rounded.Person,
+                                    title = stringResource(R.string.schedule_course_detail_teacher),
+                                    body = course.teacher,
+                                )
+                            }
+                            // 数据来源信息量低，降为浅色脚注一行
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Source,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Text(
+                                    text = stringResource(R.string.schedule_course_detail_source) + " · " +
+                                        stringResource(if (manual) R.string.schedule_source_manual else R.string.schedule_source_plugin),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
-                    if (course.location.isNotBlank()) {
-                        DetailRow(
-                            icon = Icons.Rounded.LocationOn,
-                            title = stringResource(R.string.schedule_course_detail_location),
-                            body = course.location,
-                        )
-                    }
-                    if (course.teacher.isNotBlank()) {
-                        DetailRow(
-                            icon = Icons.Rounded.Person,
-                            title = stringResource(R.string.schedule_course_detail_teacher),
-                            body = course.teacher,
-                        )
-                    }
-                    DetailRow(
-                        icon = Icons.Rounded.Source,
-                        title = stringResource(R.string.schedule_course_detail_source),
-                        body = stringResource(if (manual) R.string.schedule_source_manual else R.string.schedule_source_plugin),
-                    )
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                     CourseNoteSection(
                         courseKey = course.id,
@@ -276,8 +297,6 @@ fun CourseDetailDialog(
                         maxLength = noteMaxLength,
                         onSave = { text -> onSaveNote(course, text) },
                     )
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                     if (course.category == CourseCategory.Exam) {
                         ExamReminderMuteRow(
@@ -374,31 +393,22 @@ private fun CourseNoteSection(
     val tooLong = draftLength > maxLength
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowRow(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            itemVerticalAlignment = Alignment.CenterVertically,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Edit,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
+            Icon(
+                imageVector = Icons.Rounded.Edit,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
             Text(
                 text = stringResource(R.string.schedule_note_title),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
-                maxLines = 2,
+                maxLines = 1,
             )
             if (!editing) {
                 TextButton(onClick = { editing = true }) {
@@ -576,31 +586,30 @@ private fun DetailRow(
     title: String,
     body: String,
 ) {
-    Row(verticalAlignment = Alignment.Top) {
-        Box(
+    Row(
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
+                .padding(top = 2.dp)
+                .size(20.dp),
+        )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
                 text = body,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
@@ -676,12 +685,14 @@ private fun describeWeeksDetail(weeks: List<Int>): WeeksDetail {
 
 internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail) {
     WeeksDetail.Unspecified -> getString(R.string.schedule_weeks_detail_unspecified)
+    // 连续 / 单双周本身已说清是哪些周，不再把每一周都罗列一遍
     is WeeksDetail.Consecutive ->
-        getString(R.string.schedule_weeks_detail_consecutive, detail.first, detail.last, detail.count) + "\n" + detail.weeksList
+        getString(R.string.schedule_weeks_detail_consecutive, detail.first, detail.last, detail.count)
     is WeeksDetail.Odd ->
-        getString(R.string.schedule_weeks_detail_odd, detail.first, detail.last, detail.count) + "\n" + detail.weeksList
+        getString(R.string.schedule_weeks_detail_odd, detail.first, detail.last, detail.count)
     is WeeksDetail.Even ->
-        getString(R.string.schedule_weeks_detail_even, detail.first, detail.last, detail.count) + "\n" + detail.weeksList
+        getString(R.string.schedule_weeks_detail_even, detail.first, detail.last, detail.count)
+    // 不规则周次没有简洁概括，仍把具体周次列出来
     is WeeksDetail.Count ->
         getString(R.string.schedule_weeks_detail_count, detail.count) + "\n" + detail.weeksList
 }
