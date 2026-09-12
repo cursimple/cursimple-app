@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +50,7 @@ import com.x500x.cursimple.app.util.cropPanBounds
 import com.x500x.cursimple.app.util.cropSourceRect
 import com.x500x.cursimple.app.util.decodeSampledImage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -65,6 +67,7 @@ internal fun ScheduleBackgroundCropDialog(
     onCropped: (Uri) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var zoom by remember { mutableFloatStateOf(1f) }
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
@@ -158,20 +161,25 @@ internal fun ScheduleBackgroundCropDialog(
                 enabled = preview != null && !working,
                 onClick = {
                     working = true
-                    val size = ScheduleBackgroundImageStore.readSize(context, source)
-                    val rect: CropSourceRect? = size?.let { (width, height) ->
-                        cropSourceRect(
-                            imageWidth = width,
-                            imageHeight = height,
-                            frameAspect = frameAspect,
-                            zoom = zoom,
-                            offsetXFraction = offsetX,
-                            offsetYFraction = offsetY,
-                        )
+                    scope.launch {
+                        // 解码、裁切、PNG 压缩、落盘都放到 IO 线程，避免大图卡住 UI
+                        val saved = withContext(Dispatchers.IO) {
+                            val size = ScheduleBackgroundImageStore.readSize(context, source)
+                            val rect: CropSourceRect? = size?.let { (width, height) ->
+                                cropSourceRect(
+                                    imageWidth = width,
+                                    imageHeight = height,
+                                    frameAspect = frameAspect,
+                                    zoom = zoom,
+                                    offsetXFraction = offsetX,
+                                    offsetYFraction = offsetY,
+                                )
+                            }
+                            rect?.let { ScheduleBackgroundImageStore.saveCropped(context, source, it) }
+                        }
+                        working = false
+                        if (saved != null) onCropped(saved) else onDismiss()
                     }
-                    val saved = rect?.let { ScheduleBackgroundImageStore.saveCropped(context, source, it) }
-                    working = false
-                    if (saved != null) onCropped(saved) else onDismiss()
                 },
             ) { Text(stringResource(R.string.settings_confirm)) }
         },

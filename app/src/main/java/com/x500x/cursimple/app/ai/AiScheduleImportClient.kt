@@ -131,10 +131,12 @@ class AiScheduleImportClient(
             BitmapFactory.decodeStream(stream, null, decodeOptions)
         } ?: aiImportError(R.string.ai_error_image_format)
         val scaled = bitmap.scaleDown(MAX_IMAGE_SIDE)
+        if (scaled != bitmap) bitmap.recycle()
         val bytes = ByteArrayOutputStream().use { output ->
             scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
             output.toByteArray()
         }
+        scaled.recycle()
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
         return "data:image/jpeg;base64,$encoded"
     }
