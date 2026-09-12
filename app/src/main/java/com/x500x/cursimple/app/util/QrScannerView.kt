@@ -115,8 +115,29 @@ private fun decodeYuv(proxy: ImageProxy, reader: MultiFormatReader): String? {
     val data = ByteArray(buffer.remaining()).also { buffer.get(it) }
     val width = proxy.width
     val height = proxy.height
+    val rowStride = plane.rowStride
+    val pixelStride = plane.pixelStride
+    // 很多设备的 Y 平面 rowStride > width（行填充），若直接把 width 当行宽，每行都会错位、
+    // 相机永远扫不出二维码。无填充时走原快路径，有填充/像素跨距时逐行紧凑拷贝出 width×height 的亮度
+    val luminance = if (pixelStride == 1 && rowStride == width) {
+        data
+    } else {
+        ByteArray(width * height).also { out ->
+            var outPos = 0
+            for (y in 0 until height) {
+                var i = y * rowStride
+                var x = 0
+                while (x < width && i < data.size) {
+                    out[outPos + x] = data[i]
+                    x++
+                    i += pixelStride
+                }
+                outPos += width
+            }
+        }
+    }
     val source = PlanarYUVLuminanceSource(
-        data,
+        luminance,
         width,
         height,
         0,

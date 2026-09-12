@@ -779,6 +779,7 @@
     <string name="main_date_pattern">yyyy 年 M 月 d 日</string>
     <string name="ai_error_config_incomplete">请先在设置页配置 AI API URL 和 Key</string>
     <string name="ai_error_request_failed">AI 请求失败：HTTP %1$d</string>
+    <string name="ai_error_response_too_large">AI 返回内容过大，已中止</string>
     <string name="ai_error_open_image">无法打开图片</string>
     <string name="ai_error_image_format">图片格式不支持</string>
     <string name="ai_error_not_json_object">AI 响应格式不是 JSON 对象</string>

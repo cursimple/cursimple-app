@@ -35,9 +35,26 @@ object ScheduleShareCodec {
         }
         val body = trimmed.removePrefix(ScheduleSharePayload.MAGIC_PREFIX)
         val gzipped = Base64.decode(body, Base64.NO_WRAP or Base64.URL_SAFE)
+        // 解压封顶，防止构造出的「gzip 炸弹」把内存撑爆（正常分享码解压后也就几十 KB）
         val raw = ByteArrayInputStream(gzipped).use { source ->
-            GZIPInputStream(source).use { it.readBytes() }
+            GZIPInputStream(source).use { it.readAtMost(MAX_DECODED_BYTES) }
         }
         json.decodeFromString(ScheduleSharePayload.serializer(), raw.toString(Charsets.UTF_8))
+    }
+
+    private const val MAX_DECODED_BYTES = 4 * 1024 * 1024
+
+    private fun java.io.InputStream.readAtMost(limit: Int): ByteArray {
+        val out = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0
+        while (true) {
+            val read = read(buffer)
+            if (read < 0) break
+            total += read
+            require(total <= limit) { "分享数据过大" }
+            out.write(buffer, 0, read)
+        }
+        return out.toByteArray()
     }
 }
