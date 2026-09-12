@@ -17,6 +17,9 @@ object ScheduleBackgroundImageStore {
     private const val FILE_NAME = "schedule-background.png"
     private const val MAX_EDGE = 2048
 
+    // 裁切前先把原图降到这个长边，够裁出 MAX_EDGE 的结果又不至于把上亿像素整张解进内存
+    private const val DECODE_MAX_EDGE = 4096
+
     /** 读取原图尺寸，不解码像素。 */
     fun readSize(context: Context, uri: Uri): Pair<Int, Int>? = runCatching {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -28,16 +31,16 @@ object ScheduleBackgroundImageStore {
 
     /** 按 [rect] 裁切并另存，返回可直接用于显示的 Uri。 */
     fun saveCropped(context: Context, source: Uri, rect: CropSourceRect): Uri? = runCatching {
-        val full = context.contentResolver.openInputStream(source).use { input ->
-            BitmapFactory.decodeStream(requireNotNull(input))
-        } ?: return null
-        val cropped = Bitmap.createBitmap(
-            full,
-            rect.left.coerceIn(0, full.width - 1),
-            rect.top.coerceIn(0, full.height - 1),
-            rect.width.coerceAtMost(full.width - rect.left).coerceAtLeast(1),
-            rect.height.coerceAtMost(full.height - rect.top).coerceAtLeast(1),
-        )
+        val (srcWidth, srcHeight) = readSize(context, source) ?: return null
+        // rect 是按原图像素算的；降采样后按实际解码尺寸等比映射，避免超大图整张解码 OOM
+        val full = decodeSampledBitmap(context, source, DECODE_MAX_EDGE) ?: return null
+        val scaleX = full.width.toFloat() / srcWidth
+        val scaleY = full.height.toFloat() / srcHeight
+        val left = (rect.left * scaleX).toInt().coerceIn(0, full.width - 1)
+        val top = (rect.top * scaleY).toInt().coerceIn(0, full.height - 1)
+        val width = (rect.width * scaleX).toInt().coerceAtLeast(1).coerceAtMost(full.width - left)
+        val height = (rect.height * scaleY).toInt().coerceAtLeast(1).coerceAtMost(full.height - top)
+        val cropped = Bitmap.createBitmap(full, left, top, width, height)
         if (cropped != full) full.recycle()
         val scaled = cropped.downscaledToMaxEdge()
         if (scaled != cropped) cropped.recycle()
