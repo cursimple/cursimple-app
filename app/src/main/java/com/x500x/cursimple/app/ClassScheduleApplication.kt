@@ -55,8 +55,6 @@ class ClassScheduleApplication : Application() {
             ),
         )
         appContainer = AppContainer(this)
-        // 备份恢复等路径会绕过设置界面直接改语言，启动时对齐一次同步副本
-        AppLocale.syncCacheFrom(this, appContainer.userPreferencesRepository)
         ScheduleWidgetWorkScheduler.schedule(this)
         LogCleanupScheduler.schedule(this)
 
@@ -64,6 +62,11 @@ class ClassScheduleApplication : Application() {
         AlarmSyncScheduler.schedulePeriodicSync(this)
         AlarmSyncScheduler.scheduleDailyGuard(this)
         HolidayEveNoticeWorker.schedule(this)
+
+        appScope.launch {
+            // 备份恢复等路径会绕过设置界面直接改语言，启动时对齐一次同步副本
+            AppLocale.syncCacheFrom(this@ClassScheduleApplication, appContainer.userPreferencesRepository)
+        }
 
         appScope.launch {
             appContainer.bootstrapJob.join()
