@@ -6,7 +6,6 @@ import android.os.Build
 import android.os.LocaleList
 import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
 import java.util.Locale
 
 /**
@@ -42,10 +41,15 @@ object AppLocale {
             .apply()
     }
 
-    /** 应用启动时把 DataStore 里的值同步到副本，覆盖备份恢复等绕过设置界面的写入。 */
-    fun syncCacheFrom(context: Context, repository: UserPreferencesRepository) {
+    /**
+     * 应用启动时把 DataStore 里的值同步到副本，覆盖备份恢复等绕过设置界面的写入。
+     *
+     * 挂起执行，不在主线程阻塞读盘；副本只在下次 Activity 附着上下文时才被读取，
+     * 稍晚一拍对齐没有影响。
+     */
+    suspend fun syncCacheFrom(context: Context, repository: UserPreferencesRepository) {
         runCatching {
-            val language = runBlocking { repository.preferencesFlow.first().appLanguage }
+            val language = repository.preferencesFlow.first().appLanguage
             cache(context, language)
         }
     }
