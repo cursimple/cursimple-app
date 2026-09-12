@@ -673,6 +673,7 @@
     <string name="alarm_ringing_notification">Alarm ringing</string>
     <string name="alarm_channel_name">Class alarms</string>
     <string name="alarm_missed_channel_name">Missed alarms</string>
+    <string name="alarm_service_channel_name">Alarm service</string>
     <string name="alarm_missed_channel_description">Shown when an alarm could not ring on time</string>
     <string name="alarm_missed_title">Missed the %1$s reminder</string>
     <string name="alarm_channel_description">Ringing for class reminders</string>

@@ -39,12 +39,13 @@ object ScheduleWidgetUpdater {
     /** 按当前作息重排节次边界刷新；取不到作息时保持已排的槽位不动。 */
     private suspend fun rescheduleBoundaryRefresh(context: Context) {
         runCatching {
-            val slots = DataStoreWidgetPreferencesRepository(context)
+            // profile 为 null 表示这次没读到作息（迁移/首帧读空），保持已排槽位不动；
+            // 只有确实读到作息（哪怕它没有任何节次）才按它重排，避免误撤边界刷新闹钟
+            val profile = DataStoreWidgetPreferencesRepository(context)
                 .timingProfileFlow
                 .first()
-                ?.slotTimes
-                .orEmpty()
-            WidgetBoundaryRefreshScheduler.reschedule(context, slots)
+                ?: return@runCatching
+            WidgetBoundaryRefreshScheduler.reschedule(context, profile.slotTimes)
         }.onFailure { error ->
             ReminderLogger.warn("widget.boundary_refresh.reschedule.failure", emptyMap(), error)
         }

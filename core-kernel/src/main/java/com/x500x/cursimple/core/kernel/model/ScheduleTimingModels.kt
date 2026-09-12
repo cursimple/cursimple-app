@@ -37,6 +37,14 @@ fun ClassSlotTime.startLocalTime(): LocalTime = LocalTime.parse(startTime)
 
 fun ClassSlotTime.endLocalTime(): LocalTime = LocalTime.parse(endTime)
 
+/**
+ * 容错解析节次时间：插件同步、备份恢复、AI 导入写入的时间串未必是合法 ISO（如 "8:00"、"24:10"），
+ * 解析失败时返回 null，调用方跳过该节次而不是让整轮提醒同步协程崩掉。
+ */
+fun ClassSlotTime.startLocalTimeOrNull(): LocalTime? = runCatching { LocalTime.parse(startTime) }.getOrNull()
+
+fun ClassSlotTime.endLocalTimeOrNull(): LocalTime? = runCatching { LocalTime.parse(endTime) }.getOrNull()
+
 fun TermTimingProfile.findSlot(startNode: Int, endNode: Int): ClassSlotTime? {
     return slotTimes.firstOrNull { it.startNode == startNode && it.endNode == endNode }
 }

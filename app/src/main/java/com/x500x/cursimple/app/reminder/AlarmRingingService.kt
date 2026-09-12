@@ -72,9 +72,15 @@ class AlarmRingingService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        createPlaceholderChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 服务只会被以前台方式拉起。除正在响铃时的重复到达（此时已 startForeground、真通知不能被占位覆盖）
+        // 外，先占位进入前台满足系统的启动窗口，随后响铃路径会用真通知替换，其余分支收尾时一并移除
+        if (currentAlarm == null && ringJob?.isActive != true) {
+            startPlaceholderForeground()
+        }
         when (intent?.action) {
             ACTION_STOP -> {
                 requestFinish(reason = "user_stop", snooze = false, intent = intent)
@@ -100,8 +106,12 @@ class AlarmRingingService : Service() {
     }
 
     private fun startRinging(intent: Intent, startId: Int) {
-        // 系统在派发闹钟时只给极短的唤醒时间，先抢锁再干活，否则中途 CPU 睡下就响一半
-        acquireWakeLock(STARTUP_WAKE_LOCK_MILLIS)
+        // 系统在派发闹钟时只给极短的唤醒时间，先抢锁再干活，否则中途 CPU 睡下就响一半。
+        // 但正在响铃时（备通道紧随主通道到达）已持有更长的响铃锁，这里若再抢 60s 启动锁会把它顶短，
+        // 全屏响铃页被抑制、屏幕没亮时首响就会被截断到 60s，所以响铃中不重复抢。
+        if (currentAlarm == null && ringJob?.isActive != true) {
+            acquireWakeLock(STARTUP_WAKE_LOCK_MILLIS)
+        }
         val alarm = intent.toActiveAlarm()
         val claimed = alarm.alarmKey.isBlank() ||
             AlarmArrivalLedger.claim(applicationContext, alarm.alarmKey, alarm.triggerAtMillis)
@@ -346,6 +356,44 @@ class AlarmRingingService : Service() {
     private suspend fun runPostFinishMaintenance() {
         withContext(Dispatchers.IO) {
             AlarmRuntimeMaintenance.onAlarmFinished(applicationContext)
+        }
+    }
+
+    private fun createPlaceholderChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        runCatching {
+            val channel = NotificationChannel(
+                PLACEHOLDER_CHANNEL_ID,
+                getString(R.string.alarm_service_channel_name),
+                NotificationManager.IMPORTANCE_MIN,
+            ).apply {
+                setSound(null, null)
+                setShowBadge(false)
+            }
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+    }
+
+    /** 不响铃的分支先用一个静音低优先通知占位进入前台，满足系统的 startForeground 时限。 */
+    private fun startPlaceholderForeground() {
+        runCatching {
+            val notification = NotificationCompat.Builder(this, PLACEHOLDER_CHANNEL_ID)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle(getString(R.string.alarm_default_title))
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setPriority(NotificationCompat.PRIORITY_MIN)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .build()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+        }.onFailure { error ->
+            ReminderLogger.warn("reminder.app_alarm_clock.ringing.placeholder_foreground.failure", emptyMap(), error)
         }
     }
 
@@ -702,6 +750,9 @@ class AlarmRingingService : Service() {
         const val ACTION_STOP = "com.x500x.cursimple.action.ALARM_STOP"
         const val ACTION_SNOOZE = "com.x500x.cursimple.action.ALARM_SNOOZE"
         private const val CHANNEL_ID = "course_alarm_ringing"
+        // 服务被以前台方式拉起后必须尽快 startForeground，否则 Android 12+ 抛
+        // ForegroundServiceDidNotStartInTimeException；不响铃的分支用这个静音低优先占位渠道先满足契约
+        private const val PLACEHOLDER_CHANNEL_ID = "course_alarm_service"
         private const val NOTIFICATION_ID = 7401
         private const val STOP_REQUEST_CODE = 7402
         private const val SNOOZE_REQUEST_CODE = 7403
