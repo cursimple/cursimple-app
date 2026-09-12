@@ -2,6 +2,7 @@ package com.x500x.cursimple.app.guide
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -37,6 +38,7 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -64,7 +66,13 @@ fun FirstRunGuideOverlay(
     val anchors = LocalGuideAnchors.current
     val spotlight = step.anchor?.let { anchors[it] }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(
+        // 吃掉遮罩上的点击，否则会穿透到底层控件（例如点到抽屉按钮会在遮罩后偷偷打开抽屉）；
+        // 引导靠卡片上的按钮推进，不依赖点遮罩
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) { detectTapGestures {} },
+    ) {
         SpotlightScrim(spotlight)
 
         val placement = guideCardPlacement(

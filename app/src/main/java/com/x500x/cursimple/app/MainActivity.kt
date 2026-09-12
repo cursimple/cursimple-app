@@ -299,6 +299,8 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
+                    var updateDialogVisible by remember { mutableStateOf(false) }
+                    var announcementVisible by remember { mutableStateOf(false) }
                     AutomaticUpdateCheckPrompt(
                         autoCheckEnabled = prefs.autoUpdateEnabled,
                         betaUpdatesEnabled = prefs.betaUpdatesEnabled,
@@ -307,10 +309,12 @@ class MainActivity : ComponentActivity() {
                         onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
                         onUpdateFound = prefsViewModel::setUpdateNotice,
                         onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
+                        onDialogVisibleChange = { updateDialogVisible = it },
                     )
                     ReleaseAnnouncementGate(
                         lastSeenVersionCode = prefs.lastSeenVersionCode,
                         onSeen = prefsViewModel::setLastSeenVersionCode,
+                        onDialogVisibleChange = { announcementVisible = it },
                     )
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
                     var showThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
@@ -1072,9 +1076,12 @@ class MainActivity : ComponentActivity() {
                         null -> Unit
                     }
 
-                    // 非课表页按返回键退回课表，只有课表页才把返回交给系统去关应用
+                    // 非课表页按返回键退回课表，只有课表页才把返回交给系统去关应用。
+                    // 抽屉打开时禁用本处理器，让抽屉自带的「返回即关闭」优先，否则会先跳回课表、抽屉还开着
                     androidx.activity.compose.BackHandler(
-                        enabled = subScreen == null && currentScreen != AppScreen.Schedule,
+                        enabled = subScreen == null &&
+                            currentScreen != AppScreen.Schedule &&
+                            !drawerState.isOpen,
                     ) {
                         currentScreen = AppScreen.Schedule
                     }
@@ -1282,7 +1289,8 @@ class MainActivity : ComponentActivity() {
                             loaded = prefs.loaded,
                             disclaimerAccepted = prefs.disclaimerAccepted,
                             guideCompleted = prefs.firstRunGuideCompleted,
-                            blockingDialogVisible = showTermStartReminder || showDatePicker,
+                            blockingDialogVisible = showTermStartReminder || showDatePicker ||
+                                updateDialogVisible || announcementVisible,
                         )
                     ) {
                         FirstRunGuideOverlay(
