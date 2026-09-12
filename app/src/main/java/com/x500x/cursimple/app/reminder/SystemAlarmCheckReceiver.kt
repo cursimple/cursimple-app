@@ -56,6 +56,8 @@ class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
                 Intent.ACTION_BOOT_COMPLETED,
                 Intent.ACTION_LOCKED_BOOT_COMPLETED,
                 Intent.ACTION_MY_PACKAGE_REPLACED,
+                // 切换系统语言后闹钟通知里的标签要按新语言重建
+                Intent.ACTION_LOCALE_CHANGED,
                 AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
                     app.appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
                 }

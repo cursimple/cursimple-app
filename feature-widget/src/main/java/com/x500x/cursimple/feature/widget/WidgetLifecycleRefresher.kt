@@ -30,34 +30,36 @@ internal object WidgetLifecycleRefresher {
         refreshWidgets: Boolean,
     ) {
         val appContext = context.applicationContext
-        runCatching {
-            WidgetCatalog.notifyInstalledChanged(appContext)
-        }.onFailure { error ->
-            ReminderLogger.warn(
-                "widget.lifecycle.installed_changed.failure",
-                mapOf("reason" to reason),
-                error,
-            )
-        }
-        runCatching {
-            ScheduleWidgetWorkScheduler.schedule(appContext)
-        }.onFailure { error ->
-            ReminderLogger.warn(
-                "widget.lifecycle.worker_schedule.failure",
-                mapOf("reason" to reason),
-                error,
-            )
-        }
-        runCatching {
-            WidgetAlarmGuardScheduler.ensureScheduled(appContext)
-        }.onFailure { error ->
-            ReminderLogger.warn(
-                "widget.lifecycle.alarm_guard_schedule.failure",
-                mapOf("reason" to reason),
-                error,
-            )
-        }
+        // 全部放到后台协程：WorkManager/AlarmManager 的入库与排程都线程安全，
+        // 而缩放小组件会高频触发 onAppWidgetOptionsChanged，放在广播主线程同步跑会卡顿
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            runCatching {
+                WidgetCatalog.notifyInstalledChanged(appContext)
+            }.onFailure { error ->
+                ReminderLogger.warn(
+                    "widget.lifecycle.installed_changed.failure",
+                    mapOf("reason" to reason),
+                    error,
+                )
+            }
+            runCatching {
+                ScheduleWidgetWorkScheduler.schedule(appContext)
+            }.onFailure { error ->
+                ReminderLogger.warn(
+                    "widget.lifecycle.worker_schedule.failure",
+                    mapOf("reason" to reason),
+                    error,
+                )
+            }
+            runCatching {
+                WidgetAlarmGuardScheduler.ensureScheduled(appContext)
+            }.onFailure { error ->
+                ReminderLogger.warn(
+                    "widget.lifecycle.alarm_guard_schedule.failure",
+                    mapOf("reason" to reason),
+                    error,
+                )
+            }
             if (refreshWidgets) {
                 runCatching {
                     ScheduleWidgetUpdater.refreshAll(appContext)
