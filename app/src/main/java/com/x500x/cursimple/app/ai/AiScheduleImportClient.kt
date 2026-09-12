@@ -49,6 +49,14 @@ class AiScheduleImportClient(
         val requestClient = client.withAiImportTimeout(config.timeoutSeconds)
         val bodyText = requestClient.newCall(request).execute().use { response ->
             aiImportRequire(response.isSuccessful, R.string.ai_error_request_failed, response.code)
+            // 接口地址由用户自配，坏/被劫持的服务器可能吐超大 body；超时只限时间不限体积，
+            // 这里把读入内存的量封顶，先缓冲到上限+1 判断，避免 .string() 无上限吃满内存
+            val source = response.body.source()
+            source.request(MAX_AI_RESPONSE_BYTES + 1L)
+            aiImportRequire(
+                source.buffer.size <= MAX_AI_RESPONSE_BYTES,
+                R.string.ai_error_response_too_large,
+            )
             response.body.string()
         }
         return parseAiScheduleImportContent(extractAiTextContent(bodyText, json), json)
@@ -126,10 +134,12 @@ class AiScheduleImportClient(
         val decodeOptions = BitmapFactory.Options().apply {
             inSampleSize = aiImageSampleSize(bounds.outWidth, bounds.outHeight, MAX_IMAGE_SIDE)
         }
-        val bitmap = contentResolver.openInputStream(uri).use { stream ->
+        val decoded = contentResolver.openInputStream(uri).use { stream ->
             if (stream == null) aiImportError(R.string.ai_error_open_image)
             BitmapFactory.decodeStream(stream, null, decodeOptions)
         } ?: aiImportError(R.string.ai_error_image_format)
+        // 相机竖拍常把图存成横向+旋转标记，不按 EXIF 校正会把侧躺的图发给 AI，识别率明显下降
+        val bitmap = applyExifOrientation(uri, decoded)
         val scaled = bitmap.scaleDown(MAX_IMAGE_SIDE)
         if (scaled != bitmap) bitmap.recycle()
         val bytes = ByteArrayOutputStream().use { output ->
@@ -139,6 +149,41 @@ class AiScheduleImportClient(
         scaled.recycle()
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
         return "data:image/jpeg;base64,$encoded"
+    }
+
+    /** 按 EXIF 方向把解出来的位图转正；无旋转标记或读取失败时原样返回。 */
+    private fun Context.applyExifOrientation(uri: Uri, bitmap: Bitmap): Bitmap {
+        val orientation = runCatching {
+            contentResolver.openInputStream(uri).use { stream ->
+                stream ?: return bitmap
+                android.media.ExifInterface(stream).getAttributeInt(
+                    android.media.ExifInterface.TAG_ORIENTATION,
+                    android.media.ExifInterface.ORIENTATION_NORMAL,
+                )
+            }
+        }.getOrDefault(android.media.ExifInterface.ORIENTATION_NORMAL)
+        val matrix = android.graphics.Matrix()
+        when (orientation) {
+            android.media.ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
+            android.media.ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
+            android.media.ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
+            android.media.ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.postScale(-1f, 1f)
+            android.media.ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.postScale(1f, -1f)
+            android.media.ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.postRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            android.media.ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.postRotate(270f)
+                matrix.postScale(-1f, 1f)
+            }
+            else -> return bitmap
+        }
+        val rotated = runCatching {
+            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        }.getOrNull() ?: return bitmap
+        if (rotated != bitmap) bitmap.recycle()
+        return rotated
     }
 
     private fun Bitmap.scaleDown(maxSide: Int): Bitmap {
@@ -153,6 +198,8 @@ class AiScheduleImportClient(
     private companion object {
         const val MAX_IMAGE_SIDE = 1800
         const val JPEG_QUALITY = 90
+        // 课表识别的 JSON 回包只有几十 KB，8MB 上限对正常响应绰绰有余，又能挡住失控的超大 body
+        const val MAX_AI_RESPONSE_BYTES = 8L * 1024 * 1024
         const val PROMPT = """
             请从这张课程表图片中识别课表，严格只返回 JSON，不要 Markdown。
             JSON 格式：
@@ -244,6 +291,7 @@ internal fun parseAiScheduleImportContent(
     )
     aiImportRequire(schedule != null || manualCourses.isNotEmpty(), R.string.ai_error_no_courses)
     schedule?.let(::validateImportedSchedule)
+    validateImportedManualCourses(manualCourses)
     return AiScheduleImportPayload(schedule = schedule, manualCourses = manualCourses)
 }
 
@@ -610,19 +658,29 @@ private fun buildCourseId(
     return "ai-$dayOfWeek-$startNode-$endNode-$index-$hash"
 }
 
+private fun validateImportedCourseBounds(course: CourseItem) {
+    aiImportRequire(course.id.isNotBlank(), R.string.ai_error_empty_course_id)
+    aiImportRequire(course.title.isNotBlank(), R.string.ai_error_empty_course_title)
+    aiImportRequire(course.time.dayOfWeek in 1..7, R.string.ai_error_invalid_course_weekday, course.time.dayOfWeek)
+    aiImportRequire(course.time.startNode in 1..32, R.string.ai_error_invalid_start_node, course.time.startNode)
+    aiImportRequire(course.time.endNode in course.time.startNode..32, R.string.ai_error_invalid_end_node, course.time.endNode)
+    aiImportRequire(course.weeks.all { it in 1..60 }, R.string.ai_error_invalid_week)
+}
+
 private fun validateImportedSchedule(schedule: TermSchedule) {
     val courses = schedule.dailySchedules.flatMap { daily ->
         aiImportRequire(daily.dayOfWeek in 1..7, R.string.ai_error_invalid_weekday, daily.dayOfWeek)
         daily.courses.onEach { course ->
-            aiImportRequire(course.id.isNotBlank(), R.string.ai_error_empty_course_id)
-            aiImportRequire(course.title.isNotBlank(), R.string.ai_error_empty_course_title)
-            aiImportRequire(course.time.dayOfWeek in 1..7, R.string.ai_error_invalid_course_weekday, course.time.dayOfWeek)
+            validateImportedCourseBounds(course)
             aiImportRequire(course.time.dayOfWeek == daily.dayOfWeek, R.string.ai_error_weekday_mismatch)
-            aiImportRequire(course.time.startNode in 1..32, R.string.ai_error_invalid_start_node, course.time.startNode)
-            aiImportRequire(course.time.endNode in course.time.startNode..32, R.string.ai_error_invalid_end_node, course.time.endNode)
-            aiImportRequire(course.weeks.all { it in 1..60 }, R.string.ai_error_invalid_week)
         }
     }
+    aiImportRequire(courses.size <= 1000, R.string.ai_error_too_many_courses)
+}
+
+/** 手动课也走同一套边界校验，避免 endNode<startNode 这类非法数据从这条路径漏进课表。 */
+private fun validateImportedManualCourses(courses: List<CourseItem>) {
+    courses.forEach(::validateImportedCourseBounds)
     aiImportRequire(courses.size <= 1000, R.string.ai_error_too_many_courses)
 }
 

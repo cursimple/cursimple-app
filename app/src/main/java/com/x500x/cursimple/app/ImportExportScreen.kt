@@ -1408,13 +1408,19 @@ private fun decodeQrFromUri(
     context: android.content.Context,
     uri: Uri,
 ): Result<ScheduleSharePayload> = runCatching {
-    val bitmap = context.contentResolver.openInputStream(uri).use { stream ->
-        requireNotNull(stream) { context.getString(R.string.ie_image_open_failed) }
-        BitmapFactory.decodeStream(stream)
-    } ?: error(context.getString(R.string.ie_image_format_unsupported))
-    val text = QrCodeCodec.decodeBitmap(bitmap) ?: error(context.getString(R.string.ie_image_no_qr))
-    ScheduleShareCodec.decode(text).getOrThrow()
+    // 相册里的二维码多是几千万像素的照片，整张解出来再配一份同尺寸 IntArray 会在低内存机上 OOM；
+    // 降采样到 2048 长边对二维码识别足够，用完立即回收
+    val bitmap = com.x500x.cursimple.app.util.decodeSampledBitmap(context, uri, QR_IMPORT_MAX_EDGE_PX)
+        ?: error(context.getString(R.string.ie_image_format_unsupported))
+    try {
+        val text = QrCodeCodec.decodeBitmap(bitmap) ?: error(context.getString(R.string.ie_image_no_qr))
+        ScheduleShareCodec.decode(text).getOrThrow()
+    } finally {
+        bitmap.recycle()
+    }
 }
+
+private const val QR_IMPORT_MAX_EDGE_PX = 2048
 
 private fun createAiCameraUri(context: android.content.Context): Uri {
     val file = java.io.File(context.cacheDir, "ai-import/capture-${System.currentTimeMillis()}.jpg")
