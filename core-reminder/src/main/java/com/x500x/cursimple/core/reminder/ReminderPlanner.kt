@@ -8,7 +8,7 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
-import com.x500x.cursimple.core.kernel.model.startLocalTime
+import com.x500x.cursimple.core.kernel.model.startLocalTimeOrNull
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
@@ -118,7 +118,7 @@ class ReminderPlanner {
                 holidayCalendar = holidayCalendar,
                 dayPolicy = dayPolicy,
             )
-                .map { target ->
+                .mapNotNull { target ->
                     buildPlan(
                         rule = rule,
                         course = target.course,
@@ -169,7 +169,7 @@ class ReminderPlanner {
             temporaryScheduleOverrides = temporaryScheduleOverrides,
             holidayCalendar = holidayCalendar,
             dayPolicy = dayPolicy,
-        ).map { courseDate ->
+        ).mapNotNull { courseDate ->
             buildPlan(rule, course, courseDate, slot, zone)
         }
     }
@@ -181,8 +181,10 @@ class ReminderPlanner {
         slot: ClassSlotTime,
         zone: ZoneId,
         titlePeriod: ReminderDayPeriod? = rule.period,
-    ): ReminderPlan {
-        val classStart = LocalDateTime.of(courseDate, slot.startLocalTime())
+    ): ReminderPlan? {
+        // 时间串非法（坏插件/恢复数据）时跳过这一节，不让异常掀翻整轮同步
+        val startTime = slot.startLocalTimeOrNull() ?: return null
+        val classStart = LocalDateTime.of(courseDate, startTime)
         val trigger = classStart
             .minusMinutes(rule.advanceMinutes.toLong())
             .atZone(zone)

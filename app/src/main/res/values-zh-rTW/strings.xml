@@ -673,6 +673,7 @@
     <string name="alarm_ringing_notification">鬧鐘正在響鈴</string>
     <string name="alarm_channel_name">課程鬧鐘</string>
     <string name="alarm_missed_channel_name">錯過的鬧鐘</string>
+    <string name="alarm_service_channel_name">鬧鐘服務</string>
     <string name="alarm_missed_channel_description">鬧鐘未能準時響起時在這裡告知</string>
     <string name="alarm_missed_title">錯過了 %1$s 的提醒</string>
     <string name="alarm_channel_description">課程提醒響鈴</string>

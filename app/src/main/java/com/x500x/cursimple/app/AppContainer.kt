@@ -342,13 +342,18 @@ class AppContainer(
         includeTomorrow: Boolean,
         nowMillis: Long = System.currentTimeMillis(),
         clearExpiredRecords: Boolean = true,
+        // 每日守护这类刻意的一次性调度任务应绕过 40 分钟去重闸门，
+        // 否则同一次守护里前一步刚 markAlarmPollAt(now)，这里就会被挡掉、明日窗口永远不同步
+        bypassPollClaim: Boolean = false,
     ): List<SystemAlarmSyncSummary> {
         awaitBootstrap()
-        val claimed = userPreferencesRepository.tryClaimAlarmPoll(
-            nowMillis = nowMillis,
-            minIntervalMillis = SHARED_ALARM_POLL_INTERVAL_MILLIS,
-        )
-        if (!claimed) return emptyList()
+        if (!bypassPollClaim) {
+            val claimed = userPreferencesRepository.tryClaimAlarmPoll(
+                nowMillis = nowMillis,
+                minIntervalMillis = SHARED_ALARM_POLL_INTERVAL_MILLIS,
+            )
+            if (!claimed) return emptyList()
+        }
         val schedule = reminderSchedule()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val pluginId = scheduleRepository.lastPluginIdFlow.first()

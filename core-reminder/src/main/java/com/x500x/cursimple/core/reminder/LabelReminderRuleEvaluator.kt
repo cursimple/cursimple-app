@@ -10,7 +10,7 @@ import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
-import com.x500x.cursimple.core.kernel.model.startLocalTime
+import com.x500x.cursimple.core.kernel.model.startLocalTimeOrNull
 import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -94,7 +94,7 @@ internal class LabelReminderRuleEvaluator {
                             .filter { it.isNotBlank() && it !in decision.skipLabels }
                         dailyObjects
                             .filter { it.slotLabel in targetLabels }
-                            .map { daily -> buildPlan(daily, rule, zone) }
+                            .mapNotNull { daily -> buildPlan(daily, rule, zone) }
                     }
             }
             .distinctBy { it.systemAlarmKey() }
@@ -213,8 +213,10 @@ internal class LabelReminderRuleEvaluator {
         daily: DailyReminderObject,
         rule: ReminderRule,
         zone: ZoneId,
-    ): ReminderPlan {
-        val classStart = LocalDateTime.of(daily.date, daily.slot.startLocalTime())
+    ): ReminderPlan? {
+        // 时间串非法时跳过这一节，不让异常掀翻整轮同步
+        val startTime = daily.slot.startLocalTimeOrNull() ?: return null
+        val classStart = LocalDateTime.of(daily.date, startTime)
         val trigger = classStart
             .minusMinutes(rule.advanceMinutes.toLong())
             .atZone(zone)

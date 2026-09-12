@@ -23,8 +23,11 @@ import com.x500x.cursimple.app.MainActivity
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -150,17 +153,22 @@ private fun Context.createHolidayEveChannel() {
 class HolidayEveMuteReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val date = intent.getStringExtra(EXTRA_MUTE_DATE) ?: return
+        val appContext = context.applicationContext
+        NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
         val pending = goAsync()
-        runCatching {
-            runBlocking {
-                DataStoreUserPreferencesRepository(context.applicationContext)
+        // 静音写入 + 重排闹钟涉及 bootstrap join、DataStore 与整轮闹钟同步，放到 IO 线程，
+        // 不在广播主线程 runBlocking 干等（否则 onReceive 直到重活跑完才返回，会 ANR）
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+            try {
+                DataStoreUserPreferencesRepository(appContext)
                     .setReminderMuted(date, muted = true)
-                (context.applicationContext as? ClassScheduleApplication)
+                (appContext as? ClassScheduleApplication)
                     ?.appContainer
                     ?.tryRunSharedAlarmPoll(ReminderSyncReason.WidgetRefresh)
+            } catch (_: Throwable) {
+            } finally {
+                pending.finish()
             }
         }
-        NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
-        pending.finish()
     }
 }
