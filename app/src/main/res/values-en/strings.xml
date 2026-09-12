@@ -779,6 +779,7 @@
     <string name="main_date_pattern">MMM d, yyyy</string>
     <string name="ai_error_config_incomplete">Set the AI API URL and key in settings first</string>
     <string name="ai_error_request_failed">AI request failed: HTTP %1$d</string>
+    <string name="ai_error_response_too_large">AI response too large, aborted</string>
     <string name="ai_error_open_image">Could not open the image</string>
     <string name="ai_error_image_format">Unsupported image format</string>
     <string name="ai_error_not_json_object">The AI response is not a JSON object</string>
