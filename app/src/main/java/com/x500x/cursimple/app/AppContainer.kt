@@ -12,6 +12,7 @@ import com.x500x.cursimple.app.download.DownloadRequest
 import com.x500x.cursimple.app.download.MirrorDownloadResult
 import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.download.SharedPrefsMirrorPreferenceStore
 import com.x500x.cursimple.app.term.resolveCanonicalTermStart
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
@@ -83,6 +84,7 @@ class AppContainer(
     private val sharedDownloader = MirrorDownloader(
         labels = app.mirrorDownloaderLabels(),
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
+        preferenceStore = SharedPrefsMirrorPreferenceStore(app),
     )
     private val marketIndexRepository = MarketIndexRepository(
         fetchText = { url -> downloadTextViaMirrors(url) },

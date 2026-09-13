@@ -62,6 +62,7 @@ import com.x500x.cursimple.app.update.AppUpdateDownloadResult
 import com.x500x.cursimple.app.update.AppUpdateInfo
 import com.x500x.cursimple.app.update.AppUpdateInstaller
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.download.SharedPrefsMirrorPreferenceStore
 import com.x500x.cursimple.app.update.UpdateNoticeState
 import com.x500x.cursimple.app.update.UpdatePanelStatus
 import com.x500x.cursimple.app.update.shouldPromptUpdate
@@ -85,7 +86,10 @@ fun UpdateCheckSection(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
+    val checker = remember { AppUpdateChecker(
+                downloaderLabels = context.mirrorDownloaderLabels(),
+                mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
+            ) }
     // 用 remember 而非 rememberSaveable：清除它们的协程绑定在组合上，旋转/切语言 recreate 时会被取消，
     // 若这两个标志跨重建存活就会永远卡在「检查中/下载中」；随重建归零后按钮恢复可用，用户可重试
     var checking by remember { mutableStateOf(false) }
@@ -243,7 +247,10 @@ fun AutomaticUpdateCheckPrompt(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
+    val checker = remember { AppUpdateChecker(
+                downloaderLabels = context.mirrorDownloaderLabels(),
+                mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
+            ) }
     var checkedThisSession by rememberSaveable { mutableStateOf(false) }
     var promptedThisSession by rememberSaveable { mutableStateOf(false) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
@@ -341,7 +348,10 @@ fun ReleaseAnnouncementGate(
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
-    val checker = remember { AppUpdateChecker(downloaderLabels = context.mirrorDownloaderLabels()) }
+    val checker = remember { AppUpdateChecker(
+                downloaderLabels = context.mirrorDownloaderLabels(),
+                mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
+            ) }
     var notes by remember { mutableStateOf<ReleaseNotesState>(ReleaseNotesState.Loading) }
     var visible by rememberSaveable { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
