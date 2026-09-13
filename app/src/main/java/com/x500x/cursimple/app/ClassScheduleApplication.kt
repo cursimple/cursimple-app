@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.download.SharedPrefsMirrorPreferenceStore
 import com.x500x.cursimple.app.holiday.HolidayCalendarSyncer
 import com.x500x.cursimple.app.holiday.HolidayEveNoticeWorker
 import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
@@ -139,7 +140,12 @@ class ClassScheduleApplication : Application() {
         runCatching {
             val repository = appContainer.userPreferencesRepository
             val cached = repository.preferencesFlow.first().holidayCalendar.syncedYears
-            val syncer = HolidayCalendarSyncer(MirrorDownloader(labels = mirrorDownloaderLabels()))
+            val syncer = HolidayCalendarSyncer(
+                MirrorDownloader(
+                    labels = mirrorDownloaderLabels(),
+                    preferenceStore = SharedPrefsMirrorPreferenceStore(this),
+                ),
+            )
             val updated = syncer
                 .sync(years = holidaySyncYears(BeijingTime.today()), cached = cached)
                 .filterIsInstance<HolidaySyncOutcome.Updated>()

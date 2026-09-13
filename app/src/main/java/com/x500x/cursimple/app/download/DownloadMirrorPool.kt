@@ -29,9 +29,7 @@ class DownloadMirrorPool {
             path = request.path.orEmpty(),
         ).takeIf { it.isComplete() }
         val baseUrl = repoFile?.toRawUrl() ?: request.url
-        return repoFile.orEmptyRepoFileCandidates() +
-            rawProxyCandidates(baseUrl) +
-            commonGithubProxyCandidates(baseUrl)
+        return repoFile.orEmptyRepoFileCandidates() + commonGithubProxyCandidates(baseUrl)
     }
 
     private fun githubRepoFileCandidates(request: DownloadRequest): List<DownloadCandidate> {
@@ -41,15 +39,14 @@ class DownloadMirrorPool {
             path = request.path.orEmpty(),
         ).takeIf { it.isComplete() } ?: parseRawGithubUrl(request.url)
         val baseUrl = repoFile?.toRawUrl() ?: request.url
-        return repoFile.orEmptyRepoFileCandidates() +
-            rawProxyCandidates(baseUrl) +
-            commonGithubProxyCandidates(baseUrl)
+        return repoFile.orEmptyRepoFileCandidates() + commonGithubProxyCandidates(baseUrl)
     }
 
     private fun commonGithubProxyCandidates(url: String): List<DownloadCandidate> {
         return listOf(
             DownloadCandidate("ghfast.top", "https://ghfast.top/$url"),
             DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
+            DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
             DownloadCandidate("ghproxy.net", "https://ghproxy.net/$url"),
             DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
             DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
@@ -57,18 +54,13 @@ class DownloadMirrorPool {
         )
     }
 
-    private fun rawProxyCandidates(url: String): List<DownloadCandidate> {
-        return listOf(
-            DownloadCandidate("raw.ihtw.moe", "https://raw.ihtw.moe/${stripScheme(url)}"),
-        )
-    }
-
     private fun RepoFile?.orEmptyRepoFileCandidates(): List<DownloadCandidate> {
         val repoFile = this ?: return emptyList()
         return listOf(
+            DownloadCandidate("jsDelivr testingcf", "https://testingcf.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr CDN", "https://cdn.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr Fastly", "https://fastly.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
-            DownloadCandidate("xget.xi-xu.me", "https://xget.xi-xu.me/gh/${repoFile.repository}/${repoFile.ref}/${repoFile.path}"),
+            DownloadCandidate("xget.xi-xu.me", "https://xget.xi-xu.me/gh/${repoFile.repository}/raw/${repoFile.ref}/${repoFile.path}"),
         )
     }
 
