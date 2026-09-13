@@ -19,9 +19,29 @@ class MirrorDownloader(
     private val mirrorPool: DownloadMirrorPool = DownloadMirrorPool(),
     private val probeRoundSize: Int = 4,
     private val userAgent: String = "CurSimple",
+    private val preferenceStore: MirrorPreferenceStore? = null,
 ) {
-    /** 记住每类下载上次成功的镜像，下次先单独试它。 */
-    private val preferredSources = java.util.concurrent.ConcurrentHashMap<DownloadPurpose, String>()
+    /** 进程内的上次成功镜像名；落盘的偏好在 [preferenceStore] 里，重启后仍生效。 */
+    private val preferredSources = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    private fun preferredCandidate(request: DownloadRequest, candidates: List<DownloadCandidate>): DownloadCandidate? {
+        val key = MirrorPreferenceStore.cacheKeyOf(request)
+        val name = preferredSources[key] ?: preferenceStore?.preferred(key) ?: return null
+        return candidates.firstOrNull { it.sourceName == name }
+    }
+
+    private fun recordSuccess(request: DownloadRequest, sourceName: String) {
+        val key = MirrorPreferenceStore.cacheKeyOf(request)
+        preferredSources[key] = sourceName
+        preferenceStore?.recordSuccess(key, sourceName)
+    }
+
+    private fun recordFailure(request: DownloadRequest, candidate: DownloadCandidate) {
+        val key = MirrorPreferenceStore.cacheKeyOf(request)
+        if (preferredSources[key] == candidate.sourceName) preferredSources.remove(key)
+        preferenceStore?.recordFailure(key, candidate.sourceName)
+        preferenceStore?.invalidate(MirrorPreferenceStore.hostOf(candidate.url))
+    }
 
     suspend fun downloadBytes(
         request: DownloadRequest,
@@ -97,9 +117,11 @@ class MirrorDownloader(
         request: DownloadRequest,
         fetch: (DownloadCandidate) -> T,
     ): MirrorDownloadResult<T> = coroutineScope {
+        val candidates = mirrorPool.candidates(request)
+        val preferred = preferredCandidate(request, candidates)
         val rounds = raceRounds(
-            candidates = mirrorPool.candidates(request),
-            preferredUrl = preferredSources[request.purpose],
+            candidates = candidates,
+            preferredUrl = preferred?.url,
             roundSize = probeRoundSize.coerceAtLeast(1),
         )
         val failures = java.util.Collections.synchronizedList(mutableListOf<DownloadFailure>())
@@ -107,12 +129,16 @@ class MirrorDownloader(
         for (round in rounds) {
             val winner = raceRound(round, fetch, failures, firstError)
             if (winner != null) {
-                preferredSources[request.purpose] = winner.first.url
+                recordSuccess(request, winner.first.sourceName)
                 return@coroutineScope MirrorDownloadResult.Success(
                     value = winner.second,
                     candidate = winner.first,
                     failures = failures.toList(),
                 )
+            }
+            // 记住的镜像失效时清除记录，让下次直接竞速全部镜像
+            if (preferred != null && round.any { it.sourceName == preferred.sourceName }) {
+                recordFailure(request, preferred)
             }
         }
         MirrorDownloadResult.Failure(
@@ -162,9 +188,24 @@ class MirrorDownloader(
         request: DownloadRequest,
         fetch: (DownloadCandidate) -> T,
     ): MirrorDownloadResult<T> = coroutineScope {
-        val remaining = mirrorPool.candidates(request).toMutableList()
+        val allCandidates = mirrorPool.candidates(request)
         val failures = mutableListOf<DownloadFailure>()
         var firstError: Throwable? = null
+
+        // 记住的镜像直接下载，省掉探测那一轮往返；失败才落回逐批探测
+        preferredCandidate(request, allCandidates)?.let { preferred ->
+            val direct = runCatching { fetch(preferred) }.getOrElse { error ->
+                firstError = error
+                failures += DownloadFailure(preferred.sourceName, error.message ?: labels.downloadFailed)
+                recordFailure(request, preferred)
+                null
+            }
+            if (direct != null) {
+                return@coroutineScope MirrorDownloadResult.Success(direct, preferred, failures.toList())
+            }
+        }
+
+        val remaining = allCandidates.toMutableList()
         while (remaining.isNotEmpty()) {
             val sampled = remaining
                 .take(probeRoundSize.coerceAtLeast(1))
@@ -175,9 +216,11 @@ class MirrorDownloader(
                         runCatching {
                             var latency = 0L
                             latency = measureTimeMillis { probe(candidate.url) }
+                            preferenceStore?.recordProbe(MirrorPreferenceStore.hostOf(candidate.url), latency)
                             MeasuredDownloadCandidate(candidate, latency)
                         }.getOrElse { error ->
                             firstError = firstError ?: error
+                            preferenceStore?.recordProbe(MirrorPreferenceStore.hostOf(candidate.url), null)
                             failures += DownloadFailure(candidate.sourceName, error.message ?: labels.probeFailed)
                             null
                         }
@@ -194,6 +237,7 @@ class MirrorDownloader(
                         null
                     }
                 if (result != null) {
+                    recordSuccess(request, item.candidate.sourceName)
                     return@coroutineScope MirrorDownloadResult.Success(
                         value = result,
                         candidate = item.candidate,
