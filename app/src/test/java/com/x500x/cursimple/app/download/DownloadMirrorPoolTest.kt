@@ -44,7 +44,7 @@ class DownloadMirrorPoolTest {
     }
 
     @Test
-    fun `github raw candidates prefer testingcf jsdelivr and drop dead mirrors`() {
+    fun `github raw candidates prefer china cdn and drop dead mirrors`() {
         val candidates = pool.candidates(
             DownloadRequest(
                 purpose = DownloadPurpose.GithubRaw,
@@ -54,10 +54,12 @@ class DownloadMirrorPoolTest {
 
         // raw.ihtw.moe 已失联（TLS 握手失败），不再出现在候选里
         assertFalse(candidates.any { it.url.contains("raw.ihtw.moe") })
+        // 境内 CDN 节点实测 0.1-0.4s，远快于其它镜像，排在最前
         assertEquals(
-            "https://testingcf.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json",
+            "https://cdn.jsdmirror.com/gh/cursimple/cursimple-plugins@main/manifest.json",
             candidates.first().url,
         )
+        assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net.cn/gh/cursimple/cursimple-plugins@main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://fastly.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
     }
@@ -71,7 +73,9 @@ class DownloadMirrorPoolTest {
             ),
         )
 
-        assertTrue(candidates.first().url.contains("jsdelivr.net"))
+        assertTrue(
+            candidates.first().url.contains("jsdmirror") || candidates.first().url.contains("jsdelivr"),
+        )
         assertTrue(candidates.indexOfFirst { it.sourceName == "ghfast.top" } < candidates.indexOfFirst { it.sourceName == "GitHub 源站" })
     }
 
