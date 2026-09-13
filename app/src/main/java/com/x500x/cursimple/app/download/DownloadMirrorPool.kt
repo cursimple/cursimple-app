@@ -33,7 +33,10 @@ class DownloadMirrorPool {
         return listOf(
             DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
             DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
+            DownloadCandidate("github.chenc.dev", "https://github.chenc.dev/$url"),
             DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
+            DownloadCandidate("hub.ilatency.com", "https://hub.ilatency.com/$url"),
+            DownloadCandidate("github.yuansi.xyz", "https://github.yuansi.xyz/$url"),
             DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
             DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
             DownloadCandidate("GitHub 源站", url),
@@ -62,12 +65,19 @@ class DownloadMirrorPool {
     }
 
     private fun commonGithubProxyCandidates(url: String): List<DownloadCandidate> {
+        // 注意：monlor / imciel / fastgit / llkk 等对 API 会返回自家的 404 页面，
+        // 只能用于文件下载，加进 API 候选会污染“没有发布版本”的判定
         return listOf(
             DownloadCandidate("ghfast.top", "https://ghfast.top/$url"),
             DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
             DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
+            DownloadCandidate("gh.monlor.com", "https://gh.monlor.com/$url"),
+            DownloadCandidate("ghproxy.imciel.com", "https://ghproxy.imciel.com/$url"),
+            DownloadCandidate("gh.jasonzeng.dev", "https://gh.jasonzeng.dev/$url"),
             DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
+            DownloadCandidate("fastgit.cc", "https://fastgit.cc/$url"),
             DownloadCandidate("gh.llkk.cc", "https://gh.llkk.cc/$url"),
+            DownloadCandidate("ghp.keleyaa.com", "https://ghp.keleyaa.com/$url"),
             DownloadCandidate("ghproxy.net", "https://ghproxy.net/$url"),
             DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
             DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
@@ -78,7 +88,10 @@ class DownloadMirrorPool {
     private fun RepoFile?.orEmptyRepoFileCandidates(): List<DownloadCandidate> {
         val repoFile = this ?: return emptyList()
         return listOf(
+            DownloadCandidate("jsdmirror CDN", "https://cdn.jsdmirror.com/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr testingcf", "https://testingcf.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
+            DownloadCandidate("jsdelivr.net.cn", "https://cdn.jsdelivr.net.cn/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
+            DownloadCandidate("jsdmirror.cn", "https://cdn.jsdmirror.cn/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr CDN", "https://cdn.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr Fastly", "https://fastly.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr gcore", "https://gcore.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
