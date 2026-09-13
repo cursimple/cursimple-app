@@ -138,6 +138,7 @@ import androidx.core.content.ContextCompat
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
+import com.x500x.cursimple.app.download.SharedPrefsMirrorPreferenceStore
 import com.x500x.cursimple.app.holiday.HolidayCalendarSyncer
 import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
 import com.x500x.cursimple.app.holiday.holidaySyncYears
@@ -2638,7 +2639,10 @@ private fun HolidayCalendarSyncRow(syncedYears: List<SyncedHolidayYear>) {
     val scope = rememberCoroutineScope()
     val repository = remember(context) { DataStoreUserPreferencesRepository(context.applicationContext) }
     val downloader = remember(context) {
-        MirrorDownloader(labels = context.applicationContext.mirrorDownloaderLabels())
+        MirrorDownloader(
+            labels = context.applicationContext.mirrorDownloaderLabels(),
+            preferenceStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
+        )
     }
     val syncer = remember(downloader) { HolidayCalendarSyncer(downloader) }
     var syncing by remember { mutableStateOf(false) }

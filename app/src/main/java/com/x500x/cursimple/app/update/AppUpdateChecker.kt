@@ -11,6 +11,7 @@ import com.x500x.cursimple.app.download.DownloadRequest
 import com.x500x.cursimple.app.download.MirrorDownloadResult
 import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.MirrorDownloaderLabels
+import com.x500x.cursimple.app.download.MirrorPreferenceStore
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -28,10 +29,12 @@ class AppUpdateChecker(
     downloaderLabels: MirrorDownloaderLabels,
     private val repository: String = DEFAULT_REPOSITORY,
     private val mirrorPool: DownloadMirrorPool = DownloadMirrorPool(),
+    private val mirrorStore: MirrorPreferenceStore? = null,
     private val downloader: MirrorDownloader = MirrorDownloader(
         labels = downloaderLabels,
         mirrorPool = mirrorPool,
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
+        preferenceStore = mirrorStore,
     ),
 ) {
     suspend fun check(includePrerelease: Boolean = false): AppUpdateCheckResult = withContext(Dispatchers.IO) {
@@ -42,18 +45,9 @@ class AppUpdateChecker(
             } else {
                 "https://api.github.com/repos/$repository/releases/latest"
             }
-            val attempts = requestAllSources(
-                candidates = mirrorPool.candidates(
-                    DownloadRequest(
-                        purpose = DownloadPurpose.GithubRelease,
-                        url = releaseUrl,
-                    ),
-                ),
-                accept = "application/vnd.github+json",
-            )
             val accepts: (String) -> Boolean =
                 if (includePrerelease) ::isJsonArrayBody else ::isJsonObjectBody
-            val selection = UpdateSourceSelector.select(attempts, accepts)
+            val selection = selectReleaseSource(releaseUrl, accepts)
             val releaseResponse = when (selection) {
                 is UpdateSourceSelection.Success -> selection.response
                 UpdateSourceSelection.NotFound -> return@withContext AppUpdateCheckResult.NoRelease
@@ -129,17 +123,12 @@ class AppUpdateChecker(
     /** 取某个 tag 的发布说明，用于安装完成后展示本次更新内容。 */
     suspend fun releaseNotes(tagName: String): String? = withContext(Dispatchers.IO) {
         runCatching {
-            val attempts = requestAllSources(
-                candidates = mirrorPool.candidates(
-                    DownloadRequest(
-                        purpose = DownloadPurpose.GithubRelease,
-                        url = "https://api.github.com/repos/$repository/releases/tags/$tagName",
-                    ),
-                ),
-                accept = "application/vnd.github+json",
+            val selection = selectReleaseSource(
+                "https://api.github.com/repos/$repository/releases/tags/$tagName",
+                ::isJsonObjectBody,
             )
-            val response = (UpdateSourceSelector.select(attempts, ::isJsonObjectBody)
-                as? UpdateSourceSelection.Success)?.response ?: return@withContext null
+            val response = (selection as? UpdateSourceSelection.Success)
+                ?.response ?: return@withContext null
             JSONObject(response.body).optString("body").trim().takeIf { it.isNotBlank() }
         }.getOrNull()
     }
@@ -252,26 +241,76 @@ class AppUpdateChecker(
         return requests.distinctBy { "${it.purpose}:${it.url}:${it.repository}:${it.ref}:${it.path}" }
     }
 
+    /**
+     * 记住的镜像先单独试一次：成功即返回，整次只有一个请求。
+     * 只有从来没有记录或记住的镜像失效时，才并发请求全部镜像。
+     * 代理源的 404 不具备权威性，快路径只认成功响应与源站的 404，其余落回全量竞速。
+     */
+    private suspend fun selectReleaseSource(
+        releaseUrl: String,
+        accepts: (String) -> Boolean,
+    ): UpdateSourceSelection {
+        val request = DownloadRequest(purpose = DownloadPurpose.GithubRelease, url = releaseUrl)
+        val key = MirrorPreferenceStore.cacheKeyOf(request)
+        val candidates = mirrorPool.candidates(request)
+        val preferred = mirrorStore?.preferred(key)
+            ?.let { name -> candidates.firstOrNull { it.sourceName == name } }
+        if (preferred != null) {
+            val fastPath = UpdateSourceSelector.select(
+                requestAllSources(listOf(preferred), accept = GITHUB_API_ACCEPT),
+                accepts,
+            )
+            val terminal = fastPath is UpdateSourceSelection.Success ||
+                (fastPath is UpdateSourceSelection.NotFound &&
+                    preferred.sourceName == UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME)
+            if (terminal) return fastPath
+            mirrorStore?.recordFailure(key, preferred.sourceName)
+        }
+        val rest = candidates.filterNot { it.sourceName == preferred?.sourceName }
+        val selection = UpdateSourceSelector.select(
+            requestAllSources(rest, accept = GITHUB_API_ACCEPT),
+            accepts,
+        )
+        if (selection is UpdateSourceSelection.Success) {
+            mirrorStore?.recordSuccess(key, selection.response.sourceName)
+        }
+        return selection
+    }
+
     private suspend fun probeDownloadCandidates(downloadUrl: String): List<AppUpdateDownloadCandidate> = coroutineScope {
-        mirrorPool.candidates(
+        val candidates = mirrorPool.candidates(
             DownloadRequest(
                 purpose = DownloadPurpose.GithubRelease,
                 url = downloadUrl,
             ),
         )
+        // 探测结果按镜像域名缓存：只在第一次或缓存过期/失效后才重新测速
+        val fresh = candidates.mapNotNull { candidate ->
+            mirrorStore?.probeLatency(MirrorPreferenceStore.hostOf(candidate.url))
+                ?.let { candidate to it }
+        }
+        val stale = candidates.filterNot { candidate ->
+            fresh.any { it.first.sourceName == candidate.sourceName }
+        }
+        val probed = stale
             .map { candidate ->
                 async {
                     val latency = runCatching {
                         measureTimeMillis { probeDownload(candidate.url) }
                     }.getOrNull()
-                    AppUpdateDownloadCandidate(
-                        sourceName = candidate.sourceName,
-                        url = candidate.url,
-                        latencyMillis = latency,
-                    )
+                    mirrorStore?.recordProbe(MirrorPreferenceStore.hostOf(candidate.url), latency)
+                    candidate to latency
                 }
             }
             .awaitAll()
+        (fresh + probed)
+            .map { (candidate, latency) ->
+                AppUpdateDownloadCandidate(
+                    sourceName = candidate.sourceName,
+                    url = candidate.url,
+                    latencyMillis = latency,
+                )
+            }
             .sortedWith(
                 compareBy<AppUpdateDownloadCandidate> { it.latencyMillis ?: Long.MAX_VALUE }
                     .thenBy { it.sourceName },
@@ -328,8 +367,8 @@ class AppUpdateChecker(
     private fun probeDownload(url: String) {
         val headStatus = runCatching {
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = NETWORK_TIMEOUT_MILLIS
-                readTimeout = NETWORK_TIMEOUT_MILLIS
+                connectTimeout = PROBE_TIMEOUT_MILLIS
+                readTimeout = PROBE_TIMEOUT_MILLIS
                 requestMethod = "HEAD"
                 instanceFollowRedirects = true
                 setRequestProperty("User-Agent", USER_AGENT)
@@ -340,8 +379,8 @@ class AppUpdateChecker(
 
         val getStatus = runCatching {
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = NETWORK_TIMEOUT_MILLIS
-                readTimeout = NETWORK_TIMEOUT_MILLIS
+                connectTimeout = PROBE_TIMEOUT_MILLIS
+                readTimeout = PROBE_TIMEOUT_MILLIS
                 requestMethod = "GET"
                 instanceFollowRedirects = true
                 setRequestProperty("User-Agent", USER_AGENT)
@@ -408,7 +447,9 @@ class AppUpdateChecker(
 
         const val UPDATE_MANIFEST_NAME = "update.json"
         private const val RELEASE_PAGE_SIZE = 20
+        private const val GITHUB_API_ACCEPT = "application/vnd.github+json"
         val USER_AGENT = "CurSimple/${BuildConfig.VERSION_NAME}"
         const val NETWORK_TIMEOUT_MILLIS = 8_000
+        private const val PROBE_TIMEOUT_MILLIS = 4_000
     }
 }
