@@ -20,7 +20,27 @@ class DownloadMirrorPoolTest {
         assertTrue(candidates.any { it.url.contains("down.npee.cn/?https://github.com") })
         assertTrue(candidates.any { it.url.contains("cors.isteed.cc/github.com") })
         assertTrue(candidates.any { it.url.contains("hk.gh-proxy.com/https://github.com") })
+        assertTrue(candidates.any { it.url.contains("edgeone.gh-proxy.com/https://github.com") })
+        assertTrue(candidates.any { it.url.contains("gh.llkk.cc/https://github.com") })
         assertFalse(candidates.any { it.url.contains("jsdelivr.net") })
+    }
+
+    @Test
+    fun `api urls only use mirrors that pass through real status codes`() {
+        val candidates = pool.candidates(
+            DownloadRequest(
+                purpose = DownloadPurpose.GithubRelease,
+                url = "https://api.github.com/repos/cursimple/cursimple-app/releases/latest",
+            ),
+        )
+
+        // ghfast.top 与 ghproxy.net 对 API 一律 403，gh.llkk.cc 撞共享 IP 限流，都不能进 API 候选
+        assertFalse(candidates.any { it.url.contains("ghfast.top") })
+        assertFalse(candidates.any { it.url.contains("ghproxy.net") })
+        assertFalse(candidates.any { it.url.contains("gh.llkk.cc") })
+        assertTrue(candidates.any { it.url.contains("gh-proxy.com") })
+        assertTrue(candidates.any { it.url.contains("edgeone.gh-proxy.com") })
+        assertTrue(candidates.any { it.url == "https://api.github.com/repos/cursimple/cursimple-app/releases/latest" })
     }
 
     @Test
