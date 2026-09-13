@@ -19,11 +19,12 @@ class DownloadMirrorPoolTest {
 
         assertTrue(candidates.any { it.url.contains("down.npee.cn/?https://github.com") })
         assertTrue(candidates.any { it.url.contains("cors.isteed.cc/github.com") })
+        assertTrue(candidates.any { it.url.contains("hk.gh-proxy.com/https://github.com") })
         assertFalse(candidates.any { it.url.contains("jsdelivr.net") })
     }
 
     @Test
-    fun `github raw candidates include raw proxies and jsdelivr`() {
+    fun `github raw candidates prefer testingcf jsdelivr and drop dead mirrors`() {
         val candidates = pool.candidates(
             DownloadRequest(
                 purpose = DownloadPurpose.GithubRaw,
@@ -31,7 +32,12 @@ class DownloadMirrorPoolTest {
             ),
         )
 
-        assertTrue(candidates.any { it.url.contains("raw.ihtw.moe/raw.githubusercontent.com") })
+        // raw.ihtw.moe 已失联（TLS 握手失败），不再出现在候选里
+        assertFalse(candidates.any { it.url.contains("raw.ihtw.moe") })
+        assertEquals(
+            "https://testingcf.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json",
+            candidates.first().url,
+        )
         assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://fastly.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
     }
@@ -45,15 +51,12 @@ class DownloadMirrorPoolTest {
             ),
         )
 
-        assertEquals(
-            "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@plugin-stars-data/plugins-stars.json",
-            candidates.first().url,
-        )
+        assertTrue(candidates.first().url.contains("jsdelivr.net"))
         assertTrue(candidates.indexOfFirst { it.sourceName == "ghfast.top" } < candidates.indexOfFirst { it.sourceName == "GitHub 源站" })
     }
 
     @Test
-    fun `github repo file candidates include xget and jsdelivr gh paths`() {
+    fun `github repo file candidates include xget raw path and jsdelivr gh paths`() {
         val candidates = pool.candidates(
             DownloadRequest(
                 purpose = DownloadPurpose.GithubRepoFile,
@@ -64,7 +67,8 @@ class DownloadMirrorPoolTest {
             ),
         )
 
-        assertTrue(candidates.any { it.url == "https://xget.xi-xu.me/gh/cursimple/cursimple-plugins/main/manifest.json" })
+        // xget 的 raw 文件路径必须带 /raw/ 段，裸路径会被上游 404
+        assertTrue(candidates.any { it.url == "https://xget.xi-xu.me/gh/cursimple/cursimple-plugins/raw/main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
     }
 }
