@@ -41,3 +41,6 @@ private val DefaultAccents = ScheduleAccents(
 )
 
 val LocalScheduleAccents = staticCompositionLocalOf { DefaultAccents }
+
+/** 当前课表全部地点里过半数共有的学校名后缀，显示时剥掉；由课表根部按课程全集提供。 */
+val LocalScheduleLocationSuffix = staticCompositionLocalOf { "" }
