@@ -113,6 +113,10 @@ import com.x500x.cursimple.core.data.widget.classSlotLabelOfBlock
 import com.x500x.cursimple.core.data.widget.classSlotLabelOfIndex
 import com.x500x.cursimple.core.data.widget.classSlotLabelText
 import com.x500x.cursimple.core.data.widget.slotBlockIndex
+import androidx.compose.runtime.CompositionLocalProvider
+import com.x500x.cursimple.feature.schedule.theme.LocalScheduleLocationSuffix
+import com.x500x.cursimple.core.kernel.model.stripLocationSuffix
+import com.x500x.cursimple.core.kernel.model.sharedLocationSuffix
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -321,71 +325,82 @@ fun ScheduleScreen(
                     selectedIds = selectedIds + id
                 }
 
-                when (viewMode) {
-                    ScheduleViewMode.Week -> WeeklyScheduleSection(
-                        modifier = Modifier.fillMaxSize(),
-                        schedule = state.schedule,
-                        manualCourses = state.manualCourses,
-                        timingProfile = state.timingProfile,
-                        uiSchema = state.uiSchema,
-                        reminderRules = state.reminderRules,
-                        courseNotes = state.courseNotes,
-                        weekOffset = weekOffset,
-                        minWeekOffset = minWeekOffset,
-                        maxWeekOffset = maxWeekOffset,
-                        overrideTermStart = overrideTermStart,
-                        zone = zone,
-                        selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
-                        multiSelectMode = multiSelectMode,
-                        multiSelectedIds = selectedIds,
-                        onCellClick = onCellClickHandler,
-                        onCourseLongClick = onLongClickHandler,
-                        onWeekOffsetChange = onWeekOffsetChange,
-                        onAddManualCourse = onAddManualCourse,
-                        movableCourseIds = remember(state.manualCourses, scheduleDisplay.courseDragEnabled) {
-                            if (scheduleDisplay.courseDragEnabled) {
-                                state.manualCourses.map { it.id }.toSet()
-                            } else {
-                                emptySet()
-                            }
-                        },
-                        onMoveCourse = onMoveManualCourse,
-                        onResizeCourse = onResizeManualCourse,
-                        onMoveBlocked = onMoveBlocked,
-                        scheduleTextStyle = scheduleTextStyle,
-                        scheduleCardStyle = scheduleCardStyle,
-                        scheduleBackground = scheduleBackground,
-                        scheduleDisplay = scheduleDisplay,
-                        customColorsAdaptToTheme = customColorsAdaptToTheme,
-                        temporaryScheduleOverrides = temporaryScheduleOverrides,
-                        holidayCalendar = holidayCalendar,
-                    )
+                val locationSuffix = remember(state.schedule, state.manualCourses) {
+                    (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+                        .visibleScheduleCourses()
+                        .map { it.location }
+                        .let(::sharedLocationSuffix)
+                }
 
-                    ScheduleViewMode.Day -> DailyScheduleSection(
-                        modifier = Modifier.fillMaxSize(),
-                        schedule = state.schedule,
-                        manualCourses = state.manualCourses,
-                        timingProfile = state.timingProfile,
-                        reminderRules = state.reminderRules,
-                        courseNotes = state.courseNotes,
-                        targetDate = zone.today().plusDays(dayOffset.toLong()),
-                        targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
-                        termStartDate = overrideTermStart,
-                        temporaryScheduleOverrides = temporaryScheduleOverrides,
-                        holidayCalendar = holidayCalendar,
-                        selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
-                        multiSelectedIds = selectedIds,
-                        dayOffset = dayOffset,
-                        onDayOffsetChange = onDayOffsetChange,
-                        onCellClick = onCellClickHandler,
-                        onCourseLongClick = onLongClickHandler,
-                        onPrevDay = onPrevDay,
-                        onNextDay = onNextDay,
-                        scheduleTextStyle = scheduleTextStyle,
-                        scheduleCardStyle = scheduleCardStyle,
-                        scheduleDisplay = scheduleDisplay,
-                        customColorsAdaptToTheme = customColorsAdaptToTheme,
-                    )
+                CompositionLocalProvider(
+                    LocalScheduleLocationSuffix provides locationSuffix,
+                ) {
+                    when (viewMode) {
+                        ScheduleViewMode.Week -> WeeklyScheduleSection(
+                            modifier = Modifier.fillMaxSize(),
+                            schedule = state.schedule,
+                            manualCourses = state.manualCourses,
+                            timingProfile = state.timingProfile,
+                            uiSchema = state.uiSchema,
+                            reminderRules = state.reminderRules,
+                            courseNotes = state.courseNotes,
+                            weekOffset = weekOffset,
+                            minWeekOffset = minWeekOffset,
+                            maxWeekOffset = maxWeekOffset,
+                            overrideTermStart = overrideTermStart,
+                            zone = zone,
+                            selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
+                            multiSelectMode = multiSelectMode,
+                            multiSelectedIds = selectedIds,
+                            onCellClick = onCellClickHandler,
+                            onCourseLongClick = onLongClickHandler,
+                            onWeekOffsetChange = onWeekOffsetChange,
+                            onAddManualCourse = onAddManualCourse,
+                            movableCourseIds = remember(state.manualCourses, scheduleDisplay.courseDragEnabled) {
+                                if (scheduleDisplay.courseDragEnabled) {
+                                    state.manualCourses.map { it.id }.toSet()
+                                } else {
+                                    emptySet()
+                                }
+                            },
+                            onMoveCourse = onMoveManualCourse,
+                            onResizeCourse = onResizeManualCourse,
+                            onMoveBlocked = onMoveBlocked,
+                            scheduleTextStyle = scheduleTextStyle,
+                            scheduleCardStyle = scheduleCardStyle,
+                            scheduleBackground = scheduleBackground,
+                            scheduleDisplay = scheduleDisplay,
+                            customColorsAdaptToTheme = customColorsAdaptToTheme,
+                            temporaryScheduleOverrides = temporaryScheduleOverrides,
+                            holidayCalendar = holidayCalendar,
+                        )
+
+                        ScheduleViewMode.Day -> DailyScheduleSection(
+                            modifier = Modifier.fillMaxSize(),
+                            schedule = state.schedule,
+                            manualCourses = state.manualCourses,
+                            timingProfile = state.timingProfile,
+                            reminderRules = state.reminderRules,
+                            courseNotes = state.courseNotes,
+                            targetDate = zone.today().plusDays(dayOffset.toLong()),
+                            targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
+                            termStartDate = overrideTermStart,
+                            temporaryScheduleOverrides = temporaryScheduleOverrides,
+                            holidayCalendar = holidayCalendar,
+                            selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
+                            multiSelectedIds = selectedIds,
+                            dayOffset = dayOffset,
+                            onDayOffsetChange = onDayOffsetChange,
+                            onCellClick = onCellClickHandler,
+                            onCourseLongClick = onLongClickHandler,
+                            onPrevDay = onPrevDay,
+                            onNextDay = onNextDay,
+                            scheduleTextStyle = scheduleTextStyle,
+                            scheduleCardStyle = scheduleCardStyle,
+                            scheduleDisplay = scheduleDisplay,
+                            customColorsAdaptToTheme = customColorsAdaptToTheme,
+                        )
+                    }
                 }
             }
         }
@@ -1436,7 +1451,7 @@ private fun DayRow(
                         }
                         if (scheduleDisplay.locationVisible && course.location.isNotBlank()) {
                             Text(
-                                text = formatCourseLocation(course.location, scheduleDisplay),
+                                text = formatCourseLocation(course.location, scheduleDisplay, LocalScheduleLocationSuffix.current),
                                 color = onColor.copy(alpha = 0.85f),
                                 fontSize = 12.sp,
                                 maxLines = 1,
@@ -2702,7 +2717,7 @@ private fun CourseBlock(
                 )
                 if (scheduleDisplay.locationVisible && course.location.isNotBlank()) {
                     Text(
-                        text = formatCourseLocation(course.location, scheduleDisplay),
+                        text = formatCourseLocation(course.location, scheduleDisplay, LocalScheduleLocationSuffix.current),
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
@@ -3103,7 +3118,8 @@ private fun Color.withOpacityPercent(percent: Int): Color = copy(alpha = alpha *
 private fun formatCourseLocation(
     location: String,
     scheduleDisplay: ScheduleDisplayPreferences,
-): String = "@$location"
+    locationSuffix: String = "",
+): String = "@${stripLocationSuffix(location, locationSuffix)}"
 
 private data class CourseDetailRequest(
     val courses: List<CourseItem>,
