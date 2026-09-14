@@ -272,9 +272,22 @@ class MainActivity : ComponentActivity() {
                     var pendingCurrentWeek by rememberSaveable { mutableStateOf<Int?>(null) }
                     var showTermStartReminder by rememberSaveable { mutableStateOf(false) }
                     var autoPromptedThisSession by rememberSaveable { mutableStateOf(false) }
-                    androidx.compose.runtime.LaunchedEffect(prefs.loaded, prefs.termStartDate, prefs.disclaimerAccepted) {
+                    var updateDialogVisible by remember { mutableStateOf(false) }
+                    var announcementVisible by remember { mutableStateOf(false) }
+                    androidx.compose.runtime.LaunchedEffect(
+                        prefs.loaded, prefs.termStartDate, prefs.disclaimerAccepted,
+                        updateDialogVisible, announcementVisible,
+                    ) {
                         // 每次启动应用检查一次开学日期，缺失时弹出可关闭的提醒，而不是直接打开日期选择器。
-                        if (prefs.loaded && prefs.disclaimerAccepted && prefs.termStartDate == null && !autoPromptedThisSession) {
+                        // 更新与更新公告弹窗优先：它们出现时开学日期提醒让位，关掉后再补出来，不叠着显示。
+                        val blocked = updateDialogVisible || announcementVisible
+                        if (blocked && showTermStartReminder) {
+                            showTermStartReminder = false
+                            autoPromptedThisSession = false
+                        }
+                        if (prefs.loaded && prefs.disclaimerAccepted && prefs.termStartDate == null &&
+                            !autoPromptedThisSession && !blocked
+                        ) {
                             autoPromptedThisSession = true
                             showTermStartReminder = true
                         }
@@ -299,8 +312,6 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
-                    var updateDialogVisible by remember { mutableStateOf(false) }
-                    var announcementVisible by remember { mutableStateOf(false) }
                     AutomaticUpdateCheckPrompt(
                         autoCheckEnabled = prefs.autoUpdateEnabled,
                         betaUpdatesEnabled = prefs.betaUpdatesEnabled,
