@@ -7,6 +7,13 @@ import org.junit.Test
 class CourseTitleFontSizeTest {
 
     @Test
+    fun `disabled by default keeps every card at the same size`() {
+        // 默认关：长短课名字号一致，整屏看下来才不会大小参差不齐
+        assertEquals(13f, courseTitleFontSizeSp(13, 4, enabled = false), 0.01f)
+        assertEquals(13f, courseTitleFontSizeSp(13, 30, enabled = false), 0.01f)
+    }
+
+    @Test
     fun `short titles keep the configured size`() {
         assertEquals(13f, courseTitleFontSizeSp(13, "高数".length), 0.01f)
         assertEquals(13f, courseTitleFontSizeSp(13, "数据结构".length), 0.01f)

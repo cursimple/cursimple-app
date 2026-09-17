@@ -137,6 +137,13 @@ data class ScheduleTextStylePreferences(
     val todayHeaderBackgroundColorCustomized: Boolean = false,
     val horizontalCenter: Boolean = false,
     val verticalCenter: Boolean = false,
+    /**
+     * 课名太长时自动缩字号。
+     *
+     * 默认关：开了之后长课名和短课名字号不一样，整屏看下来大小参差不齐。
+     * 课名普遍很长、宁可小一点也要看全的人再自己打开。
+     */
+    val autoShrinkLongTitles: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_COURSE_TEXT_SIZE_SP = 13
@@ -349,6 +356,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleTodayHeaderBackgroundColorArgb(argb: Long)
     suspend fun setScheduleTextHorizontalCenter(enabled: Boolean)
     suspend fun setScheduleTextVerticalCenter(enabled: Boolean)
+    suspend fun setScheduleAutoShrinkLongTitles(enabled: Boolean)
     suspend fun setScheduleCourseCornerRadiusDp(radiusDp: Int)
     suspend fun setScheduleCourseCardHeightDp(heightDp: Int)
     suspend fun setScheduleOpacityPercent(percent: Int)
