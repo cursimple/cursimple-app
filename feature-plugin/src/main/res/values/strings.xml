@@ -230,6 +230,8 @@
     <string name="school_import_search_hint">输入学校名称，如：北京理工</string>
     <string name="school_import_market_empty">还没拉到插件列表，检查下网络再试一次</string>
     <string name="school_import_retry">重新加载</string>
+    <string name="school_import_refresh">刷新插件列表</string>
+    <string name="school_import_refresh_list">刷新插件列表</string>
     <string name="school_import_no_match">「%1$s」还没有对应的插件</string>
     <string name="school_import_catalog_count">目前收录 %1$d 个学校插件</string>
     <string name="school_import_match_count">搜到 %1$d 个</string>
