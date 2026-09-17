@@ -105,6 +105,28 @@ class ScheduleModelsTest {
         assertEquals(manual, (null as TermSchedule?).allCoursesWith(manual))
     }
 
+    @Test
+    fun deletingAPluginCourseHidesItEverywhereWhileKeepingTheTombstone() {
+        val schedule = TermSchedule(
+            termId = "t",
+            updatedAt = "now",
+            dailySchedules = listOf(DailySchedule(1, listOf(courseOf("plugin-a"), courseOf("plugin-b")))),
+        )
+        // 删掉插件课 = 按原 id 存一条标了 hidden 的手动课，原件与墓碑一起从结果里消失
+        val manual = listOf(courseOf("plugin-a").copy(hidden = true))
+
+        assertEquals(listOf("plugin-b"), schedule.allCoursesWith(manual).map { it.id })
+        // 墓碑本身仍留在手动课程里，用户才能恢复
+        assertEquals(listOf("plugin-a"), manual.hiddenCourses().map { it.id })
+    }
+
+    @Test
+    fun deletingAManualCourseNeedsNoTombstone() {
+        val manual = listOf(courseOf("m1"), courseOf("m2").copy(hidden = true))
+
+        assertEquals(listOf("m1"), (null as TermSchedule?).allCoursesWith(manual).map { it.id })
+    }
+
     private fun courseOf(id: String, title: String = id) = CourseItem(
         id = id,
         title = title,

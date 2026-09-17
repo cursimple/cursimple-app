@@ -289,6 +289,9 @@
     <string name="schedule_library_restore_confirm">Revert</string>
     <string name="schedule_library_delete_cancel">Cancel</string>
     <string name="schedule_library_summary">%1$d courses in total</string>
+    <string name="schedule_library_hidden_show">%1$d deleted</string>
+    <string name="schedule_library_hidden_hide">Hide deleted</string>
+    <string name="schedule_status_course_restored">Course restored</string>
     <string name="schedule_drag_confirm_title">Apply this change?</string>
     <string name="schedule_drag_confirm_move">%1$s moves to %2$s, periods %3$d-%4$d</string>
     <string name="schedule_drag_confirm_resize">%1$s becomes periods %2$d-%3$d</string>
