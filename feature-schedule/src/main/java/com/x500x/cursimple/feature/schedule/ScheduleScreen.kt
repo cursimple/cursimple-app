@@ -2516,13 +2516,18 @@ private val MIN_FIT_SLOT_HEIGHT = 52.dp
 private val GRID_BOTTOM_SPACING = 28.dp
 
 /**
- * 课名长到放不下时按比例缩字号，下限是原字号的七成。
+ * 课名长到放不下时按比例缩字号。
  *
- * 「计算机组成与系统结构」这类十来个字的课名，按原字号在窄格子里要占五六行，
- * 装不下就被硬切成「计算机组成与系」。缩一两个点能多塞一行，比截断可读得多；
- * 缩太狠又会小到看不清，所以给个下限，实在放不下仍旧截断。
+ * 默认不启用：缩过之后长课名和短课名字号不一样，整屏看下来大小参差不齐，
+ * 反倒比统一字号难看。课名普遍很长、宁可小一点也要看全的人再到设置里打开。
+ * [enabled] 为 false 时原样返回配置字号。
  */
-internal fun courseTitleFontSizeSp(baseSizeSp: Int, titleLength: Int): Float {
+internal fun courseTitleFontSizeSp(
+    baseSizeSp: Int,
+    titleLength: Int,
+    enabled: Boolean = true,
+): Float {
+    if (!enabled) return baseSizeSp.toFloat()
     // 分档按真实课名定：「数据结构」4 字不动，「数据库原理及应用」8 字小一档，
     // 「计算机组成与系统结构」10 字要小两档才塞得下
     val scale = when {
@@ -2924,8 +2929,12 @@ private fun CourseBlock(
                 // 课名优先：它按自身需要的行数占位，地点拿剩下的高度。
                 // 反过来先给地点占三行的话，「数据结构」这种长课名会被挤成「数据」，
                 // 而地点缺几个字还能靠详情页补——课名认不出来这一格就白画了。
-                val titleFontSizeSp = remember(titleSizeSp, course.title) {
-                    courseTitleFontSizeSp(titleSizeSp, course.title.length)
+                val titleFontSizeSp = remember(titleSizeSp, course.title, scheduleTextStyle.autoShrinkLongTitles) {
+                    courseTitleFontSizeSp(
+                        baseSizeSp = titleSizeSp,
+                        titleLength = course.title.length,
+                        enabled = scheduleTextStyle.autoShrinkLongTitles,
+                    )
                 }
                 Text(
                     text = course.title,
@@ -2943,13 +2952,14 @@ private fun CourseBlock(
                         text = formatCourseLocation(course.location, scheduleDisplay, LocalScheduleLocationSuffix.current),
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
-                        lineHeight = 12.sp,
-                        // 能摆下就整段摆下，摆不下按剩余高度截断，绝不回头去挤课名
-                        overflow = TextOverflow.Clip,
+                        lineHeight = 11.sp,
+                        // 格子里只给一行：地点折三四行会把课名挤没，而完整地点点开详情就能看到。
+                        // 放不下就省略号收尾，让人知道后面还有字，不是地点本身就这么短。
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
                         textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 if (badges.isNotEmpty() && !inactive) {
