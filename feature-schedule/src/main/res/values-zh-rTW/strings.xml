@@ -106,8 +106,10 @@
     <string name="schedule_course_detail_source">資料來源</string>
     <string name="schedule_source_manual">手動新增</string>
     <string name="schedule_source_plugin">外掛同步</string>
+    <string name="schedule_source_plugin_edited">外掛同步（已手動修改）</string>
     <string name="schedule_course_detail_temp_cancel">臨時取消</string>
     <string name="schedule_course_detail_restore_cancel">取消臨時取消</string>
+    <string name="schedule_course_detail_restore_cancel_short">恢復上課</string>
     <string name="schedule_action_delete">刪除</string>
     <string name="schedule_course_detail_set_reminder">設為提醒</string>
     <string name="schedule_action_close">關閉</string>
@@ -123,6 +125,12 @@
     <string name="schedule_exam_mute_muted">本場考試已臨時取消提醒</string>
     <string name="schedule_exam_mute_active">本場考試會按全域性規則提醒</string>
     <string name="schedule_action_restore">恢復</string>
+    <string name="schedule_action_restore_plugin">還原</string>
+    <string name="schedule_action_reminder">提醒</string>
+    <string name="schedule_course_detail_edit_title">編輯課程資訊</string>
+    <string name="schedule_course_detail_converts_to_manual">這門課來自外掛同步。儲存後它會轉為手動課程，下次同步不再覆蓋你的修改。</string>
+    <string name="schedule_course_detail_restore_plugin_title">還原為外掛資料？</string>
+    <string name="schedule_course_detail_restore_plugin_body">%1$s 的手動修改會丟掉，恢復成外掛同步下發的那一份。</string>
     <string name="schedule_exam_mute_this">取消本場</string>
     <string name="schedule_status_week_unknown">周次未知</string>
     <string name="schedule_status_other_week">非本週</string>
@@ -259,6 +267,7 @@
     <string name="schedule_status_course_moved">已移動到%1$s第%2$d節</string>
     <string name="schedule_status_course_span_changed">已改為第 %1$d-%2$d 節</string>
     <string name="schedule_status_course_updated">已儲存 %1$s</string>
+    <string name="schedule_status_course_overridden">已轉為手動課程：%1$s</string>
     <string name="schedule_library_title">全部課程</string>
     <string name="schedule_library_search">搜課名、老師或地點</string>
     <string name="schedule_library_sort_weekday">按星期</string>
@@ -266,14 +275,18 @@
     <string name="schedule_library_sort_source">按來源</string>
     <string name="schedule_library_source_plugin">外掛</string>
     <string name="schedule_library_source_manual">手動</string>
+    <string name="schedule_library_source_manual_edited">已改</string>
     <string name="schedule_library_group_count">%1$d 門</string>
     <string name="schedule_library_empty">這個學期還沒有課程</string>
     <string name="schedule_library_no_match">沒有匹配的課程</string>
     <string name="schedule_library_add">新增課程</string>
-    <string name="schedule_library_plugin_readonly">外掛同步的課程不能在這裡改，下次同步會被覆蓋</string>
+    <string name="schedule_library_plugin_editable_hint">外掛同步的課程也能改，改完會轉為手動課程，下次同步不再覆蓋</string>
     <string name="schedule_library_delete_title">刪除這門課？</string>
     <string name="schedule_library_delete_body">%1$s 會從課表中移除，它的單課提醒也會一併刪掉。</string>
     <string name="schedule_library_delete_confirm">刪除</string>
+    <string name="schedule_library_restore_title">還原為外掛資料？</string>
+    <string name="schedule_library_restore_body">%1$s 的手動修改會丟掉，恢復成外掛同步下發的那一份。</string>
+    <string name="schedule_library_restore_confirm">還原</string>
     <string name="schedule_library_delete_cancel">取消</string>
     <string name="schedule_library_summary">共 %1$d 門課</string>
     <string name="schedule_drag_confirm_title">確認調整這門課？</string>
@@ -465,4 +478,35 @@
     <string name="schedule_sample_sunday_culture_title">中西文化對比（慕課）</string>
     <string name="schedule_sample_sunday_culture_teacher">教務處</string>
     <string name="schedule_sample_sunday_culture_location">線上</string>
+    <!-- 長按課程的操作面板 -->
+    <string name="schedule_course_action_move">移動位置</string>
+    <string name="schedule_course_action_move_desc">換到別的星期或節次，允許和別的課重疊</string>
+    <string name="schedule_course_action_edit_desc">改課名、地點、週次等全部資訊</string>
+    <string name="schedule_course_action_edit_plugin_desc">外掛課改完會轉為手動課程</string>
+    <string name="schedule_course_action_reminder_desc">為這門課單獨設一條上課提醒</string>
+    <string name="schedule_course_action_multi_select">多選</string>
+    <string name="schedule_course_action_multi_select_desc">選取多門課一起設提醒</string>
+    <string name="schedule_course_action_delete_desc">從課表中移除，同時刪掉它的單課提醒</string>
+    <string name="schedule_course_action_restore_desc">丟掉手動修改，回到外掛同步的那一份</string>
+    <!-- 移動課程 -->
+    <string name="schedule_move_dialog_title">移動到哪</string>
+    <string name="schedule_move_dialog_weekday">移到星期</string>
+    <string name="schedule_move_dialog_start_node">起始節次</string>
+    <string name="schedule_move_dialog_earlier">往前一節</string>
+    <string name="schedule_move_dialog_later">往後一節</string>
+    <string name="schedule_move_dialog_overlap">這個位置已經有：%1$s。移過去兩門課會並排顯示。</string>
+    <string name="schedule_move_dialog_confirm">移動到這裡</string>
+    <!-- 雙擊日期欄設定這一天 -->
+    <string name="schedule_day_sheet_title">%1$d 月 %2$d 日 · %3$s</string>
+    <string name="schedule_day_sheet_current_holiday">目前按「%1$s」放假，這一天不出課也不提醒</string>
+    <string name="schedule_day_sheet_current_normal">目前照常上課</string>
+    <string name="schedule_day_sheet_default">跟隨節假日日曆</string>
+    <string name="schedule_day_sheet_default_desc">按內建或同步來的放假安排判斷，清掉我對這一天的設定</string>
+    <string name="schedule_day_sheet_workday">這一天照常上課</string>
+    <string name="schedule_day_sheet_workday_desc">取消這一天的節日，課表按它本身的星期幾出課</string>
+    <string name="schedule_day_sheet_holiday">這一天全天停課</string>
+    <string name="schedule_day_sheet_holiday_desc">整天不出課、不提醒，可以自己寫個名字</string>
+    <string name="schedule_day_sheet_holiday_name">名稱</string>
+    <string name="schedule_day_sheet_holiday_name_hint">例如：院運動會</string>
+    <string name="schedule_day_sheet_saved">已更新 %1$d 月 %2$d 日</string>
 </resources>

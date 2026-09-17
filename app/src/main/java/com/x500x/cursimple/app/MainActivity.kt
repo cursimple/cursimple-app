@@ -41,6 +41,7 @@ import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Menu
@@ -54,8 +55,7 @@ import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DrawerValue
@@ -77,7 +77,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -100,6 +99,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.x500x.cursimple.app.guide.FirstRunGuideOverlay
+import com.x500x.cursimple.app.guide.GuideDestination
 import com.x500x.cursimple.app.guide.GuideAnchor
 import com.x500x.cursimple.app.guide.LocalGuideAnchors
 import com.x500x.cursimple.app.guide.guideAnchor
@@ -127,6 +127,7 @@ import com.x500x.cursimple.feature.plugin.ComponentMarketViewModelFactory
 import com.x500x.cursimple.feature.plugin.PluginMarketRoute
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModel
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
+import com.x500x.cursimple.feature.plugin.SchoolImportRoute
 import com.x500x.cursimple.feature.schedule.AddCourseDialog
 import com.x500x.cursimple.feature.schedule.CourseLibraryRoute
 import com.x500x.cursimple.feature.schedule.ScheduleRoute
@@ -145,8 +146,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
-import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
-import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
 class MainActivity : ComponentActivity() {
 
@@ -677,6 +676,19 @@ class MainActivity : ComponentActivity() {
                                                     onDismissRequest = { showAddMenu = false },
                                                 ) {
                                                     DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.main_import_from_school)) },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Rounded.School,
+                                                                contentDescription = null,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showAddMenu = false
+                                                            subScreen = MainActivity.SubScreen.SchoolImport
+                                                        },
+                                                    )
+                                                    DropdownMenuItem(
                                                         text = { Text(stringResource(R.string.main_manage_terms)) },
                                                         leadingIcon = {
                                                             Icon(
@@ -770,6 +782,10 @@ class MainActivity : ComponentActivity() {
                                         holidayCalendar = prefs.holidayCalendar,
                                         onUpsertTemporaryScheduleOverride = prefsViewModel::upsertTemporaryScheduleOverride,
                                         onRemoveTemporaryScheduleOverride = prefsViewModel::removeTemporaryScheduleOverride,
+                                        onUpsertHolidayEntry = prefsViewModel::upsertHolidayCalendarEntry,
+                                        onRemoveHolidayEntry = { date ->
+                                            prefsViewModel.removeHolidayCalendarEntry(date.toString())
+                                        },
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -941,6 +957,12 @@ class MainActivity : ComponentActivity() {
                                         onSetDebugForcedDateTime = prefsViewModel::setDebugForcedDateTime,
                                         onResetScheduleAppearanceAndDisplay =
                                             prefsViewModel::resetScheduleAppearanceAndDisplay,
+                                        onReplayFirstRunGuide = {
+                                            // 引导从课表主页起讲，先回去再把完成标记清掉
+                                            currentScreen = AppScreen.Schedule
+                                            subScreen = null
+                                            prefsViewModel.setFirstRunGuideCompleted(false)
+                                        },
                                         onResetAllSettings = {
                                             prefsViewModel.resetAllSettings()
                                             widgetPrefsViewModel.resetWidgetThemePreferences()
@@ -1080,6 +1102,29 @@ class MainActivity : ComponentActivity() {
                                     settingsReturnTarget = SettingsReturnTargetKey.ImportExport
                                 },
                                 onBack = { subScreen = null },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            androidx.activity.compose.BackHandler { subScreen = null }
+                        }
+                        MainActivity.SubScreen.SchoolImport -> {
+                            SchoolImportRoute(
+                                pluginMarketViewModel = pluginMarketViewModel,
+                                pluginRegistryRepo = prefs.pluginRegistryRepo,
+                                syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
+                                syncStatusMessage = scheduleState.statusMessage,
+                                pendingWebSession = scheduleState.pendingWebSession,
+                                onSyncPlugin = scheduleViewModel::syncSchedule,
+                                onCompleteWebSession = scheduleViewModel::completeWebSession,
+                                onCancelWebSession = scheduleViewModel::cancelWebSession,
+                                onBack = { subScreen = null },
+                                onBrowseAllPlugins = {
+                                    subScreen = null
+                                    currentScreen = AppScreen.Plugins
+                                },
+                                onAddCourseManually = {
+                                    subScreen = null
+                                    showAddCourseDialog = true
+                                },
                                 modifier = Modifier.fillMaxSize(),
                             )
                             androidx.activity.compose.BackHandler { subScreen = null }
@@ -1305,7 +1350,35 @@ class MainActivity : ComponentActivity() {
                         )
                     ) {
                         FirstRunGuideOverlay(
-                            onFinish = { prefsViewModel.setFirstRunGuideCompleted(true) },
+                            onNavigate = { destination ->
+                                when (destination) {
+                                    GuideDestination.Schedule -> {
+                                        currentScreen = AppScreen.Schedule
+                                        subScreen = null
+                                    }
+
+                                    GuideDestination.SchoolImport -> {
+                                        currentScreen = AppScreen.Schedule
+                                        subScreen = MainActivity.SubScreen.SchoolImport
+                                    }
+
+                                    GuideDestination.Courses -> {
+                                        currentScreen = AppScreen.Courses
+                                        subScreen = null
+                                    }
+
+                                    GuideDestination.Plugins -> {
+                                        currentScreen = AppScreen.Plugins
+                                        subScreen = null
+                                    }
+                                }
+                            },
+                            onFinish = {
+                                // 跳出去讲过的页面要收回来，引导结束时人站在课表上
+                                currentScreen = AppScreen.Schedule
+                                subScreen = null
+                                prefsViewModel.setFirstRunGuideCompleted(true)
+                            },
                         )
                     }
                     }
@@ -1327,7 +1400,7 @@ class MainActivity : ComponentActivity() {
         About(R.string.screen_about, Icons.Rounded.Info),
     }
 
-    enum class SubScreen { TermManagement, ImportExport }
+    enum class SubScreen { TermManagement, ImportExport, SchoolImport }
 }
 
 private fun Intent.pickedRingtoneUri(): Uri? =
@@ -1470,31 +1543,28 @@ private fun TermStartDatePicker(
     showHint: Boolean = false,
 ) {
     val zone = LocalAppZone.current
-    val initialMillis = (initial ?: LocalDate.now(zone)).toDatePickerMillis()
-    val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
-    DatePickerDialog(
+    var selectedDate by remember(initial) { mutableStateOf(initial ?: LocalDate.now(zone)) }
+    // 用 AlertDialog 而不是 DatePickerDialog：后者把内容高度按系统日历的尺寸写死了，
+    // 换成自绘的月历再加上提示条会超出去，内容会叠着画。
+    AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(
-                onClick = {
-                    state.selectedDateMillis?.let { millis ->
-                        onConfirm(datePickerMillisToLocalDate(millis))
-                    }
-                },
-            ) { Text(stringResource(R.string.main_confirm)) }
+            TextButton(onClick = { onConfirm(selectedDate) }) {
+                Text(stringResource(R.string.main_confirm))
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
-    ) {
+        text = {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
         if (showHint) {
             Surface(
                 color = MaterialTheme.colorScheme.errorContainer,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(top = 8.dp),
+                    .padding(bottom = 8.dp),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -1515,27 +1585,28 @@ private fun TermStartDatePicker(
                 }
             }
         }
-        DatePicker(
-            state = state,
+        CalendarMonthPicker(
+            selected = selectedDate,
+            onSelect = { selectedDate = it },
             title = {
                 Text(
                     text = stringResource(R.string.main_pick_term_start),
                     style = MaterialTheme.typography.labelLarge,
-                    modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp, bottom = 4.dp),
+                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
                 )
             },
             headline = {
-                val selectedDate = state.selectedDateMillis?.let(::datePickerMillisToLocalDate)
                 val fmt = DateTimeFormatter.ofPattern(stringResource(R.string.main_date_pattern))
                 Text(
-                    text = selectedDate?.let { stringResource(R.string.main_term_start_value, fmt.format(it)) }
-                        ?: stringResource(R.string.main_pick_first_monday),
+                    text = stringResource(R.string.main_term_start_value, fmt.format(selectedDate)),
                     style = MaterialTheme.typography.headlineSmall,
-                    modifier = Modifier.padding(start = 24.dp, end = 12.dp, bottom = 12.dp),
+                    modifier = Modifier.padding(bottom = 12.dp),
                 )
             },
         )
-    }
+        }
+        },
+    )
 }
 
 @Composable

@@ -12,6 +12,7 @@ import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.kernel.model.DailySchedule
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.reminder.ReminderPlanner
 import kotlinx.coroutines.flow.first
 import java.time.Duration
@@ -185,7 +186,7 @@ internal object ReminderDataSource {
         manualCourses: List<com.x500x.cursimple.core.kernel.model.CourseItem>,
     ): com.x500x.cursimple.core.kernel.model.TermSchedule? {
         if (schedule == null && manualCourses.isEmpty()) return null
-        val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+        val allCourses = schedule.allCoursesWith(manualCourses)
         val dailySchedules = allCourses
             .groupBy { it.time.dayOfWeek }
             .toSortedMap()
