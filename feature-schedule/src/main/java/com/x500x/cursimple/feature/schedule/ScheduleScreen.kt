@@ -2438,6 +2438,12 @@ private fun ScheduleGrid(
                     }
                 }
             }
+
+            // 滚到底时给最后一节留一段余量，否则贴着容器边缘看起来像被截断了。
+            // 平铺模式本来就把全部节次塞进一屏，再加留白反而会把格子压矮。
+            if (!fitMode) {
+                Spacer(modifier = Modifier.height(GRID_BOTTOM_SPACING))
+            }
         }
 
         if (!fitMode) {
@@ -2505,6 +2511,29 @@ private const val DAY_PAGE_SPAN = 200
 
 /** 平铺时每节至少留出的高度，再挤就连课名都放不下。 */
 private val MIN_FIT_SLOT_HEIGHT = 52.dp
+
+/** 可滚动时网格底部的留白，让最后一节看起来是「到底了」而不是「被切了」。 */
+private val GRID_BOTTOM_SPACING = 28.dp
+
+/**
+ * 课名长到放不下时按比例缩字号，下限是原字号的七成。
+ *
+ * 「计算机组成与系统结构」这类十来个字的课名，按原字号在窄格子里要占五六行，
+ * 装不下就被硬切成「计算机组成与系」。缩一两个点能多塞一行，比截断可读得多；
+ * 缩太狠又会小到看不清，所以给个下限，实在放不下仍旧截断。
+ */
+internal fun courseTitleFontSizeSp(baseSizeSp: Int, titleLength: Int): Float {
+    // 分档按真实课名定：「数据结构」4 字不动，「数据库原理及应用」8 字小一档，
+    // 「计算机组成与系统结构」10 字要小两档才塞得下
+    val scale = when {
+        titleLength <= 5 -> 1f
+        titleLength <= 7 -> 0.92f
+        titleLength <= 9 -> 0.84f
+        else -> 0.76f
+    }
+    // 下限按 9sp 兜底：再小连笔画都糊成一团
+    return (baseSizeSp * scale).coerceAtLeast(9f)
+}
 
 /** 背景图解码后的长边上限，超过按 2 的幂降采样。 */
 private const val BACKGROUND_MAX_EDGE_PX = 2048
@@ -2857,20 +2886,25 @@ private fun CourseBlock(
                     .padding(
                         start = 3.dp,
                         end = 3.dp,
-                        top = if (hasCountBadge && !verticalCentered) 16.dp else 4.dp,
-                        bottom = 4.dp,
+                        top = if (hasCountBadge && !verticalCentered) 16.dp else 3.dp,
+                        bottom = 3.dp,
                     ),
                 verticalArrangement = if (verticalCentered) Arrangement.Center else Arrangement.spacedBy(1.dp),
                 horizontalAlignment = if (horizontalCentered) Alignment.CenterHorizontally else Alignment.Start,
             ) {
+                // 「非本周」「考试」这类标记只是注解，字号和行距都压到最小，
+                // 免得它占掉一整行、把本来就长的课名再挤掉一行
                 if (inactive) {
                     Text(
                         text = stringResource(
                             if (onHoliday) R.string.schedule_status_on_holiday else R.string.schedule_status_other_week,
                         ),
                         color = onColor,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
+                        lineHeight = 9.sp,
                         maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -2878,20 +2912,27 @@ private fun CourseBlock(
                     Text(
                         text = stringResource(R.string.schedule_category_exam),
                         color = onColor,
-                        fontSize = 9.sp,
+                        fontSize = 8.sp,
+                        lineHeight = 9.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Clip,
                         textAlign = TextAlign.Center,
                     )
                 }
                 // 课名优先：它按自身需要的行数占位，地点拿剩下的高度。
                 // 反过来先给地点占三行的话，「数据结构」这种长课名会被挤成「数据」，
                 // 而地点缺几个字还能靠详情页补——课名认不出来这一格就白画了。
+                val titleFontSizeSp = remember(titleSizeSp, course.title) {
+                    courseTitleFontSizeSp(titleSizeSp, course.title.length)
+                }
                 Text(
                     text = course.title,
                     color = titleColor,
-                    fontSize = titleSizeSp.sp,
-                    lineHeight = (titleSizeSp + 2).sp,
+                    fontSize = titleFontSizeSp.sp,
+                    // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
+                    lineHeight = (titleFontSizeSp + 1f).sp,
                     fontWeight = FontWeight.SemiBold,
                     overflow = TextOverflow.Clip,
                     textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
