@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.background
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -27,6 +28,7 @@ import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -58,18 +60,26 @@ import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.update.AppUpdateCheckResult
 import com.x500x.cursimple.app.update.AppUpdateChecker
+import com.x500x.cursimple.app.update.AppUpdateDownloadProgress
 import com.x500x.cursimple.app.update.AppUpdateDownloadResult
 import com.x500x.cursimple.app.update.AppUpdateInfo
 import com.x500x.cursimple.app.update.AppUpdateInstaller
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
 import com.x500x.cursimple.app.download.SharedPrefsMirrorPreferenceStore
+import com.x500x.cursimple.app.update.UPDATE_POLL_TICK_MILLIS
 import com.x500x.cursimple.app.update.UpdateNoticeState
+import com.x500x.cursimple.app.update.UpdatePeekResult
+import com.x500x.cursimple.app.update.UpdatePollAction
+import com.x500x.cursimple.app.update.UpdatePollStore
+import com.x500x.cursimple.app.update.updatePollAction
 import com.x500x.cursimple.app.update.UpdatePanelStatus
 import com.x500x.cursimple.app.update.shouldPromptUpdate
 import com.x500x.cursimple.app.update.shouldShowUpdateBadge
 import com.x500x.cursimple.app.update.updateStatusText
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun UpdateCheckSection(
@@ -94,6 +104,7 @@ fun UpdateCheckSection(
     // 若这两个标志跨重建存活就会永远卡在「检查中/下载中」；随重建归零后按钮恢复可用，用户可重试
     var checking by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<AppUpdateDownloadProgress?>(null) }
     var status by remember { mutableStateOf<UpdatePanelStatus>(UpdatePanelStatus.Idle) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var pendingRollback by remember { mutableStateOf<AppUpdateInfo?>(null) }
@@ -115,8 +126,12 @@ fun UpdateCheckSection(
         }
         scope.launch {
             downloading = true
+            downloadProgress = AppUpdateDownloadProgress(0L, null)
             status = UpdatePanelStatus.Downloading(info.asset.fileName)
-            when (val result = checker.download(context, info)) {
+            val result = checker.download(context, info) { downloaded, total ->
+                downloadProgress = AppUpdateDownloadProgress(downloaded, total.takeIf { it > 0L })
+            }
+            when (result) {
                 is AppUpdateDownloadResult.Success -> {
                     downloadedApk = result.file
                     status = UpdatePanelStatus.Downloaded(result.sourceName)
@@ -127,6 +142,7 @@ fun UpdateCheckSection(
                 }
             }
             downloading = false
+            downloadProgress = null
         }
     }
 
@@ -207,6 +223,7 @@ fun UpdateCheckSection(
         UpdateAvailableDialog(
             info = info,
             downloading = downloading,
+            downloadProgress = downloadProgress,
             downloadedApk = downloadedApk,
             onUpdate = { downloadAndInstall(info) },
             onIgnore = {
@@ -227,6 +244,7 @@ fun UpdateCheckSection(
         UpdateRollbackDialog(
             info = info,
             downloading = downloading,
+            downloadProgress = downloadProgress,
             downloadedApk = downloadedApk,
             onDownload = { downloadAndInstall(info) },
             onDismiss = { dismissPendingUpdate() },
@@ -251,12 +269,13 @@ fun AutomaticUpdateCheckPrompt(
                 downloaderLabels = context.mirrorDownloaderLabels(),
                 mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
             ) }
-    var checkedThisSession by rememberSaveable { mutableStateOf(false) }
     var promptedThisSession by rememberSaveable { mutableStateOf(false) }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     // 见上：清除标志的协程随重建取消，saveable 会卡在「下载中」，用 remember 让其归零
     var downloading by remember { mutableStateOf(false) }
+    var downloadProgress by remember { mutableStateOf<AppUpdateDownloadProgress?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
+    val pollStore = remember(context) { UpdatePollStore(context) }
 
     fun dismissPendingUpdate() {
         pendingUpdate = null
@@ -272,7 +291,11 @@ fun AutomaticUpdateCheckPrompt(
         }
         scope.launch {
             downloading = true
-            when (val result = checker.download(context, info)) {
+            downloadProgress = AppUpdateDownloadProgress(0L, null)
+            val result = checker.download(context, info) { downloaded, total ->
+                downloadProgress = AppUpdateDownloadProgress(downloaded, total.takeIf { it > 0L })
+            }
+            when (result) {
                 is AppUpdateDownloadResult.Success -> {
                     downloadedApk = result.file
                     AppUpdateInstaller.openInstall(context, result.file)
@@ -282,30 +305,70 @@ fun AutomaticUpdateCheckPrompt(
                 }
             }
             downloading = false
+            downloadProgress = null
         }
     }
 
-    LaunchedEffect(autoCheckEnabled) {
-        if (!autoCheckEnabled) {
-            checkedThisSession = false
-            return@LaunchedEffect
-        }
-        if (checkedThisSession) return@LaunchedEffect
-        checkedThisSession = true
-        when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
-            is AppUpdateCheckResult.Available -> {
-                onUpdateFound(result.info.versionCode, result.info.versionName)
-                val found = updateNotice.copy(
-                    versionCode = result.info.versionCode,
-                    versionName = result.info.versionName,
-                )
-                if (shouldPromptUpdate(found, BuildConfig.VERSION_CODE, promptedThisSession)) {
-                    promptedThisSession = true
-                    pendingUpdate = result.info
+    // 后台轮询：以前只在启动时查一次，装了之后发新版要么等下次冷启动、
+    // 要么自己点进设置，用户根本不知道有更新。
+    // 轮询主体是带 ETag 的条件请求，没新版时服务端回 304、不带响应体，
+    // 一次几百字节；只有探到变化才去跑流量大得多的完整检查。
+    LaunchedEffect(autoCheckEnabled, betaUpdatesEnabled) {
+        if (!autoCheckEnabled) return@LaunchedEffect
+        pollStore.invalidateFor(BuildConfig.VERSION_CODE)
+
+        suspend fun runFullCheck() {
+            pollStore.setLastFullCheckAtMillis(System.currentTimeMillis())
+            when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
+                is AppUpdateCheckResult.Available -> {
+                    onUpdateFound(result.info.versionCode, result.info.versionName)
+                    val found = updateNotice.copy(
+                        versionCode = result.info.versionCode,
+                        versionName = result.info.versionName,
+                    )
+                    if (shouldPromptUpdate(found, BuildConfig.VERSION_CODE, promptedThisSession)) {
+                        promptedThisSession = true
+                        pendingUpdate = result.info
+                    }
                 }
+                AppUpdateCheckResult.UpToDate, AppUpdateCheckResult.NoRelease -> onUpdateNoticeCleared()
+                else -> Unit
             }
-            AppUpdateCheckResult.UpToDate, AppUpdateCheckResult.NoRelease -> onUpdateNoticeCleared()
-            else -> Unit
+        }
+
+        while (true) {
+            val action = updatePollAction(
+                nowMillis = System.currentTimeMillis(),
+                lastPeekAtMillis = pollStore.lastPeekAtMillis(),
+                lastFullCheckAtMillis = pollStore.lastFullCheckAtMillis(),
+                hasEtag = pollStore.etag(betaUpdatesEnabled) != null,
+            )
+            when (action) {
+                UpdatePollAction.FullCheck -> {
+                    runFullCheck()
+                    // 完整检查顺手把 ETag 种下去，后面才有条件请求可发
+                    (checker.peek(betaUpdatesEnabled, knownEtag = null) as? UpdatePeekResult.Changed)
+                        ?.let { pollStore.setEtag(betaUpdatesEnabled, it.etag) }
+                    pollStore.setLastPeekAtMillis(System.currentTimeMillis())
+                }
+
+                UpdatePollAction.Peek -> {
+                    val known = pollStore.etag(betaUpdatesEnabled)
+                    when (val peeked = checker.peek(betaUpdatesEnabled, known)) {
+                        UpdatePeekResult.Unchanged -> pollStore.setLastPeekAtMillis(System.currentTimeMillis())
+                        is UpdatePeekResult.Changed -> {
+                            pollStore.setEtag(betaUpdatesEnabled, peeked.etag)
+                            pollStore.setLastPeekAtMillis(System.currentTimeMillis())
+                            runFullCheck()
+                        }
+                        // 探不通就别改时间戳，等下一拍再试；连不上时也不去跑完整检查
+                        UpdatePeekResult.Unknown -> Unit
+                    }
+                }
+
+                UpdatePollAction.Skip -> Unit
+            }
+            kotlinx.coroutines.delay(UPDATE_POLL_TICK_MILLIS)
         }
     }
 
@@ -321,6 +384,7 @@ fun AutomaticUpdateCheckPrompt(
         UpdateAvailableDialog(
             info = info,
             downloading = downloading,
+            downloadProgress = downloadProgress,
             downloadedApk = downloadedApk,
             onUpdate = { downloadAndInstall(info) },
             onIgnore = {
@@ -443,6 +507,7 @@ private fun releaseUrl(): String = AppUpdateChecker.releasePageUrl(releaseTagNam
 private fun UpdateRollbackDialog(
     info: AppUpdateInfo,
     downloading: Boolean,
+    downloadProgress: AppUpdateDownloadProgress? = null,
     downloadedApk: File?,
     onDownload: () -> Unit,
     onDismiss: () -> Unit,
@@ -465,6 +530,9 @@ private fun UpdateRollbackDialog(
                     markdown = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
                     maxHeight = 180.dp,
                 )
+                if (downloading) {
+                    UpdateDownloadProgressRow(downloadProgress)
+                }
             }
         },
         confirmButton = {
@@ -488,6 +556,7 @@ private fun UpdateRollbackDialog(
 private fun UpdateAvailableDialog(
     info: AppUpdateInfo,
     downloading: Boolean,
+    downloadProgress: AppUpdateDownloadProgress? = null,
     downloadedApk: File?,
     onUpdate: () -> Unit,
     onIgnore: () -> Unit,
@@ -513,6 +582,9 @@ private fun UpdateAvailableDialog(
                     markdown = info.releaseNotes.ifBlank { stringResource(R.string.update_no_release_notes) },
                     maxHeight = 220.dp,
                 )
+                if (downloading) {
+                    UpdateDownloadProgressRow(downloadProgress)
+                }
                 UpdateSecondaryChoice(
                     title = stringResource(R.string.update_dialog_mute),
                     hint = stringResource(R.string.update_dialog_mute_hint),
@@ -545,6 +617,56 @@ private fun UpdateAvailableDialog(
             }
         },
     )
+}
+
+/**
+ * 下载进度条。
+ *
+ * 安装包动辄几十兆，只显示「下载中…」的话用户既不知道还要等多久、
+ * 也分不清是在下载还是卡死了。这里把百分比、已下载量和总大小都摆出来；
+ * 服务端没给 Content-Length 时退回不确定进度条，至少能看出还在动。
+ */
+@Composable
+private fun UpdateDownloadProgressRow(progress: AppUpdateDownloadProgress?) {
+    val fraction = progress?.fraction
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (fraction == null) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        } else {
+            val animated by animateFloatAsState(targetValue = fraction, label = "updateDownloadProgress")
+            LinearProgressIndicator(
+                progress = { animated },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Text(
+            text = when {
+                progress == null -> stringResource(R.string.update_download_starting)
+                progress.totalBytes == null -> stringResource(
+                    R.string.update_download_progress_unknown_total,
+                    formatBytes(progress.downloadedBytes),
+                )
+                else -> stringResource(
+                    R.string.update_download_progress,
+                    formatBytes(progress.downloadedBytes),
+                    formatBytes(progress.totalBytes),
+                    ((fraction ?: 0f) * 100).roundToInt(),
+                )
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** 字节数按 MB / KB 显示，小数点后留一位，够看出进度在动又不会跳得眼花。 */
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / 1024.0 / 1024.0)
+    bytes >= 1024L -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
+    else -> "$bytes B"
 }
 
 /** 更新弹窗里的次要选项：一行标题加一行说明，整行可点。 */
