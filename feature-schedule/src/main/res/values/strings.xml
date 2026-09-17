@@ -106,8 +106,10 @@
     <string name="schedule_course_detail_source">数据来源</string>
     <string name="schedule_source_manual">手动添加</string>
     <string name="schedule_source_plugin">插件同步</string>
+    <string name="schedule_source_plugin_edited">插件同步（已手动修改）</string>
     <string name="schedule_course_detail_temp_cancel">临时取消</string>
     <string name="schedule_course_detail_restore_cancel">取消临时取消</string>
+    <string name="schedule_course_detail_restore_cancel_short">恢复上课</string>
     <string name="schedule_action_delete">删除</string>
     <string name="schedule_course_detail_set_reminder">设为提醒</string>
     <string name="schedule_action_close">关闭</string>
@@ -123,6 +125,12 @@
     <string name="schedule_exam_mute_muted">本场考试已临时取消提醒</string>
     <string name="schedule_exam_mute_active">本场考试会按全局规则提醒</string>
     <string name="schedule_action_restore">恢复</string>
+    <string name="schedule_action_restore_plugin">还原</string>
+    <string name="schedule_action_reminder">提醒</string>
+    <string name="schedule_course_detail_edit_title">编辑课程信息</string>
+    <string name="schedule_course_detail_converts_to_manual">这门课来自插件同步。保存后它会转为手动课程，下次同步不再覆盖你的修改。</string>
+    <string name="schedule_course_detail_restore_plugin_title">还原为插件数据？</string>
+    <string name="schedule_course_detail_restore_plugin_body">%1$s 的手动修改会丢掉，恢复成插件同步下发的那一份。</string>
     <string name="schedule_exam_mute_this">取消本场</string>
     <string name="schedule_status_week_unknown">周次未知</string>
     <string name="schedule_status_other_week">非本周</string>
@@ -259,6 +267,7 @@
     <string name="schedule_status_course_moved">已移动到%1$s第%2$d节</string>
     <string name="schedule_status_course_span_changed">已改为第 %1$d-%2$d 节</string>
     <string name="schedule_status_course_updated">已保存 %1$s</string>
+    <string name="schedule_status_course_overridden">已转为手动课程：%1$s</string>
     <string name="schedule_library_title">全部课程</string>
     <string name="schedule_library_search">搜课名、老师或地点</string>
     <string name="schedule_library_sort_weekday">按星期</string>
@@ -266,14 +275,18 @@
     <string name="schedule_library_sort_source">按来源</string>
     <string name="schedule_library_source_plugin">插件</string>
     <string name="schedule_library_source_manual">手动</string>
+    <string name="schedule_library_source_manual_edited">已改</string>
     <string name="schedule_library_group_count">%1$d 门</string>
     <string name="schedule_library_empty">这个学期还没有课程</string>
     <string name="schedule_library_no_match">没有匹配的课程</string>
     <string name="schedule_library_add">新增课程</string>
-    <string name="schedule_library_plugin_readonly">插件同步的课程不能在这里改，下次同步会被覆盖</string>
+    <string name="schedule_library_plugin_editable_hint">插件同步的课程也能改，改完会转为手动课程，下次同步不再覆盖</string>
     <string name="schedule_library_delete_title">删除这门课？</string>
     <string name="schedule_library_delete_body">%1$s 会从课表中移除，它的单课提醒也会一并删掉。</string>
     <string name="schedule_library_delete_confirm">删除</string>
+    <string name="schedule_library_restore_title">还原为插件数据？</string>
+    <string name="schedule_library_restore_body">%1$s 的手动修改会丢掉，恢复成插件同步下发的那一份。</string>
+    <string name="schedule_library_restore_confirm">还原</string>
     <string name="schedule_library_delete_cancel">取消</string>
     <string name="schedule_library_summary">共 %1$d 门课</string>
     <string name="schedule_drag_confirm_title">确认调整这门课？</string>
@@ -465,4 +478,35 @@
     <string name="schedule_sample_sunday_culture_title">中西文化对比（慕课）</string>
     <string name="schedule_sample_sunday_culture_teacher">教务处</string>
     <string name="schedule_sample_sunday_culture_location">线上</string>
+    <!-- 长按课程的操作面板 -->
+    <string name="schedule_course_action_move">移动位置</string>
+    <string name="schedule_course_action_move_desc">换到别的星期或节次，允许和别的课重叠</string>
+    <string name="schedule_course_action_edit_desc">改课名、地点、周次等全部信息</string>
+    <string name="schedule_course_action_edit_plugin_desc">插件课改完会转为手动课程</string>
+    <string name="schedule_course_action_reminder_desc">为这门课单独设一条上课提醒</string>
+    <string name="schedule_course_action_multi_select">多选</string>
+    <string name="schedule_course_action_multi_select_desc">选中多门课一起设提醒</string>
+    <string name="schedule_course_action_delete_desc">从课表中移除，同时删掉它的单课提醒</string>
+    <string name="schedule_course_action_restore_desc">丢掉手动修改，回到插件同步的那一份</string>
+    <!-- 移动课程 -->
+    <string name="schedule_move_dialog_title">移动到哪</string>
+    <string name="schedule_move_dialog_weekday">移到星期</string>
+    <string name="schedule_move_dialog_start_node">起始节次</string>
+    <string name="schedule_move_dialog_earlier">往前一节</string>
+    <string name="schedule_move_dialog_later">往后一节</string>
+    <string name="schedule_move_dialog_overlap">这个位置已经有：%1$s。移过去两门课会并排显示。</string>
+    <string name="schedule_move_dialog_confirm">移动到这里</string>
+    <!-- 双击日期栏设置这一天 -->
+    <string name="schedule_day_sheet_title">%1$d 月 %2$d 日 · %3$s</string>
+    <string name="schedule_day_sheet_current_holiday">当前按「%1$s」放假，这一天不出课也不提醒</string>
+    <string name="schedule_day_sheet_current_normal">当前照常上课</string>
+    <string name="schedule_day_sheet_default">跟随节假日日历</string>
+    <string name="schedule_day_sheet_default_desc">按内置或同步来的放假安排判断，清掉我对这一天的设置</string>
+    <string name="schedule_day_sheet_workday">这一天照常上课</string>
+    <string name="schedule_day_sheet_workday_desc">取消这一天的节日，课表按它本身的星期几出课</string>
+    <string name="schedule_day_sheet_holiday">这一天全天停课</string>
+    <string name="schedule_day_sheet_holiday_desc">整天不出课、不提醒，可以自己写个名字</string>
+    <string name="schedule_day_sheet_holiday_name">名称</string>
+    <string name="schedule_day_sheet_holiday_name_hint">例如：院运动会</string>
+    <string name="schedule_day_sheet_saved">已更新 %1$d 月 %2$d 日</string>
 </resources>

@@ -165,11 +165,20 @@ WebView 会在白名单页面加载完成后注入入口脚本。宿主不会把
       "description": "YangtzU course plugin for cursimple.",
       "star": 0,
       "language": "JavaScript",
-      "url": "https://github.com/cursimple/YangtzU_course_plugin"
+      "url": "https://github.com/cursimple/YangtzU_course_plugin",
+      "schools": ["长江大学", "长大", "changjiangdaxue", "YangtzU"]
     }
   ]
 }
 ```
+
+`schools` 声明这个插件覆盖的学校别名，供「从教务系统导课」按学校名搜索。仓库名多半是英文缩写，学生搜的却是中文校名，两者对不上就找不到插件，所以把中文全称、常用简称、拼音和英文缩写一并写进来。
+
+- 按普通子串匹配，忽略大小写，前缀也算命中：打到「北京理工」就能出「北京理工大学」。
+- App 侧不做拼音转换，要支持拼音就把拼音直接写成一条别名。
+- 兼容键名 `aliases`，与 `schools` 合并去重。
+- 该字段可省略，省略时退回按仓库名、账号和描述匹配。
+- 新学校只改注册表，不必发版。
 
 App 拉取流程：
 

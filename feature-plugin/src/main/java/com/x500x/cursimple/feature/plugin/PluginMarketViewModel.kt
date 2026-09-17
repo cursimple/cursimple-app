@@ -189,6 +189,9 @@ class PluginMarketViewModel(
                 is PluginInstallResult.Success -> {
                     pendingBytes = null
                     pendingSource = null
+                    // 刚装好的插件默认就打开：装它就是为了用它，
+                    // 不打开的话课表那边既选不到也同步不了，还得再回来摸一次开关。
+                    userPreferencesRepository.setPluginEnabled(result.record.installKey, true)
                     _uiState.update {
                         it.copy(
                             isLoading = false,
