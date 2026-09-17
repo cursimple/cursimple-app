@@ -118,10 +118,14 @@ import com.x500x.cursimple.feature.schedule.theme.LocalScheduleLocationSuffix
 import com.x500x.cursimple.core.kernel.model.stripLocationSuffix
 import com.x500x.cursimple.core.kernel.model.sharedLocationSuffix
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
+import com.x500x.cursimple.core.kernel.model.userEntryOn
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
@@ -189,6 +193,8 @@ fun ScheduleRoute(
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
+    onUpsertHolidayEntry: (HolidayCalendarEntry) -> Unit = {},
+    onRemoveHolidayEntry: (LocalDate) -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // 拖动是易误触的操作，改动先记在这里等用户确认，确认前不落库
@@ -221,6 +227,7 @@ fun ScheduleRoute(
         onRemoveReminderRule = viewModel::removeReminderRule,
         onRemoveManualCourse = viewModel::removeManualCourse,
         onAddManualCourse = viewModel::addManualCourse,
+        onSaveCourse = viewModel::updateManualCourse,
         onMoveManualCourse = { id, time ->
             pendingDrag = PendingCourseDrag(id, courseTitleOf(state, id), time, PendingCourseDrag.Kind.Move)
         },
@@ -246,6 +253,8 @@ fun ScheduleRoute(
         holidayCalendar = holidayCalendar,
         onUpsertTemporaryScheduleOverride = onUpsertTemporaryScheduleOverride,
         onRemoveTemporaryScheduleOverride = onRemoveTemporaryScheduleOverride,
+        onUpsertHolidayEntry = onUpsertHolidayEntry,
+        onRemoveHolidayEntry = onRemoveHolidayEntry,
         modifier = modifier,
     )
 }
@@ -259,6 +268,8 @@ fun ScheduleScreen(
     onRemoveReminderRule: (String) -> Unit,
     onRemoveManualCourse: (String) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
+    /** 详情里就地改课；插件课保存后转为手动课程。 */
+    onSaveCourse: (CourseItem) -> Unit = {},
     onMoveManualCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onResizeManualCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onMoveBlocked: () -> Unit = {},
@@ -288,13 +299,35 @@ fun ScheduleScreen(
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
+    /** 双击日期栏改这一天的放假状态。 */
+    onUpsertHolidayEntry: (HolidayCalendarEntry) -> Unit = {},
+    onRemoveHolidayEntry: (LocalDate) -> Unit = {},
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
+    // 长按课程后的三条去向：操作面板、就地编辑、移动选点
+    var actionSheetCourse by remember { mutableStateOf<CourseItem?>(null) }
+    var editRequest by remember { mutableStateOf<CourseItem?>(null) }
+    var moveRequest by remember { mutableStateOf<CourseItem?>(null) }
+    // 双击日期栏打开的「这一天」设置
+    var daySheetDate by remember { mutableStateOf<LocalDate?>(null) }
     val zone = LocalAppZone.current
+
+    val allVisibleCourses = remember(state.schedule, state.manualCourses) {
+        state.schedule.allCoursesWith(state.manualCourses).visibleScheduleCourses()
+    }
+    val pluginCourseIds = remember(state.schedule) {
+        state.schedule?.dailySchedules.orEmpty().flatMap { it.courses }.mapTo(mutableSetOf()) { it.id }
+    }
+    // 节次上限跟随当前作息，作息未设置时退回表单默认值
+    val maxNodeCount = state.timingProfile?.slotTimes?.maxOfOrNull { it.endNode } ?: 12
+    // 周次上限跟着本学期实际排到第几周走，学期比默认长时才改得动后面的周次
+    val editableMaxWeek = remember(allVisibleCourses) {
+        maxOf(DefaultEditableWeekCount, allVisibleCourses.flatMap { it.weeks }.maxOrNull() ?: 0)
+    }
 
     Box(
         modifier = modifier
@@ -320,16 +353,23 @@ fun ScheduleScreen(
                         detailRequest = CourseDetailRequest(coursesAtCell, targetDate)
                     }
                 }
+                // 已在多选里长按就继续加选；否则先给操作面板，改课不必再点进详情
                 val onLongClickHandler: (String) -> Unit = { id ->
-                    multiSelectMode = true
-                    selectedIds = selectedIds + id
+                    if (multiSelectMode) {
+                        selectedIds = selectedIds + id
+                    } else {
+                        val target = allVisibleCourses.firstOrNull { it.id == id }
+                        if (target == null) {
+                            multiSelectMode = true
+                            selectedIds = selectedIds + id
+                        } else {
+                            actionSheetCourse = target
+                        }
+                    }
                 }
 
-                val locationSuffix = remember(state.schedule, state.manualCourses) {
-                    (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
-                        .visibleScheduleCourses()
-                        .map { it.location }
-                        .let(::sharedLocationSuffix)
+                val locationSuffix = remember(allVisibleCourses) {
+                    allVisibleCourses.map { it.location }.let(::sharedLocationSuffix)
                 }
 
                 CompositionLocalProvider(
@@ -373,6 +413,7 @@ fun ScheduleScreen(
                             customColorsAdaptToTheme = customColorsAdaptToTheme,
                             temporaryScheduleOverrides = temporaryScheduleOverrides,
                             holidayCalendar = holidayCalendar,
+                            onDayHeaderDoubleTap = { date -> daySheetDate = date },
                         )
 
                         ScheduleViewMode.Day -> DailyScheduleSection(
@@ -399,6 +440,7 @@ fun ScheduleScreen(
                             scheduleCardStyle = scheduleCardStyle,
                             scheduleDisplay = scheduleDisplay,
                             customColorsAdaptToTheme = customColorsAdaptToTheme,
+                            onDayHeaderDoubleTap = { date -> daySheetDate = date },
                         )
                     }
                 }
@@ -430,7 +472,7 @@ fun ScheduleScreen(
 
         if (showBulkReminder) {
             val selectedCourses = remember(selectedIds, state.schedule, state.manualCourses) {
-                (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+                state.schedule.allCoursesWith(state.manualCourses)
                     .visibleScheduleCourses()
                     .filter { it.id in selectedIds }
             }
@@ -470,7 +512,22 @@ fun ScheduleScreen(
                     matchingTemporaryCancelRule(c, request.targetDate, temporaryScheduleOverrides) != null
                 },
                 noteTextOf = { c -> state.courseNotes.textOf(c.id) },
+                isPluginOverride = { c -> c.id in pluginCourseIds },
+                existingCourses = allVisibleCourses,
+                maxNodeCount = maxNodeCount,
+                maxWeekCount = editableMaxWeek,
                 onSaveNote = onSaveCourseNote,
+                onSaveCourse = { c ->
+                    onSaveCourse(c)
+                    // 详情里的课程是点开那一刻的快照，就地换成刚存的这份，弹窗不用关掉重开
+                    detailRequest = request.copy(
+                        courses = request.courses.map { if (it.id == c.id) c else it },
+                    )
+                },
+                onRestorePluginCourse = { c ->
+                    onRemoveManualCourse(c.id)
+                    detailRequest = null
+                },
                 onTemporaryCancel = { c ->
                     onUpsertTemporaryScheduleOverride(
                         TemporaryScheduleOverride(
@@ -519,6 +576,104 @@ fun ScheduleScreen(
             )
         }
 
+        actionSheetCourse?.let { course ->
+            CourseActionSheet(
+                course = course,
+                manual = state.manualCourses.any { it.id == course.id },
+                pluginOverride = state.manualCourses.any { it.id == course.id } && course.id in pluginCourseIds,
+                onDismiss = { actionSheetCourse = null },
+                onEdit = {
+                    actionSheetCourse = null
+                    editRequest = course
+                },
+                onMove = {
+                    actionSheetCourse = null
+                    moveRequest = course
+                },
+                onSetReminder = {
+                    actionSheetCourse = null
+                    pendingReminderCourse = course
+                },
+                onMultiSelect = {
+                    actionSheetCourse = null
+                    multiSelectMode = true
+                    selectedIds = selectedIds + course.id
+                },
+                onDelete = {
+                    actionSheetCourse = null
+                    onRemoveManualCourse(course.id)
+                },
+                onRestorePlugin = {
+                    actionSheetCourse = null
+                    onRemoveManualCourse(course.id)
+                },
+            )
+        }
+
+        editRequest?.let { course ->
+            AddCourseDialog(
+                onDismiss = { editRequest = null },
+                onConfirm = {
+                    onSaveCourse(it)
+                    editRequest = null
+                },
+                existingCourses = allVisibleCourses.filterNot { it.id == course.id },
+                maxNodeCount = maxNodeCount,
+                maxWeekCount = editableMaxWeek,
+                initial = course,
+            )
+        }
+
+        moveRequest?.let { course ->
+            MoveCourseDialog(
+                course = course,
+                maxNodeCount = maxNodeCount,
+                existingCourses = allVisibleCourses,
+                onDismiss = { moveRequest = null },
+                // 真正落库前还有一道确认弹窗，这里只是选好落点
+                onConfirm = { time ->
+                    moveRequest = null
+                    onMoveManualCourse(course.id, time)
+                },
+            )
+        }
+
+        daySheetDate?.let { date ->
+            val resolution = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
+            val userEntry = holidayCalendar.userEntryOn(date)
+            ScheduleDaySheet(
+                date = date,
+                weekdayLabel = stringResource(scheduleWeekdayFullRes(date.dayOfWeek.value)),
+                effectiveHolidayName = resolution.takeIf { it.isHoliday }?.let { day ->
+                    day.holidayNameRes?.let { stringResource(it) }
+                        ?: day.holidayName
+                        ?: stringResource(R.string.schedule_holiday_unnamed)
+                },
+                initialChoice = when (userEntry?.kind) {
+                    HolidayEntryKind.Holiday -> ScheduleDayChoice.Holiday
+                    HolidayEntryKind.Workday -> ScheduleDayChoice.Workday
+                    null -> ScheduleDayChoice.Default
+                },
+                initialHolidayName = userEntry?.name.orEmpty(),
+                onDismiss = { daySheetDate = null },
+                onApply = { choice, name ->
+                    daySheetDate = null
+                    when (choice) {
+                        ScheduleDayChoice.Default -> onRemoveHolidayEntry(date)
+                        ScheduleDayChoice.Workday -> onUpsertHolidayEntry(
+                            HolidayCalendarEntry(date = date.toString(), kind = HolidayEntryKind.Workday),
+                        )
+                        ScheduleDayChoice.Holiday -> onUpsertHolidayEntry(
+                            HolidayCalendarEntry(
+                                date = date.toString(),
+                                kind = HolidayEntryKind.Holiday,
+                                name = name,
+                            ),
+                        )
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -748,6 +903,7 @@ private fun WeeklyScheduleSection(
     customColorsAdaptToTheme: Boolean,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
+    onDayHeaderDoubleTap: (LocalDate) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val slotContext = LocalContext.current
@@ -755,7 +911,7 @@ private fun WeeklyScheduleSection(
         displaySlots(slotContext, schedule, timingProfile, manualCourses)
     }
     val allCourses = remember(schedule, manualCourses) {
-        (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
+        schedule.allCoursesWith(manualCourses).visibleScheduleCourses()
     }
     val columnDayOfWeeks = remember(
         scheduleDisplay.saturdayVisible,
@@ -948,6 +1104,7 @@ private fun WeeklyScheduleSection(
                                 onMoveCourse = onMoveCourse,
                                 onResizeCourse = onResizeCourse,
                                 onMoveBlocked = onMoveBlocked,
+                                onDayHeaderDoubleTap = onDayHeaderDoubleTap,
                             )
                         }
                     }
@@ -981,6 +1138,7 @@ private fun DailyScheduleSection(
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
+    onDayHeaderDoubleTap: (LocalDate) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val slotContext = LocalContext.current
@@ -988,7 +1146,7 @@ private fun DailyScheduleSection(
         displaySlots(slotContext, schedule, timingProfile, manualCourses)
     }
     val allCourses = remember(schedule, manualCourses) {
-        (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses).visibleScheduleCourses()
+        schedule.allCoursesWith(manualCourses).visibleScheduleCourses()
     }
     val today = LocalAppZone.current.today()
     val dayResolution = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
@@ -1012,6 +1170,7 @@ private fun DailyScheduleSection(
                 isToday = targetDate == today,
                 overrideLabel = overrideLabel,
                 holidayLabel = holidayLabel,
+                onDoubleTap = { onDayHeaderDoubleTap(targetDate) },
             )
 
             if (slots.isEmpty() || allCourses.isEmpty()) {
@@ -1123,11 +1282,22 @@ private fun DailyHeaderRow(
     isToday: Boolean,
     overrideLabel: SourceDateLabel?,
     holidayLabel: HolidayLabel? = null,
+    onDoubleTap: (() -> Unit)? = null,
 ) {
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // 双击日期栏改当天的放假状态，与周视图表头一致
+            .let {
+                if (onDoubleTap == null) {
+                    it
+                } else {
+                    it.pointerInput(date) {
+                        detectTapGestures(onDoubleTap = { onDoubleTap() })
+                    }
+                }
+            }
             .padding(start = 4.dp, top = 2.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1846,6 +2016,7 @@ private fun ScheduleGrid(
     onMoveCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onResizeCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onMoveBlocked: () -> Unit = {},
+    onDayHeaderDoubleTap: (LocalDate) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val cellGroups = remember(activeEntries) {
@@ -1965,6 +2136,7 @@ private fun ScheduleGrid(
                         width = dayColumnWidth,
                         scheduleTextStyle = scheduleTextStyle,
                         customColorsAdaptToTheme = customColorsAdaptToTheme,
+                        onDoubleTap = { onDayHeaderDoubleTap(day.date) },
                     )
                 }
             }
@@ -2343,6 +2515,7 @@ private fun DayHeader(
     width: androidx.compose.ui.unit.Dp,
     scheduleTextStyle: ScheduleTextStylePreferences,
     customColorsAdaptToTheme: Boolean,
+    onDoubleTap: (() -> Unit)? = null,
 ) {
     val darkTheme = isDarkColorScheme()
     val headerColor = scheduleTextStyle.resolvedHeaderTextColor(darkTheme, customColorsAdaptToTheme)
@@ -2352,6 +2525,16 @@ private fun DayHeader(
     val columnModifier = Modifier
         .width(width)
         .padding(horizontal = 2.dp)
+        // 双击这一列的日期改当天的放假状态；单击不接管，横向翻周仍然照常
+        .let {
+            if (onDoubleTap == null) {
+                it
+            } else {
+                it.pointerInput(day.date) {
+                    detectTapGestures(onDoubleTap = { onDoubleTap() })
+                }
+            }
+        }
         .let {
             if (day.isToday) {
                 it.clip(RoundedCornerShape(10.dp))
@@ -2701,14 +2884,15 @@ private fun CourseBlock(
                         textAlign = TextAlign.Center,
                     )
                 }
-                // 地点与标记先按各自一行占位，标题拿剩下的高度，谁也不挤到谁
+                // 地点与标记先按各自的行数占位，标题拿剩下的高度，谁也不挤到谁。
+                // 行数不设上限：格子高度已经把标题框限死，跨大节的高格子就该多换几行，
+                // 写死 3 行会让明明还有空位的格子把课名截掉。
                 Text(
                     text = course.title,
                     color = titleColor,
                     fontSize = titleSizeSp.sp,
                     lineHeight = (titleSizeSp + 2).sp,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 3,
                     overflow = TextOverflow.Clip,
                     textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                     modifier = Modifier
@@ -2721,8 +2905,9 @@ private fun CourseBlock(
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
-                        maxLines = 1,
-                        softWrap = false,
+                        // 教室号一行常放不下，宁可多折几行也别把楼栋后面的房间号切掉。
+                        // 上限只是封顶，地点短的时候仍旧只占一行，不会白占标题的位置。
+                        maxLines = 3,
                         overflow = TextOverflow.Clip,
                         textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                         modifier = Modifier.fillMaxWidth(),
@@ -3313,6 +3498,9 @@ private fun appearancePreviewCourses(): List<CourseItem> = listOf(
     ),
 )
 
+/** 详情里改周次时的周数下限，学期排得更长时按实际周次往上放。 */
+private const val DefaultEditableWeekCount = 30
+
 private fun displaySlots(
     context: Context,
     schedule: TermSchedule?,
@@ -3322,7 +3510,7 @@ private fun displaySlots(
     val profileSlots = timingProfile?.slotTimes.orEmpty().sortedWith(
         compareBy<ClassSlotTime>({ it.startLocalTime() }, { it.startNode }, { it.endNode }),
     )
-    val allCoursesForExtras = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+    val allCoursesForExtras = schedule.allCoursesWith(manualCourses)
     if (profileSlots.isNotEmpty()) {
         val coveredMax = profileSlots.maxOf { it.endNode }
         // 课程节号超出 timing 配置范围时，按顺次补无时间的大节占位（避免课丢失）
@@ -3362,7 +3550,7 @@ private fun displaySlots(
         )
         return padded
     }
-    val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+    val allCourses = schedule.allCoursesWith(manualCourses)
     val maxNode = allCourses.maxOfOrNull { maxOf(it.time.startNode, it.time.endNode) } ?: 0
     val derivedSlots = (1..maxNode).map { node ->
         DisplaySlot(

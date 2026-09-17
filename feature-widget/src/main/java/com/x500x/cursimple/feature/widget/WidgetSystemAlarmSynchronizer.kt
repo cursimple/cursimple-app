@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
@@ -80,7 +81,7 @@ internal object WidgetSystemAlarmSynchronizer {
         manualCourses: List<CourseItem>,
     ): TermSchedule? {
         if (schedule == null && manualCourses.isEmpty()) return null
-        val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+        val allCourses = schedule.allCoursesWith(manualCourses)
         val dailySchedules = allCourses
             .groupBy { it.time.dayOfWeek }
             .toSortedMap()

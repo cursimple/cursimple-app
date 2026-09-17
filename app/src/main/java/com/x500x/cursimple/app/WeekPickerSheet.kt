@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
@@ -133,7 +134,7 @@ internal fun resolveWeekPickerTotalWeeks(
     selectedWeek: Int,
     fallbackWeeks: Int = DefaultWeekPickerTotalWeeks,
 ): Int {
-    val explicitMaxWeek = (schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses)
+    val explicitMaxWeek = schedule.allCoursesWith(manualCourses)
         .flatMap { it.weeks }
         .maxOrNull()
     val baseWeeks = explicitMaxWeek ?: fallbackWeeks

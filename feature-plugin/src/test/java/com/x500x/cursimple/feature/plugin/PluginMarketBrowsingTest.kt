@@ -10,6 +10,7 @@ private fun repo(
     name: String = fullName.substringAfter('/'),
     owner: String = fullName.substringBefore('/'),
     description: String = "",
+    schoolAliases: List<String> = emptyList(),
 ): GitHubRepoSummary = GitHubRepoSummary(
     fullName = fullName,
     owner = owner,
@@ -20,6 +21,7 @@ private fun repo(
     htmlUrl = "",
     ownerHtmlUrl = "",
     isFresh = true,
+    schoolAliases = schoolAliases,
 )
 
 class MarketPreviewTest {
@@ -109,5 +111,66 @@ class FilterMarketReposTest {
     @Test
     fun `a query matching nothing yields an empty list`() {
         assertTrue(filterMarketRepos(repos, "no-such-school").isEmpty())
+    }
+}
+
+class SchoolAliasSearchTest {
+
+    private val bit = repo(
+        fullName = "someone/bit-schedule",
+        description = "Undergraduate timetable plugin",
+        schoolAliases = listOf("北京理工大学", "北理工", "beijingligong", "BIT"),
+    )
+    private val zf = repo(
+        fullName = "vendor/zf-plugin",
+        description = "正方教务系统",
+    )
+    private val repos = listOf(bit, zf)
+
+    @Test
+    fun `the full chinese school name finds a repo named in english`() {
+        assertEquals(listOf(bit), filterMarketRepos(repos, "北京理工大学"))
+    }
+
+    @Test
+    fun `a short form of the school name also matches`() {
+        assertEquals(listOf(bit), filterMarketRepos(repos, "北理工"))
+    }
+
+    @Test
+    fun `an alias matches on a prefix so typing partway is enough`() {
+        // 学生边打边看结果，打到「北京理工」时就该出来，不必打完「大学」
+        assertEquals(listOf(bit), filterMarketRepos(repos, "北京理工"))
+    }
+
+    @Test
+    fun `pinyin written into the aliases matches too`() {
+        assertEquals(listOf(bit), filterMarketRepos(repos, "beijingligong"))
+    }
+
+    @Test
+    fun `alias matching ignores case`() {
+        assertEquals(listOf(bit), filterMarketRepos(repos, "bit"))
+    }
+
+    @Test
+    fun `repos without aliases still match on name and description`() {
+        assertEquals(listOf(zf), filterMarketRepos(repos, "正方"))
+    }
+
+    @Test
+    fun `an unrelated school matches nothing`() {
+        assertTrue(filterMarketRepos(repos, "清华").isEmpty())
+    }
+
+    @Test
+    fun `a registry holding a single school matches only that school`() {
+        // 目前注册表里就一个学校，搜别家不能把这一个顶上来充数
+        val onlyOne = listOf(bit)
+
+        assertEquals(listOf(bit), filterMarketRepos(onlyOne, "北理工"))
+        assertTrue(filterMarketRepos(onlyOne, "清华大学").isEmpty())
+        assertTrue(filterMarketRepos(onlyOne, "复旦").isEmpty())
+        assertTrue(filterMarketRepos(onlyOne, "不存在的学校").isEmpty())
     }
 }

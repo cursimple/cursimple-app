@@ -39,11 +39,36 @@ class CourseLibraryTest {
     }
 
     @Test
-    fun `only manual courses are editable`() {
+    fun `every course is editable, plugin ones included`() {
         val library = buildCourseLibrary(listOf(course("p1")), listOf(course("m1")))
 
-        assertFalse(library.first { it.course.id == "p1" }.editable)
+        assertTrue(library.first { it.course.id == "p1" }.editable)
         assertTrue(library.first { it.course.id == "m1" }.editable)
+    }
+
+    @Test
+    fun `only self-added manual courses can be deleted`() {
+        val library = buildCourseLibrary(listOf(course("p1")), listOf(course("m1")))
+
+        // 插件原件删不掉，下次同步还会回来
+        assertFalse(library.first { it.course.id == "p1" }.removable)
+        assertTrue(library.first { it.course.id == "m1" }.removable)
+        assertFalse(library.first { it.course.id == "m1" }.restorable)
+    }
+
+    @Test
+    fun `an edited plugin course is restorable instead of deletable`() {
+        val library = buildCourseLibrary(
+            pluginCourses = listOf(course("same", title = "插件版")),
+            manualCourses = listOf(course("same", title = "改过的")),
+        )
+
+        val entry = library.single()
+        assertTrue(entry.overridesPlugin)
+        assertTrue(entry.editable)
+        // 删掉的只是那份手动覆盖，插件原件会重新露出来，所以这里给的是"还原"而不是"删除"
+        assertFalse(entry.removable)
+        assertTrue(entry.restorable)
     }
 
     @Test

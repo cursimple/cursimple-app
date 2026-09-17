@@ -35,6 +35,14 @@ data class GitHubRepoSummary(
     val pushedAt: String? = null,
     val isFresh: Boolean,
     val latestRelease: GitHubReleaseAsset? = null,
+    /**
+     * 这个插件覆盖的学校别名，由注册表声明。
+     *
+     * 仓库名多半是 `bit-schedule` 这类英文缩写，学生搜的却是「北京理工」；
+     * 注册表把中文全称、简称、拼音一并写进来，搜索时按普通子串比对即可命中，
+     * 应用侧不做拼音转换，新学校只改注册表、不必发版。
+     */
+    val schoolAliases: List<String> = emptyList(),
 ) {
     val displayTitle: String get() = name.ifBlank { fullName }
 }
@@ -55,6 +63,9 @@ private data class PluginStarsRepositoryApi(
     @SerialName("language") val language: String? = null,
     @SerialName("url") val htmlUrl: String = "",
     @SerialName("release") val release: PluginStarsReleaseApi? = null,
+    // 两个键名都认：schools 是本意，aliases 留给只想补几个别称的条目
+    @SerialName("schools") val schools: List<String> = emptyList(),
+    @SerialName("aliases") val aliases: List<String> = emptyList(),
 )
 
 @Serializable
@@ -188,6 +199,10 @@ class GitHubRegistryRepository(
                 pushedAt = null,
                 isFresh = true,
                 latestRelease = embeddedRelease,
+                schoolAliases = (schools + aliases)
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .distinct(),
             )
         }
 
