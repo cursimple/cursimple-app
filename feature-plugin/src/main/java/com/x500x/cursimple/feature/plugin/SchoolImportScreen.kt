@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.plugin
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,6 +87,10 @@ fun SchoolImportRoute(
         }
     }
 
+    // 网页登录浮层开着时，返回键该退出登录流程回到搜索页，
+    // 而不是一路退回课表把整个导课流程丢掉。
+    BackHandler(enabled = pendingWebSession != null) { onCancelWebSession() }
+
     val matched = remember(uiState.marketRepos, query) {
         filterMarketRepos(uiState.marketRepos, query)
     }
@@ -96,8 +101,9 @@ fun SchoolImportRoute(
             .associateBy { it.sourceRepo.orEmpty() }
     }
 
+    Box(modifier = modifier.fillMaxSize()) {
     Scaffold(
-        modifier = modifier,
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.school_import_title)) },
@@ -220,13 +226,15 @@ fun SchoolImportRoute(
         )
     }
 
-    // 登录教务系统的网页会话就在本页弹出，装完插件不必再绕去插件页
+    // 登录教务系统的网页会话就在本页弹出，装完插件不必再绕去插件页。
+    // 放在铺满的 Box 里，尺寸才和插件页那边一致。
     pendingWebSession?.let { request ->
         WebSessionOverlay(
             request = request,
             onFinish = onCompleteWebSession,
             onCancel = onCancelWebSession,
         )
+    }
     }
 }
 

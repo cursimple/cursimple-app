@@ -135,6 +135,9 @@
     <string name="update_announcement_open_release">打开发布页</string>
     <string name="update_announcement_dismiss">知道了</string>
     <string name="update_dialog_downloading">下载中...</string>
+    <string name="update_download_starting">正在连接下载源…</string>
+    <string name="update_download_progress">已下载 %1$s / %2$s · %3$d%%</string>
+    <string name="update_download_progress_unknown_total">已下载 %1$s</string>
     <string name="update_dialog_install">安装</string>
     <string name="update_dialog_update">更新</string>
     <string name="update_dialog_ignore">忽略此版本</string>
@@ -751,6 +754,8 @@
     <string name="main_drawer_before_term">尚未开学 · 距第 1 周还有 %1$d 周</string>
     <string name="main_drawer_theme_shortcut">换主题</string>
     <string name="main_drawer_background_shortcut">换背景</string>
+    <string name="main_drawer_overrides_shortcut">调课</string>
+    <string name="main_drawer_update_shortcut">检查更新</string>
     <string name="main_drawer_version">课简 · v%1$s</string>
     <string name="main_confirm">确定</string>
     <string name="main_date_picker_title">选择日期</string>

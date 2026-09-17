@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 
 /**
@@ -53,6 +54,10 @@ internal fun CourseLibraryScreen(
     onRemoveCourse: (String) -> Unit,
     maxNodeCount: Int,
     maxWeekCount: Int,
+    /** 被删掉、只剩墓碑的课；不为空时列表上方给出恢复入口。 */
+    hiddenCourses: List<CourseItem> = emptyList(),
+    onRestoreCourse: (String) -> Unit = {},
+    onSetReminder: (CourseItem) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -61,6 +66,9 @@ internal fun CourseLibraryScreen(
     var adding by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<CourseLibraryEntry?>(null) }
     var pendingRestore by remember { mutableStateOf<CourseLibraryEntry?>(null) }
+    var moving by remember { mutableStateOf<CourseItem?>(null) }
+    var pendingMove by remember { mutableStateOf<Pair<CourseItem, CourseTimeSlot>?>(null) }
+    var showHidden by rememberSaveable { mutableStateOf(false) }
 
     val allCourses = remember(entries) { entries.map { it.course } }
     val matched = remember(entries, query, sortMode) {
@@ -122,6 +130,49 @@ internal fun CourseLibraryScreen(
         )
     }
 
+    moving?.let { course ->
+        MoveCourseDialog(
+            course = course,
+            maxNodeCount = maxNodeCount,
+            existingCourses = allCourses,
+            onDismiss = { moving = null },
+            onConfirm = { time ->
+                moving = null
+                pendingMove = course to time
+            },
+        )
+    }
+
+    // 移动是易误触的改动，落库前再确认一次
+    pendingMove?.let { (course, time) ->
+        AlertDialog(
+            onDismissRequest = { pendingMove = null },
+            title = { Text(stringResource(R.string.schedule_drag_confirm_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.schedule_drag_confirm_move,
+                        course.title,
+                        stringResource(weekdayNameRes(time.dayOfWeek)),
+                        time.startNode,
+                        time.endNode,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onUpdateCourse(course.copy(time = time))
+                    pendingMove = null
+                }) { Text(stringResource(R.string.schedule_move_dialog_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingMove = null }) {
+                    Text(stringResource(R.string.schedule_action_cancel))
+                }
+            },
+        )
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -156,11 +207,35 @@ internal fun CourseLibraryScreen(
             }
         }
 
-        Text(
-            text = stringResource(R.string.schedule_library_summary, matched.size),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.schedule_library_summary, matched.size),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            if (hiddenCourses.isNotEmpty()) {
+                TextButton(onClick = { showHidden = !showHidden }) {
+                    Text(
+                        stringResource(
+                            if (showHidden) {
+                                R.string.schedule_library_hidden_hide
+                            } else {
+                                R.string.schedule_library_hidden_show
+                            },
+                            hiddenCourses.size,
+                        ),
+                    )
+                }
+            }
+        }
+
+        if (showHidden && hiddenCourses.isNotEmpty()) {
+            HiddenCourseList(hiddenCourses = hiddenCourses, onRestore = onRestoreCourse)
+        }
 
         when {
             entries.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_empty))
@@ -172,6 +247,8 @@ internal fun CourseLibraryScreen(
                 onEdit = { editing = it },
                 onDelete = { pendingDelete = it },
                 onRestore = { pendingRestore = it },
+                onMove = { moving = it },
+                onSetReminder = onSetReminder,
             )
         }
     }
@@ -185,6 +262,8 @@ private fun CourseLibraryList(
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
     onRestore: (CourseLibraryEntry) -> Unit,
+    onMove: (CourseItem) -> Unit,
+    onSetReminder: (CourseItem) -> Unit,
 ) {
     // 只有按星期排序时分组才有意义，其余两种保持平铺
     val grouped = remember(matched, sortMode, columnDayOfWeeks) {
@@ -197,7 +276,7 @@ private fun CourseLibraryList(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (grouped.isEmpty()) {
             items(matched, key = { it.course.id }) { entry ->
-                CourseLibraryRow(entry, onEdit, onDelete, onRestore)
+                CourseLibraryRow(entry, onEdit, onDelete, onRestore, onMove, onSetReminder)
             }
         } else {
             grouped.forEach { (dayOfWeek, dayEntries) ->
@@ -220,7 +299,7 @@ private fun CourseLibraryList(
                     }
                 }
                 items(dayEntries, key = { it.course.id }) { entry ->
-                    CourseLibraryRow(entry, onEdit, onDelete, onRestore)
+                    CourseLibraryRow(entry, onEdit, onDelete, onRestore, onMove, onSetReminder)
                 }
             }
         }
@@ -234,6 +313,8 @@ private fun CourseLibraryRow(
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
     onRestore: (CourseLibraryEntry) -> Unit,
+    onMove: (CourseItem) -> Unit,
+    onSetReminder: (CourseItem) -> Unit,
 ) {
     val course = entry.course
     Surface(
@@ -287,18 +368,66 @@ private fun CourseLibraryRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 OutlinedButton(onClick = { onEdit(course) }) {
                     Text(stringResource(R.string.schedule_action_edit), maxLines = 2)
                 }
-                if (entry.removable) {
-                    OutlinedButton(onClick = { onDelete(entry) }) {
-                        Text(stringResource(R.string.schedule_action_delete), maxLines = 2)
-                    }
+                OutlinedButton(onClick = { onMove(course) }) {
+                    Text(stringResource(R.string.schedule_course_action_move), maxLines = 2)
+                }
+                OutlinedButton(onClick = { onSetReminder(course) }) {
+                    Text(stringResource(R.string.schedule_action_reminder), maxLines = 2)
                 }
                 if (entry.restorable) {
                     OutlinedButton(onClick = { onRestore(entry) }) {
                         Text(stringResource(R.string.schedule_action_restore_plugin), maxLines = 2)
+                    }
+                }
+                // 插件课删不掉原件，但可以把它盖住；两种情况用户看到的都是「删除」
+                OutlinedButton(onClick = { onDelete(entry) }) {
+                    Text(stringResource(R.string.schedule_action_delete), maxLines = 2)
+                }
+            }
+        }
+    }
+}
+
+/** 已删除课程的墓碑列表，给一条回头路。 */
+@Composable
+private fun HiddenCourseList(
+    hiddenCourses: List<CourseItem>,
+    onRestore: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        hiddenCourses.forEach { course ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = course.title,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                        Text(
+                            text = courseLibrarySubtitle(course),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                    }
+                    TextButton(onClick = { onRestore(course.id) }) {
+                        Text(stringResource(R.string.schedule_action_restore))
                     }
                 }
             }

@@ -2,10 +2,15 @@ package com.x500x.cursimple.feature.schedule
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
+import com.x500x.cursimple.core.kernel.model.CourseCategory
+import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.hiddenCourses
 
 /** 课程管理页与 ScheduleViewModel 的接线。 */
 @Composable
@@ -20,6 +25,20 @@ fun CourseLibraryRoute(
         buildCourseLibrary(
             pluginCourses = state.schedule?.dailySchedules.orEmpty().flatMap { it.courses },
             manualCourses = state.manualCourses,
+        )
+    }
+    val hiddenCourses = remember(state.manualCourses) { state.manualCourses.hiddenCourses() }
+    var reminderTarget by remember { mutableStateOf<CourseItem?>(null) }
+
+    reminderTarget?.let { course ->
+        CourseReminderDialog(
+            course = course,
+            defaultAdvanceMinutes = if (course.category == CourseCategory.Exam) 40 else 20,
+            onDismiss = { reminderTarget = null },
+            onConfirm = { advance, ringtone ->
+                viewModel.createReminderForCourse(course.id, advance, ringtone)
+                reminderTarget = null
+            },
         )
     }
     val columnDayOfWeeks = remember(
@@ -40,6 +59,9 @@ fun CourseLibraryRoute(
         onRemoveCourse = viewModel::removeManualCourse,
         maxNodeCount = maxNodeCount,
         maxWeekCount = maxWeekCount,
+        hiddenCourses = hiddenCourses,
+        onRestoreCourse = viewModel::restoreHiddenCourse,
+        onSetReminder = { reminderTarget = it },
         modifier = modifier,
     )
 }
