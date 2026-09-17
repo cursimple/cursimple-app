@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
@@ -94,6 +95,15 @@ fun SchoolImportRoute(
     val matched = remember(uiState.marketRepos, query) {
         filterMarketRepos(uiState.marketRepos, query)
     }
+    // 插件清单在本地缓存 24 小时，新收录的学校在缓存过期前一直搜不到，
+    // 用户还以为是自己学校没人做。搜不到时先自动拉一次最新清单，每次进页面只补拉一次。
+    var refreshedForMiss by remember { mutableStateOf(false) }
+    LaunchedEffect(query, uiState.marketRepos, uiState.isLoading) {
+        if (query.isBlank() || matched.isNotEmpty() || uiState.isLoading || refreshedForMiss) return@LaunchedEffect
+        if (pluginRegistryRepo.isBlank()) return@LaunchedEffect
+        refreshedForMiss = true
+        pluginMarketViewModel.loadRegistry(pluginRegistryRepo)
+    }
     // 装自哪个仓库记在安装记录里，据此判断这一条是不是已经装好了
     val installedByRepo = remember(uiState.installedPlugins) {
         uiState.installedPlugins
@@ -112,6 +122,17 @@ fun SchoolImportRoute(
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.school_import_back),
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+                        enabled = !uiState.isLoading,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = stringResource(R.string.school_import_refresh),
                         )
                     }
                 },
@@ -176,8 +197,10 @@ fun SchoolImportRoute(
                     hint = stringResource(R.string.school_import_no_match_hint),
                     actionText = stringResource(R.string.school_import_add_manually),
                     onAction = onAddCourseManually,
-                    secondaryActionText = stringResource(R.string.school_import_browse_all),
-                    onSecondaryAction = onBrowseAllPlugins,
+                    secondaryActionText = stringResource(R.string.school_import_refresh_list),
+                    onSecondaryAction = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+                    tertiaryActionText = stringResource(R.string.school_import_browse_all),
+                    onTertiaryAction = onBrowseAllPlugins,
                 )
 
                 else -> LazyColumn(
@@ -376,6 +399,8 @@ private fun SchoolImportEmpty(
     hint: String? = null,
     secondaryActionText: String? = null,
     onSecondaryAction: (() -> Unit)? = null,
+    tertiaryActionText: String? = null,
+    onTertiaryAction: (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -401,6 +426,9 @@ private fun SchoolImportEmpty(
         Button(onClick = onAction) { Text(actionText) }
         if (secondaryActionText != null && onSecondaryAction != null) {
             TextButton(onClick = onSecondaryAction) { Text(secondaryActionText) }
+        }
+        if (tertiaryActionText != null && onTertiaryAction != null) {
+            TextButton(onClick = onTertiaryAction) { Text(tertiaryActionText) }
         }
     }
 }

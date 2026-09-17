@@ -230,6 +230,8 @@
     <string name="school_import_search_hint">Type a school name</string>
     <string name="school_import_market_empty">Could not load the plugin list. Check your connection and try again.</string>
     <string name="school_import_retry">Reload</string>
+    <string name="school_import_refresh">Refresh the plugin list</string>
+    <string name="school_import_refresh_list">Refresh the plugin list</string>
     <string name="school_import_no_match">No plugin covers \"%1$s\" yet</string>
     <string name="school_import_catalog_count">%1$d school plugins available</string>
     <string name="school_import_match_count">%1$d found</string>

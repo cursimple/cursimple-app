@@ -230,6 +230,8 @@
     <string name="school_import_search_hint">輸入學校名稱</string>
     <string name="school_import_market_empty">還沒抓到外掛清單，檢查一下網路再試一次</string>
     <string name="school_import_retry">重新載入</string>
+    <string name="school_import_refresh">重新整理外掛清單</string>
+    <string name="school_import_refresh_list">重新整理外掛清單</string>
     <string name="school_import_no_match">「%1$s」還沒有對應的外掛</string>
     <string name="school_import_catalog_count">目前收錄 %1$d 個學校外掛</string>
     <string name="school_import_match_count">搜到 %1$d 個</string>
