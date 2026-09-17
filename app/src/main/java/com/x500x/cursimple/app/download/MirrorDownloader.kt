@@ -389,6 +389,10 @@ class MirrorDownloader(
             requestMethod = method
             instanceFollowRedirects = true
             setRequestProperty("User-Agent", userAgent)
+            // 中间代理各自按 URL 缓存，源站更新后用户那边的边缘节点可能还发旧文件。
+            // 肯听这两个头的代理会回源，不听的至少不会更糟。
+            setRequestProperty("Cache-Control", "no-cache")
+            setRequestProperty("Pragma", "no-cache")
         }
     }
 
