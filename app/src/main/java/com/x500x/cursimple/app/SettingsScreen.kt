@@ -65,6 +65,7 @@ import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.FormatAlignCenter
+import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LineStyle
@@ -348,6 +349,7 @@ fun AppSettingsRoute(
     onScheduleTodayHeaderBackgroundColorArgbChange: (Long) -> Unit,
     onScheduleTextHorizontalCenterChange: (Boolean) -> Unit,
     onScheduleTextVerticalCenterChange: (Boolean) -> Unit,
+    onScheduleAutoShrinkLongTitlesChange: (Boolean) -> Unit,
     onScheduleCourseCornerRadiusDpChange: (Int) -> Unit,
     onScheduleCourseCardHeightDpChange: (Int) -> Unit,
     onScheduleOpacityPercentChange: (Int) -> Unit,
@@ -910,6 +912,13 @@ fun AppSettingsRoute(
                         subtitle = stringResource(R.string.settings_text_center_vertical_subtitle),
                         checked = scheduleTextStyle.verticalCenter,
                         onCheckedChange = onScheduleTextVerticalCenterChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.FormatSize,
+                        title = stringResource(R.string.settings_auto_shrink_title),
+                        subtitle = stringResource(R.string.settings_auto_shrink_subtitle),
+                        checked = scheduleTextStyle.autoShrinkLongTitles,
+                        onCheckedChange = onScheduleAutoShrinkLongTitlesChange,
                     )
                 }
             }

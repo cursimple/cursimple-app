@@ -90,6 +90,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleTextHorizontalCenter(enabled) }
     }
 
+    fun setScheduleAutoShrinkLongTitles(enabled: Boolean) {
+        viewModelScope.launch { repository.setScheduleAutoShrinkLongTitles(enabled) }
+    }
+
     fun setScheduleTextVerticalCenter(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleTextVerticalCenter(enabled) }
     }
