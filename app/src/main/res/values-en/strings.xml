@@ -405,6 +405,8 @@
     <string name="settings_text_center_horizontal_subtitle">Course card text is centered horizontally</string>
     <string name="settings_text_center_vertical_title">Center cell text vertically</string>
     <string name="settings_text_center_vertical_subtitle">Course card content is centered vertically</string>
+    <string name="settings_auto_shrink_title">Shrink long course names</string>
+    <string name="settings_auto_shrink_subtitle">Longer names get a smaller size so less is cut off; off means every card uses the same size</string>
     <string name="settings_header_text_size">Header text size</string>
     <string name="settings_header_text_color">Header text color</string>
     <string name="settings_today_header_background_color">Today\'s header background color</string>

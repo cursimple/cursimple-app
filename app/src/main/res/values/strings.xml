@@ -405,6 +405,8 @@
     <string name="settings_text_center_horizontal_subtitle">课程卡片文字水平居中</string>
     <string name="settings_text_center_vertical_title">格子文字竖直居中</string>
     <string name="settings_text_center_vertical_subtitle">课程卡片内容竖直居中</string>
+    <string name="settings_auto_shrink_title">长课名自动缩小</string>
+    <string name="settings_auto_shrink_subtitle">课名越长字号越小，尽量不截断；关闭时所有课名字号一致</string>
     <string name="settings_header_text_size">表头文字大小</string>
     <string name="settings_header_text_color">表头文字颜色</string>
     <string name="settings_today_header_background_color">当前天表头背景颜色</string>
