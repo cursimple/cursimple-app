@@ -234,7 +234,8 @@
     <string name="school_import_refresh_list">刷新插件列表</string>
     <string name="school_import_no_match">「%1$s」还没有对应的插件</string>
     <string name="school_import_catalog_count">目前收录 %1$d 个学校插件</string>
-    <string name="school_import_match_count">搜到 %1$d 个</string>
+    <string name="school_import_catalog_header">目前收录的 %1$d 个插件：</string>
+    <string name="school_import_match_count">在 %1$d 个插件里搜到 %2$d 个</string>
     <string name="school_import_no_match_hint">插件由各校同学自己写、自己提交，你的学校可能还没人做。可以先手动加课，或者用「导入 / 导出课程」从文件导入。</string>
     <string name="school_import_add_manually">手动添加课程</string>
     <string name="school_import_browse_all">浏览全部插件</string>
