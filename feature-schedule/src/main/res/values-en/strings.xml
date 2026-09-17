@@ -106,8 +106,10 @@
     <string name="schedule_course_detail_source">Source</string>
     <string name="schedule_source_manual">Added manually</string>
     <string name="schedule_source_plugin">Synced by plugin</string>
+    <string name="schedule_source_plugin_edited">Synced by plugin (edited)</string>
     <string name="schedule_course_detail_temp_cancel">Cancel once</string>
     <string name="schedule_course_detail_restore_cancel">Undo cancel</string>
+    <string name="schedule_course_detail_restore_cancel_short">Undo</string>
     <string name="schedule_action_delete">Delete</string>
     <string name="schedule_course_detail_set_reminder">Set reminder</string>
     <string name="schedule_action_close">Close</string>
@@ -123,6 +125,12 @@
     <string name="schedule_exam_mute_muted">Reminder cancelled for this exam</string>
     <string name="schedule_exam_mute_active">This exam follows the global rule</string>
     <string name="schedule_action_restore">Restore</string>
+    <string name="schedule_action_restore_plugin">Revert</string>
+    <string name="schedule_action_reminder">Remind</string>
+    <string name="schedule_course_detail_edit_title">Edit course</string>
+    <string name="schedule_course_detail_converts_to_manual">This course came from a plugin sync. Saving turns it into a manual course, so the next sync will not overwrite your changes.</string>
+    <string name="schedule_course_detail_restore_plugin_title">Revert to plugin data?</string>
+    <string name="schedule_course_detail_restore_plugin_body">Your edits to %1$s will be discarded and the plugin-synced version restored.</string>
     <string name="schedule_exam_mute_this">Cancel this one</string>
     <string name="schedule_status_week_unknown">Week unknown</string>
     <string name="schedule_status_other_week">Other weeks</string>
@@ -259,6 +267,7 @@
     <string name="schedule_status_course_moved">Moved to %1$s, period %2$d</string>
     <string name="schedule_status_course_span_changed">Now periods %1$d-%2$d</string>
     <string name="schedule_status_course_updated">Saved %1$s</string>
+    <string name="schedule_status_course_overridden">Turned into a manual course: %1$s</string>
     <string name="schedule_library_title">All courses</string>
     <string name="schedule_library_search">Search name, teacher or place</string>
     <string name="schedule_library_sort_weekday">By weekday</string>
@@ -266,14 +275,18 @@
     <string name="schedule_library_sort_source">By source</string>
     <string name="schedule_library_source_plugin">Plugin</string>
     <string name="schedule_library_source_manual">Manual</string>
+    <string name="schedule_library_source_manual_edited">Edited</string>
     <string name="schedule_library_group_count">%1$d courses</string>
     <string name="schedule_library_empty">No courses in this term yet</string>
     <string name="schedule_library_no_match">No matching course</string>
     <string name="schedule_library_add">Add a course</string>
-    <string name="schedule_library_plugin_readonly">Plugin-synced courses cannot be edited here; the next sync would overwrite it</string>
+    <string name="schedule_library_plugin_editable_hint">Plugin-synced courses can be edited too; editing turns one into a manual course so the next sync will not overwrite it</string>
     <string name="schedule_library_delete_title">Delete this course?</string>
     <string name="schedule_library_delete_body">%1$s will be removed from the timetable, along with its own reminder.</string>
     <string name="schedule_library_delete_confirm">Delete</string>
+    <string name="schedule_library_restore_title">Revert to plugin data?</string>
+    <string name="schedule_library_restore_body">Your edits to %1$s will be discarded and the plugin-synced version restored.</string>
+    <string name="schedule_library_restore_confirm">Revert</string>
     <string name="schedule_library_delete_cancel">Cancel</string>
     <string name="schedule_library_summary">%1$d courses in total</string>
     <string name="schedule_drag_confirm_title">Apply this change?</string>
@@ -465,4 +478,35 @@
     <string name="schedule_sample_sunday_culture_title">East-West Cultures (MOOC)</string>
     <string name="schedule_sample_sunday_culture_teacher">Academic Office</string>
     <string name="schedule_sample_sunday_culture_location">Online</string>
+    <!-- Long-press course action sheet -->
+    <string name="schedule_course_action_move">Move</string>
+    <string name="schedule_course_action_move_desc">Send it to another weekday or period; overlapping is allowed</string>
+    <string name="schedule_course_action_edit_desc">Change the name, room, weeks and everything else</string>
+    <string name="schedule_course_action_edit_plugin_desc">Editing a plugin course turns it into a manual one</string>
+    <string name="schedule_course_action_reminder_desc">Set a reminder for this course only</string>
+    <string name="schedule_course_action_multi_select">Select multiple</string>
+    <string name="schedule_course_action_multi_select_desc">Pick several courses and set reminders at once</string>
+    <string name="schedule_course_action_delete_desc">Remove it from the timetable along with its reminder</string>
+    <string name="schedule_course_action_restore_desc">Discard your edits and go back to the plugin version</string>
+    <!-- Move course -->
+    <string name="schedule_move_dialog_title">Move to</string>
+    <string name="schedule_move_dialog_weekday">Weekday</string>
+    <string name="schedule_move_dialog_start_node">Starting period</string>
+    <string name="schedule_move_dialog_earlier">One period earlier</string>
+    <string name="schedule_move_dialog_later">One period later</string>
+    <string name="schedule_move_dialog_overlap">Already there: %1$s. Both courses will sit side by side.</string>
+    <string name="schedule_move_dialog_confirm">Move here</string>
+    <!-- Double-tap a date to configure the day -->
+    <string name="schedule_day_sheet_title">%1$d/%2$d · %3$s</string>
+    <string name="schedule_day_sheet_current_holiday">Currently off for %1$s — no classes and no reminders</string>
+    <string name="schedule_day_sheet_current_normal">Currently a normal class day</string>
+    <string name="schedule_day_sheet_default">Follow the holiday calendar</string>
+    <string name="schedule_day_sheet_default_desc">Use the built-in or synced holidays and drop my setting for this day</string>
+    <string name="schedule_day_sheet_workday">Classes as usual</string>
+    <string name="schedule_day_sheet_workday_desc">Cancel the holiday here; the timetable follows this weekday</string>
+    <string name="schedule_day_sheet_holiday">No classes all day</string>
+    <string name="schedule_day_sheet_holiday_desc">Nothing scheduled and no reminders; name it if you like</string>
+    <string name="schedule_day_sheet_holiday_name">Name</string>
+    <string name="schedule_day_sheet_holiday_name_hint">e.g. Sports day</string>
+    <string name="schedule_day_sheet_saved">Updated %1$d/%2$d</string>
 </resources>

@@ -66,5 +66,49 @@ class ScheduleModelsTest {
 
         assertEquals("早自习", course.reminderSlotLabel(timingProfile))
     }
+
+    @Test
+    fun manualCourseOverridesThePluginCourseWithTheSameId() {
+        val schedule = TermSchedule(
+            termId = "2026-spring",
+            updatedAt = "2026-04-25T08:00:00Z",
+            dailySchedules = listOf(
+                DailySchedule(
+                    dayOfWeek = 1,
+                    courses = listOf(
+                        courseOf("shared", "插件版"),
+                        courseOf("plugin-only", "只有插件有"),
+                    ),
+                ),
+            ),
+        )
+
+        val merged = schedule.allCoursesWith(listOf(courseOf("shared", "改过的"), courseOf("m1", "自己加的")))
+
+        // 改过的那门只能算一次，否则网格里会并排显示新旧两份，提醒也会重复响
+        assertEquals(listOf("plugin-only", "shared", "m1"), merged.map { it.id })
+        assertEquals("改过的", merged.first { it.id == "shared" }.title)
+    }
+
+    @Test
+    fun mergingWithoutManualCoursesKeepsThePluginListIntact() {
+        val plugin = listOf(courseOf("a"), courseOf("b"))
+
+        assertEquals(plugin, mergeCourseSources(plugin, emptyList()))
+        assertEquals(plugin, TermSchedule("t", "now", listOf(DailySchedule(1, plugin))).allCoursesWith(emptyList()))
+    }
+
+    @Test
+    fun mergingWithoutAScheduleLeavesOnlyManualCourses() {
+        val manual = listOf(courseOf("m1"))
+
+        assertEquals(manual, (null as TermSchedule?).allCoursesWith(manual))
+    }
+
+    private fun courseOf(id: String, title: String = id) = CourseItem(
+        id = id,
+        title = title,
+        time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+    )
 }
 

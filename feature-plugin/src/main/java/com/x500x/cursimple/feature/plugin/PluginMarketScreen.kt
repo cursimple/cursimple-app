@@ -1420,7 +1420,7 @@ private fun PluginDetailScreen(
 }
 
 @Composable
-private fun InstallPreviewDialog(
+internal fun InstallPreviewDialog(
     preview: PluginInstallPreview,
     origin: PluginInstallOrigin?,
     isLoading: Boolean,
@@ -1560,7 +1560,7 @@ private fun InstallPreviewDialog(
 }
 
 @Composable
-private fun WebSessionOverlay(
+internal fun WebSessionOverlay(
     request: WebSessionRequest,
     onFinish: (WebSessionPacket) -> Unit,
     onCancel: () -> Unit,
@@ -1680,7 +1680,7 @@ private enum class PluginPlatformTab(
     Components(R.string.plugin_market_tab_components, Icons.Rounded.Widgets),
 }
 
-private fun installedPluginKey(plugin: InstalledPluginRecord): String =
+internal fun installedPluginKey(plugin: InstalledPluginRecord): String =
     plugin.installKey
 
 @Composable
@@ -1714,7 +1714,7 @@ private fun Context.openExternalUrl(url: String) {
     runCatching { startActivity(intent) }
 }
 
-private const val MARKET_CACHE_TTL_MILLIS = 24L * 60L * 60L * 1000L
+internal const val MARKET_CACHE_TTL_MILLIS = 24L * 60L * 60L * 1000L
 
 private val PACKAGE_MIME_TYPES = arrayOf(
     "application/zip",

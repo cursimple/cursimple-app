@@ -220,4 +220,23 @@
     <string name="plugin_permission_schedule_write">写入课表数据</string>
     <string name="plugin_permission_storage_plugin">使用插件本地存储</string>
     <string name="plugin_permission_component_use">调用已安装组件</string>
+    <!-- 从教务系统导课的引导页 -->
+    <string name="school_import_title">从教务系统导课</string>
+    <string name="school_import_back">返回</string>
+    <string name="school_import_step_search">搜学校</string>
+    <string name="school_import_step_install">装插件</string>
+    <string name="school_import_step_login">登录导课</string>
+    <string name="school_import_search_label">搜索学校</string>
+    <string name="school_import_search_hint">输入学校名称，如：北京理工</string>
+    <string name="school_import_market_empty">还没拉到插件列表，检查下网络再试一次</string>
+    <string name="school_import_retry">重新加载</string>
+    <string name="school_import_no_match">「%1$s」还没有对应的插件</string>
+    <string name="school_import_catalog_count">目前收录 %1$d 个学校插件</string>
+    <string name="school_import_match_count">搜到 %1$d 个</string>
+    <string name="school_import_no_match_hint">插件由各校同学自己写、自己提交，你的学校可能还没人做。可以先手动加课，或者用「导入 / 导出课程」从文件导入。</string>
+    <string name="school_import_add_manually">手动添加课程</string>
+    <string name="school_import_browse_all">浏览全部插件</string>
+    <string name="school_import_installed_enabled">已安装并启用</string>
+    <string name="school_import_action_install">安装</string>
+    <string name="school_import_action_sync">登录导课</string>
 </resources>
