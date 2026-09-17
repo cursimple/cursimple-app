@@ -57,17 +57,24 @@ class MirrorDownloader(
         }
     }
 
+    /**
+     * 下载到文件。
+     *
+     * [onProgress] 报告已下载字节数与总字节数，服务端没给 Content-Length 时总数为 -1。
+     * 换镜像重试会从头下载，所以每次进入都会先回一次 0，界面据此重置进度条。
+     */
     suspend fun downloadFile(
         request: DownloadRequest,
         target: File,
         validate: (File) -> Unit = {},
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
     ): MirrorDownloadResult<File> = withContext(Dispatchers.IO) {
         if (request.purpose == DownloadPurpose.LocalFile) {
             return@withContext copyLocalFile(request, target, validate)
         }
         downloadMeasured(request) { candidate ->
             runCatching { target.delete() }
-            requestFile(candidate.url, target)
+            requestFile(candidate.url, target, onProgress)
             validate(target)
             target
         }
@@ -320,13 +327,39 @@ class MirrorDownloader(
         }
     }
 
-    private fun requestFile(url: String, file: File) {
+    private fun requestFile(
+        url: String,
+        file: File,
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ) {
         val connection = openConnection(url, "GET")
         file.parentFile?.mkdirs()
         connection.use { conn ->
             check(conn.responseCode in 200..299) { "HTTP ${conn.responseCode}" }
+            val total = conn.contentLengthLong.takeIf { it > 0L } ?: -1L
+            onProgress(0L, total)
             conn.inputStream.use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
+                file.outputStream().use { output ->
+                    val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
+                    var downloaded = 0L
+                    // 按时间间隔而不是按块数上报：块小的时候一秒能刷几百次，
+                    // 每块都回调会把重组压垮，进度条反而更卡。
+                    var lastReportedAt = 0L
+                    while (true) {
+                        val read = input.read(buffer)
+                        if (read < 0) break
+                        output.write(buffer, 0, read)
+                        downloaded += read
+                        val now = System.currentTimeMillis()
+                        if (now - lastReportedAt >= PROGRESS_REPORT_INTERVAL_MILLIS) {
+                            lastReportedAt = now
+                            onProgress(downloaded, total)
+                        }
+                    }
+                    output.flush()
+                    // 收尾补一次，保证界面停在 100% 而不是最后一次采样的数字
+                    onProgress(downloaded, if (total > 0L) total else downloaded)
+                }
             }
         }
     }
@@ -370,6 +403,8 @@ class MirrorDownloader(
     private companion object {
         const val NETWORK_TIMEOUT_MILLIS = 8_000
         const val PROBE_TIMEOUT_MILLIS = 4_000
+        private const val DOWNLOAD_BUFFER_BYTES = 64 * 1024
+        private const val PROGRESS_REPORT_INTERVAL_MILLIS = 120L
     }
 }
 

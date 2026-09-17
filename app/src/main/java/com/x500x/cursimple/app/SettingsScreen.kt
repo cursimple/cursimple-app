@@ -253,6 +253,9 @@ enum class SettingsDestinationKey {
     WebDav,
     AiImport,
     ScheduleBackground,
+
+    /** 侧边栏「调课」直达的临时调课页。 */
+    TemporaryOverrides,
 }
 
 enum class SettingsReturnTargetKey {
@@ -263,6 +266,7 @@ private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (
     SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
     SettingsDestinationKey.ScheduleBackground -> SettingsDestination.ScheduleBackground
+    SettingsDestinationKey.TemporaryOverrides -> SettingsDestination.TemporaryOverrides
 }
 
 /** 深链跳转时补齐的上级页面，返回键沿这条链逐级回退。 */

@@ -135,6 +135,9 @@
     <string name="update_announcement_open_release">Open release page</string>
     <string name="update_announcement_dismiss">Got it</string>
     <string name="update_dialog_downloading">Downloading...</string>
+    <string name="update_download_starting">Connecting to a download source…</string>
+    <string name="update_download_progress">%1$s of %2$s · %3$d%%</string>
+    <string name="update_download_progress_unknown_total">%1$s downloaded</string>
     <string name="update_dialog_install">Install</string>
     <string name="update_dialog_update">Update</string>
     <string name="update_dialog_ignore">Ignore this version</string>
@@ -751,6 +754,8 @@
     <string name="main_drawer_before_term">Term not started · %1$d weeks until week 1</string>
     <string name="main_drawer_theme_shortcut">Theme</string>
     <string name="main_drawer_background_shortcut">Background</string>
+    <string name="main_drawer_overrides_shortcut">Reschedule</string>
+    <string name="main_drawer_update_shortcut">Updates</string>
     <string name="main_drawer_version">CurSimple · v%1$s</string>
     <string name="main_confirm">OK</string>
     <string name="main_date_picker_title">Select date</string>
