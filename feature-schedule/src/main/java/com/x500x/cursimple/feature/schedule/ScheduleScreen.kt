@@ -2884,9 +2884,9 @@ private fun CourseBlock(
                         textAlign = TextAlign.Center,
                     )
                 }
-                // 地点与标记先按各自的行数占位，标题拿剩下的高度，谁也不挤到谁。
-                // 行数不设上限：格子高度已经把标题框限死，跨大节的高格子就该多换几行，
-                // 写死 3 行会让明明还有空位的格子把课名截掉。
+                // 课名优先：它按自身需要的行数占位，地点拿剩下的高度。
+                // 反过来先给地点占三行的话，「数据结构」这种长课名会被挤成「数据」，
+                // 而地点缺几个字还能靠详情页补——课名认不出来这一格就白画了。
                 Text(
                     text = course.title,
                     color = titleColor,
@@ -2895,9 +2895,7 @@ private fun CourseBlock(
                     fontWeight = FontWeight.SemiBold,
                     overflow = TextOverflow.Clip,
                     textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f, fill = false),
+                    modifier = Modifier.fillMaxWidth(),
                 )
                 if (scheduleDisplay.locationVisible && course.location.isNotBlank()) {
                     Text(
@@ -2905,12 +2903,12 @@ private fun CourseBlock(
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
                         lineHeight = 12.sp,
-                        // 教室号一行常放不下，宁可多折几行也别把楼栋后面的房间号切掉。
-                        // 上限只是封顶，地点短的时候仍旧只占一行，不会白占标题的位置。
-                        maxLines = 3,
+                        // 能摆下就整段摆下，摆不下按剩余高度截断，绝不回头去挤课名
                         overflow = TextOverflow.Clip,
                         textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false),
                     )
                 }
                 if (badges.isNotEmpty() && !inactive) {

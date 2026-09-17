@@ -543,14 +543,46 @@ class ScheduleViewModel(
         }
     }
 
+    /**
+     * 删课，手动课与插件课都走这里。
+     *
+     * 手动课直接删记录；插件课删不掉原件——下次同步还会回来，所以按原 id 存一条
+     * 标了 hidden 的手动课把它盖住，[mergeCourseSources] 会把这条连同原件一起滤掉。
+     * 墓碑留在手动课程里，用户还能在「全部课程」里恢复。
+     */
     fun removeManualCourse(courseId: String) {
+        viewModelScope.launch {
+            val manual = manualCourseRepository.manualCoursesFlow.first()
+            val fromPlugin = manual.none { it.id == courseId } &&
+                _uiState.value.schedule.allCoursesWith(emptyList()).any { it.id == courseId }
+            if (fromPlugin) {
+                val target = _uiState.value.schedule.allCoursesWith(emptyList())
+                    .first { it.id == courseId }
+                manualCourseRepository.addCourse(target.copy(hidden = true))
+            } else {
+                manualCourseRepository.removeCourse(courseId)
+            }
+            val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+            _uiState.update {
+                it.copy(
+                    statusMessage = systemAlarmSyncMessage(
+                        successMessage = text(R.string.schedule_status_manual_course_removed),
+                        summary = dispatchSummary,
+                    ),
+                )
+            }
+        }
+    }
+
+    /** 撤销删除：把墓碑记录去掉，插件原件随之重新露出来。 */
+    fun restoreHiddenCourse(courseId: String) {
         viewModelScope.launch {
             manualCourseRepository.removeCourse(courseId)
             val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = text(R.string.schedule_status_manual_course_removed),
+                        successMessage = text(R.string.schedule_status_course_restored),
                         summary = dispatchSummary,
                     ),
                 )

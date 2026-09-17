@@ -32,6 +32,14 @@ data class CourseItem(
     @SerialName("slotLabelOverride") val slotLabelOverride: String? = null,
     @SerialName("reminderStartTime") val reminderStartTime: String? = null,
     @SerialName("reminderEndTime") val reminderEndTime: String? = null,
+    /**
+     * 这门课被用户删掉了。
+     *
+     * 手动加的课直接删记录就行，插件下发的课删不掉——下次同步它还会回来，
+     * 所以改成按原 id 存一条标了这个位的手动课把原件盖住。
+     * 过滤只做在 [mergeCourseSources] 一处，读课的地方都走那里，不会漏。
+     */
+    @SerialName("hidden") val hidden: Boolean = false,
 )
 
 @Serializable
@@ -69,8 +77,12 @@ fun mergeCourseSources(
 ): List<CourseItem> {
     if (manualCourses.isEmpty()) return pluginCourses
     val overriddenIds = manualCourses.mapTo(mutableSetOf()) { it.id }
-    return pluginCourses.filterNot { it.id in overriddenIds } + manualCourses
+    return (pluginCourses.filterNot { it.id in overriddenIds } + manualCourses)
+        .filterNot { it.hidden }
 }
+
+/** 被用户删掉、仅作为墓碑留在手动课程里的那些；界面据此提供恢复。 */
+fun List<CourseItem>.hiddenCourses(): List<CourseItem> = filter { it.hidden }
 
 /** [mergeCourseSources] 的便捷写法：课表为 null 时只剩手动课程。 */
 fun TermSchedule?.allCoursesWith(manualCourses: List<CourseItem>): List<CourseItem> =

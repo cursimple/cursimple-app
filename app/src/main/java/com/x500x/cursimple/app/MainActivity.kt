@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +53,7 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SwapHoriz
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -493,7 +495,18 @@ class MainActivity : ComponentActivity() {
                                     scope.launch { drawerState.close() }
                                     showThemeAccentDialog = true
                                 },
-                                onPickScheduleBackground = {
+                                onOpenTemporaryOverrides = {
+                                scope.launch { drawerState.close() }
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                                openSettingsDestination = SettingsDestinationKey.TemporaryOverrides
+                            },
+                            onOpenUpdateCheck = {
+                                scope.launch { drawerState.close() }
+                                currentScreen = AppScreen.Settings
+                                subScreen = null
+                            },
+                            onPickScheduleBackground = {
                                     scope.launch { drawerState.close() }
                                     openSettingsDestination = SettingsDestinationKey.ScheduleBackground
                                     currentScreen = AppScreen.Settings
@@ -1127,7 +1140,10 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.fillMaxSize(),
                             )
-                            androidx.activity.compose.BackHandler { subScreen = null }
+                            // 登录浮层开着时让本页自己处理返回（退出登录回搜索），别在这里越级退回课表
+                            androidx.activity.compose.BackHandler(
+                                enabled = scheduleState.pendingWebSession == null,
+                            ) { subScreen = null }
                         }
                         null -> Unit
                     }
@@ -1421,6 +1437,8 @@ private fun AppDrawer(
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
     onPickThemeAccent: () -> Unit,
     onPickScheduleBackground: () -> Unit,
+    onOpenTemporaryOverrides: () -> Unit,
+    onOpenUpdateCheck: () -> Unit,
 ) {
     ModalDrawerSheet(
         modifier = Modifier.fillMaxWidth(0.68f),
@@ -1507,6 +1525,28 @@ private fun AppDrawer(
                 )
             }
 
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // 调课和查更新都是隔三差五就要用一次的，埋在设置里每次都要翻好几层
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                DrawerAppearanceShortcut(
+                    icon = Icons.Rounded.SwapHoriz,
+                    label = stringResource(R.string.main_drawer_overrides_shortcut),
+                    onClick = onOpenTemporaryOverrides,
+                    modifier = Modifier.weight(1f),
+                )
+                DrawerAppearanceShortcut(
+                    icon = Icons.Rounded.SystemUpdate,
+                    label = stringResource(R.string.main_drawer_update_shortcut),
+                    onClick = onOpenUpdateCheck,
+                    badge = updateBadgeVisible,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
             Text(
                 text = stringResource(R.string.main_drawer_version, appVersionName),
                 style = MaterialTheme.typography.labelSmall,
@@ -1522,13 +1562,26 @@ private fun DrawerAppearanceShortcut(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    badge: Boolean = false,
 ) {
     TextButton(
         onClick = onClick,
         modifier = modifier,
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Box {
+            Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp))
+            if (badge) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 3.dp, y = (-2).dp)
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.error),
+                )
+            }
+        }
         Spacer(modifier = Modifier.width(4.dp))
         Text(text = label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }

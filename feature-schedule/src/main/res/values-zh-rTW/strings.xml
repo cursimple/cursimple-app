@@ -289,6 +289,9 @@
     <string name="schedule_library_restore_confirm">還原</string>
     <string name="schedule_library_delete_cancel">取消</string>
     <string name="schedule_library_summary">共 %1$d 門課</string>
+    <string name="schedule_library_hidden_show">已刪除 %1$d 門</string>
+    <string name="schedule_library_hidden_hide">收起已刪除</string>
+    <string name="schedule_status_course_restored">已恢復這門課</string>
     <string name="schedule_drag_confirm_title">確認調整這門課？</string>
     <string name="schedule_drag_confirm_move">%1$s 將改到 %2$s 第 %3$d-%4$d 節</string>
     <string name="schedule_drag_confirm_resize">%1$s 將改為第 %2$d-%3$d 節</string>

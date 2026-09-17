@@ -120,6 +120,53 @@ class AppUpdateChecker(
         }
     }
 
+    /**
+     * 低成本探测「发布页面有没有变过」，供后台轮询用。
+     *
+     * 带上上次拿到的 ETag 发条件请求：没变时服务端回 304，不带响应体，
+     * 一次只花几百字节的请求头，也不计入 GitHub 的速率限制；
+     * 只有真的变了才值得去跑完整的 [check]——那一趟要竞速镜像、下 manifest、
+     * 再探测下载候选，流量和耗时都是这里的几十倍。
+     *
+     * 只走 GitHub 源站：镜像不保证透传 ETag，拿不到 304 就失去了省流量的意义。
+     * 源站不通时返回 [UpdatePeekResult.Unknown]，由调用方决定要不要退回完整检查。
+     */
+    suspend fun peek(
+        includePrerelease: Boolean = false,
+        knownEtag: String? = null,
+    ): UpdatePeekResult = withContext(Dispatchers.IO) {
+        val url = if (includePrerelease) {
+            "https://api.github.com/repos/$repository/releases?per_page=$RELEASE_PAGE_SIZE"
+        } else {
+            "https://api.github.com/repos/$repository/releases/latest"
+        }
+        runCatching {
+            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = PROBE_TIMEOUT_MILLIS
+                readTimeout = PROBE_TIMEOUT_MILLIS
+                requestMethod = "GET"
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("Accept", GITHUB_API_ACCEPT)
+                if (!knownEtag.isNullOrBlank()) {
+                    setRequestProperty("If-None-Match", knownEtag)
+                }
+            }
+            connection.use { conn ->
+                when (val code = conn.responseCode) {
+                    HttpURLConnection.HTTP_NOT_MODIFIED -> UpdatePeekResult.Unchanged
+                    in 200..299 -> {
+                        // 读掉响应体让连接能复用，同时拿到新的 ETag 供下次比对
+                        runCatching { conn.inputStream.use { it.readBytes() } }
+                        UpdatePeekResult.Changed(conn.getHeaderField("ETag"))
+                    }
+                    // 限流或服务端异常都不该被当成「有新版」，否则会连着跑完整检查
+                    else -> if (code == 404) UpdatePeekResult.Unchanged else UpdatePeekResult.Unknown
+                }
+            }
+        }.getOrDefault(UpdatePeekResult.Unknown)
+    }
+
     /** 取某个 tag 的发布说明，用于安装完成后展示本次更新内容。 */
     suspend fun releaseNotes(tagName: String): String? = withContext(Dispatchers.IO) {
         runCatching {
@@ -133,7 +180,12 @@ class AppUpdateChecker(
         }.getOrNull()
     }
 
-    suspend fun download(context: Context, info: AppUpdateInfo): AppUpdateDownloadResult = withContext(Dispatchers.IO) {
+    /** [onProgress] 报告已下载与总字节数，总数未知时为 -1；换镜像重下会从 0 重新报。 */
+    suspend fun download(
+        context: Context,
+        info: AppUpdateInfo,
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit = { _, _ -> },
+    ): AppUpdateDownloadResult = withContext(Dispatchers.IO) {
         val updateDir = File(context.cacheDir, "updates").apply { mkdirs() }
         updateDir.listFiles()?.forEach { file -> runCatching { file.delete() } }
         val target = File(updateDir, info.asset.fileName)
@@ -143,12 +195,14 @@ class AppUpdateChecker(
                 url = info.asset.downloadUrl,
             ),
             target = target,
-        ) { file ->
-            val actual = sha256(file)
-            if (!actual.equals(info.asset.sha256, ignoreCase = true)) {
-                throw UpdateException(UpdateErrorReason.ChecksumFailed)
-            }
-        }
+            validate = { file ->
+                val actual = sha256(file)
+                if (!actual.equals(info.asset.sha256, ignoreCase = true)) {
+                    throw UpdateException(UpdateErrorReason.ChecksumFailed)
+                }
+            },
+            onProgress = onProgress,
+        )
         when (result) {
             is MirrorDownloadResult.Success -> AppUpdateDownloadResult.Success(target, result.candidate.sourceName)
             is MirrorDownloadResult.Failure -> {
