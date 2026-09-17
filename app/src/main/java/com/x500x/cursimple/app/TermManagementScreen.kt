@@ -25,8 +25,6 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,7 +36,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,8 +55,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
-import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -430,19 +425,19 @@ private fun TermDatePickerDialog(
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit,
 ) {
-    val initialMillis = initial.toDatePickerMillis()
-    val state = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
-    DatePickerDialog(
+    var selectedDate by remember(initial) { mutableStateOf(initial) }
+    // 用 AlertDialog 而不是 DatePickerDialog：后者把内容高度按系统日历的尺寸写死了，
+    // 换成自绘的月历后会把内容挤在一起叠着画。
+    AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = {
-                state.selectedDateMillis?.let { millis ->
-                    onConfirm(datePickerMillisToLocalDate(millis))
-                }
-            }) { Text(stringResource(R.string.term_date_confirm)) }
+            TextButton(onClick = { onConfirm(selectedDate) }) {
+                Text(stringResource(R.string.term_date_confirm))
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
-    ) {
-        DatePicker(state = state)
-    }
+        text = {
+            CalendarMonthPicker(selected = selectedDate, onSelect = { selectedDate = it })
+        },
+    )
 }

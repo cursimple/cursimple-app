@@ -14,6 +14,7 @@ import com.x500x.cursimple.core.data.note.resolveCourseNotes
 import com.x500x.cursimple.core.data.note.validateCourseNote
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
@@ -102,7 +103,7 @@ data class ScheduleUiState(
 
 /** 备注关联时参与匹配的课程集合：插件下发的课表加上手动添加的课。 */
 internal fun ScheduleUiState.noteMatchCourses(): List<CourseItem> =
-    schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+    schedule.allCoursesWith(manualCourses)
 
 class ScheduleViewModel(
     appContext: Context,
@@ -441,18 +442,31 @@ class ScheduleViewModel(
     }
 
     /**
-     * 改写手动课程的全部字段。
+     * 改写课程的全部字段，手动课与插件课都走这里。
+     *
+     * 插件课改不进插件下发的那份课表，所以按原 id 另存一条手动课：
+     * 读课的地方都走 [allCoursesWith]，同 id 时手动那份盖住插件原件，
+     * 这门课从此算手动课程，下次同步也不会把改动冲掉。
      * 节次可能一并改动，所以同样要按新节次重建单课与考试提醒规则。
      */
     fun updateManualCourse(course: CourseItem) {
         viewModelScope.launch {
-            manualCourseRepository.updateCourse(course)
+            val alreadyManual = manualCourseRepository.manualCoursesFlow.first().any { it.id == course.id }
+            if (alreadyManual) {
+                manualCourseRepository.updateCourse(course)
+            } else {
+                manualCourseRepository.addCourse(course)
+            }
             rebuildCourseScopedRules(course)
             val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
             _uiState.update {
                 it.copy(
                     statusMessage = systemAlarmSyncMessage(
-                        successMessage = text(R.string.schedule_status_course_updated, course.title),
+                        successMessage = if (alreadyManual) {
+                            text(R.string.schedule_status_course_updated, course.title)
+                        } else {
+                            text(R.string.schedule_status_course_overridden, course.title)
+                        },
                         summary = dispatchSummary,
                     ),
                 )
@@ -475,8 +489,10 @@ class ScheduleViewModel(
     }
 
     /**
-     * 改写手动课程的上课时间并落库。
+     * 改写课程的上课时间并落库，手动课与插件课都走这里。
      *
+     * 插件课改不进插件下发的那份课表，所以按原 id 另存一条手动课盖住原件，
+     * 移动后它就算手动课程，下次同步不会把位置冲回去。
      * 单课与考试提醒规则把课程当时的节次范围写进了匹配条件，节次一变就匹配不上，
      * 提醒会静默失效，所以时间改动后要按新节次重建这两类规则。
      */
@@ -486,16 +502,20 @@ class ScheduleViewModel(
         successMessage: (CourseItem) -> String,
     ) {
         val courses = manualCourseRepository.manualCoursesFlow.first()
-        val target = courses.firstOrNull { it.id == courseId }
+        val manualTarget = courses.firstOrNull { it.id == courseId }
+        val target = manualTarget
+            ?: _uiState.value.schedule.allCoursesWith(emptyList()).firstOrNull { it.id == courseId }
         if (target == null) {
             _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_move_manual_only)) }
             return
         }
         if (target.time == time) return
         val moved = target.copy(time = time)
-        manualCourseRepository.replaceAll(
-            courses.map { if (it.id == courseId) moved else it },
-        )
+        if (manualTarget != null) {
+            manualCourseRepository.replaceAll(courses.map { if (it.id == courseId) moved else it })
+        } else {
+            manualCourseRepository.addCourse(moved)
+        }
         rebuildCourseScopedRules(moved)
         val dispatchSummary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
         _uiState.update {
@@ -1347,7 +1367,7 @@ class ScheduleViewModel(
         ringtoneUri: String?,
     ): ReminderRule? {
         val timingProfile = state.timingProfile ?: return null
-        val course = (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+        val course = state.schedule.allCoursesWith(state.manualCourses)
             .firstOrNull { it.id == courseId }
             ?: return null
         if (timingProfile.findSlot(course.time.startNode, course.time.endNode) == null) return null
@@ -1371,7 +1391,7 @@ class ScheduleViewModel(
     private suspend fun migrateLegacyCourseReminderRules() {
         val state = _uiState.value
         val timingProfile = state.timingProfile ?: return
-        val courses = state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses
+        val courses = state.schedule.allCoursesWith(state.manualCourses)
         if (courses.isEmpty()) return
         planLegacyCourseReminderMigration(
             rules = state.reminderRules,
@@ -1438,7 +1458,7 @@ private fun reminderSchedule(state: ScheduleUiState): TermSchedule? =
     mergeManualCoursesForReminders(state.schedule, state.manualCourses)
 
 private fun courseTitleById(state: ScheduleUiState, courseId: String): String? =
-    (state.schedule?.dailySchedules.orEmpty().flatMap { it.courses } + state.manualCourses)
+    state.schedule.allCoursesWith(state.manualCourses)
         .firstOrNull { it.id == courseId }
         ?.title
 
@@ -1447,7 +1467,7 @@ private fun mergeManualCoursesForReminders(
     manualCourses: List<CourseItem>,
 ): TermSchedule? {
     if (schedule == null && manualCourses.isEmpty()) return null
-    val allCourses = schedule?.dailySchedules.orEmpty().flatMap { it.courses } + manualCourses
+    val allCourses = schedule.allCoursesWith(manualCourses)
     val dailySchedules = allCourses
         .groupBy { it.time.dayOfWeek }
         .toSortedMap()

@@ -41,6 +41,7 @@ import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 /**
  * 本学期全部课程的平铺列表。
  * 课多时不必在网格里逐格点开找，可直接搜索、编辑、删除。
+ * 插件同步的课也能改，改完会转成手动课程，随时能还原回插件那一份。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -59,6 +60,7 @@ internal fun CourseLibraryScreen(
     var editing by remember { mutableStateOf<CourseItem?>(null) }
     var adding by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<CourseLibraryEntry?>(null) }
+    var pendingRestore by remember { mutableStateOf<CourseLibraryEntry?>(null) }
 
     val allCourses = remember(entries) { entries.map { it.course } }
     val matched = remember(entries, query, sortMode) {
@@ -94,6 +96,26 @@ internal fun CourseLibraryScreen(
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.schedule_library_delete_cancel))
+                }
+            },
+        )
+    }
+
+    // 改过的插件课删掉的只是那份手动覆盖，插件原件会重新露出来，所以叫"还原"而不是"删除"
+    pendingRestore?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingRestore = null },
+            title = { Text(stringResource(R.string.schedule_library_restore_title)) },
+            text = { Text(stringResource(R.string.schedule_library_restore_body, target.course.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onRemoveCourse(target.course.id)
+                    pendingRestore = null
+                }) { Text(stringResource(R.string.schedule_library_restore_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingRestore = null }) {
                     Text(stringResource(R.string.schedule_library_delete_cancel))
                 }
             },
@@ -149,6 +171,7 @@ internal fun CourseLibraryScreen(
                 columnDayOfWeeks = columnDayOfWeeks,
                 onEdit = { editing = it },
                 onDelete = { pendingDelete = it },
+                onRestore = { pendingRestore = it },
             )
         }
     }
@@ -161,6 +184,7 @@ private fun CourseLibraryList(
     columnDayOfWeeks: List<Int>,
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
+    onRestore: (CourseLibraryEntry) -> Unit,
 ) {
     // 只有按星期排序时分组才有意义，其余两种保持平铺
     val grouped = remember(matched, sortMode, columnDayOfWeeks) {
@@ -173,7 +197,7 @@ private fun CourseLibraryList(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (grouped.isEmpty()) {
             items(matched, key = { it.course.id }) { entry ->
-                CourseLibraryRow(entry, onEdit, onDelete)
+                CourseLibraryRow(entry, onEdit, onDelete, onRestore)
             }
         } else {
             grouped.forEach { (dayOfWeek, dayEntries) ->
@@ -196,7 +220,7 @@ private fun CourseLibraryList(
                     }
                 }
                 items(dayEntries, key = { it.course.id }) { entry ->
-                    CourseLibraryRow(entry, onEdit, onDelete)
+                    CourseLibraryRow(entry, onEdit, onDelete, onRestore)
                 }
             }
         }
@@ -209,6 +233,7 @@ private fun CourseLibraryRow(
     entry: CourseLibraryEntry,
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
+    onRestore: (CourseLibraryEntry) -> Unit,
 ) {
     val course = entry.course
     Surface(
@@ -235,13 +260,17 @@ private fun CourseLibraryRow(
                 )
                 CourseLibraryTag(
                     stringResource(
-                        if (entry.source == CourseSource.Manual) {
-                            R.string.schedule_library_source_manual
-                        } else {
-                            R.string.schedule_library_source_plugin
+                        when {
+                            entry.overridesPlugin -> R.string.schedule_library_source_plugin
+                            entry.source == CourseSource.Manual -> R.string.schedule_library_source_manual
+                            else -> R.string.schedule_library_source_plugin
                         },
                     ),
                 )
+                // 改过的插件课两个标都挂上：来源仍是插件，但眼下这份是用户自己的
+                if (entry.overridesPlugin) {
+                    CourseLibraryTag(stringResource(R.string.schedule_library_source_manual_edited))
+                }
                 if (course.category == CourseCategory.Exam) {
                     CourseLibraryTag(stringResource(R.string.schedule_category_exam))
                 }
@@ -251,19 +280,25 @@ private fun CourseLibraryRow(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (!entry.editable) {
+            if (entry.source == CourseSource.Plugin) {
                 Text(
-                    text = stringResource(R.string.schedule_library_plugin_readonly),
+                    text = stringResource(R.string.schedule_library_plugin_editable_hint),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { onEdit(course) }) {
-                        Text(stringResource(R.string.schedule_action_edit), maxLines = 2)
-                    }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { onEdit(course) }) {
+                    Text(stringResource(R.string.schedule_action_edit), maxLines = 2)
+                }
+                if (entry.removable) {
                     OutlinedButton(onClick = { onDelete(entry) }) {
                         Text(stringResource(R.string.schedule_action_delete), maxLines = 2)
+                    }
+                }
+                if (entry.restorable) {
+                    OutlinedButton(onClick = { onRestore(entry) }) {
+                        Text(stringResource(R.string.schedule_action_restore_plugin), maxLines = 2)
                     }
                 }
             }

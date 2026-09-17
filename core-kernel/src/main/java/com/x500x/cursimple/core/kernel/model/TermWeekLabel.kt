@@ -47,3 +47,18 @@ fun weekdayNameRes(dayOfWeek: Int): Int = when (dayOfWeek) {
 }
 
 fun Context.weekdayName(dayOfWeek: Int): String = getString(weekdayNameRes(dayOfWeek))
+
+/**
+ * 星期几的单字文案资源 id，用在日历表头这种一列只放得下一个字的地方。
+ * 不走系统的 narrow 名字：中文下取到的是"星"，七列全一样，等于没标。
+ */
+fun weekdayNarrowRes(dayOfWeek: Int): Int = when (dayOfWeek) {
+    1 -> R.string.kernel_weekday_narrow_monday
+    2 -> R.string.kernel_weekday_narrow_tuesday
+    3 -> R.string.kernel_weekday_narrow_wednesday
+    4 -> R.string.kernel_weekday_narrow_thursday
+    5 -> R.string.kernel_weekday_narrow_friday
+    6 -> R.string.kernel_weekday_narrow_saturday
+    7 -> R.string.kernel_weekday_narrow_sunday
+    else -> R.string.kernel_weekday_unknown
+}

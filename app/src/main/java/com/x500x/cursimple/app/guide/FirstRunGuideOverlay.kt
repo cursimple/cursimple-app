@@ -23,8 +23,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +56,8 @@ import com.x500x.cursimple.R
 @Composable
 fun FirstRunGuideOverlay(
     steps: List<GuideStep> = FIRST_RUN_GUIDE_STEPS,
+    /** 每进入一步都上报它要讲的界面，由宿主负责切过去。 */
+    onNavigate: (GuideDestination) -> Unit = {},
     onFinish: () -> Unit,
 ) {
     if (steps.isEmpty()) {
@@ -62,6 +66,10 @@ fun FirstRunGuideOverlay(
     }
     var index by rememberSaveable { mutableIntStateOf(0) }
     val step = steps[index.coerceIn(steps.indices)]
+
+    // 先把界面切过去再讲：说明卡片压在那一页上面，用户看的是真页面
+    val currentOnNavigate by rememberUpdatedState(onNavigate)
+    LaunchedEffect(step.destination) { currentOnNavigate(step.destination) }
 
     val anchors = LocalGuideAnchors.current
     val spotlight = step.anchor?.let { anchors[it] }

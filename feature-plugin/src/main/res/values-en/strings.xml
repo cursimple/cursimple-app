@@ -220,4 +220,23 @@
     <string name="plugin_permission_schedule_write">Write schedule data</string>
     <string name="plugin_permission_storage_plugin">Use plugin local storage</string>
     <string name="plugin_permission_component_use">Use installed components</string>
+    <!-- Guided import from the university system -->
+    <string name="school_import_title">Import from your university</string>
+    <string name="school_import_back">Back</string>
+    <string name="school_import_step_search">Find your school</string>
+    <string name="school_import_step_install">Install the plugin</string>
+    <string name="school_import_step_login">Sign in and import</string>
+    <string name="school_import_search_label">Search for your school</string>
+    <string name="school_import_search_hint">Type a school name</string>
+    <string name="school_import_market_empty">Could not load the plugin list. Check your connection and try again.</string>
+    <string name="school_import_retry">Reload</string>
+    <string name="school_import_no_match">No plugin covers \"%1$s\" yet</string>
+    <string name="school_import_catalog_count">%1$d school plugins available</string>
+    <string name="school_import_match_count">%1$d found</string>
+    <string name="school_import_no_match_hint">Plugins are written and submitted by students at each school, so yours may not have one yet. You can add courses by hand, or bring a timetable in from a file via Import / Export.</string>
+    <string name="school_import_add_manually">Add a course by hand</string>
+    <string name="school_import_browse_all">Browse all plugins</string>
+    <string name="school_import_installed_enabled">Installed and enabled</string>
+    <string name="school_import_action_install">Install</string>
+    <string name="school_import_action_sync">Sign in</string>
 </resources>

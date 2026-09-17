@@ -74,6 +74,7 @@ import androidx.compose.material.icons.rounded.OpenWith
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Security
@@ -401,6 +402,7 @@ fun AppSettingsRoute(
     onExportScheduleMetadata: () -> Unit,
     onResetScheduleAppearanceAndDisplay: () -> Unit,
     onResetAllSettings: () -> Unit,
+    onReplayFirstRunGuide: () -> Unit,
     openDestination: SettingsDestinationKey? = null,
     onOpenDestinationConsumed: () -> Unit = {},
     returnTarget: SettingsReturnTargetKey? = null,
@@ -669,6 +671,12 @@ fun AppSettingsRoute(
                         onClick = onPickAppLanguage,
                     )
                     TimeZoneRow(zoneId = appTimeZoneId, onZoneChange = onAppTimeZoneChange)
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Explore,
+                        title = stringResource(R.string.settings_replay_guide_title),
+                        subtitle = stringResource(R.string.settings_replay_guide_subtitle),
+                        onClick = onReplayFirstRunGuide,
+                    )
                     SettingsActionRow(
                         icon = Icons.Rounded.Restore,
                         title = stringResource(R.string.settings_reset_all_title),

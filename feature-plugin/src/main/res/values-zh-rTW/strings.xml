@@ -220,4 +220,23 @@
     <string name="plugin_permission_schedule_write">寫入課表資料</string>
     <string name="plugin_permission_storage_plugin">使用外掛本地儲存</string>
     <string name="plugin_permission_component_use">呼叫已安裝元件</string>
+    <!-- 從教務系統匯入課表的引導頁 -->
+    <string name="school_import_title">從教務系統匯入課表</string>
+    <string name="school_import_back">返回</string>
+    <string name="school_import_step_search">搜學校</string>
+    <string name="school_import_step_install">裝外掛</string>
+    <string name="school_import_step_login">登入匯入</string>
+    <string name="school_import_search_label">搜尋學校</string>
+    <string name="school_import_search_hint">輸入學校名稱</string>
+    <string name="school_import_market_empty">還沒抓到外掛清單，檢查一下網路再試一次</string>
+    <string name="school_import_retry">重新載入</string>
+    <string name="school_import_no_match">「%1$s」還沒有對應的外掛</string>
+    <string name="school_import_catalog_count">目前收錄 %1$d 個學校外掛</string>
+    <string name="school_import_match_count">搜到 %1$d 個</string>
+    <string name="school_import_no_match_hint">外掛由各校同學自己寫、自己提交，你的學校可能還沒人做。可以先手動加課，或者用「匯入 / 匯出課程」從檔案匯入。</string>
+    <string name="school_import_add_manually">手動新增課程</string>
+    <string name="school_import_browse_all">瀏覽全部外掛</string>
+    <string name="school_import_installed_enabled">已安裝並啟用</string>
+    <string name="school_import_action_install">安裝</string>
+    <string name="school_import_action_sync">登入匯入</string>
 </resources>

@@ -56,3 +56,23 @@ fun CourseItem.isReminderOnly(): Boolean = reminderOnly
 fun List<CourseItem>.visibleScheduleCourses(): List<CourseItem> =
     filterNot { it.reminderOnly }
 
+/**
+ * 插件课表与手动课程合成一份课程清单，同一个 id 两边都有时以手动那份为准。
+ *
+ * 用户改插件课时，改动是以同 id 的手动课形式落库的，插件原件仍在课表里，
+ * 所以读课的地方都要走这里，否则一门改过的课会同时按新旧两份算，
+ * 网格里显示两遍，提醒也会重复响。
+ */
+fun mergeCourseSources(
+    pluginCourses: List<CourseItem>,
+    manualCourses: List<CourseItem>,
+): List<CourseItem> {
+    if (manualCourses.isEmpty()) return pluginCourses
+    val overriddenIds = manualCourses.mapTo(mutableSetOf()) { it.id }
+    return pluginCourses.filterNot { it.id in overriddenIds } + manualCourses
+}
+
+/** [mergeCourseSources] 的便捷写法：课表为 null 时只剩手动课程。 */
+fun TermSchedule?.allCoursesWith(manualCourses: List<CourseItem>): List<CourseItem> =
+    mergeCourseSources(this?.dailySchedules.orEmpty().flatMap { it.courses }, manualCourses)
+

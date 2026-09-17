@@ -26,7 +26,7 @@ fun marketPreview(
 
 /**
  * 按关键词过滤插件。
- * 仓库名、所属账号与描述任一命中即算匹配，忽略大小写与首尾空白；
+ * 仓库名、所属账号、描述与注册表声明的学校别名任一命中即算匹配，忽略大小写与首尾空白；
  * 空关键词返回原列表，避免搜索框还没输入就把列表清空。
  */
 fun filterMarketRepos(
@@ -42,4 +42,6 @@ internal fun GitHubRepoSummary.matchesMarketQuery(keyword: String): Boolean =
     fullName.contains(keyword, ignoreCase = true) ||
         name.contains(keyword, ignoreCase = true) ||
         owner.contains(keyword, ignoreCase = true) ||
-        description.contains(keyword, ignoreCase = true)
+        description.contains(keyword, ignoreCase = true) ||
+        // 别名是给「搜学校名」用的：仓库叫 bit-schedule，学生搜的是「北京理工」
+        schoolAliases.any { it.contains(keyword, ignoreCase = true) }
