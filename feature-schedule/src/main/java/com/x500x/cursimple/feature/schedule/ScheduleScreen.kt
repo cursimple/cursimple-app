@@ -2953,13 +2953,14 @@ private fun CourseBlock(
                         color = onColor.copy(alpha = 0.85f),
                         fontSize = 10.sp,
                         lineHeight = 11.sp,
-                        // 格子里只给一行：地点折三四行会把课名挤没，而完整地点点开详情就能看到。
-                        // 放不下就省略号收尾，让人知道后面还有字，不是地点本身就这么短。
-                        maxLines = 1,
-                        softWrap = false,
+                        // 课名占完之后剩多少高度，地点就用多少：跨大节的高格子下面明明空着，
+                        // 硬压成一行反而是把能显示的字白白截掉。
+                        // 真放不下才省略号收尾，让人知道后面还有字、可以点开看全。
                         overflow = TextOverflow.Ellipsis,
                         textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false),
                     )
                 }
                 if (badges.isNotEmpty() && !inactive) {

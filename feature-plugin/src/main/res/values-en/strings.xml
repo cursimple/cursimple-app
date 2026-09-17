@@ -234,7 +234,8 @@
     <string name="school_import_refresh_list">Refresh the plugin list</string>
     <string name="school_import_no_match">No plugin covers \"%1$s\" yet</string>
     <string name="school_import_catalog_count">%1$d school plugins available</string>
-    <string name="school_import_match_count">%1$d found</string>
+    <string name="school_import_catalog_header">All %1$d plugins in the registry:</string>
+    <string name="school_import_match_count">Of %1$d plugins, %2$d matched</string>
     <string name="school_import_no_match_hint">Plugins are written and submitted by students at each school, so yours may not have one yet. You can add courses by hand, or bring a timetable in from a file via Import / Export.</string>
     <string name="school_import_add_manually">Add a course by hand</string>
     <string name="school_import_browse_all">Browse all plugins</string>

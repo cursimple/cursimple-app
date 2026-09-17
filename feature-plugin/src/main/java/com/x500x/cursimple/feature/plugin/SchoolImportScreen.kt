@@ -162,20 +162,30 @@ fun SchoolImportRoute(
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             )
 
-            uiState.status?.let { status ->
-                Text(
-                    text = context.pluginMarketStatusText(status),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            // 只留有信息量的状态：加载中、失败要让用户看见，
+            // 「已加载 N 个插件」说的是清单总数，紧挨着下面的「搜到 M 个」像在自相矛盾，
+            // 而且下面那行已经把总数说清楚了。
+            uiState.status
+                ?.takeUnless { it is PluginMarketStatus.MarketLoaded }
+                ?.let { status ->
+                    Text(
+                        text = context.pluginMarketStatusText(status),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
             if (uiState.marketRepos.isNotEmpty()) {
                 Text(
                     text = if (query.isBlank()) {
                         stringResource(R.string.school_import_catalog_count, uiState.marketRepos.size)
                     } else {
-                        stringResource(R.string.school_import_match_count, matched.size)
+                        // 一句话把「清单里有几个」和「搜中几个」都交代了，不再分两行各说各的
+                        stringResource(
+                            R.string.school_import_match_count,
+                            uiState.marketRepos.size,
+                            matched.size,
+                        )
                     },
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -191,23 +201,37 @@ fun SchoolImportRoute(
                     onAction = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
                 )
 
-                // 学校真没插件时，「浏览全部」帮不上忙，得告诉用户还能怎么把课表弄进来
-                matched.isEmpty() -> SchoolImportEmpty(
-                    text = stringResource(R.string.school_import_no_match, query.trim()),
-                    hint = stringResource(R.string.school_import_no_match_hint),
-                    actionText = stringResource(R.string.school_import_add_manually),
-                    onAction = onAddCourseManually,
-                    secondaryActionText = stringResource(R.string.school_import_refresh_list),
-                    onSecondaryAction = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
-                    tertiaryActionText = stringResource(R.string.school_import_browse_all),
-                    onTertiaryAction = onBrowseAllPlugins,
-                )
-
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    items(matched, key = { it.fullName }) { repo ->
+                    // 学校真没插件时，「浏览全部」帮不上忙，得告诉用户还能怎么把课表弄进来
+                    if (matched.isEmpty()) {
+                        item(key = "no-match") {
+                            SchoolImportEmpty(
+                                text = stringResource(R.string.school_import_no_match, query.trim()),
+                                hint = stringResource(R.string.school_import_no_match_hint),
+                                actionText = stringResource(R.string.school_import_add_manually),
+                                onAction = onAddCourseManually,
+                                secondaryActionText = stringResource(R.string.school_import_refresh_list),
+                                onSecondaryAction = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+                            )
+                        }
+                        // 没搜中不等于没得装：清单里的插件照样列出来，
+                        // 别让人对着空屏以为一个插件都没有
+                        item(key = "catalog-header") {
+                            Text(
+                                text = stringResource(
+                                    R.string.school_import_catalog_header,
+                                    uiState.marketRepos.size,
+                                ),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                        }
+                    }
+                    items(matched.ifEmpty { uiState.marketRepos }, key = { it.fullName }) { repo ->
                         SchoolPluginRow(
                             repo = repo,
                             installed = installedByRepo[repo.fullName],
