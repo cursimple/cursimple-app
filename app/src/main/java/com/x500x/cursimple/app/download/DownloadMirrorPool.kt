@@ -108,10 +108,13 @@ class DownloadMirrorPool {
         if (segments.size < 4) {
             return null
         }
+        // 查询串一并带进 path：调用方用它击穿 CDN 缓存，
+        // 丢掉的话 jsDelivr 这类按路径改写的候选就又读回缓存里的旧文件了
+        val query = uri.query?.takeIf { it.isNotBlank() }?.let { "?$it" }.orEmpty()
         return RepoFile(
             repository = "${segments[0]}/${segments[1]}",
             ref = segments[2],
-            path = segments.drop(3).joinToString("/"),
+            path = segments.drop(3).joinToString("/") + query,
         )
     }
 

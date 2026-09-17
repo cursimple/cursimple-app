@@ -102,7 +102,8 @@ class GitHubRegistryRepository(
         withContext(Dispatchers.IO) {
             val slug = registryRepo.trim().trim('/')
             pluginRequire(slug.matches(REPO_SLUG_REGEX), R.string.plugin_error_registry_repo_invalid, slug)
-            val url = "https://raw.githubusercontent.com/$slug/$branch/$PLUGIN_STARS_FILE"
+            val url = "https://raw.githubusercontent.com/$slug/$branch/$PLUGIN_STARS_FILE" +
+                "?ts=${cacheBucket()}"
             val raw = fetchText(url)
             val parsed = runCatching { json.decodeFromString<PluginStarsPayload>(raw) }.getOrNull()
                 ?: return@withContext emptyList()
@@ -155,6 +156,19 @@ class GitHubRegistryRepository(
 
     companion object {
         private val REPO_SLUG_REGEX = Regex("^[\\w.-]+/[\\w.-]+$")
+        /**
+         * 注册表 URL 上带的时间片，用来击穿中间 CDN 的缓存。
+         *
+         * 清单走的是分支路径，各家代理与 CDN 会按整条 URL 缓存上十几个小时，
+         * 而且是按边缘节点各自缓存的——源站和我这边都更新了，用户那边的节点
+         * 仍可能发旧数据，谁也没法把全世界的节点都清一遍。
+         * 加一个按 5 分钟取整的参数，等于把缓存上限压到 5 分钟；
+         * 清单只有几百字节，这点重复请求可以忽略。
+         */
+        private fun cacheBucket(): Long =
+            System.currentTimeMillis() / CACHE_BUCKET_MILLIS
+
+        private const val CACHE_BUCKET_MILLIS = 5 * 60 * 1000L
         private const val PLUGIN_STARS_BRANCH = "plugin-stars-data"
         private const val PLUGIN_STARS_FILE = "plugins-stars.json"
         private const val RELEASE_MANIFEST_FILE = "manifest.json"
