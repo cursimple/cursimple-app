@@ -10,8 +10,10 @@ class GitHubRegistryRepositoryTest {
     fun `fetch all loads plugins stars registry and latest release manifest`() = runBlocking {
         val repository = GitHubRegistryRepository(
             fetchText = { url ->
-                when (url) {
-                    "https://raw.githubusercontent.com/cursimple/cursimple-plugins/plugin-stars-data/plugins-stars.json" ->
+                when {
+                    url.startsWith(
+                        "https://raw.githubusercontent.com/cursimple/cursimple-plugins/plugin-stars-data/plugins-stars.json",
+                    ) ->
                         """
                         {
                           "repositories": [
@@ -29,7 +31,7 @@ class GitHubRegistryRepositoryTest {
                         }
                         """.trimIndent()
 
-                    "https://github.com/cursimple/YangtzU_course_plugin/releases/latest/download/manifest.json" ->
+                    url == "https://github.com/cursimple/YangtzU_course_plugin/releases/latest/download/manifest.json" ->
                         """{"filename":"yangtzeu-eams-v1.0.32.zip","version":"v1.0.32"}"""
 
                     else -> error("unexpected url: $url")
@@ -81,8 +83,10 @@ class GitHubRegistryRepositoryTest {
         val repository = GitHubRegistryRepository(
             fetchText = { url ->
                 fetchCount++
-                when (url) {
-                    "https://raw.githubusercontent.com/test/repo/plugin-stars-data/plugins-stars.json" ->
+                when {
+                    url.startsWith(
+                        "https://raw.githubusercontent.com/test/repo/plugin-stars-data/plugins-stars.json",
+                    ) ->
                         """
                         {
                           "repositories": [
