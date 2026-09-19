@@ -228,44 +228,19 @@ private fun AddWeekCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/**
- * 删除某一周的确认框。
- *
- * 删周是抹掉一整周，点错的代价不小，所以不给「一点就删」的按钮：
- * 必须把「确认」两个字打出来，删除按钮才会亮。
- */
+/** 删除某一周的确认框：一次二次确认就够，不必再打字。 */
 @Composable
 private fun DeleteWeekConfirmDialog(
     week: Int,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var input by remember { mutableStateOf("") }
-    val keyword = stringResource(R.string.week_picker_delete_keyword)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.week_picker_delete_title, week)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = stringResource(R.string.week_picker_delete_body, keyword),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it },
-                    singleLine = true,
-                    label = { Text(keyword) },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-        },
+        text = { Text(stringResource(R.string.week_picker_delete_body)) },
         confirmButton = {
-            TextButton(
-                enabled = input.trim() == keyword,
-                onClick = onConfirm,
-            ) {
+            TextButton(onClick = onConfirm) {
                 Text(
                     text = stringResource(R.string.week_picker_delete_confirm),
                     color = MaterialTheme.colorScheme.error,

@@ -62,12 +62,17 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.feature.widget.WidgetCatalog
 import com.x500x.cursimple.feature.widget.WidgetCatalogEntry
 import com.x500x.cursimple.feature.widget.WidgetDiagnostics
+import com.x500x.cursimple.core.data.VendorPermissionKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetPickerSheet(
     onDismiss: () -> Unit,
     onShowMessage: (String) -> Unit,
+    vendorPermissionAcks: Set<String> = emptySet(),
+    onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
+    pinUnsupportedOnDevice: Boolean = false,
+    onPinUnsupportedOnDeviceChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -119,6 +124,18 @@ fun WidgetPickerSheet(
     var pinUnconfirmed by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var manualGuideEntry by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var showWidgetHelp by remember { mutableStateOf(false) }
+    var permissionNoticeEntry by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
+    // 用户在手动步骤里点了「再试一次」：只放行这一次，不改动已记下的判定
+    var forcePinOnce by remember { mutableStateOf(false) }
+    // 已知不响应的桌面（vivo / OPPO），或这台机器实测失败过
+    val preferManualAdd = remember(pinUnsupportedOnDevice, forcePinOnce) {
+        !forcePinOnce && (pinUnsupportedOnDevice || WidgetCatalog.pinLikelyIgnored(context))
+    }
+    // 只有识别到厂商桌面、且用户还没把「桌面快捷方式」勾成已开启时才提示
+    val needsVendorPermissionNotice = remember(vendorPermissionAcks) {
+        WidgetCatalog.detectLauncherVendor(context) != WidgetCatalog.LauncherVendor.Other &&
+            VendorPermissionKey.SHORTCUT_PIN !in vendorPermissionAcks
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -149,10 +166,10 @@ fun WidgetPickerSheet(
                 }
             }
             Text(
-                text = if (pinSupported) {
-                    stringResource(R.string.widget_sheet_intro_supported)
-                } else {
-                    stringResource(R.string.widget_sheet_intro_unsupported)
+                text = when {
+                    preferManualAdd -> stringResource(R.string.widget_sheet_intro_pin_dead)
+                    pinSupported -> stringResource(R.string.widget_sheet_intro_supported)
+                    else -> stringResource(R.string.widget_sheet_intro_unsupported)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -216,11 +233,47 @@ fun WidgetPickerSheet(
                             hasMore = retry.hasMore,
                         )
                     }
-                    else -> pinUnconfirmed = entry
+                    else -> {
+                        pinUnconfirmed = entry
+                        onPinUnsupportedOnDeviceChange(true)
+                    }
                 }
             }
-            else -> pinUnconfirmed = entry
+            else -> {
+                // 所有 provider 都试过还是没出现，记下这台手机不吃这一套
+                pinUnconfirmed = entry
+                forcePinOnce = false
+                onPinUnsupportedOnDeviceChange(true)
+            }
         }
+    }
+
+
+    permissionNoticeEntry?.let { entry ->
+        AlertDialog(
+            onDismissRequest = { permissionNoticeEntry = null },
+            title = { Text(stringResource(R.string.widget_pin_permission_notice_title)) },
+            text = { Text(stringResource(R.string.widget_pin_permission_notice_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    permissionNoticeEntry = null
+                    WidgetCatalog.openShortcutPermission(context)
+                }) { Text(stringResource(R.string.widget_pin_permission_notice_open)) }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        permissionNoticeEntry = null
+                        pendingConfirm = entry
+                    }) { Text(stringResource(R.string.widget_pin_permission_notice_skip)) }
+                    TextButton(onClick = {
+                        permissionNoticeEntry = null
+                        onVendorPermissionAckChange(VendorPermissionKey.SHORTCUT_PIN, true)
+                        pendingConfirm = entry
+                    }) { Text(stringResource(R.string.widget_pin_permission_notice_done)) }
+                }
+            },
+        )
     }
 
     val unconfirmed = pinUnconfirmed
@@ -230,14 +283,18 @@ fun WidgetPickerSheet(
             title = { Text(stringResource(R.string.widget_pin_unconfirmed_title)) },
             text = { Text(stringResource(R.string.widget_pin_unconfirmed_body, unconfirmed.title)) },
             confirmButton = {
+                // 厂商机型上先给权限入口：这项没给的话再点几次一键添加也还是没反应
+                TextButton(onClick = {
+                    pinUnconfirmed = null
+                    WidgetCatalog.openShortcutPermission(context)
+                }) { Text(stringResource(R.string.widget_pin_unconfirmed_permission)) }
+            },
+            dismissButton = {
                 TextButton(onClick = {
                     pinUnconfirmed = null
                     manualGuideEntry = unconfirmed
-                }) { Text(stringResource(R.string.widget_pin_unconfirmed_manual)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { pinUnconfirmed = null }) {
-                    Text(stringResource(R.string.widget_help_got_it))
+                }) {
+                    Text(stringResource(R.string.widget_pin_unconfirmed_manual))
                 }
             },
         )
@@ -256,6 +313,15 @@ fun WidgetPickerSheet(
             vendor = remember { WidgetCatalog.detectLauncherVendor(context) },
             onOpenAppDetails = { WidgetCatalog.openAppDetails(context) },
             onDismiss = { manualGuideEntry = null },
+            onRetryPin = if (preferManualAdd) {
+                {
+                    forcePinOnce = true
+                    onPinUnsupportedOnDeviceChange(false)
+                    pendingConfirm = guideEntry
+                }
+            } else {
+                null
+            },
         )
     }
 
@@ -278,6 +344,17 @@ fun WidgetPickerSheet(
                 TextButton(onClick = {
                     val entry = pending
                     pendingConfirm = null
+                    // 这家桌面不响应一键添加，别再让用户点一次等十几秒
+                    if (preferManualAdd) {
+                        manualGuideEntry = entry
+                        return@TextButton
+                    }
+                    // 厂商机型上缺这两项时桌面会把添加请求静默丢掉，先问一次再发请求。
+                    // 用户选「先不管」就直接继续，下次点添加还会再问，直到勾了已开启
+                    if (needsVendorPermissionNotice) {
+                        permissionNoticeEntry = entry
+                        return@TextButton
+                    }
                     when (val result = WidgetCatalog.requestPin(context, entry)) {
                         is WidgetCatalog.PinRequestResult.Started -> {
                             onShowMessage(context.getString(R.string.widget_toast_requested))
@@ -542,6 +619,8 @@ private fun ManualAddGuideDialog(
     vendor: WidgetCatalog.LauncherVendor,
     onOpenAppDetails: () -> Boolean,
     onDismiss: () -> Unit,
+    /** 非空表示当前已判定这台手机的一键添加没反应，留一条重试的退路。 */
+    onRetryPin: (() -> Unit)? = null,
 ) {
     val genericSteps = listOf(
         stringResource(R.string.widget_manual_step1),
@@ -594,14 +673,23 @@ private fun ManualAddGuideDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
         },
-        dismissButton = if (permissionTip != null) {
-            {
-                TextButton(onClick = {
-                    onOpenAppDetails()
-                    onDismiss()
-                }) { Text(stringResource(R.string.widget_manual_open_settings)) }
+        dismissButton = {
+            Row {
+                // 判定有可能是误判（换了桌面、系统升级），留一条回去的路
+                onRetryPin?.let { retry ->
+                    TextButton(onClick = {
+                        onDismiss()
+                        retry()
+                    }) { Text(stringResource(R.string.widget_manual_retry_pin)) }
+                }
+                if (permissionTip != null) {
+                    TextButton(onClick = {
+                        onOpenAppDetails()
+                        onDismiss()
+                    }) { Text(stringResource(R.string.widget_manual_open_settings)) }
+                }
             }
-        } else null,
+        },
     )
 }
 

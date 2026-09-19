@@ -34,6 +34,14 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setThemeMode(mode) }
     }
 
+    fun setVendorPermissionAck(key: String, acked: Boolean) {
+        viewModelScope.launch { repository.setVendorPermissionAck(key, acked) }
+    }
+
+    fun setWidgetPinUnsupportedOnDevice(unsupported: Boolean) {
+        viewModelScope.launch { repository.setWidgetPinUnsupportedOnDevice(unsupported) }
+    }
+
     fun setThemeAccent(accent: ThemeAccent) {
         viewModelScope.launch { repository.setThemeAccent(accent) }
     }
