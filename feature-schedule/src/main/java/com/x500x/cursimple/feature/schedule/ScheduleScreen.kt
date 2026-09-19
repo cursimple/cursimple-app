@@ -2720,43 +2720,59 @@ private fun DayHeader(
             softWrap = false,
         )
         if (day.holidayLabel != null) {
-            Text(
+            DayHeaderTagText(
                 text = LocalContext.current.holidayLabelText(day.holidayLabel),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.tertiary,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
             )
         } else if (day.isMakeUpWorkday) {
             // 周末被调成上课日，日历上看着是休息日，不标一下容易睡过去
-            Text(
+            DayHeaderTagText(
                 text = stringResource(R.string.schedule_makeup_workday_tag),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.error,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
             )
         } else if (day.overrideLabel != null) {
             // 列本身就代表星期几，这里只留「按 月/日」，写全「按10/5周日」在一列宽里必被截掉
-            Text(
+            DayHeaderTagText(
                 text = stringResource(
                     R.string.schedule_override_source_short,
                     day.overrideLabel.month,
                     day.overrideLabel.dayOfMonth,
                 ),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }
+}
+
+
+/**
+ * 表头上那行小标签（放假名、调休、按某天）。
+ *
+ * 一列就那么宽，固定 10sp 时「按10/5」在大字号或窄屏上会被省略号吃成「按1…」，
+ * 看不出到底按的是哪天。改成按列宽自动缩字号，缩到 6sp 还放不下才省略。
+ */
+@Composable
+private fun DayHeaderTagText(
+    text: String,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    androidx.compose.foundation.text.BasicText(
+        text = text,
+        modifier = modifier,
+        style = androidx.compose.ui.text.TextStyle(
+            color = color,
+            fontWeight = FontWeight.Bold,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+        ),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
+            minFontSize = 6.sp,
+            maxFontSize = 10.sp,
+            stepSize = 0.5.sp,
+        ),
+    )
 }
 
 @Composable

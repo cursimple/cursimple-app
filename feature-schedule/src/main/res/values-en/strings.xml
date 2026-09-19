@@ -623,4 +623,7 @@
     <string name="schedule_week_custom_none">Clear</string>
     <string name="schedule_add_week">Add week</string>
     <string name="schedule_add_week_hint">Append one more blank week</string>
+    <string name="schedule_exact_alarm_banner_title">Exact alarms are off</string>
+    <string name="schedule_exact_alarm_banner_body">Reminders get delayed by the system and may ring over ten minutes late</string>
+    <string name="schedule_exact_alarm_banner_action">Turn on</string>
 </resources>

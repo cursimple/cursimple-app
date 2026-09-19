@@ -89,6 +89,13 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
+import com.x500x.cursimple.core.reminder.permission.canScheduleExactAlarms
+import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
+import com.x500x.cursimple.core.reminder.permission.launchFirstAvailableSetting
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
 fun ScheduleSettingsRoute(
@@ -207,6 +214,9 @@ fun ScheduleSettingsScreen(
                 .padding(horizontal = 18.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            // 精确闹钟没给的时候闹钟一律不准时，这条常驻在最上面，
+            // 不是弹一次就算数的提示——没开之前每次进来都看得见
+            ExactAlarmBanner()
             AlarmManagementCard(
                 alarmRecords = state.systemAlarmRecords,
                 onRefresh = onRefreshAlarms,
@@ -356,6 +366,73 @@ private fun SectionHeader(title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+
+/**
+ * 没开精确闹钟时顶在闹钟页最上面的一条。
+ *
+ * 缺这项时闹钟会被系统丢进一个模糊的时间窗，迟到十几分钟很常见，
+ * 但界面上看不出任何异常。所以不做成一次性提示，回前台就重读一次权限，
+ * 开了它自己消失。
+ */
+@Composable
+private fun ExactAlarmBanner() {
+    val context = LocalContext.current
+    var granted by remember { mutableStateOf(canScheduleExactAlarms(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                granted = canScheduleExactAlarms(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    if (granted) return
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.errorContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.schedule_exact_alarm_banner_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Text(
+                    text = stringResource(R.string.schedule_exact_alarm_banner_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+            TextButton(
+                onClick = {
+                    launchFirstAvailableSetting(context, AlarmSettingsIntents.exactAlarm(context))
+                },
+            ) {
+                Text(
+                    text = stringResource(R.string.schedule_exact_alarm_banner_action),
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
     }
 }
 

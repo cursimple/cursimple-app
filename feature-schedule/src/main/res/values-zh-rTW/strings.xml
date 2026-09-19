@@ -599,4 +599,7 @@
     <string name="schedule_week_custom_none">清空</string>
     <string name="schedule_add_week">新增週</string>
     <string name="schedule_add_week_hint">接著往後加一週空白課表</string>
+    <string name="schedule_exact_alarm_banner_title">精確鬧鐘未開啟</string>
+    <string name="schedule_exact_alarm_banner_body">提醒會被系統延後，可能晚十幾分鐘才響</string>
+    <string name="schedule_exact_alarm_banner_action">去開啟</string>
 </resources>
