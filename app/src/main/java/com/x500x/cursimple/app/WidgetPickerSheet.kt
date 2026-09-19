@@ -42,6 +42,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -56,9 +57,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import android.widget.Toast
 import com.x500x.cursimple.R
 import com.x500x.cursimple.feature.widget.WidgetCatalog
 import com.x500x.cursimple.feature.widget.WidgetCatalogEntry
+import com.x500x.cursimple.feature.widget.WidgetDiagnostics
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,10 +75,16 @@ fun WidgetPickerSheet(
     val pinSupported = WidgetCatalog.isPinSupported(context)
 
     var refreshTick by remember { mutableIntStateOf(0) }
+    var lastResumeAtMillis by remember { mutableLongStateOf(0L) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) refreshTick++
+            if (event == Lifecycle.Event.ON_RESUME) {
+                refreshTick++
+                // 系统的「添加到桌面」弹窗盖在应用上面时我们不算超时，
+                // 只有用户回到应用之后再确认不出来，才判定这次添加没成功
+                lastResumeAtMillis = android.os.SystemClock.elapsedRealtime()
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -105,6 +114,9 @@ fun WidgetPickerSheet(
     }
 
     var pendingConfirm by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
+    // 发出添加请求后盯着实际装上的数量，启动器悄悄丢掉请求时用户不会一直以为加上了
+    var pinWatch by remember { mutableStateOf<PinWatch?>(null) }
+    var pinUnconfirmed by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var manualGuideEntry by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var showWidgetHelp by remember { mutableStateOf(false) }
 
@@ -167,6 +179,70 @@ fun WidgetPickerSheet(
         }
     }
 
+    LaunchedEffect(pinWatch) {
+        val watch = pinWatch ?: return@LaunchedEffect
+        val entry = watch.entry
+        val baseline = watch.baseline
+        val requestedAt = android.os.SystemClock.elapsedRealtime()
+        var pinned = false
+        while (true) {
+            if (WidgetCatalog.installedCount(context, entry) > baseline) {
+                pinned = true
+                break
+            }
+            val now = android.os.SystemClock.elapsedRealtime()
+            // 用户已经从系统弹窗回到应用，且又等了一小会儿还是没出现，才算失败
+            val backInApp = lastResumeAtMillis > requestedAt &&
+                now - lastResumeAtMillis > PIN_SETTLE_MILLIS
+            if (backInApp || now - requestedAt > PIN_GIVE_UP_MILLIS) break
+            // 前半分钟盯紧一点，之后放慢，用户一直停在系统弹窗上也不会空转几百次
+            val elapsed = now - requestedAt
+            kotlinx.coroutines.delay(if (elapsed < PIN_FAST_POLL_WINDOW_MILLIS) PIN_POLL_MILLIS else PIN_SLOW_POLL_MILLIS)
+        }
+        pinWatch = null
+        refreshTick++
+        when {
+            pinned -> onShowMessage(context.getString(R.string.widget_toast_added, entry.title))
+            // 厂商桌面受理了请求又悄悄丢掉时，换下一份 provider 再来一次，
+            // 别一次落空就让用户去走手动添加
+            watch.hasMore -> {
+                when (val retry = WidgetCatalog.requestPin(context, entry, attempt = watch.attempt + 1)) {
+                    is WidgetCatalog.PinRequestResult.Started -> {
+                        onShowMessage(context.getString(R.string.widget_toast_retrying))
+                        pinWatch = PinWatch(
+                            entry = entry,
+                            baseline = WidgetCatalog.installedCount(context, entry),
+                            attempt = watch.attempt + 1,
+                            hasMore = retry.hasMore,
+                        )
+                    }
+                    else -> pinUnconfirmed = entry
+                }
+            }
+            else -> pinUnconfirmed = entry
+        }
+    }
+
+    val unconfirmed = pinUnconfirmed
+    if (unconfirmed != null) {
+        AlertDialog(
+            onDismissRequest = { pinUnconfirmed = null },
+            title = { Text(stringResource(R.string.widget_pin_unconfirmed_title)) },
+            text = { Text(stringResource(R.string.widget_pin_unconfirmed_body, unconfirmed.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pinUnconfirmed = null
+                    manualGuideEntry = unconfirmed
+                }) { Text(stringResource(R.string.widget_pin_unconfirmed_manual)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pinUnconfirmed = null }) {
+                    Text(stringResource(R.string.widget_help_got_it))
+                }
+            },
+        )
+    }
+
     if (showWidgetHelp) {
         WidgetHelpDialog(
             onDismiss = { showWidgetHelp = false },
@@ -202,9 +278,15 @@ fun WidgetPickerSheet(
                 TextButton(onClick = {
                     val entry = pending
                     pendingConfirm = null
-                    when (WidgetCatalog.requestPin(context, entry)) {
-                        WidgetCatalog.PinRequestResult.Started -> {
+                    when (val result = WidgetCatalog.requestPin(context, entry)) {
+                        is WidgetCatalog.PinRequestResult.Started -> {
                             onShowMessage(context.getString(R.string.widget_toast_requested))
+                            pinWatch = PinWatch(
+                                entry = entry,
+                                baseline = installedCounts[entry.id] ?: 0,
+                                attempt = 0,
+                                hasMore = result.hasMore,
+                            )
                         }
                         WidgetCatalog.PinRequestResult.Unsupported,
                         is WidgetCatalog.PinRequestResult.Failed -> {
@@ -220,10 +302,21 @@ fun WidgetPickerSheet(
     }
 }
 
+/** 一次一键添加请求的跟踪状态：请求的是第几个 provider，落空后还有没有下一个可试。 */
+private data class PinWatch(
+    val entry: WidgetCatalogEntry,
+    val baseline: Int,
+    val attempt: Int,
+    val hasMore: Boolean,
+)
+
 @Composable
 private fun WidgetHelpDialog(
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
+    // 隔着屏幕猜不出「为什么这台手机上找不到小组件」，把判断依据列出来让用户能直接反馈
+    val report = remember { WidgetDiagnostics.collect(context) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.widget_help_title)) },
@@ -245,6 +338,8 @@ private fun WidgetHelpDialog(
                         stringResource(R.string.widget_help_generic_step1),
                         stringResource(R.string.widget_help_generic_step2),
                         stringResource(R.string.widget_help_generic_step3),
+                        // 桌面的小组件清单有缓存，这一条是各家课表应用的共同经验
+                        stringResource(R.string.widget_help_generic_step4),
                     ),
                 )
                 WidgetGuideSection(
@@ -261,10 +356,29 @@ private fun WidgetHelpDialog(
                         steps = guide.stepRes.map { stringResource(it) },
                     )
                 }
+                WidgetGuideSection(
+                    title = stringResource(R.string.widget_diagnostics_title),
+                    steps = report.lines.map { (label, value) -> "$label: $value" },
+                )
             }
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                    clipboard?.setPrimaryClip(
+                        android.content.ClipData.newPlainText("cursimple-widget-diagnostics", report.asText()),
+                    )
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.widget_diagnostics_copied),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+            ) { Text(stringResource(R.string.widget_diagnostics_copy)) }
         },
     )
 }
@@ -296,6 +410,7 @@ private fun widgetVendorGuides(): List<WidgetGuide> = listOf(
             R.string.widget_guide_huawei_step1,
             R.string.widget_guide_huawei_step2,
             R.string.widget_guide_huawei_step3,
+            R.string.widget_guide_huawei_step4,
         ),
     ),
     WidgetGuide(
@@ -323,6 +438,7 @@ private fun widgetVendorGuides(): List<WidgetGuide> = listOf(
             R.string.widget_guide_vivo_step1,
             R.string.widget_guide_vivo_step2,
             R.string.widget_guide_vivo_step3,
+            R.string.widget_guide_vivo_step4,
         ),
     ),
 )
@@ -531,3 +647,12 @@ private fun TrailingStatus(installed: Boolean, installedCount: Int) {
         }
     }
 }
+
+/** 回到应用后再观察这么久，仍没出现就认为添加没成功。 */
+private const val PIN_SETTLE_MILLIS = 2_500L
+
+/** 用户一直没回来时的兜底上限。 */
+private const val PIN_GIVE_UP_MILLIS = 180_000L
+private const val PIN_POLL_MILLIS = 400L
+private const val PIN_SLOW_POLL_MILLIS = 2_000L
+private const val PIN_FAST_POLL_WINDOW_MILLIS = 30_000L

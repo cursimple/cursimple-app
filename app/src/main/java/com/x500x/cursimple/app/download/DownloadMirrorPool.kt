@@ -2,10 +2,24 @@ package com.x500x.cursimple.app.download
 
 import java.net.URI
 
+
+/**
+ * 三个非主机名的下载源标识。
+ *
+ * sourceName 同时是界面上显示的名字和镜像偏好里持久化的键，直接把它翻译掉会让
+ * 换了语言之后对不上以前记下的偏好。所以这里固定用与语言无关的标识，
+ * 显示时再由界面层换成当前语言（见 downloadSourceLabel）。
+ */
+object DownloadSourceIds {
+    const val LOCAL_FILE = "local-file"
+    const val ORIGIN = "origin"
+    const val GITHUB_ORIGIN = "github-origin"
+}
+
 class DownloadMirrorPool {
     fun candidates(request: DownloadRequest): List<DownloadCandidate> {
         return when (request.purpose) {
-            DownloadPurpose.LocalFile -> listOf(DownloadCandidate("本地文件", request.url))
+            DownloadPurpose.LocalFile -> listOf(DownloadCandidate(DownloadSourceIds.LOCAL_FILE, request.url))
             DownloadPurpose.DirectUrl -> directCandidates(request.url)
             DownloadPurpose.GithubRelease -> githubReleaseCandidates(request.url)
             DownloadPurpose.GithubRaw -> githubRawCandidates(request)
@@ -14,7 +28,7 @@ class DownloadMirrorPool {
     }
 
     private fun directCandidates(url: String): List<DownloadCandidate> {
-        return listOf(DownloadCandidate("源站", url))
+        return listOf(DownloadCandidate(DownloadSourceIds.ORIGIN, url))
     }
 
     private fun githubReleaseCandidates(url: String): List<DownloadCandidate> {
@@ -39,7 +53,7 @@ class DownloadMirrorPool {
             DownloadCandidate("github.yuansi.xyz", "https://github.yuansi.xyz/$url"),
             DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
             DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
-            DownloadCandidate("GitHub 源站", url),
+            DownloadCandidate(DownloadSourceIds.GITHUB_ORIGIN, url),
         )
     }
 
@@ -81,7 +95,7 @@ class DownloadMirrorPool {
             DownloadCandidate("ghproxy.net", "https://ghproxy.net/$url"),
             DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
             DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
-            DownloadCandidate("GitHub 源站", url),
+            DownloadCandidate(DownloadSourceIds.GITHUB_ORIGIN, url),
         )
     }
 

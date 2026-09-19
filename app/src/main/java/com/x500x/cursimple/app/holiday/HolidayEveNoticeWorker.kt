@@ -126,7 +126,13 @@ private fun Context.postHolidayEveNotice(notice: HolidayEveNotice.SuggestMute) {
     val notification = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(R.mipmap.ic_launcher)
         .setContentTitle(getString(R.string.holiday_eve_notice_title, holidayName))
-        .setContentText(getString(R.string.holiday_eve_notice_body, notice.reminderCount))
+        .setContentText(
+            resources.getQuantityString(
+                R.plurals.holiday_eve_notice_body,
+                notice.reminderCount,
+                notice.reminderCount,
+            ),
+        )
         .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         .setAutoCancel(true)
         .setContentIntent(openIntent)

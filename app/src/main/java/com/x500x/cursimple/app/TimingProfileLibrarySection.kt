@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -168,7 +169,7 @@ private fun TimingProfileRow(
                         text = if (entry.slotTimes.isEmpty()) {
                             stringResource(R.string.settings_timing_profile_empty)
                         } else {
-                            stringResource(R.string.settings_timing_profile_slot_count, entry.slotTimes.size)
+                            pluralStringResource(R.plurals.settings_timing_profile_slot_count, entry.slotTimes.size, entry.slotTimes.size)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

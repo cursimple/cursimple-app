@@ -48,6 +48,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.term.TermProfile
 import com.x500x.cursimple.core.kernel.time.BeijingTime

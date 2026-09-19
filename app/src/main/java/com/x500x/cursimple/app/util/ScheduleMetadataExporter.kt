@@ -20,6 +20,7 @@ import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
+import com.x500x.cursimple.R
 
 data class ScheduleMetadataExportSnapshot(
     val schedule: TermSchedule?,
@@ -47,7 +48,7 @@ object ScheduleMetadataExporter {
         Intent(Intent.ACTION_SEND).apply {
             type = "application/json"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "CurSimple 课表元数据 ${file.name}")
+            putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.metadata_export_share_subject, file.name))
             clipData = ClipData.newUri(context.contentResolver, file.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

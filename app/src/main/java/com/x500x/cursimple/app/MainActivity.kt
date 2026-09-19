@@ -91,7 +91,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 import com.x500x.cursimple.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -217,6 +219,11 @@ class MainActivity : ComponentActivity() {
                             },
                             resolveTimingProfile = { container.widgetPreferencesRepository.timingProfileFlow.first() },
                             timingProfileFlow = container.widgetPreferencesRepository.timingProfileFlow,
+                            createTermAndActivate = { name ->
+                                // 课表与手动课都按学期分区，切过去之后再写就落在新表里，旧表原封不动
+                                val term = container.termProfileRepository.createTerm(name, null)
+                                container.termProfileRepository.setActiveTerm(term.id)
+                            },
                         ),
                     )
                     val scheduleState by scheduleViewModel.uiState.collectAsStateWithLifecycle()
@@ -396,9 +403,11 @@ class MainActivity : ComponentActivity() {
                         pendingLocalAudioResult = onPicked
                         localAudioLauncher.launch(arrayOf("audio/*"))
                     }
-                    // 课表域的成功与失败反馈统一走 Snackbar；同步完成另有专门提示，此处跳过
-                    var lastShownStatusMessage by remember { mutableStateOf<String?>(null) }
-                    var lastSuppressedSyncCount by remember { mutableIntStateOf(0) }
+                    // 课表域的成功与失败反馈统一走 Snackbar；同步完成另有专门提示，此处跳过。
+                    // 必须用 rememberSaveable：切换语言会重建 Activity 而 ViewModel 还活着，
+                    // 用 remember 的话「已经弹过哪一条」被清空，旧提示会在新界面上又弹一次。
+                    var lastShownStatusMessage by rememberSaveable { mutableStateOf<String?>(null) }
+                    var lastSuppressedSyncCount by rememberSaveable { mutableIntStateOf(0) }
                     androidx.compose.runtime.LaunchedEffect(scheduleState.statusMessage) {
                         val message = scheduleState.statusMessage
                         val isSyncCompletion = scheduleState.syncCompletedCount != lastSuppressedSyncCount
@@ -411,6 +420,16 @@ class MainActivity : ComponentActivity() {
                             lastShownStatusMessage = message
                             snackbarHostState.showSnackbar(message)
                         }
+                    }
+                    // 教务系统同步回来有增减时先问覆盖还是新建，别直接把旧表盖掉
+                    scheduleState.pendingImport?.let { pending ->
+                        ImportDiffDialog(
+                            diff = pending.diff,
+                            suggestedTermName = pending.suggestedTermName,
+                            onOverwrite = scheduleViewModel::confirmPendingImportOverwrite,
+                            onCreateNewTerm = scheduleViewModel::confirmPendingImportAsNewTerm,
+                            onDismiss = scheduleViewModel::dismissPendingImport,
+                        )
                     }
                     androidx.compose.runtime.LaunchedEffect(
                         scheduleState.isSyncing,
@@ -463,18 +482,44 @@ class MainActivity : ComponentActivity() {
                         ScheduleViewMode.Week -> currentWeekIndex + weekOffset
                         ScheduleViewMode.Day -> dayWeekIndex
                     }
-                    val weekPickerTotalWeeks = remember(
+                    // 课程推出来的周数，和用户自己加的空白周分开记：
+                    // 前者删不掉（下次算还会回来），后者才是可加可删的那部分
+                    val activeTermExtraWeeks = termProfileState.terms
+                        .firstOrNull { it.id == termProfileState.activeTermId }
+                        ?.extraWeekCount
+                        ?: 0
+                    val derivedWeeks = remember(
                         scheduleState.schedule,
                         scheduleState.manualCourses,
                         currentWeekIndex,
                         displayedWeekIndex,
                     ) {
-                        resolveWeekPickerTotalWeeks(
+                        derivedWeekCount(
                             schedule = scheduleState.schedule,
                             manualCourses = scheduleState.manualCourses,
                             currentWeek = currentWeekIndex,
                             selectedWeek = displayedWeekIndex,
                         )
+                    }
+                    val weekPickerTotalWeeks = derivedWeeks + activeTermExtraWeeks
+                    val addWeek: () -> Unit = {
+                        scope.launch {
+                            container.termProfileRepository.setTermExtraWeekCount(
+                                termProfileState.activeTermId,
+                                activeTermExtraWeeks + 1,
+                            )
+                        }
+                    }
+                    val deleteWeek: (Int) -> Unit = { week ->
+                        // 只有超出课程推导范围的那些才是用户加的，删掉即减一
+                        if (week > derivedWeeks) {
+                            scope.launch {
+                                container.termProfileRepository.setTermExtraWeekCount(
+                                    termProfileState.activeTermId,
+                                    (activeTermExtraWeeks - 1).coerceAtLeast(0),
+                                )
+                            }
+                        }
                     }
 
                     ModalNavigationDrawer(
@@ -776,6 +821,7 @@ class MainActivity : ComponentActivity() {
                                         // 开学前最早只翻到当前这个未开学的周，开学后最早翻到第 1 周。
                                         minWeekOffset = (1 - currentWeekIndex).coerceAtMost(0),
                                         maxWeekOffset = weekPickerTotalWeeks - currentWeekIndex,
+                                        onAddWeek = addWeek,
                                         onPrevWeek = { weekOffset -= 1 },
                                         onNextWeek = { weekOffset += 1 },
                                         onWeekOffsetChange = { weekOffset = it },
@@ -943,10 +989,15 @@ class MainActivity : ComponentActivity() {
                                         skipRemindersOnHoliday = prefs.skipRemindersOnHoliday,
                                         onSkipRemindersOnHolidayChange =
                                             prefsViewModel::setSkipRemindersOnHoliday,
+                                        alarmKeepAliveEnabled = prefs.alarmKeepAliveEnabled,
+                                        onAlarmKeepAliveEnabledChange =
+                                            prefsViewModel::setAlarmKeepAliveEnabled,
                                         onOpenWidgetPicker = { showWidgetPicker = true },
                                         onPickWidgetThemeAccent = { showWidgetThemeAccentDialog = true },
                                         onWidgetBackgroundImageUriChange = widgetPrefsViewModel::setWidgetBackgroundImageUri,
                                         onClearWidgetBackgroundImage = widgetPrefsViewModel::clearWidgetBackgroundImage,
+                                        onWidgetBackgroundImageTransparencyPercentChange =
+                                            widgetPrefsViewModel::setWidgetBackgroundImageTransparencyPercent,
                                         onWidgetOpenAppOnDoubleClickChange =
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
@@ -1095,7 +1146,14 @@ class MainActivity : ComponentActivity() {
                                     timeoutSeconds = prefs.aiImportTimeoutSeconds,
                                 ),
                                 aiImportClient = aiImportClient,
-                                onApplyImport = scheduleViewModel::applyImportedSchedule,
+                                onApplyImport = { schedule, manual, newTermName, onDone ->
+                                    scheduleViewModel.applyImportedSchedule(
+                                        schedule = schedule,
+                                        manualCourses = manual,
+                                        asNewTermNamed = newTermName,
+                                        onComplete = onDone,
+                                    )
+                                },
                                 onApplyTermStartDate = { date ->
                                     setActiveTermStartDate(date)
                                     weekOffset = 0
@@ -1235,6 +1293,11 @@ class MainActivity : ComponentActivity() {
                                 widgetPrefsViewModel.setWidgetThemeAccent(it)
                                 showWidgetThemeAccentDialog = false
                             },
+                            followAppSelected = widgetPrefs.followsAppThemeAccent,
+                            onSelectFollowApp = {
+                                widgetPrefsViewModel.followAppThemeAccent()
+                                showWidgetThemeAccentDialog = false
+                            },
                         )
                     }
 
@@ -1273,6 +1336,9 @@ class MainActivity : ComponentActivity() {
                             currentWeek = currentWeekIndex,
                             selectedWeek = displayedWeekIndex,
                             totalWeeks = weekPickerTotalWeeks,
+                            derivedWeeks = derivedWeeks,
+                            onAddWeek = addWeek,
+                            onDeleteWeek = deleteWeek,
                             onSelectWeek = { week ->
                                 if (scheduleViewMode == ScheduleViewMode.Day) {
                                     dayOffset = resolveDayOffsetForSelectedWeek(
@@ -1465,7 +1531,7 @@ private fun AppDrawer(
                     currentWeekIndex >= 1 ->
                         stringResource(R.string.main_drawer_current_week, currentWeekIndex)
                     else ->
-                        stringResource(R.string.main_drawer_before_term, 1 - currentWeekIndex)
+                        pluralStringResource(R.plurals.main_drawer_before_term, 1 - currentWeekIndex, 1 - currentWeekIndex)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1810,12 +1876,35 @@ private fun ThemeAccentDialog(
     current: ThemeAccent,
     onDismiss: () -> Unit,
     onSelect: (ThemeAccent) -> Unit,
+    /** 传了这个回调就多给一项「跟随应用主题」，小组件配色用得上。 */
+    followAppSelected: Boolean = false,
+    onSelectFollowApp: (() -> Unit)? = null,
 ) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.main_theme)) },
         text = {
             Column {
+                if (onSelectFollowApp != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onSelectFollowApp() }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.RadioButton(
+                            selected = followAppSelected,
+                            onClick = onSelectFollowApp,
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            text = stringResource(R.string.settings_accent_follow_app),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
                 themeAccentOptions.forEach { option ->
                     Row(
                         modifier = Modifier
@@ -1826,7 +1915,7 @@ private fun ThemeAccentDialog(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         androidx.compose.material3.RadioButton(
-                            selected = option.accent == current,
+                            selected = option.accent == current && !followAppSelected,
                             onClick = { onSelect(option.accent) },
                         )
                         Spacer(modifier = Modifier.width(8.dp))
