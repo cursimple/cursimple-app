@@ -80,6 +80,8 @@ class DataStoreUserPreferencesRepository(
             ),
             skipRemindersOnHoliday = prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] ?: false,
             alarmKeepAliveEnabled = prefs[KEY_ALARM_KEEP_ALIVE] ?: false,
+            vendorPermissionAcks = prefs[KEY_VENDOR_PERMISSION_ACKS].orEmpty(),
+            widgetPinUnsupportedOnDevice = prefs[KEY_WIDGET_PIN_UNSUPPORTED] ?: false,
             reminderMutedDates = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toSet(),
             debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
@@ -139,6 +141,17 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setThemeMode(mode: ThemeMode) {
         store.edit { prefs -> prefs[KEY_THEME_MODE] = mode.name }
+    }
+
+    override suspend fun setVendorPermissionAck(key: String, acked: Boolean) {
+        store.edit { prefs ->
+            val current = prefs[KEY_VENDOR_PERMISSION_ACKS].orEmpty()
+            prefs[KEY_VENDOR_PERMISSION_ACKS] = if (acked) current + key else current - key
+        }
+    }
+
+    override suspend fun setWidgetPinUnsupportedOnDevice(unsupported: Boolean) {
+        store.edit { prefs -> prefs[KEY_WIDGET_PIN_UNSUPPORTED] = unsupported }
     }
 
     override suspend fun setThemeAccent(accent: ThemeAccent) {
@@ -1047,6 +1060,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_HOLIDAY_CALENDAR_SYNCED_JSON = stringPreferencesKey("holiday_calendar_synced_json")
         val KEY_SKIP_REMINDERS_ON_HOLIDAY = booleanPreferencesKey("skip_reminders_on_holiday")
         val KEY_ALARM_KEEP_ALIVE = booleanPreferencesKey("alarm_keep_alive_enabled")
+        val KEY_VENDOR_PERMISSION_ACKS = stringSetPreferencesKey("vendor_permission_acks")
+        val KEY_WIDGET_PIN_UNSUPPORTED = booleanPreferencesKey("widget_pin_unsupported_on_device")
         val KEY_REMINDER_MUTED_DATES = stringSetPreferencesKey("reminder_muted_dates")
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")
