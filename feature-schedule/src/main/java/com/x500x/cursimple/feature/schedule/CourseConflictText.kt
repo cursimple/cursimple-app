@@ -126,8 +126,9 @@ internal fun Context.weekRangesText(label: WeekRangesLabel): String = when (labe
         getString(R.string.schedule_conflict_week_segments, joined)
     }
 
-    is WeekRangesLabel.Summary -> getString(
-        R.string.schedule_conflict_week_summary,
+    is WeekRangesLabel.Summary -> resources.getQuantityString(
+        R.plurals.schedule_conflict_week_summary,
+        label.weekCount,
         label.firstWeek,
         label.lastWeek,
         label.weekCount,
@@ -248,5 +249,5 @@ internal fun Context.examCountdownText(label: ExamCountdownLabel): String = when
     ExamCountdownLabel.Today -> getString(R.string.schedule_exam_countdown_today)
     ExamCountdownLabel.Tomorrow -> getString(R.string.schedule_exam_countdown_tomorrow)
     is ExamCountdownLabel.DaysRemaining ->
-        getString(R.string.schedule_exam_countdown_days, label.days)
+        resources.getQuantityString(R.plurals.schedule_exam_countdown_days, label.days.toInt(), label.days)
 }

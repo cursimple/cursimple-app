@@ -1,12 +1,15 @@
 package com.x500x.cursimple.feature.schedule
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -91,7 +94,7 @@ internal fun ReminderRuleEditorDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(520.dp)
+                    .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -200,31 +203,28 @@ private fun ConditionRow(
     onChange: (ReminderLabelCondition) -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        LabelDropdown(
-            label = condition.slotLabel,
-            labels = labels,
-            modifier = Modifier.weight(1f),
-            onSelected = { onChange(condition.copy(slotLabel = it)) },
-        )
-        EnumDropdown(
-            value = condition.presence,
-            options = ReminderLabelPresence.entries,
-            label = stringResource(R.string.schedule_reminder_rule_condition_label),
-            optionLabel = { stringResource(it.conditionLabelRes()) },
-            modifier = Modifier.weight(0.8f),
-            onSelected = { onChange(condition.copy(presence = it)) },
-        )
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_reminder_rule_delete_condition))
-        }
-    }
+    RuleClauseLayout(
+        deleteDescription = stringResource(R.string.schedule_reminder_rule_delete_condition),
+        onDelete = onDelete,
+        labelDropdown = { modifier ->
+            LabelDropdown(
+                label = condition.slotLabel,
+                labels = labels,
+                modifier = modifier,
+                onSelected = { onChange(condition.copy(slotLabel = it)) },
+            )
+        },
+        enumDropdown = { modifier ->
+            EnumDropdown(
+                value = condition.presence,
+                options = ReminderLabelPresence.entries,
+                label = stringResource(R.string.schedule_reminder_rule_condition_label),
+                optionLabel = { stringResource(it.conditionLabelRes()) },
+                modifier = modifier,
+                onSelected = { onChange(condition.copy(presence = it)) },
+            )
+        },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -235,32 +235,86 @@ private fun ActionRow(
     onChange: (ReminderLabelAction) -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
+    RuleClauseLayout(
+        deleteDescription = stringResource(R.string.schedule_reminder_rule_delete_action),
+        onDelete = onDelete,
+        labelDropdown = { modifier ->
+            LabelDropdown(
+                label = action.slotLabel,
+                labels = labels,
+                modifier = modifier,
+                onSelected = { onChange(action.copy(slotLabel = it)) },
+            )
+        },
+        enumDropdown = { modifier ->
+            EnumDropdown(
+                value = action.action,
+                options = ReminderLabelActionType.entries,
+                label = stringResource(R.string.schedule_reminder_rule_action_label),
+                optionLabel = { stringResource(it.actionLabelRes()) },
+                modifier = modifier,
+                onSelected = { onChange(action.copy(action = it)) },
+            )
+        },
+    )
+}
+
+/**
+ * 条件行与动作行共用的排布。
+ *
+ * 一行放得下两个下拉框才并排；窄屏或大字号下并排会把「存在」「提醒」这种两字标签挤成两列，
+ * 这时改成上下两段：课程 label 独占一行，选项与删除按钮同一行。
+ */
+@Composable
+private fun RuleClauseLayout(
+    deleteDescription: String,
+    onDelete: () -> Unit,
+    labelDropdown: @Composable (Modifier) -> Unit,
+    enumDropdown: @Composable (Modifier) -> Unit,
+) {
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        LabelDropdown(
-            label = action.slotLabel,
-            labels = labels,
-            modifier = Modifier.weight(1f),
-            onSelected = { onChange(action.copy(slotLabel = it)) },
-        )
-        EnumDropdown(
-            value = action.action,
-            options = ReminderLabelActionType.entries,
-            label = stringResource(R.string.schedule_reminder_rule_action_label),
-            optionLabel = { stringResource(it.actionLabelRes()) },
-            modifier = Modifier.weight(0.8f),
-            onSelected = { onChange(action.copy(action = it)) },
-        )
-        IconButton(onClick = onDelete) {
-            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.schedule_reminder_rule_delete_action))
+        if (maxWidth >= CLAUSE_SIDE_BY_SIDE_MIN_WIDTH) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                labelDropdown(Modifier.weight(1f))
+                enumDropdown(Modifier.weight(1f))
+                ClauseDeleteButton(deleteDescription, onDelete)
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                labelDropdown(Modifier.fillMaxWidth())
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    enumDropdown(Modifier.weight(1f))
+                    ClauseDeleteButton(deleteDescription, onDelete)
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun ClauseDeleteButton(description: String, onDelete: () -> Unit) {
+    IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+        Icon(Icons.Rounded.Delete, contentDescription = description)
+    }
+}
+
+/** 两个下拉框并排所需的最小宽度，低于它就改成上下两段。 */
+private val CLAUSE_SIDE_BY_SIDE_MIN_WIDTH = 300.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -280,6 +334,7 @@ private fun LabelDropdown(
             value = label.ifBlank { stringResource(R.string.schedule_reminder_rule_no_label) },
             onValueChange = {},
             readOnly = true,
+            singleLine = true,
             label = { Text(stringResource(R.string.schedule_reminder_rule_course_label)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
@@ -323,6 +378,7 @@ private fun <T> EnumDropdown(
             value = optionLabel(value),
             onValueChange = {},
             readOnly = true,
+            singleLine = true,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Source
@@ -59,6 +60,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -106,6 +108,9 @@ fun CourseDetailDialog(
     onTemporaryCancel: (CourseItem) -> Unit = {},
     onRestoreTemporaryCancel: (CourseItem) -> Unit = {},
     onSetReminder: (CourseItem) -> Unit,
+    /** 这门课眼下有没有能在这里直接撤掉的提醒。 */
+    hasCancellableReminder: (CourseItem) -> Boolean = { false },
+    onCancelReminder: (CourseItem) -> Unit = {},
     onMuteExamReminder: (CourseItem) -> Unit = {},
     onRestoreExamReminder: (CourseItem) -> Unit = {},
     onDelete: (CourseItem) -> Unit,
@@ -335,7 +340,9 @@ fun CourseDetailDialog(
                             showDelete = manual && !pluginOverride,
                             showRestorePlugin = pluginOverride,
                             onEdit = { editing = true },
+                            hasReminder = hasCancellableReminder(course),
                             onSetReminder = { onSetReminder(course) },
+                            onCancelReminder = { onCancelReminder(course) },
                             onTemporaryCancel = { onTemporaryCancel(course) },
                             onRestoreTemporaryCancel = { onRestoreTemporaryCancel(course) },
                             onDelete = { onDelete(course) },
@@ -506,8 +513,10 @@ private fun CourseActionBar(
     showTemporaryCancel: Boolean,
     showDelete: Boolean,
     showRestorePlugin: Boolean,
+    hasReminder: Boolean,
     onEdit: () -> Unit,
     onSetReminder: () -> Unit,
+    onCancelReminder: () -> Unit,
     onTemporaryCancel: () -> Unit,
     onRestoreTemporaryCancel: () -> Unit,
     onDelete: () -> Unit,
@@ -527,10 +536,13 @@ private fun CourseActionBar(
                 label = stringResource(R.string.schedule_action_edit),
                 onClick = onEdit,
             )
+            // 已经有提醒时这里变成撤掉它，免得详情页永远只给「提醒」一个方向
             DetailAction(
-                icon = Icons.Rounded.NotificationsActive,
-                label = stringResource(R.string.schedule_action_reminder),
-                onClick = onSetReminder,
+                icon = if (hasReminder) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
+                label = stringResource(
+                    if (hasReminder) R.string.schedule_action_cancel_reminder else R.string.schedule_action_reminder,
+                ),
+                onClick = if (hasReminder) onCancelReminder else onSetReminder,
             )
             if (showTemporaryCancel) {
                 DetailAction(
@@ -843,7 +855,11 @@ private fun DetailRow(
 private fun examCountdownText(countdown: ExamCountdown): String = when (countdown.daysRemaining) {
     0L -> stringResource(R.string.schedule_exam_countdown_today)
     1L -> stringResource(R.string.schedule_exam_countdown_tomorrow)
-    else -> stringResource(R.string.schedule_exam_countdown_days, countdown.daysRemaining)
+    else -> pluralStringResource(
+        R.plurals.schedule_exam_countdown_days,
+        countdown.daysRemaining.toInt(),
+        countdown.daysRemaining,
+    )
 }
 
 /** 上课时间的呈现形态：命中节次时间表给区间，否则按大节或节次编号。 */
@@ -910,12 +926,19 @@ internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail
     WeeksDetail.Unspecified -> getString(R.string.schedule_weeks_detail_unspecified)
     // 连续 / 单双周本身已说清是哪些周，不再把每一周都罗列一遍
     is WeeksDetail.Consecutive ->
-        getString(R.string.schedule_weeks_detail_consecutive, detail.first, detail.last, detail.count)
+        resources.getQuantityString(
+            R.plurals.schedule_weeks_detail_consecutive,
+            detail.count,
+            detail.first,
+            detail.last,
+            detail.count,
+        )
     is WeeksDetail.Odd ->
         getString(R.string.schedule_weeks_detail_odd, detail.first, detail.last, detail.count)
     is WeeksDetail.Even ->
         getString(R.string.schedule_weeks_detail_even, detail.first, detail.last, detail.count)
     // 不规则周次没有简洁概括，仍把具体周次列出来
     is WeeksDetail.Count ->
-        getString(R.string.schedule_weeks_detail_count, detail.count) + "\n" + detail.weeksList
+        resources.getQuantityString(R.plurals.schedule_weeks_detail_count, detail.count, detail.count) +
+            "\n" + detail.weeksList
 }
