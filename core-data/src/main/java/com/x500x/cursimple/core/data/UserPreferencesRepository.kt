@@ -197,6 +197,19 @@ data class ScheduleCardStylePreferences(
     }
 }
 
+
+/** 系统查不到、只能由用户自己确认的那几项厂商权限。 */
+object VendorPermissionKey {
+    /** 自启动 / 后台管理白名单。 */
+    const val AUTO_START = "vendor_auto_start"
+
+    /** 后台弹出界面。 */
+    const val BACKGROUND_POPUP = "vendor_background_popup"
+
+    /** 桌面快捷方式：没有它时一键添加小组件会被桌面静默丢弃。 */
+    const val SHORTCUT_PIN = "vendor_shortcut_pin"
+}
+
 data class ScheduleBackgroundPreferences(
     val type: ScheduleBackgroundType = DEFAULT_BACKGROUND_TYPE,
     val colorArgb: Long = DEFAULT_BACKGROUND_COLOR_ARGB,
@@ -294,6 +307,23 @@ data class UserPreferences(
     val skipRemindersOnHoliday: Boolean = false,
     /** 常驻前台服务守着提醒：退出应用后进程还在，厂商系统不容易顺手把闹钟一起清掉。 */
     val alarmKeepAliveEnabled: Boolean = false,
+    /**
+     * 用户自己确认已经开好的厂商权限。
+     *
+     * 自启动、后台弹出这类权限系统不提供任何查询接口，应用永远读不到真实状态，
+     * 只能一直写「需手动确认」。既然查不到，就让用户自己勾一下：勾过之后界面不再催，
+     * 没勾就在用到它的地方继续提醒。取值见 [VendorPermissionKey]。
+     */
+    val vendorPermissionAcks: Set<String> = emptySet(),
+    /**
+     * 这台手机的桌面不响应一键添加。
+     *
+     * `requestPinAppWidget` 返回 true 只表示请求被受理，桌面完全可以转头就丢掉
+     * （vivo 的 com.bbk.launcher2 实测如此，「桌面快捷方式」权限开着也一样）。
+     * 系统没有任何接口能提前问出来，只能等真失败一次再记下来：
+     * 之后直接给手动添加步骤，不再让用户对着没反应的按钮反复点。
+     */
+    val widgetPinUnsupportedOnDevice: Boolean = false,
     /** 单独静音的日期，ISO 日期字符串。 */
     val reminderMutedDates: Set<String> = emptySet(),
     val debugForcedDateTime: LocalDateTime? = null,
@@ -343,6 +373,12 @@ interface UserPreferencesRepository {
     val preferencesFlow: Flow<UserPreferences>
     suspend fun setThemeMode(mode: ThemeMode)
     suspend fun setThemeAccent(accent: ThemeAccent)
+
+    /** 记下 / 撤销用户对某项厂商权限的手动确认。 */
+    suspend fun setVendorPermissionAck(key: String, acked: Boolean)
+
+    /** 记下 / 清除「这台手机的一键添加没反应」。 */
+    suspend fun setWidgetPinUnsupportedOnDevice(unsupported: Boolean)
     suspend fun setAppLanguage(language: AppLanguage)
     suspend fun setTermStartDate(date: LocalDate?)
 
