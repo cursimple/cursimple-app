@@ -94,8 +94,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -110,7 +108,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -118,6 +115,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -168,7 +166,15 @@ import com.x500x.cursimple.core.data.MIN_AI_IMPORT_TIMEOUT_SECONDS
 import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
 import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import com.x500x.cursimple.core.data.coerceAiImportTimeoutSeconds
+import com.x500x.cursimple.app.reminder.AlarmDiagnostics
+import com.x500x.cursimple.app.reminder.AlarmDiagnosticsReport
 import com.x500x.cursimple.app.reminder.AlarmPermissionIntents
+import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
+import com.x500x.cursimple.core.reminder.permission.canScheduleExactAlarms
+import com.x500x.cursimple.core.reminder.permission.canUseFullScreenIntent
+import com.x500x.cursimple.core.reminder.permission.hasNotificationPermission
+import com.x500x.cursimple.core.reminder.permission.isIgnoringBatteryOptimizations
+import com.x500x.cursimple.core.reminder.permission.launchFirstAvailableSetting
 import com.x500x.cursimple.app.reminder.AutoSilenceController
 import com.x500x.cursimple.app.util.LogExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
@@ -229,6 +235,9 @@ import java.util.UUID
 import kotlin.math.roundToInt
 import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
 import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Tab
 
 private enum class SettingsDestination {
     Root,
@@ -385,10 +394,13 @@ fun AppSettingsRoute(
     onHolidayCalendarBuiltInEnabledChange: (Boolean) -> Unit = {},
     skipRemindersOnHoliday: Boolean = false,
     onSkipRemindersOnHolidayChange: (Boolean) -> Unit = {},
+    alarmKeepAliveEnabled: Boolean = false,
+    onAlarmKeepAliveEnabledChange: (Boolean) -> Unit = {},
     onOpenWidgetPicker: () -> Unit,
     onPickWidgetThemeAccent: () -> Unit,
     onWidgetBackgroundImageUriChange: (String) -> Unit,
     onClearWidgetBackgroundImage: () -> Unit,
+    onWidgetBackgroundImageTransparencyPercentChange: (Int) -> Unit,
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
     onBetaUpdatesEnabledChange: (Boolean) -> Unit,
@@ -526,13 +538,26 @@ fun AppSettingsRoute(
             }
         }
     }
+    // 小组件背景同样先裁切：不裁的话竖图铺到扁扁的小组件上只剩中间一条
+    var pendingWidgetBackgroundSource by remember { mutableStateOf<android.net.Uri?>(null) }
+    pendingWidgetBackgroundSource?.let { source ->
+        ScheduleBackgroundCropDialog(
+            source = source,
+            frameAspect = WIDGET_BACKGROUND_FRAME_ASPECT,
+            onDismiss = { pendingWidgetBackgroundSource = null },
+            onCropped = { cropped ->
+                pendingWidgetBackgroundSource = null
+                onWidgetBackgroundImageUriChange(cropped.toString())
+            },
+        )
+    }
     val widgetBackgroundLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             val persisted = runCatching {
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }.isSuccess
             if (persisted) {
-                onWidgetBackgroundImageUriChange(uri.toString())
+                pendingWidgetBackgroundSource = uri
             } else {
                 Toast.makeText(
                     context,
@@ -981,30 +1006,64 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleBackground -> {
+                // 课表和小组件各有一套背景，并排两栏，改哪边一目了然
+                var backgroundTab by rememberSaveable { mutableIntStateOf(0) }
+                TabRow(selectedTabIndex = backgroundTab) {
+                    Tab(
+                        selected = backgroundTab == 0,
+                        onClick = { backgroundTab = 0 },
+                        text = { Text(stringResource(R.string.settings_background_tab_schedule)) },
+                    )
+                    Tab(
+                        selected = backgroundTab == 1,
+                        onClick = { backgroundTab = 1 },
+                        text = { Text(stringResource(R.string.settings_background_tab_widget)) },
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                if (backgroundTab == 1) {
+                    WidgetBackgroundPreview(widgetThemePreferences = widgetThemePreferences)
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Wallpaper,
+                        title = stringResource(R.string.settings_widget_background_title),
+                        subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
+                            stringResource(R.string.settings_background_image_selected)
+                        } else {
+                            stringResource(R.string.settings_background_image_none)
+                        },
+                        onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
+                    )
+                    if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
+                        widgetThemePreferences.backgroundImageUri != null
+                    ) {
+                        SliderPercentRow(
+                            title = stringResource(R.string.settings_background_image_transparency),
+                            value = widgetThemePreferences.backgroundImageTransparencyPercent,
+                            onValueChange = onWidgetBackgroundImageTransparencyPercentChange,
+                        )
+                        SettingsActionRow(
+                            icon = Icons.Rounded.Delete,
+                            title = stringResource(R.string.settings_widget_background_clear_title),
+                            subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
+                            onClick = onClearWidgetBackgroundImage,
+                        )
+                    }
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Palette,
+                        title = stringResource(R.string.settings_theme),
+                        subtitle = widgetThemeLabel(widgetThemePreferences),
+                        onClick = onPickWidgetThemeAccent,
+                    )
+                } else {
                 ScheduleBackgroundPreview(
                     scheduleBackground = scheduleBackground,
                     scheduleCardStyle = scheduleCardStyle,
+                    scheduleTextStyle = scheduleTextStyle,
                     customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
                 )
-                ColorAlphaRow(stringResource(R.string.settings_background_color), scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
-                if (scheduleCustomColorsAdaptToTheme) {
-                    ColorPreviewRow(
-                        stringResource(R.string.settings_current_theme_preview),
-                        scheduleBackground.colorArgb.adaptBackgroundForPreview(darkTheme),
-                    )
-                }
+                // 背景图是这一页最主要的事，放第一个
                 SettingsActionRow(
-                    icon = Icons.Rounded.CalendarMonth,
-                    title = stringResource(R.string.settings_background_match_header_title),
-                    subtitle = if (scheduleBackground.type == ScheduleBackgroundType.Header) {
-                        stringResource(R.string.settings_background_match_header_on)
-                    } else {
-                        stringResource(R.string.settings_background_match_header_off)
-                    },
-                    onClick = onScheduleBackgroundUseHeaderColor,
-                )
-                SettingsActionRow(
-                    icon = Icons.Rounded.Download,
+                    icon = Icons.Rounded.Wallpaper,
                     title = stringResource(R.string.settings_background_image_title),
                     subtitle = if (scheduleBackground.imageUri != null) {
                         stringResource(R.string.settings_background_image_selected)
@@ -1014,14 +1073,10 @@ fun AppSettingsRoute(
                     onClick = { scheduleBackgroundLauncher.launch(arrayOf("image/*")) },
                 )
                 if (scheduleBackground.type == ScheduleBackgroundType.Image || scheduleBackground.imageUri != null) {
-                    NumberStepperRow(
-                        stringResource(R.string.settings_background_image_transparency),
-                        scheduleBackground.imageTransparencyPercent,
-                        "%",
-                        0,
-                        100,
-                        5,
-                        onScheduleBackgroundImageTransparencyPercentChange,
+                    SliderPercentRow(
+                        title = stringResource(R.string.settings_background_image_transparency),
+                        value = scheduleBackground.imageTransparencyPercent,
+                        onValueChange = onScheduleBackgroundImageTransparencyPercentChange,
                     )
                     SettingsActionRow(
                         icon = Icons.Rounded.Delete,
@@ -1029,6 +1084,21 @@ fun AppSettingsRoute(
                         subtitle = stringResource(R.string.settings_background_image_clear_subtitle),
                         onClick = onClearScheduleBackgroundImage,
                     )
+                }
+                ColorAlphaRow(stringResource(R.string.settings_background_color), scheduleBackground.colorArgb, onScheduleBackgroundColorArgbChange)
+                if (scheduleCustomColorsAdaptToTheme) {
+                    ColorPreviewRow(
+                        stringResource(R.string.settings_current_theme_preview),
+                        scheduleBackground.colorArgb.adaptBackgroundForPreview(darkTheme),
+                    )
+                }
+                // 恢复默认沉到最后：它是退路，不是日常要点的东西
+                SettingsActionRow(
+                    icon = Icons.Rounded.Restore,
+                    title = stringResource(R.string.settings_background_reset_title),
+                    subtitle = stringResource(R.string.settings_background_reset_subtitle),
+                    onClick = onScheduleBackgroundUseHeaderColor,
+                )
                 }
             }
 
@@ -1188,6 +1258,8 @@ fun AppSettingsRoute(
                 PermissionsSection(
                     notificationLauncher = notificationLauncher::launch,
                     cameraLauncher = cameraLauncher::launch,
+                    alarmKeepAliveEnabled = alarmKeepAliveEnabled,
+                    onAlarmKeepAliveEnabledChange = onAlarmKeepAliveEnabledChange,
                 )
             }
         }
@@ -1266,6 +1338,54 @@ fun AppSettingsRoute(
             onClear = onClearHolidayCalendarEntries,
             onDismiss = { showHolidayEditor = false },
         )
+    }
+}
+
+/**
+ * 百分比滑块。
+ *
+ * 透明度这种连续量用加减号一档一档点很折磨，拖着看效果才对。
+ * 松手才回调，拖动过程中不往仓储里灌一串中间值。
+ */
+@Composable
+private fun SliderPercentRow(
+    title: String,
+    value: Int,
+    onValueChange: (Int) -> Unit,
+) {
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    val shown = dragging?.toInt() ?: value
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp)),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(
+                    text = "$shown%",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Slider(
+                value = shown.toFloat(),
+                onValueChange = { dragging = it },
+                onValueChangeFinished = {
+                    dragging?.let { onValueChange(it.toInt().coerceIn(0, 100)) }
+                    dragging = null
+                },
+                valueRange = 0f..100f,
+                steps = 19,
+            )
+        }
     }
 }
 
@@ -1572,6 +1692,8 @@ private fun autoSilenceModeDescription(mode: AutoSilenceMode): String = when (mo
 private fun PermissionsSection(
     notificationLauncher: (String) -> Unit,
     cameraLauncher: (String) -> Unit,
+    alarmKeepAliveEnabled: Boolean = false,
+    onAlarmKeepAliveEnabledChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     // 用户去系统设置改完权限再回来，这里必须重读，否则界面一直停在进页面那一刻的状态
@@ -1582,9 +1704,39 @@ private fun PermissionsSection(
         if (!state.exactAlarm) add(stringResource(R.string.settings_permission_exact_alarm))
         if (!state.fullScreenIntent) add(stringResource(R.string.settings_permission_full_screen))
         if (!state.batteryOptimizationIgnored) add(stringResource(R.string.settings_permission_background))
+        // 守护没开的话，退出应用后闹钟照样可能被厂商系统清掉，和缺权限同等重要
+        if (!alarmKeepAliveEnabled) add(stringResource(R.string.settings_alarm_keep_alive_title))
     }
 
     PermissionSummaryCard(missing = missingAlarmPermissions)
+
+    // 常驻守护不是系统权限，但它和上面那几项一起决定「退出应用后闹钟还响不响」
+    SettingsSwitchRow(
+        icon = Icons.Rounded.Restore,
+        title = stringResource(R.string.settings_alarm_keep_alive_title),
+        subtitle = stringResource(
+            if (alarmKeepAliveEnabled) {
+                R.string.settings_alarm_keep_alive_on
+            } else {
+                R.string.settings_alarm_keep_alive_off
+            },
+        ),
+        checked = alarmKeepAliveEnabled,
+        onCheckedChange = onAlarmKeepAliveEnabledChange,
+    )
+
+    // 权限全绿闹钟照样不响的情况太多（渠道被关、省电模式、排程掉了），
+    // 光看上面这几行判断不出卡在哪，自检把各处状态一次性摊开
+    var showAlarmDiagnostics by remember { mutableStateOf(false) }
+    SettingsActionRow(
+        icon = Icons.Rounded.BugReport,
+        title = stringResource(R.string.settings_alarm_diagnostics_title),
+        subtitle = stringResource(R.string.settings_alarm_diagnostics_subtitle),
+        onClick = { showAlarmDiagnostics = true },
+    )
+    if (showAlarmDiagnostics) {
+        AlarmDiagnosticsDialog(onDismiss = { showAlarmDiagnostics = false })
+    }
 
     SettingsSectionHeader(stringResource(R.string.settings_section_grant))
     PermissionRow(
@@ -1598,7 +1750,7 @@ private fun PermissionsSection(
             if (!state.notification && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 notificationLauncher(Manifest.permission.POST_NOTIFICATIONS)
             } else {
-                launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
+                launchSettingsIntents(context, AlarmSettingsIntents.notifications(context))
             }
         },
     )
@@ -1608,7 +1760,7 @@ private fun PermissionsSection(
         granted = state.exactAlarm,
         offText = stringResource(R.string.settings_permission_exact_alarm_off),
         onText = stringResource(R.string.settings_permission_manage_hint),
-        onClick = { launchSettingsIntent(context, AlarmPermissionIntents.exactAlarmSettingsIntent(context)) },
+        onClick = { launchSettingsIntents(context, AlarmSettingsIntents.exactAlarm(context)) },
     )
     PermissionRow(
         icon = Icons.Rounded.Notifications,
@@ -1616,16 +1768,38 @@ private fun PermissionsSection(
         granted = state.fullScreenIntent,
         offText = stringResource(R.string.settings_permission_full_screen_off),
         onText = stringResource(R.string.settings_permission_manage_hint),
-        onClick = { launchSettingsIntent(context, AlarmPermissionIntents.fullScreenIntentSettingsIntent(context)) },
+        onClick = { launchSettingsIntents(context, AlarmSettingsIntents.fullScreenIntent(context)) },
     )
     PermissionRow(
         icon = Icons.Rounded.Restore,
         title = stringResource(R.string.settings_permission_battery_title),
         granted = state.batteryOptimizationIgnored,
         offText = stringResource(R.string.settings_permission_battery_off),
-        onText = stringResource(R.string.settings_permission_manage_hint),
-        onClick = { launchSettingsIntent(context, AlarmPermissionIntents.batteryOptimizationIntent(context)) },
+        // 已经允许后台运行时那条「请求加入白名单」的 Intent 会被系统直接吃掉，
+        // 界面上什么都不出现；这时改为打开白名单总列表，从那里才能关掉
+        onText = stringResource(R.string.settings_permission_battery_on),
+        onClick = {
+            launchSettingsIntents(context, AlarmSettingsIntents.batteryOptimization(context))
+        },
     )
+    if (AlarmSettingsIntents.hasVendorAutoStartPage(context)) {
+        PermissionRow(
+            icon = Icons.Rounded.Restore,
+            title = stringResource(R.string.settings_permission_autostart_title),
+            granted = null,
+            offText = stringResource(R.string.settings_permission_autostart_off),
+            onText = stringResource(R.string.settings_permission_autostart_off),
+            onClick = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
+        )
+        PermissionRow(
+            icon = Icons.Rounded.Notifications,
+            title = stringResource(R.string.settings_permission_background_popup_title),
+            granted = null,
+            offText = stringResource(R.string.settings_permission_background_popup_off),
+            onText = stringResource(R.string.settings_permission_background_popup_off),
+            onClick = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
+        )
+    }
     PermissionRow(
         icon = Icons.Rounded.Code,
         title = stringResource(R.string.settings_permission_camera),
@@ -1664,6 +1838,74 @@ private fun PermissionsSection(
     )
 }
 
+/**
+ * 闹钟自检弹窗。
+ *
+ * 读排程要碰 DataStore，拿不到就先显示「读取中」，不能让这一下卡住界面。
+ */
+@Composable
+private fun AlarmDiagnosticsDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val report by produceState<AlarmDiagnosticsReport?>(initialValue = null, context) {
+        value = withContext(Dispatchers.IO) { AlarmDiagnostics.collect(context) }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_alarm_diagnostics_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.settings_alarm_diagnostics_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val lines = report?.lines
+                if (lines == null) {
+                    Text(
+                        stringResource(R.string.settings_alarm_diagnostics_loading),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    lines.forEach { (label, value) ->
+                        Text(
+                            text = "$label: $value",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+        },
+        dismissButton = {
+            val current = report
+            TextButton(
+                enabled = current != null,
+                onClick = {
+                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                    clipboard?.setPrimaryClip(
+                        android.content.ClipData.newPlainText(
+                            "cursimple-alarm-diagnostics",
+                            current?.asText().orEmpty(),
+                        ),
+                    )
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_alarm_diagnostics_copied),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+            ) { Text(stringResource(R.string.settings_alarm_diagnostics_copy)) }
+        },
+    )
+}
+
 /** 权限页关心的几项当前状态。 */
 private data class AppPermissionState(
     val notification: Boolean,
@@ -1675,16 +1917,12 @@ private data class AppPermissionState(
 )
 
 private fun readPermissionState(context: Context): AppPermissionState {
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-    val notificationManager = context.getSystemService(NotificationManager::class.java)
     return AppPermissionState(
-        notification = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            NotificationManagerCompat.from(context).areNotificationsEnabled(),
-        exactAlarm = Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms(),
-        fullScreenIntent = Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE ||
-            notificationManager.canUseFullScreenIntent(),
-        batteryOptimizationIgnored = powerManager.isIgnoringBatteryOptimizations(context.packageName),
+        // 通知总开关关掉时闹钟通知同样发不出来，低版本系统也要一起看
+        notification = hasNotificationPermission(context),
+        exactAlarm = canScheduleExactAlarms(context),
+        fullScreenIntent = canUseFullScreenIntent(context),
+        batteryOptimizationIgnored = isIgnoringBatteryOptimizations(context),
         camera = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED,
         installPackages = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
@@ -1765,46 +2003,49 @@ private fun PermissionSummaryCard(missing: List<String>) {
     }
 }
 
-/** 名称、当前状态徽章与一句操作说明，点整行进对应的授予或系统设置入口。 */
+/**
+ * 名称、当前状态徽章与一句操作说明，点整行进对应的授予或系统设置入口。
+ *
+ * [granted] 为 null 表示系统没有可查的接口（厂商的自启动、后台弹出界面都属于这一类），
+ * 徽章显示「需手动确认」，而不是假装知道它开没开。
+ */
 @Composable
 private fun PermissionRow(
     icon: ImageVector,
     title: String,
-    granted: Boolean,
+    granted: Boolean?,
     offText: String,
     onText: String,
     onClick: () -> Unit,
 ) {
+    val container = when (granted) {
+        true -> MaterialTheme.colorScheme.secondaryContainer
+        false -> MaterialTheme.colorScheme.errorContainer
+        null -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    val content = when (granted) {
+        true -> MaterialTheme.colorScheme.onSecondaryContainer
+        false -> MaterialTheme.colorScheme.onErrorContainer
+        null -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val statusRes = when (granted) {
+        true -> R.string.settings_permission_status_on
+        false -> R.string.settings_permission_status_off
+        null -> R.string.settings_permission_status_unknown
+    }
     SettingsActionRow(
         icon = icon,
         title = title,
-        subtitle = if (granted) onText else offText,
+        subtitle = if (granted == true) onText else offText,
         onClick = onClick,
         trailing = {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = if (granted) {
-                    MaterialTheme.colorScheme.secondaryContainer
-                } else {
-                    MaterialTheme.colorScheme.errorContainer
-                },
-            ) {
+            Surface(shape = RoundedCornerShape(50), color = container) {
                 Text(
-                    text = stringResource(
-                        if (granted) {
-                            R.string.settings_permission_status_on
-                        } else {
-                            R.string.settings_permission_status_off
-                        },
-                    ),
+                    text = stringResource(statusRes),
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (granted) {
-                        MaterialTheme.colorScheme.onSecondaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    },
+                    color = content,
                 )
             }
         },
@@ -1854,12 +2095,12 @@ private fun backgroundSubtitle(background: ScheduleBackgroundPreferences): Strin
 }
 
 @Composable
-private fun widgetThemeLabel(preferences: WidgetThemePreferences): String =
-    if (preferences.backgroundMode == WidgetBackgroundMode.Image) {
+private fun widgetThemeLabel(preferences: WidgetThemePreferences): String = when {
+    preferences.backgroundMode == WidgetBackgroundMode.Image ->
         stringResource(R.string.settings_background_summary_image)
-    } else {
-        themeAccentDisplayName(preferences.themeAccent)
-    }
+    preferences.followsAppThemeAccent -> stringResource(R.string.settings_accent_follow_app)
+    else -> themeAccentDisplayName(preferences.themeAccent)
+}
 
 @Composable
 private fun themeAccentDisplayName(accent: ThemeAccent): String = when (accent) {
@@ -1930,20 +2171,23 @@ private fun AlarmNumberSettingRow(
 }
 
 private fun launchSettingsIntent(context: Context, intent: Intent) {
-    runCatching {
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }.onFailure {
-        runCatching {
-            context.startActivity(
-                AlarmPermissionIntents.appDetailsIntent(context).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }.onFailure { error ->
-            Toast.makeText(
-                context,
-                context.getString(R.string.settings_toast_open_settings_failed, error.message.toString()),
-                Toast.LENGTH_SHORT,
-            ).show()
-        }
+    launchSettingsIntents(context, listOf(intent))
+}
+
+/**
+ * 按顺序试候选入口，第一个能起来的就用它，一条都起不来才提示用户。
+ *
+ * 厂商系统上单条 Intent 经常不存在或被拦，逐个回退到应用详情页，
+ * 保证权限页上的每一项点下去都有反应。
+ */
+private fun launchSettingsIntents(context: Context, intents: List<Intent>) {
+    val opened = launchFirstAvailableSetting(context, intents + AlarmPermissionIntents.appDetailsIntent(context))
+    if (!opened) {
+        Toast.makeText(
+            context,
+            context.getString(R.string.settings_toast_open_settings_manually),
+            Toast.LENGTH_LONG,
+        ).show()
     }
 }
 
@@ -2773,6 +3017,7 @@ private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> 
 private fun ScheduleBackgroundPreview(
     scheduleBackground: ScheduleBackgroundPreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
+    scheduleTextStyle: ScheduleTextStylePreferences,
     customColorsAdaptToTheme: Boolean,
 ) {
     val context = LocalContext.current
@@ -2847,25 +3092,191 @@ private fun ScheduleBackgroundPreview(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            // 叠一格示意课程，用来判断背景之上文字还读不读得清
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 18.dp)
-                    .width(96.dp)
-                    .height(74.dp),
-                shape = RoundedCornerShape(scheduleCardStyle.courseCornerRadiusDp.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-            ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_background_preview_course),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 2,
+            // 画一张课表的缩略：表头 + 节数栏 + 几格课，
+            // 只有摆成真实样子才能判断背景之上还读不读得清
+            SchedulePreviewMiniature(
+                scheduleCardStyle = scheduleCardStyle,
+                scheduleTextStyle = scheduleTextStyle,
+                customColorsAdaptToTheme = customColorsAdaptToTheme,
+                darkTheme = darkTheme,
+            )
+        }
+    }
+}
+
+
+/**
+ * 背景预览里那张小课表。
+ *
+ * 之前只摆了一个孤零零的方块，看不出真正铺上去是什么样。这里按真实结构画：
+ * 一行星期表头、一列节数、几格课，颜色与圆角都取用户当前的设置。
+ */
+@Composable
+private fun SchedulePreviewMiniature(
+    scheduleCardStyle: ScheduleCardStylePreferences,
+    scheduleTextStyle: ScheduleTextStylePreferences,
+    customColorsAdaptToTheme: Boolean,
+    darkTheme: Boolean,
+) {
+    val headerColor = Color(
+        scheduleTextStyle.resolvedHeaderTextColorArgb(darkTheme, customColorsAdaptToTheme)
+            .toULong() shl 32,
+    )
+    val todayContainer = Color(
+        scheduleTextStyle.resolvedTodayHeaderBackgroundColorArgb(darkTheme, customColorsAdaptToTheme)
+            .toULong() shl 32,
+    )
+    val cardShape = RoundedCornerShape(scheduleCardStyle.courseCornerRadiusDp.dp)
+    val cardAlpha = 1f - (scheduleCardStyle.scheduleOpacityPercent.coerceIn(0, 100) / 100f)
+    // 哪些格子有课，摆得错落一些才像真的课表
+    val filled = listOf(
+        listOf(true, false, true, false, true),
+        listOf(true, true, false, false, false),
+        listOf(false, false, true, true, false),
+        listOf(false, true, false, false, true),
+    )
+
+    Column(modifier = Modifier.fillMaxSize().padding(6.dp)) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(Modifier.width(12.dp))
+            repeat(5) { index ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 1.dp)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (index == 2) todayContainer else Color.Transparent),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(headerColor.copy(alpha = 0.75f)),
                     )
                 }
+            }
+        }
+        Spacer(Modifier.height(3.dp))
+        filled.forEach { row ->
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                Box(
+                    modifier = Modifier.width(12.dp).fillMaxHeight(),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(5.dp)
+                            .height(3.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(headerColor.copy(alpha = 0.55f)),
+                    )
+                }
+                row.forEach { hasCourse ->
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)) {
+                        if (hasCourse) {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                shape = cardShape,
+                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = cardAlpha),
+                            ) {
+                                Column(modifier = Modifier.padding(3.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.85f)
+                                            .height(3.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)),
+                                    )
+                                    Spacer(Modifier.height(2.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.55f)
+                                            .height(2.dp)
+                                            .clip(RoundedCornerShape(1.dp))
+                                            .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.45f)),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * 小组件背景预览。
+ *
+ * 和课表那张缩略同一个意思：按挂件的真实比例铺一遍背景，
+ * 上面压两行示意内容，用来判断透明度调到多少字还看得清。
+ */
+@Composable
+private fun WidgetBackgroundPreview(widgetThemePreferences: WidgetThemePreferences) {
+    val context = LocalContext.current
+    val imageUri = widgetThemePreferences.backgroundImageUri?.takeIf(String::isNotBlank)
+    val bitmap by androidx.compose.runtime.produceState<ImageBitmap?>(
+        initialValue = null,
+        key1 = imageUri,
+    ) {
+        value = imageUri?.let { uri ->
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    decodeSampledImage(context, android.net.Uri.parse(uri), PREVIEW_MAX_EDGE_PX)
+                }.getOrNull()
+            }
+        }
+    }
+    val imageAlpha = 1f - (widgetThemePreferences.backgroundImageTransparencyPercent.coerceIn(0, 100) / 100f)
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_background_preview_title),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(WIDGET_BACKGROUND_FRAME_ASPECT)
+                .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            bitmap?.let { image ->
+                androidx.compose.foundation.Image(
+                    bitmap = image,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().alpha(imageAlpha),
+                )
+            }
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_background_preview_course),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.45f)),
+                )
             }
         }
     }
@@ -2970,6 +3381,9 @@ private fun VisibleDaysRow(
 
 /** 课表大致的宽高比，裁切框按它预览。 */
 private const val SCHEDULE_BACKGROUND_FRAME_ASPECT = 0.62f
+
+/** 小组件裁切框的比例：4x2 格挂件大致就是这个宽高比。 */
+private const val WIDGET_BACKGROUND_FRAME_ASPECT = 2.0f
 
 /** 设置项下方的补充说明，用于解释某项在当前配置下不生效。 */
 @Composable

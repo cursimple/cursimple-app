@@ -44,6 +44,22 @@ data class IcsExportResult(
  * 把当前学期课表渲染成 iCalendar（RFC 5545）文本的纯函数集合。
  * 不接触 Android Context 与文件 IO，便于单元测试。
  */
+/**
+ * 导出的 .ics 里出现的文字。
+ *
+ * 生成逻辑是纯函数，不该依赖 Context；文案由导出层按当前语言取好再传进来，
+ * 这样单测能直接给定文本，用户拿到的日历文件也跟着应用语言走。
+ */
+data class IcsTextLabels(
+    val exam: String,
+    val teacherFormat: String,
+    val nodesFormat: String,
+    val slotFormat: String,
+    val nodeSingleFormat: String,
+    val nodeRangeFormat: String,
+    val defaultCalendarName: String,
+)
+
 object ScheduleIcsBuilder {
 
     private const val PRODID = "-//x500x//CurSimple//CN"
@@ -68,6 +84,7 @@ object ScheduleIcsBuilder {
         overrides: List<TemporaryScheduleOverride>,
         zone: ZoneId,
         generatedAt: Instant,
+        labels: IcsTextLabels,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
         defaultWeekCount: Int = 20,
     ): IcsExportResult {
@@ -82,7 +99,7 @@ object ScheduleIcsBuilder {
         )
         if (plan.failureReason != null) {
             return IcsExportResult(
-                content = emptyCalendar(termName, generatedAt),
+                content = emptyCalendar(termName, generatedAt, labels),
                 eventCount = 0,
                 occurrenceCount = 0,
                 skipped = plan.skipped,
@@ -94,7 +111,7 @@ object ScheduleIcsBuilder {
         val events = mutableListOf<String>()
         var occurrenceCount = 0
         for (group in groups) {
-            val (blocks, count) = group.toEvents(zone, generatedAt)
+            val (blocks, count) = group.toEvents(zone, generatedAt, labels)
             events.addAll(blocks)
             occurrenceCount += count
         }
@@ -106,7 +123,7 @@ object ScheduleIcsBuilder {
         val tzWindowEnd = allDates.maxOrNull() ?: termStartMonday
 
         val body = buildString {
-            append(calendarHeaderLines(termName, zone).joinToString("\r\n") { fold(it) })
+            append(calendarHeaderLines(termName, zone, labels).joinToString("\r\n") { fold(it) })
             append("\r\n")
             if (events.isNotEmpty()) {
                 append(buildVTimeZone(zone, tzWindowStart, tzWindowEnd).joinToString("\r\n") { fold(it) })
@@ -129,7 +146,7 @@ object ScheduleIcsBuilder {
         )
     }
 
-    private fun CourseGroup.toEvents(zone: ZoneId, generatedAt: Instant): Pair<List<String>, Int> {
+    private fun CourseGroup.toEvents(zone: ZoneId, generatedAt: Instant, labels: IcsTextLabels): Pair<List<String>, Int> {
         val blocks = mutableListOf<String>()
         var count = 0
         val baseUid = uidBase(course)
@@ -160,13 +177,13 @@ object ScheduleIcsBuilder {
                     exdates = missing.map { it.atTime(first.start.toLocalTime()) }
                 }
             }
-            blocks.add(buildVEvent(zone, baseUid, first.start, first.end, generatedAt, rrule, exdates))
+            blocks.add(buildVEvent(zone, baseUid, first.start, first.end, generatedAt, rrule, exdates, labels))
             count += present.size
         }
 
         for (occ in occurrences.filter { it.displaced }.sortedBy { it.date }) {
             val uid = "$baseUid-mk-${BASIC_LOCAL.format(occ.start).substringBefore('T')}"
-            blocks.add(buildVEvent(zone, uid, occ.start, occ.end, generatedAt, rrule = null, exdates = emptyList()))
+            blocks.add(buildVEvent(zone, uid, occ.start, occ.end, generatedAt, rrule = null, exdates = emptyList(), labels = labels))
             count += 1
         }
         return blocks to count
@@ -180,6 +197,7 @@ object ScheduleIcsBuilder {
         generatedAt: Instant,
         rrule: String?,
         exdates: List<LocalDateTime>,
+        labels: IcsTextLabels,
     ): String {
         val tzid = zone.id
         val lines = mutableListOf<String>()
@@ -195,23 +213,27 @@ object ScheduleIcsBuilder {
         }
         lines.add("SUMMARY:${escapeText(course.title)}")
         if (course.location.isNotBlank()) lines.add("LOCATION:${escapeText(course.location)}")
-        val description = buildDescription()
+        val description = buildDescription(labels)
         if (description.isNotBlank()) lines.add("DESCRIPTION:${escapeText(description)}")
         lines.add("END:VEVENT")
         return lines.joinToString("\r\n") { fold(it) }
     }
 
-    private fun CourseGroup.buildDescription(): String {
+    private fun CourseGroup.buildDescription(labels: IcsTextLabels): String {
         val parts = mutableListOf<String>()
-        if (course.category == CourseCategory.Exam) parts.add("类型：考试")
-        if (course.teacher.isNotBlank()) parts.add("教师：${course.teacher}")
-        parts.add("节次：${nodeLabel(course.time.startNode, course.time.endNode)}")
-        slotLabel?.let { parts.add("时段：$it") }
+        if (course.category == CourseCategory.Exam) parts.add(labels.exam)
+        if (course.teacher.isNotBlank()) parts.add(labels.teacherFormat.format(course.teacher))
+        parts.add(labels.nodesFormat.format(nodeLabel(labels, course.time.startNode, course.time.endNode)))
+        slotLabel?.let { parts.add(labels.slotFormat.format(it)) }
         return parts.joinToString("\n")
     }
 
-    private fun nodeLabel(startNode: Int, endNode: Int): String =
-        if (startNode == endNode) "第${startNode}节" else "第${startNode}-${endNode}节"
+    private fun nodeLabel(labels: IcsTextLabels, startNode: Int, endNode: Int): String =
+        if (startNode == endNode) {
+            labels.nodeSingleFormat.format(startNode)
+        } else {
+            labels.nodeRangeFormat.format(startNode, endNode)
+        }
 
     private fun uidBase(course: CourseItem): String =
         "${sanitizeUid(course.id)}-w${course.time.dayOfWeek}-n${course.time.startNode}-${course.time.endNode}"
@@ -219,7 +241,7 @@ object ScheduleIcsBuilder {
     private fun sanitizeUid(raw: String): String =
         raw.map { ch -> if (ch.isLetterOrDigit() || ch == '-' || ch == '_') ch else '_' }.joinToString("")
 
-    private fun calendarHeaderLines(termName: String?, zone: ZoneId): List<String> {
+    private fun calendarHeaderLines(termName: String?, zone: ZoneId, labels: IcsTextLabels): List<String> {
         val lines = mutableListOf(
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
@@ -228,12 +250,12 @@ object ScheduleIcsBuilder {
             "METHOD:PUBLISH",
             "X-WR-TIMEZONE:${zone.id}",
         )
-        val calName = termName?.takeIf { it.isNotBlank() } ?: "课表"
+        val calName = termName?.takeIf { it.isNotBlank() } ?: labels.defaultCalendarName
         lines.add("X-WR-CALNAME:${escapeText(calName)}")
         return lines
     }
 
-    private fun emptyCalendar(termName: String?, generatedAt: Instant): String {
+    private fun emptyCalendar(termName: String?, generatedAt: Instant, labels: IcsTextLabels): String {
         val lines = mutableListOf(
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
@@ -241,7 +263,7 @@ object ScheduleIcsBuilder {
             "CALSCALE:GREGORIAN",
             "METHOD:PUBLISH",
         )
-        val calName = termName?.takeIf { it.isNotBlank() } ?: "课表"
+        val calName = termName?.takeIf { it.isNotBlank() } ?: labels.defaultCalendarName
         lines.add("X-WR-CALNAME:${escapeText(calName)}")
         lines.add("END:VCALENDAR")
         return lines.joinToString("\r\n") { fold(it) } + "\r\n"

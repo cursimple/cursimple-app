@@ -31,6 +31,8 @@ object AlarmRuntimeMaintenance {
 
     suspend fun onAlarmFinished(context: Context) {
         runCatching { AutoSilenceController.evaluate(context, reason = "alarm_finished") }
+        // 守护开着就顺手确认它还在，并把常驻通知上的「下一次提醒」刷新到下一场
+        runCatching { AlarmKeepAliveService.applyPreference(context) }
         val app = context.applicationContext as? ClassScheduleApplication
         if (app == null) {
             ReminderLogger.warn("reminder.app_alarm_clock.runtime_maintenance.no_application", emptyMap())

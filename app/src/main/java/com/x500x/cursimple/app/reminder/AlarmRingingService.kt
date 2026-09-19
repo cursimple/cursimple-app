@@ -137,6 +137,12 @@ class AlarmRingingService : Service() {
                     "reminder.app_alarm_clock.ringing.missed",
                     mapOf("alarmKey" to alarm.alarmKey, "delayMillis" to outcome.delayMillis),
                 )
+                AlarmRingHistory.record(
+                    context = applicationContext,
+                    outcome = AlarmRingOutcome.Missed,
+                    label = alarm.title,
+                    atMillis = alarm.triggerAtMillis,
+                )
                 notifyMissedAlarm(alarm)
                 serviceScope.launch(Dispatchers.IO) {
                     finishTriggeredAlarm(alarm, snooze = false)
@@ -171,6 +177,12 @@ class AlarmRingingService : Service() {
             retireStart(startId)
             return
         }
+        // 进了前台才算真的响起来，这条记录是自检页判断「到底响没响」的依据
+        AlarmRingHistory.record(
+            context = applicationContext,
+            outcome = AlarmRingOutcome.Rang,
+            label = alarm.title,
+        )
         serviceScope.launch(Dispatchers.IO) {
             AlarmRuntimeMaintenance.onAlarmStarted(applicationContext)
         }
@@ -749,7 +761,8 @@ class AlarmRingingService : Service() {
         const val ACTION_RING = AppAlarmClockIntents.ACTION_RING
         const val ACTION_STOP = "com.x500x.cursimple.action.ALARM_STOP"
         const val ACTION_SNOOZE = "com.x500x.cursimple.action.ALARM_SNOOZE"
-        private const val CHANNEL_ID = "course_alarm_ringing"
+        /** 自检页要看这个渠道有没有被用户关掉，所以不是私有的。 */
+        internal const val CHANNEL_ID = "course_alarm_ringing"
         // 服务被以前台方式拉起后必须尽快 startForeground，否则 Android 12+ 抛
         // ForegroundServiceDidNotStartInTimeException；不响铃的分支用这个静音低优先占位渠道先满足契约
         private const val PLACEHOLDER_CHANNEL_ID = "course_alarm_service"

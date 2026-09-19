@@ -10,6 +10,7 @@ import java.net.PortUnreachableException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
+import com.x500x.cursimple.app.download.DownloadSourceIds
 
 /** 更新链路上某个错误的可读原因，逻辑层只判定种类，文字由界面层按当前语言渲染。 */
 sealed interface UpdateErrorReason {
@@ -138,7 +139,7 @@ sealed interface UpdateSourceSelection {
 
 object UpdateSourceSelector {
     /** GitHub 源站的 404 可以直接判定为没有该资源，代理源的 404 不具备同等权威性 */
-    const val AUTHORITATIVE_SOURCE_NAME = "GitHub 源站"
+    const val AUTHORITATIVE_SOURCE_NAME = DownloadSourceIds.GITHUB_ORIGIN
 
     private const val HTTP_NOT_FOUND = 404
 

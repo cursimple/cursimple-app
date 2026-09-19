@@ -80,6 +80,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
 import kotlin.math.roundToInt
+import com.x500x.cursimple.app.download.DownloadSourceIds
 
 @Composable
 fun UpdateCheckSection(
@@ -712,7 +713,10 @@ private fun updatePanelStatusText(status: UpdatePanelStatus): String = when (sta
         stringResource(R.string.update_status_ignored_manual, status.versionName)
     is UpdatePanelStatus.Muted -> stringResource(R.string.update_status_muted, status.versionName)
     is UpdatePanelStatus.Downloading -> stringResource(R.string.update_status_downloading, status.fileName)
-    is UpdatePanelStatus.Downloaded -> stringResource(R.string.update_status_downloaded, status.sourceName)
+    is UpdatePanelStatus.Downloaded -> stringResource(
+        R.string.update_status_downloaded,
+        downloadSourceLabel(status.sourceName),
+    )
     is UpdatePanelStatus.Failed -> LocalContext.current.updateStatusText(status.reason)
 }
 
@@ -831,4 +835,18 @@ fun UpdateBadgeDot(modifier: Modifier = Modifier) {
             .background(MaterialTheme.colorScheme.error)
             .semantics { contentDescription = description },
     )
+}
+
+/**
+ * 下载源的显示名。
+ *
+ * 镜像候选大多直接用主机名，本身与语言无关；只有本地文件 / 源站 / GitHub 源站
+ * 这三个是标识，显示时换成当前语言。
+ */
+@Composable
+private fun downloadSourceLabel(sourceName: String): String = when (sourceName) {
+    DownloadSourceIds.LOCAL_FILE -> stringResource(R.string.download_source_local_file)
+    DownloadSourceIds.ORIGIN -> stringResource(R.string.download_source_origin)
+    DownloadSourceIds.GITHUB_ORIGIN -> stringResource(R.string.download_source_github)
+    else -> sourceName
 }

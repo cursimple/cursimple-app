@@ -38,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -77,7 +78,7 @@ internal fun TimingProfileEntryRow(onClick: () -> Unit) {
     val profile by repository.timingProfileFlow.collectAsState(initial = null)
     val slotCount = profile?.slotTimes?.size ?: 0
     val subtitle = if (slotCount > 0) {
-        stringResource(R.string.settings_timing_entry_subtitle_set, slotCount)
+        pluralStringResource(R.plurals.settings_timing_entry_subtitle_set, slotCount, slotCount)
     } else {
         stringResource(R.string.settings_timing_entry_subtitle_unset)
     }
@@ -107,7 +108,6 @@ internal fun TimingProfileSettingsSection() {
     val newProfileName = stringResource(R.string.settings_timing_profile_default_name)
     // 带占位符的先取原文，结果出来后再填数
     val profileCreatedFormat = stringResource(R.string.settings_toast_timing_profile_created)
-    val timingSavedFormat = stringResource(R.string.settings_toast_timing_saved)
     val timingHandbackText = stringResource(R.string.settings_toast_timing_handback)
 
     // 切换作息时把编辑区换成那一套的内容，否则改动会落到另一套上
@@ -298,7 +298,11 @@ internal fun TimingProfileSettingsSection() {
                     drafts.addAll(result.slots.mapIndexed { index, slot -> slot.toDraftInput(context, index + 1) })
                     Toast.makeText(
                         context,
-                        timingSavedFormat.format(result.slots.size),
+                        context.resources.getQuantityString(
+                            R.plurals.settings_toast_timing_saved,
+                            result.slots.size,
+                            result.slots.size,
+                        ),
                         Toast.LENGTH_SHORT,
                     ).show()
                 }

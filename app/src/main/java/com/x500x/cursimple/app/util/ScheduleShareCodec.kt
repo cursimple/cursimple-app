@@ -12,6 +12,20 @@ import java.util.zip.GZIPOutputStream
  *
  * 格式为 `CSV1:<base64(gzip(json))>`。前缀用于快速排除无关文本，也为编码格式提供版本标识。
  */
+
+/** 分享码解不开的原因；文字由界面层按当前语言渲染，这里只给类型。 */
+enum class ScheduleShareDecodeReason {
+    /** 扫到的内容根本不是课表分享码。 */
+    NotShareData,
+
+    /** 解压后超出上限，多半是构造出来的数据。 */
+    TooLarge,
+}
+
+class ScheduleShareDecodeException(
+    val reason: ScheduleShareDecodeReason,
+) : IllegalArgumentException(reason.name)
+
 object ScheduleShareCodec {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -30,8 +44,8 @@ object ScheduleShareCodec {
 
     fun decode(text: String): Result<ScheduleSharePayload> = runCatching {
         val trimmed = text.trim()
-        require(trimmed.startsWith(ScheduleSharePayload.MAGIC_PREFIX)) {
-            "二维码内容不是课表分享数据"
+        if (!trimmed.startsWith(ScheduleSharePayload.MAGIC_PREFIX)) {
+            throw ScheduleShareDecodeException(ScheduleShareDecodeReason.NotShareData)
         }
         val body = trimmed.removePrefix(ScheduleSharePayload.MAGIC_PREFIX)
         val gzipped = Base64.decode(body, Base64.NO_WRAP or Base64.URL_SAFE)
@@ -52,7 +66,9 @@ object ScheduleShareCodec {
             val read = read(buffer)
             if (read < 0) break
             total += read
-            require(total <= limit) { "分享数据过大" }
+            if (total > limit) {
+                throw ScheduleShareDecodeException(ScheduleShareDecodeReason.TooLarge)
+            }
             out.write(buffer, 0, read)
         }
         return out.toByteArray()
