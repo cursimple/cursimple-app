@@ -52,46 +52,8 @@ private class ScheduleCourseListFactory(
 
     override fun getViewAt(position: Int): RemoteViews {
         val rowData = rows.getOrNull(position)
-        val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
-        if (rowData == null) return row
-
-        // 正在上的那一节用更深的同色底，一眼能从一列课里挑出来
-        val background = if (rowData.status == CourseStatus.Live) {
-            widgetRowVariantBackground(themeAccent)
-        } else {
-            widgetRowBackground(themeAccent)
-        }
-        row.setInt(R.id.course_row_root, "setBackgroundResource", background)
-        row.applyOpenAppFillInIntent(R.id.course_row_root, widgetTheme)
-        row.setTextViewText(R.id.course_nodes, rowData.nodeRange)
-        row.setTextViewText(R.id.course_time, rowData.timeRange)
-        row.setTextViewText(R.id.course_title, rowData.title)
-        row.setTextViewText(R.id.course_subtitle, rowData.subtitle)
-        if (rowData.onHoliday) {
-            // 放假当天的行整体调灰，与课表里的不可用态保持一致
-            val primary = ContextCompat.getColor(context, R.color.widget_row_holiday_primary)
-            val secondary = ContextCompat.getColor(context, R.color.widget_row_holiday_secondary)
-            row.setTextColor(R.id.course_title, primary)
-            row.setTextColor(R.id.course_nodes, secondary)
-            row.setTextColor(R.id.course_time, secondary)
-            row.setTextColor(R.id.course_subtitle, secondary)
-        }
-        // 上课中与即将开始比提醒标记更该被看到，同一个位置上让状态优先
-        val badgeText = when (rowData.status) {
-            CourseStatus.Live, CourseStatus.Soon ->
-                context.getString(widgetCourseStatusRes(rowData.status, rowData.isExam))
-            else -> if (rowData.hasReminder) context.getString(R.string.widget_course_reminder_badge) else null
-        }
-        row.setViewVisibility(R.id.course_badge, if (badgeText == null) View.GONE else View.VISIBLE)
-        row.setTextViewText(R.id.course_badge, badgeText.orEmpty())
-        if (rowData.status == CourseStatus.Live) {
-            row.setInt(R.id.course_badge, "setBackgroundResource", R.drawable.widget_bg_badge_live)
-            row.setTextColor(
-                R.id.course_badge,
-                ContextCompat.getColor(context, R.color.widget_badge_live_text),
-            )
-        }
-        return row
+            ?: return RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
+        return buildScheduleCourseRow(context, rowData, themeAccent, widgetTheme)
     }
 
     override fun getLoadingView(): RemoteViews? = null
@@ -102,6 +64,67 @@ private class ScheduleCourseListFactory(
         rows.getOrNull(position)?.stableId ?: position.toLong()
 
     override fun hasStableIds(): Boolean = true
+}
+
+/**
+ * 单节课那一行的 RemoteViews。
+ *
+ * 列表服务与 API 31 起的内联行共用这一份，两条路画出来的行始终一致。
+ */
+internal fun buildScheduleCourseRow(
+    context: Context,
+    rowData: ScheduleWidgetCourseRow,
+    themeAccent: ThemeAccent,
+    widgetTheme: WidgetThemePreferences,
+): RemoteViews {
+    val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
+    // 正在上的那一节用更深的同色底，一眼能从一列课里挑出来
+    val background = if (rowData.status == CourseStatus.Live) {
+        widgetRowVariantBackground(themeAccent)
+    } else {
+        widgetRowBackground(themeAccent)
+    }
+    row.setInt(R.id.course_row_root, "setBackgroundResource", background)
+    row.applyOpenAppFillInIntent(R.id.course_row_root, widgetTheme)
+    row.setTextViewText(R.id.course_nodes, rowData.nodeRange)
+    row.setTextViewText(R.id.course_time, rowData.timeRange)
+    row.setTextViewText(R.id.course_title, rowData.title)
+    row.setTextViewText(R.id.course_subtitle, rowData.subtitle)
+    // 两个分支都显式上色：只在放假时改颜色的话，启动器复用行视图后
+    // 上一天的灰字会留在翻过去的日子上
+    if (rowData.onHoliday) {
+        // 放假当天的行整体调灰，与课表里的不可用态保持一致
+        val primary = ContextCompat.getColor(context, R.color.widget_row_holiday_primary)
+        val secondary = ContextCompat.getColor(context, R.color.widget_row_holiday_secondary)
+        row.setTextColor(R.id.course_title, primary)
+        row.setTextColor(R.id.course_nodes, secondary)
+        row.setTextColor(R.id.course_time, secondary)
+        row.setTextColor(R.id.course_subtitle, secondary)
+    } else {
+        row.setTextColor(R.id.course_title, ContextCompat.getColor(context, R.color.widget_row_title))
+        row.setTextColor(R.id.course_nodes, ContextCompat.getColor(context, R.color.widget_row_nodes))
+        row.setTextColor(R.id.course_time, ContextCompat.getColor(context, R.color.widget_row_time))
+        row.setTextColor(R.id.course_subtitle, ContextCompat.getColor(context, R.color.widget_row_subtitle))
+    }
+    // 上课中与即将开始比提醒标记更该被看到，同一个位置上让状态优先
+    val badgeText = when (rowData.status) {
+        CourseStatus.Live, CourseStatus.Soon ->
+            context.getString(widgetCourseStatusRes(rowData.status, rowData.isExam))
+        else -> if (rowData.hasReminder) context.getString(R.string.widget_course_reminder_badge) else null
+    }
+    row.setViewVisibility(R.id.course_badge, if (badgeText == null) View.GONE else View.VISIBLE)
+    row.setTextViewText(R.id.course_badge, badgeText.orEmpty())
+    if (rowData.status == CourseStatus.Live) {
+        row.setInt(R.id.course_badge, "setBackgroundResource", R.drawable.widget_bg_badge_live)
+        row.setTextColor(
+            R.id.course_badge,
+            ContextCompat.getColor(context, R.color.widget_badge_live_text),
+        )
+    } else {
+        row.setInt(R.id.course_badge, "setBackgroundResource", R.drawable.widget_bg_badge)
+        row.setTextColor(R.id.course_badge, ContextCompat.getColor(context, R.color.widget_badge_text))
+    }
+    return row
 }
 
 internal fun widgetRowBackground(accent: ThemeAccent): Int = when (accent) {

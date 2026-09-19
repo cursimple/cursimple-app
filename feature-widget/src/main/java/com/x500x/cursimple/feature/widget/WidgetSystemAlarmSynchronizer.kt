@@ -152,6 +152,12 @@ internal data class WidgetAlarmRegistrationReadiness(
     val message: String,
 )
 
+/**
+ * 汇总一次小组件侧的闹钟补注册结果。
+ *
+ * [WidgetAlarmRegistrationReadiness.message] 只进日志、不上界面，所以固定中文：
+ * 日志是给维护者看的，跟着界面语言变反而对不上用户反馈里的原文。
+ */
 internal fun summarizeWidgetAlarmRegistration(
     summary: SystemAlarmSyncSummary,
     backend: ReminderAlarmBackend,

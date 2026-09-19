@@ -50,21 +50,9 @@ private class NextCourseListFactory(
     override fun getCount(): Int = rows.size
 
     override fun getViewAt(position: Int): RemoteViews {
-        val row = RemoteViews(context.packageName, R.layout.widget_next_course_row)
-        val data = rows.getOrNull(position) ?: return row
-        val backgroundRes = if (data.isPast) {
-            widgetRowVariantBackground(themeAccent)
-        } else {
-            widgetRowBackground(themeAccent)
-        }
-        row.setInt(R.id.next_course_row_root, "setBackgroundResource", backgroundRes)
-        row.applyOpenAppFillInIntent(R.id.next_course_row_root, widgetTheme)
-        row.setTextViewText(R.id.next_course_label, data.label)
-        row.setTextViewText(R.id.next_course_period, data.period)
-        row.setTextViewText(R.id.next_course_name, data.title)
-        row.setTextViewText(R.id.next_course_time, data.time)
-        row.setTextViewText(R.id.next_course_sub, data.sub)
-        return row
+        val data = rows.getOrNull(position)
+            ?: return RemoteViews(context.packageName, R.layout.widget_next_course_row)
+        return buildNextCourseRow(context, data, themeAccent, widgetTheme)
     }
 
     override fun getLoadingView(): RemoteViews? = null
@@ -75,4 +63,27 @@ private class NextCourseListFactory(
         rows.getOrNull(position)?.stableId ?: position.toLong()
 
     override fun hasStableIds(): Boolean = true
+}
+
+/** 下一节课那一行的 RemoteViews，列表服务与内联行共用。 */
+internal fun buildNextCourseRow(
+    context: Context,
+    data: NextCourseRow,
+    themeAccent: ThemeAccent,
+    widgetTheme: WidgetThemePreferences,
+): RemoteViews {
+    val row = RemoteViews(context.packageName, R.layout.widget_next_course_row)
+    val backgroundRes = if (data.isPast) {
+        widgetRowVariantBackground(themeAccent)
+    } else {
+        widgetRowBackground(themeAccent)
+    }
+    row.setInt(R.id.next_course_row_root, "setBackgroundResource", backgroundRes)
+    row.applyOpenAppFillInIntent(R.id.next_course_row_root, widgetTheme)
+    row.setTextViewText(R.id.next_course_label, data.label)
+    row.setTextViewText(R.id.next_course_period, data.period)
+    row.setTextViewText(R.id.next_course_name, data.title)
+    row.setTextViewText(R.id.next_course_time, data.time)
+    row.setTextViewText(R.id.next_course_sub, data.sub)
+    return row
 }

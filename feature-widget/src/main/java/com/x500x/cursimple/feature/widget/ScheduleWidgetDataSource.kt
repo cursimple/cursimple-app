@@ -1,6 +1,5 @@
 package com.x500x.cursimple.feature.widget
 
-import android.appwidget.AppWidgetManager
 import android.content.Context
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
@@ -10,6 +9,7 @@ import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
@@ -70,6 +70,11 @@ internal object ScheduleWidgetDataSource {
             .also { dayCache.put(appWidgetId, System.nanoTime(), it) }
     }
 
+    /** 偏好或课表刚被改过时清掉短时缓存，避免列表还拿着上一天的那一份。 */
+    fun invalidate() {
+        dayCache.clear()
+    }
+
     private suspend fun loadFreshDay(context: Context, appWidgetId: Int): ScheduleWidgetDayData {
         val appContext = context.applicationContext
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
@@ -81,77 +86,70 @@ internal object ScheduleWidgetDataSource {
 
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+        // 没单独挑过小组件配色时跟着应用主题色走
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
+            .resolveAccent(userPrefs.themeAccent)
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
         val now = BeijingTime.nowTimeIn(zone)
-        val manualOffset = if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
-            widgetPreferencesRepository.widgetDayOffsetFlow.first()
-        } else {
-            widgetPreferencesRepository.widgetDayOffset(appWidgetId)
-        }
+        // 偏移锚在按下那天，跨过零点自动作废，不会机械地又往后顺延一天
+        // INVALID_APPWIDGET_ID 就是 0，正好对上仓储里共用那一份偏移的伪实例 id
+        val manualOffset = widgetPreferencesRepository.effectiveWidgetDayOffset(
+            appWidgetId = appWidgetId,
+            todayIso = today.toString(),
+        )
         val termStart = resolveWidgetTermStartDate(
             termProfileRepository = termProfileRepository,
             timingProfile = timingProfile,
             preferenceTermStartDate = userPrefs.termStartDate,
         )
+        val sources = DaySources(
+            schedule = scheduleRepository.scheduleFlow.first(),
+            manualCourses = manualCourseRepository.manualCoursesFlow.first(),
+            reminderRules = reminderRepository.reminderRulesFlow.first(),
+            temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
+            holidayCalendar = userPrefs.holidayCalendar,
+        )
 
-        val currentDay = loadDate(
+        fun dayAt(offset: Int) = loadDate(
             context = appContext,
-            targetDate = today,
+            targetDate = today.plusDays(offset.toLong()),
             today = today,
             now = now,
-            offset = 0,
+            offset = offset,
             manualOffset = manualOffset,
             termStart = termStart,
             timingProfile = timingProfile,
-            scheduleRepository = scheduleRepository,
-            manualCourseRepository = manualCourseRepository,
-            reminderRepository = reminderRepository,
-            temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
-            holidayCalendar = userPrefs.holidayCalendar,
+            sources = sources,
             widgetTheme = widgetTheme,
         )
-        if (manualOffset == 0 && shouldShowNextDayAtNight(now, currentDay.courses, timingProfile)) {
-            return loadDate(
-                context = appContext,
-                targetDate = today.plusDays(1),
-                today = today,
-                now = now,
-                offset = 1,
-                manualOffset = manualOffset,
-                termStart = termStart,
-                timingProfile = timingProfile,
-                scheduleRepository = scheduleRepository,
-                manualCourseRepository = manualCourseRepository,
-                reminderRepository = reminderRepository,
-                temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
-                holidayCalendar = userPrefs.holidayCalendar,
-                widgetTheme = widgetTheme,
-            ).data
-        }
-        if (manualOffset == 0) return currentDay.data
 
-        return loadDate(
-            context = appContext,
-            targetDate = today.plusDays(manualOffset.toLong()),
-            today = today,
-            now = now,
-            offset = manualOffset,
-            manualOffset = manualOffset,
-            termStart = termStart,
-            timingProfile = timingProfile,
-            scheduleRepository = scheduleRepository,
-            manualCourseRepository = manualCourseRepository,
-            reminderRepository = reminderRepository,
-            temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
-            holidayCalendar = userPrefs.holidayCalendar,
-            widgetTheme = widgetTheme,
-        ).data
+        if (manualOffset != 0) return dayAt(manualOffset).data
+
+        val currentDay = dayAt(0)
+        if (!shouldShowNextDayAtNight(now, currentDay.courses, timingProfile)) return currentDay.data
+        // 今天已经上完才往后翻，并且跳过放假与空课的日子，不是机械地加一天
+        val nextDay = (1..AUTO_ADVANCE_MAX_DAYS)
+            .firstNotNullOfOrNull { offset ->
+                dayAt(offset).takeIf { it.rows.isNotEmpty() && !it.onHoliday }
+            }
+        return (nextDay ?: dayAt(1)).data
     }
 
-    private suspend fun loadDate(
+    /** 一次读出、多天共用的课表来源，免得往后找有课的一天时把仓储重读好几遍。 */
+    private data class DaySources(
+        val schedule: com.x500x.cursimple.core.kernel.model.TermSchedule?,
+        val manualCourses: List<CourseItem>,
+        val reminderRules: List<ReminderRule>,
+        val temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
+        val holidayCalendar: HolidayCalendarSettings,
+    )
+
+    /** 往后找有课的一天最多看这么多天，都没有就按明天显示。 */
+    private const val AUTO_ADVANCE_MAX_DAYS = 7
+
+    private fun loadDate(
         context: Context,
         targetDate: LocalDate,
         today: LocalDate,
@@ -160,31 +158,23 @@ internal object ScheduleWidgetDataSource {
         manualOffset: Int,
         termStart: LocalDate?,
         timingProfile: TermTimingProfile?,
-        scheduleRepository: DataStoreScheduleRepository,
-        manualCourseRepository: DataStoreManualCourseRepository,
-        reminderRepository: DataStoreReminderRepository,
-        temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
-        holidayCalendar: HolidayCalendarSettings,
+        sources: DaySources,
         widgetTheme: WidgetThemePreferences,
     ): LoadedDay {
-        val schedule = scheduleRepository.scheduleFlow.first()
-        val manualCourses = manualCourseRepository.manualCoursesFlow.first()
-        val reminderRules = reminderRepository.reminderRulesFlow.first()
-
         val day = resolveWidgetScheduleDay(
             targetDate = targetDate,
             termStart = termStart,
-            temporaryScheduleOverrides = temporaryScheduleOverrides,
-            holidayCalendar = holidayCalendar,
+            temporaryScheduleOverrides = sources.temporaryScheduleOverrides,
+            holidayCalendar = sources.holidayCalendar,
         ) { dayOfWeek ->
-            schedule?.coursesOfDay(dayOfWeek).orEmpty() +
-                manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
+            sources.schedule?.coursesOfDay(dayOfWeek).orEmpty() +
+                sources.manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
         }
         val rows = day.courses.map {
             it.toRow(
                 context = context,
                 timingProfile = timingProfile,
-                reminderRules = reminderRules,
+                reminderRules = sources.reminderRules,
                 onHoliday = day.onHoliday,
                 status = widgetRowStatus(
                     course = it,
@@ -211,13 +201,17 @@ internal object ScheduleWidgetDataSource {
                 holidayLabel = day.holidayLabel,
             ),
             courses = day.courses,
+            onHoliday = day.onHoliday,
         )
     }
 
     private data class LoadedDay(
         val data: ScheduleWidgetDayData,
         val courses: List<CourseItem>,
-    )
+        val onHoliday: Boolean,
+    ) {
+        val rows: List<ScheduleWidgetCourseRow> get() = data.rows
+    }
 
     private fun CourseItem.toRow(
         context: Context,
@@ -244,6 +238,16 @@ internal object ScheduleWidgetDataSource {
             isExam = category == CourseCategory.Exam,
         )
     }
+}
+
+/**
+ * 小组件视角下的今天（ISO 文本）。
+ * 调试用的强制时间也在这里生效，手动翻页的锚点与展示的日期才会是同一天。
+ */
+internal suspend fun widgetTodayIso(context: Context): String {
+    val prefs = DataStoreUserPreferencesRepository(context.applicationContext).preferencesFlow.first()
+    BeijingTime.setForcedNow(prefs.debugForcedDateTime)
+    return BeijingTime.todayIn(BeijingTime.zone).toString()
 }
 
 /**
