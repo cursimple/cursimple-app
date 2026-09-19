@@ -45,3 +45,13 @@ internal fun GitHubRepoSummary.matchesMarketQuery(keyword: String): Boolean =
         description.contains(keyword, ignoreCase = true) ||
         // 别名是给「搜学校名」用的：仓库叫 bit-schedule，学生搜的是「北京理工」
         schoolAliases.any { it.contains(keyword, ignoreCase = true) }
+
+/**
+ * 「从教务系统导课」页上这条插件该显示的标题。
+ *
+ * 仓库名多半是 `YangtzU_course_plugin` 这种英文缩写，而这一页的用户是在找自己的学校，
+ * 所以优先拿注册表里声明的学校名当标题——约定 `schools` 的第一条是全称。
+ * 没声明学校的插件回落到仓库名，总比标题空着强。
+ */
+fun GitHubRepoSummary.schoolDisplayTitle(): String =
+    schoolAliases.firstOrNull { it.isNotBlank() }?.trim() ?: displayTitle
