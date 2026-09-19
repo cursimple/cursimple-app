@@ -238,6 +238,8 @@ import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Tab
+import androidx.compose.material3.Checkbox
+import com.x500x.cursimple.core.data.VendorPermissionKey
 
 private enum class SettingsDestination {
     Root,
@@ -248,7 +250,10 @@ private enum class SettingsDestination {
     ScheduleTextStyle,
     ScheduleHeaderStyle,
     ScheduleCardStyle,
+    /** 背景二级菜单：课表背景与小组件背景各占一行。 */
+    BackgroundHub,
     ScheduleBackground,
+    WidgetBackground,
     ScheduleDisplay,
     TimingProfile,
     WidgetSettings,
@@ -275,15 +280,26 @@ enum class SettingsReturnTargetKey {
 private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (this) {
     SettingsDestinationKey.WebDav -> SettingsDestination.WebDav
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
-    SettingsDestinationKey.ScheduleBackground -> SettingsDestination.ScheduleBackground
+    SettingsDestinationKey.ScheduleBackground -> SettingsDestination.BackgroundHub
     SettingsDestinationKey.TemporaryOverrides -> SettingsDestination.TemporaryOverrides
 }
 
 /** 深链跳转时补齐的上级页面，返回键沿这条链逐级回退。 */
 private fun SettingsDestination.parentChain(): List<SettingsDestination> = when (this) {
-    SettingsDestination.ScheduleBackground -> listOf(SettingsDestination.ScheduleAppearance)
+    SettingsDestination.ScheduleBackground,
+    SettingsDestination.WidgetBackground,
+    -> listOf(SettingsDestination.BackgroundHub)
     else -> emptyList()
 }
+
+/**
+ * 从侧边栏直接进来的页面，自己就是栈底。
+ *
+ * 「换背景」是侧边栏上的独立入口，不该把设置根页垫在下面——那样返回一次会掉进设置里，
+ * 还得再返回一次才出得去。栈底时返回不被这里消费，交给应用级处理退回课表。
+ */
+private fun SettingsDestination.isStandaloneEntry(): Boolean =
+    this == SettingsDestination.BackgroundHub
 
 @Composable
 private fun SettingsDestination.title(): String = when (this) {
@@ -295,7 +311,9 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.ScheduleTextStyle -> stringResource(R.string.settings_text_style)
     SettingsDestination.ScheduleHeaderStyle -> stringResource(R.string.settings_header_style)
     SettingsDestination.ScheduleCardStyle -> stringResource(R.string.settings_card_style)
+    SettingsDestination.BackgroundHub -> stringResource(R.string.settings_dest_background_hub)
     SettingsDestination.ScheduleBackground -> stringResource(R.string.settings_schedule_background)
+    SettingsDestination.WidgetBackground -> stringResource(R.string.settings_dest_widget_background)
     SettingsDestination.ScheduleDisplay -> stringResource(R.string.settings_display)
     SettingsDestination.TimingProfile -> stringResource(R.string.settings_dest_timing_profile)
     SettingsDestination.WidgetSettings -> stringResource(R.string.settings_dest_widget_settings)
@@ -401,6 +419,8 @@ fun AppSettingsRoute(
     onWidgetBackgroundImageUriChange: (String) -> Unit,
     onClearWidgetBackgroundImage: () -> Unit,
     onWidgetBackgroundImageTransparencyPercentChange: (Int) -> Unit,
+    vendorPermissionAcks: Set<String> = emptySet(),
+    onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
     onBetaUpdatesEnabledChange: (Boolean) -> Unit,
@@ -456,14 +476,16 @@ fun AppSettingsRoute(
     androidx.compose.runtime.LaunchedEffect(openDestination) {
         val requested = openDestination?.toDestination() ?: return@LaunchedEffect
         backStack = buildList {
-            add(SettingsDestination.Root.name)
-            requested.parentChain().forEach { add(it.name) }
+            if (!requested.isStandaloneEntry()) {
+                add(SettingsDestination.Root.name)
+                requested.parentChain().forEach { add(it.name) }
+            }
             add(requested.name)
         }
         settingsReturnReady = false
         onOpenDestinationConsumed()
     }
-    BackHandler(enabled = destination != SettingsDestination.Root) {
+    BackHandler(enabled = backStack.size > 1) {
         handleBack()
     }
     var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
@@ -886,11 +908,13 @@ fun AppSettingsRoute(
                     subtitle = stringResource(R.string.settings_card_style_subtitle),
                     onClick = { navigate(SettingsDestination.ScheduleCardStyle) },
                 )
+                // 设置里走同一个二级菜单，课表与小组件背景都在里面，
+                // 不再只有侧边栏那一个入口能调
                 SettingsActionRow(
                     icon = Icons.Rounded.Wallpaper,
-                    title = stringResource(R.string.settings_schedule_background),
+                    title = stringResource(R.string.settings_dest_background_hub),
                     subtitle = backgroundSubtitle(scheduleBackground),
-                    onClick = { navigate(SettingsDestination.ScheduleBackground) },
+                    onClick = { navigate(SettingsDestination.BackgroundHub) },
                 )
                 SettingsActionRow(
                     icon = Icons.Rounded.Restore,
@@ -1005,56 +1029,62 @@ fun AppSettingsRoute(
                 }
             }
 
-            SettingsDestination.ScheduleBackground -> {
-                // 课表和小组件各有一套背景，并排两栏，改哪边一目了然
-                var backgroundTab by rememberSaveable { mutableIntStateOf(0) }
-                TabRow(selectedTabIndex = backgroundTab) {
-                    Tab(
-                        selected = backgroundTab == 0,
-                        onClick = { backgroundTab = 0 },
-                        text = { Text(stringResource(R.string.settings_background_tab_schedule)) },
+            SettingsDestination.BackgroundHub -> {
+                // 课表和小组件各自一页，和设置里其它二级菜单同一个结构
+                SettingsActionRow(
+                    icon = Icons.Rounded.Wallpaper,
+                    title = stringResource(R.string.settings_schedule_background),
+                    subtitle = backgroundSubtitle(scheduleBackground),
+                    onClick = { navigate(SettingsDestination.ScheduleBackground) },
+                )
+                SettingsActionRow(
+                    icon = Icons.Rounded.Widgets,
+                    title = stringResource(R.string.settings_dest_widget_background),
+                    subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
+                        stringResource(R.string.settings_background_image_selected)
+                    } else {
+                        stringResource(R.string.settings_widget_background_theme)
+                    },
+                    onClick = { navigate(SettingsDestination.WidgetBackground) },
+                )
+            }
+
+            SettingsDestination.WidgetBackground -> {
+                WidgetBackgroundPreview(widgetThemePreferences = widgetThemePreferences)
+                SettingsActionRow(
+                    icon = Icons.Rounded.Wallpaper,
+                    title = stringResource(R.string.settings_background_image_title),
+                    subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
+                        stringResource(R.string.settings_background_image_selected)
+                    } else {
+                        stringResource(R.string.settings_background_image_none)
+                    },
+                    onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
+                )
+                if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
+                    widgetThemePreferences.backgroundImageUri != null
+                ) {
+                    SliderPercentRow(
+                        title = stringResource(R.string.settings_background_image_transparency),
+                        value = widgetThemePreferences.backgroundImageTransparencyPercent,
+                        onValueChange = onWidgetBackgroundImageTransparencyPercentChange,
                     )
-                    Tab(
-                        selected = backgroundTab == 1,
-                        onClick = { backgroundTab = 1 },
-                        text = { Text(stringResource(R.string.settings_background_tab_widget)) },
+                    SettingsActionRow(
+                        icon = Icons.Rounded.Delete,
+                        title = stringResource(R.string.settings_widget_background_clear_title),
+                        subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
+                        onClick = onClearWidgetBackgroundImage,
                     )
                 }
-                Spacer(Modifier.height(8.dp))
-                if (backgroundTab == 1) {
-                    WidgetBackgroundPreview(widgetThemePreferences = widgetThemePreferences)
-                    SettingsActionRow(
-                        icon = Icons.Rounded.Wallpaper,
-                        title = stringResource(R.string.settings_widget_background_title),
-                        subtitle = if (widgetThemePreferences.backgroundImageUri != null) {
-                            stringResource(R.string.settings_background_image_selected)
-                        } else {
-                            stringResource(R.string.settings_background_image_none)
-                        },
-                        onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
-                    )
-                    if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
-                        widgetThemePreferences.backgroundImageUri != null
-                    ) {
-                        SliderPercentRow(
-                            title = stringResource(R.string.settings_background_image_transparency),
-                            value = widgetThemePreferences.backgroundImageTransparencyPercent,
-                            onValueChange = onWidgetBackgroundImageTransparencyPercentChange,
-                        )
-                        SettingsActionRow(
-                            icon = Icons.Rounded.Delete,
-                            title = stringResource(R.string.settings_widget_background_clear_title),
-                            subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
-                            onClick = onClearWidgetBackgroundImage,
-                        )
-                    }
-                    SettingsActionRow(
-                        icon = Icons.Rounded.Palette,
-                        title = stringResource(R.string.settings_theme),
-                        subtitle = widgetThemeLabel(widgetThemePreferences),
-                        onClick = onPickWidgetThemeAccent,
-                    )
-                } else {
+                SettingsActionRow(
+                    icon = Icons.Rounded.Palette,
+                    title = stringResource(R.string.settings_theme),
+                    subtitle = widgetThemeLabel(widgetThemePreferences),
+                    onClick = onPickWidgetThemeAccent,
+                )
+            }
+
+            SettingsDestination.ScheduleBackground -> {
                 ScheduleBackgroundPreview(
                     scheduleBackground = scheduleBackground,
                     scheduleCardStyle = scheduleCardStyle,
@@ -1099,7 +1129,6 @@ fun AppSettingsRoute(
                     subtitle = stringResource(R.string.settings_background_reset_subtitle),
                     onClick = onScheduleBackgroundUseHeaderColor,
                 )
-                }
             }
 
             SettingsDestination.ScheduleDisplay -> {
@@ -1260,6 +1289,8 @@ fun AppSettingsRoute(
                     cameraLauncher = cameraLauncher::launch,
                     alarmKeepAliveEnabled = alarmKeepAliveEnabled,
                     onAlarmKeepAliveEnabledChange = onAlarmKeepAliveEnabledChange,
+                    vendorPermissionAcks = vendorPermissionAcks,
+                    onVendorPermissionAckChange = onVendorPermissionAckChange,
                 )
             }
         }
@@ -1694,6 +1725,8 @@ private fun PermissionsSection(
     cameraLauncher: (String) -> Unit,
     alarmKeepAliveEnabled: Boolean = false,
     onAlarmKeepAliveEnabledChange: (Boolean) -> Unit = {},
+    vendorPermissionAcks: Set<String> = emptySet(),
+    onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     // 用户去系统设置改完权限再回来，这里必须重读，否则界面一直停在进页面那一刻的状态
@@ -1783,21 +1816,23 @@ private fun PermissionsSection(
         },
     )
     if (AlarmSettingsIntents.hasVendorAutoStartPage(context)) {
-        PermissionRow(
+        // 这两项系统不提供查询接口，读不到真实状态，只能由用户自己勾一下；
+        // 勾过就当已开启，界面不再催，用到它的地方也不再弹提示
+        VendorPermissionRow(
             icon = Icons.Rounded.Restore,
             title = stringResource(R.string.settings_permission_autostart_title),
-            granted = null,
-            offText = stringResource(R.string.settings_permission_autostart_off),
-            onText = stringResource(R.string.settings_permission_autostart_off),
-            onClick = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
+            subtitle = stringResource(R.string.settings_permission_autostart_off),
+            acked = VendorPermissionKey.AUTO_START in vendorPermissionAcks,
+            onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
+            onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.AUTO_START, it) },
         )
-        PermissionRow(
+        VendorPermissionRow(
             icon = Icons.Rounded.Notifications,
             title = stringResource(R.string.settings_permission_background_popup_title),
-            granted = null,
-            offText = stringResource(R.string.settings_permission_background_popup_off),
-            onText = stringResource(R.string.settings_permission_background_popup_off),
-            onClick = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
+            subtitle = stringResource(R.string.settings_permission_background_popup_off),
+            acked = VendorPermissionKey.BACKGROUND_POPUP in vendorPermissionAcks,
+            onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
+            onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.BACKGROUND_POPUP, it) },
         )
     }
     PermissionRow(
@@ -2009,6 +2044,41 @@ private fun PermissionSummaryCard(missing: List<String>) {
  * [granted] 为 null 表示系统没有可查的接口（厂商的自启动、后台弹出界面都属于这一类），
  * 徽章显示「需手动确认」，而不是假装知道它开没开。
  */
+
+/**
+ * 厂商权限那一行。
+ *
+ * 自启动、后台弹出这类权限没有任何查询接口，应用读不到真实状态。
+ * 与其永远显示「需手动确认」，不如点行进设置、回来自己勾一下，
+ * 勾过就不再催；真没开，用到的地方还会再提醒。
+ */
+@Composable
+private fun VendorPermissionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    acked: Boolean,
+    onOpen: () -> Unit,
+    onAckChange: (Boolean) -> Unit,
+) {
+    SettingsActionRow(
+        icon = icon,
+        title = title,
+        subtitle = if (acked) stringResource(R.string.settings_permission_vendor_acked) else subtitle,
+        onClick = onOpen,
+        trailing = {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Text(
+                    text = stringResource(R.string.settings_permission_vendor_ack_label),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Checkbox(checked = acked, onCheckedChange = onAckChange)
+            }
+        },
+    )
+}
+
 @Composable
 private fun PermissionRow(
     icon: ImageVector,

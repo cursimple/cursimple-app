@@ -64,6 +64,12 @@
         <!-- Vendor opt-ins so MIUI / vivo / HONOR launchers index our widgets in their pickers. -->
         <meta-data android:name="miuiWidgetVersion" android:value="1" />
         <meta-data android:name="vivoWidgetVersion" android:value="1" />
+        <!--
+          允许华为 / 荣耀的系统服务（智慧助手、系统日历）读取本应用的数据。
+          这是华为侧「让课程出现在系统卡片里」的开关：不声明时系统服务不会来读。
+          只是一个许可位，本身不主动上传任何东西。
+        -->
+        <meta-data android:name="sync_data_to_system_service" android:value="true" />
         <activity
             android:name=".app.MainActivity"
             android:exported="true">

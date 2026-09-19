@@ -150,6 +150,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 
 class MainActivity : ComponentActivity() {
 
@@ -572,7 +574,16 @@ class MainActivity : ComponentActivity() {
                                             Column(
                                                 modifier = Modifier
                                                     .guideAnchor(GuideAnchor.WeekTitle)
-                                                    .clickable { showWeekMenu = true },
+                                                    // 单击开周次面板，双击直接回本周——翻远了要回来不用再点两下
+                                                    .pointerInput(Unit) {
+                                                        detectTapGestures(
+                                                            onTap = { showWeekMenu = true },
+                                                            onDoubleTap = {
+                                                                weekOffset = 0
+                                                                dayOffset = 0
+                                                            },
+                                                        )
+                                                    },
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
                                                 // 未设置开学日期或尚未开学时都不存在“当前周”，底色与徽章都不应出现
@@ -998,6 +1009,8 @@ class MainActivity : ComponentActivity() {
                                         onClearWidgetBackgroundImage = widgetPrefsViewModel::clearWidgetBackgroundImage,
                                         onWidgetBackgroundImageTransparencyPercentChange =
                                             widgetPrefsViewModel::setWidgetBackgroundImageTransparencyPercent,
+                                        vendorPermissionAcks = prefs.vendorPermissionAcks,
+                                        onVendorPermissionAckChange = prefsViewModel::setVendorPermissionAck,
                                         onWidgetOpenAppOnDoubleClickChange =
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
@@ -1394,9 +1407,19 @@ class MainActivity : ComponentActivity() {
                     if (showWidgetPicker) {
                         WidgetPickerSheet(
                             onDismiss = { showWidgetPicker = false },
+                            // 小组件面板是独立窗口，Scaffold 的 Snackbar 会画在它下面，
+                            // 得先把面板关掉才看得见。这里改用 Toast，它浮在所有窗口之上
                             onShowMessage = { msg ->
-                                scope.launch { snackbarHostState.showSnackbar(msg) }
+                                android.widget.Toast.makeText(
+                                    this@MainActivity,
+                                    msg,
+                                    android.widget.Toast.LENGTH_SHORT,
+                                ).show()
                             },
+                            vendorPermissionAcks = prefs.vendorPermissionAcks,
+                            onVendorPermissionAckChange = prefsViewModel::setVendorPermissionAck,
+                            pinUnsupportedOnDevice = prefs.widgetPinUnsupportedOnDevice,
+                            onPinUnsupportedOnDeviceChange = prefsViewModel::setWidgetPinUnsupportedOnDevice,
                         )
                     }
 
