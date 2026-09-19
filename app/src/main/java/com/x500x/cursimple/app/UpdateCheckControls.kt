@@ -81,6 +81,177 @@ import java.io.File
 import java.util.Locale
 import kotlin.math.roundToInt
 import com.x500x.cursimple.app.download.DownloadSourceIds
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import com.x500x.cursimple.app.update.AppReleaseSummary
+import androidx.compose.foundation.layout.height
+
+
+/**
+ * 侧边栏「检查更新」弹的那个框。
+ *
+ * 只为看一眼有没有新版就被丢进设置页、还得自己退出来，太绕。
+ * 这里把检查与下载整套直接摆在弹窗里，用的是设置页同一份实现。
+ */
+
+/**
+ * 版本历史。
+ *
+ * 列出线上发过的版本，点开看那一版的更新内容。列哪些版本跟着「接收测试版更新」走：
+ * 关着的人装不到 beta，把它们列出来只会让人以为漏了更新。
+ */
+@Composable
+fun UpdateHistorySection(
+    betaUpdatesEnabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val checker = remember {
+        AppUpdateChecker(
+            downloaderLabels = context.mirrorDownloaderLabels(),
+            mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
+        )
+    }
+    var loading by remember { mutableStateOf(true) }
+    var releases by remember { mutableStateOf<List<AppReleaseSummary>?>(null) }
+    var expandedTag by rememberSaveable { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(betaUpdatesEnabled) {
+        loading = true
+        releases = checker.history(includePrerelease = betaUpdatesEnabled)
+        loading = false
+    }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        when {
+            loading -> Text(
+                text = stringResource(R.string.update_history_loading),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+
+            releases == null -> Text(
+                text = stringResource(R.string.update_history_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+
+            releases.orEmpty().isEmpty() -> Text(
+                // 正式版还没发过时就是空的，说清楚而不是留一片白
+                text = stringResource(R.string.update_history_empty),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+
+            else -> releases.orEmpty().forEach { release ->
+                UpdateHistoryRow(
+                    release = release,
+                    expanded = expandedTag == release.tagName,
+                    onToggle = {
+                        expandedTag = if (expandedTag == release.tagName) null else release.tagName
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateHistoryRow(
+    release: AppReleaseSummary,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onToggle),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = release.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    val subtitle = listOfNotNull(
+                        release.publishedAt.take(10).takeIf { it.isNotBlank() },
+                        if (release.prerelease) stringResource(R.string.update_history_prerelease) else null,
+                    ).joinToString(" · ")
+                    if (subtitle.isNotBlank()) {
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            if (expanded) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = release.notes.ifBlank { stringResource(R.string.update_history_no_notes) },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun UpdateCheckDialog(
+    autoCheckEnabled: Boolean,
+    betaUpdatesEnabled: Boolean,
+    ignoredUpdateVersionCode: Int?,
+    updateNotice: UpdateNoticeState,
+    onAutoCheckEnabledChange: (Boolean) -> Unit,
+    onIgnoreUpdateVersion: (Int?) -> Unit,
+    onMuteUpdateVersion: (Int?) -> Unit,
+    onUpdateFound: (Int, String) -> Unit,
+    onUpdateNoticeCleared: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.update_check_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                UpdateCheckSection(
+                    autoCheckEnabled = autoCheckEnabled,
+                    betaUpdatesEnabled = betaUpdatesEnabled,
+                    ignoredUpdateVersionCode = ignoredUpdateVersionCode,
+                    updateNotice = updateNotice,
+                    onAutoCheckEnabledChange = onAutoCheckEnabledChange,
+                    onIgnoreUpdateVersion = onIgnoreUpdateVersion,
+                    onMuteUpdateVersion = onMuteUpdateVersion,
+                    onUpdateFound = onUpdateFound,
+                    onUpdateNoticeCleared = onUpdateNoticeCleared,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+        },
+    )
+}
 
 @Composable
 fun UpdateCheckSection(

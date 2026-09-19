@@ -262,6 +262,7 @@ private enum class SettingsDestination {
     WebDav,
     AiImport,
     Permissions,
+    UpdateHistory,
 }
 
 enum class SettingsDestinationKey {
@@ -322,6 +323,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.WebDav -> "WebDAV"
     SettingsDestination.AiImport -> stringResource(R.string.settings_dest_ai_import)
     SettingsDestination.Permissions -> stringResource(R.string.settings_dest_permissions)
+    SettingsDestination.UpdateHistory -> stringResource(R.string.update_history_title)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -753,6 +755,14 @@ fun AppSettingsRoute(
                     BetaUpdatesRow(
                         enabled = betaUpdatesEnabled,
                         onEnabledChange = onBetaUpdatesEnabledChange,
+                    )
+                    // 列哪些版本跟着上面那个开关走：关着的人装不到 beta，
+                    // 把 beta 列出来只会让人以为漏了更新
+                    SettingsActionRow(
+                        icon = Icons.Rounded.EventRepeat,
+                        title = stringResource(R.string.update_history_title),
+                        subtitle = stringResource(R.string.update_history_subtitle),
+                        onClick = { navigate(SettingsDestination.UpdateHistory) },
                     )
                 }
             }
@@ -1205,6 +1215,8 @@ fun AppSettingsRoute(
                         subtitle = widgetThemeLabel(widgetThemePreferences),
                         onClick = onPickWidgetThemeAccent,
                     )
+                    // 背景整套（选图、裁剪、透明度、清除）都在背景页里，
+                    // 这里只留一个入口，免得同一件事在两处各有一半
                     SettingsActionRow(
                         icon = Icons.Rounded.Wallpaper,
                         title = stringResource(R.string.settings_widget_background_title),
@@ -1213,18 +1225,8 @@ fun AppSettingsRoute(
                         } else {
                             stringResource(R.string.settings_widget_background_theme)
                         },
-                        onClick = { widgetBackgroundLauncher.launch(arrayOf("image/*")) },
+                        onClick = { navigate(SettingsDestination.WidgetBackground) },
                     )
-                    if (widgetThemePreferences.backgroundMode == WidgetBackgroundMode.Image ||
-                        widgetThemePreferences.backgroundImageUri != null
-                    ) {
-                        SettingsActionRow(
-                            icon = Icons.Rounded.Delete,
-                            title = stringResource(R.string.settings_widget_background_clear_title),
-                            subtitle = stringResource(R.string.settings_widget_background_clear_subtitle),
-                            onClick = onClearWidgetBackgroundImage,
-                        )
-                    }
                 }
 
                 SettingsGroup(stringResource(R.string.settings_subgroup_widget_behavior)) {
@@ -1281,6 +1283,10 @@ fun AppSettingsRoute(
                     onSave = onAiImportSettingsChange,
                     onSaved = { complete -> settingsReturnReady = complete },
                 )
+            }
+
+            SettingsDestination.UpdateHistory -> {
+                UpdateHistorySection(betaUpdatesEnabled = betaUpdatesEnabled)
             }
 
             SettingsDestination.Permissions -> {
@@ -1376,7 +1382,7 @@ fun AppSettingsRoute(
  * 百分比滑块。
  *
  * 透明度这种连续量用加减号一档一档点很折磨，拖着看效果才对。
- * 松手才回调，拖动过程中不往仓储里灌一串中间值。
+ * 拖动过程中就把值报上去，预览跟着手指实时变——等松手才显示会一顿一顿的。
  */
 @Composable
 private fun SliderPercentRow(
@@ -1384,8 +1390,6 @@ private fun SliderPercentRow(
     value: Int,
     onValueChange: (Int) -> Unit,
 ) {
-    var dragging by remember { mutableStateOf<Float?>(null) }
-    val shown = dragging?.toInt() ?: value
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -1401,17 +1405,17 @@ private fun SliderPercentRow(
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = "$shown%",
+                    text = "$value%",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
             Slider(
-                value = shown.toFloat(),
-                onValueChange = { dragging = it },
-                onValueChangeFinished = {
-                    dragging?.let { onValueChange(it.toInt().coerceIn(0, 100)) }
-                    dragging = null
+                value = value.toFloat(),
+                // 整数档位直接回调，相同值不会触发重复写入
+                onValueChange = { next ->
+                    val rounded = next.toInt().coerceIn(0, 100)
+                    if (rounded != value) onValueChange(rounded)
                 },
                 valueRange = 0f..100f,
                 steps = 19,

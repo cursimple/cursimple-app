@@ -1135,4 +1135,11 @@
     <string name="widget_manual_retry_pin">Try one-tap add again</string>
     <string name="settings_dest_background_hub">Background</string>
     <string name="settings_dest_widget_background">Widget background</string>
+    <string name="update_history_title">Release history</string>
+    <string name="update_history_subtitle">What changed in each version</string>
+    <string name="update_history_loading">Loading…</string>
+    <string name="update_history_failed">Could not load the release history; check your network and retry</string>
+    <string name="update_history_empty">No releases yet</string>
+    <string name="update_history_no_notes">This release has no notes</string>
+    <string name="update_history_prerelease">Pre-release</string>
 </resources>

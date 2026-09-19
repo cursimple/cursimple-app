@@ -629,13 +629,18 @@ private fun ManualAddGuideDialog(
         stringResource(R.string.widget_manual_step4, entry.title),
     )
     val vendorGuide = widgetVendorGuide(vendor)
-    val permissionTipRes = when (vendor) {
-        WidgetCatalog.LauncherVendor.Miui -> R.string.widget_manual_hint_miui
-        WidgetCatalog.LauncherVendor.Huawei -> R.string.widget_manual_hint_huawei
-        WidgetCatalog.LauncherVendor.Oppo -> R.string.widget_manual_hint_oppo
-        WidgetCatalog.LauncherVendor.Vivo -> R.string.widget_manual_hint_other
-        WidgetCatalog.LauncherVendor.Samsung,
-        WidgetCatalog.LauncherVendor.Other -> null
+    // vivo 这类已知不响应一键添加的桌面，去应用设置里开什么都没用——
+    // 实测「桌面快捷方式」开着也照样不弹窗。别再给一个点了也解决不了问题的按钮
+    val permissionTipRes = when {
+        onRetryPin != null -> null
+        else -> when (vendor) {
+            WidgetCatalog.LauncherVendor.Miui -> R.string.widget_manual_hint_miui
+            WidgetCatalog.LauncherVendor.Huawei -> R.string.widget_manual_hint_huawei
+            WidgetCatalog.LauncherVendor.Oppo -> R.string.widget_manual_hint_oppo
+            WidgetCatalog.LauncherVendor.Vivo -> R.string.widget_manual_hint_other
+            WidgetCatalog.LauncherVendor.Samsung,
+            WidgetCatalog.LauncherVendor.Other -> null
+        }
     }
     val permissionTip = permissionTipRes?.let { stringResource(it) }
     AlertDialog(
