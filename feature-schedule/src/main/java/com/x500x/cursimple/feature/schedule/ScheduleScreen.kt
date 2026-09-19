@@ -173,6 +173,7 @@ fun ScheduleRoute(
     weekOffset: Int,
     minWeekOffset: Int,
     maxWeekOffset: Int,
+    onAddWeek: (() -> Unit)? = null,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onWeekOffsetChange: (Int) -> Unit,
@@ -217,6 +218,7 @@ fun ScheduleRoute(
         weekOffset = weekOffset,
         minWeekOffset = minWeekOffset,
         maxWeekOffset = maxWeekOffset,
+        onAddWeek = onAddWeek,
         overrideTermStart = overrideTermStart,
         viewMode = viewMode,
         dayOffset = dayOffset,
@@ -287,6 +289,7 @@ fun ScheduleScreen(
     weekOffset: Int = 0,
     minWeekOffset: Int = Int.MIN_VALUE / 2,
     maxWeekOffset: Int = Int.MAX_VALUE / 2,
+    onAddWeek: (() -> Unit)? = null,
     overrideTermStart: LocalDate? = null,
     viewMode: ScheduleViewMode = ScheduleViewMode.Week,
     dayOffset: Int = 0,
@@ -305,6 +308,9 @@ fun ScheduleScreen(
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
+    // 建提醒前的权限闸门：缺通知或精确闹钟权限时先把人送去授权
+    val context = LocalContext.current
+    val alarmPermissionGate = rememberAlarmPermissionGateState()
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
@@ -387,6 +393,7 @@ fun ScheduleScreen(
                             weekOffset = weekOffset,
                             minWeekOffset = minWeekOffset,
                             maxWeekOffset = maxWeekOffset,
+                            onAddWeek = onAddWeek,
                             overrideTermStart = overrideTermStart,
                             zone = zone,
                             selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
@@ -459,7 +466,7 @@ fun ScheduleScreen(
         if (multiSelectMode) {
             MultiSelectActionBar(
                 selectedCount = selectedIds.size,
-                onSetReminder = { showBulkReminder = true },
+                onSetReminder = { alarmPermissionGate.require(context) { showBulkReminder = true } },
                 onClear = {
                     multiSelectMode = false
                     selectedIds = emptySet()
@@ -549,8 +556,18 @@ fun ScheduleScreen(
                 },
                 onDismiss = { detailRequest = null },
                 onSetReminder = { c ->
-                    pendingReminderCourse = c
-                    detailRequest = null
+                    // 没有通知或精确闹钟权限时先拦住：建出来的提醒到点也不会响
+                    alarmPermissionGate.require(context) {
+                        pendingReminderCourse = c
+                        detailRequest = null
+                    }
+                },
+                hasCancellableReminder = { c ->
+                    cancellableReminderRuleIds(c, state.reminderRules).isNotEmpty()
+                },
+                onCancelReminder = { c ->
+                    // 弹窗留在原地，规则删完按钮自己翻回「提醒」，用户当场看得见结果
+                    cancellableReminderRuleIds(c, state.reminderRules).forEach(onRemoveReminderRule)
                 },
                 onMuteExamReminder = { c -> onMuteExamReminder(c.id) },
                 onRestoreExamReminder = { c -> onRestoreExamReminder(c.id) },
@@ -563,6 +580,8 @@ fun ScheduleScreen(
                 },
             )
         }
+
+        AlarmPermissionGateHost(alarmPermissionGate)
 
         pendingReminderCourse?.let { course ->
             CourseReminderDialog(
@@ -592,7 +611,7 @@ fun ScheduleScreen(
                 },
                 onSetReminder = {
                     actionSheetCourse = null
-                    pendingReminderCourse = course
+                    alarmPermissionGate.require(context) { pendingReminderCourse = course }
                 },
                 onMultiSelect = {
                     actionSheetCourse = null
@@ -883,6 +902,7 @@ private fun WeeklyScheduleSection(
     weekOffset: Int,
     minWeekOffset: Int,
     maxWeekOffset: Int,
+    onAddWeek: (() -> Unit)? = null,
     overrideTermStart: LocalDate?,
     zone: java.time.ZoneId,
     selectedCourseId: String?,
@@ -937,8 +957,11 @@ private fun WeeklyScheduleSection(
             } else {
                 val safeMin = minWeekOffset.coerceAtMost(weekOffset)
                 val safeMax = maxWeekOffset.coerceAtLeast(weekOffset)
-                val pageCount = safeMax - safeMin + 1
-                val initialPage = (weekOffset - safeMin).coerceIn(0, pageCount - 1)
+                val weekPageCount = safeMax - safeMin + 1
+                // 最后再挂一页「添加周」，翻到底就能接着往后加空白周
+                val addPageEnabled = onAddWeek != null
+                val pageCount = weekPageCount + if (addPageEnabled) 1 else 0
+                val initialPage = (weekOffset - safeMin).coerceIn(0, weekPageCount - 1)
                 val pagerState = androidx.compose.foundation.pager.rememberPagerState(
                     initialPage = initialPage,
                     pageCount = { pageCount },
@@ -978,8 +1001,8 @@ private fun WeeklyScheduleSection(
                 val isReconciling = androidx.compose.runtime.remember {
                     androidx.compose.runtime.mutableStateOf(false)
                 }
-                androidx.compose.runtime.LaunchedEffect(weekOffset, safeMin, pageCount) {
-                    val target = (weekOffset - safeMin).coerceIn(0, pageCount - 1)
+                androidx.compose.runtime.LaunchedEffect(weekOffset, safeMin, weekPageCount) {
+                    val target = (weekOffset - safeMin).coerceIn(0, weekPageCount - 1)
                     if (pagerState.currentPage == target && pagerLatestRequest.intValue == weekOffset) {
                         return@LaunchedEffect
                     }
@@ -1001,6 +1024,8 @@ private fun WeeklyScheduleSection(
                         .drop(1)
                         .collect { page ->
                             if (isReconciling.value) return@collect
+                            // 停在「添加周」那一页时不改周偏移，否则会被当成翻到了不存在的一周
+                            if (page >= weekPageCount) return@collect
                             val newOffset = page + safeMin
                             if (newOffset != pagerLatestRequest.intValue) {
                                 pagerLatestRequest.intValue = newOffset
@@ -1016,6 +1041,10 @@ private fun WeeklyScheduleSection(
                         .nestedScroll(edgeNestedScroll),
                     beyondViewportPageCount = 1,
                 ) { page ->
+                    if (addPageEnabled && page == pageCount - 1) {
+                        AddWeekPage(onClick = { onAddWeek?.invoke() })
+                        return@HorizontalPager
+                    }
                     val pageOffset = page + safeMin
                     val pageWeek = remember(
                         pageOffset,
@@ -1111,6 +1140,54 @@ private fun WeeklyScheduleSection(
                 }
             }
         }
+    }
+}
+
+
+/**
+ * 周课表翻到底之后的那一页。
+ *
+ * 整页只有一个大加号：实习周、考试周这种没有课但确实存在的周，
+ * 课程里推不出来，只能由用户自己接在后面。
+ */
+@Composable
+private fun AddWeekPage(onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.primaryContainer,
+        ) {
+            Box(
+                modifier = Modifier.size(96.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.size(56.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.schedule_add_week),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.schedule_add_week_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -2086,9 +2163,14 @@ private fun ScheduleGrid(
     val gridScrollState = rememberScrollState()
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
         val timeColumnWidth = timeColumnWidth(maxWidth, scheduleTextStyle.headerTextSizeSp, slots.map { it.label })
-        // 调课与假日都会在日期下方多出一行说明，表头需要更高
-        val dayHeaderMinHeight =
-            if (visibleDays.any { it.overrideLabel != null || it.holidayLabel != null }) 66.dp else 52.dp
+        // 调课与假日都会在日期下方多出一行说明，表头需要更高。
+        // 高度按当前字号与系统字体缩放算，写死 dp 会在大字号下把星期或日号切掉半行。
+        val headerDensity = androidx.compose.ui.platform.LocalDensity.current
+        val dayHeaderMinHeight = dayHeaderHeight(
+            density = headerDensity,
+            headerTextSizeSp = scheduleTextStyle.headerTextSizeSp,
+            hasExtraLine = visibleDays.any { it.overrideLabel != null || it.holidayLabel != null },
+        )
         val totalWidth = maxWidth
         val dayColumnWidth = ((totalWidth - timeColumnWidth) / dayColumnCount).coerceAtLeast(36.dp)
         val gridWidth = dayColumnWidth * dayColumnCount
@@ -2211,6 +2293,17 @@ private fun ScheduleGrid(
                                         val slot = (offset.y / slotHeightPx).toInt().coerceIn(0, slots.size - 1)
                                         if ((day to slot) !in occupiedCells) {
                                             hintCell = day to slot
+                                        }
+                                    },
+                                    // 空白处双击当成「这天要改放假/调休」，和双击日期栏是同一个入口：
+                                    // 表头那一条窄，课少的日子用户更容易点在空格子上
+                                    onDoubleTap = { offset: androidx.compose.ui.geometry.Offset ->
+                                        val dayWidthPx = with(density) { dayColumnWidth.toPx() }
+                                        val slotHeightPx = with(density) { slotHeight.toPx() }
+                                        val day = (offset.x / dayWidthPx).toInt().coerceIn(0, dayColumnCount - 1)
+                                        val slot = (offset.y / slotHeightPx).toInt().coerceIn(0, slots.size - 1)
+                                        if ((day to slot) !in occupiedCells) {
+                                            visibleDays.getOrNull(day)?.let { onDayHeaderDoubleTap(it.date) }
                                         }
                                     },
                                 )
@@ -2543,6 +2636,31 @@ internal fun courseTitleFontSizeSp(
 /** 背景图解码后的长边上限，超过按 2 的幂降采样。 */
 private const val BACKGROUND_MAX_EDGE_PX = 2048
 
+/**
+ * 日期表头需要的高度：星期与日号各一行，调课或放假时再加一行小字。
+ * 行高按 sp 换算成 dp，跟随系统字体缩放，字放大后表头一起长高而不是把字裁掉。
+ */
+internal fun dayHeaderHeight(
+    density: androidx.compose.ui.unit.Density,
+    headerTextSizeSp: Int,
+    hasExtraLine: Boolean,
+): androidx.compose.ui.unit.Dp {
+    val mainLine = with(density) { headerTextSizeSp.sp.toDp() } * TEXT_LINE_HEIGHT_RATIO
+    val extraLine = if (hasExtraLine) {
+        with(density) { DAY_HEADER_EXTRA_TEXT_SIZE_SP.sp.toDp() } * TEXT_LINE_HEIGHT_RATIO
+    } else {
+        0.dp
+    }
+    // 两行正文 + 说明行，外加行距与今天胶囊的上下内边距
+    return (mainLine * 2 + extraLine + DAY_HEADER_PADDING).coerceAtLeast(DAY_HEADER_MIN_HEIGHT)
+}
+
+/** 字号到行高的放大比例，留出中文的上下伸展空间。 */
+private const val TEXT_LINE_HEIGHT_RATIO = 1.45f
+private const val DAY_HEADER_EXTRA_TEXT_SIZE_SP = 10f
+private val DAY_HEADER_PADDING = 14.dp
+private val DAY_HEADER_MIN_HEIGHT = 52.dp
+
 @Composable
 private fun DayHeader(
     day: DayHeaderModel,
@@ -2571,7 +2689,9 @@ private fun DayHeader(
         }
         .let {
             if (day.isToday) {
-                it.clip(RoundedCornerShape(10.dp))
+                // 胶囊外先留一圈余量，表头压到最小高度时它也不会顶着行边被切
+                it.padding(vertical = 2.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(todayContainer)
                     .padding(horizontal = 4.dp, vertical = 2.dp)
             } else {
@@ -2609,14 +2729,31 @@ private fun DayHeader(
                 softWrap = false,
                 overflow = TextOverflow.Ellipsis,
             )
-        } else if (day.overrideLabel != null) {
+        } else if (day.isMakeUpWorkday) {
+            // 周末被调成上课日，日历上看着是休息日，不标一下容易睡过去
             Text(
-                text = stringResource(R.string.schedule_override_source, LocalContext.current.formatSourceDateLabel(day.overrideLabel)),
+                text = stringResource(R.string.schedule_makeup_workday_tag),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (day.isToday) todayContent else MaterialTheme.colorScheme.error,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis,
+            )
+        } else if (day.overrideLabel != null) {
+            // 列本身就代表星期几，这里只留「按 月/日」，写全「按10/5周日」在一列宽里必被截掉
+            Text(
+                text = stringResource(
+                    R.string.schedule_override_source_short,
+                    day.overrideLabel.month,
+                    day.overrideLabel.dayOfMonth,
+                ),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.primary,
                 maxLines = 1,
                 softWrap = false,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -3138,6 +3275,8 @@ internal data class DayHeaderModel(
     val isToday: Boolean,
     val overrideLabel: SourceDateLabel? = null,
     val holidayLabel: HolidayLabel? = null,
+    /** 调休补班日：本该休息却要上课，表头单独标一下。 */
+    val isMakeUpWorkday: Boolean = false,
 )
 
 /** 日期格的显示内容：月首显示所在月份，其余显示当天日号。 */
@@ -3448,6 +3587,7 @@ internal fun buildWeekModel(
                 sourceDateLabel(resolution.sourceDate)
             } else null,
             holidayLabel = if (resolution.isHoliday) holidayDisplayLabel(resolution.holidayName, resolution.holidayNameRes) else null,
+            isMakeUpWorkday = resolution.isMakeUpWorkday,
         )
     }
     return WeekModel(
@@ -3687,6 +3827,30 @@ private fun badgesForCourse(course: CourseItem, rules: List<CourseBadgeRule>): L
             (rule.endNode == null || course.time.endNode == rule.endNode)
     }.map { it.label }
 }
+
+/**
+ * 详情页能直接撤掉的提醒规则 id。
+ *
+ * 只挑单独服务这一门课的规则；按节次或按 label 的规则同时管着好几门课，
+ * 在这里删会误伤别的课，那类提醒仍然只能去提醒设置里改。
+ * 考试提醒有自己的「本场静音」入口，也不走这条路。
+ */
+internal fun cancellableReminderRuleIds(
+    course: CourseItem,
+    rules: List<com.x500x.cursimple.core.reminder.model.ReminderRule>,
+): List<String> = rules
+    .filter { rule ->
+        rule.enabled &&
+            rule.courseId == course.id &&
+            rule.scopeType in CANCELLABLE_REMINDER_SCOPES &&
+            !rule.isExamReminderRule()
+    }
+    .map { it.ruleId }
+
+private val CANCELLABLE_REMINDER_SCOPES = setOf(
+    ReminderScopeType.SingleCourse,
+    ReminderScopeType.FirstCourseOfPeriod,
+)
 
 private fun hasReminderForCourse(
     course: CourseItem,

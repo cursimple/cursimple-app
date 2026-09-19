@@ -30,11 +30,27 @@ import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableStateListOf
 
 internal enum class WeekParity(@param:StringRes val labelRes: Int) {
     All(R.string.schedule_week_parity_all),
     Odd(R.string.schedule_week_parity_odd),
     Even(R.string.schedule_week_parity_even),
+
+    /** 自己在周次矩阵里逐周点选，用于 3、5、11 这种没有规律的排课。 */
+    Custom(R.string.schedule_week_parity_custom),
 }
 
 /**
@@ -56,9 +72,63 @@ internal fun manualCourseWeeksOrNull(
             WeekParity.All -> true
             WeekParity.Odd -> week % 2 == 1
             WeekParity.Even -> week % 2 == 0
+            // 自选不走区间，调用方直接给周次集合，这里不该被用到
+            WeekParity.Custom -> true
         }
     }.takeIf { it.isNotEmpty() }
 }
+
+/**
+ * 从已有周次反推该用哪一档。
+ *
+ * 判据是「能不能用区间加单双周表达出来」：用 min..max 套一遍规则，结果和原周次
+ * 一模一样才算那一档，否则就是自选。不这么判的话，3、5、11 这种会被归成全部周，
+ * 一打开编辑器就被区间悄悄改写成 3..11 的每一周。
+ */
+internal fun weekParityOf(weeks: List<Int>?): WeekParity {
+    if (weeks.isNullOrEmpty()) return WeekParity.All
+    val sorted = weeks.distinct().sorted()
+    val first = sorted.first()
+    val last = sorted.last()
+    for (parity in listOf(WeekParity.All, WeekParity.Odd, WeekParity.Even)) {
+        val expanded = (first..last).filter { week ->
+            when (parity) {
+                WeekParity.All -> true
+                WeekParity.Odd -> week % 2 == 1
+                WeekParity.Even -> week % 2 == 0
+                WeekParity.Custom -> false
+            }
+        }
+        if (expanded == sorted) return parity
+    }
+    return WeekParity.Custom
+}
+
+/**
+ * 周次矩阵要铺到第几周。
+ *
+ * 取「学期总周数」与「这门课已有的最大周次」里大的那个：课程的周次超出学期设定时
+ * （导进来的数据常有），矩阵里得点得到那几周，否则用户既看不到也改不掉。
+ */
+internal fun customWeekLimit(maxWeekCount: Int, weeks: List<Int>?): Int =
+    maxOf(maxWeekCount, weeks?.maxOrNull() ?: 0).coerceAtLeast(1)
+
+/** 自选周次在表单状态里存成逗号串，便于 rememberSaveable 直接存取。 */
+internal fun encodeCustomWeeks(weeks: Collection<Int>): String = weeks.distinct().sorted().joinToString(",")
+
+/**
+ * 解析自选周次。
+ *
+ * [maxWeekCount] 传的是放宽后的上限（见 [customWeekLimit]）：课程本身的周次可能
+ * 超出学期设定的总周数（导进来的数据写到 24 周而学期只设了 20 周），
+ * 按学期总周数硬切会把用户已有的周次悄悄丢掉。
+ */
+internal fun decodeCustomWeeks(raw: String, maxWeekCount: Int): List<Int> = raw
+    .split(',')
+    .mapNotNull { it.trim().toIntOrNull() }
+    .filter { it in 1..maxWeekCount }
+    .distinct()
+    .sorted()
 
 /**
  * 课程的编辑表单本体，只负责字段与校验，按钮由调用方自己摆。
@@ -96,7 +166,12 @@ internal fun CourseEditFormFields(
     var endWeekText by rememberSaveable(initial) {
         mutableStateOf(initial?.weeks?.maxOrNull()?.toString().orEmpty())
     }
-    var parity by rememberSaveable(initial) { mutableStateOf(initialWeekParity(initial?.weeks)) }
+    var parity by rememberSaveable(initial) { mutableStateOf(weekParityOf(initial?.weeks)) }
+    // 自选的周次存成逗号串，rememberSaveable 才存得下
+    var customWeeksRaw by rememberSaveable(initial) {
+        mutableStateOf(encodeCustomWeeks(initial?.weeks.orEmpty()))
+    }
+    var pickingWeeks by rememberSaveable(initial) { mutableStateOf(false) }
     var category by rememberSaveable(initial) {
         mutableStateOf(initial?.category ?: CourseCategory.Course)
     }
@@ -108,7 +183,18 @@ internal fun CourseEditFormFields(
     val endWeek = endWeekText.toIntOrNull()
     val rangeValid = startWeek != null && endWeek != null &&
         startWeek in 1..maxWeekCount && endWeek in startWeek..maxWeekCount
-    val weeks = manualCourseWeeksOrNull(startWeek, endWeek, parity, maxWeekCount)
+    // 课程原有的周次可能超出学期总周数，矩阵与解码都按放宽后的上限来
+    val weekLimit = remember(maxWeekCount, initial) {
+        customWeekLimit(maxWeekCount, initial?.weeks)
+    }
+    val customWeeks = remember(customWeeksRaw, weekLimit) {
+        decodeCustomWeeks(customWeeksRaw, weekLimit)
+    }
+    val weeks = if (parity == WeekParity.Custom) {
+        customWeeks.takeIf { it.isNotEmpty() }
+    } else {
+        manualCourseWeeksOrNull(startWeek, endWeek, parity, maxWeekCount)
+    }
     val nodesValid = startNode != null && endNode != null &&
         startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount
     val draft = if (titleTrimmed.isNotBlank() && nodesValid && weeks != null) {
@@ -223,39 +309,70 @@ internal fun CourseEditFormFields(
         }
 
         CourseFormLabel(stringResource(R.string.schedule_weeks_label))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = startWeekText,
-                onValueChange = { startWeekText = it.filter(Char::isDigit).take(2) },
-                label = { Text(stringResource(R.string.schedule_week_start_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f),
+        // 自选时起止周没有意义，收起来只留已选周的摘要
+        if (parity == WeekParity.Custom) {
+            SelectedWeeksRow(
+                weeks = customWeeks,
+                onEdit = { pickingWeeks = true },
             )
-            OutlinedTextField(
-                value = endWeekText,
-                onValueChange = { endWeekText = it.filter(Char::isDigit).take(2) },
-                label = { Text(stringResource(R.string.schedule_week_end_label)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.weight(1f),
-            )
+        } else {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = startWeekText,
+                    onValueChange = { startWeekText = it.filter(Char::isDigit).take(2) },
+                    label = { Text(stringResource(R.string.schedule_week_start_label)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedTextField(
+                    value = endWeekText,
+                    onValueChange = { endWeekText = it.filter(Char::isDigit).take(2) },
+                    label = { Text(stringResource(R.string.schedule_week_end_label)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
 
         FlowChipRow {
             WeekParity.entries.forEach { p ->
                 FilterChip(
                     selected = parity == p,
-                    onClick = { parity = p },
+                    onClick = {
+                        parity = p
+                        // 切到自选就把当前区间的结果带过去当初值，省得从零点起
+                        if (p == WeekParity.Custom) {
+                            if (customWeeksRaw.isBlank()) {
+                                customWeeksRaw = encodeCustomWeeks(
+                                    manualCourseWeeksOrNull(startWeek, endWeek, WeekParity.All, weekLimit).orEmpty(),
+                                )
+                            }
+                            pickingWeeks = true
+                        }
+                    },
                     label = { Text(stringResource(p.labelRes)) },
                 )
             }
         }
 
-        if (rangeValid && weeks == null) {
+        if (pickingWeeks) {
+            WeekMatrixDialog(
+                maxWeekCount = weekLimit,
+                selected = customWeeks.toSet(),
+                onConfirm = { picked ->
+                    customWeeksRaw = encodeCustomWeeks(picked)
+                    pickingWeeks = false
+                },
+                onDismiss = { pickingWeeks = false },
+            )
+        }
+
+        if (rangeValid && parity != WeekParity.Custom && weeks == null) {
             Text(
                 text = stringResource(
                     R.string.schedule_add_course_parity_empty,
@@ -268,6 +385,141 @@ internal fun CourseEditFormFields(
 
         conflictWarning?.let { CourseConflictWarning(warning = it) }
     }
+}
+
+
+/** 自选模式下的摘要行：左边列出选了哪几周，右边一直留着「修改」入口。 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SelectedWeeksRow(
+    weeks: List<Int>,
+    onEdit: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onEdit),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (weeks.isEmpty()) {
+                        stringResource(R.string.schedule_week_custom_empty)
+                    } else {
+                        stringResource(R.string.schedule_week_custom_summary, weeks.size)
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (weeks.isEmpty()) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+                if (weeks.isNotEmpty()) {
+                    Text(
+                        text = weeks.joinToString("、"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            TextButton(onClick = onEdit) {
+                Text(stringResource(R.string.schedule_week_custom_edit))
+            }
+        }
+    }
+}
+
+/**
+ * 周次矩阵。
+ *
+ * 一格一周铺成网格，点一下切换选中；确认才写回表单，中途反悔直接关掉就行。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WeekMatrixDialog(
+    maxWeekCount: Int,
+    selected: Set<Int>,
+    onConfirm: (Set<Int>) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val picked = remember(selected) { mutableStateListOf<Int>().apply { addAll(selected.sorted()) } }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_week_custom_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = stringResource(R.string.schedule_week_custom_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 320.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    (1..maxWeekCount).forEach { week ->
+                        val isPicked = week in picked
+                        Surface(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    if (isPicked) picked.remove(week) else picked.add(week)
+                                },
+                            color = if (isPicked) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = week.toString(),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = if (isPicked) {
+                                        MaterialTheme.colorScheme.onPrimary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        picked.clear()
+                        picked.addAll(1..maxWeekCount)
+                    }) { Text(stringResource(R.string.schedule_week_custom_all)) }
+                    TextButton(onClick = { picked.clear() }) {
+                        Text(stringResource(R.string.schedule_action_clear))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = picked.isNotEmpty(),
+                onClick = { onConfirm(picked.toSet()) },
+            ) { Text(stringResource(R.string.schedule_action_save)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+        },
+    )
 }
 
 @Composable
@@ -326,12 +578,3 @@ private fun buildCourse(
     )
 }
 
-/** 从已有周次反推单双周选项，无法归类时按全部处理。 */
-private fun initialWeekParity(weeks: List<Int>?): WeekParity {
-    if (weeks.isNullOrEmpty()) return WeekParity.All
-    return when {
-        weeks.all { it % 2 == 1 } -> WeekParity.Odd
-        weeks.all { it % 2 == 0 } -> WeekParity.Even
-        else -> WeekParity.All
-    }
-}

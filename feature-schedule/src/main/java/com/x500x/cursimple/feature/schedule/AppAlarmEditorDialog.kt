@@ -19,8 +19,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,16 +29,17 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -265,7 +264,7 @@ private fun AlarmEditor(
                     )
                     AlarmStepperRow(
                         label = stringResource(R.string.schedule_alarm_count_row),
-                        value = stringResource(R.string.schedule_alarm_unit_times, count),
+                        value = pluralStringResource(R.plurals.schedule_alarm_unit_times, count, count),
                         canDecrease = count > RING_COUNT_RANGE.first,
                         canIncrease = count < RING_COUNT_RANGE.last,
                         onDecrease = { count = (count - 1).coerceAtLeast(RING_COUNT_RANGE.first) },
@@ -602,33 +601,29 @@ private fun formatPickerDate(date: LocalDate): String {
     return "$day $weekday"
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AlarmDatePickerDialog(
     initial: LocalDate,
     onDismiss: () -> Unit,
     onPick: (LocalDate) -> Unit,
 ) {
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = initial.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-    )
-    DatePickerDialog(
+    // 不用 M3 的 DatePicker：它的星期表头取自系统 narrow 名字，中文环境下七列全是「星」
+    var selected by remember(initial) { mutableStateOf(initial) }
+    AlertDialog(
         onDismissRequest = onDismiss,
+        text = {
+            CalendarMonthPicker(
+                selected = selected,
+                onSelect = { selected = it },
+            )
+        },
         confirmButton = {
-            TextButton(
-                enabled = state.selectedDateMillis != null,
-                onClick = {
-                    // 选择器按 UTC 记日期，换算回本地日历日才不会差一天
-                    state.selectedDateMillis?.let {
-                        onPick(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate())
-                    }
-                },
-            ) { Text(stringResource(R.string.schedule_action_save)) }
+            TextButton(onClick = { onPick(selected) }) {
+                Text(stringResource(R.string.schedule_action_save))
+            }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
-    ) {
-        DatePicker(state = state)
-    }
+    )
 }

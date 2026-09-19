@@ -99,6 +99,24 @@ data class ScheduleUiState(
     val courseNotes: CourseNoteIndex = CourseNoteIndex(),
     /** 每完成一次插件同步递增，界面据此跳转，不再比较提示文字。 */
     val syncCompletedCount: Int = 0,
+    /** 等用户决定「覆盖还是另存」的那一份导入结果；为空表示没有待确认的导入。 */
+    val pendingImport: PendingScheduleImport? = null,
+)
+
+/**
+ * 导入进来、但还没写下去的一份课表。
+ *
+ * 课表一旦盖掉就找不回来了，而教务系统每学期的表都可能大改。
+ * 所以先把差异摆给用户看，再由他决定是盖掉当前这份还是另存成新课表。
+ */
+data class PendingScheduleImport(
+    val schedule: TermSchedule?,
+    /** 为空表示这次导入不涉及手动添加的课，保留原样。 */
+    val manualCourses: List<CourseItem>?,
+    val timingProfile: TermTimingProfile? = null,
+    val diff: ScheduleImportDiff,
+    /** 选「新建课表」时预填的名字。 */
+    val suggestedTermName: String = "",
 )
 
 /** 备注关联时参与匹配的课程集合：插件下发的课表加上手动添加的课。 */
@@ -117,6 +135,8 @@ class ScheduleViewModel(
     private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
+    /** 新建一个学期并切过去；课表与手动课都按学期分区，切完再写就落在新表里。 */
+    private val createTermAndActivate: suspend (String) -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     /** 状态提示要按当前语言渲染，这里只取应用级 Context，不持有 Activity。 */
@@ -126,6 +146,15 @@ class ScheduleViewModel(
 
     private fun text(resId: Int, vararg formatArgs: Any): String =
         resources.getString(resId, *formatArgs)
+
+    /** 数量相关的文案走复数表：英文里 1 条和 2 条的说法不一样。 */
+    private fun quantityText(resId: Int, count: Int, vararg formatArgs: Any): String =
+        // 这里的 resources 其实是 Context（沿用既有命名），取复数表要再往里拿一层
+        resources.resources.getQuantityString(
+            resId,
+            count,
+            *(if (formatArgs.isEmpty()) arrayOf<Any>(count) else formatArgs),
+        )
 
     /** 闹钟下发结果的提示按当前语言渲染，逻辑层给的类型化结果优先于已渲染文本。 */
     private fun AlarmDispatchResult.displayText(): String =
@@ -692,22 +721,125 @@ class ScheduleViewModel(
         }
     }
 
+    /**
+     * 写入一份扫码 / 文件导入的课表。
+     *
+     * [asNewTermNamed] 不为空时先建一个学期再写，原来那份课表留在旧学期里不动。
+     */
     fun applyImportedSchedule(
         schedule: TermSchedule?,
         manualCourses: List<CourseItem>,
+        asNewTermNamed: String? = null,
         onComplete: (Result<Pair<Int, Int>>) -> Unit = {},
     ) {
         viewModelScope.launch {
             runCatching {
-                if (schedule != null) {
-                    scheduleRepository.saveSchedule(schedule)
+                if (!asNewTermNamed.isNullOrBlank()) {
+                    createTermAndActivate(asNewTermNamed)
                 }
-                manualCourseRepository.replaceAll(manualCourses)
-                reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
-                val importedCourseCount = schedule?.dailySchedules?.sumOf { it.courses.size } ?: 0
-                importedCourseCount to manualCourses.size
+                writeImportedSchedule(schedule, manualCourses)
             }.let(onComplete)
         }
+    }
+
+    /**
+     * 把一份导入结果摆到台面上等用户决定。
+     *
+     * 当前没有课表、或者新旧一模一样时不打扰，直接写下去；
+     * 只有确实有增减才弹出来问「覆盖还是新建」。
+     */
+    private suspend fun stageImportedSchedule(
+        schedule: TermSchedule?,
+        manualCourses: List<CourseItem>?,
+        timingProfile: TermTimingProfile? = null,
+        suggestedTermName: String = "",
+    ): Boolean {
+        val current = _uiState.value.schedule
+        val diff = diffSchedules(current, schedule)
+        val currentIsEmpty = current == null ||
+            current.dailySchedules.all { day -> day.courses.none { !it.hidden } }
+        if (currentIsEmpty || !diff.hasChanges) {
+            writeImportedSchedule(schedule, manualCourses)
+            return false
+        }
+        _uiState.update {
+            it.copy(
+                pendingImport = PendingScheduleImport(
+                    schedule = schedule,
+                    manualCourses = manualCourses,
+                    timingProfile = timingProfile,
+                    diff = diff,
+                    suggestedTermName = suggestedTermName,
+                ),
+            )
+        }
+        return true
+    }
+
+    /** 用户选了覆盖当前课表。 */
+    fun confirmPendingImportOverwrite() {
+        val pending = _uiState.value.pendingImport ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(pendingImport = null) }
+            runCatching { writeImportedSchedule(pending.schedule, pending.manualCourses) }
+                .onSuccess {
+                    _uiState.update { state ->
+                        state.copy(
+                            schedule = pending.schedule ?: state.schedule,
+                            statusMessage = text(R.string.schedule_status_import_overwritten),
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(statusMessage = text(R.string.schedule_status_import_failed, error.message.orEmpty()))
+                    }
+                }
+        }
+    }
+
+    /** 用户选了另存成新课表：先建学期再写，原来那份原封不动留在旧学期里。 */
+    fun confirmPendingImportAsNewTerm(termName: String) {
+        val pending = _uiState.value.pendingImport ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(pendingImport = null) }
+            runCatching {
+                createTermAndActivate(termName)
+                writeImportedSchedule(pending.schedule, pending.manualCourses)
+            }
+                .onSuccess {
+                    _uiState.update { state ->
+                        state.copy(
+                            schedule = pending.schedule ?: state.schedule,
+                            statusMessage = text(R.string.schedule_status_import_new_term, termName),
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    _uiState.update {
+                        it.copy(statusMessage = text(R.string.schedule_status_import_failed, error.message.orEmpty()))
+                    }
+                }
+        }
+    }
+
+    fun dismissPendingImport() {
+        _uiState.update { it.copy(pendingImport = null) }
+    }
+
+    private suspend fun writeImportedSchedule(
+        schedule: TermSchedule?,
+        manualCourses: List<CourseItem>?,
+    ): Pair<Int, Int> {
+        if (schedule != null) {
+            scheduleRepository.saveSchedule(schedule)
+        }
+        if (manualCourses != null) {
+            manualCourseRepository.replaceAll(manualCourses)
+        }
+        reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
+        val importedCourseCount = schedule?.dailySchedules?.sumOf { it.courses.size } ?: 0
+        return importedCourseCount to (manualCourses?.size ?: 0)
     }
 
     fun removeReminderRule(ruleId: String) {
@@ -1159,22 +1291,22 @@ class ScheduleViewModel(
     ): String {
         val details = buildList {
             if (summary.expiredRecordClearedCount > 0) {
-                add(text(R.string.schedule_status_alarm_expired_cleared, summary.expiredRecordClearedCount))
+                add(quantityText(R.plurals.schedule_status_alarm_expired_cleared, summary.expiredRecordClearedCount))
             }
             if (summary.dismissedCount > 0) {
-                add(text(R.string.schedule_status_alarm_dismissed, summary.dismissedCount))
+                add(quantityText(R.plurals.schedule_status_alarm_dismissed, summary.dismissedCount))
             }
             if (summary.dismissFailedCount > 0) {
-                add(text(R.string.schedule_status_alarm_dismiss_failed, summary.dismissFailedCount))
+                add(quantityText(R.plurals.schedule_status_alarm_dismiss_failed, summary.dismissFailedCount))
             }
             if (summary.createdCount > 0) {
-                add(text(R.string.schedule_status_alarm_created_count, summary.createdCount))
+                add(quantityText(R.plurals.schedule_status_alarm_created_count, summary.createdCount))
             }
             if (summary.skippedExistingCount > 0) {
-                add(text(R.string.schedule_status_alarm_skipped_existing, summary.skippedExistingCount))
+                add(quantityText(R.plurals.schedule_status_alarm_skipped_existing, summary.skippedExistingCount))
             }
             if (summary.skippedUnrepresentableCount > 0) {
-                add(text(R.string.schedule_status_alarm_skipped_unrepresentable, summary.skippedUnrepresentableCount))
+                add(quantityText(R.plurals.schedule_status_alarm_skipped_unrepresentable, summary.skippedUnrepresentableCount))
             }
             if (summary.failedCount > 0) {
                 add(
@@ -1187,7 +1319,13 @@ class ScheduleViewModel(
             }
         }
         return if (details.isEmpty()) {
-            text(R.string.schedule_status_alarm_sync_none, successMessage)
+            // 一条提醒都没建过的人看到「暂无可立即添加的闹钟」只会莫名其妙，
+            // 只有本来就有闹钟记录时这句才有信息量
+            if (_uiState.value.systemAlarmRecords.isEmpty()) {
+                successMessage
+            } else {
+                text(R.string.schedule_status_alarm_sync_none, successMessage)
+            }
         } else {
             text(
                 R.string.schedule_status_alarm_sync_details,
@@ -1258,10 +1396,18 @@ class ScheduleViewModel(
                     return
                 }
                 var syncedTimingProfile: TermTimingProfile? = null
+                var awaitingImportDecision = false
                 try {
                     syncedTimingProfile = normalizeTimingProfile(result.timingProfile)
-                    withContext(ioDispatcher) {
-                        scheduleRepository.saveSchedule(schedule)
+                    // 教务系统改过课时先把增减摆出来，让用户决定盖掉还是另存；
+                    // 没有旧表或者内容没变就照旧直接写，不多一步打扰
+                    awaitingImportDecision = withContext(ioDispatcher) {
+                        stageImportedSchedule(
+                            schedule = schedule,
+                            manualCourses = null,
+                            timingProfile = syncedTimingProfile,
+                            suggestedTermName = text(R.string.schedule_import_new_term_default),
+                        )
                     }
                     syncTodaySystemClockAlarms(
                         pluginId = _uiState.value.pluginId,
@@ -1308,14 +1454,23 @@ class ScheduleViewModel(
                     it.copy(
                         isSyncing = false,
                         pendingWebSession = null,
-                        schedule = schedule,
+                        // 还在等用户选覆盖还是新建时，界面上仍应是原来那份课表
+                        schedule = if (awaitingImportDecision) it.schedule else schedule,
                         uiSchema = result.uiSchema,
                         timingProfile = syncedTimingProfile ?: it.timingProfile,
                         alarmRecommendations = result.recommendations,
                         messages = result.messages,
                         missingComponents = emptyList(),
-                        statusMessage = text(R.string.schedule_status_sync_completed),
-                        syncCompletedCount = it.syncCompletedCount + 1,
+                        statusMessage = if (awaitingImportDecision) {
+                            null
+                        } else {
+                            text(R.string.schedule_status_sync_completed)
+                        },
+                        syncCompletedCount = if (awaitingImportDecision) {
+                            it.syncCompletedCount
+                        } else {
+                            it.syncCompletedCount + 1
+                        },
                     )
                 }
             }
@@ -1770,15 +1925,20 @@ private fun Context.bulkReminderFailureText(
 
 internal fun Context.bulkReminderStatusText(status: BulkReminderStatus): String = when (status) {
     is BulkReminderStatus.AllCreated ->
-        getString(R.string.schedule_bulk_reminder_all_created, status.successCount)
+        resources.getQuantityString(
+            R.plurals.schedule_bulk_reminder_all_created,
+            status.successCount,
+            status.successCount,
+        )
 
     is BulkReminderStatus.NoneCreated -> getString(
         R.string.schedule_bulk_reminder_none,
         bulkReminderFailureText(status.failed, status.hasTimingProfile),
     )
 
-    is BulkReminderStatus.PartiallyCreated -> getString(
-        R.string.schedule_bulk_reminder_partial,
+    is BulkReminderStatus.PartiallyCreated -> resources.getQuantityString(
+        R.plurals.schedule_bulk_reminder_partial,
+        status.successCount,
         status.successCount,
         bulkReminderFailureText(status.failed, status.hasTimingProfile),
     )
@@ -1829,15 +1989,20 @@ internal fun Context.examReminderStatusText(status: ExamReminderStatus): String 
     ExamReminderStatus.Disabled -> getString(R.string.schedule_exam_reminder_disabled)
     ExamReminderStatus.NoExams -> getString(R.string.schedule_exam_reminder_no_exams)
     is ExamReminderStatus.AllCovered ->
-        getString(R.string.schedule_exam_reminder_covered, status.coveredCount)
+        resources.getQuantityString(
+            R.plurals.schedule_exam_reminder_covered,
+            status.coveredCount,
+            status.coveredCount,
+        )
 
     is ExamReminderStatus.NoneCovered -> getString(
         R.string.schedule_exam_reminder_none,
         examReminderSkippedText(status.skipped),
     )
 
-    is ExamReminderStatus.PartiallyCovered -> getString(
-        R.string.schedule_exam_reminder_partial,
+    is ExamReminderStatus.PartiallyCovered -> resources.getQuantityString(
+        R.plurals.schedule_exam_reminder_partial,
+        status.coveredCount,
         status.coveredCount,
         examReminderSkippedText(status.skipped),
     )
@@ -1855,6 +2020,7 @@ class ScheduleViewModelFactory(
     private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
+    private val createTermAndActivate: suspend (String) -> Unit = {},
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
@@ -1871,6 +2037,7 @@ class ScheduleViewModelFactory(
                 onAlarmSyncChecked = onAlarmSyncChecked,
                 resolveTimingProfile = resolveTimingProfile,
                 timingProfileFlow = timingProfileFlow,
+                createTermAndActivate = createTermAndActivate,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
