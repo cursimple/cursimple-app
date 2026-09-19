@@ -50,16 +50,9 @@ private class ReminderListFactory(
     override fun getCount(): Int = rows.size
 
     override fun getViewAt(position: Int): RemoteViews {
-        val row = RemoteViews(context.packageName, R.layout.widget_reminder_row)
-        val data = rows.getOrNull(position) ?: return row
-        row.setInt(R.id.reminder_row_root, "setBackgroundResource", widgetRowBackground(themeAccent))
-        row.applyOpenAppFillInIntent(R.id.reminder_row_root, widgetTheme)
-        row.setTextViewText(R.id.reminder_date, data.dateLabel)
-        row.setTextViewText(R.id.reminder_time, data.timeLabel)
-        row.setTextViewText(R.id.reminder_row_title, data.title)
-        row.setTextViewText(R.id.reminder_row_message, data.message)
-        row.setTextViewText(R.id.reminder_countdown, data.countdown)
-        return row
+        val data = rows.getOrNull(position)
+            ?: return RemoteViews(context.packageName, R.layout.widget_reminder_row)
+        return buildReminderRow(context, data, themeAccent, widgetTheme)
     }
 
     override fun getLoadingView(): RemoteViews? = null
@@ -70,4 +63,22 @@ private class ReminderListFactory(
         rows.getOrNull(position)?.stableId ?: position.toLong()
 
     override fun hasStableIds(): Boolean = true
+}
+
+/** 提醒列表那一行的 RemoteViews，列表服务与内联行共用。 */
+internal fun buildReminderRow(
+    context: Context,
+    data: ReminderRowData,
+    themeAccent: ThemeAccent,
+    widgetTheme: WidgetThemePreferences,
+): RemoteViews {
+    val row = RemoteViews(context.packageName, R.layout.widget_reminder_row)
+    row.setInt(R.id.reminder_row_root, "setBackgroundResource", widgetRowBackground(themeAccent))
+    row.applyOpenAppFillInIntent(R.id.reminder_row_root, widgetTheme)
+    row.setTextViewText(R.id.reminder_date, data.dateLabel)
+    row.setTextViewText(R.id.reminder_time, data.timeLabel)
+    row.setTextViewText(R.id.reminder_row_title, data.title)
+    row.setTextViewText(R.id.reminder_row_message, data.message)
+    row.setTextViewText(R.id.reminder_countdown, data.countdown)
+    return row
 }

@@ -82,6 +82,25 @@ private fun firstNotBlank(vararg values: String?): String? =
     values.firstOrNull { !it.isNullOrBlank() }
 
 open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // 厂商启动器的刷新广播不会变成 onUpdate，这里单独接一次
+        if (handleVendorWidgetUpdate(context, intent) { updateWidgets(it) }) return
+        super.onReceive(context, intent)
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        // 有的启动器加完小组件不发 onUpdate，会一直停在「加载中」
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         reconcileSystemAlarmsFromWidget(context)
         val pendingResult = goAsync()
@@ -162,8 +181,28 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
             } else {
                 views.setViewVisibility(R.id.reminder_badge, View.GONE)
             }
-            val hasRows = data.rows.isNotEmpty()
-            views.setRemoteAdapter(R.id.reminder_list, listIntent(context, appWidgetId))
+            // 行数按当前尺寸裁剪，与列表服务那条路取同一份
+            val visibleRows = visibleReminderRows(
+                data.rows,
+                widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId),
+            )
+            val hasRows = visibleRows.isNotEmpty()
+            views.setWidgetRows(
+                listId = R.id.reminder_list,
+                rows = visibleRows,
+                stableId = { it.stableId },
+                buildRow = { buildReminderRow(context, it, data.themeAccent, data.widgetTheme) },
+                fallbackAdapter = {
+                    views.setRemoteAdapter(
+                        R.id.reminder_list,
+                        listIntent(
+                            context = context,
+                            appWidgetId = appWidgetId,
+                            revision = widgetListRevision(data.totalCount, visibleRows),
+                        ),
+                    )
+                },
+            )
             views.applyOpenAppListTemplate(context, R.id.reminder_list, appWidgetId, data.widgetTheme)
             views.setEmptyView(R.id.reminder_list, R.id.reminder_empty)
             views.setViewVisibility(R.id.reminder_list, if (hasRows) View.VISIBLE else View.GONE)
@@ -175,9 +214,10 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
             return views
         }
 
-        private fun listIntent(context: Context, appWidgetId: Int): Intent =
+        private fun listIntent(context: Context, appWidgetId: Int, revision: String): Intent =
             Intent(context, ReminderRemoteViewsService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(EXTRA_WIDGET_LIST_REVISION, revision)
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
     }

@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -42,6 +43,11 @@ internal object NextCourseDataSource {
     private val cache = WidgetDataCache<NextCourseWidgetData>()
 
     /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
+    /** 数据刚被改过时清掉短时缓存，下一次读一定是新的。 */
+    fun invalidate() {
+        cache.clear()
+    }
+
     suspend fun load(context: Context, reuseRecent: Boolean = false): NextCourseWidgetData {
         if (reuseRecent) {
             cache.get(WIDGET_SHARED_CACHE_KEY, System.nanoTime())?.let { return it }
@@ -60,8 +66,10 @@ internal object NextCourseDataSource {
         val schedule = scheduleRepository.scheduleFlow.first()
         val manualCourses = manualCourseRepository.manualCoursesFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
-        val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
+        // 没单独挑过小组件配色时跟着应用主题色走
+        val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
+            .resolveAccent(userPrefs.themeAccent)
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
