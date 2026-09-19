@@ -602,4 +602,12 @@
     <string name="schedule_exact_alarm_banner_title">精确闹钟未开启</string>
     <string name="schedule_exact_alarm_banner_body">提醒会被系统推迟，可能晚十几分钟才响</string>
     <string name="schedule_exact_alarm_banner_action">去开启</string>
+    <string name="schedule_day_sheet_current_makeup">当前：调休补班，这天照常上课</string>
+    <string name="schedule_day_sheet_current_source">当前：按 %1$d月%2$d日 %3$s 的课上</string>
+    <string name="schedule_day_sheet_current_today">当前：今天</string>
+    <string name="schedule_overlap_pick_title">这一格有 %1$d 门课</string>
+    <string name="schedule_overlap_pick_body">选择要编辑的那一门。</string>
+    <string name="schedule_same_slot_prev">上一门</string>
+    <string name="schedule_same_slot_next">下一门</string>
+    <string name="schedule_same_slot_position">第 %1$d / %2$d 门</string>
 </resources>
