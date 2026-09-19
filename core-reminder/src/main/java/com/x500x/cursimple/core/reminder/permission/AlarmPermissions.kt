@@ -150,36 +150,61 @@ object AlarmSettingsIntents {
         add(appDetails(context))
     }
 
-    /** 厂商的自启动 / 后台运行白名单，组件名取自各家安全中心。 */
+    /**
+     * 厂商的自启动 / 后台运行白名单。
+     *
+     * 先试能直接落到本应用那一页的入口（带包名 extra），落不到才退回总列表——
+     * 总列表要用户自己在几百个应用里翻着找，等于没给入口。
+     */
     fun vendorAutoStart(context: Context): List<Intent> =
-        VENDOR_AUTO_START_COMPONENTS.map { (pkg, activity) ->
-            Intent().setClassName(pkg, activity)
-        } + appDetails(context)
+        perAppVendorPermissionPages(context) +
+            VENDOR_AUTO_START_COMPONENTS.map { (pkg, activity) ->
+                Intent().setClassName(pkg, activity)
+            } +
+            appDetails(context)
 
-    /** 后台弹出界面：小米、vivo、OPPO 上闹钟想直接亮出界面要靠它。 */
-    fun backgroundPopup(context: Context): List<Intent> = listOf(
-        Intent()
-            .setClassName(
-                "com.miui.securitycenter",
-                "com.miui.permcenter.permissions.PermissionsEditorActivity",
-            )
-            .putExtra("extra_pkgname", context.packageName),
-        Intent()
-            .setClassName(
-                "com.miui.securitycenter",
-                "com.miui.permcenter.permissions.AppPermissionsEditorActivity",
-            )
-            .putExtra("extra_pkgname", context.packageName),
+    /**
+     * 各厂商「单个应用的权限详情页」。
+     *
+     * 这些页面认包名 extra，打开就停在本应用上，自启动与后台弹出都在这一页里。
+     * 各家 extra 键名不同，只能一条条列。
+     */
+    private fun perAppVendorPermissionPages(context: Context): List<Intent> = listOf(
+        // vivo / iQOO
         Intent().setClassName(
             "com.vivo.permissionmanager",
             "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity",
-        ).putExtra("packagename", context.packageName),
+        ).putExtra("packagename", context.packageName)
+            .putExtra("pkgname", context.packageName),
+        // 小米 MIUI / HyperOS
+        Intent().setClassName(
+            "com.miui.securitycenter",
+            "com.miui.permcenter.permissions.PermissionsEditorActivity",
+        ).putExtra("extra_pkgname", context.packageName),
+        Intent().setClassName(
+            "com.miui.securitycenter",
+            "com.miui.permcenter.permissions.AppPermissionsEditorActivity",
+        ).putExtra("extra_pkgname", context.packageName),
+        // OPPO / realme ColorOS
         Intent().setClassName(
             "com.coloros.safecenter",
-            "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity",
-        ),
-        appDetails(context),
+            "com.coloros.safecenter.permission.PermissionManagerActivity",
+        ).putExtra("packageName", context.packageName),
+        // 华为 / 荣耀：没有稳定的单应用权限页，退到应用详情页由系统自己定位
     )
+
+    /**
+     * 后台弹出界面：小米、vivo、OPPO 上闹钟想直接亮出界面要靠它。
+     * 同样先走能定位到本应用的那几页。
+     */
+    fun backgroundPopup(context: Context): List<Intent> =
+        perAppVendorPermissionPages(context) + listOf(
+            Intent().setClassName(
+                "com.coloros.safecenter",
+                "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity",
+            ),
+            appDetails(context),
+        )
 
     fun appDetails(context: Context): Intent =
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(packageUri(context))
