@@ -14,11 +14,15 @@
     <string name="plugin_market_installed_empty_title">還沒有任何外掛</string>
     <string name="plugin_market_installed_empty_subtitle">從本地 ZIP 安裝後會顯示在這裡。當前版本不再自動安裝內建示例外掛。</string>
     <string name="plugin_market_section_market">外掛市場</string>
-    <string name="plugin_market_browse_all">瀏覽全部 %1$d 個插件</string>
+    <plurals name="plugin_market_browse_all">
+        <item quantity="other">瀏覽全部 %1$d 個插件</item>
+    </plurals>
     <string name="plugin_market_browse_title">插件市場</string>
     <string name="plugin_market_search_hint">搜尋插件名、作者或描述</string>
     <string name="plugin_market_search_empty">沒有符合「%1$s」的插件</string>
-    <string name="plugin_market_search_count">共 %1$d 個插件</string>
+    <plurals name="plugin_market_search_count">
+        <item quantity="other">共 %1$d 個插件</item>
+    </plurals>
     <string name="plugin_market_registry_unset">未配置登錄檔倉庫</string>
     <string name="plugin_market_repo_no_description">（無描述）</string>
     <string name="plugin_market_version_missing">未找到版本</string>
@@ -120,7 +124,9 @@
     <string name="plugin_log_action_clear">清空</string>
     <string name="plugin_log_action_scroll_top">回到頂部</string>
     <string name="plugin_log_action_copy_json">複製本條 JSON</string>
-    <string name="plugin_log_copied_count">已複製 %1$d 條到剪貼簿</string>
+    <plurals name="plugin_log_copied_count">
+        <item quantity="other">已複製 %1$d 條到剪貼簿</item>
+    </plurals>
     <string name="plugin_log_copied_one">已複製該條日誌</string>
     <string name="plugin_log_cleared">已清空日誌</string>
     <string name="plugin_log_empty">暫無日誌，操作外掛後會自動產生</string>
@@ -166,7 +172,9 @@
     <string name="plugin_market_status_registry_not_configured">請先在設定-外掛中配置登錄檔倉庫</string>
     <string name="plugin_market_status_loading">正在載入外掛市場...</string>
     <string name="plugin_market_status_market_empty">外掛市場為空</string>
-    <string name="plugin_market_status_market_loaded">已載入 %1$d 個外掛</string>
+    <plurals name="plugin_market_status_market_loaded">
+        <item quantity="other">已載入 %1$d 個外掛</item>
+    </plurals>
     <string name="plugin_market_status_load_failed">載入外掛市場失敗</string>
     <string name="plugin_market_status_release_asset_missing">%1$s 還沒有帶 ZIP 資產的 Release，無法安裝。</string>
     <string name="plugin_market_status_downloading_asset">正在下載 %1$s（%2$s）...</string>
@@ -185,7 +193,9 @@
 
     <string name="plugin_component_market_index_not_configured">請先在設定-外掛中配置元件市場索引 URL</string>
     <string name="plugin_component_market_loading">正在載入遠端元件...</string>
-    <string name="plugin_component_market_loaded">已載入 %1$d 個元件</string>
+    <plurals name="plugin_component_market_loaded">
+        <item quantity="other">已載入 %1$d 個元件</item>
+    </plurals>
     <string name="plugin_component_market_load_failed">載入遠端元件失敗</string>
     <string name="plugin_component_market_installing_local">正在安裝本地元件...</string>
     <string name="plugin_component_market_download_url_missing">該元件沒有可下載地址</string>
@@ -233,9 +243,15 @@
     <string name="school_import_refresh">重新整理外掛清單</string>
     <string name="school_import_refresh_list">重新整理外掛清單</string>
     <string name="school_import_no_match">「%1$s」還沒有對應的外掛</string>
-    <string name="school_import_catalog_count">目前收錄 %1$d 個學校外掛</string>
-    <string name="school_import_catalog_header">目前收錄的 %1$d 個外掛：</string>
-    <string name="school_import_match_count">在 %1$d 個外掛裡搜到 %2$d 個</string>
+    <plurals name="school_import_catalog_count">
+        <item quantity="other">目前收錄 %1$d 個學校外掛</item>
+    </plurals>
+    <plurals name="school_import_catalog_header">
+        <item quantity="other">目前收錄的 %1$d 個外掛：</item>
+    </plurals>
+    <plurals name="school_import_match_count">
+        <item quantity="other">在 %1$d 個外掛裡搜到 %2$d 個</item>
+    </plurals>
     <string name="school_import_no_match_hint">外掛由各校同學自己寫、自己提交，你的學校可能還沒人做。可以先手動加課，或者用「匯入 / 匯出課程」從檔案匯入。</string>
     <string name="school_import_add_manually">手動新增課程</string>
     <string name="school_import_browse_all">瀏覽全部外掛</string>

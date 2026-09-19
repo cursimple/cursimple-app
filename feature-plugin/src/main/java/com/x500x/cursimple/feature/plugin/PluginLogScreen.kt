@@ -49,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -94,7 +95,7 @@ fun PluginLogScreen(
                 (q.isEmpty() || entry.matches(q))
         }
     }
-    val copiedCountText = stringResource(R.string.plugin_log_copied_count, filtered.size)
+    val copiedCountText = pluralStringResource(R.plurals.plugin_log_copied_count, filtered.size, filtered.size)
 
     Scaffold(
         modifier = modifier,

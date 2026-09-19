@@ -174,3 +174,31 @@ class SchoolAliasSearchTest {
         assertTrue(filterMarketRepos(onlyOne, "不存在的学校").isEmpty())
     }
 }
+
+class SchoolDisplayTitleTest {
+
+    @Test
+    fun `the declared school name is used instead of the repo name`() {
+        // 这一页的用户在找自己的学校，不是在找 YangtzU_course_plugin 这种仓库名
+        val summary = repo(
+            fullName = "cursimple/YangtzU_course_plugin",
+            schoolAliases = listOf("长江大学", "长大", "cjdx"),
+        )
+
+        assertEquals("长江大学", summary.schoolDisplayTitle())
+    }
+
+    @Test
+    fun `a plugin without declared schools falls back to the repo name`() {
+        val summary = repo(fullName = "someone/mystery_plugin")
+
+        assertEquals("mystery_plugin", summary.schoolDisplayTitle())
+    }
+
+    @Test
+    fun `blank alias entries are skipped`() {
+        val summary = repo(fullName = "a/b", schoolAliases = listOf("  ", "长江大学"))
+
+        assertEquals("长江大学", summary.schoolDisplayTitle())
+    }
+}

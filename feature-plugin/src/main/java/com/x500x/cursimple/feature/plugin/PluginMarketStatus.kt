@@ -85,7 +85,11 @@ internal fun Context.pluginMarketStatusText(status: PluginMarketStatus): String 
     PluginMarketStatus.LoadingMarket -> getString(R.string.plugin_market_status_loading)
     PluginMarketStatus.MarketEmpty -> getString(R.string.plugin_market_status_market_empty)
     is PluginMarketStatus.MarketLoaded ->
-        getString(R.string.plugin_market_status_market_loaded, status.count)
+        resources.getQuantityString(
+            R.plurals.plugin_market_status_market_loaded,
+            status.count,
+            status.count,
+        )
 
     is PluginMarketStatus.MarketLoadFailed ->
         pluginErrorDetail(status.error) ?: getString(R.string.plugin_market_status_load_failed)
