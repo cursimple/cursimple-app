@@ -13,7 +13,21 @@ data class WidgetThemePreferences(
     val backgroundMode: WidgetBackgroundMode = WidgetBackgroundMode.Theme,
     val backgroundImageUri: String? = null,
     val openAppOnDoubleClickEnabled: Boolean = false,
-)
+    /** 没单独给小组件挑过主题色时跟着应用主题走，应用换色小组件底色一起换。 */
+    val followsAppThemeAccent: Boolean = true,
+    /** 背景图透明度，0 为不透明；与课表背景那一套同义。 */
+    val backgroundImageTransparencyPercent: Int = DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
+) {
+    companion object {
+        const val DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT = 0
+
+        fun coerceBackgroundImageTransparencyPercent(value: Int): Int = value.coerceIn(0, 100)
+    }
+}
+
+/** 小组件实际使用的主题色：跟随应用时用 [appThemeAccent]，单独挑过就用挑定的那个。 */
+fun WidgetThemePreferences.resolveAccent(appThemeAccent: ThemeAccent): WidgetThemePreferences =
+    if (followsAppThemeAccent) copy(themeAccent = appThemeAccent) else this
 
 interface WidgetPreferencesRepository {
     val widgetDayOffsetFlow: Flow<Int>
@@ -27,15 +41,24 @@ interface WidgetPreferencesRepository {
 
     val themePreferencesFlow: Flow<WidgetThemePreferences>
 
-    suspend fun setWidgetDayOffset(offset: Int)
+    suspend fun setWidgetDayOffset(offset: Int, anchorDateIso: String? = null)
 
-    suspend fun shiftWidgetDayOffset(delta: Int)
+    suspend fun shiftWidgetDayOffset(delta: Int, anchorDateIso: String? = null)
 
     suspend fun widgetDayOffset(appWidgetId: Int): Int
 
-    suspend fun setWidgetDayOffset(appWidgetId: Int, offset: Int)
+    /**
+     * 手动翻页后的实际偏移。
+     *
+     * 偏移是「按下那天」往前往后数的天数，[todayIso] 与记下的锚点不同就说明已经跨过零点，
+     * 这时偏移作废按 0 返回，日期不会自己再往后顺延一天。
+     * [appWidgetId] 传 0 表示所有实例共用的那一份偏移。
+     */
+    suspend fun effectiveWidgetDayOffset(appWidgetId: Int, todayIso: String): Int
 
-    suspend fun shiftWidgetDayOffset(appWidgetId: Int, delta: Int): Int
+    suspend fun setWidgetDayOffset(appWidgetId: Int, offset: Int, anchorDateIso: String? = null)
+
+    suspend fun shiftWidgetDayOffset(appWidgetId: Int, delta: Int, anchorDateIso: String? = null): Int
 
     suspend fun clearWidgetDayOffset(appWidgetId: Int)
 
@@ -60,7 +83,12 @@ interface WidgetPreferencesRepository {
 
     suspend fun setWidgetThemeAccent(accent: ThemeAccent)
 
+    /** 取消单独指定的小组件主题色，重新跟随应用主题。 */
+    suspend fun followAppThemeAccent()
+
     suspend fun setWidgetBackgroundImageUri(uri: String)
+
+    suspend fun setWidgetBackgroundImageTransparencyPercent(percent: Int)
 
     suspend fun clearWidgetBackgroundImage()
 

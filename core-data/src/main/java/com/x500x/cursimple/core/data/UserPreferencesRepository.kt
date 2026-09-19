@@ -292,6 +292,8 @@ data class UserPreferences(
     val holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
     /** 放假当天是否跳过提醒。默认照常提醒，安静与否交给用户决定。 */
     val skipRemindersOnHoliday: Boolean = false,
+    /** 常驻前台服务守着提醒：退出应用后进程还在，厂商系统不容易顺手把闹钟一起清掉。 */
+    val alarmKeepAliveEnabled: Boolean = false,
     /** 单独静音的日期，ISO 日期字符串。 */
     val reminderMutedDates: Set<String> = emptySet(),
     val debugForcedDateTime: LocalDateTime? = null,
@@ -400,6 +402,9 @@ interface UserPreferencesRepository {
     suspend fun clearSyncedHolidayYears()
 
     suspend fun setSkipRemindersOnHoliday(enabled: Boolean)
+
+    /** 开关常驻的闹钟守护服务。 */
+    suspend fun setAlarmKeepAliveEnabled(enabled: Boolean)
 
     /** 把某一天设为静音或取消静音，当天不再下发任何课程提醒。 */
     suspend fun setReminderMuted(date: String, muted: Boolean)
