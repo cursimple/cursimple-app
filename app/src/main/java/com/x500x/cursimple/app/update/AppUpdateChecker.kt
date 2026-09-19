@@ -167,6 +167,25 @@ class AppUpdateChecker(
         }.getOrDefault(UpdatePeekResult.Unknown)
     }
 
+    /**
+     * 取版本历史。
+     *
+     * [includePrerelease] 为真时列出测试版（含正式版），为假只列正式版——
+     * 和「接收测试版更新」那个开关同义：关着的人不该在历史里看到 beta。
+     */
+    suspend fun history(includePrerelease: Boolean = false): List<AppReleaseSummary>? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val selection = selectReleaseSource(
+                    "https://api.github.com/repos/$repository/releases?per_page=$RELEASE_PAGE_SIZE",
+                    ::isJsonArrayBody,
+                )
+                val response = (selection as? UpdateSourceSelection.Success)
+                    ?.response ?: return@withContext null
+                parseReleaseHistory(response.body, includePrerelease)
+            }.getOrNull()
+        }
+
     /** 取某个 tag 的发布说明，用于安装完成后展示本次更新内容。 */
     suspend fun releaseNotes(tagName: String): String? = withContext(Dispatchers.IO) {
         runCatching {
