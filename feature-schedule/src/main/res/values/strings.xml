@@ -599,4 +599,7 @@
     <string name="schedule_week_custom_none">清空</string>
     <string name="schedule_add_week">添加周</string>
     <string name="schedule_add_week_hint">接着往后加一周空白课表</string>
+    <string name="schedule_exact_alarm_banner_title">精确闹钟未开启</string>
+    <string name="schedule_exact_alarm_banner_body">提醒会被系统推迟，可能晚十几分钟才响</string>
+    <string name="schedule_exact_alarm_banner_action">去开启</string>
 </resources>
