@@ -115,4 +115,5 @@
     <string name="widget_preview_reminder_2">Tomorrow 09:55  Modern History</string>
     <string name="widget_preview_reminder_sub_1">10 min before · East 13-C-315</string>
     <string name="widget_preview_reminder_sub_2">10 min before · East 11-A-207</string>
+    <string name="widget_diag_pin_ignored">Declared supported, but this launcher ignores it (manual add is used instead)</string>
 </resources>

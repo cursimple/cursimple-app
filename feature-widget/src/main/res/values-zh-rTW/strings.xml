@@ -115,4 +115,5 @@
     <string name="widget_preview_reminder_2">明天 09:55  近代史綱要</string>
     <string name="widget_preview_reminder_sub_1">課前 10 分鐘 · 東 13-C-315</string>
     <string name="widget_preview_reminder_sub_2">課前 10 分鐘 · 東 11-A-207</string>
+    <string name="widget_diag_pin_ignored">系統宣告支援，但這家桌面不回應（已改為手動新增）</string>
 </resources>

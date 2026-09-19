@@ -33,12 +33,14 @@ object WidgetDiagnostics {
             add(appContext.getString(R.string.widget_diag_device) to "${Build.MANUFACTURER} ${Build.MODEL}")
             add(appContext.getString(R.string.widget_diag_system) to appContext.systemDescription())
             add(appContext.getString(R.string.widget_diag_launcher) to appContext.launcherPackage())
+            // 系统说「支持」但这家桌面实际不响应时，如实写出来，
+            // 免得自检信息本身把人带偏（vivo 上就是这样）
             add(
                 appContext.getString(R.string.widget_diag_pin) to appContext.getString(
-                    if (WidgetCatalog.isPinSupported(appContext)) {
-                        R.string.widget_diag_pin_supported
-                    } else {
-                        R.string.widget_diag_pin_unsupported
+                    when {
+                        !WidgetCatalog.isPinSupported(appContext) -> R.string.widget_diag_pin_unsupported
+                        WidgetCatalog.pinLikelyIgnored(appContext) -> R.string.widget_diag_pin_ignored
+                        else -> R.string.widget_diag_pin_supported
                     },
                 ),
             )
