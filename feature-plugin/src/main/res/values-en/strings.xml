@@ -14,11 +14,17 @@
     <string name="plugin_market_installed_empty_title">No plugins yet</string>
     <string name="plugin_market_installed_empty_subtitle">Plugins installed from a local ZIP show up here. This version no longer installs the bundled sample plugins automatically.</string>
     <string name="plugin_market_section_market">Plugin marketplace</string>
-    <string name="plugin_market_browse_all">Browse all %1$d plugins</string>
+    <plurals name="plugin_market_browse_all">
+        <item quantity="one">Browse the only plugin</item>
+        <item quantity="other">Browse all %1$d plugins</item>
+    </plurals>
     <string name="plugin_market_browse_title">Plugin marketplace</string>
     <string name="plugin_market_search_hint">Search by name, author or description</string>
     <string name="plugin_market_search_empty">No plugin matches "%1$s"</string>
-    <string name="plugin_market_search_count">%1$d plugins</string>
+    <plurals name="plugin_market_search_count">
+        <item quantity="one">%1$d plugin</item>
+        <item quantity="other">%1$d plugins</item>
+    </plurals>
     <string name="plugin_market_registry_unset">No registry repository configured</string>
     <string name="plugin_market_repo_no_description">(No description)</string>
     <string name="plugin_market_version_missing">No release found</string>
@@ -120,7 +126,10 @@
     <string name="plugin_log_action_clear">Clear</string>
     <string name="plugin_log_action_scroll_top">Back to top</string>
     <string name="plugin_log_action_copy_json">Copy this entry as JSON</string>
-    <string name="plugin_log_copied_count">Copied %1$d entries to the clipboard</string>
+    <plurals name="plugin_log_copied_count">
+        <item quantity="one">Copied %1$d entry to the clipboard</item>
+        <item quantity="other">Copied %1$d entries to the clipboard</item>
+    </plurals>
     <string name="plugin_log_copied_one">Entry copied</string>
     <string name="plugin_log_cleared">Log cleared</string>
     <string name="plugin_log_empty">No log entries yet. They appear once you use a plugin.</string>
@@ -166,7 +175,10 @@
     <string name="plugin_market_status_registry_not_configured">Set the registry repository in Settings - Plugins first</string>
     <string name="plugin_market_status_loading">Loading the plugin marketplace…</string>
     <string name="plugin_market_status_market_empty">The plugin marketplace is empty</string>
-    <string name="plugin_market_status_market_loaded">Loaded %1$d plugins</string>
+    <plurals name="plugin_market_status_market_loaded">
+        <item quantity="one">Loaded %1$d plugin</item>
+        <item quantity="other">Loaded %1$d plugins</item>
+    </plurals>
     <string name="plugin_market_status_load_failed">Failed to load the plugin marketplace</string>
     <string name="plugin_market_status_release_asset_missing">%1$s has no release with a ZIP asset yet, so it cannot be installed.</string>
     <string name="plugin_market_status_downloading_asset">Downloading %1$s (%2$s)…</string>
@@ -185,7 +197,10 @@
 
     <string name="plugin_component_market_index_not_configured">Set the component marketplace index URL in Settings - Plugins first</string>
     <string name="plugin_component_market_loading">Loading remote components…</string>
-    <string name="plugin_component_market_loaded">Loaded %1$d components</string>
+    <plurals name="plugin_component_market_loaded">
+        <item quantity="one">Loaded %1$d component</item>
+        <item quantity="other">Loaded %1$d components</item>
+    </plurals>
     <string name="plugin_component_market_load_failed">Failed to load remote components</string>
     <string name="plugin_component_market_installing_local">Installing the local component…</string>
     <string name="plugin_component_market_download_url_missing">This component has no download URL</string>
@@ -233,9 +248,18 @@
     <string name="school_import_refresh">Refresh the plugin list</string>
     <string name="school_import_refresh_list">Refresh the plugin list</string>
     <string name="school_import_no_match">No plugin covers \"%1$s\" yet</string>
-    <string name="school_import_catalog_count">%1$d school plugins available</string>
-    <string name="school_import_catalog_header">All %1$d plugins in the registry:</string>
-    <string name="school_import_match_count">Of %1$d plugins, %2$d matched</string>
+    <plurals name="school_import_catalog_count">
+        <item quantity="one">%1$d school plugin available</item>
+        <item quantity="other">%1$d school plugins available</item>
+    </plurals>
+    <plurals name="school_import_catalog_header">
+        <item quantity="one">The only plugin in the registry:</item>
+        <item quantity="other">All %1$d plugins in the registry:</item>
+    </plurals>
+    <plurals name="school_import_match_count">
+        <item quantity="one">Of %1$d plugin, %2$d matched</item>
+        <item quantity="other">Of %1$d plugins, %2$d matched</item>
+    </plurals>
     <string name="school_import_no_match_hint">Plugins are written and submitted by students at each school, so yours may not have one yet. You can add courses by hand, or bring a timetable in from a file via Import / Export.</string>
     <string name="school_import_add_manually">Add a course by hand</string>
     <string name="school_import_browse_all">Browse all plugins</string>
