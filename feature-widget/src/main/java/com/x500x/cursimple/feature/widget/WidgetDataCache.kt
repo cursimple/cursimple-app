@@ -27,6 +27,11 @@ internal class WidgetDataCache<T : Any>(private val ttlNanos: Long = DEFAULT_TTL
         entry = Entry(key, nowNanos, value)
     }
 
+    /** 数据已经改过，下一次读必须重新取，不能再复用这一份。 */
+    fun clear() {
+        entry = null
+    }
+
     companion object {
         const val DEFAULT_TTL_NANOS: Long = 5_000_000_000L
     }

@@ -43,25 +43,28 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         currentOffset: Int?,
     ) {
         val repository = DataStoreWidgetPreferencesRepository(context)
+        // 偏移记的是「今天往后数几天」，把按下的那一天一并存下，跨过零点后它才会自己作废
+        val todayIso = widgetTodayIso(context)
         if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             when (action) {
                 ACTION_PREV -> {
                     if (currentOffset != null) {
-                        repository.setWidgetDayOffset(currentOffset - 1)
+                        repository.setWidgetDayOffset(currentOffset - 1, todayIso)
                     } else {
-                        repository.shiftWidgetDayOffset(-1)
+                        repository.shiftWidgetDayOffset(-1, todayIso)
                     }
                 }
                 ACTION_NEXT -> {
                     if (currentOffset != null) {
-                        repository.setWidgetDayOffset(currentOffset + 1)
+                        repository.setWidgetDayOffset(currentOffset + 1, todayIso)
                     } else {
-                        repository.shiftWidgetDayOffset(1)
+                        repository.shiftWidgetDayOffset(1, todayIso)
                     }
                 }
-                ACTION_RESET -> repository.setWidgetDayOffset(0)
+                ACTION_RESET -> repository.setWidgetDayOffset(0, todayIso)
                 else -> return
             }
+            ScheduleWidgetDataSource.invalidate()
             ScheduleGlanceWidgetReceiver.updateWidgets(context)
             WidgetSystemAlarmSynchronizer.reconcileToday(context)
             return
@@ -69,21 +72,22 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         when (action) {
             ACTION_PREV -> {
                 if (currentOffset != null) {
-                    repository.setWidgetDayOffset(appWidgetId, currentOffset - 1)
+                    repository.setWidgetDayOffset(appWidgetId, currentOffset - 1, todayIso)
                 } else {
-                    repository.shiftWidgetDayOffset(appWidgetId, -1)
+                    repository.shiftWidgetDayOffset(appWidgetId, -1, todayIso)
                 }
             }
             ACTION_NEXT -> {
                 if (currentOffset != null) {
-                    repository.setWidgetDayOffset(appWidgetId, currentOffset + 1)
+                    repository.setWidgetDayOffset(appWidgetId, currentOffset + 1, todayIso)
                 } else {
-                    repository.shiftWidgetDayOffset(appWidgetId, 1)
+                    repository.shiftWidgetDayOffset(appWidgetId, 1, todayIso)
                 }
             }
-            ACTION_RESET -> repository.setWidgetDayOffset(appWidgetId, 0)
+            ACTION_RESET -> repository.setWidgetDayOffset(appWidgetId, 0, todayIso)
             else -> return
         }
+        ScheduleWidgetDataSource.invalidate()
         ScheduleGlanceWidgetReceiver.updateWidgets(context, intArrayOf(appWidgetId))
         WidgetSystemAlarmSynchronizer.reconcileToday(context)
     }

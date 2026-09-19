@@ -14,6 +14,25 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // 厂商启动器的刷新广播不会变成 onUpdate，这里单独接一次
+        if (handleVendorWidgetUpdate(context, intent) { updateWidgets(it) }) return
+        super.onReceive(context, intent)
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        // 有的启动器加完小组件不发 onUpdate，会一直停在「加载中」
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         reconcileSystemAlarmsFromWidget(context)
         val pendingResult = goAsync()
@@ -92,8 +111,28 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             } else {
                 views.setViewVisibility(R.id.next_course_badge, View.GONE)
             }
-            val hasRows = data.rows.isNotEmpty()
-            views.setRemoteAdapter(R.id.next_course_list, listIntent(context, appWidgetId))
+            // 行数按当前尺寸裁剪，与列表服务那条路取同一份
+            val visibleRows = visibleNextCourseRows(
+                data.rows,
+                widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId),
+            )
+            val hasRows = visibleRows.isNotEmpty()
+            views.setWidgetRows(
+                listId = R.id.next_course_list,
+                rows = visibleRows,
+                stableId = { it.stableId },
+                buildRow = { buildNextCourseRow(context, it, data.themeAccent, data.widgetTheme) },
+                fallbackAdapter = {
+                    views.setRemoteAdapter(
+                        R.id.next_course_list,
+                        listIntent(
+                            context = context,
+                            appWidgetId = appWidgetId,
+                            revision = widgetListRevision(data.headerLabel, data.badgeText, visibleRows),
+                        ),
+                    )
+                },
+            )
             views.applyOpenAppListTemplate(context, R.id.next_course_list, appWidgetId, data.widgetTheme)
             views.setEmptyView(R.id.next_course_list, R.id.next_course_empty)
             views.setViewVisibility(R.id.next_course_list, if (hasRows) View.VISIBLE else View.GONE)
@@ -104,9 +143,10 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             return views
         }
 
-        private fun listIntent(context: Context, appWidgetId: Int): Intent =
+        private fun listIntent(context: Context, appWidgetId: Int, revision: String): Intent =
             Intent(context, NextCourseRemoteViewsService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(EXTRA_WIDGET_LIST_REVISION, revision)
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
     }

@@ -10,6 +10,7 @@ import com.x500x.cursimple.core.data.reminderDayPolicy
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
@@ -46,6 +47,11 @@ internal object ReminderDataSource {
     private val cache = WidgetDataCache<ReminderWidgetData>()
 
     /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
+    /** 数据刚被改过时清掉短时缓存，下一次读一定是新的。 */
+    fun invalidate() {
+        cache.clear()
+    }
+
     suspend fun load(context: Context, reuseRecent: Boolean = false): ReminderWidgetData {
         if (reuseRecent) {
             cache.get(WIDGET_SHARED_CACHE_KEY, System.nanoTime())?.let { return it }
@@ -69,8 +75,10 @@ internal object ReminderDataSource {
         val customOccupancies = reminderRepository.customOccupanciesFlow.first()
         val alarmRecords = reminderRepository.systemAlarmRecordsFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
-        val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
+        // 没单独挑过小组件配色时跟着应用主题色走
+        val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
+            .resolveAccent(userPrefs.themeAccent)
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
 

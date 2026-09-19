@@ -3,4 +3,11 @@
     <color name="widget_row_holiday_primary">#8A9099</color>
     <color name="widget_row_holiday_secondary">#A8AEB6</color>
     <color name="widget_badge_live_text">#FFFFFFFF</color>
+    <!-- 行内文字的常规色，与 widget_schedule_course_row 布局里的取值一致。
+         放假态改过颜色后必须能改回来，所以两边都由代码显式设置。 -->
+    <color name="widget_row_title">#20242A</color>
+    <color name="widget_row_nodes">#66707F</color>
+    <color name="widget_row_time">#315F89</color>
+    <color name="widget_row_subtitle">#66707F</color>
+    <color name="widget_badge_text">#244E72</color>
 </resources>

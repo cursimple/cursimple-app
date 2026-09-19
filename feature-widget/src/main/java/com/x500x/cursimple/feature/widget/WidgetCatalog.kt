@@ -5,6 +5,7 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -66,15 +67,42 @@ object WidgetCatalog {
     }
 
     sealed interface PinRequestResult {
-        data object Started : PinRequestResult
+        /** 请求已被受理。[hasMore] 表示这条落空时还有别的 provider 可以再试。 */
+        data class Started(val provider: ComponentName, val hasMore: Boolean) : PinRequestResult
         data object Unsupported : PinRequestResult
         data class Failed(val message: String?) : PinRequestResult
     }
 
-    fun requestPin(context: Context, entry: WidgetCatalogEntry): PinRequestResult {
+    /**
+     * 一键添加要依次尝试的 provider。
+     *
+     * 厂商启动器（vivo 尤其明显）认的是带自家元数据的那一份副本：拿通用的那份去请求，
+     * `requestPinAppWidget` 照样返回 true——它只表示「请求被受理」，不表示弹窗会出现——
+     * 然后桌面就把它悄悄丢了，用户既没看到系统弹窗，桌面上也什么都没多。
+     * 所以在厂商机型上先请求副本；被禁用的组件直接跳过，请求它必定落空。
+     */
+    fun pinCandidates(context: Context, entry: WidgetCatalogEntry): List<ComponentName> {
+        val vendorFirst = detectLauncherVendor(context) != LauncherVendor.Other
+        val ordered = if (vendorFirst) {
+            entry.vendorProviders + entry.provider
+        } else {
+            listOf(entry.provider) + entry.vendorProviders
+        }
+        val packageManager = context.packageManager
+        return ordered.filter { component ->
+            val state = runCatching { packageManager.getComponentEnabledSetting(component) }
+                .getOrDefault(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT)
+            state != PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+        }
+    }
+
+    /** [attempt] 是 [pinCandidates] 里的下标；上一条落空后带下一个下标再调一次。 */
+    fun requestPin(context: Context, entry: WidgetCatalogEntry, attempt: Int = 0): PinRequestResult {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return PinRequestResult.Unsupported
         val manager = AppWidgetManager.getInstance(context)
         if (!manager.isRequestPinAppWidgetSupported) return PinRequestResult.Unsupported
+        val candidates = pinCandidates(context, entry)
+        if (attempt >= candidates.size) return PinRequestResult.Unsupported
         val callback = PendingIntent.getBroadcast(
             context,
             entry.id.hashCode(),
@@ -83,15 +111,23 @@ object WidgetCatalog {
                 .setPackage(context.packageName),
             pendingIntentFlags(),
         )
-        return runCatching {
-            if (manager.requestPinAppWidget(entry.provider, null, callback)) {
-                PinRequestResult.Started
-            } else {
-                PinRequestResult.Failed(null)
+        var lastError: String? = null
+        for (index in attempt until candidates.size) {
+            val provider = candidates[index]
+            val accepted = runCatching {
+                manager.requestPinAppWidget(provider, null, callback)
+            }.getOrElse { error ->
+                lastError = error.message
+                false
             }
-        }.getOrElse { error ->
-            PinRequestResult.Failed(error.message)
+            if (accepted) {
+                return PinRequestResult.Started(
+                    provider = provider,
+                    hasMore = index + 1 < candidates.size,
+                )
+            }
         }
+        return PinRequestResult.Failed(lastError)
     }
 
     private fun pendingIntentFlags(): Int {
@@ -122,12 +158,34 @@ object WidgetCatalog {
         Other,
     }
 
-    /** Detects the foreground launcher's vendor so we can give targeted instructions. */
-    fun detectLauncherVendor(context: Context): LauncherVendor {
+    /**
+     * 当前桌面的包名。
+     *
+     * 没有设过默认桌面时 resolveActivity 给回来的是系统选择器（android / com.android.settings），
+     * 拿它去判厂商会判错，这时改从候选里挑一个真正的桌面。
+     */
+    fun homeLauncherPackage(context: Context): String {
         val pm = context.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        val resolved = pm.resolveActivity(intent, 0)
-        val pkg = resolved?.activityInfo?.packageName.orEmpty()
+        val resolved = runCatching {
+            pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+        }.getOrNull()
+        if (!resolved.isNullOrBlank() && !isResolverPackage(resolved)) return resolved
+        val candidate = runCatching {
+            pm.queryIntentActivities(intent, 0)
+                .map { it.activityInfo.packageName }
+                .firstOrNull { !isResolverPackage(it) }
+        }.getOrNull()
+        // 一个真正的桌面都查不到时，宁可报出系统给的那个包名，也好过显示「未知」
+        return candidate ?: resolved.orEmpty()
+    }
+
+    private fun isResolverPackage(packageName: String): Boolean =
+        packageName == "android" || packageName.startsWith("com.android.settings")
+
+    /** Detects the foreground launcher's vendor so we can give targeted instructions. */
+    fun detectLauncherVendor(context: Context): LauncherVendor {
+        val pkg = homeLauncherPackage(context)
         val device = listOf(Build.MANUFACTURER, Build.BRAND, Build.DEVICE, Build.PRODUCT)
             .joinToString(" ")
         return when {

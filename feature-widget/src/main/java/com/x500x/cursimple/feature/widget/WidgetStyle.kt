@@ -37,6 +37,9 @@ internal fun RemoteViews.applyWidgetBackground(
     val bitmap = imageUri?.let { loadWidgetBackgroundBitmap(context, it) }
     if (bitmap != null) {
         setImageViewBitmap(R.id.widget_background_image, bitmap)
+        // 透明度和课表背景那套同义：0 为不透明，100 为完全透明
+        val opaque = 100 - theme.backgroundImageTransparencyPercent.coerceIn(0, 100)
+        setInt(R.id.widget_background_image, "setImageAlpha", (opaque * 255 / 100))
         setViewVisibility(R.id.widget_background_image, View.VISIBLE)
         setViewVisibility(R.id.widget_background_scrim, View.VISIBLE)
         setViewVisibility(R.id.widget_background_error, View.GONE)
