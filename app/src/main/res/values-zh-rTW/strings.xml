@@ -5,7 +5,7 @@
     <string name="onboarding_disclaimer_title">使用須知</string>
     <string name="onboarding_disclaimer_intro">課簡是課表與提醒工具，僅在你的裝置本地執行。</string>
     <string name="onboarding_disclaimer_data">課表資料由你匯入或透過你授權的教務外掛獲取，應用不會上傳到任何伺服器。</string>
-    <string name="onboarding_disclaimer_reminder">課程提醒觸發時間依賴精確鬧鐘與通知機制，可能受到電池最佳化、勿擾模式或廠商後臺限制的影響，作者不對因此造成的遲到、缺席或其它損失承擔責任。</string>
+    <string name="onboarding_disclaimer_reminder">課程提醒觸發時間依賴精確鬧鐘與通知機制，可能受到電池最佳化、勿擾模式或廠商後臺限制的影響，課簡團隊不對因此造成的遲到、缺席或其它損失承擔責任。</string>
     <string name="onboarding_disclaimer_accept_notice">繼續使用即表示你已瞭解並接受以上內容。</string>
     <string name="onboarding_accept">同意並繼續</string>
     <string name="onboarding_reject">拒絕並退出</string>
@@ -13,7 +13,9 @@
     <string name="week_picker_title">檢視周課表</string>
     <string name="week_picker_set_current">設為當前周</string>
     <string name="week_picker_no_term_start">還沒有設定開學日期，無法判斷當前是第幾周</string>
-    <string name="week_picker_before_term">尚未開學 · 距第 1 周還有 %1$d 周</string>
+    <plurals name="week_picker_before_term">
+        <item quantity="other">尚未開學 · 距第 1 周還有 %1$d 周</item>
+    </plurals>
     <string name="week_picker_current_week">本週</string>
 
     <string name="about_app_alt_name">CurSimple</string>
@@ -47,7 +49,7 @@
     <string name="about_runtime_android">系統版本</string>
     <string name="about_runtime_abi">裝置架構</string>
     <string name="about_runtime_sdk">SDK 範圍</string>
-    <string name="about_license_line">MIT 授權 · Copyright © 2026 x500x</string>
+    <string name="about_license_line">MIT 授權 · Copyright © 2026 CurSimple 團隊</string>
     <string name="about_version_label">版本號</string>
     <string name="about_developer_badge">開發者</string>
     <string name="about_dev_mode_hint">請前往「設定 - 開發者除錯」檢視除錯工具與日誌匯出。</string>
@@ -61,9 +63,13 @@
     <string name="about_no_link_handler">沒有可處理連結的應用</string>
 
     <string name="clear_option_manual_title">清空手動新增的課程</string>
-    <string name="clear_option_manual_desc">僅刪除你手動新增的 %1$d 門課程</string>
+    <plurals name="clear_option_manual_desc">
+        <item quantity="other">僅刪除你手動新增的 %1$d 門課程</item>
+    </plurals>
     <string name="clear_option_imported_title">清空匯入的課程</string>
-    <string name="clear_option_imported_desc">僅刪除外掛同步的 %1$d 門課程</string>
+    <plurals name="clear_option_imported_desc">
+        <item quantity="other">僅刪除外掛同步的 %1$d 門課程</item>
+    </plurals>
     <string name="clear_option_all_title">全部清空</string>
     <string name="clear_option_all_desc">手動課程、匯入課程，以及所有提醒規則</string>
     <string name="clear_sheet_title">清空課表</string>
@@ -71,12 +77,20 @@
     <string name="clear_confirm_manual_title">清空手動課程？</string>
     <string name="clear_confirm_imported_title">清空匯入課程？</string>
     <string name="clear_confirm_all_title">清空全部課表？</string>
-    <string name="clear_confirm_manual_desc">將刪除以下 %1$d 門手動課程，操作不可恢復：</string>
-    <string name="clear_confirm_imported_desc">將刪除以下 %1$d 門匯入課程，操作不可恢復：</string>
-    <string name="clear_confirm_all_desc">將刪除以下 %1$d 門課程，並清除所有提醒規則，操作不可恢復：</string>
+    <plurals name="clear_confirm_manual_desc">
+        <item quantity="other">將刪除以下 %1$d 門手動課程，操作不可恢復：</item>
+    </plurals>
+    <plurals name="clear_confirm_imported_desc">
+        <item quantity="other">將刪除以下 %1$d 門匯入課程，操作不可恢復：</item>
+    </plurals>
+    <plurals name="clear_confirm_all_desc">
+        <item quantity="other">將刪除以下 %1$d 門課程，並清除所有提醒規則，操作不可恢復：</item>
+    </plurals>
     <string name="clear_confirm_empty">暫無對應課程，操作僅會清除關聯記錄。</string>
     <string name="clear_collapse_list">收起列表</string>
-    <string name="clear_expand_more">展開剩餘 %1$d 門課程</string>
+    <plurals name="clear_expand_more">
+        <item quantity="other">展開剩餘 %1$d 門課程</item>
+    </plurals>
     <string name="clear_confirm_button">確認清空</string>
     <string name="clear_cancel">取消</string>
 
@@ -105,9 +119,9 @@
     <string name="term_date_confirm">確定</string>
 
     <string name="update_status_default">從 GitHub Release 檢查新版本。</string>
-    <string name="update_status_downloading">正在下載 %1$s...</string>
+    <string name="update_status_downloading">正在下載 %1$s…</string>
     <string name="update_status_downloaded">已從 %1$s 下載，正在開啟安裝確認。</string>
-    <string name="update_status_checking">正在檢查 Release...</string>
+    <string name="update_status_checking">正在檢查 Release…</string>
     <string name="update_status_no_release">倉庫暫無釋出版本。</string>
     <string name="update_status_manifest_missing">最新 Release 缺少 update.json，無法自動更新。</string>
     <string name="update_status_up_to_date">當前已經是最新版本。</string>
@@ -119,7 +133,7 @@
     <string name="update_auto_check_on">啟動時自動檢查，發現新版本彈窗提醒並保留紅點</string>
     <string name="update_auto_check_off">僅手動檢查，查到新版本後同樣會保留紅點</string>
     <string name="update_check_title">檢查更新</string>
-    <string name="update_check_checking">檢查中...</string>
+    <string name="update_check_checking">檢查中…</string>
     <string name="update_check_button">檢查</string>
     <string name="update_dialog_title">發現新版本 v%1$s</string>
     <string name="update_dialog_version_code">版本號：%1$d</string>
@@ -134,7 +148,7 @@
     <string name="update_announcement_retry">重試</string>
     <string name="update_announcement_open_release">開啟發布頁</string>
     <string name="update_announcement_dismiss">知道了</string>
-    <string name="update_dialog_downloading">下載中...</string>
+    <string name="update_dialog_downloading">下載中…</string>
     <string name="update_download_starting">正在連線下載來源…</string>
     <string name="update_download_progress">已下載 %1$s / %2$s · %3$d%%</string>
     <string name="update_download_progress_unknown_total">已下載 %1$s</string>
@@ -156,6 +170,11 @@
     <string name="widget_confirm_installed">「%1$s」已經新增到桌面，仍要再新增一個嗎？</string>
     <string name="widget_confirm_new">確定要把「%1$s」新增到桌面嗎？</string>
     <string name="widget_toast_requested">已發起新增請求，請在系統彈窗中確認</string>
+    <string name="widget_toast_retrying">桌面沒給反應，換一種方式再試一次…</string>
+    <string name="widget_toast_added">已新增「%1$s」到桌面</string>
+    <string name="widget_pin_unconfirmed_title">沒偵測到新增成功</string>
+    <string name="widget_pin_unconfirmed_body">新增請求已送出，但桌面上沒有出現「%1$s」。部分廠商系統會攔下這個彈窗，需要在應用權限裡允許「背景彈出介面」「桌面捷徑」，或者直接手動新增。</string>
+    <string name="widget_pin_unconfirmed_manual">手動新增</string>
     <string name="widget_confirm_add">新增</string>
     <string name="widget_confirm_cancel">取消</string>
     <string name="widget_installed_count">已新增 ×%1$d</string>
@@ -168,7 +187,7 @@
     <string name="ie_close">關閉</string>
     <string name="ie_got_it">知道了</string>
     <string name="ie_go_configure">去配置</string>
-    <string name="ie_generating">生成中...</string>
+    <string name="ie_generating">生成中…</string>
     <string name="ie_processing">處理中</string>
     <string name="ie_unknown">未知</string>
     <string name="ie_unknown_error">未知錯誤</string>
@@ -188,8 +207,12 @@
     <string name="ie_ics_body">把當前學期課表匯出為通用日曆檔案，可匯入系統日曆、Google 日曆、Outlook 等，無需聯網或額外許可權。</string>
     <string name="ie_ics_generate_action">生成 .ics 檔案</string>
     <string name="ie_ics_chooser_title">匯出課表日曆</string>
-    <string name="ie_ics_skipped_note">，%1$d 門課程缺少上課時間未匯出</string>
-    <string name="ie_ics_generated">已生成 %1$d 個日曆事件%2$s</string>
+    <plurals name="ie_ics_skipped_note">
+        <item quantity="other">，%1$d 門課程缺少上課時間未匯出</item>
+    </plurals>
+    <plurals name="ie_ics_generated">
+        <item quantity="other">已生成 %1$d 個日曆事件%2$s</item>
+    </plurals>
     <string name="ie_image_panel_title">匯出課表圖片</string>
     <string name="ie_image_panel_body">把選定一週的課表畫成一張 PNG，直接發給同學或家長，對方不用裝應用也能看。已排除假日，並按臨時調課取課。</string>
     <string name="ie_image_generate_action">生成並分享圖片</string>
@@ -204,18 +227,21 @@
     <string name="ie_scanner_hint">將二維碼對準螢幕，識別成功後自動返回。</string>
     <string name="ie_camera_permission_denied_scan">未授予相機許可權，無法掃碼</string>
     <string name="ie_camera_permission_denied_photo">未授予相機許可權，無法拍照匯入</string>
-    <string name="ie_image_open_failed">無法開啟圖片</string>
     <string name="ie_image_format_unsupported">圖片格式不支援</string>
     <string name="ie_image_no_qr">圖片中沒有可識別的二維碼</string>
     <string name="ie_webdav_panel_title">WebDAV 備份 / 恢復</string>
-    <string name="ie_webdav_panel_body">同步範圍包含課表資料、學期、提醒、外掛記錄與使用者設定。為避免密碼上傳到網盤，備份不含 WebDAV 密碼與 AI 介面金鑰，換機後需要重新填寫。遠端目錄：cursimple/backups。已載入 %1$d 個備份。</string>
+    <plurals name="ie_webdav_panel_body">
+        <item quantity="other">同步範圍包含課表資料、學期、提醒、外掛記錄與使用者設定。為避免密碼上傳到網盤，備份不含 WebDAV 密碼與 AI 介面金鑰，換機後需要重新填寫。遠端目錄：cursimple/backups。已載入 %1$d 個備份。</item>
+    </plurals>
     <string name="ie_webdav_panel_unconfigured">請先在設定頁配置 WebDAV URL、賬號和密碼。</string>
     <string name="ie_webdav_configure_first">請先在設定頁配置 WebDAV</string>
     <string name="ie_webdav_upload_action">上傳備份</string>
     <string name="ie_webdav_remote_backups">遠端備份</string>
     <string name="ie_webdav_upload_success">WebDAV 備份已上傳：%1$s</string>
     <string name="ie_upload_failed">上傳失敗：%1$s</string>
-    <string name="ie_backups_found">已找到 %1$d 個備份</string>
+    <plurals name="ie_backups_found">
+        <item quantity="other">已找到 %1$d 個備份</item>
+    </plurals>
     <string name="ie_list_backups_failed">獲取備份失敗：%1$s</string>
     <string name="ie_webdav_restore_success">WebDAV 備份已恢復</string>
     <string name="ie_restore_failed">恢復失敗：%1$s</string>
@@ -226,7 +252,7 @@
     <string name="ie_restore_warning_scope">恢復會先清空本機現有資料，再用這個備份整體覆蓋：課表、手動課程、學期檔案與開學日期、提醒規則、外掛與元件記錄、小元件外觀和全部應用設定。</string>
     <string name="ie_restore_warning_irreversible">本機現有資料會被全部丟棄，且無法撤銷。請確認這就是你要用的備份。</string>
     <string name="ie_restore_warning_secrets">備份不含 WebDAV 密碼與 AI 介面金鑰，恢復後這兩項仍是本機當前填寫的值。</string>
-    <string name="ie_restoring">恢復中...</string>
+    <string name="ie_restoring">恢復中…</string>
     <string name="ie_restore_confirm_action">覆蓋並恢復</string>
     <string name="ie_import_confirm_title">確認匯入課表</string>
     <string name="ie_import_term">學期：%1$s</string>
@@ -235,7 +261,7 @@
     <string name="ie_import_manual_count">手動新增課程：%1$d 門</string>
     <string name="ie_import_term_start_change">將同時把開學日期改為 %1$s（當前：%2$s），周次會按新日期重新計算。</string>
     <string name="ie_import_overwrite_notice">匯入會覆蓋當前學期已有的課表與手動課程，請確認無誤。</string>
-    <string name="ie_importing">匯入中...</string>
+    <string name="ie_importing">匯入中…</string>
     <string name="ie_import_confirm_action">確認匯入</string>
     <string name="ie_import_success">已匯入 %1$d 門課程，%2$d 門手動課程</string>
     <string name="ie_import_failed">匯入失敗：%1$s</string>
@@ -248,7 +274,9 @@
     <string name="ie_ai_recognizing">識別中</string>
     <string name="ie_ai_take_photo">拍照匯入</string>
     <string name="ie_ai_take_photo_desc">需要相機許可權</string>
-    <string name="ie_ai_recognized">AI 已識別 %1$d 門課程，請確認匯入</string>
+    <plurals name="ie_ai_recognized">
+        <item quantity="other">AI 已識別 %1$d 門課程，請確認匯入</item>
+    </plurals>
     <string name="ie_ai_import_failed">AI 匯入失敗：%1$s</string>
     <string name="ie_local_notice">二維碼完全在本地生成與解析，不依賴任何伺服器。匯入會覆蓋當前學期已有的課表與手動新增的課程。</string>
 
@@ -357,7 +385,9 @@
     <string name="settings_holiday_remove_manual">取消這天的手動調整</string>
     <string name="settings_holiday_builtin_on">內建已啟用</string>
     <string name="settings_holiday_builtin_off">內建已關閉</string>
-    <string name="settings_holiday_subtitle_with_manual">%1$s · %2$d 條手動調整</string>
+    <plurals name="settings_holiday_subtitle_with_manual">
+        <item quantity="other">%1$s · %2$d 條手動調整</item>
+    </plurals>
     <string name="settings_holiday_builtin_none">暫無內建資料</string>
     <string name="settings_holiday_builtin_years">已收錄 %1$s 年放假安排</string>
     <string name="settings_holiday_sync_title">更新節假日資料</string>
@@ -366,7 +396,9 @@
     <string name="settings_holiday_skip_reminders_off">放假當天照常提醒，可在假期前一天的通知裡單獨關掉</string>
     <string name="holiday_eve_generic_name">假期</string>
     <string name="holiday_eve_notice_title">明天是%1$s</string>
-    <string name="holiday_eve_notice_body">明天仍有 %1$d 條課程提醒，需要關掉嗎？</string>
+    <plurals name="holiday_eve_notice_body">
+        <item quantity="other">明天仍有 %1$d 條課程提醒，需要關掉嗎？</item>
+    </plurals>
     <string name="holiday_eve_notice_action_mute">關掉明天的提醒</string>
     <string name="holiday_eve_channel_name">假期提醒建議</string>
     <string name="settings_holiday_sync_never">尚未同步，正在用內建快照</string>
@@ -489,17 +521,25 @@
     <string name="calendar_export_permission_grant">去授權</string>
     <string name="calendar_export_action">寫入</string>
     <string name="calendar_export_undo">撤銷上次寫入</string>
-    <string name="calendar_export_last">上次寫入 %1$s · %2$d 條日程</string>
+    <plurals name="calendar_export_last">
+        <item quantity="other">上次寫入 %1$s · %2$d 條日程</item>
+    </plurals>
     <string name="calendar_export_overwrite_title">已經寫過一次</string>
-    <string name="calendar_export_overwrite_body">繼續寫入會先刪掉上次寫進去的 %1$d 條日程，再寫入當前課表。</string>
+    <plurals name="calendar_export_overwrite_body">
+        <item quantity="other">繼續寫入會先刪掉上次寫進去的 %1$d 條日程，再寫入當前課表。</item>
+    </plurals>
     <string name="calendar_export_overwrite_confirm">刪掉重寫</string>
     <string name="calendar_toast_exported">已寫入 %1$d 條日程，共 %2$d 次課</string>
-    <string name="calendar_toast_undone">已刪除 %1$d 條日程</string>
+    <plurals name="calendar_toast_undone">
+        <item quantity="other">已刪除 %1$d 條日程</item>
+    </plurals>
     <string name="calendar_toast_nothing_to_undo">沒有可撤銷的寫入</string>
     <string name="calendar_toast_permission_denied">沒有日曆許可權，無法寫入</string>
     <string name="calendar_toast_failed">寫入失敗：%1$s</string>
     <string name="calendar_toast_failed_unknown">寫入失敗</string>
-    <string name="calendar_export_skipped">%1$d 門課因缺少節次時間未寫入</string>
+    <plurals name="calendar_export_skipped">
+        <item quantity="other">%1$d 門課因缺少節次時間未寫入</item>
+    </plurals>
     <string name="settings_background_crop_title">調整背景</string>
     <string name="settings_background_crop_hint">預覽框按課表比例顯示。拖動移動畫面，可一路拖到圖片邊緣；雙指縮放調整取圖範圍。</string>
     <string name="settings_beta_updates_title">測試版更新</string>
@@ -517,7 +557,9 @@
     <string name="settings_timing_profiles_title">作息套數</string>
     <string name="settings_timing_profiles_hint">可以存多套作息分別對應不同學期或校區，下方編輯的始終是選中的那一套。</string>
     <string name="settings_timing_profile_default_name">預設作息</string>
-    <string name="settings_timing_profile_slot_count">%1$d 節</string>
+    <plurals name="settings_timing_profile_slot_count">
+        <item quantity="other">%1$d 節</item>
+    </plurals>
     <string name="settings_timing_profile_empty">尚未填寫</string>
     <string name="settings_timing_profile_use">使用這套</string>
     <string name="settings_timing_profile_create">新建作息</string>
@@ -529,7 +571,9 @@
     <string name="settings_timing_profile_name_hint">作息名稱</string>
     <string name="settings_timing_profile_copy_suffix">%1$s 副本</string>
     <string name="settings_toast_timing_profile_created">已新建「%1$s」</string>
-    <string name="settings_timing_entry_subtitle_set">已設定 %1$d 個時間段 · 卡片時間、提醒和匯出都用它</string>
+    <plurals name="settings_timing_entry_subtitle_set">
+        <item quantity="other">已設定 %1$d 個時間段 · 卡片時間、提醒和匯出都用它</item>
+    </plurals>
     <string name="settings_timing_entry_subtitle_unset">未設定 · 手動錄課需要它才能顯示時間、建提醒、匯出</string>
     <string name="settings_timing_empty_title">還沒有節次上課時間</string>
     <string name="settings_timing_empty_body">課程卡片時間、建立提醒、日曆與圖片匯出、上課自動靜音都依賴它。可以套用下方模板再逐條改成本校作息，也可以手動逐條新增。</string>
@@ -538,7 +582,9 @@
     <string name="settings_timing_add_row">新增一節</string>
     <string name="settings_timing_apply_template">套用模板</string>
     <string name="settings_timing_errors_title">無法儲存，請修正以下問題：</string>
-    <string name="settings_toast_timing_saved">已儲存 %1$d 個節次時間段</string>
+    <plurals name="settings_toast_timing_saved">
+        <item quantity="other">已儲存 %1$d 個節次時間段</item>
+    </plurals>
     <string name="settings_toast_timing_handback">已交回外掛同步管理，下次同步會更新時間表</string>
     <string name="settings_timing_handback">改回外掛同步管理</string>
     <string name="settings_timing_row_index">第 %1$d 節</string>
@@ -583,6 +629,13 @@
     <string name="settings_section_declared">宣告</string>
     <string name="settings_permission_status_on">已開啟</string>
     <string name="settings_permission_status_off">未開啟</string>
+    <string name="settings_permission_status_unknown">需手動確認</string>
+    <string name="settings_permission_battery_on">已允許背景執行，點這裡可在系統白名單裡取消</string>
+    <string name="settings_permission_autostart_title">自啟動 / 背景管理</string>
+    <string name="settings_permission_autostart_off">廠商系統的白名單，加進去後應用被清理也能自己回來重排鬧鐘</string>
+    <string name="settings_permission_background_popup_title">背景彈出介面</string>
+    <string name="settings_permission_background_popup_off">允許後鬧鐘才能在鎖屏或背景直接亮出響鈴介面</string>
+    <string name="settings_toast_open_settings_manually">這台手機沒有對應的系統頁面，請手動到「設定 → 應用管理 → 課簡」裡開啟</string>
     <string name="settings_permission_manage_hint">點擊進入系統設定，可開啟也可關閉</string>
     <string name="settings_permission_runtime_hint">點擊授予；已授予時進入系統設定可撤銷</string>
     <string name="settings_permissions_all_ok_title">鬧鐘相關權限齊全</string>
@@ -607,11 +660,11 @@
     <string name="settings_toast_background_image_permission_failed">背景圖片授權失敗，請重新選擇</string>
     <string name="settings_toast_widget_background_image_permission_failed">小元件背景圖片授權失敗，請重新選擇</string>
     <string name="settings_accent_green">薄荷綠</string>
+    <string name="settings_accent_follow_app">跟隨應用主題</string>
     <string name="settings_accent_blue">海岸藍</string>
     <string name="settings_accent_purple">暮靄紫</string>
     <string name="settings_accent_orange">暖陶橙</string>
     <string name="settings_accent_pink">櫻花粉</string>
-    <string name="settings_toast_open_settings_failed">無法開啟設定：%1$s</string>
     <string name="settings_webdav_subtitle_configured">%1$s · 已配置賬號</string>
     <string name="settings_webdav_subtitle_unconfigured">%1$s · 未配置賬號</string>
     <string name="settings_ai_import_subtitle_none">未配置 API URL 和 Key</string>
@@ -625,7 +678,7 @@
     <string name="settings_toast_webdav_saved">WebDAV 設定已儲存</string>
     <string name="settings_toast_webdav_ok">WebDAV 連線正常</string>
     <string name="settings_toast_webdav_failed">WebDAV 連線失敗：%1$s</string>
-    <string name="settings_testing">測試中...</string>
+    <string name="settings_testing">測試中…</string>
     <string name="settings_test_connection">測試連線</string>
     <string name="settings_ai_import_url_hint">只填到 /v1 或僅域名時，自動補 /chat/completions；如需 Responses API，請寫完整 /v1/responses。</string>
     <string name="settings_ai_import_model_label">模型（可選）</string>
@@ -690,6 +743,7 @@
     <string name="widget_help_generic_step1">長按桌面空白處，或在桌面雙指捏合，進入桌面編輯。</string>
     <string name="widget_help_generic_step2">進入「小元件 / 小部件 / 外掛 / Widgets」。</string>
     <string name="widget_help_generic_step3">找到「課簡」，長按需要的樣式並拖到桌面空位後鬆手。</string>
+    <string name="widget_help_generic_step4">清單裡還是沒有課簡：重啟一次手機。桌面的小工具清單有快取，重裝或更新後常常要重啟才會刷新。</string>
     <string name="widget_help_resize_title">調整大小</string>
     <string name="widget_help_resize_step1">新增後，在桌面長按小元件並鬆手。</string>
     <string name="widget_help_resize_step2">如果小元件支援調整大小，邊緣會出現邊框或控制點。</string>
@@ -704,6 +758,7 @@
     <string name="widget_guide_huawei_step1">在桌面雙指捏合，進入桌面編輯。</string>
     <string name="widget_guide_huawei_step2">進入「服務卡片」，再進入底部的「視窗小工具」。</string>
     <string name="widget_guide_huawei_step3">找到「課簡」並新增到桌面。</string>
+    <string name="widget_guide_huawei_step4">鴻蒙 NEXT（HarmonyOS 5）已移除安卓相容層，安卓應用的小工具在那上面不會出現，只能用應用內課表。</string>
     <string name="widget_guide_xiaomi_title">小米 / 紅米</string>
     <string name="widget_guide_xiaomi_step1">在桌面雙指捏合，點選底部「新增小部件」。</string>
     <string name="widget_guide_xiaomi_step2">點右上角搜尋；如果當前頁只有系統卡片，繼續進入底部「安卓小部件」。</string>
@@ -714,8 +769,9 @@
     <string name="widget_guide_oppo_step3">找到「課簡」，長按並拖到桌面。</string>
     <string name="widget_guide_vivo_title">vivo / iQOO</string>
     <string name="widget_guide_vivo_step1">在桌面雙指捏合，點選底部「元件」。</string>
-    <string name="widget_guide_vivo_step2">如果列表裡沒有看到應用，向上滑到底部進入「更多元件」。</string>
-    <string name="widget_guide_vivo_step3">找到「課簡」後新增到桌面。</string>
+    <string name="widget_guide_vivo_step2">打開的「原子元件」列表是 vivo 自家的元件，第三方應用不在裡面，往下滑到底點「應用掛件」。</string>
+    <string name="widget_guide_vivo_step3">在應用掛件列表裡找到「課簡」，進去後左右滑可以切換三種掛件。</string>
+    <string name="widget_guide_vivo_step4">選好後點底部「新增掛件」。</string>
     <string name="widget_manual_step1">1. 長按桌面空白處，或在桌面雙指捏合</string>
     <string name="widget_manual_step2">2. 選擇「小部件 / 小元件 / 外掛 / Widgets」</string>
     <string name="widget_manual_step3">3. 找到「課簡」或搜尋「課簡」</string>
@@ -753,7 +809,9 @@
     <string name="main_app_name">課簡</string>
     <string name="main_drawer_term_start_unset">未設定開學日期</string>
     <string name="main_drawer_current_week">當前 第 %1$d 周</string>
-    <string name="main_drawer_before_term">尚未開學 · 距第 1 周還有 %1$d 周</string>
+    <plurals name="main_drawer_before_term">
+        <item quantity="other">尚未開學 · 距第 1 周還有 %1$d 周</item>
+    </plurals>
     <string name="main_drawer_theme_shortcut">換主題</string>
     <string name="main_drawer_background_shortcut">換背景</string>
     <string name="main_drawer_overrides_shortcut">調課</string>
@@ -768,7 +826,6 @@
     <string name="main_term_start_prompt">請設定開學日期，用於計算當前周次和正確顯示課表。</string>
     <string name="main_pick_term_start">選擇開學日期</string>
     <string name="main_term_start_value">開學日期：%1$s</string>
-    <string name="main_pick_first_monday">選擇第 1 周的週一</string>
     <string name="main_set_current_week_title">設定當前周</string>
     <string name="main_set_current_week_body">輸入今天所在的教學周，應用會用今天日期反推開學日期。</string>
     <string name="main_set_current_week_confirm_title">把第 %1$d 週設為目前週？</string>
@@ -928,4 +985,121 @@
     <string name="guide_previous">上一步</string>
     <string name="guide_next">下一步</string>
     <string name="guide_done">開始使用</string>
+    <string name="alarm_keep_alive_title">課簡正在守護課程提醒</string>
+    <string name="alarm_keep_alive_idle">應用退到背景也會準時響鈴</string>
+    <string name="alarm_keep_alive_next">下一次提醒：%1$s</string>
+    <string name="alarm_keep_alive_channel">鬧鐘守護</string>
+    <string name="alarm_keep_alive_channel_desc">一條常駐通知，用來讓提醒在應用退出後仍然準時</string>
+    <string name="settings_alarm_keep_alive_title">鬧鐘守護常駐通知</string>
+    <string name="settings_alarm_keep_alive_on">已常駐，退出應用後提醒仍會準時響</string>
+    <string name="settings_alarm_keep_alive_off">部分手機從背景劃掉應用會一併清掉鬧鐘，建議開啟</string>
+    <string name="settings_alarm_diagnostics_title">鬧鐘自檢</string>
+    <string name="settings_alarm_diagnostics_subtitle">鬧鐘沒響時先看這裡，能看出卡在哪一步</string>
+    <string name="settings_alarm_diagnostics_intro">下面是這台裝置上和鬧鐘有關的全部狀態。回報「鬧鐘沒響」時，把這段一起發過來能省掉好幾輪追問。</string>
+    <string name="settings_alarm_diagnostics_loading">正在讀取…</string>
+    <string name="settings_alarm_diagnostics_copy">複製自檢資訊</string>
+    <string name="settings_alarm_diagnostics_copied">已複製自檢資訊</string>
+    <string name="widget_diagnostics_title">自檢資訊（找不到小工具時把這段發給我們）</string>
+    <string name="widget_diagnostics_copy">複製自檢資訊</string>
+    <string name="widget_diagnostics_copied">已複製自檢資訊</string>
+    <string name="alarm_diag_device">裝置</string>
+    <string name="alarm_diag_system">系統</string>
+    <string name="alarm_diag_system_value">Android %1$s（API %2$d）</string>
+    <string name="alarm_diag_notifications">通知總開關</string>
+    <string name="alarm_diag_channel">鬧鐘通知管道</string>
+    <string name="alarm_diag_exact_alarm">精確鬧鐘</string>
+    <string name="alarm_diag_full_screen">全螢幕通知</string>
+    <string name="alarm_diag_battery">電池最佳化</string>
+    <string name="alarm_diag_power_save">省電模式</string>
+    <string name="alarm_diag_dnd">勿擾</string>
+    <string name="alarm_diag_vendor_autostart">廠商自啟動頁</string>
+    <string name="alarm_diag_keep_alive">常駐守護</string>
+    <string name="alarm_diag_registered">已登記鬧鐘</string>
+    <string name="alarm_diag_next">下一次提醒</string>
+    <string name="alarm_diag_recent_rings">最近響鈴</string>
+    <string name="alarm_diag_granted">已授權</string>
+    <string name="alarm_diag_not_granted">未授權（鬧鐘不會響）</string>
+    <string name="alarm_diag_unreadable">無法讀取</string>
+    <string name="alarm_diag_none">無</string>
+    <string name="alarm_diag_channel_not_applicable">不適用（Android 8 以前沒有管道）</string>
+    <string name="alarm_diag_channel_absent">尚未建立（還沒響過第一次）</string>
+    <string name="alarm_diag_channel_blocked">已被關閉（鬧鐘通知發不出來）</string>
+    <string name="alarm_diag_channel_ok">正常</string>
+    <string name="alarm_diag_battery_unrestricted">已放行</string>
+    <string name="alarm_diag_battery_restricted">受限（系統可能延後鬧鐘）</string>
+    <string name="alarm_diag_power_save_on">開（系統會延後鬧鐘）</string>
+    <string name="alarm_diag_power_save_off">關</string>
+    <string name="alarm_diag_dnd_off">關</string>
+    <string name="alarm_diag_dnd_priority">僅優先（鬧鐘一般仍可響）</string>
+    <string name="alarm_diag_dnd_alarms">僅鬧鐘</string>
+    <string name="alarm_diag_dnd_none">完全靜音（鬧鐘不會出聲）</string>
+    <string name="alarm_diag_dnd_unknown">未知（應用沒有勿擾讀取權限）</string>
+    <string name="alarm_diag_vendor_autostart_present">存在（沒加白名單的話應用被清理後不會自己回來）</string>
+    <string name="alarm_diag_vendor_autostart_absent">無（原生或未適配的系統）</string>
+    <string name="alarm_diag_keep_alive_off">未開啟（退出應用後鬧鐘可能被系統清掉）</string>
+    <string name="alarm_diag_keep_alive_running">已開啟且在執行</string>
+    <string name="alarm_diag_keep_alive_dead">已開啟但目前沒在執行（被系統終止了）</string>
+    <string name="alarm_diag_registered_none">0 條（近期沒有待響的提醒）</string>
+    <string name="alarm_diag_registered_unverifiable">記錄 %1$d 條（系統側無法校驗）</string>
+    <string name="alarm_diag_registered_summary">記錄 %1$d 條 · 系統裡仍在 %2$d 條</string>
+    <string name="alarm_diag_next_value">%1$s · %2$s</string>
+    <string name="alarm_diag_recent_rings_none">無記錄（這台裝置上還沒響過）</string>
+    <string name="alarm_diag_ring_outcome_rang">響了</string>
+    <string name="alarm_diag_ring_outcome_missed">錯過（到達時已逾時）</string>
+    <string name="alarm_diag_ring_entry">%1$s %2$s %3$s</string>
+    <string name="update_install_no_handler">沒有可安裝 APK 的應用</string>
+    <string name="update_install_open_failed">無法開啟安裝介面：%1$s</string>
+    <string name="log_export_share_subject">CurSimple 日誌 %1$s</string>
+    <string name="metadata_export_share_subject">CurSimple 課表中繼資料 %1$s</string>
+    <string name="backup_restore_version_too_new">備份版本過新，請先升級應用後再還原</string>
+    <string name="backup_restore_no_data">備份檔案裡沒有可還原的資料</string>
+    <string name="term_default_name">預設學期</string>
+    <string name="share_decode_not_share_data">QR code 內容不是課表分享資料</string>
+    <string name="share_decode_too_large">分享資料過大</string>
+    <string name="provider_root_create_failed">無法建立檔案</string>
+    <string name="provider_root_delete_denied">不允許刪除根目錄</string>
+    <string name="provider_delete_failed">刪除失敗</string>
+    <string name="provider_root_rename_denied">不允許重新命名根目錄</string>
+    <string name="provider_rename_failed">重新命名失敗</string>
+    <string name="provider_move_failed">移動失敗</string>
+    <string name="provider_missing_uri">缺少 uri</string>
+    <string name="provider_file_missing">檔案不存在</string>
+    <string name="provider_method_unsupported">不支援的方法：%1$s</string>
+    <string name="provider_access_disabled">私有目錄存取未開啟</string>
+    <string name="ics_description_exam">類型：考試</string>
+    <string name="ics_description_teacher">教師：%1$s</string>
+    <string name="ics_description_nodes">節次：%1$s</string>
+    <string name="ics_description_slot">時段：%1$s</string>
+    <string name="ics_node_single">第%1$d節</string>
+    <string name="ics_node_range">第%1$d-%2$d節</string>
+    <string name="ics_calendar_default_name">課表</string>
+    <string name="download_source_origin">來源站</string>
+    <string name="download_source_github">GitHub 來源站</string>
+    <string name="download_response_not_json">回應不是 JSON</string>
+    <string name="import_diff_title">課表有變化</string>
+    <string name="import_diff_intro">這次匯入和目前課表相比有下面這些變動。覆蓋會取代目前課表，新建則保留原來那份，可在右上角加號裡切回去。</string>
+    <string name="import_diff_added_header">新增 %1$d 門</string>
+    <string name="import_diff_removed_header">減少 %1$d 門</string>
+    <string name="import_diff_kept">其餘 %1$d 門沒有變化</string>
+    <string name="import_diff_course_line">%1$s · 週%2$s 第%3$s節 · %4$s</string>
+    <string name="import_diff_course_no_place">待定教室</string>
+    <string name="import_diff_overwrite">覆蓋目前課表</string>
+    <string name="import_diff_new_term">新建一個課表</string>
+    <string name="import_diff_cancel">先不匯入</string>
+    <string name="import_diff_new_term_title">新建課表</string>
+    <string name="import_diff_new_term_label">課表名稱</string>
+    <string name="import_diff_new_term_confirm">建立並匯入</string>
+    <string name="ie_import_as_new_term">匯入到新課表</string>
+    <string name="ie_import_new_term_notice">會新建一個課表並切過去，目前課表原樣保留，可在右上角加號裡切回。</string>
+    <string name="settings_background_reset_title">恢復預設</string>
+    <string name="settings_background_reset_subtitle">清掉背景圖與自訂顏色，回到跟隨主題的底色</string>
+    <string name="settings_background_tab_schedule">課表背景</string>
+    <string name="settings_background_tab_widget">小工具背景</string>
+    <string name="week_picker_add_week">新增週</string>
+    <string name="week_picker_delete_title">刪除第 %1$d 週？</string>
+    <string name="week_picker_delete_body">這一週會從課表裡去掉。確認請輸入「%1$s」。</string>
+    <string name="week_picker_delete_keyword">確認</string>
+    <string name="week_picker_delete_confirm">刪除</string>
+    <string name="week_picker_delete_cancel">取消</string>
+    <string name="week_picker_add_week_hint">接著往後加一週空白課表</string>
 </resources>

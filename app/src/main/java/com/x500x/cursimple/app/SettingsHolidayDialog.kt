@@ -26,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -208,7 +209,7 @@ internal fun holidayCalendarSubtitle(settings: HolidayCalendarSettings): String 
     return if (manual == 0) {
         builtIn
     } else {
-        stringResource(R.string.settings_holiday_subtitle_with_manual, builtIn, manual)
+        pluralStringResource(R.plurals.settings_holiday_subtitle_with_manual, manual, builtIn, manual)
     }
 }
 

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import java.io.File
+import com.x500x.cursimple.R
 
 object AppUpdateInstaller {
     fun openInstall(context: Context, apkFile: File) {
@@ -22,9 +23,9 @@ object AppUpdateInstaller {
         runCatching { context.startActivity(intent) }
             .onFailure { error ->
                 val message = if (error is ActivityNotFoundException) {
-                    "没有可安装 APK 的应用"
+                    context.getString(R.string.update_install_no_handler)
                 } else {
-                    "无法打开安装界面：${error.message}"
+                    context.getString(R.string.update_install_open_failed, error.message.orEmpty())
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }

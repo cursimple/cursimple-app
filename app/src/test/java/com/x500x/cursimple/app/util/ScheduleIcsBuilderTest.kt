@@ -20,6 +20,17 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class ScheduleIcsBuilderTest {
+    /** 测试固定用中文文案，断言的是排版而不是语言。 */
+    private val labels = IcsTextLabels(
+        exam = "类型：考试",
+        teacherFormat = "教师：%s",
+        nodesFormat = "节次：%s",
+        slotFormat = "时段：%s",
+        nodeSingleFormat = "第%d节",
+        nodeRangeFormat = "第%d-%d节",
+        defaultCalendarName = "课表",
+    )
+
 
     private val shanghai = ZoneId.of("Asia/Shanghai")
 
@@ -68,6 +79,7 @@ class ScheduleIcsBuilderTest {
         start: LocalDate? = termStart,
         zone: ZoneId = shanghai,
     ) = ScheduleIcsBuilder.build(
+        labels = labels,
         termName = "2026 秋",
         termStartDate = start,
         schedule = schedule,
@@ -270,6 +282,7 @@ class ScheduleIcsBuilderTest {
         val ny = ZoneId.of("America/New_York")
         val nyStart = LocalDate.of(2026, 3, 2) // 周一，早于 3-8 的春季调整
         val result = ScheduleIcsBuilder.build(
+            labels = labels,
             termName = "spring",
             termStartDate = nyStart,
             schedule = scheduleOf(mondayCourse(weeks = listOf(1, 2, 3))),

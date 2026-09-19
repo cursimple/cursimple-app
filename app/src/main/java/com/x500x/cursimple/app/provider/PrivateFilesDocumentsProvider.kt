@@ -15,6 +15,7 @@ import android.system.Os
 import android.webkit.MimeTypeMap
 import java.io.File
 import java.io.FileNotFoundException
+import com.x500x.cursimple.R
 
 class PrivateFilesDocumentsProvider : DocumentsProvider() {
     private lateinit var packageName: String
@@ -33,6 +34,9 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         appInfo = context.applicationInfo
         dataDir = requireNotNull(context.filesDir.parentFile)
         val dataPath = dataDir.path
+        // lint 的 SdCardPath 在这里是误报：这两个不是外置存储路径，而是多用户下
+        // 私有目录的固定布局（/data/user/<id>/<pkg> 对应 /data/user_de/<id>/<pkg>）。
+        // 设备保护存储没有对应的公开 API 能反推出来，只能按这个布局拼。
         if (dataPath.startsWith("/data/user/")) {
             userDeDataDir = File("/data/user_de/${dataPath.substringAfter("/data/user/")}")
         }
@@ -50,7 +54,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         cursor.newRow()
             .addColumn(cursor, Root.COLUMN_ROOT_ID, packageName)
             .addColumn(cursor, Root.COLUMN_DOCUMENT_ID, packageName)
-            .addColumn(cursor, Root.COLUMN_TITLE, ROOT_TITLE)
+            .addColumn(cursor, Root.COLUMN_TITLE, appContext.getString(R.string.app_name))
             .addColumn(cursor, Root.COLUMN_SUMMARY, packageName)
             .addColumn(cursor, Root.COLUMN_ICON, applicationInfo.icon)
             .addColumn(cursor, Root.COLUMN_FLAGS, Root.FLAG_SUPPORTS_CREATE or Root.FLAG_SUPPORTS_IS_CHILD)
@@ -116,15 +120,15 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         if (!parent.isDirectory) throw FileNotFoundException(parentDocumentId)
         val child = uniqueFile(parent, displayName.sanitizeFileName())
         val created = if (mimeType == Document.MIME_TYPE_DIR) child.mkdirs() else child.createNewFile()
-        check(created) { "无法创建文件" }
+        check(created) { appContext.getString(R.string.provider_root_create_failed) }
         return "${parentDocumentId.trimEnd('/')}/${child.name}"
     }
 
     override fun deleteDocument(documentId: String) {
         ensureEnabled()
-        val file = resolveDocument(documentId) ?: throw FileNotFoundException("不允许删除根目录")
+        val file = resolveDocument(documentId) ?: throw FileNotFoundException(appContext.getString(R.string.provider_root_delete_denied))
         val deleted = if (file.isDirectory) file.deleteRecursively() else file.delete()
-        check(deleted) { "删除失败" }
+        check(deleted) { appContext.getString(R.string.provider_delete_failed) }
     }
 
     override fun removeDocument(documentId: String, parentDocumentId: String) {
@@ -133,10 +137,10 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
 
     override fun renameDocument(documentId: String, displayName: String): String {
         ensureEnabled()
-        val file = resolveDocument(documentId) ?: throw FileNotFoundException("不允许重命名根目录")
+        val file = resolveDocument(documentId) ?: throw FileNotFoundException(appContext.getString(R.string.provider_root_rename_denied))
         val parent = file.parentFile ?: throw FileNotFoundException(documentId)
         val target = uniqueFile(parent, displayName.sanitizeFileName().ifBlank { file.name })
-        check(file.renameTo(target)) { "重命名失败" }
+        check(file.renameTo(target)) { appContext.getString(R.string.provider_rename_failed) }
         return documentId.substringBeforeLast('/', packageName) + "/" + target.name
     }
 
@@ -150,7 +154,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         val targetDir = resolveDocument(targetParentDocumentId) ?: throw FileNotFoundException(targetParentDocumentId)
         if (!targetDir.isDirectory) throw FileNotFoundException(targetParentDocumentId)
         val target = File(targetDir, source.name)
-        check(!target.exists() && source.renameTo(target)) { "移动失败" }
+        check(!target.exists() && source.renameTo(target)) { appContext.getString(R.string.provider_move_failed) }
         return "${targetParentDocumentId.trimEnd('/')}/${target.name}"
     }
 
@@ -168,7 +172,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
         if (!method.startsWith(MT_METHOD_PREFIX)) return super.call(method, arg, extras)
         ensureEnabled()
-        val documentId = extras?.documentIdFromUri() ?: return Bundle().withResult(false, "缺少 uri")
+        val documentId = extras?.documentIdFromUri() ?: return Bundle().withResult(false, appContext.getString(R.string.provider_missing_uri))
         val file = resolveDocument(documentId, checkExists = false)
         val out = Bundle()
         when (method) {
@@ -178,7 +182,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
             }
 
             METHOD_SET_PERMISSIONS -> {
-                val target = file ?: return out.withResult(false, "文件不存在")
+                val target = file ?: return out.withResult(false, appContext.getString(R.string.provider_file_missing))
                 runCatching {
                     Os.chmod(target.path, extras.getInt("permissions"))
                 }.onSuccess {
@@ -189,7 +193,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
             }
 
             METHOD_CREATE_SYMLINK -> {
-                val target = file ?: return out.withResult(false, "文件不存在")
+                val target = file ?: return out.withResult(false, appContext.getString(R.string.provider_file_missing))
                 runCatching {
                     Os.symlink(extras.getString("path").orEmpty(), target.path)
                 }.onSuccess {
@@ -199,7 +203,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
                 }
             }
 
-            else -> out.withResult(false, "不支持的方法：$method")
+            else -> out.withResult(false, appContext.getString(R.string.provider_method_unsupported, method))
         }
         return out
     }
@@ -210,7 +214,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
             val applicationInfo = appInfo ?: appContext.applicationInfo
             cursor.newRow()
                 .addColumn(cursor, Document.COLUMN_DOCUMENT_ID, packageName)
-                .addColumn(cursor, Document.COLUMN_DISPLAY_NAME, ROOT_TITLE)
+                .addColumn(cursor, Document.COLUMN_DISPLAY_NAME, appContext.getString(R.string.app_name))
                 .addColumn(cursor, Document.COLUMN_MIME_TYPE, Document.MIME_TYPE_DIR)
                 .addColumn(cursor, Document.COLUMN_FLAGS, Document.FLAG_DIR_SUPPORTS_CREATE)
                 .addColumn(cursor, Document.COLUMN_SIZE, 0L)
@@ -316,7 +320,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
     }
 
     private fun ensureEnabled() {
-        if (!isEnabled()) throw FileNotFoundException("私有目录访问未开启")
+        if (!isEnabled()) throw FileNotFoundException(appContext.getString(R.string.provider_access_disabled))
     }
 
     private fun isEnabled(): Boolean =
@@ -389,7 +393,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         const val METHOD_CREATE_SYMLINK = "mt:createSymlink"
         const val SYMLINK_MODE_MASK = 0xF000
         const val SYMLINK_MODE = 0xA000
-        const val ROOT_TITLE = "课简"
+        
 
         const val PRIVATE_FILES_PROVIDER_PREFS = "private_files_provider"
         const val KEY_PRIVATE_FILES_PROVIDER_ENABLED = "private_files_provider_enabled"

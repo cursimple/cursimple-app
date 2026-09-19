@@ -29,6 +29,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -36,6 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -84,8 +87,8 @@ internal fun SystemCalendarPanel(
     var accounts by remember { mutableStateOf<List<SystemCalendarAccount>>(emptyList()) }
     var selectedId by remember { mutableStateOf<Long?>(null) }
     var busy by remember { mutableStateOf(false) }
-    var lastRecordEventCount by remember { mutableStateOf(0) }
-    var lastRecordAt by remember { mutableStateOf(0L) }
+    var lastRecordEventCount by remember { mutableIntStateOf(0) }
+    var lastRecordAt by remember { mutableLongStateOf(0L) }
     var pendingOverwrite by remember { mutableStateOf(false) }
 
     val resources = LocalContext.current.resources
@@ -93,9 +96,7 @@ internal fun SystemCalendarPanel(
     val nothingToUndoText = stringResource(R.string.calendar_toast_nothing_to_undo)
     val failedUnknownText = stringResource(R.string.calendar_toast_failed_unknown)
     // 带占位符的先取原文，写入结果出来后再填数
-    val skippedFormat = stringResource(R.string.calendar_export_skipped)
     val exportedFormat = stringResource(R.string.calendar_toast_exported)
-    val undoneFormat = stringResource(R.string.calendar_toast_undone)
     val failedFormat = stringResource(R.string.calendar_toast_failed)
 
     fun reloadRecord() {
@@ -147,7 +148,11 @@ internal fun SystemCalendarPanel(
             val message = when (result) {
                 is SystemCalendarWriteResult.Success -> {
                     val skippedNote = if (result.skipped.isNotEmpty()) {
-                        "\n" + skippedFormat.format(result.skipped.size)
+                        "\n" + resources.getQuantityString(
+                            R.plurals.calendar_export_skipped,
+                            result.skipped.size,
+                            result.skipped.size,
+                        )
                     } else {
                         ""
                     }
@@ -171,7 +176,11 @@ internal fun SystemCalendarPanel(
             busy = false
             reloadRecord()
             val message = when (result) {
-                is SystemCalendarUndoResult.Success -> undoneFormat.format(result.removedCount)
+                is SystemCalendarUndoResult.Success -> resources.getQuantityString(
+                    R.plurals.calendar_toast_undone,
+                    result.removedCount,
+                    result.removedCount,
+                )
                 SystemCalendarUndoResult.NothingToUndo -> nothingToUndoText
                 SystemCalendarUndoResult.PermissionDenied -> permissionDeniedText
                 is SystemCalendarUndoResult.Failed -> result.message
@@ -187,7 +196,7 @@ internal fun SystemCalendarPanel(
             onDismissRequest = { pendingOverwrite = false },
             title = { Text(stringResource(R.string.calendar_export_overwrite_title)) },
             text = {
-                Text(stringResource(R.string.calendar_export_overwrite_body, lastRecordEventCount))
+                Text(pluralStringResource(R.plurals.calendar_export_overwrite_body, lastRecordEventCount, lastRecordEventCount))
             },
             confirmButton = {
                 TextButton(onClick = {
@@ -287,8 +296,9 @@ internal fun SystemCalendarPanel(
             if (lastRecordEventCount > 0) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    text = stringResource(
-                        R.string.calendar_export_last,
+                    text = pluralStringResource(
+                        R.plurals.calendar_export_last,
+                        lastRecordEventCount,
                         formatExportTime(lastRecordAt, zone),
                         lastRecordEventCount,
                     ),

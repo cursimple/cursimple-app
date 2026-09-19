@@ -22,6 +22,9 @@ class SystemAlarmReceiverManifestTest {
             setOf(
                 "android.intent.action.BOOT_COMPLETED",
                 "android.intent.action.LOCKED_BOOT_COMPLETED",
+                // 小米等系统的快速开机不发标准的开机广播
+                "android.intent.action.QUICKBOOT_POWERON",
+                "com.htc.intent.action.QUICKBOOT_POWERON",
                 "android.intent.action.MY_PACKAGE_REPLACED",
                 "android.intent.action.TIME_SET",
                 "android.intent.action.TIMEZONE_CHANGED",

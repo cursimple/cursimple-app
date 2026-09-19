@@ -5,7 +5,7 @@
     <string name="onboarding_disclaimer_title">Before you start</string>
     <string name="onboarding_disclaimer_intro">CurSimple is a timetable and reminder tool that runs entirely on your device.</string>
     <string name="onboarding_disclaimer_data">Your timetable comes from what you import or from plugins you authorize; nothing is uploaded to any server.</string>
-    <string name="onboarding_disclaimer_reminder">Class reminders rely on exact alarms and notifications, which battery optimization, Do Not Disturb, or a manufacturer\'s background limits can affect. The author is not liable for any lateness, missed classes, or other loss this may cause.</string>
+    <string name="onboarding_disclaimer_reminder">Class reminders rely on exact alarms and notifications, which battery optimization, Do Not Disturb, or a manufacturer\'s background limits can affect. The CurSimple Team is not liable for any lateness, missed classes, or other loss this may cause.</string>
     <string name="onboarding_disclaimer_accept_notice">By continuing, you confirm that you have read and accept the above.</string>
     <string name="onboarding_accept">Agree and continue</string>
     <string name="onboarding_reject">Decline and exit</string>
@@ -13,7 +13,10 @@
     <string name="week_picker_title">Weekly timetable</string>
     <string name="week_picker_set_current">Set as current week</string>
     <string name="week_picker_no_term_start">No term start date yet, so the current week is unknown</string>
-    <string name="week_picker_before_term">Term not started · %1$d week(s) until week 1</string>
+    <plurals name="week_picker_before_term">
+        <item quantity="one">Term not started · %1$d week until week 1</item>
+        <item quantity="other">Term not started · %1$d weeks until week 1</item>
+    </plurals>
     <string name="week_picker_current_week">Now</string>
 
     <string name="about_app_alt_name">课简</string>
@@ -47,7 +50,7 @@
     <string name="about_runtime_android">Android version</string>
     <string name="about_runtime_abi">Device ABI</string>
     <string name="about_runtime_sdk">SDK range</string>
-    <string name="about_license_line">MIT License · Copyright © 2026 x500x</string>
+    <string name="about_license_line">MIT License · Copyright © 2026 the CurSimple Team</string>
     <string name="about_version_label">Version</string>
     <string name="about_developer_badge">Developer</string>
     <string name="about_dev_mode_hint">Open Settings › Developer tools to find debugging tools and log export.</string>
@@ -61,9 +64,15 @@
     <string name="about_no_link_handler">No app can open this link</string>
 
     <string name="clear_option_manual_title">Clear manually added courses</string>
-    <string name="clear_option_manual_desc">Remove only the %1$d course(s) you added by hand</string>
+    <plurals name="clear_option_manual_desc">
+        <item quantity="one">Remove only the %1$d course you added by hand</item>
+        <item quantity="other">Remove only the %1$d courses you added by hand</item>
+    </plurals>
     <string name="clear_option_imported_title">Clear imported courses</string>
-    <string name="clear_option_imported_desc">Remove only the %1$d course(s) synced by plugins</string>
+    <plurals name="clear_option_imported_desc">
+        <item quantity="one">Remove only the %1$d course synced by plugins</item>
+        <item quantity="other">Remove only the %1$d courses synced by plugins</item>
+    </plurals>
     <string name="clear_option_all_title">Clear everything</string>
     <string name="clear_option_all_desc">Manual courses, imported courses, and all reminder rules</string>
     <string name="clear_sheet_title">Clear timetable</string>
@@ -71,12 +80,24 @@
     <string name="clear_confirm_manual_title">Clear manual courses?</string>
     <string name="clear_confirm_imported_title">Clear imported courses?</string>
     <string name="clear_confirm_all_title">Clear the whole timetable?</string>
-    <string name="clear_confirm_manual_desc">The following %1$d manual course(s) will be deleted permanently:</string>
-    <string name="clear_confirm_imported_desc">The following %1$d imported course(s) will be deleted permanently:</string>
-    <string name="clear_confirm_all_desc">The following %1$d course(s) and all reminder rules will be deleted permanently:</string>
+    <plurals name="clear_confirm_manual_desc">
+        <item quantity="one">The following %1$d manual course will be deleted permanently:</item>
+        <item quantity="other">The following %1$d manual courses will be deleted permanently:</item>
+    </plurals>
+    <plurals name="clear_confirm_imported_desc">
+        <item quantity="one">The following %1$d imported course will be deleted permanently:</item>
+        <item quantity="other">The following %1$d imported courses will be deleted permanently:</item>
+    </plurals>
+    <plurals name="clear_confirm_all_desc">
+        <item quantity="one">The following %1$d course and all reminder rules will be deleted permanently:</item>
+        <item quantity="other">The following %1$d courses and all reminder rules will be deleted permanently:</item>
+    </plurals>
     <string name="clear_confirm_empty">No matching courses; only the related records will be cleared.</string>
     <string name="clear_collapse_list">Collapse</string>
-    <string name="clear_expand_more">Show %1$d more course(s)</string>
+    <plurals name="clear_expand_more">
+        <item quantity="one">Show %1$d more course</item>
+        <item quantity="other">Show %1$d more courses</item>
+    </plurals>
     <string name="clear_confirm_button">Clear</string>
     <string name="clear_cancel">Cancel</string>
 
@@ -105,9 +126,9 @@
     <string name="term_date_confirm">OK</string>
 
     <string name="update_status_default">Check for new versions from GitHub Releases.</string>
-    <string name="update_status_downloading">Downloading %1$s...</string>
+    <string name="update_status_downloading">Downloading %1$s…</string>
     <string name="update_status_downloaded">Downloaded from %1$s; opening the install prompt.</string>
-    <string name="update_status_checking">Checking releases...</string>
+    <string name="update_status_checking">Checking releases…</string>
     <string name="update_status_no_release">No releases published yet.</string>
     <string name="update_status_manifest_missing">The latest release has no update.json, so it cannot update automatically.</string>
     <string name="update_status_up_to_date">You are already on the latest version.</string>
@@ -119,7 +140,7 @@
     <string name="update_auto_check_on">Checks at launch, prompts once and keeps a dot here</string>
     <string name="update_auto_check_off">Manual checks only; a found update still keeps a dot here</string>
     <string name="update_check_title">Check for updates</string>
-    <string name="update_check_checking">Checking...</string>
+    <string name="update_check_checking">Checking…</string>
     <string name="update_check_button">Check</string>
     <string name="update_dialog_title">New version v%1$s available</string>
     <string name="update_dialog_version_code">Build: %1$d</string>
@@ -134,7 +155,7 @@
     <string name="update_announcement_retry">Retry</string>
     <string name="update_announcement_open_release">Open release page</string>
     <string name="update_announcement_dismiss">Got it</string>
-    <string name="update_dialog_downloading">Downloading...</string>
+    <string name="update_dialog_downloading">Downloading…</string>
     <string name="update_download_starting">Connecting to a download source…</string>
     <string name="update_download_progress">%1$s of %2$s · %3$d%%</string>
     <string name="update_download_progress_unknown_total">%1$s downloaded</string>
@@ -156,6 +177,11 @@
     <string name="widget_confirm_installed">\u201c%1$s\u201d is already on your home screen. Add another one?</string>
     <string name="widget_confirm_new">Add \u201c%1$s\u201d to your home screen?</string>
     <string name="widget_toast_requested">Add request sent. Please confirm in the system prompt.</string>
+    <string name="widget_toast_retrying">The launcher did not respond; trying another way…</string>
+    <string name="widget_toast_added">Added %1$s to the home screen</string>
+    <string name="widget_pin_unconfirmed_title">Could not confirm the widget was added</string>
+    <string name="widget_pin_unconfirmed_body">The request went out, but %1$s did not appear on the home screen. Some vendor systems silently block that dialog — allow background pop-ups / home screen shortcuts in app permissions, or add it by hand.</string>
+    <string name="widget_pin_unconfirmed_manual">Add manually</string>
     <string name="widget_confirm_add">Add</string>
     <string name="widget_confirm_cancel">Cancel</string>
     <string name="widget_installed_count">Added \u00d7%1$d</string>
@@ -168,7 +194,7 @@
     <string name="ie_close">Close</string>
     <string name="ie_got_it">Got it</string>
     <string name="ie_go_configure">Configure</string>
-    <string name="ie_generating">Generating...</string>
+    <string name="ie_generating">Generating…</string>
     <string name="ie_processing">Processing</string>
     <string name="ie_unknown">Unknown</string>
     <string name="ie_unknown_error">Unknown error</string>
@@ -188,8 +214,14 @@
     <string name="ie_ics_body">Export this term\'s timetable as a standard calendar file you can import into the system calendar, Google Calendar, Outlook and others. No network access or extra permissions required.</string>
     <string name="ie_ics_generate_action">Generate .ics file</string>
     <string name="ie_ics_chooser_title">Export timetable calendar</string>
-    <string name="ie_ics_skipped_note">, %1$d course(s) skipped because they have no class time</string>
-    <string name="ie_ics_generated">Created %1$d calendar event(s)%2$s</string>
+    <plurals name="ie_ics_skipped_note">
+        <item quantity="one">, %1$d course skipped because it has no class time</item>
+        <item quantity="other">, %1$d courses skipped because they have no class time</item>
+    </plurals>
+    <plurals name="ie_ics_generated">
+        <item quantity="one">Created %1$d calendar event%2$s</item>
+        <item quantity="other">Created %1$d calendar events%2$s</item>
+    </plurals>
     <string name="ie_image_panel_title">Export Timetable Image</string>
     <string name="ie_image_panel_body">Render the selected week as a PNG you can send straight to classmates or family, with no app needed on their side. Holidays are left out and temporary schedule changes are applied.</string>
     <string name="ie_image_generate_action">Generate and share image</string>
@@ -204,18 +236,23 @@
     <string name="ie_scanner_hint">Point the camera at the QR code. You will return automatically once it is read.</string>
     <string name="ie_camera_permission_denied_scan">Camera permission denied, cannot scan</string>
     <string name="ie_camera_permission_denied_photo">Camera permission denied, cannot import from a photo</string>
-    <string name="ie_image_open_failed">Couldn\'t open the image</string>
     <string name="ie_image_format_unsupported">Unsupported image format</string>
     <string name="ie_image_no_qr">No readable QR code in this image</string>
     <string name="ie_webdav_panel_title">WebDAV Backup / Restore</string>
-    <string name="ie_webdav_panel_body">Backups cover timetable data, terms, reminders, plugin records and user settings. To keep passwords off your cloud drive, the WebDAV password and the AI API key are excluded, so you have to enter them again on a new device. Remote folder: cursimple/backups. %1$d backup(s) loaded.</string>
+    <plurals name="ie_webdav_panel_body">
+        <item quantity="one">Backups cover timetable data, terms, reminders, plugin records and user settings. To keep passwords off your cloud drive, the WebDAV password and the AI API key are excluded, so you have to enter them again on a new device. Remote folder: cursimple/backups. %1$d backup loaded.</item>
+        <item quantity="other">Backups cover timetable data, terms, reminders, plugin records and user settings. To keep passwords off your cloud drive, the WebDAV password and the AI API key are excluded, so you have to enter them again on a new device. Remote folder: cursimple/backups. %1$d backups loaded.</item>
+    </plurals>
     <string name="ie_webdav_panel_unconfigured">Set the WebDAV URL, username and password in Settings first.</string>
     <string name="ie_webdav_configure_first">Set up WebDAV in Settings first</string>
     <string name="ie_webdav_upload_action">Upload backup</string>
     <string name="ie_webdav_remote_backups">Remote backups</string>
     <string name="ie_webdav_upload_success">Backup uploaded to WebDAV: %1$s</string>
     <string name="ie_upload_failed">Upload failed: %1$s</string>
-    <string name="ie_backups_found">Found %1$d backup(s)</string>
+    <plurals name="ie_backups_found">
+        <item quantity="one">Found %1$d backup</item>
+        <item quantity="other">Found %1$d backups</item>
+    </plurals>
     <string name="ie_list_backups_failed">Couldn\'t load the backup list: %1$s</string>
     <string name="ie_webdav_restore_success">WebDAV backup restored</string>
     <string name="ie_restore_failed">Restore failed: %1$s</string>
@@ -226,7 +263,7 @@
     <string name="ie_restore_warning_scope">Restoring first wipes the data on this device, then overwrites everything from this backup: timetables, manual courses, term profiles and term start dates, reminder rules, plugin and component records, widget appearance and all app settings.</string>
     <string name="ie_restore_warning_irreversible">All existing data on this device will be discarded, and this cannot be undone. Make sure this is the backup you want.</string>
     <string name="ie_restore_warning_secrets">Backups don\'t include the WebDAV password or the AI API key, so after restoring those two keep the values currently entered on this device.</string>
-    <string name="ie_restoring">Restoring...</string>
+    <string name="ie_restoring">Restoring…</string>
     <string name="ie_restore_confirm_action">Overwrite and restore</string>
     <string name="ie_import_confirm_title">Confirm Timetable Import</string>
     <string name="ie_import_term">Term: %1$s</string>
@@ -235,7 +272,7 @@
     <string name="ie_import_manual_count">Manually added courses: %1$d</string>
     <string name="ie_import_term_start_change">The term start date will also be changed to %1$s (currently %2$s), and week numbers will be recalculated from the new date.</string>
     <string name="ie_import_overwrite_notice">Importing replaces the current term\'s timetable and manual courses. Please check before continuing.</string>
-    <string name="ie_importing">Importing...</string>
+    <string name="ie_importing">Importing…</string>
     <string name="ie_import_confirm_action">Import</string>
     <string name="ie_import_success">Imported %1$d course(s) and %2$d manual course(s)</string>
     <string name="ie_import_failed">Import failed: %1$s</string>
@@ -248,7 +285,10 @@
     <string name="ie_ai_recognizing">Recognizing</string>
     <string name="ie_ai_take_photo">Take photo</string>
     <string name="ie_ai_take_photo_desc">Camera permission required</string>
-    <string name="ie_ai_recognized">AI found %1$d course(s). Please confirm the import.</string>
+    <plurals name="ie_ai_recognized">
+        <item quantity="one">AI found %1$d course. Please confirm the import.</item>
+        <item quantity="other">AI found %1$d courses. Please confirm the import.</item>
+    </plurals>
     <string name="ie_ai_import_failed">AI import failed: %1$s</string>
     <string name="ie_local_notice">QR codes are generated and decoded entirely on this device, with no server involved. Importing replaces the current term\'s timetable and manually added courses.</string>
 
@@ -357,7 +397,10 @@
     <string name="settings_holiday_remove_manual">Remove the manual adjustment for this day</string>
     <string name="settings_holiday_builtin_on">Built-in data on</string>
     <string name="settings_holiday_builtin_off">Built-in data off</string>
-    <string name="settings_holiday_subtitle_with_manual">%1$s · %2$d manual adjustments</string>
+    <plurals name="settings_holiday_subtitle_with_manual">
+        <item quantity="one">%1$s · %2$d manual adjustment</item>
+        <item quantity="other">%1$s · %2$d manual adjustments</item>
+    </plurals>
     <string name="settings_holiday_builtin_none">No built-in data</string>
     <string name="settings_holiday_builtin_years">Covers the %1$s holiday schedule</string>
     <string name="settings_holiday_sync_title">Update holiday data</string>
@@ -366,7 +409,10 @@
     <string name="settings_holiday_skip_reminders_off">Reminders still fire; you can turn them off from the notice the day before</string>
     <string name="holiday_eve_generic_name">a holiday</string>
     <string name="holiday_eve_notice_title">Tomorrow is %1$s</string>
-    <string name="holiday_eve_notice_body">%1$d class reminders are still set for tomorrow. Turn them off?</string>
+    <plurals name="holiday_eve_notice_body">
+        <item quantity="one">%1$d class reminder is still set for tomorrow. Turn it off?</item>
+        <item quantity="other">%1$d class reminders are still set for tomorrow. Turn them off?</item>
+    </plurals>
     <string name="holiday_eve_notice_action_mute">Turn off tomorrow</string>
     <string name="holiday_eve_channel_name">Holiday reminder notices</string>
     <string name="settings_holiday_sync_never">Not synced yet, using the bundled snapshot</string>
@@ -489,17 +535,29 @@
     <string name="calendar_export_permission_grant">Grant</string>
     <string name="calendar_export_action">Write</string>
     <string name="calendar_export_undo">Undo last write</string>
-    <string name="calendar_export_last">Last written %1$s · %2$d events</string>
+    <plurals name="calendar_export_last">
+        <item quantity="one">Last written %1$s · %2$d event</item>
+        <item quantity="other">Last written %1$s · %2$d events</item>
+    </plurals>
     <string name="calendar_export_overwrite_title">Already written once</string>
-    <string name="calendar_export_overwrite_body">Writing again removes the %1$d events written last time, then writes the current schedule.</string>
+    <plurals name="calendar_export_overwrite_body">
+        <item quantity="one">Writing again removes the %1$d event written last time, then writes the current schedule.</item>
+        <item quantity="other">Writing again removes the %1$d events written last time, then writes the current schedule.</item>
+    </plurals>
     <string name="calendar_export_overwrite_confirm">Replace</string>
     <string name="calendar_toast_exported">Wrote %1$d events covering %2$d classes</string>
-    <string name="calendar_toast_undone">Removed %1$d events</string>
+    <plurals name="calendar_toast_undone">
+        <item quantity="one">Removed %1$d event</item>
+        <item quantity="other">Removed %1$d events</item>
+    </plurals>
     <string name="calendar_toast_nothing_to_undo">Nothing to undo</string>
     <string name="calendar_toast_permission_denied">No calendar permission</string>
     <string name="calendar_toast_failed">Write failed: %1$s</string>
     <string name="calendar_toast_failed_unknown">Write failed</string>
-    <string name="calendar_export_skipped">%1$d courses skipped for missing period times</string>
+    <plurals name="calendar_export_skipped">
+        <item quantity="one">%1$d course skipped for missing period times</item>
+        <item quantity="other">%1$d courses skipped for missing period times</item>
+    </plurals>
     <string name="settings_background_crop_title">Adjust background</string>
     <string name="settings_background_crop_hint">The frame matches the timetable ratio. Drag to move the picture — you can reach either edge — and pinch to zoom.</string>
     <string name="settings_beta_updates_title">Beta updates</string>
@@ -517,7 +575,10 @@
     <string name="settings_timing_profiles_title">Timetable sets</string>
     <string name="settings_timing_profiles_hint">Keep several sets for different terms or campuses. The editor below always edits the selected one.</string>
     <string name="settings_timing_profile_default_name">Default</string>
-    <string name="settings_timing_profile_slot_count">%1$d periods</string>
+    <plurals name="settings_timing_profile_slot_count">
+        <item quantity="one">%1$d period</item>
+        <item quantity="other">%1$d periods</item>
+    </plurals>
     <string name="settings_timing_profile_empty">Not filled in</string>
     <string name="settings_timing_profile_use">Use</string>
     <string name="settings_timing_profile_create">New set</string>
@@ -529,7 +590,10 @@
     <string name="settings_timing_profile_name_hint">Set name</string>
     <string name="settings_timing_profile_copy_suffix">%1$s copy</string>
     <string name="settings_toast_timing_profile_created">Created "%1$s"</string>
-    <string name="settings_timing_entry_subtitle_set">%1$d periods set · used for card times, reminders and exports</string>
+    <plurals name="settings_timing_entry_subtitle_set">
+        <item quantity="one">%1$d period set · used for card times, reminders and exports</item>
+        <item quantity="other">%1$d periods set · used for card times, reminders and exports</item>
+    </plurals>
     <string name="settings_timing_entry_subtitle_unset">Not set · manually added courses need it to show times, create reminders and export</string>
     <string name="settings_timing_empty_title">No period times yet</string>
     <string name="settings_timing_empty_body">Course card times, reminders, calendar and image exports, and auto-silence in class all depend on them. Apply one of the templates below and adjust each row to your school\'s schedule, or add every period by hand.</string>
@@ -538,7 +602,10 @@
     <string name="settings_timing_add_row">Add a period</string>
     <string name="settings_timing_apply_template">Apply template</string>
     <string name="settings_timing_errors_title">Cannot save. Please fix the following:</string>
-    <string name="settings_toast_timing_saved">Saved %1$d period times</string>
+    <plurals name="settings_toast_timing_saved">
+        <item quantity="one">Saved %1$d period time</item>
+        <item quantity="other">Saved %1$d period times</item>
+    </plurals>
     <string name="settings_toast_timing_handback">Handed back to plugin sync; the next sync will update these times</string>
     <string name="settings_timing_handback">Hand back to plugin sync</string>
     <string name="settings_timing_row_index">Period %1$d</string>
@@ -583,6 +650,13 @@
     <string name="settings_section_declared">Declared at install</string>
     <string name="settings_permission_status_on">On</string>
     <string name="settings_permission_status_off">Off</string>
+    <string name="settings_permission_status_unknown">Check manually</string>
+    <string name="settings_permission_battery_on">Background use allowed — tap to revoke it in the system allowlist</string>
+    <string name="settings_permission_autostart_title">Auto-start / background manager</string>
+    <string name="settings_permission_autostart_off">Vendor allowlist — lets the app come back and re-arm alarms after being cleaned up</string>
+    <string name="settings_permission_background_popup_title">Background pop-up</string>
+    <string name="settings_permission_background_popup_off">Required for the alarm screen to appear from the background or lock screen</string>
+    <string name="settings_toast_open_settings_manually">This phone has no matching system page — open Settings → Apps → CurSimple by hand</string>
     <string name="settings_permission_manage_hint">Opens system settings, where you can turn it on or off</string>
     <string name="settings_permission_runtime_hint">Tap to grant; once granted, revoke it in system settings</string>
     <string name="settings_permissions_all_ok_title">Alarm permissions are complete</string>
@@ -607,11 +681,11 @@
     <string name="settings_toast_background_image_permission_failed">Could not get access to that image, please pick it again</string>
     <string name="settings_toast_widget_background_image_permission_failed">Could not get access to that widget background image, please pick it again</string>
     <string name="settings_accent_green">Mint Green</string>
+    <string name="settings_accent_follow_app">Follow app theme</string>
     <string name="settings_accent_blue">Coastal Blue</string>
     <string name="settings_accent_purple">Dusk Purple</string>
     <string name="settings_accent_orange">Warm Clay</string>
     <string name="settings_accent_pink">Blossom Pink</string>
-    <string name="settings_toast_open_settings_failed">Could not open settings: %1$s</string>
     <string name="settings_webdav_subtitle_configured">%1$s · account configured</string>
     <string name="settings_webdav_subtitle_unconfigured">%1$s · no account configured</string>
     <string name="settings_ai_import_subtitle_none">API URL and key not configured</string>
@@ -625,7 +699,7 @@
     <string name="settings_toast_webdav_saved">WebDAV settings saved</string>
     <string name="settings_toast_webdav_ok">WebDAV connection works</string>
     <string name="settings_toast_webdav_failed">WebDAV connection failed: %1$s</string>
-    <string name="settings_testing">Testing...</string>
+    <string name="settings_testing">Testing…</string>
     <string name="settings_test_connection">Test connection</string>
     <string name="settings_ai_import_url_hint">If you enter only /v1 or just the domain, /chat/completions is appended automatically. For the Responses API, enter the full /v1/responses path.</string>
     <string name="settings_ai_import_model_label">Model (optional)</string>
@@ -690,6 +764,7 @@
     <string name="widget_help_generic_step1">Long-press an empty spot on the home screen, or pinch with two fingers, to enter edit mode.</string>
     <string name="widget_help_generic_step2">Open Widgets.</string>
     <string name="widget_help_generic_step3">Find CurSimple, long-press the style you want and drop it on a free spot.</string>
+    <string name="widget_help_generic_step4">Still not listed? Reboot the phone — launchers cache the widget list and often only refresh after a restart.</string>
     <string name="widget_help_resize_title">Resizing</string>
     <string name="widget_help_resize_step1">After adding it, long-press the widget on the home screen and release.</string>
     <string name="widget_help_resize_step2">If the widget can be resized, a frame or handles appear around it.</string>
@@ -704,6 +779,7 @@
     <string name="widget_guide_huawei_step1">Pinch with two fingers on the home screen to enter edit mode.</string>
     <string name="widget_guide_huawei_step2">Open Service cards, then Widgets at the bottom.</string>
     <string name="widget_guide_huawei_step3">Find CurSimple and add it to the home screen.</string>
+    <string name="widget_guide_huawei_step4">HarmonyOS NEXT (5) dropped the Android compatibility layer, so Android app widgets never show up there.</string>
     <string name="widget_guide_xiaomi_title">Xiaomi / Redmi</string>
     <string name="widget_guide_xiaomi_step1">Pinch with two fingers on the home screen and tap Add widget at the bottom.</string>
     <string name="widget_guide_xiaomi_step2">Tap search at the top right; if the page only shows system cards, open Android widgets at the bottom.</string>
@@ -714,8 +790,9 @@
     <string name="widget_guide_oppo_step3">Find CurSimple, long-press it and drag it to the home screen.</string>
     <string name="widget_guide_vivo_title">vivo / iQOO</string>
     <string name="widget_guide_vivo_step1">Pinch with two fingers on the home screen and tap Widgets at the bottom.</string>
-    <string name="widget_guide_vivo_step2">If the app is not listed, scroll to the bottom and open More widgets.</string>
-    <string name="widget_guide_vivo_step3">Find CurSimple and add it to the home screen.</string>
+    <string name="widget_guide_vivo_step2">The Atomic components list that opens holds vivo\'s own components; third-party apps are not in it. Scroll to the bottom and tap App widgets.</string>
+    <string name="widget_guide_vivo_step3">Find CurSimple in the app widget list, then swipe left and right to switch between the three widgets.</string>
+    <string name="widget_guide_vivo_step4">Tap Add widget at the bottom once you have picked one.</string>
     <string name="widget_manual_step1">1. Long-press an empty spot on the home screen, or pinch with two fingers</string>
     <string name="widget_manual_step2">2. Choose Widgets</string>
     <string name="widget_manual_step3">3. Find or search for CurSimple</string>
@@ -753,7 +830,10 @@
     <string name="main_app_name">CurSimple</string>
     <string name="main_drawer_term_start_unset">Term start date not set</string>
     <string name="main_drawer_current_week">Currently week %1$d</string>
-    <string name="main_drawer_before_term">Term not started · %1$d weeks until week 1</string>
+    <plurals name="main_drawer_before_term">
+        <item quantity="one">Term not started · %1$d week until week 1</item>
+        <item quantity="other">Term not started · %1$d weeks until week 1</item>
+    </plurals>
     <string name="main_drawer_theme_shortcut">Theme</string>
     <string name="main_drawer_background_shortcut">Background</string>
     <string name="main_drawer_overrides_shortcut">Reschedule</string>
@@ -768,7 +848,6 @@
     <string name="main_term_start_prompt">Set the term start date so the current week can be worked out and the timetable shown correctly.</string>
     <string name="main_pick_term_start">Pick the term start date</string>
     <string name="main_term_start_value">Term start date: %1$s</string>
-    <string name="main_pick_first_monday">Pick the Monday of week 1</string>
     <string name="main_set_current_week_title">Set the current week</string>
     <string name="main_set_current_week_body">Enter the teaching week today falls in and the term start date will be worked out from it.</string>
     <string name="main_set_current_week_confirm_title">Set week %1$d as the current week?</string>
@@ -928,4 +1007,121 @@
     <string name="guide_previous">Back</string>
     <string name="guide_next">Next</string>
     <string name="guide_done">Get started</string>
+    <string name="alarm_keep_alive_title">CurSimple is guarding your reminders</string>
+    <string name="alarm_keep_alive_idle">Alarms still ring after you leave the app</string>
+    <string name="alarm_keep_alive_next">Next reminder: %1$s</string>
+    <string name="alarm_keep_alive_channel">Alarm guard</string>
+    <string name="alarm_keep_alive_channel_desc">An ongoing notification that keeps reminders on time after the app is closed</string>
+    <string name="settings_alarm_keep_alive_title">Alarm guard notification</string>
+    <string name="settings_alarm_keep_alive_on">On — reminders keep ringing after you exit the app</string>
+    <string name="settings_alarm_keep_alive_off">Some phones drop alarms when the app is swiped away; turning this on is recommended</string>
+    <string name="settings_alarm_diagnostics_title">Alarm diagnostics</string>
+    <string name="settings_alarm_diagnostics_subtitle">Start here when an alarm did not ring — it shows which step failed</string>
+    <string name="settings_alarm_diagnostics_intro">Everything on this device that affects alarms. Sending this along with a \"the alarm did not ring\" report saves several rounds of questions.</string>
+    <string name="settings_alarm_diagnostics_loading">Loading…</string>
+    <string name="settings_alarm_diagnostics_copy">Copy diagnostics</string>
+    <string name="settings_alarm_diagnostics_copied">Diagnostics copied</string>
+    <string name="widget_diagnostics_title">Diagnostics (send this if the widget is missing)</string>
+    <string name="widget_diagnostics_copy">Copy diagnostics</string>
+    <string name="widget_diagnostics_copied">Diagnostics copied</string>
+    <string name="alarm_diag_device">Device</string>
+    <string name="alarm_diag_system">System</string>
+    <string name="alarm_diag_system_value">Android %1$s (API %2$d)</string>
+    <string name="alarm_diag_notifications">Notifications</string>
+    <string name="alarm_diag_channel">Alarm notification channel</string>
+    <string name="alarm_diag_exact_alarm">Exact alarms</string>
+    <string name="alarm_diag_full_screen">Full-screen notifications</string>
+    <string name="alarm_diag_battery">Battery optimisation</string>
+    <string name="alarm_diag_power_save">Battery saver</string>
+    <string name="alarm_diag_dnd">Do Not Disturb</string>
+    <string name="alarm_diag_vendor_autostart">Vendor auto-start page</string>
+    <string name="alarm_diag_keep_alive">Keep-alive service</string>
+    <string name="alarm_diag_registered">Registered alarms</string>
+    <string name="alarm_diag_next">Next reminder</string>
+    <string name="alarm_diag_recent_rings">Recent rings</string>
+    <string name="alarm_diag_granted">Granted</string>
+    <string name="alarm_diag_not_granted">Not granted (alarms will not ring)</string>
+    <string name="alarm_diag_unreadable">Cannot read</string>
+    <string name="alarm_diag_none">None</string>
+    <string name="alarm_diag_channel_not_applicable">Not applicable (no channels before Android 8)</string>
+    <string name="alarm_diag_channel_absent">Not created yet (has never rung)</string>
+    <string name="alarm_diag_channel_blocked">Turned off (alarm notifications cannot be posted)</string>
+    <string name="alarm_diag_channel_ok">OK</string>
+    <string name="alarm_diag_battery_unrestricted">Unrestricted</string>
+    <string name="alarm_diag_battery_restricted">Restricted (the system may delay alarms)</string>
+    <string name="alarm_diag_power_save_on">On (the system delays alarms)</string>
+    <string name="alarm_diag_power_save_off">Off</string>
+    <string name="alarm_diag_dnd_off">Off</string>
+    <string name="alarm_diag_dnd_priority">Priority only (alarms usually still ring)</string>
+    <string name="alarm_diag_dnd_alarms">Alarms only</string>
+    <string name="alarm_diag_dnd_none">Total silence (alarms make no sound)</string>
+    <string name="alarm_diag_dnd_unknown">Unknown (the app cannot read DND state)</string>
+    <string name="alarm_diag_vendor_autostart_present">Present (without allow-listing, the app will not come back after being cleaned up)</string>
+    <string name="alarm_diag_vendor_autostart_absent">None (stock or unsupported system)</string>
+    <string name="alarm_diag_keep_alive_off">Off (alarms may be cleared after you exit the app)</string>
+    <string name="alarm_diag_keep_alive_running">On and running</string>
+    <string name="alarm_diag_keep_alive_dead">On but not running (killed by the system)</string>
+    <string name="alarm_diag_registered_none">0 (no upcoming reminders)</string>
+    <string name="alarm_diag_registered_unverifiable">%1$d recorded (cannot verify against the system)</string>
+    <string name="alarm_diag_registered_summary">%1$d recorded · %2$d still registered with the system</string>
+    <string name="alarm_diag_next_value">%1$s · %2$s</string>
+    <string name="alarm_diag_recent_rings_none">No records (it has never rung on this device)</string>
+    <string name="alarm_diag_ring_outcome_rang">rang</string>
+    <string name="alarm_diag_ring_outcome_missed">missed (arrived too late)</string>
+    <string name="alarm_diag_ring_entry">%1$s %2$s %3$s</string>
+    <string name="update_install_no_handler">No app can install APKs</string>
+    <string name="update_install_open_failed">Cannot open the installer: %1$s</string>
+    <string name="log_export_share_subject">CurSimple log %1$s</string>
+    <string name="metadata_export_share_subject">CurSimple timetable metadata %1$s</string>
+    <string name="backup_restore_version_too_new">This backup is from a newer version; update the app before restoring</string>
+    <string name="backup_restore_no_data">The backup file has nothing to restore</string>
+    <string name="term_default_name">Default term</string>
+    <string name="share_decode_not_share_data">This QR code is not timetable share data</string>
+    <string name="share_decode_too_large">The shared data is too large</string>
+    <string name="provider_root_create_failed">Cannot create the file</string>
+    <string name="provider_root_delete_denied">The root folder cannot be deleted</string>
+    <string name="provider_delete_failed">Delete failed</string>
+    <string name="provider_root_rename_denied">The root folder cannot be renamed</string>
+    <string name="provider_rename_failed">Rename failed</string>
+    <string name="provider_move_failed">Move failed</string>
+    <string name="provider_missing_uri">Missing uri</string>
+    <string name="provider_file_missing">The file does not exist</string>
+    <string name="provider_method_unsupported">Unsupported method: %1$s</string>
+    <string name="provider_access_disabled">Private folder access is turned off</string>
+    <string name="ics_description_exam">Type: exam</string>
+    <string name="ics_description_teacher">Teacher: %1$s</string>
+    <string name="ics_description_nodes">Periods: %1$s</string>
+    <string name="ics_description_slot">Time: %1$s</string>
+    <string name="ics_node_single">Period %1$d</string>
+    <string name="ics_node_range">Periods %1$d-%2$d</string>
+    <string name="ics_calendar_default_name">Timetable</string>
+    <string name="download_source_origin">Origin</string>
+    <string name="download_source_github">GitHub origin</string>
+    <string name="download_response_not_json">The response is not JSON</string>
+    <string name="import_diff_title">The timetable changed</string>
+    <string name="import_diff_intro">Compared with the current timetable, this import brings the changes below. Overwriting replaces the current timetable; creating a new one keeps it, and you can switch back from the plus button at the top right.</string>
+    <string name="import_diff_added_header">%1$d added</string>
+    <string name="import_diff_removed_header">%1$d removed</string>
+    <string name="import_diff_kept">%1$d unchanged</string>
+    <string name="import_diff_course_line">%1$s · %2$s, periods %3$s · %4$s</string>
+    <string name="import_diff_course_no_place">Room TBD</string>
+    <string name="import_diff_overwrite">Overwrite</string>
+    <string name="import_diff_new_term">Create a new one</string>
+    <string name="import_diff_cancel">Not now</string>
+    <string name="import_diff_new_term_title">New timetable</string>
+    <string name="import_diff_new_term_label">Timetable name</string>
+    <string name="import_diff_new_term_confirm">Create and import</string>
+    <string name="ie_import_as_new_term">Import into a new timetable</string>
+    <string name="ie_import_new_term_notice">A new timetable will be created and switched to. Your current one stays as it is — switch back from the plus button at the top right.</string>
+    <string name="settings_background_reset_title">Reset to default</string>
+    <string name="settings_background_reset_subtitle">Clears the background image and custom colour, back to the theme colour</string>
+    <string name="settings_background_tab_schedule">Timetable</string>
+    <string name="settings_background_tab_widget">Widget</string>
+    <string name="week_picker_add_week">Add week</string>
+    <string name="week_picker_delete_title">Delete week %1$d?</string>
+    <string name="week_picker_delete_body">This week will be removed from the timetable. Type "%1$s" to confirm.</string>
+    <string name="week_picker_delete_keyword">DELETE</string>
+    <string name="week_picker_delete_confirm">Delete</string>
+    <string name="week_picker_delete_cancel">Cancel</string>
+    <string name="week_picker_add_week_hint">Append one more blank week</string>
 </resources>

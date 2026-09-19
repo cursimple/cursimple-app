@@ -51,6 +51,7 @@ object ScheduleIcsExporter {
             overrides = overrides,
             zone = BeijingTime.zone,
             generatedAt = Instant.now(),
+            labels = icsTextLabels(context),
             holidayCalendar = holidayCalendar,
         )
         if (result.eventCount == 0) {
@@ -104,3 +105,14 @@ object ScheduleIcsExporter {
             if (ch.isLetterOrDigit()) ch else '-'
         }.joinToString("").trim('-').take(40)
 }
+
+/** 按当前语言取出 .ics 里要用的文案。 */
+private fun icsTextLabels(context: Context): IcsTextLabels = IcsTextLabels(
+    exam = context.getString(R.string.ics_description_exam),
+    teacherFormat = context.getString(R.string.ics_description_teacher),
+    nodesFormat = context.getString(R.string.ics_description_nodes),
+    slotFormat = context.getString(R.string.ics_description_slot),
+    nodeSingleFormat = context.getString(R.string.ics_node_single),
+    nodeRangeFormat = context.getString(R.string.ics_node_range),
+    defaultCalendarName = context.getString(R.string.ics_calendar_default_name),
+)

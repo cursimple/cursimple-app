@@ -25,9 +25,23 @@ class WidgetPreferencesViewModel(
         }
     }
 
+    fun followAppThemeAccent() {
+        viewModelScope.launch {
+            repository.followAppThemeAccent()
+            refreshWidgets()
+        }
+    }
+
     fun setWidgetBackgroundImageUri(uri: String) {
         viewModelScope.launch {
             repository.setWidgetBackgroundImageUri(uri)
+            refreshWidgets()
+        }
+    }
+
+    fun setWidgetBackgroundImageTransparencyPercent(percent: Int) {
+        viewModelScope.launch {
+            repository.setWidgetBackgroundImageTransparencyPercent(percent)
             refreshWidgets()
         }
     }

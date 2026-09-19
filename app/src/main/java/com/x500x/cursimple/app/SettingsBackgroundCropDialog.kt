@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -89,6 +90,10 @@ internal fun ScheduleBackgroundCropDialog(
             zoom = zoom,
         )
     } ?: CropPanBounds(0f, 0f)
+    // pointerInput 只在 source 变化时重启，手势闭包会一直抱着第一帧那份余量。
+    // 而第一帧 zoom 还是 1：图比画框窄的那个方向余量正好是 0，于是放大之后
+    // 那个方向依然按 0 余量算，怎么拖都不动。这里改成每帧都读最新的一份。
+    val currentPanBounds = rememberUpdatedState(panBounds)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -116,9 +121,10 @@ internal fun ScheduleBackgroundCropDialog(
                             detectTransformGestures { _, pan, gestureZoom, _ ->
                                 zoom = (zoom * gestureZoom).coerceIn(1f, 6f)
                                 // 拖动的像素按当前可移动余量折成偏移量，一路拖得到图片两端
-                                offsetX = (offsetX + cropOffsetFraction(pan.x, panBounds.maxX))
+                                val bounds = currentPanBounds.value
+                                offsetX = (offsetX + cropOffsetFraction(pan.x, bounds.maxX))
                                     .coerceIn(-1f, 1f)
-                                offsetY = (offsetY + cropOffsetFraction(pan.y, panBounds.maxY))
+                                offsetY = (offsetY + cropOffsetFraction(pan.y, bounds.maxY))
                                     .coerceIn(-1f, 1f)
                             }
                         },

@@ -46,6 +46,12 @@ class SystemAlarmCheckReceiver : BroadcastReceiver() {
 }
 
 class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
+    companion object {
+        /** 小米等系统的「快速开机」不发标准的 BOOT_COMPLETED，得单独接一份。 */
+        const val ACTION_QUICKBOOT_POWERON = "android.intent.action.QUICKBOOT_POWERON"
+        const val ACTION_HTC_QUICKBOOT_POWERON = "com.htc.intent.action.QUICKBOOT_POWERON"
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         runAlarmMaintenance(
             context = context,
@@ -58,8 +64,12 @@ class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
                 Intent.ACTION_MY_PACKAGE_REPLACED,
                 // 切换系统语言后闹钟通知里的标签要按新语言重建
                 Intent.ACTION_LOCALE_CHANGED,
+                ACTION_QUICKBOOT_POWERON,
+                ACTION_HTC_QUICKBOOT_POWERON,
                 AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
                     app.appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
+                    // 重启后闹钟全部重排，守护服务也要按开关回到位
+                    AlarmKeepAliveService.applyPreference(app)
                 }
                 Intent.ACTION_TIME_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED,

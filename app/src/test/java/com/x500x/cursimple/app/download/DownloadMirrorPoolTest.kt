@@ -76,7 +76,7 @@ class DownloadMirrorPoolTest {
         assertTrue(
             candidates.first().url.contains("jsdmirror") || candidates.first().url.contains("jsdelivr"),
         )
-        assertTrue(candidates.indexOfFirst { it.sourceName == "ghfast.top" } < candidates.indexOfFirst { it.sourceName == "GitHub 源站" })
+        assertTrue(candidates.indexOfFirst { it.sourceName == "ghfast.top" } < candidates.indexOfFirst { it.sourceName == DownloadSourceIds.GITHUB_ORIGIN })
     }
 
     @Test

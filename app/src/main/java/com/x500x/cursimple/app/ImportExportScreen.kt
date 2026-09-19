@@ -73,6 +73,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -107,6 +108,11 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.app.util.ScheduleShareDecodeException
+import com.x500x.cursimple.app.util.ScheduleShareDecodeReason
+import androidx.compose.material3.Switch
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.width
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -123,7 +129,7 @@ fun ImportExportScreen(
     webDavClient: WebDavClient,
     aiImportConfig: AiImportConfig,
     aiImportClient: AiScheduleImportClient,
-    onApplyImport: (TermSchedule?, List<CourseItem>, (Result<Pair<Int, Int>>) -> Unit) -> Unit,
+    onApplyImport: (TermSchedule?, List<CourseItem>, String?, (Result<Pair<Int, Int>>) -> Unit) -> Unit,
     onApplyTermStartDate: (LocalDate) -> Unit,
     onCreateAppBackup: suspend () -> AppBackupPayload,
     onRestoreAppBackup: suspend (AppBackupPayload) -> Unit,
@@ -169,7 +175,7 @@ fun ImportExportScreen(
         ScheduleShareCodec.decode(text)
             .onSuccess { pendingImport = it }
             .onFailure { error ->
-                Toast.makeText(context, error.message ?: context.getString(R.string.ie_qr_unrecognized), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.shareDecodeMessage(error), Toast.LENGTH_SHORT).show()
             }
     }
 
@@ -198,13 +204,22 @@ fun ImportExportScreen(
                 return@launch
             }
             val skippedNote = if (outcome.skipped.isNotEmpty()) {
-                context.getString(R.string.ie_ics_skipped_note, outcome.skipped.size)
+                context.resources.getQuantityString(
+                    R.plurals.ie_ics_skipped_note,
+                    outcome.skipped.size,
+                    outcome.skipped.size,
+                )
             } else {
                 ""
             }
             Toast.makeText(
                 context,
-                context.getString(R.string.ie_ics_generated, outcome.eventCount, skippedNote),
+                context.resources.getQuantityString(
+                    R.plurals.ie_ics_generated,
+                    outcome.eventCount,
+                    outcome.eventCount,
+                    skippedNote,
+                ),
                 Toast.LENGTH_LONG,
             ).show()
             runCatching {
@@ -281,7 +296,11 @@ fun ImportExportScreen(
                 )
                 Toast.makeText(
                     context,
-                    context.getString(R.string.ie_ai_recognized, courseCount + manualCount),
+                    context.resources.getQuantityString(
+                        R.plurals.ie_ai_recognized,
+                        courseCount + manualCount,
+                        courseCount + manualCount,
+                    ),
                     Toast.LENGTH_SHORT,
                 ).show()
             }.onFailure {
@@ -596,7 +615,7 @@ fun ImportExportScreen(
                             remoteBackups = it
                             Toast.makeText(
                                 context,
-                                context.getString(R.string.ie_backups_found, it.size),
+                                context.resources.getQuantityString(R.plurals.ie_backups_found, it.size, it.size),
                                 Toast.LENGTH_SHORT,
                             ).show()
                         }.onFailure {
@@ -766,6 +785,11 @@ fun ImportExportScreen(
     pendingImport?.let { payload ->
         val courseCount = payload.schedule?.dailySchedules?.sumOf { it.courses.size } ?: 0
         val manualCount = payload.manualCourses.size
+        val defaultTermName = payload.termName?.takeIf(String::isNotBlank)
+            ?: stringResource(com.x500x.cursimple.feature.schedule.R.string.schedule_import_new_term_default)
+        var asNewTerm by remember(payload) { mutableStateOf(true) }
+        var termNameInput by remember(payload) { mutableStateOf(defaultTermName) }
+        val newTermName = termNameInput.trim().takeIf { asNewTerm && it.isNotBlank() }
         val importedTermStart = remember(payload.termStartDate) {
             parseImportedTermStartDate(payload.termStartDate)
         }
@@ -813,10 +837,37 @@ fun ImportExportScreen(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.ie_import_overwrite_notice),
+                        text = if (asNewTerm) {
+                            stringResource(R.string.ie_import_new_term_notice)
+                        } else {
+                            stringResource(R.string.ie_import_overwrite_notice)
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    // 导入别人的课表多半不是要替掉自己这份，默认另存一份更稳妥
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
+                            checked = asNewTerm,
+                            onCheckedChange = { asNewTerm = it },
+                            enabled = !importing,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = stringResource(R.string.ie_import_as_new_term),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    if (asNewTerm) {
+                        OutlinedTextField(
+                            value = termNameInput,
+                            onValueChange = { termNameInput = it },
+                            singleLine = true,
+                            enabled = !importing,
+                            label = { Text(stringResource(R.string.import_diff_new_term_label)) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -824,7 +875,7 @@ fun ImportExportScreen(
                     enabled = !importing,
                     onClick = {
                         importing = true
-                        onApplyImport(payload.schedule, payload.manualCourses) { result ->
+                        onApplyImport(payload.schedule, payload.manualCourses, newTermName) { result ->
                             importing = false
                             pendingImport = null
                             result
@@ -1056,7 +1107,7 @@ private fun WebDavPanel(
             }
             Text(
                 text = if (configured) {
-                    stringResource(R.string.ie_webdav_panel_body, backupCount)
+                    pluralStringResource(R.plurals.ie_webdav_panel_body, backupCount, backupCount)
                 } else {
                     stringResource(R.string.ie_webdav_panel_unconfigured)
                 },
@@ -1430,4 +1481,15 @@ private fun createAiCameraUri(context: android.content.Context): Uri {
         "${context.packageName}.fileprovider",
         file,
     )
+}
+
+/** 分享码解不开时按当前语言给提示；不是已知原因就退回通用文案。 */
+private fun android.content.Context.shareDecodeMessage(error: Throwable): String = when {
+    error is ScheduleShareDecodeException -> getString(
+        when (error.reason) {
+            ScheduleShareDecodeReason.NotShareData -> R.string.share_decode_not_share_data
+            ScheduleShareDecodeReason.TooLarge -> R.string.share_decode_too_large
+        },
+    )
+    else -> getString(R.string.ie_qr_unrecognized)
 }
