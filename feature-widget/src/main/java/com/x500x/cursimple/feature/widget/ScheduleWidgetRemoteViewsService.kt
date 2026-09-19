@@ -128,17 +128,17 @@ internal fun buildScheduleCourseRow(
 }
 
 internal fun widgetRowBackground(accent: ThemeAccent): Int = when (accent) {
-    ThemeAccent.Green -> R.drawable.widget_bg_surface_green
-    ThemeAccent.Blue -> R.drawable.widget_bg_surface_blue
-    ThemeAccent.Purple -> R.drawable.widget_bg_surface_purple
-    ThemeAccent.Orange -> R.drawable.widget_bg_surface_orange
-    ThemeAccent.Pink -> R.drawable.widget_bg_surface_pink
+    ThemeAccent.Green -> R.drawable.widget_bg_surface_green_clickable
+    ThemeAccent.Blue -> R.drawable.widget_bg_surface_blue_clickable
+    ThemeAccent.Purple -> R.drawable.widget_bg_surface_purple_clickable
+    ThemeAccent.Orange -> R.drawable.widget_bg_surface_orange_clickable
+    ThemeAccent.Pink -> R.drawable.widget_bg_surface_pink_clickable
 }
 
 internal fun widgetRowVariantBackground(accent: ThemeAccent): Int = when (accent) {
-    ThemeAccent.Green -> R.drawable.widget_bg_surface_variant_green
-    ThemeAccent.Blue -> R.drawable.widget_bg_surface_variant_blue
-    ThemeAccent.Purple -> R.drawable.widget_bg_surface_variant_purple
-    ThemeAccent.Orange -> R.drawable.widget_bg_surface_variant_orange
-    ThemeAccent.Pink -> R.drawable.widget_bg_surface_variant_pink
+    ThemeAccent.Green -> R.drawable.widget_bg_surface_variant_green_clickable
+    ThemeAccent.Blue -> R.drawable.widget_bg_surface_variant_blue_clickable
+    ThemeAccent.Purple -> R.drawable.widget_bg_surface_variant_purple_clickable
+    ThemeAccent.Orange -> R.drawable.widget_bg_surface_variant_orange_clickable
+    ThemeAccent.Pink -> R.drawable.widget_bg_surface_variant_pink_clickable
 }
