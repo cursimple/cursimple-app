@@ -176,28 +176,32 @@ internal fun derivedWeekCount(
     schedule: TermSchedule?,
     manualCourses: List<CourseItem>,
     currentWeek: Int,
-    selectedWeek: Int,
     fallbackWeeks: Int = DefaultWeekPickerTotalWeeks,
 ): Int {
     val explicitMaxWeek = schedule.allCoursesWith(manualCourses)
         .flatMap { it.weeks }
         .maxOrNull()
     val baseWeeks = explicitMaxWeek ?: fallbackWeeks
-    return maxOf(1, baseWeeks, currentWeek, selectedWeek)
+    return maxOf(1, baseWeeks, currentWeek)
 }
 
+/**
+ * 周次面板要铺到第几周。
+ *
+ * 注意这里**不能**把「正在看的那一周」算进去。总周数一旦跟着当前页走，
+ * 再叠上用户自己加的空白周就成了自增循环：翻到最后一周 → 总周数变大 → 又多出一页
+ * → 再翻又变大，周数一路涨下去。总周数只取决于课表本身与用户显式加的周。
+ */
 internal fun resolveWeekPickerTotalWeeks(
     schedule: TermSchedule?,
     manualCourses: List<CourseItem>,
     currentWeek: Int,
-    selectedWeek: Int,
     extraWeekCount: Int = 0,
     fallbackWeeks: Int = DefaultWeekPickerTotalWeeks,
 ): Int = derivedWeekCount(
     schedule = schedule,
     manualCourses = manualCourses,
     currentWeek = currentWeek,
-    selectedWeek = selectedWeek,
     fallbackWeeks = fallbackWeeks,
 ) + extraWeekCount.coerceAtLeast(0)
 

@@ -41,7 +41,6 @@ class WeekPickerSheetTest {
             schedule = schedule,
             manualCourses = listOf(manualCourse),
             currentWeek = 10,
-            selectedWeek = 12,
         )
 
         assertEquals(18, totalWeeks)
@@ -119,7 +118,6 @@ class WeekPickerSheetTest {
             schedule = null,
             manualCourses = emptyList(),
             currentWeek = -2,
-            selectedWeek = -2,
         )
 
         assertEquals(25, totalWeeks)
@@ -133,7 +131,6 @@ class WeekPickerSheetTest {
             schedule = null,
             manualCourses = emptyList(),
             currentWeek = currentWeek,
-            selectedWeek = currentWeek,
         )
 
         val minWeekOffset = (1 - currentWeek).coerceAtMost(0)
