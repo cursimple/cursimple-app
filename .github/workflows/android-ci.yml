@@ -35,8 +35,20 @@ jobs:
           CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
         run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
 
+      # 全模块跑：以前只跑 core-kernel，其余模块的用例在 CI 里等于没跑
       - name: Unit tests
-        run: ./gradlew :core-kernel:testDebugUnitTest
+        run: ./gradlew testDebugUnitTest
+
+      - name: Android Lint
+        run: ./gradlew lintDebug
+
+      - name: Upload lint reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports-${{ github.sha }}
+          path: "**/build/reports/lint-results-*.html"
+          if-no-files-found: ignore
 
       - name: Build CI debug package
         run: ./gradlew assembleDebug
