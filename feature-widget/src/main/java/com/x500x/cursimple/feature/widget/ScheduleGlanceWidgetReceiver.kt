@@ -16,6 +16,25 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
+    override fun onReceive(context: Context, intent: Intent) {
+        // 厂商启动器的刷新广播不会变成 onUpdate，这里单独接一次
+        if (handleVendorWidgetUpdate(context, intent) { updateWidgets(it) }) return
+        super.onReceive(context, intent)
+    }
+
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        // 有的启动器加完小组件不发 onUpdate，会一直停在「加载中」
+        val pendingResult = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            try {
+                updateWidgets(context.applicationContext)
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         reconcileSystemAlarmsFromWidget(context)
         val pendingResult = goAsync()
@@ -155,7 +174,22 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 ),
             )
 
-            views.setRemoteAdapter(R.id.widget_course_list, courseListIntent(context, appWidgetId))
+            views.setWidgetRows(
+                listId = R.id.widget_course_list,
+                rows = dayData.rows,
+                stableId = { it.stableId },
+                buildRow = { buildScheduleCourseRow(context, it, dayData.themeAccent, dayData.widgetTheme) },
+                fallbackAdapter = {
+                    views.setRemoteAdapter(
+                        R.id.widget_course_list,
+                        courseListIntent(
+                            context = context,
+                            appWidgetId = appWidgetId,
+                            revision = widgetListRevision(dayData.targetDate, dayData.offset, dayData.rows),
+                        ),
+                    )
+                },
+            )
             views.applyOpenAppListTemplate(context, R.id.widget_course_list, appWidgetId, dayData.widgetTheme)
             views.setEmptyView(R.id.widget_course_list, R.id.widget_empty)
             val hasRows = dayData.rows.isNotEmpty()
@@ -196,9 +230,10 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             )
         }
 
-        private fun courseListIntent(context: Context, appWidgetId: Int): Intent =
+        private fun courseListIntent(context: Context, appWidgetId: Int, revision: String): Intent =
             Intent(context, ScheduleWidgetRemoteViewsService::class.java).apply {
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra(EXTRA_WIDGET_LIST_REVISION, revision)
                 data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
             }
 

@@ -21,8 +21,23 @@ class WidgetRefreshBoundariesTest {
     private fun at(hour: Int, minute: Int) = day.atTime(hour, minute)
 
     @Test
-    fun `no slots means nothing to schedule`() {
-        assertEquals(emptyList<LocalDateTime>(), widgetRefreshBoundaries(emptyList(), at(8, 0)))
+    fun `no slots still refreshes at midnight`() {
+        // 没有作息也要在换天时刷一次，否则小组件会一直停在昨天那一页
+        assertEquals(
+            listOf(day.plusDays(1).atStartOfDay()),
+            widgetRefreshBoundaries(emptyList(), at(8, 0)),
+        )
+    }
+
+    @Test
+    fun `midnight is always scheduled`() {
+        val result = widgetRefreshBoundaries(
+            listOf(slot("08:00", "09:40")),
+            now = at(7, 0),
+            limit = 10,
+        )
+
+        assertTrue(day.plusDays(1).atStartOfDay() in result)
     }
 
     @Test
@@ -75,7 +90,8 @@ class WidgetRefreshBoundariesTest {
             limit = 2,
         )
 
-        assertEquals(listOf(at(7, 30), at(7, 55)), result)
+        // 零点自己占一个槽位，剩下的才留给节次边界
+        assertEquals(listOf(at(7, 30), day.plusDays(1).atStartOfDay()), result)
     }
 
     @Test
@@ -88,9 +104,9 @@ class WidgetRefreshBoundariesTest {
 
         assertEquals(
             listOf(
+                day.plusDays(1).atStartOfDay(),
                 day.plusDays(1).atTime(7, 30),
                 day.plusDays(1).atTime(7, 55),
-                day.plusDays(1).atTime(8, 0),
             ),
             result,
         )
@@ -101,10 +117,13 @@ class WidgetRefreshBoundariesTest {
         val result = widgetRefreshBoundaries(
             listOf(slot("23:00", "00:40")),
             now = at(23, 30),
-            limit = 1,
+            limit = 2,
         )
 
-        assertEquals(listOf(day.plusDays(1).atTime(0, 40)), result)
+        assertEquals(
+            listOf(day.plusDays(1).atStartOfDay(), day.plusDays(1).atTime(0, 40)),
+            result,
+        )
     }
 
     @Test

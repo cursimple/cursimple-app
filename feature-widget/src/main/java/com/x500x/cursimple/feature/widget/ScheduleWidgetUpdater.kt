@@ -23,6 +23,10 @@ import java.util.concurrent.TimeUnit
 object ScheduleWidgetUpdater {
     suspend fun refreshAll(context: Context) = withContext(Dispatchers.Default) {
         val app = context.applicationContext
+        // 课表、提醒或偏好已经改过，先把短时缓存清掉，列表不会再画出上一份数据
+        ScheduleWidgetDataSource.invalidate()
+        NextCourseDataSource.invalidate()
+        ReminderDataSource.invalidate()
         ScheduleGlanceWidgetReceiver.updateWidgets(app)
         NextCourseGlanceWidgetReceiver.updateWidgets(app)
         ReminderGlanceWidgetReceiver.updateWidgets(app)
