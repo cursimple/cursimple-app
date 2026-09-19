@@ -96,6 +96,19 @@ object WidgetCatalog {
         }
     }
 
+    /**
+     * 这家桌面基本不会响应一键添加。
+     *
+     * `isRequestPinAppWidgetSupported` 在 vivo / OPPO 上照样返回 true，请求也会被受理，
+     * 然后桌面转头丢掉——实测如此，把「桌面快捷方式」权限开着也一样。系统没有接口能问出来，
+     * 只能按已知的桌面直接给手动步骤，省掉那一次点了没反应再等十几秒的过程。
+     * 判错时用户可以在手动步骤里点「再试一次一键添加」。
+     */
+    fun pinLikelyIgnored(context: Context): Boolean = when (detectLauncherVendor(context)) {
+        LauncherVendor.Vivo, LauncherVendor.Oppo -> true
+        else -> false
+    }
+
     /** [attempt] 是 [pinCandidates] 里的下标；上一条落空后带下一个下标再调一次。 */
     fun requestPin(context: Context, entry: WidgetCatalogEntry, attempt: Int = 0): PinRequestResult {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return PinRequestResult.Unsupported
@@ -215,6 +228,47 @@ object WidgetCatalog {
                 device.contains("samsung", ignoreCase = true) -> LauncherVendor.Samsung
             else -> LauncherVendor.Other
         }
+    }
+
+    /**
+     * 打开厂商的「桌面快捷方式 / 创建桌面图标」权限页。
+     *
+     * vivo（com.bbk.launcher2）与 MIUI 上，这项权限没给时 `requestPinAppWidget` 照样返回
+     * true，桌面却把请求直接丢掉——用户那边就是「点了没反应，也没有弹窗」。
+     * 系统不提供这项权限的查询接口，只能把入口摆给用户自己确认。
+     * 逐个试，都打不开就落到应用详情页。
+     */
+    fun openShortcutPermission(context: Context): Boolean {
+        val packageName = context.packageName
+        val candidates = listOf(
+            // vivo / iQOO：权限管理里的单应用权限页，「桌面快捷方式」在这一页
+            Intent().setClassName(
+                "com.vivo.permissionmanager",
+                "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity",
+            ).putExtra("packagename", packageName),
+            Intent().setClassName(
+                "com.iqoo.secure",
+                "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity",
+            ),
+            // MIUI / HyperOS
+            Intent().setClassName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.permissions.PermissionsEditorActivity",
+            ).putExtra("extra_pkgname", packageName),
+            Intent().setClassName(
+                "com.miui.securitycenter",
+                "com.miui.permcenter.permissions.AppPermissionsEditorActivity",
+            ).putExtra("extra_pkgname", packageName),
+        )
+        for (intent in candidates) {
+            val candidate = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val resolves = runCatching {
+                context.packageManager.queryIntentActivities(candidate, PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
+            }.getOrDefault(false)
+            if (!resolves) continue
+            if (runCatching { context.startActivity(candidate) }.isSuccess) return true
+        }
+        return openAppDetails(context)
     }
 
     /** Opens the system "App Info" page so the user can grant background-popup / floating-window permissions. */
