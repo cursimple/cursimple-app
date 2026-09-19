@@ -668,6 +668,12 @@ fun ScheduleScreen(
                         ?: day.holidayName
                         ?: stringResource(R.string.schedule_holiday_unnamed)
                 },
+                makeUpWorkday = resolution.isMakeUpWorkday,
+                isToday = date == zone.today(),
+                sourceDate = resolution.sourceDate.takeIf { it != date && !resolution.isHoliday },
+                sourceWeekdayLabel = resolution.sourceDate
+                    .takeIf { it != date && !resolution.isHoliday }
+                    ?.let { stringResource(scheduleWeekdayFullRes(it.dayOfWeek.value)) },
                 initialChoice = when (userEntry?.kind) {
                     HolidayEntryKind.Holiday -> ScheduleDayChoice.Holiday
                     HolidayEntryKind.Workday -> ScheduleDayChoice.Workday
@@ -1014,6 +1020,18 @@ private fun WeeklyScheduleSection(
                         } finally {
                             isReconciling.value = false
                         }
+                    }
+                }
+                // 在「添加周」那一页点了加号：页数变多，用户原地就落到了新加的那一周上。
+                // 页号没变，翻页的 snapshotFlow 不会再发，周偏移也就不会更新——
+                // 顶部还写着上一周。这里按页数变化补一次同步。
+                androidx.compose.runtime.LaunchedEffect(weekPageCount) {
+                    val page = pagerState.currentPage
+                    if (page >= weekPageCount) return@LaunchedEffect
+                    val newOffset = page + safeMin
+                    if (newOffset != weekOffset) {
+                        pagerLatestRequest.intValue = newOffset
+                        onWeekOffsetChange(newOffset)
                     }
                 }
                 androidx.compose.runtime.LaunchedEffect(pagerState, safeMin) {
@@ -2114,6 +2132,10 @@ private fun ScheduleGrid(
 
     // 空白格点击添加的浮层状态。提升到网格作用域，使对话框能在内层定位 Box 之外读取。提示格在 2.5 秒后自动清除。
     var hintCell by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<Int, Int>?>(null) }
+    // 同一格里叠着好几门课时，长按先问要编辑哪一门
+    var longPressPick by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<List<CourseItem>?>(null)
+    }
     var addRequest by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<Triple<Int, Int, Int>?>(null)
     }
@@ -2169,15 +2191,27 @@ private fun ScheduleGrid(
         val dayHeaderMinHeight = dayHeaderHeight(
             density = headerDensity,
             headerTextSizeSp = scheduleTextStyle.headerTextSizeSp,
-            hasExtraLine = visibleDays.any { it.overrideLabel != null || it.holidayLabel != null },
+            hasExtraLine = visibleDays.any {
+                it.overrideLabel != null || it.holidayLabel != null || it.isMakeUpWorkday
+            },
         )
         val totalWidth = maxWidth
         val dayColumnWidth = ((totalWidth - timeColumnWidth) / dayColumnCount).coerceAtLeast(36.dp)
         val gridWidth = dayColumnWidth * dayColumnCount
-        val fitMode = scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit
-        val slotHeight = if (fitMode && slots.isNotEmpty()) {
+        // 平铺是「把所有节次塞进一屏」，塞不下时它既不滚动也不缩，底下几节直接够不着。
+        // 横屏高度只有竖屏的一半，节次一多必然塞不下；竖屏节次很多时同样会。
+        // 所以先算一遍塞不塞得下，塞不下就自动按可滚动处理。
+        val fitSlotHeight = if (slots.isEmpty()) {
+            MIN_FIT_SLOT_HEIGHT
+        } else {
+            (maxHeight - dayHeaderMinHeight) / slots.size
+        }
+        val fitMode = scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit &&
+            slots.isNotEmpty() &&
+            fitSlotHeight >= MIN_FIT_SLOT_HEIGHT
+        val slotHeight = if (fitMode) {
             // 平铺时把剩余高度均分给每节，课名靠自身省略号收尾
-            ((maxHeight - dayHeaderMinHeight) / slots.size).coerceAtLeast(MIN_FIT_SLOT_HEIGHT)
+            fitSlotHeight
         } else {
             scheduleCardStyle.courseCardHeightDp.dp
         }
@@ -2394,7 +2428,14 @@ private fun ScheduleGrid(
                                         ?: week.weekStart
                                     onCellClick(sortedCourses, columnDate)
                                 },
-                                onLongClick = { onCourseLongClick(course.id) },
+                                onLongClick = {
+                                    // 叠了好几门时不能闷头编辑最上面那一门——那多半不是用户想改的那门
+                                    if (sortedCourses.size > 1) {
+                                        longPressPick = sortedCourses
+                                    } else {
+                                        onCourseLongClick(course.id)
+                                    }
+                                },
                                 dragEnabled = course.id in movableCourseIds &&
                                     !multiSelectMode &&
                                     resizingCourseId == null,
@@ -2547,6 +2588,17 @@ private fun ScheduleGrid(
             )
         }
 
+        longPressPick?.let { courses ->
+            OverlappingCoursePickerDialog(
+                courses = courses,
+                onPick = { picked ->
+                    longPressPick = null
+                    onCourseLongClick(picked.id)
+                },
+                onDismiss = { longPressPick = null },
+            )
+        }
+
         addRequest?.let { (day, startNode, endNode) ->
             QuickAddCourseDialog(
                 dayOfWeek = day,
@@ -2633,6 +2685,18 @@ internal fun courseTitleFontSizeSp(
     return (baseSizeSp * scale).coerceAtLeast(9f)
 }
 
+
+/**
+ * 给定高度里能完整放下几行。
+ *
+ * 露出小半个字既看不出是什么，又白占一行高度，所以只数放得下的整行。
+ * 至少返回 1：再挤也要给课名留一行，否则这一格等于白画。
+ */
+internal fun fitLineCount(availableHeightDp: Float, lineHeightDp: Float): Int {
+    if (lineHeightDp <= 0f || !availableHeightDp.isFinite()) return Int.MAX_VALUE
+    return kotlin.math.floor(availableHeightDp / lineHeightDp).toInt().coerceAtLeast(1)
+}
+
 /** 背景图解码后的长边上限，超过按 2 的幂降采样。 */
 private const val BACKGROUND_MAX_EDGE_PX = 2048
 
@@ -2693,7 +2757,8 @@ private fun DayHeader(
                 it.padding(vertical = 2.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(todayContainer)
-                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    // 今天这一列本来就比别人窄，内边距再宽标签就没地方了
+                    .padding(horizontal = 3.dp, vertical = 2.dp)
             } else {
                 it
             }
@@ -2703,21 +2768,19 @@ private fun DayHeader(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Text(
+        // 原先是 softWrap=false 且没给 overflow，默认直接硬切——
+        // 大字号或窄列时「10月」会被切掉半个字，连省略号都没有。改成同样按列宽缩字号
+        AutoFitHeaderText(
             text = stringResource(day.weekdayLabelRes),
-            fontSize = headerSize,
-            fontWeight = FontWeight.SemiBold,
             color = if (day.isToday) todayContent else headerColor.copy(alpha = 0.88f),
-            maxLines = 1,
-            softWrap = false,
+            fontWeight = FontWeight.SemiBold,
+            maxFontSize = headerSize,
         )
-        Text(
+        AutoFitHeaderText(
             text = LocalContext.current.dayDateLabelText(day.dateLabel),
-            fontSize = headerSize,
-            fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium,
             color = if (day.isToday) todayContent else headerColor,
-            maxLines = 1,
-            softWrap = false,
+            fontWeight = if (day.isToday) FontWeight.Bold else FontWeight.Medium,
+            maxFontSize = headerSize,
         )
         if (day.holidayLabel != null) {
             DayHeaderTagText(
@@ -2746,15 +2809,18 @@ private fun DayHeader(
 
 
 /**
- * 表头上那行小标签（放假名、调休、按某天）。
+ * 表头里按列宽自动缩字号的文字。
  *
- * 一列就那么宽，固定 10sp 时「按10/5」在大字号或窄屏上会被省略号吃成「按1…」，
- * 看不出到底按的是哪天。改成按列宽自动缩字号，缩到 6sp 还放不下才省略。
+ * 一列就那么宽，固定字号时「10月」「按10/5」在大字号或窄屏上会被切掉或省略成「按1…」。
+ * 缩到下限还放不下才用省略号，至少不会出现半个字。
  */
 @Composable
-private fun DayHeaderTagText(
+private fun AutoFitHeaderText(
     text: String,
     color: androidx.compose.ui.graphics.Color,
+    fontWeight: FontWeight,
+    maxFontSize: androidx.compose.ui.unit.TextUnit,
+    minFontSize: androidx.compose.ui.unit.TextUnit = (maxFontSize.value * 0.6f).coerceAtLeast(6f).sp,
     modifier: Modifier = Modifier,
 ) {
     androidx.compose.foundation.text.BasicText(
@@ -2762,16 +2828,96 @@ private fun DayHeaderTagText(
         modifier = modifier,
         style = androidx.compose.ui.text.TextStyle(
             color = color,
-            fontWeight = FontWeight.Bold,
+            fontWeight = fontWeight,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         ),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
-            minFontSize = 6.sp,
-            maxFontSize = 10.sp,
+            minFontSize = minFontSize,
+            maxFontSize = maxFontSize,
             stepSize = 0.5.sp,
         ),
+    )
+}
+
+/** 表头下方那行小标签（放假名、调休、按某天），上限 10sp。 */
+@Composable
+private fun DayHeaderTagText(
+    text: String,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+) {
+    AutoFitHeaderText(
+        text = text,
+        color = color,
+        fontWeight = FontWeight.Bold,
+        maxFontSize = DAY_HEADER_EXTRA_TEXT_SIZE_SP.sp,
+        // 「按10/10」是最宽的一种：一个全角字加五个半角字符。
+        // 今天那一列还要减去胶囊的内边距，6sp 在大字号下仍会被省略，这里再留一档
+        minFontSize = 5.sp,
+        modifier = modifier,
+    )
+}
+
+
+/**
+ * 同一格里叠了好几门课时，长按先选一门。
+ *
+ * 格子里只画得下最上面那一门，长按却总是编辑它——用户想改的往往是被压在下面的那门。
+ */
+@Composable
+private fun OverlappingCoursePickerDialog(
+    courses: List<CourseItem>,
+    onPick: (CourseItem) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_overlap_pick_title, courses.size)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = stringResource(R.string.schedule_overlap_pick_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                courses.forEach { course ->
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onPick(course) },
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                            Text(
+                                text = course.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            val detail = listOfNotNull(
+                                course.location.takeIf { it.isNotBlank() },
+                                course.teacher.takeIf { it.isNotBlank() },
+                            ).joinToString(" · ")
+                            if (detail.isNotBlank()) {
+                                Text(
+                                    text = detail,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.schedule_action_cancel))
+            }
+        },
     )
 }
 
@@ -3089,17 +3235,28 @@ private fun CourseBlock(
                         enabled = scheduleTextStyle.autoShrinkLongTitles,
                     )
                 }
-                Text(
-                    text = course.title,
-                    color = titleColor,
-                    fontSize = titleFontSizeSp.sp,
-                    // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
-                    lineHeight = (titleFontSizeSp + 1f).sp,
-                    fontWeight = FontWeight.SemiBold,
-                    overflow = TextOverflow.Clip,
-                    textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                // 只显示放得下的整行。原先是 Clip 且不限行数，最后一行会被从字中间切开，
+                // 露出小半个字既看不出是什么，又白占一行高度
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val titleLineHeightSp = titleFontSizeSp + 1f
+                    val lineHeightDp = with(LocalDensity.current) { titleLineHeightSp.sp.toDp() }
+                    val maxTitleLines = fitLineCount(
+                        availableHeightDp = maxHeight.value,
+                        lineHeightDp = lineHeightDp.value,
+                    )
+                    Text(
+                        text = course.title,
+                        color = titleColor,
+                        fontSize = titleFontSizeSp.sp,
+                        // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
+                        lineHeight = titleLineHeightSp.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = maxTitleLines,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 if (scheduleDisplay.locationVisible && course.location.isNotBlank()) {
                     Text(
                         text = formatCourseLocation(course.location, scheduleDisplay, LocalScheduleLocationSuffix.current),

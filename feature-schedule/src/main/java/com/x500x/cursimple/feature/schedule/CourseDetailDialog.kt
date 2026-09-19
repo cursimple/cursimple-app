@@ -37,7 +37,6 @@ import androidx.compose.material.icons.rounded.Source
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -81,8 +80,117 @@ import com.x500x.cursimple.core.kernel.model.examCountdownOrNull
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import com.x500x.cursimple.feature.schedule.time.today
 import java.time.LocalDate
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 
 @OptIn(ExperimentalLayoutApi::class)
+
+/**
+ * 同一格里叠着的几门课，左右翻页挑一门。
+ *
+ * 原先是一排筹码并列，课名长的时候（「高级可编程逻辑程序设计与应用」这种）挤成两行、
+ * 还被省略号切掉，反而看不出是哪门。改成一次只显示一门、整条替换，配圆点指示当前是第几门。
+ */
+@Composable
+private fun SameSlotPager(
+    courses: List<CourseItem>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.schedule_course_detail_same_slot, courses.size),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            // 页码用圆点：几门课一眼看出来，也知道现在停在第几门
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                courses.indices.forEach { index ->
+                    val active = index == selectedIndex
+                    Box(
+                        modifier = Modifier
+                            .size(if (active) 8.dp else 6.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (active) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                            )
+                            .clickable { onSelect(index) },
+                    )
+                }
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = { onSelect((selectedIndex - 1 + courses.size) % courses.size) },
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
+                    contentDescription = stringResource(R.string.schedule_same_slot_prev),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(
+                        text = courses[selectedIndex].title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = stringResource(
+                            R.string.schedule_same_slot_position,
+                            selectedIndex + 1,
+                            courses.size,
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                    )
+                }
+            }
+            IconButton(
+                onClick = { onSelect((selectedIndex + 1) % courses.size) },
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = stringResource(R.string.schedule_same_slot_next),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun CourseDetailDialog(
     courses: List<CourseItem>,
@@ -253,37 +361,14 @@ fun CourseDetailDialog(
                 }
 
                 if (courses.size > 1) {
-                    // 换行摆放而不是横向滚动：一格里课多时也能一眼看全，不会被切掉半个
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        itemVerticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.schedule_course_detail_same_slot, courses.size),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        courses.forEachIndexed { index, c ->
-                            FilterChip(
-                                selected = index == selectedIndex,
-                                onClick = {
-                                    selectedIndex = index
-                                    editing = false
-                                },
-                                label = {
-                                    Text(
-                                        text = c.title,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                            )
-                        }
-                    }
+                    SameSlotPager(
+                        courses = courses,
+                        selectedIndex = selectedIndex,
+                        onSelect = {
+                            selectedIndex = it
+                            editing = false
+                        },
+                    )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
 
