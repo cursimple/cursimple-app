@@ -227,4 +227,4 @@ Allow the app to run in the background, then check **Settings → Appearance →
 
 ## License
 
-[MIT License](LICENSE) · Copyright © 2026 x500x
+[MIT License](LICENSE) · Copyright © 2026 the CurSimple Team
