@@ -72,6 +72,16 @@ class DataStoreTermProfileRepository(
         }
     }
 
+    override suspend fun setTermExtraWeekCount(id: String, extraWeekCount: Int) {
+        val coerced = extraWeekCount.coerceAtLeast(0)
+        store.edit { prefs ->
+            val list = readTerms(prefs).map {
+                if (it.id == id) it.copy(extraWeekCount = coerced) else it
+            }
+            prefs[KEY_TERMS_JSON] = json.encodeToString(listSerializer, list)
+        }
+    }
+
     override suspend fun setTermTimingProfile(id: String, timingProfileId: String?) {
         store.edit { prefs ->
             val list = readTerms(prefs).map {

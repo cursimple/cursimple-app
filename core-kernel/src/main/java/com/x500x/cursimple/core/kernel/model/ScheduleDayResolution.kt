@@ -13,6 +13,13 @@ data class ScheduleDayResolution(
     val holidayName: String?,
     /** 内置假日的文案资源，用户自建的假日为 null，按用户填的名字显示。 */
     val holidayNameRes: Int? = null,
+    /**
+     * 这天是调休补班日。
+     *
+     * 本来是周末或假期，因为放假安排被调成了上课日。课照出，但日历上看着是休息日，
+     * 不标一下很容易当成放假睡过去，所以表头要单独给它一个记号。
+     */
+    val isMakeUpWorkday: Boolean = false,
 )
 
 /**
@@ -37,6 +44,9 @@ fun resolveScheduleDay(
         else -> holidayCalendar.syncedEntryOn(date) ?: holidayCalendar.builtInEntryOn(date)
     }
     val holiday = effectiveEntry?.kind == HolidayEntryKind.Holiday
+    // 只有「本来该休息」的日子被调成上班才算调休；平日标成 Workday 没有信息量
+    val makeUpWorkday = effectiveEntry?.kind == HolidayEntryKind.Workday &&
+        date.dayOfWeek.value >= 6
     return ScheduleDayResolution(
         date = date,
         sourceDate = if (holiday) date else resolveTemporaryScheduleSourceDate(date, overrides),
@@ -46,5 +56,6 @@ fun resolveScheduleDay(
             !holiday || userEntry != null -> null
             else -> builtInHolidayNameResOn(date) ?: effectiveEntry?.name?.let(::holidayNameResOfName)
         },
+        isMakeUpWorkday = makeUpWorkday,
     )
 }
