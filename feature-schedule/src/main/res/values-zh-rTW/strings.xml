@@ -610,4 +610,6 @@
     <string name="schedule_same_slot_prev">上一門</string>
     <string name="schedule_same_slot_next">下一門</string>
     <string name="schedule_same_slot_position">第 %1$d / %2$d 門</string>
+    <string name="schedule_status_week_active">第 %1$d 週有課</string>
+    <string name="schedule_status_week_inactive">第 %1$d 週不上</string>
 </resources>

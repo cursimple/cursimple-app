@@ -511,6 +511,8 @@ fun ScheduleScreen(
                     temporaryScheduleOverrides,
                     holidayCalendar,
                 ),
+                // 真实的当前周，用来区分「本周」和「你正在看的那一周」
+                currentWeekNumber = computeWeekNumberForDate(overrideTermStart, zone.today()),
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
                 examReminderEnabled = examRules.isNotEmpty(),
                 mutedExamCourseIds = examRules.flatMap { it.mutedCourseIds }.toSet(),
@@ -2697,6 +2699,92 @@ internal fun fitLineCount(availableHeightDp: Float, lineHeightDp: Float): Int {
     return kotlin.math.floor(availableHeightDp / lineHeightDp).toInt().coerceAtLeast(1)
 }
 
+
+/**
+ * 课程卡片里各行文字的排布方案。
+ *
+ * 规矩是「按优先级从上往下填，上一项没显示完就不显示下一项」：
+ * 课名 > 地点 > 附注。课名被省略却还在下面挂着「@东…」，既没把最要紧的显示全，
+ * 又多出一行看不懂的残句。
+ */
+internal data class CourseCardTextPlan(
+    val titleLines: Int,
+    val titleComplete: Boolean,
+    val showLocation: Boolean,
+    val locationLines: Int,
+    val showBadges: Boolean,
+)
+
+/**
+ * 估算一段文字在给定宽度里要占几行。
+ *
+ * 中日韩字按一个字号宽算，其余按半个——课名与教室号正好是这两类的混合。
+ */
+internal fun estimatedTextLines(text: String, fontSizeDp: Float, widthDp: Float): Int {
+    if (text.isEmpty() || fontSizeDp <= 0f || widthDp <= 0f) return 0
+    val fullWidth = text.count { it.code > 0x2E80 }
+    val halfWidth = text.length - fullWidth
+    val totalWidth = (fullWidth + halfWidth * 0.5f) * fontSizeDp
+    return kotlin.math.ceil(totalWidth / widthDp).toInt().coerceAtLeast(1)
+}
+
+/**
+ * 按可用高度排出课名、地点、附注各占几行。
+ *
+ * 课名永远先拿：它占不满才轮到地点，地点整段放不下就干脆不显示——
+ * 半截的「@东…」对谁都没用，不如把高度留给课名。
+ */
+internal fun courseCardTextPlan(
+    availableHeightDp: Float,
+    contentWidthDp: Float,
+    title: String,
+    titleFontSizeDp: Float,
+    titleLineHeightDp: Float,
+    location: String,
+    locationFontSizeDp: Float,
+    locationLineHeightDp: Float,
+    locationVisible: Boolean,
+    hasBadges: Boolean,
+    badgeLineHeightDp: Float,
+): CourseCardTextPlan {
+    if (titleLineHeightDp <= 0f || availableHeightDp <= 0f) {
+        return CourseCardTextPlan(
+            titleLines = Int.MAX_VALUE,
+            titleComplete = true,
+            showLocation = locationVisible && location.isNotBlank(),
+            locationLines = Int.MAX_VALUE,
+            showBadges = hasBadges,
+        )
+    }
+    val titleNeeded = estimatedTextLines(title, titleFontSizeDp, contentWidthDp)
+    val titleFits = kotlin.math.floor(availableHeightDp / titleLineHeightDp).toInt()
+    val titleLines = minOf(titleNeeded, titleFits).coerceAtLeast(1)
+    val titleComplete = titleLines >= titleNeeded
+    var remaining = availableHeightDp - titleLines * titleLineHeightDp
+
+    var showLocation = false
+    var locationLines = 0
+    if (titleComplete && locationVisible && location.isNotBlank() && locationLineHeightDp > 0f) {
+        val needed = estimatedTextLines(location, locationFontSizeDp, contentWidthDp)
+        val fits = kotlin.math.floor(remaining / locationLineHeightDp).toInt()
+        // 地点要么整段显示，要么不显示：只露「@东…」等于没说
+        if (fits >= needed) {
+            showLocation = true
+            locationLines = needed
+            remaining -= needed * locationLineHeightDp
+        }
+    }
+
+    val showBadges = hasBadges && titleComplete && remaining >= badgeLineHeightDp
+    return CourseCardTextPlan(
+        titleLines = titleLines,
+        titleComplete = titleComplete,
+        showLocation = showLocation,
+        locationLines = locationLines,
+        showBadges = showBadges,
+    )
+}
+
 /** 背景图解码后的长边上限，超过按 2 的幂降采样。 */
 private const val BACKGROUND_MAX_EDGE_PX = 2048
 
@@ -3235,57 +3323,78 @@ private fun CourseBlock(
                         enabled = scheduleTextStyle.autoShrinkLongTitles,
                     )
                 }
-                // 只显示放得下的整行。原先是 Clip 且不限行数，最后一行会被从字中间切开，
-                // 露出小半个字既看不出是什么，又白占一行高度
+                // 按优先级从上往下填：课名 > 地点 > 附注。
+                // 上一项没显示完就不显示下一项——课名被省略却还挂着「@东…」，
+                // 等于最要紧的没看全、又多一行残句
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val density = LocalDensity.current
                     val titleLineHeightSp = titleFontSizeSp + 1f
-                    val lineHeightDp = with(LocalDensity.current) { titleLineHeightSp.sp.toDp() }
-                    val maxTitleLines = fitLineCount(
-                        availableHeightDp = maxHeight.value,
-                        lineHeightDp = lineHeightDp.value,
+                    val locationText = formatCourseLocation(
+                        course.location,
+                        scheduleDisplay,
+                        LocalScheduleLocationSuffix.current,
                     )
-                    Text(
-                        text = course.title,
-                        color = titleColor,
-                        fontSize = titleFontSizeSp.sp,
-                        // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
-                        lineHeight = titleLineHeightSp.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = maxTitleLines,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (scheduleDisplay.locationVisible && course.location.isNotBlank()) {
-                    Text(
-                        text = formatCourseLocation(course.location, scheduleDisplay, LocalScheduleLocationSuffix.current),
-                        color = onColor.copy(alpha = 0.85f),
-                        fontSize = 10.sp,
-                        lineHeight = 11.sp,
-                        // 课名占完之后剩多少高度，地点就用多少：跨大节的高格子下面明明空着，
-                        // 硬压成一行反而是把能显示的字白白截掉。
-                        // 真放不下才省略号收尾，让人知道后面还有字、可以点开看全。
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f, fill = false),
-                    )
-                }
-                if (badges.isNotEmpty() && !inactive) {
-                    Text(
-                        text = badges.joinToString(separator = " · "),
-                        color = onColor.copy(alpha = 0.9f),
-                        fontSize = 9.sp,
-                        lineHeight = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Clip,
-                        textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    val plan = with(density) {
+                        courseCardTextPlan(
+                            availableHeightDp = maxHeight.value,
+                            contentWidthDp = maxWidth.value,
+                            title = course.title,
+                            titleFontSizeDp = titleFontSizeSp.sp.toDp().value,
+                            titleLineHeightDp = titleLineHeightSp.sp.toDp().value,
+                            location = locationText,
+                            locationFontSizeDp = 10.sp.toDp().value,
+                            locationLineHeightDp = 11.sp.toDp().value,
+                            locationVisible = scheduleDisplay.locationVisible,
+                            hasBadges = badges.isNotEmpty() && !inactive,
+                            badgeLineHeightDp = 11.sp.toDp().value,
+                        )
+                    }
+                    Column(
+                        horizontalAlignment = if (horizontalCentered) {
+                            Alignment.CenterHorizontally
+                        } else {
+                            Alignment.Start
+                        },
+                    ) {
+                        Text(
+                            text = course.title,
+                            color = titleColor,
+                            fontSize = titleFontSizeSp.sp,
+                            // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
+                            lineHeight = titleLineHeightSp.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = plan.titleLines,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (plan.showLocation) {
+                            Text(
+                                text = locationText,
+                                color = onColor.copy(alpha = 0.85f),
+                                fontSize = 10.sp,
+                                lineHeight = 11.sp,
+                                maxLines = plan.locationLines,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                        if (plan.showBadges) {
+                            Text(
+                                text = badges.joinToString(separator = " · "),
+                                color = onColor.copy(alpha = 0.9f),
+                                fontSize = 9.sp,
+                                lineHeight = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Clip,
+                                textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
                 }
             }
         }

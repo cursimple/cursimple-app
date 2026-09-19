@@ -196,6 +196,8 @@ fun CourseDetailDialog(
     courses: List<CourseItem>,
     timingProfile: TermTimingProfile?,
     visibleWeekNumber: Int?,
+    /** 真实的当前教学周；只有正在看的就是它时，标记才写「本周」。 */
+    currentWeekNumber: Int? = null,
     isManual: (CourseItem) -> Boolean,
     examReminderEnabled: Boolean = false,
     mutedExamCourseIds: Set<String> = emptySet(),
@@ -333,7 +335,13 @@ fun CourseDetailDialog(
                                 modifier = Modifier.weight(1f),
                             )
                             Spacer(Modifier.width(8.dp))
-                            StatusChip(thisWeek = isThisWeek, manual = manual)
+                            StatusChip(
+                                activeInVisibleWeek = isThisWeek,
+                                visibleWeekNumber = visibleWeekNumber,
+                                viewingCurrentWeek = visibleWeekNumber != null &&
+                                    visibleWeekNumber == currentWeekNumber,
+                                manual = manual,
+                            )
                             IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
                                 Icon(
                                     imageVector = Icons.Rounded.Close,
@@ -860,16 +868,32 @@ private fun ExamReminderMuteRow(
     }
 }
 
+/**
+ * 右上角那枚状态标记。
+ *
+ * 它说的是「这门课在你正在看的这一周上不上」，而不是「在真实的本周上不上」。
+ * 两者混为一谈就会出现：翻到第 12 周点开一门课，标记却写着「本周」。
+ * 所以只有正在看的恰好就是当前教学周时才写「本周」，否则把周次写出来。
+ */
 @Composable
-private fun StatusChip(thisWeek: Boolean?, manual: Boolean) {
+private fun StatusChip(
+    activeInVisibleWeek: Boolean?,
+    visibleWeekNumber: Int?,
+    viewingCurrentWeek: Boolean,
+    manual: Boolean,
+) {
     val (label, container, content) = when {
-        thisWeek == null -> Triple(
+        activeInVisibleWeek == null -> Triple(
             stringResource(R.string.schedule_status_week_unknown),
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        !thisWeek -> Triple(
-            stringResource(R.string.schedule_status_other_week),
+        !activeInVisibleWeek -> Triple(
+            if (viewingCurrentWeek || visibleWeekNumber == null) {
+                stringResource(R.string.schedule_status_other_week)
+            } else {
+                stringResource(R.string.schedule_status_week_inactive, visibleWeekNumber)
+            },
             MaterialTheme.colorScheme.surfaceVariant,
             MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -879,7 +903,11 @@ private fun StatusChip(thisWeek: Boolean?, manual: Boolean) {
             MaterialTheme.colorScheme.onTertiaryContainer,
         )
         else -> Triple(
-            stringResource(R.string.schedule_status_this_week),
+            if (viewingCurrentWeek || visibleWeekNumber == null) {
+                stringResource(R.string.schedule_status_this_week)
+            } else {
+                stringResource(R.string.schedule_status_week_active, visibleWeekNumber)
+            },
             MaterialTheme.colorScheme.primaryContainer,
             MaterialTheme.colorScheme.onPrimaryContainer,
         )
