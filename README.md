@@ -227,4 +227,4 @@ feature-widget   桌面小组件与定时刷新
 
 ## 开源许可
 
-[MIT License](LICENSE) · Copyright © 2026 x500x
+[MIT License](LICENSE) · Copyright © 2026 CurSimple 团队
