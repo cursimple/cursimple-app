@@ -15,6 +15,9 @@ interface TermProfileRepository {
 
     /** 把学期绑到一套作息上；[timingProfileId] 为 null 时解除绑定。 */
     suspend fun setTermTimingProfile(id: String, timingProfileId: String?)
+
+    /** 设定这个学期自己加了几周空白周；负数按 0 处理。 */
+    suspend fun setTermExtraWeekCount(id: String, extraWeekCount: Int)
     suspend fun deleteTerm(id: String)
     suspend fun setActiveTerm(id: String)
 

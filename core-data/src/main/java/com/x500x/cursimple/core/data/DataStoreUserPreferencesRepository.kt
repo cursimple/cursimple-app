@@ -79,6 +79,7 @@ class DataStoreUserPreferencesRepository(
                 syncedYears = decodeSyncedHolidayYears(prefs[KEY_HOLIDAY_CALENDAR_SYNCED_JSON]),
             ),
             skipRemindersOnHoliday = prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] ?: false,
+            alarmKeepAliveEnabled = prefs[KEY_ALARM_KEEP_ALIVE] ?: false,
             reminderMutedDates = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toSet(),
             debugForcedDateTime = prefs[KEY_DEBUG_FORCED_DATETIME]?.let { raw ->
                 runCatching { LocalDateTime.parse(raw) }.getOrNull()
@@ -292,12 +293,15 @@ class DataStoreUserPreferencesRepository(
         releasePersistedReadPermission(previousImageUri)
     }
 
+    /** 「恢复默认」：底色跟随表头，背景图、自定颜色与透明度一并清掉。 */
     override suspend fun setScheduleBackgroundUseHeaderColor() {
         var previousImageUri: String? = null
         store.edit { prefs ->
             previousImageUri = prefs[KEY_SCHEDULE_BACKGROUND_IMAGE_URI]
             prefs[KEY_SCHEDULE_BACKGROUND_TYPE] = ScheduleBackgroundType.Header.name
             prefs.remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
+            prefs.remove(KEY_SCHEDULE_BACKGROUND_COLOR_ARGB)
+            prefs.remove(KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT)
         }
         releasePersistedReadPermission(previousImageUri)
     }
@@ -765,6 +769,10 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] = enabled }
     }
 
+    override suspend fun setAlarmKeepAliveEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_ALARM_KEEP_ALIVE] = enabled }
+    }
+
     override suspend fun setReminderMuted(date: String, muted: Boolean) {
         store.edit { prefs ->
             val current = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toMutableSet()
@@ -1038,6 +1046,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_HOLIDAY_CALENDAR_ENTRIES_JSON = stringPreferencesKey("holiday_calendar_entries_json")
         val KEY_HOLIDAY_CALENDAR_SYNCED_JSON = stringPreferencesKey("holiday_calendar_synced_json")
         val KEY_SKIP_REMINDERS_ON_HOLIDAY = booleanPreferencesKey("skip_reminders_on_holiday")
+        val KEY_ALARM_KEEP_ALIVE = booleanPreferencesKey("alarm_keep_alive_enabled")
         val KEY_REMINDER_MUTED_DATES = stringSetPreferencesKey("reminder_muted_dates")
         val KEY_DEBUG_FORCED_DATE_EPOCH_DAY = longPreferencesKey("debug_forced_date_epoch_day")
         val KEY_DEBUG_FORCED_DATETIME = stringPreferencesKey("debug_forced_datetime")

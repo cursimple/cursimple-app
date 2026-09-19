@@ -67,24 +67,34 @@ class DataStoreWidgetPreferencesRepository(
             themeAccent = preferences[KEY_WIDGET_THEME_ACCENT]
                 ?.let { runCatching { ThemeAccent.valueOf(it) }.getOrNull() }
                 ?: ThemeAccent.Green,
+            followsAppThemeAccent = preferences[KEY_WIDGET_THEME_ACCENT] == null,
             backgroundMode = preferences[KEY_WIDGET_BACKGROUND_MODE]
                 ?.let { runCatching { WidgetBackgroundMode.valueOf(it) }.getOrNull() }
                 ?: WidgetBackgroundMode.Theme,
             backgroundImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]?.takeIf(String::isNotBlank),
             openAppOnDoubleClickEnabled = preferences[KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK] ?: false,
+            backgroundImageTransparencyPercent = WidgetThemePreferences
+                .coerceBackgroundImageTransparencyPercent(
+                    preferences[KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT]
+                        ?: WidgetThemePreferences.DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
+                ),
         )
     }
 
-    override suspend fun setWidgetDayOffset(offset: Int) {
+    override suspend fun setWidgetDayOffset(offset: Int, anchorDateIso: String?) {
         store.edit { preferences ->
-            preferences[KEY_WIDGET_DAY_OFFSET] = offset.coerceIn(MIN_OFFSET, MAX_OFFSET)
+            val next = offset.coerceIn(MIN_OFFSET, MAX_OFFSET)
+            preferences[KEY_WIDGET_DAY_OFFSET] = next
+            preferences.writeOffsetAnchor(KEY_WIDGET_DAY_OFFSET_ANCHOR, next, anchorDateIso)
         }
     }
 
-    override suspend fun shiftWidgetDayOffset(delta: Int) {
+    override suspend fun shiftWidgetDayOffset(delta: Int, anchorDateIso: String?) {
         store.edit { preferences ->
             val current = (preferences[KEY_WIDGET_DAY_OFFSET] ?: 0).coerceIn(MIN_OFFSET, MAX_OFFSET)
-            preferences[KEY_WIDGET_DAY_OFFSET] = (current + delta).coerceIn(MIN_OFFSET, MAX_OFFSET)
+            val next = (current + delta).coerceIn(MIN_OFFSET, MAX_OFFSET)
+            preferences[KEY_WIDGET_DAY_OFFSET] = next
+            preferences.writeOffsetAnchor(KEY_WIDGET_DAY_OFFSET_ANCHOR, next, anchorDateIso)
         }
     }
 
@@ -94,26 +104,68 @@ class DataStoreWidgetPreferencesRepository(
             .coerceIn(MIN_OFFSET, MAX_OFFSET)
     }
 
-    override suspend fun setWidgetDayOffset(appWidgetId: Int, offset: Int) {
+    override suspend fun effectiveWidgetDayOffset(appWidgetId: Int, todayIso: String): Int {
+        val preferences = store.data.first()
+        val shared = appWidgetId == SHARED_WIDGET_ID
+        val perWidgetOffset = if (shared) null else preferences[widgetDayOffsetKey(appWidgetId)]
+        val offsetKey = if (perWidgetOffset != null) widgetDayOffsetKey(appWidgetId) else KEY_WIDGET_DAY_OFFSET
+        val anchorKey = if (perWidgetOffset != null) {
+            widgetDayOffsetAnchorKey(appWidgetId)
+        } else {
+            KEY_WIDGET_DAY_OFFSET_ANCHOR
+        }
+        val stored = (perWidgetOffset ?: preferences[KEY_WIDGET_DAY_OFFSET] ?: 0)
+            .coerceIn(MIN_OFFSET, MAX_OFFSET)
+        if (stored == 0) return 0
+        // 只有「今天按出来的偏移」才算数。锚点对不上（跨过零点）或干脆没有锚点
+        // （旧版本留下的偏移，已经不知道是哪天按的）都一律回到今天：
+        // 早上第一眼要看的是当天，不是昨天翻到哪儿就停在哪儿再往后顺延。
+        if (preferences[anchorKey] != todayIso) {
+            store.edit {
+                it[offsetKey] = 0
+                it.remove(anchorKey)
+            }
+            return 0
+        }
+        return stored
+    }
+
+    override suspend fun setWidgetDayOffset(appWidgetId: Int, offset: Int, anchorDateIso: String?) {
         store.edit { preferences ->
-            preferences[widgetDayOffsetKey(appWidgetId)] = offset.coerceIn(MIN_OFFSET, MAX_OFFSET)
+            val next = offset.coerceIn(MIN_OFFSET, MAX_OFFSET)
+            preferences[widgetDayOffsetKey(appWidgetId)] = next
+            preferences.writeOffsetAnchor(widgetDayOffsetAnchorKey(appWidgetId), next, anchorDateIso)
         }
     }
 
-    override suspend fun shiftWidgetDayOffset(appWidgetId: Int, delta: Int): Int {
+    override suspend fun shiftWidgetDayOffset(appWidgetId: Int, delta: Int, anchorDateIso: String?): Int {
         var next = 0
         store.edit { preferences ->
             val current = (preferences[widgetDayOffsetKey(appWidgetId)] ?: preferences[KEY_WIDGET_DAY_OFFSET] ?: 0)
                 .coerceIn(MIN_OFFSET, MAX_OFFSET)
             next = (current + delta).coerceIn(MIN_OFFSET, MAX_OFFSET)
             preferences[widgetDayOffsetKey(appWidgetId)] = next
+            preferences.writeOffsetAnchor(widgetDayOffsetAnchorKey(appWidgetId), next, anchorDateIso)
         }
         return next
+    }
+
+    /** 记下偏移是哪一天按出来的；回到今天就不需要锚点了。 */
+    private fun MutablePreferences.writeOffsetAnchor(
+        key: Preferences.Key<String>,
+        offset: Int,
+        anchorDateIso: String?,
+    ) {
+        when {
+            offset == 0 || anchorDateIso == null -> remove(key)
+            else -> set(key, anchorDateIso)
+        }
     }
 
     override suspend fun clearWidgetDayOffset(appWidgetId: Int) {
         store.edit { preferences ->
             preferences.remove(widgetDayOffsetKey(appWidgetId))
+            preferences.remove(widgetDayOffsetAnchorKey(appWidgetId))
         }
     }
 
@@ -238,6 +290,24 @@ class DataStoreWidgetPreferencesRepository(
         releasePersistedReadPermission(previousImageUri)
     }
 
+    override suspend fun followAppThemeAccent() {
+        var previousImageUri: String? = null
+        store.edit { preferences ->
+            previousImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]
+            preferences.remove(KEY_WIDGET_THEME_ACCENT)
+            preferences[KEY_WIDGET_BACKGROUND_MODE] = WidgetBackgroundMode.Theme.name
+            preferences.remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
+        }
+        releasePersistedReadPermission(previousImageUri)
+    }
+
+    override suspend fun setWidgetBackgroundImageTransparencyPercent(percent: Int) {
+        val coerced = WidgetThemePreferences.coerceBackgroundImageTransparencyPercent(percent)
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT] = coerced
+        }
+    }
+
     override suspend fun setWidgetBackgroundImageUri(uri: String) {
         var previousImageUri: String? = null
         store.edit { preferences ->
@@ -302,6 +372,7 @@ class DataStoreWidgetPreferencesRepository(
 
     private companion object {
         val KEY_WIDGET_DAY_OFFSET = intPreferencesKey("widget_day_offset")
+        val KEY_WIDGET_DAY_OFFSET_ANCHOR = stringPreferencesKey("widget_day_offset_anchor")
         val KEY_TIMING_PROFILE_JSON = stringPreferencesKey("widget_timing_profile_json")
         val KEY_TIMING_PROFILE_MANUAL = booleanPreferencesKey("widget_timing_profile_manual")
         val KEY_TIMING_PROFILE_LIBRARY_JSON = stringPreferencesKey("widget_timing_profile_library_json")
@@ -310,10 +381,18 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_BACKGROUND_MODE = stringPreferencesKey("widget_background_mode")
         val KEY_WIDGET_BACKGROUND_IMAGE_URI = stringPreferencesKey("widget_background_image_uri")
         val KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK = booleanPreferencesKey("widget_open_app_on_double_click")
+        val KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT =
+            intPreferencesKey("widget_background_image_transparency_percent")
         const val MIN_OFFSET = -3650
         const val MAX_OFFSET = 3650
 
+        /** 共用偏移的伪实例 id，与 AppWidgetManager.INVALID_APPWIDGET_ID 一致。 */
+        const val SHARED_WIDGET_ID = 0
+
         fun widgetDayOffsetKey(appWidgetId: Int) = intPreferencesKey("widget_day_offset__$appWidgetId")
+
+        fun widgetDayOffsetAnchorKey(appWidgetId: Int) =
+            stringPreferencesKey("widget_day_offset_anchor__$appWidgetId")
 
         fun newTimingProfileId(): String = "timing-" + java.util.UUID.randomUUID().toString()
     }
