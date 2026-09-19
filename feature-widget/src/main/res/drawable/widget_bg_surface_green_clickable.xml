@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  可点击的行底色。
+
+  裸给一个 shape 当背景时，启动器画的点击高亮不受圆角约束，会糊到框外面去。
+  套一层 ripple 并用同一个 shape 当蒙版，高亮就正好停在这张卡片的圆角内。
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#33000000">
+    <item android:drawable="@drawable/widget_bg_surface_green" />
+    <item
+        android:id="@android:id/mask"
+        android:drawable="@drawable/widget_bg_surface_green" />
+</ripple>
