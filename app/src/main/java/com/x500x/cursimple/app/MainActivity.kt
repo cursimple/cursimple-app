@@ -322,6 +322,7 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
+                    var showUpdateCheckDialog by rememberSaveable { mutableStateOf(false) }
                     AutomaticUpdateCheckPrompt(
                         autoCheckEnabled = prefs.autoUpdateEnabled,
                         betaUpdatesEnabled = prefs.betaUpdatesEnabled,
@@ -332,6 +333,20 @@ class MainActivity : ComponentActivity() {
                         onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
                         onDialogVisibleChange = { updateDialogVisible = it },
                     )
+                    if (showUpdateCheckDialog) {
+                        UpdateCheckDialog(
+                            autoCheckEnabled = prefs.autoUpdateEnabled,
+                            betaUpdatesEnabled = prefs.betaUpdatesEnabled,
+                            ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
+                            updateNotice = updateNotice,
+                            onAutoCheckEnabledChange = prefsViewModel::setAutoUpdateEnabled,
+                            onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
+                            onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
+                            onUpdateFound = prefsViewModel::setUpdateNotice,
+                            onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
+                            onDismiss = { showUpdateCheckDialog = false },
+                        )
+                    }
                     ReleaseAnnouncementGate(
                         lastSeenVersionCode = prefs.lastSeenVersionCode,
                         onSeen = prefsViewModel::setLastSeenVersionCode,
@@ -490,17 +505,16 @@ class MainActivity : ComponentActivity() {
                         .firstOrNull { it.id == termProfileState.activeTermId }
                         ?.extraWeekCount
                         ?: 0
+                    // 不能把正在看的那一周算进总周数：叠上自己加的空白周会变成自增循环
                     val derivedWeeks = remember(
                         scheduleState.schedule,
                         scheduleState.manualCourses,
                         currentWeekIndex,
-                        displayedWeekIndex,
                     ) {
                         derivedWeekCount(
                             schedule = scheduleState.schedule,
                             manualCourses = scheduleState.manualCourses,
                             currentWeek = currentWeekIndex,
-                            selectedWeek = displayedWeekIndex,
                         )
                     }
                     val weekPickerTotalWeeks = derivedWeeks + activeTermExtraWeeks
@@ -548,10 +562,10 @@ class MainActivity : ComponentActivity() {
                                 subScreen = null
                                 openSettingsDestination = SettingsDestinationKey.TemporaryOverrides
                             },
+                            // 只想看一眼有没有新版，不该被丢进设置页再自己退出来
                             onOpenUpdateCheck = {
                                 scope.launch { drawerState.close() }
-                                currentScreen = AppScreen.Settings
-                                subScreen = null
+                                showUpdateCheckDialog = true
                             },
                             onPickScheduleBackground = {
                                     scope.launch { drawerState.close() }
@@ -866,7 +880,6 @@ class MainActivity : ComponentActivity() {
                                         componentMarketIndexUrl = prefs.componentMarketIndexUrl,
                                         enabledPluginIds = prefs.enabledPluginIds,
                                         syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
-                                        syncStatusMessage = scheduleState.statusMessage,
                                         missingComponents = scheduleState.missingComponents,
                                         pendingWebSession = scheduleState.pendingWebSession,
                                         onSetPluginEnabled = prefsViewModel::setPluginEnabled,
@@ -883,7 +896,7 @@ class MainActivity : ComponentActivity() {
                                             schedule = scheduleState.schedule,
                                             manualCourses = scheduleState.manualCourses,
                                             currentWeek = currentWeekIndex,
-                                            selectedWeek = displayedWeekIndex,
+                                            extraWeekCount = activeTermExtraWeeks,
                                         ),
                                         modifier = Modifier.fillMaxSize(),
                                     )
