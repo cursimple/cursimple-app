@@ -100,7 +100,6 @@ fun PluginMarketRoute(
     componentMarketIndexUrl: String,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
-    syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
     pendingWebSession: WebSessionRequest?,
     onSetPluginEnabled: (String, Boolean) -> Unit,
@@ -149,7 +148,6 @@ fun PluginMarketRoute(
         selectedTab = selectedTab,
         enabledPluginIds = enabledPluginIds,
         syncingPluginId = syncingPluginId,
-        syncStatusMessage = syncStatusMessage,
         missingComponents = missingComponents,
         pendingWebSession = pendingWebSession,
         pluginRegistryRepo = pluginRegistryRepo,
@@ -179,7 +177,6 @@ private fun PluginMarketScreen(
     selectedTab: PluginPlatformTab,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
-    syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
     pendingWebSession: WebSessionRequest?,
     pluginRegistryRepo: String,
@@ -216,7 +213,6 @@ private fun PluginMarketScreen(
                     uiState = uiState,
                     enabledPluginIds = enabledPluginIds,
                     syncingPluginId = syncingPluginId,
-                    syncStatusMessage = syncStatusMessage,
                     missingComponents = missingComponents,
                     pluginRegistryRepo = pluginRegistryRepo,
                     onOpenComponents = { onSelectTab(PluginPlatformTab.Components) },
@@ -265,7 +261,6 @@ private fun PluginListContent(
     uiState: PluginMarketUiState,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
-    syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
     pluginRegistryRepo: String,
     onOpenComponents: () -> Unit,
@@ -379,17 +374,9 @@ private fun PluginListContent(
             }
         }
 
-        syncStatusMessage?.let { message ->
-            item {
-                StatusCard(message = message)
-            }
-        }
-
-        uiState.status?.let { status ->
-            item {
-                StatusCard(message = context.pluginMarketStatusText(status))
-            }
-        }
+        // 「已刷新今日闹钟」这类课表域的提示与「已加载 N 个插件」这种流水账
+        // 不该常驻在插件页上：它们是一次性反馈，出现在这里只是占位置。
+        // 真正要用户处理的（缺组件、同步失败）另有卡片，不走这里。
 
         item {
             MarketSectionHeader(registryRepo = pluginRegistryRepo)
