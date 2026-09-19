@@ -53,7 +53,11 @@ internal fun Context.componentMarketStatusText(status: ComponentMarketStatus): S
 
     ComponentMarketStatus.LoadingRemote -> getString(R.string.plugin_component_market_loading)
     is ComponentMarketStatus.RemoteLoaded ->
-        getString(R.string.plugin_component_market_loaded, status.count)
+        resources.getQuantityString(
+            R.plurals.plugin_component_market_loaded,
+            status.count,
+            status.count,
+        )
 
     is ComponentMarketStatus.RemoteLoadFailed ->
         pluginErrorDetail(status.error) ?: getString(R.string.plugin_component_market_load_failed)

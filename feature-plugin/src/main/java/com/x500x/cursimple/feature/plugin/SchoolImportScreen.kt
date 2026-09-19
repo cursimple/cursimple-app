@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -178,11 +179,12 @@ fun SchoolImportRoute(
             if (uiState.marketRepos.isNotEmpty()) {
                 Text(
                     text = if (query.isBlank()) {
-                        stringResource(R.string.school_import_catalog_count, uiState.marketRepos.size)
+                        pluralStringResource(R.plurals.school_import_catalog_count, uiState.marketRepos.size, uiState.marketRepos.size)
                     } else {
                         // 一句话把「清单里有几个」和「搜中几个」都交代了，不再分两行各说各的
-                        stringResource(
-                            R.string.school_import_match_count,
+                        pluralStringResource(
+                            R.plurals.school_import_match_count,
+                            uiState.marketRepos.size,
                             uiState.marketRepos.size,
                             matched.size,
                         )
@@ -221,8 +223,9 @@ fun SchoolImportRoute(
                         // 别让人对着空屏以为一个插件都没有
                         item(key = "catalog-header") {
                             Text(
-                                text = stringResource(
-                                    R.string.school_import_catalog_header,
+                                text = pluralStringResource(
+                                    R.plurals.school_import_catalog_header,
+                                    uiState.marketRepos.size,
                                     uiState.marketRepos.size,
                                 ),
                                 style = MaterialTheme.typography.labelMedium,
@@ -350,20 +353,14 @@ private fun SchoolPluginRow(
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = repo.displayTitle,
+                    // 标题给学校全称：这一页的人是在找自己学校，不是在找仓库
+                    text = repo.schoolDisplayTitle(),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                 )
-                // 把注册表声明的学校列出来，用户才知道这条为什么被搜出来
-                if (repo.schoolAliases.isNotEmpty()) {
-                    Text(
-                        text = repo.schoolAliases.take(3).joinToString("、"),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                    )
-                } else if (repo.description.isNotBlank()) {
+                // 副标题给仓库简介：标题已经是学校名了，这里该说的是这个插件本身
+                if (repo.description.isNotBlank()) {
                     Text(
                         text = repo.description,
                         style = MaterialTheme.typography.bodySmall,
