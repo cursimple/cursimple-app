@@ -13,6 +13,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import com.x500x.cursimple.R
 
 object LogExporter {
 
@@ -30,7 +31,7 @@ object LogExporter {
         Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "CurSimple 日志 ${file.name}")
+            putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.log_export_share_subject, file.name))
             // 让内容 URI 对系统的授权机制可见，包括分享面板。
             clipData = ClipData.newUri(context.contentResolver, file.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

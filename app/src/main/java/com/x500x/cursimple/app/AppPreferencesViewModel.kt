@@ -254,6 +254,12 @@ class AppPreferencesViewModel(
         }
     }
 
+    fun setAlarmKeepAliveEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setAlarmKeepAliveEnabled(enabled)
+        }
+    }
+
     fun setSkipRemindersOnHoliday(enabled: Boolean) {
         viewModelScope.launch {
             repository.setSkipRemindersOnHoliday(enabled)

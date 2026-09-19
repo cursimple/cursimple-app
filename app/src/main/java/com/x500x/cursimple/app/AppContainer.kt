@@ -65,6 +65,7 @@ import java.time.LocalDate
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.data.note.CourseNoteRepository
 import com.x500x.cursimple.core.data.note.DataStoreCourseNoteRepository
+import com.x500x.cursimple.R
 
 class AppContainer(
     private val app: Application,
@@ -137,7 +138,7 @@ class AppContainer(
         val legacyTermStart = userPreferencesRepository.preferencesFlow.first()
             .termStartDate?.toString()
         val activeTermId = termProfileRepository.ensureBootstrapped(
-            defaultName = "默认学期",
+            defaultName = app.getString(R.string.term_default_name),
             legacyTermStartDateIso = legacyTermStart,
         )
         scheduleStore.migrateLegacyScheduleIfNeeded(activeTermId)
@@ -168,11 +169,11 @@ class AppContainer(
     suspend fun restoreAppBackup(payload: AppBackupPayload) {
         awaitBootstrap()
         require(payload.version <= AppBackupPayload.CURRENT_VERSION) {
-            "备份版本过新，请先升级应用后再恢复"
+            app.getString(R.string.backup_restore_version_too_new)
         }
         // 一条都恢复不了说明这不是本应用的备份，如实报错而不是静默走完
         require(payload.stores.any { it.storeName in AppBackupStores.ALL }) {
-            "备份文件里没有可恢复的数据"
+            app.getString(R.string.backup_restore_no_data)
         }
         payload.store(AppBackupStores.USER_PREFERENCES)
             ?.let { (userPreferencesRepository as DataStoreUserPreferencesRepository).restoreBackupSnapshot(it) }
@@ -245,7 +246,7 @@ class AppContainer(
 
     private fun requireJsonLikeText(text: String) {
         val first = text.firstOrNull { !it.isWhitespace() }
-        require(first == '{' || first == '[') { "响应不是 JSON" }
+        require(first == '{' || first == '[') { app.getString(R.string.download_response_not_json) }
     }
 
     suspend fun refreshWidgets(timingProfile: TermTimingProfile? = null) {

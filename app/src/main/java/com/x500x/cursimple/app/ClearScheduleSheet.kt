@@ -43,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -76,13 +77,13 @@ fun ClearScheduleSheet(
         ClearOption(
             scope = ClearScope.ManualOnly,
             title = stringResource(R.string.clear_option_manual_title),
-            description = stringResource(R.string.clear_option_manual_desc, manualCourses.size),
+            description = pluralStringResource(R.plurals.clear_option_manual_desc, manualCourses.size, manualCourses.size),
             icon = Icons.Rounded.Edit,
         ),
         ClearOption(
             scope = ClearScope.ImportedOnly,
             title = stringResource(R.string.clear_option_imported_title),
-            description = stringResource(R.string.clear_option_imported_desc, importedCourses.size),
+            description = pluralStringResource(R.plurals.clear_option_imported_desc, importedCourses.size, importedCourses.size),
             icon = Icons.Rounded.CloudDownload,
         ),
         ClearOption(
@@ -214,9 +215,9 @@ private fun ClearConfirmDialog(
         ClearScope.Everything -> stringResource(R.string.clear_confirm_all_title)
     }
     val description = when (scope) {
-        ClearScope.ManualOnly -> stringResource(R.string.clear_confirm_manual_desc, affected.size)
-        ClearScope.ImportedOnly -> stringResource(R.string.clear_confirm_imported_desc, affected.size)
-        ClearScope.Everything -> stringResource(R.string.clear_confirm_all_desc, affected.size)
+        ClearScope.ManualOnly -> pluralStringResource(R.plurals.clear_confirm_manual_desc, affected.size, affected.size)
+        ClearScope.ImportedOnly -> pluralStringResource(R.plurals.clear_confirm_imported_desc, affected.size, affected.size)
+        ClearScope.Everything -> pluralStringResource(R.plurals.clear_confirm_all_desc, affected.size, affected.size)
     }
 
     var expanded by remember { mutableStateOf(false) }
@@ -297,7 +298,7 @@ private fun ClearConfirmDialog(
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     text = if (expanded) stringResource(R.string.clear_collapse_list)
-                                    else stringResource(R.string.clear_expand_more, affected.size - previewLimit),
+                                    else pluralStringResource(R.plurals.clear_expand_more, affected.size - previewLimit, affected.size - previewLimit),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary,
                                 )

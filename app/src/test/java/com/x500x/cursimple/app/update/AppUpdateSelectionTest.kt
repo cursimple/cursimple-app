@@ -39,7 +39,7 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 ok("down.npee.cn", latencyMillis = 20, body = "Request forbidden by administrative rules."),
-                status("GitHub 源站", 404, latencyMillis = 300),
+                status(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 404, latencyMillis = 300),
             ),
             jsonBody,
         )
@@ -53,12 +53,12 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 ok("down.npee.cn", latencyMillis = 20, body = "<html>403</html>"),
-                status("GitHub 源站", 503, latencyMillis = 300),
+                status(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 503, latencyMillis = 300),
             ),
             jsonBody,
         )
 
-        assertEquals(UpdateSourceSelection.HttpError("GitHub 源站", 503), selection)
+        assertEquals(UpdateSourceSelection.HttpError(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 503), selection)
     }
 
     @Test
@@ -80,12 +80,12 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 ok("down.npee.cn", latencyMillis = 5, body = "Request forbidden by administrative rules."),
-                ok("GitHub 源站", latencyMillis = 300, body = "{\"tag_name\":\"v1\"}"),
+                ok(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, latencyMillis = 300, body = "{\"tag_name\":\"v1\"}"),
             ),
             jsonBody,
         )
 
-        assertEquals("GitHub 源站", (selection as UpdateSourceSelection.Success).response.sourceName)
+        assertEquals(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, (selection as UpdateSourceSelection.Success).response.sourceName)
     }
 
     @Test
@@ -93,7 +93,7 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 failed("ghfast.top", UpdateErrorReason.UnknownHost),
-                failed("GitHub 源站", UpdateErrorReason.Timeout),
+                failed(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, UpdateErrorReason.Timeout),
             ),
         )
 
@@ -117,12 +117,12 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 status("ghfast.top", 404, 80),
-                ok("GitHub 源站", 800, body = "release"),
+                ok(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 800, body = "release"),
             ),
         )
 
         assertTrue(selection is UpdateSourceSelection.Success)
-        assertEquals("GitHub 源站", (selection as UpdateSourceSelection.Success).response.sourceName)
+        assertEquals(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, (selection as UpdateSourceSelection.Success).response.sourceName)
         assertEquals("release", selection.response.body)
         assertNull(updateSourceFailureMessage(selection))
     }
@@ -131,7 +131,7 @@ class AppUpdateSelectionTest {
     fun `fastest successful response wins among multiple 2xx`() {
         val selection = UpdateSourceSelector.select(
             listOf(
-                ok("GitHub 源站", 900),
+                ok(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 900),
                 ok("gh-proxy.com", 120),
                 ok("ghproxy.net", 400),
                 status("down.npee.cn", 404, 10),
@@ -149,7 +149,7 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 status("ghfast.top", 404, 80),
-                status("GitHub 源站", 404, 300),
+                status(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 404, 300),
             ),
         )
 
@@ -162,7 +162,7 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 status("ghfast.top", 500, 40),
-                status("GitHub 源站", 404, 600),
+                status(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 404, 600),
             ),
         )
 
@@ -175,7 +175,7 @@ class AppUpdateSelectionTest {
             listOf(
                 status("ghfast.top", 404, 40),
                 status("gh-proxy.com", 502, 300),
-                failed("GitHub 源站", UpdateErrorReason.Timeout),
+                failed(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, UpdateErrorReason.Timeout),
             ),
         )
 
@@ -191,11 +191,11 @@ class AppUpdateSelectionTest {
         val selection = UpdateSourceSelector.select(
             listOf(
                 status("ghfast.top", 502, 20),
-                status("GitHub 源站", 403, 700),
+                status(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 403, 700),
             ),
         )
 
-        assertEquals(UpdateSourceSelection.HttpError("GitHub 源站", 403), selection)
+        assertEquals(UpdateSourceSelection.HttpError(UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME, 403), selection)
     }
 
     @Test

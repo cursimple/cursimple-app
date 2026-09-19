@@ -13,8 +13,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -23,10 +21,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,6 +45,7 @@ import java.time.LocalDate
 import java.util.UUID
 import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
 import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
+import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 
 /** 临时调课的查看与编辑。 */
 
@@ -313,35 +312,31 @@ internal fun TemporaryOverrideRuleRow(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SettingsDatePickerDialog(
     initial: LocalDate,
     onConfirm: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = initial.toDatePickerMillis(),
-    )
-    DatePickerDialog(
+    // 不用 M3 的 DatePicker：它的星期表头取自系统 narrow 名字，中文环境下七列全是「星」
+    var selected by remember(initial) { mutableStateOf(initial) }
+    AlertDialog(
         onDismissRequest = onDismiss,
+        text = {
+            CalendarMonthPicker(
+                selected = selected,
+                onSelect = { selected = it },
+            )
+        },
         confirmButton = {
-            TextButton(
-                onClick = {
-                    state.selectedDateMillis?.let { millis ->
-                        onConfirm(datePickerMillisToLocalDate(millis))
-                    }
-                },
-            ) {
+            TextButton(onClick = { onConfirm(selected) }) {
                 Text(stringResource(R.string.settings_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
-    ) {
-        DatePicker(state = state)
-    }
+    )
 }
 
 @Composable

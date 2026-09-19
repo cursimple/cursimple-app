@@ -11,6 +11,7 @@ import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
 import com.x500x.cursimple.app.holiday.holidaySyncYears
 import com.x500x.cursimple.core.data.AppLocale
 import android.os.Build
+import com.x500x.cursimple.app.reminder.AlarmKeepAliveService
 import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
 import com.x500x.cursimple.app.util.AppDiagnosticsFileSink
 import com.x500x.cursimple.app.util.AppDiagnosticsLogger
@@ -21,6 +22,7 @@ import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 import com.x500x.cursimple.feature.widget.ScheduleWidgetWorkScheduler
+import com.x500x.cursimple.feature.widget.applyWidgetProviderVisibility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -65,6 +67,12 @@ class ClassScheduleApplication : Application() {
         HolidayEveNoticeWorker.schedule(this)
 
         appScope.launch {
+            // 非厂商机型上把 MIUI/vivo 副本 receiver 收起来，选择器里每个小组件才只出现一次。
+            // 要查包管理器，放在后台做，不占启动那一帧
+            applyWidgetProviderVisibility(this@ClassScheduleApplication)
+        }
+
+        appScope.launch {
             // 备份恢复等路径会绕过设置界面直接改语言，启动时对齐一次同步副本
             AppLocale.syncCacheFrom(this@ClassScheduleApplication, appContainer.userPreferencesRepository)
         }
@@ -72,6 +80,21 @@ class ClassScheduleApplication : Application() {
         appScope.launch {
             appContainer.bootstrapJob.join()
             syncHolidayCalendar()
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            // 守护服务跟着开关走：开着就保证它在，关掉就收回那条常驻通知
+            appContainer.userPreferencesRepository.preferencesFlow
+                .map { it.alarmKeepAliveEnabled }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    if (enabled) {
+                        AlarmKeepAliveService.start(this@ClassScheduleApplication, rescheduleAlarms = true)
+                    } else {
+                        AlarmKeepAliveService.stop(this@ClassScheduleApplication)
+                    }
+                }
         }
 
         appScope.launch {

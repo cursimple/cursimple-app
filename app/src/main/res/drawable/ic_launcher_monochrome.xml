@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  主题图标（Android 13+ 单色图标）。
+
+  彩色图标里的日历、书本、时钟、学位帽拍平成一种颜色就是一团糊，所以这里不是把原图去色，
+  而是只留最能认出来的日历主体重画一遍：两个挂环、实心标题栏、几格课表。
+  内容收在 108 视口正中的安全区里（直径 66 以内），启动器再怎么裁切都不会切到。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 两个挂环，露在标题栏上沿 -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M38,20 L38,30" />
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M70,20 L70,30" />
+
+    <!-- 日历外框 -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="5"
+        android:pathData="M34,28 h40 a8,8 0 0 1 8,8 v36 a8,8 0 0 1 -8,8 h-40 a8,8 0 0 1 -8,-8 v-36 a8,8 0 0 1 8,-8 z" />
+
+    <!-- 实心标题栏：小尺寸下靠这一条把「日历」认出来 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M34,28 h40 a8,8 0 0 1 8,8 v8 h-56 v-8 a8,8 0 0 1 8,-8 z" />
+
+    <!-- 课表格子 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M34,52 h10 v8 h-10 z M48,52 h10 v8 h-10 z M62,52 h10 v8 h-10 z M34,64 h10 v8 h-10 z M48,64 h10 v8 h-10 z" />
+</vector>
