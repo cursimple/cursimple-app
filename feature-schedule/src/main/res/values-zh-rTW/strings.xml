@@ -42,8 +42,12 @@
     <string name="schedule_reminder_save">儲存提醒</string>
     <string name="schedule_bulk_reminder_exam_title">批次設定考試提醒</string>
     <string name="schedule_bulk_reminder_title">批次設定提醒</string>
-    <string name="schedule_bulk_reminder_body_exam">將為已選中的 %1$d 項內容統一建立考試/課程提醒。</string>
-    <string name="schedule_bulk_reminder_body">將為已選中的 %1$d 門課程統一建立上課前提醒。</string>
+    <plurals name="schedule_bulk_reminder_body_exam">
+        <item quantity="other">將為已選中的 %1$d 項內容統一建立考試/課程提醒。</item>
+    </plurals>
+    <plurals name="schedule_bulk_reminder_body">
+        <item quantity="other">將為已選中的 %1$d 門課程統一建立上課前提醒。</item>
+    </plurals>
     <string name="schedule_action_create">建立</string>
     <string name="schedule_ringtone_picker_unavailable">當前系統沒有可用的鈴聲選擇器</string>
     <string name="schedule_audio_permission_failed">音訊授權失敗，請重新選擇</string>
@@ -57,7 +61,9 @@
     <string name="schedule_alarm_interval_row">重複間隔</string>
     <string name="schedule_alarm_count_row">重複次數</string>
     <string name="schedule_alarm_unit_seconds">%1$d 秒</string>
-    <string name="schedule_alarm_unit_times">%1$d 次</string>
+    <plurals name="schedule_alarm_unit_times">
+        <item quantity="other">%1$d 次</item>
+    </plurals>
     <string name="schedule_alarm_section_when">時間</string>
     <string name="schedule_alarm_section_content">內容</string>
     <string name="schedule_alarm_section_ring">響鈴</string>
@@ -127,6 +133,8 @@
     <string name="schedule_action_restore">恢復</string>
     <string name="schedule_action_restore_plugin">還原</string>
     <string name="schedule_action_reminder">提醒</string>
+    <string name="schedule_action_cancel_reminder">取消提醒</string>
+    <string name="schedule_reminder_cancelled_toast">已取消「%1$s」的提醒</string>
     <string name="schedule_course_detail_edit_title">編輯課程資訊</string>
     <string name="schedule_course_detail_converts_to_manual">這門課來自外掛同步。儲存後它會轉為手動課程，下次同步不再覆蓋你的修改。</string>
     <string name="schedule_course_detail_restore_plugin_title">還原為外掛資料？</string>
@@ -139,7 +147,9 @@
     <string name="schedule_status_this_week">本週</string>
     <string name="schedule_exam_countdown_today">就是今天</string>
     <string name="schedule_exam_countdown_tomorrow">還有 1 天</string>
-    <string name="schedule_exam_countdown_days">還有 %1$d 天</string>
+    <plurals name="schedule_exam_countdown_days">
+        <item quantity="other">還有 %1$d 天</item>
+    </plurals>
     <string name="schedule_manage_title">課表管理</string>
     <string name="schedule_manage_subtitle">在這裡載入示例資料預覽各種排課情況，或手動新增 / 刪除自定義課程。</string>
     <string name="schedule_manage_add_title">新增一節課</string>
@@ -201,16 +211,22 @@
     <string name="schedule_alarm_none_pending">沒有等待觸發的 APP 自管鬧鐘</string>
     <string name="schedule_alarm_ring_seconds">響鈴 %1$d 秒</string>
     <string name="schedule_alarm_interval_seconds">間隔 %1$d 秒</string>
-    <string name="schedule_alarm_count_times">%1$d 次</string>
+    <plurals name="schedule_alarm_count_times">
+        <item quantity="other">%1$d 次</item>
+    </plurals>
     <string name="schedule_cd_edit_alarm">編輯鬧鐘</string>
     <string name="schedule_cd_delete_alarm">刪除鬧鐘</string>
     <string name="schedule_rule_card_title">規則管理</string>
-    <string name="schedule_rule_card_subtitle">可選節次 %1$d 個</string>
+    <plurals name="schedule_rule_card_subtitle">
+        <item quantity="other">可選節次 %1$d 個</item>
+    </plurals>
     <string name="schedule_new_rule">新建規則</string>
     <string name="schedule_rule_none">還沒有節次規則</string>
     <string name="schedule_placeholder_card_title">佔位課</string>
     <string name="schedule_placeholder_empty">暫無隱藏佔位課</string>
-    <string name="schedule_placeholder_count">隱藏佔位課 %1$d 個</string>
+    <plurals name="schedule_placeholder_count">
+        <item quantity="other">隱藏佔位課 %1$d 個</item>
+    </plurals>
     <string name="schedule_placeholder_summary">周%1$s · %2$s-%3$s · %4$s</string>
     <string name="schedule_rule_unnamed">未命名規則</string>
     <string name="schedule_rule_advance">提前 %1$d 分鐘</string>
@@ -227,7 +243,9 @@
     <string name="schedule_exam_card_on">所有考試前提醒已開啟</string>
     <string name="schedule_exam_card_off">預設關閉</string>
     <string name="schedule_exam_all">所有考試前提醒</string>
-    <string name="schedule_exam_summary">%1$s · %2$s · 響鈴 %3$d 秒 · 間隔 %4$d 秒 · %5$d 次</string>
+    <plurals name="schedule_exam_summary">
+        <item quantity="other">%1$s · %2$s · 響鈴 %3$d 秒 · 間隔 %4$d 秒 · %5$d 次</item>
+    </plurals>
     <string name="schedule_exam_open_rules">進入規則管理編輯考試規則</string>
     <string name="schedule_exam_confirm_title">確認考試提醒引數</string>
     <string name="schedule_exam_confirm_intro">將按預設鬧鐘設定，為課表裡的每一場考試單獨建立提醒。</string>
@@ -243,7 +261,9 @@
     <string name="schedule_course_rule_summary">提前 %1$d 分鐘 · %2$s</string>
     <string name="schedule_cd_delete_reminder">刪除提醒</string>
     <string name="schedule_legacy_card_title">失效規則</string>
-    <string name="schedule_legacy_card_subtitle">舊版本留下的 %1$d 條規則不會再觸發提醒，刪除後可用新規則重建</string>
+    <plurals name="schedule_legacy_card_subtitle">
+        <item quantity="other">舊版本留下的 %1$d 條規則不會再觸發提醒，刪除後可用新規則重建</item>
+    </plurals>
     <string name="schedule_legacy_rule_summary">提前 %1$d 分鐘 · 已停止觸發</string>
     <string name="schedule_cd_delete_legacy">刪除失效規則</string>
     <string name="schedule_backend_dialog_title">鬧鐘通道</string>
@@ -276,7 +296,9 @@
     <string name="schedule_library_source_plugin">外掛</string>
     <string name="schedule_library_source_manual">手動</string>
     <string name="schedule_library_source_manual_edited">已改</string>
-    <string name="schedule_library_group_count">%1$d 門</string>
+    <plurals name="schedule_library_group_count">
+        <item quantity="other">%1$d 門</item>
+    </plurals>
     <string name="schedule_library_empty">這個學期還沒有課程</string>
     <string name="schedule_library_no_match">沒有匹配的課程</string>
     <string name="schedule_library_add">新增課程</string>
@@ -288,7 +310,9 @@
     <string name="schedule_library_restore_body">%1$s 的手動修改會丟掉，恢復成外掛同步下發的那一份。</string>
     <string name="schedule_library_restore_confirm">還原</string>
     <string name="schedule_library_delete_cancel">取消</string>
-    <string name="schedule_library_summary">共 %1$d 門課</string>
+    <plurals name="schedule_library_summary">
+        <item quantity="other">共 %1$d 門課</item>
+    </plurals>
     <string name="schedule_library_hidden_show">已刪除 %1$d 門</string>
     <string name="schedule_library_hidden_hide">收起已刪除</string>
     <string name="schedule_status_course_restored">已恢復這門課</string>
@@ -327,12 +351,24 @@
     <string name="schedule_status_select_plugin_occupancy">請先選擇外掛後再設定自定義佔用</string>
     <string name="schedule_status_occupancy_saved">已儲存自定義佔用：%1$s</string>
     <string name="schedule_status_occupancy_deleted">已刪除自定義佔用</string>
-    <string name="schedule_status_alarm_expired_cleared">已清理 %1$d 個過期鬧鐘登記</string>
-    <string name="schedule_status_alarm_dismissed">已刪除 %1$d 個失效鬧鐘</string>
-    <string name="schedule_status_alarm_dismiss_failed">%1$d 個失效鬧鐘刪除失敗</string>
-    <string name="schedule_status_alarm_created_count">成功新增 %1$d 個鬧鐘</string>
-    <string name="schedule_status_alarm_skipped_existing">跳過 %1$d 個已新增鬧鐘</string>
-    <string name="schedule_status_alarm_skipped_unrepresentable">跳過 %1$d 個無法安全表達日期的鬧鐘</string>
+    <plurals name="schedule_status_alarm_expired_cleared">
+        <item quantity="other">已清理 %1$d 個過期鬧鐘登記</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_dismissed">
+        <item quantity="other">已刪除 %1$d 個失效鬧鐘</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_dismiss_failed">
+        <item quantity="other">%1$d 個失效鬧鐘刪除失敗</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_created_count">
+        <item quantity="other">成功新增 %1$d 個鬧鐘</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_skipped_existing">
+        <item quantity="other">跳過 %1$d 個已新增鬧鐘</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_skipped_unrepresentable">
+        <item quantity="other">跳過 %1$d 個無法安全表達日期的鬧鐘</item>
+    </plurals>
     <string name="schedule_status_alarm_failed_count">%1$d 個設定失敗：%2$s</string>
     <string name="schedule_status_alarm_sync_none">%1$s；暫無可立即新增的鬧鐘</string>
     <string name="schedule_status_alarm_sync_details">%1$s；%2$s</string>
@@ -349,7 +385,9 @@
     <string name="schedule_conflict_week_segment_range">%1$d-%2$d</string>
     <string name="schedule_conflict_week_segment_separator">、</string>
     <string name="schedule_conflict_week_segments">%1$s 周</string>
-    <string name="schedule_conflict_week_summary">%1$d-%2$d 周內共 %3$d 周</string>
+    <plurals name="schedule_conflict_week_summary">
+        <item quantity="other">%1$d-%2$d 周內共 %3$d 周</item>
+    </plurals>
     <string name="schedule_conflict_kind_course_vs_course">兩門課程</string>
     <string name="schedule_conflict_kind_exam_vs_course">考試與課程</string>
     <string name="schedule_conflict_kind_exam_vs_exam">兩場考試</string>
@@ -377,8 +415,12 @@
     <string name="schedule_legacy_rule_scope_exam">考試提醒（舊版）</string>
     <string name="schedule_legacy_rule_scope_generic">提醒規則</string>
     <string name="schedule_reminder_title_separator">、</string>
-    <string name="schedule_bulk_reminder_all_created">已為 %1$d 門課程建立提醒</string>
-    <string name="schedule_bulk_reminder_partial">已為 %1$d 門課程建立提醒；%2$s</string>
+    <plurals name="schedule_bulk_reminder_all_created">
+        <item quantity="other">已為 %1$d 門課程建立提醒</item>
+    </plurals>
+    <plurals name="schedule_bulk_reminder_partial">
+        <item quantity="other">已為 %1$d 門課程建立提醒；%2$s</item>
+    </plurals>
     <string name="schedule_bulk_reminder_none">提醒建立失敗：%1$s</string>
     <string name="schedule_bulk_reminder_failure">%1$s 沒能建立（%2$s），請先同步課表或補全節次時間</string>
     <string name="schedule_bulk_reminder_failure_overflow">等 %1$d 門</string>
@@ -386,8 +428,12 @@
     <string name="schedule_bulk_reminder_reason_no_profile">還沒有節次時間表</string>
     <string name="schedule_exam_reminder_disabled">已關閉考試提醒</string>
     <string name="schedule_exam_reminder_no_exams">已開啟考試提醒；課表裡暫時沒有考試</string>
-    <string name="schedule_exam_reminder_covered">已為 %1$d 場考試開啟提醒</string>
-    <string name="schedule_exam_reminder_partial">已為 %1$d 場考試開啟提醒；%2$s</string>
+    <plurals name="schedule_exam_reminder_covered">
+        <item quantity="other">已為 %1$d 場考試開啟提醒</item>
+    </plurals>
+    <plurals name="schedule_exam_reminder_partial">
+        <item quantity="other">已為 %1$d 場考試開啟提醒；%2$s</item>
+    </plurals>
     <string name="schedule_exam_reminder_none">考試提醒開啟失敗：%1$s。請先同步課表或補全節次時間。</string>
     <string name="schedule_exam_reminder_skipped">%1$s 的節次不在當前節次時間表內，沒能建立提醒</string>
     <string name="schedule_exam_reminder_skipped_overflow">等 %1$d 場</string>
@@ -417,15 +463,20 @@
     <string name="schedule_month_suffix">月</string>
     <string name="schedule_source_date">%1$d/%2$d%3$s</string>
     <string name="schedule_override_source">按%1$s</string>
+    <string name="schedule_override_source_short">按%1$d/%2$d</string>
     <!-- 课程详情：上课时间与周次 -->
     <string name="schedule_class_time_range">%1$s - %2$s</string>
     <string name="schedule_major_period_single">第 %1$d 大節</string>
     <string name="schedule_major_period_range">第 %1$d-%2$d 大節</string>
     <string name="schedule_weeks_detail_unspecified">全部周（未指定具體周次）</string>
-    <string name="schedule_weeks_detail_consecutive">%1$d-%2$d 周（連續 %3$d 周）</string>
+    <plurals name="schedule_weeks_detail_consecutive">
+        <item quantity="other">%1$d-%2$d 周（連續 %3$d 周）</item>
+    </plurals>
     <string name="schedule_weeks_detail_odd">%1$d-%2$d 周（單週，共 %3$d 周）</string>
     <string name="schedule_weeks_detail_even">%1$d-%2$d 周（雙週，共 %3$d 周）</string>
-    <string name="schedule_weeks_detail_count">%1$d 個周次</string>
+    <plurals name="schedule_weeks_detail_count">
+        <item quantity="other">%1$d 個周次</item>
+    </plurals>
     <!-- 插件课表校验失败提示 -->
     <string name="schedule_validation_invalid_weekday">外掛返回了無效星期: %1$d</string>
     <string name="schedule_validation_blank_course_id">外掛返回了空課程 ID</string>
@@ -512,4 +563,40 @@
     <string name="schedule_day_sheet_holiday_name">名稱</string>
     <string name="schedule_day_sheet_holiday_name_hint">例如：院運動會</string>
     <string name="schedule_day_sheet_saved">已更新 %1$d 月 %2$d 日</string>
+    <string name="schedule_alarm_permission_gate_title">先把這些權限開了，鬧鐘才會響</string>
+    <string name="schedule_alarm_permission_gate_body">缺下面這些權限的話，提醒建出來到點也不會響。開完點「重新檢查」，會自動接著剛才的操作。</string>
+    <string name="schedule_alarm_permission_gate_grant">去開啟</string>
+    <string name="schedule_alarm_permission_gate_recheck">重新檢查</string>
+    <string name="schedule_alarm_permission_notifications">通知權限</string>
+    <string name="schedule_alarm_permission_notifications_reason">沒有它，鬧鐘通知發不出來</string>
+    <string name="schedule_alarm_permission_exact_alarm">精確鬧鐘</string>
+    <string name="schedule_alarm_permission_exact_alarm_reason">沒有它，提醒只能落在一個模糊的時間窗裡</string>
+    <string name="schedule_alarm_permission_full_screen">全螢幕通知</string>
+    <string name="schedule_alarm_permission_full_screen_reason">鎖屏上直接亮出響鈴介面要靠它</string>
+    <string name="schedule_alarm_permission_battery">背景執行（電池最佳化白名單）</string>
+    <string name="schedule_alarm_permission_battery_reason">沒加白名單時，系統休眠可能把鬧鐘推後甚至吞掉</string>
+    <string name="schedule_alarm_permission_autostart">自啟動 / 背景管理</string>
+    <string name="schedule_alarm_permission_autostart_reason">應用被清理後要靠它自己回來重排鬧鐘</string>
+    <string name="schedule_open_settings_manually">這台手機沒有對應的系統頁面，請手動到「設定 → 應用管理 → 課簡」裡開啟</string>
+    <string name="schedule_date_picker_title">選擇日期</string>
+    <string name="schedule_date_picker_headline">%1$d 年 %2$d 月 %3$d 日</string>
+    <string name="schedule_date_picker_month">%1$d 年 %2$d 月</string>
+    <string name="schedule_date_picker_prev_month">上個月</string>
+    <string name="schedule_date_picker_next_month">下個月</string>
+    <string name="schedule_status_import_overwritten">已覆蓋目前課表</string>
+    <string name="schedule_status_import_new_term">已匯入到新課表「%1$s」</string>
+    <string name="schedule_status_import_failed">匯入失敗：%1$s</string>
+    <string name="schedule_import_new_term_default">新課表</string>
+    <string name="schedule_makeup_workday_tag">調休</string>
+    <string name="schedule_day_empty_hint">這天沒有課。點兩下日期可以把它設成放假或調休上課。</string>
+    <string name="schedule_week_parity_custom">自選</string>
+    <string name="schedule_week_custom_title">選擇週次</string>
+    <string name="schedule_week_custom_hint">點一下選取，再點取消。</string>
+    <string name="schedule_week_custom_empty">還沒有選週次</string>
+    <string name="schedule_week_custom_summary">已選 %1$d 週</string>
+    <string name="schedule_week_custom_edit">修改</string>
+    <string name="schedule_week_custom_all">全選</string>
+    <string name="schedule_week_custom_none">清空</string>
+    <string name="schedule_add_week">新增週</string>
+    <string name="schedule_add_week_hint">接著往後加一週空白課表</string>
 </resources>

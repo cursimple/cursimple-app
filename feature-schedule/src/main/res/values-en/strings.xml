@@ -42,8 +42,14 @@
     <string name="schedule_reminder_save">Save reminder</string>
     <string name="schedule_bulk_reminder_exam_title">Set exam reminders in bulk</string>
     <string name="schedule_bulk_reminder_title">Set reminders in bulk</string>
-    <string name="schedule_bulk_reminder_body_exam">Reminders will be created for all %1$d selected items.</string>
-    <string name="schedule_bulk_reminder_body">Before-class reminders will be created for all %1$d selected courses.</string>
+    <plurals name="schedule_bulk_reminder_body_exam">
+        <item quantity="one">Reminders will be created for the %1$d selected item.</item>
+        <item quantity="other">Reminders will be created for all %1$d selected items.</item>
+    </plurals>
+    <plurals name="schedule_bulk_reminder_body">
+        <item quantity="one">Before-class reminders will be created for the %1$d selected course.</item>
+        <item quantity="other">Before-class reminders will be created for all %1$d selected courses.</item>
+    </plurals>
     <string name="schedule_action_create">Create</string>
     <string name="schedule_ringtone_picker_unavailable">No ringtone picker is available on this device</string>
     <string name="schedule_audio_permission_failed">Audio permission failed, please pick again</string>
@@ -57,7 +63,10 @@
     <string name="schedule_alarm_interval_row">Repeat interval</string>
     <string name="schedule_alarm_count_row">Repeat count</string>
     <string name="schedule_alarm_unit_seconds">%1$d s</string>
-    <string name="schedule_alarm_unit_times">%1$d times</string>
+    <plurals name="schedule_alarm_unit_times">
+        <item quantity="one">%1$d time</item>
+        <item quantity="other">%1$d times</item>
+    </plurals>
     <string name="schedule_alarm_section_when">Time</string>
     <string name="schedule_alarm_section_content">Content</string>
     <string name="schedule_alarm_section_ring">Ringing</string>
@@ -127,6 +136,8 @@
     <string name="schedule_action_restore">Restore</string>
     <string name="schedule_action_restore_plugin">Revert</string>
     <string name="schedule_action_reminder">Remind</string>
+    <string name="schedule_action_cancel_reminder">Unremind</string>
+    <string name="schedule_reminder_cancelled_toast">Reminder for %1$s removed</string>
     <string name="schedule_course_detail_edit_title">Edit course</string>
     <string name="schedule_course_detail_converts_to_manual">This course came from a plugin sync. Saving turns it into a manual course, so the next sync will not overwrite your changes.</string>
     <string name="schedule_course_detail_restore_plugin_title">Revert to plugin data?</string>
@@ -139,7 +150,10 @@
     <string name="schedule_status_this_week">This week</string>
     <string name="schedule_exam_countdown_today">Today</string>
     <string name="schedule_exam_countdown_tomorrow">1 day left</string>
-    <string name="schedule_exam_countdown_days">%1$d days left</string>
+    <plurals name="schedule_exam_countdown_days">
+        <item quantity="one">%1$d day left</item>
+        <item quantity="other">%1$d days left</item>
+    </plurals>
     <string name="schedule_manage_title">Manage timetable</string>
     <string name="schedule_manage_subtitle">Load sample data to preview layouts, or add / remove your own courses.</string>
     <string name="schedule_manage_add_title">Add a course</string>
@@ -201,16 +215,25 @@
     <string name="schedule_alarm_none_pending">No in-app alarms pending</string>
     <string name="schedule_alarm_ring_seconds">Ring %1$ds</string>
     <string name="schedule_alarm_interval_seconds">Interval %1$ds</string>
-    <string name="schedule_alarm_count_times">%1$d times</string>
+    <plurals name="schedule_alarm_count_times">
+        <item quantity="one">%1$d time</item>
+        <item quantity="other">%1$d times</item>
+    </plurals>
     <string name="schedule_cd_edit_alarm">Edit alarm</string>
     <string name="schedule_cd_delete_alarm">Delete alarm</string>
     <string name="schedule_rule_card_title">Rule management</string>
-    <string name="schedule_rule_card_subtitle">%1$d periods available</string>
+    <plurals name="schedule_rule_card_subtitle">
+        <item quantity="one">%1$d period available</item>
+        <item quantity="other">%1$d periods available</item>
+    </plurals>
     <string name="schedule_new_rule">New rule</string>
     <string name="schedule_rule_none">No period rules yet</string>
     <string name="schedule_placeholder_card_title">Placeholders</string>
     <string name="schedule_placeholder_empty">No hidden placeholders</string>
-    <string name="schedule_placeholder_count">%1$d hidden placeholders</string>
+    <plurals name="schedule_placeholder_count">
+        <item quantity="one">%1$d hidden placeholder</item>
+        <item quantity="other">%1$d hidden placeholders</item>
+    </plurals>
     <string name="schedule_placeholder_summary">Days %1$s · %2$s-%3$s · %4$s</string>
     <string name="schedule_rule_unnamed">Unnamed rule</string>
     <string name="schedule_rule_advance">%1$d min before</string>
@@ -227,7 +250,10 @@
     <string name="schedule_exam_card_on">Pre-exam reminders are on for all exams</string>
     <string name="schedule_exam_card_off">Off by default</string>
     <string name="schedule_exam_all">Reminders before every exam</string>
-    <string name="schedule_exam_summary">%1$s · %2$s · ring %3$ds · interval %4$ds · %5$d times</string>
+    <plurals name="schedule_exam_summary">
+        <item quantity="one">%1$s · %2$s · ring %3$ds · interval %4$ds · %5$d time</item>
+        <item quantity="other">%1$s · %2$s · ring %3$ds · interval %4$ds · %5$d times</item>
+    </plurals>
     <string name="schedule_exam_open_rules">Open rule management to edit exam rules</string>
     <string name="schedule_exam_confirm_title">Confirm exam reminder settings</string>
     <string name="schedule_exam_confirm_intro">A reminder will be created for every exam using the default alarm settings.</string>
@@ -243,7 +269,10 @@
     <string name="schedule_course_rule_summary">%1$d min before · %2$s</string>
     <string name="schedule_cd_delete_reminder">Delete reminder</string>
     <string name="schedule_legacy_card_title">Inactive rules</string>
-    <string name="schedule_legacy_card_subtitle">%1$d rules left by older versions no longer fire; delete them and rebuild with new rules</string>
+    <plurals name="schedule_legacy_card_subtitle">
+        <item quantity="one">%1$d rule left by an older version no longer fires; delete it and rebuild with a new rule</item>
+        <item quantity="other">%1$d rules left by older versions no longer fire; delete them and rebuild with new rules</item>
+    </plurals>
     <string name="schedule_legacy_rule_summary">%1$d min before · no longer firing</string>
     <string name="schedule_cd_delete_legacy">Delete inactive rule</string>
     <string name="schedule_backend_dialog_title">Alarm channel</string>
@@ -276,7 +305,10 @@
     <string name="schedule_library_source_plugin">Plugin</string>
     <string name="schedule_library_source_manual">Manual</string>
     <string name="schedule_library_source_manual_edited">Edited</string>
-    <string name="schedule_library_group_count">%1$d courses</string>
+    <plurals name="schedule_library_group_count">
+        <item quantity="one">%1$d course</item>
+        <item quantity="other">%1$d courses</item>
+    </plurals>
     <string name="schedule_library_empty">No courses in this term yet</string>
     <string name="schedule_library_no_match">No matching course</string>
     <string name="schedule_library_add">Add a course</string>
@@ -288,7 +320,10 @@
     <string name="schedule_library_restore_body">Your edits to %1$s will be discarded and the plugin-synced version restored.</string>
     <string name="schedule_library_restore_confirm">Revert</string>
     <string name="schedule_library_delete_cancel">Cancel</string>
-    <string name="schedule_library_summary">%1$d courses in total</string>
+    <plurals name="schedule_library_summary">
+        <item quantity="one">%1$d course in total</item>
+        <item quantity="other">%1$d courses in total</item>
+    </plurals>
     <string name="schedule_library_hidden_show">%1$d deleted</string>
     <string name="schedule_library_hidden_hide">Hide deleted</string>
     <string name="schedule_status_course_restored">Course restored</string>
@@ -327,12 +362,30 @@
     <string name="schedule_status_select_plugin_occupancy">Select a plugin before setting a custom busy block</string>
     <string name="schedule_status_occupancy_saved">Custom busy block saved: %1$s</string>
     <string name="schedule_status_occupancy_deleted">Custom busy block deleted</string>
-    <string name="schedule_status_alarm_expired_cleared">Cleared %1$d expired alarm records</string>
-    <string name="schedule_status_alarm_dismissed">Deleted %1$d stale alarms</string>
-    <string name="schedule_status_alarm_dismiss_failed">Failed to delete %1$d stale alarms</string>
-    <string name="schedule_status_alarm_created_count">Added %1$d alarms</string>
-    <string name="schedule_status_alarm_skipped_existing">Skipped %1$d alarms that already exist</string>
-    <string name="schedule_status_alarm_skipped_unrepresentable">Skipped %1$d alarms whose date cannot be expressed safely</string>
+    <plurals name="schedule_status_alarm_expired_cleared">
+        <item quantity="one">Cleared %1$d expired alarm record</item>
+        <item quantity="other">Cleared %1$d expired alarm records</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_dismissed">
+        <item quantity="one">Deleted %1$d stale alarm</item>
+        <item quantity="other">Deleted %1$d stale alarms</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_dismiss_failed">
+        <item quantity="one">Failed to delete %1$d stale alarm</item>
+        <item quantity="other">Failed to delete %1$d stale alarms</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_created_count">
+        <item quantity="one">Added %1$d alarm</item>
+        <item quantity="other">Added %1$d alarms</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_skipped_existing">
+        <item quantity="one">Skipped %1$d alarm that already exists</item>
+        <item quantity="other">Skipped %1$d alarms that already exist</item>
+    </plurals>
+    <plurals name="schedule_status_alarm_skipped_unrepresentable">
+        <item quantity="one">Skipped %1$d alarm whose date cannot be expressed safely</item>
+        <item quantity="other">Skipped %1$d alarms whose date cannot be expressed safely</item>
+    </plurals>
     <string name="schedule_status_alarm_failed_count">%1$d failed to be set: %2$s</string>
     <string name="schedule_status_alarm_sync_none">%1$s. No alarms to add right now</string>
     <string name="schedule_status_alarm_sync_details">%1$s. %2$s</string>
@@ -349,7 +402,10 @@
     <string name="schedule_conflict_week_segment_range">%1$d-%2$d</string>
     <string name="schedule_conflict_week_segment_separator">", "</string>
     <string name="schedule_conflict_week_segments">Weeks %1$s</string>
-    <string name="schedule_conflict_week_summary">%3$d weeks between week %1$d and week %2$d</string>
+    <plurals name="schedule_conflict_week_summary">
+        <item quantity="one">%3$d week between week %1$d and week %2$d</item>
+        <item quantity="other">%3$d weeks between week %1$d and week %2$d</item>
+    </plurals>
     <string name="schedule_conflict_kind_course_vs_course">Two courses</string>
     <string name="schedule_conflict_kind_exam_vs_course">Exam and course</string>
     <string name="schedule_conflict_kind_exam_vs_exam">Two exams</string>
@@ -377,8 +433,14 @@
     <string name="schedule_legacy_rule_scope_exam">Exam reminder (legacy)</string>
     <string name="schedule_legacy_rule_scope_generic">Reminder rule</string>
     <string name="schedule_reminder_title_separator">", "</string>
-    <string name="schedule_bulk_reminder_all_created">Reminders created for %1$d courses</string>
-    <string name="schedule_bulk_reminder_partial">Reminders created for %1$d courses; %2$s</string>
+    <plurals name="schedule_bulk_reminder_all_created">
+        <item quantity="one">Reminders created for %1$d course</item>
+        <item quantity="other">Reminders created for %1$d courses</item>
+    </plurals>
+    <plurals name="schedule_bulk_reminder_partial">
+        <item quantity="one">Reminders created for %1$d course; %2$s</item>
+        <item quantity="other">Reminders created for %1$d courses; %2$s</item>
+    </plurals>
     <string name="schedule_bulk_reminder_none">Could not create reminders: %1$s</string>
     <string name="schedule_bulk_reminder_failure">%1$s failed (%2$s). Sync the timetable or fill in the period times first.</string>
     <string name="schedule_bulk_reminder_failure_overflow">" and %1$d in total"</string>
@@ -386,8 +448,14 @@
     <string name="schedule_bulk_reminder_reason_no_profile">there is no period timetable yet</string>
     <string name="schedule_exam_reminder_disabled">Exam reminders turned off</string>
     <string name="schedule_exam_reminder_no_exams">Exam reminders are on; there are no exams in the timetable yet</string>
-    <string name="schedule_exam_reminder_covered">Reminders enabled for %1$d exams</string>
-    <string name="schedule_exam_reminder_partial">Reminders enabled for %1$d exams; %2$s</string>
+    <plurals name="schedule_exam_reminder_covered">
+        <item quantity="one">Reminders enabled for %1$d exam</item>
+        <item quantity="other">Reminders enabled for %1$d exams</item>
+    </plurals>
+    <plurals name="schedule_exam_reminder_partial">
+        <item quantity="one">Reminders enabled for %1$d exam; %2$s</item>
+        <item quantity="other">Reminders enabled for %1$d exams; %2$s</item>
+    </plurals>
     <string name="schedule_exam_reminder_none">Could not turn on exam reminders: %1$s. Sync the timetable or fill in the period times first.</string>
     <string name="schedule_exam_reminder_skipped">the periods for %1$s are not in the current period timetable, so no reminder was created</string>
     <string name="schedule_exam_reminder_skipped_overflow">" and %1$d in total"</string>
@@ -417,15 +485,22 @@
     <string name="schedule_month_suffix"></string>
     <string name="schedule_source_date">%1$d/%2$d %3$s</string>
     <string name="schedule_override_source">%1$s</string>
+    <string name="schedule_override_source_short">%1$d/%2$d</string>
     <!-- 课程详情：上课时间与周次 -->
     <string name="schedule_class_time_range">%1$s - %2$s</string>
     <string name="schedule_major_period_single">Major period %1$d</string>
     <string name="schedule_major_period_range">Major periods %1$d-%2$d</string>
     <string name="schedule_weeks_detail_unspecified">All weeks (no specific weeks set)</string>
-    <string name="schedule_weeks_detail_consecutive">Weeks %1$d-%2$d (%3$d consecutive weeks)</string>
+    <plurals name="schedule_weeks_detail_consecutive">
+        <item quantity="one">Weeks %1$d-%2$d (%3$d consecutive week)</item>
+        <item quantity="other">Weeks %1$d-%2$d (%3$d consecutive weeks)</item>
+    </plurals>
     <string name="schedule_weeks_detail_odd">Weeks %1$d-%2$d (odd weeks, %3$d total)</string>
     <string name="schedule_weeks_detail_even">Weeks %1$d-%2$d (even weeks, %3$d total)</string>
-    <string name="schedule_weeks_detail_count">%1$d weeks</string>
+    <plurals name="schedule_weeks_detail_count">
+        <item quantity="one">%1$d week</item>
+        <item quantity="other">%1$d weeks</item>
+    </plurals>
     <!-- 插件课表校验失败提示 -->
     <string name="schedule_validation_invalid_weekday">Plugin returned an invalid weekday: %1$d</string>
     <string name="schedule_validation_blank_course_id">Plugin returned a blank course ID</string>
@@ -512,4 +587,40 @@
     <string name="schedule_day_sheet_holiday_name">Name</string>
     <string name="schedule_day_sheet_holiday_name_hint">e.g. Sports day</string>
     <string name="schedule_day_sheet_saved">Updated %1$d/%2$d</string>
+    <string name="schedule_alarm_permission_gate_title">Grant these first, or the alarm stays silent</string>
+    <string name="schedule_alarm_permission_gate_body">Without these permissions a reminder will not ring. Grant them, then tap Re-check and the action continues.</string>
+    <string name="schedule_alarm_permission_gate_grant">Grant</string>
+    <string name="schedule_alarm_permission_gate_recheck">Re-check</string>
+    <string name="schedule_alarm_permission_notifications">Notifications</string>
+    <string name="schedule_alarm_permission_notifications_reason">Alarm notifications cannot be posted without it</string>
+    <string name="schedule_alarm_permission_exact_alarm">Exact alarms</string>
+    <string name="schedule_alarm_permission_exact_alarm_reason">Without it reminders only land in a rough time window</string>
+    <string name="schedule_alarm_permission_full_screen">Full-screen notifications</string>
+    <string name="schedule_alarm_permission_full_screen_reason">Needed to show the ringing screen over the lock screen</string>
+    <string name="schedule_alarm_permission_battery">Background use (battery allowlist)</string>
+    <string name="schedule_alarm_permission_battery_reason">Outside the allowlist, Doze can delay or drop alarms</string>
+    <string name="schedule_alarm_permission_autostart">Auto-start / background manager</string>
+    <string name="schedule_alarm_permission_autostart_reason">Lets the app come back and re-arm alarms after being cleaned up</string>
+    <string name="schedule_open_settings_manually">This phone has no matching system page — open Settings → Apps → CurSimple by hand</string>
+    <string name="schedule_date_picker_title">Select date</string>
+    <string name="schedule_date_picker_headline">%1$d-%2$d-%3$d</string>
+    <string name="schedule_date_picker_month">%1$d-%2$d</string>
+    <string name="schedule_date_picker_prev_month">Previous month</string>
+    <string name="schedule_date_picker_next_month">Next month</string>
+    <string name="schedule_status_import_overwritten">Current timetable overwritten</string>
+    <string name="schedule_status_import_new_term">Imported into the new timetable "%1$s"</string>
+    <string name="schedule_status_import_failed">Import failed: %1$s</string>
+    <string name="schedule_import_new_term_default">New timetable</string>
+    <string name="schedule_makeup_workday_tag">Make-up</string>
+    <string name="schedule_day_empty_hint">No classes on this day. Double-tap the date to mark it as a holiday or a make-up workday.</string>
+    <string name="schedule_week_parity_custom">Custom</string>
+    <string name="schedule_week_custom_title">Pick weeks</string>
+    <string name="schedule_week_custom_hint">Tap to select, tap again to clear.</string>
+    <string name="schedule_week_custom_empty">No weeks picked yet</string>
+    <string name="schedule_week_custom_summary">%1$d weeks picked</string>
+    <string name="schedule_week_custom_edit">Edit</string>
+    <string name="schedule_week_custom_all">Select all</string>
+    <string name="schedule_week_custom_none">Clear</string>
+    <string name="schedule_add_week">Add week</string>
+    <string name="schedule_add_week_hint">Append one more blank week</string>
 </resources>

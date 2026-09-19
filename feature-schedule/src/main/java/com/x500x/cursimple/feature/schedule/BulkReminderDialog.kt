@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -60,9 +61,9 @@ fun BulkReminderDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     text = if (containsExam) {
-                        stringResource(R.string.schedule_bulk_reminder_body_exam, selectedCount)
+                        pluralStringResource(R.plurals.schedule_bulk_reminder_body_exam, selectedCount, selectedCount)
                     } else {
-                        stringResource(R.string.schedule_bulk_reminder_body, selectedCount)
+                        pluralStringResource(R.plurals.schedule_bulk_reminder_body, selectedCount, selectedCount)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

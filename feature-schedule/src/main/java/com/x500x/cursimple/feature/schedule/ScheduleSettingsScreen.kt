@@ -60,6 +60,7 @@ import androidx.annotation.StringRes
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -166,6 +167,9 @@ fun ScheduleSettingsScreen(
 ) {
     var editingRule by remember { mutableStateOf<ReminderRule?>(null) }
     var showRuleEditor by rememberSaveable { mutableStateOf(false) }
+    // 新建闹钟、新建提醒规则同样要先过权限闸门
+    val alarmPermissionGate = rememberAlarmPermissionGateState()
+    val gateContext = LocalContext.current
     var showPlaceholderDialog by rememberSaveable { mutableStateOf(false) }
     var editingPlaceholder by remember { mutableStateOf<PlaceholderCourseGroup?>(null) }
     var editingAlarm by remember { mutableStateOf<SystemAlarmRecord?>(null) }
@@ -206,7 +210,9 @@ fun ScheduleSettingsScreen(
             AlarmManagementCard(
                 alarmRecords = state.systemAlarmRecords,
                 onRefresh = onRefreshAlarms,
-                onCreate = { showManualAlarmDialog = true },
+                onCreate = {
+                    alarmPermissionGate.require(gateContext) { showManualAlarmDialog = true }
+                },
                 onEdit = { editingAlarm = it },
                 onDelete = { onDeleteAlarm(it.alarmKey, it.backend) },
                 onSetAppAlarmEnabled = onSetAppAlarmEnabled,
@@ -218,8 +224,10 @@ fun ScheduleSettingsScreen(
                 slotLabels = slotLabels,
                 placeholders = placeholderCourses,
                 onAddRule = {
-                    editingRule = null
-                    showRuleEditor = true
+                    alarmPermissionGate.require(gateContext) {
+                        editingRule = null
+                        showRuleEditor = true
+                    }
                 },
                 onEditRule = {
                     editingRule = it
@@ -287,6 +295,8 @@ fun ScheduleSettingsScreen(
             )
         }
     }
+
+    AlarmPermissionGateHost(alarmPermissionGate)
 
     if (showRuleEditor) {
         ReminderRuleEditorDialog(
@@ -425,7 +435,7 @@ private fun AlarmRecordRow(
         message,
         stringResource(R.string.schedule_alarm_ring_seconds, record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS),
         stringResource(R.string.schedule_alarm_interval_seconds, record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS),
-        stringResource(R.string.schedule_alarm_count_times, record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT),
+        pluralStringResource(R.plurals.schedule_alarm_count_times, record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT, record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT),
         stringResource(alarmRingtoneLabelRes(record.ringtoneUriOverride)),
         stringResource(alarmAlertModeLabelRes(record.alertModeOverride)),
     ).joinToString(" · ")
@@ -498,7 +508,7 @@ private fun RuleManagementCard(
         HeaderRow(
             icon = Icons.Rounded.Notifications,
             title = stringResource(R.string.schedule_rule_card_title),
-            subtitle = stringResource(R.string.schedule_rule_card_subtitle, slotLabels.size),
+            subtitle = pluralStringResource(R.plurals.schedule_rule_card_subtitle, slotLabels.size, slotLabels.size),
             trailing = { Button(onClick = onAddRule) { Text(stringResource(R.string.schedule_new_rule)) } },
         )
         if (rules.isEmpty()) {
@@ -516,7 +526,7 @@ private fun RuleManagementCard(
         HeaderRow(
             icon = Icons.Rounded.Event,
             title = stringResource(R.string.schedule_placeholder_card_title),
-            subtitle = if (placeholders.isEmpty()) stringResource(R.string.schedule_placeholder_empty) else stringResource(R.string.schedule_placeholder_count, placeholders.size),
+            subtitle = if (placeholders.isEmpty()) stringResource(R.string.schedule_placeholder_empty) else pluralStringResource(R.plurals.schedule_placeholder_count, placeholders.size, placeholders.size),
             trailing = { OutlinedButton(onClick = onAddPlaceholder) { Text(stringResource(R.string.schedule_placeholder_add_title)) } },
         )
         placeholders.forEach { group ->
@@ -640,7 +650,15 @@ private fun ExamReminderCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.schedule_exam_all), fontWeight = FontWeight.SemiBold)
                 Text(
-                    stringResource(R.string.schedule_exam_summary, stringResource(alarmRingtoneLabelRes(alarmRingtoneUri)), stringResource(alarmAlertModeLabelRes(alarmAlertMode)), alarmRingDurationSeconds, alarmRepeatIntervalSeconds, alarmRepeatCount),
+                    pluralStringResource(
+                        R.plurals.schedule_exam_summary,
+                        alarmRepeatCount,
+                        stringResource(alarmRingtoneLabelRes(alarmRingtoneUri)),
+                        stringResource(alarmAlertModeLabelRes(alarmAlertMode)),
+                        alarmRingDurationSeconds,
+                        alarmRepeatIntervalSeconds,
+                        alarmRepeatCount,
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -758,7 +776,7 @@ private fun LegacyReminderRuleCard(
         HeaderRow(
             icon = Icons.Rounded.Warning,
             title = stringResource(R.string.schedule_legacy_card_title),
-            subtitle = stringResource(R.string.schedule_legacy_card_subtitle, rules.size),
+            subtitle = pluralStringResource(R.plurals.schedule_legacy_card_subtitle, rules.size, rules.size),
         )
         rules.forEach { rule ->
             SurfaceRow {
