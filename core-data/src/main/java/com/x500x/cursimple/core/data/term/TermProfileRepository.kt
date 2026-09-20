@@ -18,6 +18,14 @@ interface TermProfileRepository {
 
     /** 设定这个学期自己加了几周空白周；负数按 0 处理。 */
     suspend fun setTermExtraWeekCount(id: String, extraWeekCount: Int)
+
+    /**
+     * 在当前值上增减空白周数，返回改完之后的值。
+     *
+     * 读-改-写放在仓储里一次做完：界面上拿到的数可能已经过期（连点两下、
+     * 或者写入还没回流到界面），按那个旧数去写会把前一次的改动吞掉。
+     */
+    suspend fun adjustActiveTermExtraWeekCount(delta: Int): Int
     suspend fun deleteTerm(id: String)
     suspend fun setActiveTerm(id: String)
 
