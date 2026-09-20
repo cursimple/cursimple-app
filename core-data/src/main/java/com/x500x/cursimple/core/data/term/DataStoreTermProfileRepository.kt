@@ -82,6 +82,23 @@ class DataStoreTermProfileRepository(
         }
     }
 
+    override suspend fun adjustActiveTermExtraWeekCount(delta: Int): Int {
+        var result = 0
+        store.edit { prefs ->
+            val activeId = prefs[KEY_ACTIVE_TERM_ID].orEmpty()
+            val list = readTerms(prefs)
+            // 活动学期还没建好时不写，免得把改动落到一个不存在的 id 上
+            val target = list.firstOrNull { it.id == activeId } ?: return@edit
+            val next = (target.extraWeekCount + delta).coerceAtLeast(0)
+            result = next
+            prefs[KEY_TERMS_JSON] = json.encodeToString(
+                listSerializer,
+                list.map { if (it.id == activeId) it.copy(extraWeekCount = next) else it },
+            )
+        }
+        return result
+    }
+
     override suspend fun setTermTimingProfile(id: String, timingProfileId: String?) {
         store.edit { prefs ->
             val list = readTerms(prefs).map {

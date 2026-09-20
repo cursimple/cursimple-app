@@ -84,8 +84,9 @@ fun sharedLocationSuffix(locations: List<String>): String {
  * [suffix] 之外也剥它的「同族」写法：认定的是「长江大学东校区」时，
  * 只写「长江大学」的那些地点同样要剥干净，不然一半格子里还留着学校名。
  *
- * 剥完什么都不剩时原样返回——地点本身就只写了个学校名的话，
- * 剥成空白还不如让用户看见原文。
+ * 剥完什么都不剩时原样返回。要「什么都不剩就当没有地点」的场景用
+ * [strippedLocationOrNull]——课表格子就是这种：一份课表就一所学校，
+ * 在格子里写校名等于没写。
  */
 fun stripLocationSuffix(location: String, suffix: String): String {
     if (suffix.isEmpty()) return location
@@ -102,4 +103,25 @@ fun stripLocationSuffix(location: String, suffix: String): String {
         .replace(Regex("\\s{2,}"), " ")
         .trim(*TRIM_CHARS.toCharArray())
     return cleaned.ifBlank { location }
+}
+
+/**
+ * 剥掉学校名之后还剩下的地点；只剩学校名（或什么都不剩）时返回 null。
+ *
+ * 课表格子里写「长江大学」没有任何信息量——整份课表都是这所学校。
+ * 与其占一行，不如把高度让给课名。
+ */
+fun strippedLocationOrNull(location: String, suffix: String): String? {
+    if (location.isBlank()) return null
+    val stripped = stripLocationSuffix(location, suffix)
+    // 原样退回说明剥完是空的：这个地点本来就只写了个学校名
+    if (suffix.isNotEmpty() && stripped == location && orgCandidatesIn(location).isNotEmpty()) {
+        val withoutOrg = orgCandidatesIn(location)
+            .sortedByDescending { it.length }
+            .fold(location) { acc, candidate -> acc.replace(candidate, " ") }
+            .replace(Regex("\\s{2,}"), " ")
+            .trim(*TRIM_CHARS.toCharArray())
+        if (withoutOrg.isBlank()) return null
+    }
+    return stripped.takeIf { it.isNotBlank() }
 }
