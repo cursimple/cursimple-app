@@ -163,6 +163,7 @@ import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.roundToInt
+import com.x500x.cursimple.core.kernel.model.strippedLocationOrNull
 
 enum class ScheduleViewMode { Week, Day }
 
@@ -1027,7 +1028,7 @@ private fun WeeklyScheduleSection(
                 // 在「添加周」那一页点了加号：页数变多，用户原地就落到了新加的那一周上。
                 // 页号没变，翻页的 snapshotFlow 不会再发，周偏移也就不会更新——
                 // 顶部还写着上一周。这里按页数变化补一次同步。
-                androidx.compose.runtime.LaunchedEffect(weekPageCount) {
+                androidx.compose.runtime.LaunchedEffect(weekPageCount, safeMin) {
                     val page = pagerState.currentPage
                     if (page >= weekPageCount) return@LaunchedEffect
                     val newOffset = page + safeMin
@@ -1036,7 +1037,12 @@ private fun WeeklyScheduleSection(
                         onWeekOffsetChange(newOffset)
                     }
                 }
-                androidx.compose.runtime.LaunchedEffect(pagerState, safeMin) {
+                // 这个收集器活得比一次组合长，读到的必须是最新的页数与起点。
+                // 直接捕获局部变量会留在启动那一刻的值：加完周之后页数变了、它还按旧的算，
+                // 翻到新增的那一周会被当成「添加页」忽略掉，顶部周数就再也不动了。
+                val latestWeekPageCount = androidx.compose.runtime.rememberUpdatedState(weekPageCount)
+                val latestSafeMin = androidx.compose.runtime.rememberUpdatedState(safeMin)
+                androidx.compose.runtime.LaunchedEffect(pagerState) {
                     androidx.compose.runtime.snapshotFlow {
                         if (pagerState.isScrollInProgress) pagerState.targetPage
                         else pagerState.currentPage
@@ -1045,8 +1051,8 @@ private fun WeeklyScheduleSection(
                         .collect { page ->
                             if (isReconciling.value) return@collect
                             // 停在「添加周」那一页时不改周偏移，否则会被当成翻到了不存在的一周
-                            if (page >= weekPageCount) return@collect
-                            val newOffset = page + safeMin
+                            if (page >= latestWeekPageCount.value) return@collect
+                            val newOffset = page + latestSafeMin.value
                             if (newOffset != pagerLatestRequest.intValue) {
                                 pagerLatestRequest.intValue = newOffset
                                 onWeekOffsetChange(newOffset)
@@ -3775,7 +3781,7 @@ private fun formatCourseLocation(
     location: String,
     scheduleDisplay: ScheduleDisplayPreferences,
     locationSuffix: String = "",
-): String = "@${stripLocationSuffix(location, locationSuffix)}"
+): String = strippedLocationOrNull(location, locationSuffix)?.let { "@$it" }.orEmpty()
 
 private data class CourseDetailRequest(
     val courses: List<CourseItem>,
