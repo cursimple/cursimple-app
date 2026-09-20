@@ -518,23 +518,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     val weekPickerTotalWeeks = derivedWeeks + activeTermExtraWeeks
+                    // 读-改-写交给仓储一次做完：界面上这个数可能已经过期
+                    // （连点两下、或写入还没回流），按旧数写会把前一次加的周吞掉
                     val addWeek: () -> Unit = {
-                        scope.launch {
-                            container.termProfileRepository.setTermExtraWeekCount(
-                                termProfileState.activeTermId,
-                                activeTermExtraWeeks + 1,
-                            )
-                        }
+                        scope.launch { container.termProfileRepository.adjustActiveTermExtraWeekCount(1) }
                     }
                     val deleteWeek: (Int) -> Unit = { week ->
                         // 只有超出课程推导范围的那些才是用户加的，删掉即减一
                         if (week > derivedWeeks) {
-                            scope.launch {
-                                container.termProfileRepository.setTermExtraWeekCount(
-                                    termProfileState.activeTermId,
-                                    (activeTermExtraWeeks - 1).coerceAtLeast(0),
-                                )
-                            }
+                            scope.launch { container.termProfileRepository.adjustActiveTermExtraWeekCount(-1) }
                         }
                     }
 
