@@ -20,6 +20,12 @@ data class ScheduleDayResolution(
      * 不标一下很容易当成放假睡过去，所以表头要单独给它一个记号。
      */
     val isMakeUpWorkday: Boolean = false,
+    /**
+     * 调课只覆盖这个节次区间，区间外仍按本日自己的安排；整天调课或没有调课时为 null。
+     *
+     * 取课一律走 [temporaryScheduleCourseSourceDate]，这里留给界面区分「整天调课」和「只调某几节」。
+     */
+    val makeUpNodeRange: IntRange? = null,
 )
 
 /**
@@ -57,5 +63,6 @@ fun resolveScheduleDay(
             else -> builtInHolidayNameResOn(date) ?: effectiveEntry?.name?.let(::holidayNameResOfName)
         },
         isMakeUpWorkday = makeUpWorkday,
+        makeUpNodeRange = if (holiday) null else matchingTemporaryScheduleOverride(date, overrides)?.makeUpNodeRange(),
     )
 }

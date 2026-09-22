@@ -139,7 +139,7 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
     companion object {
         @Suppress("DEPRECATION")
         suspend fun updateWidgets(context: Context, appWidgetIds: IntArray? = null) {
-            val appContext = context.applicationContext
+            val appContext = context.widgetLocaleContext()
             val manager = AppWidgetManager.getInstance(appContext)
             val ids = appWidgetIds ?: collectIds(appContext, manager)
             if (ids.isEmpty()) return

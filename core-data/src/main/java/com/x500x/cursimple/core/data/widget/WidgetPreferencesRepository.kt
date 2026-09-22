@@ -12,7 +12,8 @@ data class WidgetThemePreferences(
     val themeAccent: ThemeAccent = ThemeAccent.Green,
     val backgroundMode: WidgetBackgroundMode = WidgetBackgroundMode.Theme,
     val backgroundImageUri: String? = null,
-    val openAppOnDoubleClickEnabled: Boolean = false,
+    /** 点小组件进应用；默认开着，不然新加的小组件点上去没反应，会以为是坏的。 */
+    val openAppOnDoubleClickEnabled: Boolean = true,
     /** 没单独给小组件挑过主题色时跟着应用主题走，应用换色小组件底色一起换。 */
     val followsAppThemeAccent: Boolean = true,
     /** 背景图透明度，0 为不透明；与课表背景那一套同义。 */

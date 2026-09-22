@@ -7,6 +7,7 @@ import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
+import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.targetDates
 import java.time.DayOfWeek
@@ -53,9 +54,15 @@ internal fun courseOccurrenceDates(
         .filterNot { it.isBefore(fromDate) }
         .filter { date ->
             val day = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
-            !dayPolicy.suppresses(date, day) &&
-                day.sourceDate.dayOfWeek.value == course.time.dayOfWeek &&
-                course.isActiveOnSourceDate(termStart, day.sourceDate) &&
+            if (dayPolicy.suppresses(date, day)) return@filter false
+            // 只调某几节时，这门课当天到底算哪一天的安排由节次决定，不是整天一刀切
+            val courseSource = temporaryScheduleCourseSourceDate(
+                date = date,
+                course = course,
+                sourceDate = day.sourceDate,
+                overrides = temporaryScheduleOverrides,
+            ) ?: return@filter false
+            course.isActiveOnSourceDate(termStart, courseSource) &&
                 !isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)
         }
 }

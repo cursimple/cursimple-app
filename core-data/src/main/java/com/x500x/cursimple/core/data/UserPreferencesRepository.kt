@@ -144,6 +144,13 @@ data class ScheduleTextStylePreferences(
      * 课名普遍很长、宁可小一点也要看全的人再自己打开。
      */
     val autoShrinkLongTitles: Boolean = false,
+    /**
+     * 格子里放不下的文字用省略号收尾。
+     *
+     * 默认关：省略号本身要占掉一两个字的位置，还不如把那点空间留着多显示一个字，
+     * 放不下的直接切掉不留记号。想一眼看出「这里被截断了」的人再打开。
+     */
+    val truncationEllipsis: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_COURSE_TEXT_SIZE_SP = 13
@@ -338,7 +345,8 @@ data class UserPreferences(
     val alarmRepeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
     val autoSilence: AutoSilencePreferences = AutoSilencePreferences(),
     val autoSilenceSession: AutoSilenceSession = AutoSilenceSession(),
-    val autoUpdateEnabled: Boolean = false,
+    /** 自动检查更新；默认开着，修好的问题得先让人知道有新版本。 */
+    val autoUpdateEnabled: Boolean = true,
     /** 更新检查是否带上预发布版本。 */
     val betaUpdatesEnabled: Boolean = false,
     /** 上次看过更新公告时的版本号，0 表示还没记录过。 */
@@ -395,6 +403,8 @@ interface UserPreferencesRepository {
     suspend fun setScheduleTextHorizontalCenter(enabled: Boolean)
     suspend fun setScheduleTextVerticalCenter(enabled: Boolean)
     suspend fun setScheduleAutoShrinkLongTitles(enabled: Boolean)
+
+    suspend fun setScheduleTruncationEllipsis(enabled: Boolean)
     suspend fun setScheduleCourseCornerRadiusDp(radiusDp: Int)
     suspend fun setScheduleCourseCardHeightDp(heightDp: Int)
     suspend fun setScheduleOpacityPercent(percent: Int)

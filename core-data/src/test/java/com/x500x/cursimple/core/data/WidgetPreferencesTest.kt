@@ -15,7 +15,7 @@ class WidgetPreferencesTest {
         assertEquals(ThemeAccent.Green, prefs.themeAccent)
         assertEquals(WidgetBackgroundMode.Theme, prefs.backgroundMode)
         assertNull(prefs.backgroundImageUri)
-        assertEquals(false, prefs.openAppOnDoubleClickEnabled)
+        assertEquals(true, prefs.openAppOnDoubleClickEnabled)
         assertEquals(true, prefs.followsAppThemeAccent)
     }
 

@@ -202,6 +202,8 @@ fun CourseDetailDialog(
     examReminderEnabled: Boolean = false,
     mutedExamCourseIds: Set<String> = emptySet(),
     targetDate: LocalDate? = null,
+    /** [targetDate] 当天是否放假；放假日整天不出课，右上角状态要如实标「放假」。 */
+    dayIsHoliday: Boolean = false,
     isTemporarilyCancelled: (CourseItem) -> Boolean = { false },
     noteTextOf: (CourseItem) -> String = { "" },
     noteMaxLength: Int = COURSE_NOTE_MAX_LENGTH,
@@ -341,6 +343,13 @@ fun CourseDetailDialog(
                                 viewingCurrentWeek = visibleWeekNumber != null &&
                                     visibleWeekNumber == currentWeekNumber,
                                 manual = manual,
+                                // 放假优先于停课：放假是整天的，停课只针对某几节
+                                notOccurringLabel = when {
+                                    dayIsHoliday -> stringResource(R.string.schedule_status_on_holiday)
+                                    targetDate != null && isTemporarilyCancelled(course) ->
+                                        stringResource(R.string.schedule_status_cancelled)
+                                    else -> null
+                                },
                             )
                             IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
                                 Icon(
@@ -881,8 +890,16 @@ private fun StatusChip(
     visibleWeekNumber: Int?,
     viewingCurrentWeek: Boolean,
     manual: Boolean,
+    // 这一天这门课实际不上（放假/已停课）时的说法；非空时压过周次判断——
+    // 周次算「本周该上」，但这天放假就是不上，标「本周」会误导
+    notOccurringLabel: String? = null,
 ) {
     val (label, container, content) = when {
+        notOccurringLabel != null -> Triple(
+            notOccurringLabel,
+            MaterialTheme.colorScheme.surfaceVariant,
+            MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         activeInVisibleWeek == null -> Triple(
             stringResource(R.string.schedule_status_week_unknown),
             MaterialTheme.colorScheme.surfaceVariant,

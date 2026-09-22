@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
+import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.startLocalTime
 import com.x500x.cursimple.core.kernel.model.endLocalTime
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
@@ -52,11 +53,18 @@ internal class FirstCourseRuleEvaluator {
                     holidayCalendar = holidayCalendar,
                     dayPolicy = dayPolicy,
                 ).map { courseDate ->
-                    val sourceDate = resolveScheduleDay(
+                    val daySource = resolveScheduleDay(
                         courseDate,
                         temporaryScheduleOverrides,
                         holidayCalendar,
                     ).sourceDate
+                    // 只调某几节时这门课可能仍按本日上，教学周要按它自己的来源日算
+                    val sourceDate = temporaryScheduleCourseSourceDate(
+                        date = courseDate,
+                        course = course,
+                        sourceDate = daySource,
+                        overrides = temporaryScheduleOverrides,
+                    ) ?: daySource
                     CourseOccurrence(
                         course = course,
                         courseDate = courseDate,

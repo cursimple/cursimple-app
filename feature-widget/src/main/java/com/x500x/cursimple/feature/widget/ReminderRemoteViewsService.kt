@@ -21,9 +21,11 @@ class ReminderRemoteViewsService : RemoteViewsService() {
 }
 
 private class ReminderListFactory(
-    private val context: Context,
+    appContext: Context,
     private val appWidgetId: Int,
 ) : RemoteViewsService.RemoteViewsFactory {
+    // 工厂会被系统长期复用，改完语言进程又不重启，所以每次取数都重新按当前语言包一层
+    private var context: Context = appContext.widgetLocaleContext()
     private var rows: List<ReminderRowData> = emptyList()
     private var themeAccent: ThemeAccent = ThemeAccent.Green
     private var widgetTheme: WidgetThemePreferences = WidgetThemePreferences()
@@ -31,6 +33,7 @@ private class ReminderListFactory(
     override fun onCreate() = Unit
 
     override fun onDataSetChanged() {
+        context = context.widgetLocaleContext()
         runCatching {
             runBlocking(Dispatchers.IO) {
                 ReminderDataSource.load(context, reuseRecent = true)

@@ -47,7 +47,11 @@ class AppPreferencesViewModel(
     }
 
     fun setAppLanguage(language: AppLanguage) {
-        viewModelScope.launch { repository.setAppLanguage(language) }
+        viewModelScope.launch {
+            repository.setAppLanguage(language)
+            // 小组件与提醒的文字都是本进程按语言解析好再发出去的，重画一遍才会跟着改
+            refreshScheduleOutputs()
+        }
     }
 
     fun setTermStartDate(date: LocalDate?) {
@@ -100,6 +104,10 @@ class AppPreferencesViewModel(
 
     fun setScheduleAutoShrinkLongTitles(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleAutoShrinkLongTitles(enabled) }
+    }
+
+    fun setScheduleTruncationEllipsis(enabled: Boolean) {
+        viewModelScope.launch { repository.setScheduleTruncationEllipsis(enabled) }
     }
 
     fun setScheduleTextVerticalCenter(enabled: Boolean) {
