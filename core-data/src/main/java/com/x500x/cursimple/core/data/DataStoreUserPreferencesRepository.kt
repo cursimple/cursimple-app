@@ -106,7 +106,7 @@ class DataStoreUserPreferencesRepository(
                 .coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT),
             autoSilence = prefs.toAutoSilencePreferences(),
             autoSilenceSession = prefs.toAutoSilenceSession(),
-            autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: false,
+            autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: true,
             betaUpdatesEnabled = prefs[KEY_BETA_UPDATES_ENABLED] ?: false,
             lastSeenVersionCode = prefs[KEY_LAST_SEEN_VERSION_CODE] ?: 0,
             appTimeZoneId = prefs[KEY_APP_TIME_ZONE_ID]?.takeIf { it.isNotBlank() },
@@ -230,6 +230,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setScheduleAutoShrinkLongTitles(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_AUTO_SHRINK_LONG_TITLES] = enabled }
+    }
+
+    override suspend fun setScheduleTruncationEllipsis(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_TRUNCATION_ELLIPSIS] = enabled }
     }
 
     override suspend fun setScheduleTextVerticalCenter(enabled: Boolean) {
@@ -850,6 +854,7 @@ class DataStoreUserPreferencesRepository(
             horizontalCenter = this[KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER] ?: false,
             verticalCenter = this[KEY_SCHEDULE_TEXT_VERTICAL_CENTER] ?: false,
             autoShrinkLongTitles = this[KEY_SCHEDULE_AUTO_SHRINK_LONG_TITLES] ?: false,
+            truncationEllipsis = this[KEY_SCHEDULE_TRUNCATION_ELLIPSIS] ?: false,
         )
     }
 
@@ -953,6 +958,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_TEXT_HORIZONTAL_CENTER)
         remove(KEY_SCHEDULE_TEXT_VERTICAL_CENTER)
         remove(KEY_SCHEDULE_AUTO_SHRINK_LONG_TITLES)
+        remove(KEY_SCHEDULE_TRUNCATION_ELLIPSIS)
         remove(KEY_SCHEDULE_TEXT_FULL_CENTER)
         remove(KEY_SCHEDULE_COURSE_CORNER_RADIUS_DP)
         remove(KEY_SCHEDULE_COURSE_CARD_HEIGHT_DP)
@@ -1023,6 +1029,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_TEXT_VERTICAL_CENTER = booleanPreferencesKey("schedule_text_vertical_center")
         val KEY_SCHEDULE_AUTO_SHRINK_LONG_TITLES =
             booleanPreferencesKey("schedule_auto_shrink_long_titles")
+        val KEY_SCHEDULE_TRUNCATION_ELLIPSIS =
+            booleanPreferencesKey("schedule_truncation_ellipsis")
         val KEY_SCHEDULE_TEXT_FULL_CENTER = booleanPreferencesKey("schedule_text_full_center")
         val KEY_SCHEDULE_COURSE_CORNER_RADIUS_DP = intPreferencesKey("schedule_course_corner_radius_dp")
         val KEY_SCHEDULE_COURSE_CARD_HEIGHT_DP = intPreferencesKey("schedule_course_card_height_dp")

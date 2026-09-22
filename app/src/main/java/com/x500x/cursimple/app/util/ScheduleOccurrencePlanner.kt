@@ -14,6 +14,7 @@ import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.targetDates
+import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -97,15 +98,27 @@ fun planScheduleOccurrences(
             continue
         }
         val sourceDate = dayResolution.sourceDate
-        val weekIndex = resolveTermWeekNumber(termStartDate, sourceDate)
-        val dayOfWeek = sourceDate.dayOfWeek.value
+        // 只调某几节时这天同时挂着来源日与本日的课，逐门问过来源日才知道各自算哪天
+        val sourceDayOfWeek = sourceDate.dayOfWeek.value
+        val ownDayOfWeek = date.dayOfWeek.value
+        val pool = (
+            importedByDay[sourceDayOfWeek].orEmpty() + importedByDay[ownDayOfWeek].orEmpty() +
+                visibleManual.filter { it.time.dayOfWeek == sourceDayOfWeek || it.time.dayOfWeek == ownDayOfWeek }
+            ).distinct()
         val candidates = filterTemporaryCancelledCourses(
             date = date,
-            courses = importedByDay[dayOfWeek].orEmpty() + visibleManual.filter { it.time.dayOfWeek == dayOfWeek },
+            courses = pool,
             overrides = overrides,
-        ).filter { isTermWeekNumberActive(weekIndex, it.weeks) }
+        ).mapNotNull { course ->
+            val courseSource = temporaryScheduleCourseSourceDate(date, course, sourceDate, overrides)
+                ?: return@mapNotNull null
+            if (!isTermWeekNumberActive(resolveTermWeekNumber(termStartDate, courseSource), course.weeks)) {
+                return@mapNotNull null
+            }
+            course to courseSource
+        }
 
-        for (course in candidates) {
+        for ((course, courseSourceDate) in candidates) {
             val key = courseKey(course)
             val startSlot = timingProfile.coveringSlot(course.time.startNode)
             val endSlot = timingProfile.coveringSlot(course.time.endNode)
@@ -128,7 +141,7 @@ fun planScheduleOccurrences(
                     date = date,
                     start = startDateTime,
                     end = endDateTime,
-                    displaced = sourceDate != date,
+                    displaced = courseSourceDate != date,
                 ),
             )
         }

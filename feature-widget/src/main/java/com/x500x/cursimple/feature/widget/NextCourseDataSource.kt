@@ -57,7 +57,7 @@ internal object NextCourseDataSource {
     }
 
     private suspend fun loadFresh(context: Context): NextCourseWidgetData {
-        val appContext = context.applicationContext
+        val appContext = context.widgetLocaleContext()
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
         val manualCourseRepository = DataStoreManualCourseRepository(appContext, termProfileRepository)

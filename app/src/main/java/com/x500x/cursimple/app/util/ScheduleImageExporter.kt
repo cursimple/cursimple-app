@@ -34,6 +34,9 @@ object ScheduleImageExporter {
 
     private const val PNG_QUALITY = 100
 
+    /** 全部周只需要一个周一来排列七列，取哪个周一都一样。 */
+    private val FALLBACK_ANCHOR: LocalDate = LocalDate.of(2024, 1, 1)
+
     suspend fun export(
         context: Context,
         termName: String?,
@@ -45,8 +48,11 @@ object ScheduleImageExporter {
         overrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings,
         weekStartDay: WeekStartDay = WeekStartDay.Monday,
+        allWeeks: Boolean = false,
     ): ScheduleImageExportOutcome = withContext(Dispatchers.IO) {
-        if (termStartDate == null) {
+        // 全部周不落在具体日期上，没设开学日期也照样能出图
+        val anchorDate = termStartDate ?: if (allWeeks) FALLBACK_ANCHOR else null
+        if (anchorDate == null) {
             return@withContext failure(weekNumber, context.getString(R.string.image_failure_no_term_start))
         }
         if (timingProfile == null || timingProfile.slotTimes.isEmpty()) {
@@ -55,7 +61,7 @@ object ScheduleImageExporter {
 
         val layout = ScheduleImageLayout.compute(
             termName = termName,
-            termStartDate = termStartDate,
+            termStartDate = anchorDate,
             weekNumber = weekNumber,
             weekStartDay = weekStartDay,
             schedule = schedule,
@@ -65,6 +71,7 @@ object ScheduleImageExporter {
             holidayCalendar = holidayCalendar,
             measurer = ScheduleImageRenderer.textMeasurer(),
             labels = context.scheduleImageLabels(),
+            allWeeks = allWeeks,
         )
         layout.failureReason?.let { return@withContext failure(layout.weekNumber, it) }
 
@@ -72,7 +79,7 @@ object ScheduleImageExporter {
             ?: return@withContext failure(layout.weekNumber, context.getString(R.string.image_failure_too_large))
 
         val file = try {
-            writePng(context, termName, layout.weekNumber, bitmap)
+            writePng(context, termName, if (layout.allWeeks) null else layout.weekNumber, bitmap)
         } finally {
             bitmap.recycle()
         }
@@ -86,7 +93,11 @@ object ScheduleImageExporter {
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(
                 Intent.EXTRA_SUBJECT,
-                context.getString(R.string.image_share_subject, layout.title, layout.weekNumber),
+                if (layout.allWeeks) {
+                    context.getString(R.string.image_share_subject_all_weeks, layout.title)
+                } else {
+                    context.getString(R.string.image_share_subject, layout.title, layout.weekNumber)
+                },
             )
             clipData = ClipData.newUri(context.contentResolver, file.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -108,12 +119,13 @@ object ScheduleImageExporter {
             failureReason = reason,
         )
 
-    private fun writePng(context: Context, termName: String?, weekNumber: Int, bitmap: Bitmap): File? = runCatching {
+    private fun writePng(context: Context, termName: String?, weekNumber: Int?, bitmap: Bitmap): File? = runCatching {
         val dir = File(context.cacheDir, "images").apply { mkdirs() }
         val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val slug = termName?.let { sanitizeFileName(it) }?.takeIf { it.isNotBlank() }
         val prefix = if (slug != null) "cursimple-$slug" else "cursimple-schedule"
-        val target = File(dir, "$prefix-week$weekNumber-$timestamp.png")
+        val scope = weekNumber?.let { "week$it" } ?: "all-weeks"
+        val target = File(dir, "$prefix-$scope-$timestamp.png")
         target.outputStream().use { stream ->
             if (!bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, stream)) {
                 throw IllegalStateException("compress failed")
@@ -139,6 +151,17 @@ fun Context.scheduleImageLabels(): ScheduleImageLabels = ScheduleImageLabels(
     weekdayName = { day -> weekdayName(day) },
     dateLabel = { date -> getString(R.string.image_date_md, date.monthValue, date.dayOfMonth) },
     weekLabel = { week -> getString(R.string.image_week_label, week) },
+    allWeeksSubtitle = getString(R.string.image_all_weeks_subtitle),
+    weeksDetail = { ranges -> getString(R.string.image_weeks_detail, ranges) },
+    sharedCellFootnote = { weekday, nodeLabel, titles ->
+        getString(
+            R.string.image_shared_cell_footnote,
+            weekday,
+            nodeLabel,
+            titles.size,
+            titles.joinToString(getString(R.string.image_conflict_title_separator)),
+        )
+    },
     makeUpNote = { source -> getString(R.string.image_makeup_note, source) },
     overflowTitle = { hidden -> getString(R.string.image_overflow_title, hidden) },
     conflictFootnote = { weekday, nodeLabel, titles ->
@@ -151,4 +174,5 @@ fun Context.scheduleImageLabels(): ScheduleImageLabels = ScheduleImageLabels(
         )
     },
     emptyWeekFailure = { week -> getString(R.string.image_failure_empty_week, week) },
+    emptyAllWeeksFailure = getString(R.string.image_failure_empty_all_weeks),
 )

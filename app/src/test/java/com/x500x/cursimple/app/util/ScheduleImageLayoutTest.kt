@@ -48,12 +48,18 @@ class ScheduleImageLayoutTest {
         weekdayName = { day -> weekdayLabel(day) },
         dateLabel = { date -> "${date.monthValue}月${date.dayOfMonth}日" },
         weekLabel = { week -> "第 $week 周" },
+        allWeeksSubtitle = "全部周 · 不分周次",
+        weeksDetail = { ranges -> "$ranges 周" },
+        sharedCellFootnote = { weekday, nodeLabel, titles ->
+            "$weekday ${nodeLabel}节共有 ${titles.size} 门（分属不同周）：${titles.joinToString("、")}"
+        },
         makeUpNote = { source -> "调$source" },
         overflowTitle = { hidden -> "还有 $hidden 门" },
         conflictFootnote = { weekday, nodeLabel, titles ->
             "$weekday ${nodeLabel}节同时有 ${titles.size} 门：${titles.joinToString("、")}"
         },
         emptyWeekFailure = { week -> "第 $week 周没有课程" },
+        emptyAllWeeksFailure = "课表里还没有课程",
     )
 
     private fun profile(vararg slots: ClassSlotTime): TermTimingProfile =
@@ -102,6 +108,7 @@ class ScheduleImageLayoutTest {
         overrides: List<TemporaryScheduleOverride> = emptyList(),
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
         metrics: ScheduleImageMetrics = ScheduleImageMetrics(),
+        allWeeks: Boolean = false,
     ): ScheduleImageLayoutResult = ScheduleImageLayout.compute(
         termName = "2026 秋季学期",
         termStartDate = termStart,
@@ -114,6 +121,7 @@ class ScheduleImageLayoutTest {
         measurer = measurer,
         labels = labels,
         metrics = metrics,
+        allWeeks = allWeeks,
     )
 
     @Test
@@ -436,6 +444,32 @@ class ScheduleImageLayoutTest {
     }
 
     @Test
+    fun `只调指定节次时这天同时排出两天的课`() {
+        // 第 1 周周五（09-11）的 5-6 节改上周三（09-09）的课，其余节次不动
+        val partial = TemporaryScheduleOverride(
+            id = "o1",
+            type = TemporaryScheduleOverrideType.MakeUp,
+            targetDate = "2026-09-11",
+            sourceDate = "2026-09-09",
+            makeUpStartNode = 5,
+            makeUpEndNode = 6,
+        )
+        val result = layout(
+            schedule = scheduleOf(
+                course("c3", "大学物理", dayOfWeek = 3, startNode = 5, endNode = 6),
+                course("c3b", "机器学习", dayOfWeek = 3, startNode = 1, endNode = 2),
+                course("c5", "体育", dayOfWeek = 5, startNode = 5, endNode = 6),
+                course("c5b", "高等数学", dayOfWeek = 5, startNode = 1, endNode = 2),
+            ),
+            overrides = listOf(partial),
+        )
+
+        val friday = result.blocks.filter { it.dayOfWeek == 5 }.map { it.title }.toSet()
+        // 5-6 节换成周三的课，1-2 节还是周五自己的
+        assertEquals(setOf("大学物理", "高等数学"), friday)
+    }
+
+    @Test
     fun `临时停课的课程不出现在图上`() {
         val cancel = TemporaryScheduleOverride(
             id = "o2",
@@ -465,6 +499,126 @@ class ScheduleImageLayoutTest {
         assertEquals(1, layout(weekNumber = 1, schedule = schedule).blocks.size)
         assertEquals(0, layout(weekNumber = 2, schedule = schedule).blocks.size)
         assertEquals(1, layout(weekNumber = 3, schedule = schedule).blocks.size)
+    }
+
+    @Test
+    fun `全部周把限定周次的课一并画出来`() {
+        val schedule = scheduleOf(
+            course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2, weeks = listOf(1, 3, 5)),
+            course("c2", "硬笔书法", dayOfWeek = 3, startNode = 7, endNode = 8, weeks = listOf(9, 10, 11)),
+        )
+
+        // 单周视角下第 1 周看不到第 9 周才开的课
+        assertEquals(listOf("高等数学"), layout(weekNumber = 1, schedule = schedule).blocks.map { it.title })
+
+        val all = layout(weekNumber = 1, schedule = schedule, allWeeks = true)
+        assertEquals(setOf("高等数学", "硬笔书法"), all.blocks.map { it.title }.toSet())
+        assertTrue(all.allWeeks)
+        assertNull(all.failureReason)
+    }
+
+    @Test
+    fun `全部周在课程块上标出周次`() {
+        val result = layout(
+            schedule = scheduleOf(
+                course(
+                    "c1",
+                    "高等数学",
+                    dayOfWeek = 1,
+                    startNode = 1,
+                    endNode = 2,
+                    weeks = listOf(1, 2, 3, 5),
+                    location = "",
+                    teacher = "",
+                ),
+                course("c2", "线性代数", dayOfWeek = 2, startNode = 1, endNode = 2, location = "", teacher = ""),
+            ),
+            allWeeks = true,
+        )
+
+        val limited = result.blocks.single { it.title == "高等数学" }
+        assertEquals(listOf("1-3, 5 周"), limited.lines.filter { it.role == ScheduleImageTextRole.Detail }.map { it.text })
+        // 整学期都上的课没有周次限制，不用多占一行
+        val everyWeek = result.blocks.single { it.title == "线性代数" }
+        assertTrue(everyWeek.lines.none { it.role == ScheduleImageTextRole.Detail })
+    }
+
+    @Test
+    fun `全部周把同一门课按周拆开的多条合成一块`() {
+        val result = layout(
+            schedule = scheduleOf(
+                course("c1", "大学英语", dayOfWeek = 1, startNode = 1, endNode = 2, weeks = listOf(1, 3, 5)),
+                course("c2", "大学英语", dayOfWeek = 1, startNode = 1, endNode = 2, weeks = listOf(2, 4, 6)),
+            ),
+            allWeeks = true,
+        )
+
+        val block = result.blocks.single()
+        assertEquals("大学英语", block.title)
+        assertEquals(1, block.laneCount)
+        assertTrue(block.lines.any { it.text.contains("1-6 周") })
+    }
+
+    @Test
+    fun `全部周不套用假日与临时调课`() {
+        val holiday = HolidayCalendarSettings(
+            builtInEnabled = false,
+            entries = listOf(
+                HolidayCalendarEntry(
+                    date = termStart.plusDays(1).toString(),
+                    kind = HolidayEntryKind.Holiday,
+                    name = "中秋节",
+                ),
+            ),
+        )
+        val makeUp = TemporaryScheduleOverride(
+            id = "o1",
+            type = TemporaryScheduleOverrideType.MakeUp,
+            targetDate = "2026-09-12",
+            sourceDate = "2026-09-09",
+        )
+        val result = layout(
+            schedule = scheduleOf(
+                course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2),
+                course("c2", "线性代数", dayOfWeek = 2, startNode = 1, endNode = 2),
+                course("c3", "大学物理", dayOfWeek = 3, startNode = 1, endNode = 2),
+            ),
+            holidayCalendar = holiday,
+            overrides = listOf(makeUp),
+            allWeeks = true,
+        )
+
+        assertTrue("全部周里没有假日格", result.holidays.isEmpty())
+        assertTrue("被假日盖住的课照常画出", result.blocks.any { it.title == "线性代数" })
+        assertTrue("调课不把课搬到周六", result.blocks.none { it.dayOfWeek == 6 })
+        assertTrue("表头不标调课", result.dayHeaders.all { it.noteLabel == null })
+    }
+
+    @Test
+    fun `全部周的表头不写日期副标题也不写周次`() {
+        val result = layout(
+            schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2)),
+            allWeeks = true,
+        )
+
+        assertEquals("全部周 · 不分周次", result.subtitle)
+        assertTrue(result.dayHeaders.all { it.dateLabel.isEmpty() })
+        assertTrue(result.dayHeaders.all { it.weekdayLabel.isNotEmpty() })
+    }
+
+    @Test
+    fun `全部周一门课都没有时给出失败原因`() {
+        val result = layout(allWeeks = true)
+
+        assertEquals("课表里还没有课程", result.failureReason)
+    }
+
+    @Test
+    fun `周次压成连续区间`() {
+        assertEquals("", ScheduleImageLayout.formatWeekRanges(emptyList()))
+        assertEquals("3", ScheduleImageLayout.formatWeekRanges(listOf(3)))
+        assertEquals("1-3, 5", ScheduleImageLayout.formatWeekRanges(listOf(2, 1, 3, 5)))
+        assertEquals("1, 3, 5", ScheduleImageLayout.formatWeekRanges(listOf(1, 3, 5, 5)))
     }
 
     @Test
