@@ -8,8 +8,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +42,7 @@ import java.time.temporal.TemporalAdjusters
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -127,7 +132,7 @@ fun WeekPickerSheet(
                                     isSelected = week == selectedWeek,
                                     onClick = { onSelectWeek(week) },
                                     // 只有自己加出来的空白周能删；课程推出来的那些删了也会被算回来
-                                    onLongClick = if (week > derivedWeeks) {
+                                    onDelete = if (week > derivedWeeks) {
                                         { pendingDeleteWeek = week }
                                     } else {
                                         null
@@ -257,6 +262,12 @@ private fun DeleteWeekConfirmDialog(
     )
 }
 
+/**
+ * 周次格。
+ *
+ * [onDelete] 非空表示这一周是用户自己加的、可以删：右上角摆一个叉。
+ * 删除入口只靠长按的话没人会去试，索性画出来；长按同样保留，两条路都通到二次确认。
+ */
 @Composable
 private fun WeekCell(
     week: Int,
@@ -264,7 +275,7 @@ private fun WeekCell(
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    onLongClick: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
 ) {
     val container = when {
         isCurrent -> MaterialTheme.colorScheme.primary
@@ -276,21 +287,45 @@ private fun WeekCell(
         isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = container,
-        modifier = modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(14.dp))
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = if (isCurrent) stringResource(R.string.week_picker_current_week) else week.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = if (isCurrent || isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                color = onContainer,
-            )
+    Box(modifier = modifier.aspectRatio(1f)) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = container,
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(14.dp))
+                .combinedClickable(onClick = onClick, onLongClick = onDelete),
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = if (isCurrent) stringResource(R.string.week_picker_current_week) else week.toString(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = if (isCurrent || isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                    color = onContainer,
+                )
+            }
+        }
+        onDelete?.let { delete ->
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.errorContainer,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    // 往外顶一点，压在圆角上，看着是挂在格子上的角标而不是格子里的内容
+                    .offset(x = 6.dp, y = (-6).dp)
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = delete),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = stringResource(R.string.week_picker_delete_week, week),
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(14.dp),
+                    )
+                }
+            }
         }
     }
 }

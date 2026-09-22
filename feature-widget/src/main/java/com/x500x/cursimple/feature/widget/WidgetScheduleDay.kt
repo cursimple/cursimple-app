@@ -5,6 +5,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
+import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import java.time.LocalDate
 
@@ -36,13 +37,24 @@ internal fun resolveWidgetScheduleDay(
     val resolution = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
     val sourceDate = resolution.sourceDate
     val weekIndex = resolveWeekIndex(sourceDate, termStart)
+    // 只调某几节时，两天的课都得拿出来，再逐门问它今天归哪一天
+    val candidates = (coursesOfDayOfWeek(sourceDate.dayOfWeek.value) + coursesOfDayOfWeek(targetDate.dayOfWeek.value))
+        .distinct()
     val courses = filterTemporaryCancelledCourses(
         date = targetDate,
-        courses = coursesOfDayOfWeek(sourceDate.dayOfWeek.value),
+        courses = candidates,
         overrides = temporaryScheduleOverrides,
     )
         .visibleScheduleCourses()
-        .filter { it.activeOnWeek(weekIndex) }
+        .mapNotNull { course ->
+            val courseSource = temporaryScheduleCourseSourceDate(
+                date = targetDate,
+                course = course,
+                sourceDate = sourceDate,
+                overrides = temporaryScheduleOverrides,
+            ) ?: return@mapNotNull null
+            course.takeIf { it.activeOnWeek(resolveWeekIndex(courseSource, termStart)) }
+        }
         .sortedBy { it.time.startNode }
     return WidgetScheduleDay(
         targetDate = targetDate,

@@ -61,7 +61,7 @@ internal object ReminderDataSource {
     }
 
     private suspend fun loadFresh(context: Context): ReminderWidgetData {
-        val appContext = context.applicationContext
+        val appContext = context.widgetLocaleContext()
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
         val manualCourseRepository = DataStoreManualCourseRepository(appContext, termProfileRepository)

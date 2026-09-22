@@ -19,6 +19,9 @@ data class TemporaryScheduleOverride(
     @SerialName("cancelStartNode") val cancelStartNode: Int? = null,
     @SerialName("cancelEndNode") val cancelEndNode: Int? = null,
     @SerialName("cancelCourseId") val cancelCourseId: String? = null,
+    /** 只调这个区间的课，区间外仍按本日自己的安排；两个都为空表示整天调课。 */
+    @SerialName("makeUpStartNode") val makeUpStartNode: Int? = null,
+    @SerialName("makeUpEndNode") val makeUpEndNode: Int? = null,
 )
 
 @Serializable
@@ -77,6 +80,39 @@ fun TemporaryScheduleOverride.cancelsCourseOn(date: LocalDate, course: CourseIte
     val normalizedStart = minOf(start, end)
     val normalizedEnd = maxOf(start, end)
     return course.time.startNode <= normalizedEnd && course.time.endNode >= normalizedStart
+}
+
+/** 只调部分节次时的节次区间；整天调课返回 null。 */
+fun TemporaryScheduleOverride.makeUpNodeRange(): IntRange? {
+    if (type != TemporaryScheduleOverrideType.MakeUp) return null
+    val start = makeUpStartNode ?: makeUpEndNode ?: return null
+    val end = makeUpEndNode ?: makeUpStartNode ?: return null
+    return minOf(start, end)..maxOf(start, end)
+}
+
+/**
+ * [course] 在 [date] 当天按哪一天的安排上；当天根本不上这门课时返回 null。
+ *
+ * [sourceDate] 是 [ScheduleDayResolution] 给出的整天来源日。整天调课时全天的课都来自来源日；
+ * 只调部分节次时，区间内的课来自来源日，区间外的课仍是本日自己的，调一节课不会把整天都搬走。
+ */
+fun temporaryScheduleCourseSourceDate(
+    date: LocalDate,
+    course: CourseItem,
+    sourceDate: LocalDate,
+    overrides: List<TemporaryScheduleOverride>,
+): LocalDate? {
+    if (sourceDate == date) {
+        return date.takeIf { course.time.dayOfWeek == date.dayOfWeek.value }
+    }
+    val range = matchingTemporaryScheduleOverride(date, overrides)?.makeUpNodeRange()
+        ?: return sourceDate.takeIf { course.time.dayOfWeek == sourceDate.dayOfWeek.value }
+    val inRange = course.time.startNode <= range.last && course.time.endNode >= range.first
+    return when {
+        inRange && course.time.dayOfWeek == sourceDate.dayOfWeek.value -> sourceDate
+        !inRange && course.time.dayOfWeek == date.dayOfWeek.value -> date
+        else -> null
+    }
 }
 
 fun matchingTemporaryScheduleOverride(

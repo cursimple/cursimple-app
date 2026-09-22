@@ -10,6 +10,7 @@ import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
+import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.startLocalTimeOrNull
 import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
@@ -113,14 +114,20 @@ internal class LabelReminderRuleEvaluator {
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val day = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
         if (dayPolicy.suppresses(targetDate, day)) return emptyList()
-        val sourceDate = day.sourceDate
-        val sourceWeek = resolveTermWeek(termStart, sourceDate)
-        val dayOfWeek = sourceDate.dayOfWeek.value
         return schedule.dailySchedules
             .flatMap { it.courses }
             .asSequence()
-            .filter { it.time.dayOfWeek == dayOfWeek }
-            .filter { it.isActiveInTermWeek(sourceWeek) }
+            // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+            .mapNotNull { course ->
+                temporaryScheduleCourseSourceDate(
+                    date = targetDate,
+                    course = course,
+                    sourceDate = day.sourceDate,
+                    overrides = temporaryScheduleOverrides,
+                )?.let { course to it }
+            }
+            .filter { (course, courseSource) -> course.isActiveInTermWeek(resolveTermWeek(termStart, courseSource)) }
+            .map { (course, _) -> course }
             .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
             .mapNotNull { course ->
                 val label = course.reminderSlotLabel(timingProfile)?.trim()?.takeIf { it.isNotBlank() }
