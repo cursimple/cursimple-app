@@ -37,8 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import androidx.compose.ui.platform.LocalConfiguration
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
+
+/** 屏幕高度低于这条线就把页头收成两行；横屏手机大多在 400dp 上下。 */
+private const val COMPACT_HEADER_MAX_HEIGHT_DP = 500
 
 /**
  * 本学期全部课程的平铺列表。
@@ -174,63 +178,108 @@ internal fun CourseLibraryScreen(
         )
     }
 
+    // 横屏高度只有几百 dp，搜索框、筛选、统计各占一行的话列表就没地方了：横屏时并排收成两行
+    val compactHeader = LocalConfiguration.current.screenHeightDp < COMPACT_HEADER_MAX_HEIGHT_DP
+    val searchField = @Composable { fieldModifier: Modifier ->
+        OutlinedTextField(
+            value = query,
+            onValueChange = { query = it },
+            modifier = fieldModifier,
+            singleLine = true,
+            label = { Text(stringResource(R.string.schedule_library_search)) },
+        )
+    }
+    val addButton = @Composable {
+        Button(onClick = { adding = true }) {
+            Text(stringResource(R.string.schedule_library_add), maxLines = 2)
+        }
+    }
+    val summaryText = @Composable { textModifier: Modifier ->
+        Text(
+            text = pluralStringResource(R.plurals.schedule_library_summary, matched.size, matched.size),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = textModifier,
+        )
+    }
+    val hiddenToggle = @Composable {
+        if (hiddenCourses.isNotEmpty()) {
+            TextButton(onClick = { showHidden = !showHidden }) {
+                Text(
+                    stringResource(
+                        if (showHidden) {
+                            R.string.schedule_library_hidden_hide
+                        } else {
+                            R.string.schedule_library_hidden_show
+                        },
+                        hiddenCourses.size,
+                    ),
+                )
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compactHeader) 6.dp else 10.dp),
     ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 12.dp),
-            singleLine = true,
-            label = { Text(stringResource(R.string.schedule_library_search)) },
-        )
-
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            CourseSortMode.entries.forEach { mode ->
-                FilterChip(
-                    selected = mode == sortMode,
-                    onClick = { sortMode = mode },
-                    label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 2) },
-                )
+        if (compactHeader) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                searchField(Modifier.weight(1f))
+                addButton()
             }
-            Button(onClick = { adding = true }) {
-                Text(stringResource(R.string.schedule_library_add), maxLines = 2)
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = pluralStringResource(R.plurals.schedule_library_summary, matched.size, matched.size),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
-            if (hiddenCourses.isNotEmpty()) {
-                TextButton(onClick = { showHidden = !showHidden }) {
-                    Text(
-                        stringResource(
-                            if (showHidden) {
-                                R.string.schedule_library_hidden_hide
-                            } else {
-                                R.string.schedule_library_hidden_show
-                            },
-                            hiddenCourses.size,
-                        ),
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                CourseSortMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = mode == sortMode,
+                        onClick = { sortMode = mode },
+                        label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 1) },
                     )
                 }
+                summaryText(Modifier.align(Alignment.CenterVertically))
+                hiddenToggle()
+            }
+        } else {
+            searchField(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+            )
+
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CourseSortMode.entries.forEach { mode ->
+                    FilterChip(
+                        selected = mode == sortMode,
+                        onClick = { sortMode = mode },
+                        label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 2) },
+                    )
+                }
+                addButton()
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                summaryText(Modifier.weight(1f))
+                hiddenToggle()
             }
         }
 

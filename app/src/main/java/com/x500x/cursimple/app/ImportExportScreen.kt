@@ -50,6 +50,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +67,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -162,6 +164,8 @@ fun ImportExportScreen(
             ?: 1
         mutableIntStateOf(current)
     }
+    // 默认给全部周：一张图涵盖整学期，用户不用先猜自己要发的是第几周
+    var imageAllWeeks by rememberSaveable { mutableStateOf(true) }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
         Json {
@@ -250,6 +254,7 @@ fun ImportExportScreen(
                 overrides = temporaryScheduleOverrides,
                 holidayCalendar = holidayCalendar,
                 weekStartDay = weekStartDay,
+                allWeeks = imageAllWeeks,
             )
             imageBusy = false
             val intent = outcome.intent
@@ -541,8 +546,10 @@ fun ImportExportScreen(
             ScheduleImagePanel(
                 weekNumber = imageWeek,
                 maxWeekNumber = maxImageWeek,
+                allWeeks = imageAllWeeks,
                 canExport = canExport,
                 busy = imageBusy,
+                onAllWeeksChange = { imageAllWeeks = it },
                 onWeekChange = { imageWeek = it.coerceIn(1, maxImageWeek) },
                 onExport = { exportScheduleImage() },
             )
@@ -1297,8 +1304,10 @@ private fun ScannerOverlay(
 private fun ScheduleImagePanel(
     weekNumber: Int,
     maxWeekNumber: Int,
+    allWeeks: Boolean,
     canExport: Boolean,
     busy: Boolean,
+    onAllWeeksChange: (Boolean) -> Unit,
     onWeekChange: (Int) -> Unit,
     onExport: () -> Unit,
 ) {
@@ -1334,10 +1343,10 @@ private fun ScheduleImagePanel(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = if (canExport) {
-                    stringResource(R.string.ie_image_panel_body)
-                } else {
-                    stringResource(R.string.ie_no_schedule_body)
+                text = when {
+                    !canExport -> stringResource(R.string.ie_no_schedule_body)
+                    allWeeks -> stringResource(R.string.ie_image_panel_body_all_weeks)
+                    else -> stringResource(R.string.ie_image_panel_body)
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -1345,32 +1354,54 @@ private fun ScheduleImagePanel(
             Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                IconButton(
-                    onClick = { onWeekChange(weekNumber - 1) },
-                    enabled = canExport && !busy && weekNumber > 1,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronLeft,
-                        contentDescription = stringResource(R.string.ie_previous_week),
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.ie_week_label, weekNumber),
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                FilterChip(
+                    selected = allWeeks,
+                    onClick = { onAllWeeksChange(true) },
+                    enabled = canExport && !busy,
+                    label = { Text(stringResource(R.string.ie_image_scope_all_weeks)) },
                 )
-                IconButton(
-                    onClick = { onWeekChange(weekNumber + 1) },
-                    enabled = canExport && !busy && weekNumber < maxWeekNumber,
+                FilterChip(
+                    selected = !allWeeks,
+                    onClick = { onAllWeeksChange(false) },
+                    enabled = canExport && !busy,
+                    label = { Text(stringResource(R.string.ie_image_scope_single_week)) },
+                )
+            }
+            // 单周才需要挑周次；全部周已经把整学期都画进去了
+            if (!allWeeks) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ChevronRight,
-                        contentDescription = stringResource(R.string.ie_next_week),
+                    IconButton(
+                        onClick = { onWeekChange(weekNumber - 1) },
+                        enabled = canExport && !busy && weekNumber > 1,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronLeft,
+                            contentDescription = stringResource(R.string.ie_previous_week),
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.ie_week_label, weekNumber),
+                        modifier = Modifier.weight(1f),
+                        textAlign = TextAlign.Center,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
+                    IconButton(
+                        onClick = { onWeekChange(weekNumber + 1) },
+                        enabled = canExport && !busy && weekNumber < maxWeekNumber,
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.ChevronRight,
+                            contentDescription = stringResource(R.string.ie_next_week),
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))

@@ -40,6 +40,7 @@ object ScheduleImageRenderer {
     private const val BLOCK_RADIUS = 12f
     private const val ACCENT_WIDTH = 6f
 
+    // 八种底色都得是有彩色：灰底会被当成「这门课这周不上」，而图上画出来的课全都是要上的
     private val palettes = listOf(
         BlockPalette(0xFFE7F0FE.toInt(), 0xFF1B4A87.toInt(), 0xFF3B82F6.toInt()),
         BlockPalette(0xFFE4F6EC.toInt(), 0xFF15603D.toInt(), 0xFF10B981.toInt()),
@@ -48,7 +49,7 @@ object ScheduleImageRenderer {
         BlockPalette(0xFFFDEAEF.toInt(), 0xFF8B2540.toInt(), 0xFFEC4899.toInt()),
         BlockPalette(0xFFE3F5F8.toInt(), 0xFF115E6A.toInt(), 0xFF06B6D4.toInt()),
         BlockPalette(0xFFEEF3E3.toInt(), 0xFF4A5C1F.toInt(), 0xFF84CC16.toInt()),
-        BlockPalette(0xFFE9ECF2.toInt(), 0xFF37404F.toInt(), 0xFF64748B.toInt()),
+        BlockPalette(0xFFEBEAFE.toInt(), 0xFF3A3597.toInt(), 0xFF6366F1.toInt()),
     )
 
     private val examPalette = BlockPalette(0xFFFDE7E3.toInt(), 0xFF8E2410.toInt(), 0xFFEF4444.toInt())
@@ -114,15 +115,18 @@ object ScheduleImageRenderer {
             val notePaint = centeredPaint(metrics.dayNoteFontSize, NOTE_TEXT, bold = false)
 
             val nameHeight = metrics.dayNameFontSize * 1.4f
-            val dateHeight = metrics.dayDateFontSize * 1.4f
+            // 全部周没有日期，这一行不留空高，星期几才会居中
+            val dateHeight = if (header.dateLabel.isBlank()) 0f else metrics.dayDateFontSize * 1.4f
             val noteHeight = metrics.dayNoteFontSize * 1.4f
             val used = nameHeight + dateHeight + (if (header.noteLabel != null) noteHeight else 0f)
             var top = header.rect.top + (header.rect.height - used) / 2f
 
             canvas.drawTextInLine(header.weekdayLabel, header.rect.centerX, top, nameHeight, namePaint)
             top += nameHeight
-            canvas.drawTextInLine(header.dateLabel, header.rect.centerX, top, dateHeight, datePaint)
-            top += dateHeight
+            if (dateHeight > 0f) {
+                canvas.drawTextInLine(header.dateLabel, header.rect.centerX, top, dateHeight, datePaint)
+                top += dateHeight
+            }
             header.noteLabel?.let { canvas.drawTextInLine(it, header.rect.centerX, top, noteHeight, notePaint) }
         }
         // 表头与格子之间的分隔线

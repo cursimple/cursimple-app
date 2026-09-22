@@ -136,6 +136,7 @@ import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.ScheduleDayResolution
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
+import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
@@ -518,6 +519,11 @@ fun ScheduleScreen(
                 examReminderEnabled = examRules.isNotEmpty(),
                 mutedExamCourseIds = examRules.flatMap { it.mutedCourseIds }.toSet(),
                 targetDate = request.targetDate,
+                dayIsHoliday = resolveScheduleDay(
+                    request.targetDate,
+                    temporaryScheduleOverrides,
+                    holidayCalendar,
+                ).isHoliday,
                 isTemporarilyCancelled = { c ->
                     matchingTemporaryCancelRule(c, request.targetDate, temporaryScheduleOverrides) != null
                 },
@@ -1347,8 +1353,20 @@ private fun DailyScheduleSection(
                     // 还没开学时不按周过滤，课程照常列出并按不可用态显示
                     val beforeTerm = weekNumber != null && weekNumber < 1
                     val courses = allCourses
-                        .filter { it.time.dayOfWeek == sourceDate.dayOfWeek.value }
-                        .filter { beforeTerm || weekNumber == null || it.isActiveInWeek(weekNumber) }
+                        // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+                        .mapNotNull { course ->
+                            temporaryScheduleCourseSourceDate(
+                                date = animatedDate,
+                                course = course,
+                                sourceDate = sourceDate,
+                                overrides = temporaryScheduleOverrides,
+                            )?.let { course to it }
+                        }
+                        .filter { (course, courseSource) ->
+                            val courseWeek = computeWeekNumberForDate(termStartDate, courseSource) ?: weekNumber
+                            beforeTerm || courseWeek == null || course.isActiveInWeek(courseWeek)
+                        }
+                        .map { (course, _) -> course }
                         .sortedBy { it.time.startNode }
                     DailyPageEntry(resolution = resolution, beforeTerm = beforeTerm, courses = courses)
                 }
@@ -1684,6 +1702,12 @@ private fun DayRow(
                             .fillMaxHeight()
                             .background(onColor.copy(alpha = 0.9f)),
                     )
+                    // 放不下的文字默认直接切掉不留省略号，省下的位置多显示一个字；用户开了偏好再用「…」
+                    val textOverflow = if (scheduleTextStyle.truncationEllipsis) {
+                        TextOverflow.Ellipsis
+                    } else {
+                        TextOverflow.Clip
+                    }
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -1697,7 +1721,7 @@ private fun DayRow(
                             lineHeight = (titleTextSize + 2).sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = textOverflow,
                         )
                         if (unavailable) {
                             Text(
@@ -1728,7 +1752,7 @@ private fun DayRow(
                                 color = onColor.copy(alpha = 0.85f),
                                 fontSize = 12.sp,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                overflow = textOverflow,
                             )
                         }
                         if (scheduleDisplay.teacherVisible && course.teacher.isNotBlank()) {
@@ -1737,7 +1761,7 @@ private fun DayRow(
                                 color = onColor.copy(alpha = 0.82f),
                                 fontSize = 12.sp,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                                overflow = textOverflow,
                             )
                         }
                     }
@@ -2413,7 +2437,11 @@ private fun ScheduleGrid(
                             val isDragging = course.id == draggingCourseId
                             CourseBlock(
                                 course = course,
-                                badges = badgesForCourse(course, uiSchema.courseBadges),
+                                badges = badgesForCourse(
+                                    course,
+                                    uiSchema.courseBadges,
+                                    LocalScheduleLocationSuffix.current,
+                                ),
                                 hasReminder = hasReminderForCourse(course, reminderRules, timingProfile),
                                 hasNote = courseNotes.hasNote(course.id),
                                 selected = course.id == selectedCourseId,
@@ -3161,6 +3189,12 @@ private fun CourseBlock(
     }
     val horizontalCentered = scheduleTextStyle.horizontalCenter
     val verticalCentered = scheduleTextStyle.verticalCenter
+    // 放不下的文字默认直接切掉不留省略号，把省下的位置留给多一个字；用户开了偏好再用「…」
+    val cellTextOverflow = if (scheduleTextStyle.truncationEllipsis) {
+        TextOverflow.Ellipsis
+    } else {
+        TextOverflow.Clip
+    }
     val containerColor = when {
         inactive -> accents.inactiveContainer
         isExam -> MaterialTheme.colorScheme.errorContainer
@@ -3370,7 +3404,7 @@ private fun CourseBlock(
                             lineHeight = titleLineHeightSp.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = plan.titleLines,
-                            overflow = TextOverflow.Ellipsis,
+                            overflow = cellTextOverflow,
                             textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                             modifier = Modifier.fillMaxWidth(),
                         )
@@ -3381,7 +3415,7 @@ private fun CourseBlock(
                                 fontSize = 10.sp,
                                 lineHeight = 11.sp,
                                 maxLines = plan.locationLines,
-                                overflow = TextOverflow.Ellipsis,
+                                overflow = cellTextOverflow,
                                 textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                                 modifier = Modifier.fillMaxWidth(),
                             )
@@ -4105,7 +4139,11 @@ internal fun courseColor(
     return palette[seed.hashCode().mod(palette.size)]
 }
 
-private fun badgesForCourse(course: CourseItem, rules: List<CourseBadgeRule>): List<String> {
+internal fun badgesForCourse(
+    course: CourseItem,
+    rules: List<CourseBadgeRule>,
+    schoolName: String = "",
+): List<String> {
     return rules.filter { rule ->
         ((rule.titleContains?.let { titleContains ->
             course.title.contains(titleContains, ignoreCase = true)
@@ -4114,6 +4152,9 @@ private fun badgesForCourse(course: CourseItem, rules: List<CourseBadgeRule>): L
             (rule.startNode == null || course.time.startNode == rule.startNode) &&
             (rule.endNode == null || course.time.endNode == rule.endNode)
     }.map { it.label }
+        // 有的教务插件把学校名塞成徽章：一份课表就一所学校，和地点里的校名一样是噪音，
+        // 剥掉学校名后什么都不剩的徽章直接不显示（strippedLocationOrNull 剥完为空返回 null）
+        .filter { label -> schoolName.isBlank() || strippedLocationOrNull(label, schoolName) != null }
 }
 
 /**
@@ -4226,16 +4267,20 @@ internal fun buildWeekRenderEntries(
             val resolution = resolveScheduleDay(actualDate, temporaryScheduleOverrides, holidayCalendar)
             // 假日当天照常排出课程，只是渲染成不可用态；提醒仍按假日跳过。
             val sourceDate = resolution.sourceDate
-            val sourceDayOfWeek = sourceDate.dayOfWeek.value
-            val sourceWeekIndex = computeWeekNumberForDate(termStart, sourceDate) ?: weekIndex
-            val source = if (showEveryCourse) {
-                displayCourses
-            } else {
-                activeCoursesForWeek(displayCourses, sourceWeekIndex)
-            }
-            source
-                .filter { it.time.dayOfWeek == sourceDayOfWeek }
+            // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+            displayCourses
                 .mapNotNull { course ->
+                    temporaryScheduleCourseSourceDate(
+                        date = actualDate,
+                        course = course,
+                        sourceDate = sourceDate,
+                        overrides = temporaryScheduleOverrides,
+                    )?.let { course to (computeWeekNumberForDate(termStart, it) ?: weekIndex) }
+                }
+                .filter { (course, courseWeekIndex) ->
+                    showEveryCourse || (!course.reminderOnly && course.isActiveInWeek(courseWeekIndex))
+                }
+                .mapNotNull { (course, sourceWeekIndex) ->
                     val columnIndex = visibleColumns[dayOfWeek] ?: return@mapNotNull null
                     val placement = coursePlacement(course, slots, columnIndex) ?: return@mapNotNull null
                     Resolved(

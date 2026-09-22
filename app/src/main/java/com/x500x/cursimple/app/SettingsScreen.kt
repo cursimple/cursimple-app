@@ -66,6 +66,7 @@ import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.FormatAlignCenter
 import androidx.compose.material.icons.rounded.FormatSize
+import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LineStyle
@@ -379,6 +380,7 @@ fun AppSettingsRoute(
     onScheduleTextHorizontalCenterChange: (Boolean) -> Unit,
     onScheduleTextVerticalCenterChange: (Boolean) -> Unit,
     onScheduleAutoShrinkLongTitlesChange: (Boolean) -> Unit,
+    onScheduleTruncationEllipsisChange: (Boolean) -> Unit,
     onScheduleCourseCornerRadiusDpChange: (Int) -> Unit,
     onScheduleCourseCardHeightDpChange: (Int) -> Unit,
     onScheduleOpacityPercentChange: (Int) -> Unit,
@@ -978,6 +980,13 @@ fun AppSettingsRoute(
                         subtitle = stringResource(R.string.settings_auto_shrink_subtitle),
                         checked = scheduleTextStyle.autoShrinkLongTitles,
                         onCheckedChange = onScheduleAutoShrinkLongTitlesChange,
+                    )
+                    SettingsSwitchRow(
+                        icon = Icons.Rounded.MoreHoriz,
+                        title = stringResource(R.string.settings_truncation_ellipsis_title),
+                        subtitle = stringResource(R.string.settings_truncation_ellipsis_subtitle),
+                        checked = scheduleTextStyle.truncationEllipsis,
+                        onCheckedChange = onScheduleTruncationEllipsisChange,
                     )
                 }
             }

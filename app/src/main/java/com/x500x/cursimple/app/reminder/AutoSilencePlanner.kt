@@ -14,6 +14,7 @@ import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
+import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -69,11 +70,17 @@ fun resolveClassBlocks(
     if (day.isHoliday) return emptyList()
     val termWeek = resolveTermWeekNumber(termStart, day.sourceDate)
     if (!isTermWeekNumberStarted(termWeek)) return emptyList()
-    val sourceDayOfWeek = day.sourceDate.dayOfWeek.value
     val intervals = courses
         .asSequence()
-        .filter { it.time.dayOfWeek == sourceDayOfWeek }
-        .filter { it.isActiveInTermWeekNumber(termWeek) }
+        // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+        .mapNotNull { course ->
+            temporaryScheduleCourseSourceDate(date, course, day.sourceDate, overrides)
+                ?.let { course to it }
+        }
+        .filter { (course, courseSource) ->
+            course.isActiveInTermWeekNumber(resolveTermWeekNumber(termStart, courseSource))
+        }
+        .map { (course, _) -> course }
         .filterNot { isCourseTemporarilyCancelled(date, it, overrides) }
         .mapNotNull { course -> course.classInterval(timingProfile)?.toBlockOn(date) }
         .toList()

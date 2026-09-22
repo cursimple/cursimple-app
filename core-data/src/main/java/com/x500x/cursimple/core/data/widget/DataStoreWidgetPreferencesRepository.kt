@@ -72,7 +72,7 @@ class DataStoreWidgetPreferencesRepository(
                 ?.let { runCatching { WidgetBackgroundMode.valueOf(it) }.getOrNull() }
                 ?: WidgetBackgroundMode.Theme,
             backgroundImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]?.takeIf(String::isNotBlank),
-            openAppOnDoubleClickEnabled = preferences[KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK] ?: false,
+            openAppOnDoubleClickEnabled = preferences[KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK] ?: true,
             backgroundImageTransparencyPercent = WidgetThemePreferences
                 .coerceBackgroundImageTransparencyPercent(
                     preferences[KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT]

@@ -76,7 +76,7 @@ internal object ScheduleWidgetDataSource {
     }
 
     private suspend fun loadFreshDay(context: Context, appWidgetId: Int): ScheduleWidgetDayData {
-        val appContext = context.applicationContext
+        val appContext = context.widgetLocaleContext()
         val termProfileRepository = DataStoreTermProfileRepository(appContext)
         val scheduleRepository = DataStoreScheduleRepository(appContext, termProfileRepository)
         val manualCourseRepository = DataStoreManualCourseRepository(appContext, termProfileRepository)

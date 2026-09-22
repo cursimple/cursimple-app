@@ -962,6 +962,7 @@ class MainActivity : ComponentActivity() {
                                         onScheduleTextHorizontalCenterChange = prefsViewModel::setScheduleTextHorizontalCenter,
                                         onScheduleTextVerticalCenterChange = prefsViewModel::setScheduleTextVerticalCenter,
                                         onScheduleAutoShrinkLongTitlesChange = prefsViewModel::setScheduleAutoShrinkLongTitles,
+                                        onScheduleTruncationEllipsisChange = prefsViewModel::setScheduleTruncationEllipsis,
                                         onScheduleCourseCornerRadiusDpChange = prefsViewModel::setScheduleCourseCornerRadiusDp,
                                         onScheduleCourseCardHeightDpChange = prefsViewModel::setScheduleCourseCardHeightDp,
                                         onScheduleOpacityPercentChange = prefsViewModel::setScheduleOpacityPercent,
