@@ -9,6 +9,7 @@ import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.data.widget.courseSlotLabelText
 import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -35,6 +36,10 @@ internal data class ScheduleWidgetCourseRow(
     val status: CourseStatus? = null,
     /** 考试与普通课程的状态文案不同。 */
     val isExam: Boolean = false,
+    /** 节次名字，如「第一节」「午间课」；横跨几个时段或作息表里没有时为空。 */
+    val slotLabel: String? = null,
+    /** 节号范围，如「1-1」「3-4」；作息表里没有对应时段时为空，只显示 [nodeRange]。 */
+    val nodeNumbers: String = "",
 ) {
     val stableId: Long = id.hashCode().toLong()
 }
@@ -56,6 +61,14 @@ internal data class ScheduleWidgetDayData(
 
 internal object ScheduleWidgetDataSource {
     private val dayCache = WidgetDataCache<ScheduleWidgetDayData>()
+
+    /**
+     * 最近一次真正读数时的「今天」。换天守护拿它判断当前渲染有没有过期：
+     * 零点那次刷新被系统吞掉时，它还停在昨天。
+     */
+    @Volatile
+    var lastRenderedTodayIso: String? = null
+        private set
 
     /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
     suspend fun loadDay(
@@ -93,6 +106,7 @@ internal object ScheduleWidgetDataSource {
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val today = BeijingTime.todayIn(zone)
         val now = BeijingTime.nowTimeIn(zone)
+        lastRenderedTodayIso = today.toString()
         // 偏移锚在按下那天，跨过零点自动作废，不会机械地又往后顺延一天
         // INVALID_APPWIDGET_ID 就是 0，正好对上仓储里共用那一份偏移的伪实例 id
         val manualOffset = widgetPreferencesRepository.effectiveWidgetDayOffset(
@@ -236,6 +250,8 @@ internal object ScheduleWidgetDataSource {
             onHoliday = onHoliday,
             status = status,
             isExam = category == CourseCategory.Exam,
+            slotLabel = context.courseSlotLabelText(timingProfile, time.startNode, time.endNode),
+            nodeNumbers = widgetNodeNumbersText(timingProfile, time.startNode, time.endNode),
         )
     }
 }

@@ -1,5 +1,7 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,12 +22,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -199,13 +198,13 @@ internal fun SystemCalendarPanel(
                 Text(pluralStringResource(R.plurals.calendar_export_overwrite_body, lastRecordEventCount, lastRecordEventCount))
             },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     pendingOverwrite = false
                     selectedId?.let(::runWrite)
                 }) { Text(stringResource(R.string.calendar_export_overwrite_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingOverwrite = false }) {
+                AppOutlinedButton(onClick = { pendingOverwrite = false }) {
                     Text(stringResource(R.string.settings_cancel))
                 }
             },
@@ -280,7 +279,7 @@ internal fun SystemCalendarPanel(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 accounts.forEach { account ->
-                    FilterChip(
+                    AppFilterChip(
                         selected = account.id == selectedId,
                         onClick = { selectedId = account.id },
                         label = {
@@ -320,7 +319,7 @@ internal fun SystemCalendarPanel(
                     },
                     enabled = canExport && !busy && selectedId != null,
                 ) { Text(stringResource(R.string.calendar_export_action), maxLines = 1) }
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = { runUndo() },
                     enabled = !busy && lastRecordEventCount > 0,
                 ) { Text(stringResource(R.string.calendar_export_undo), maxLines = 1) }

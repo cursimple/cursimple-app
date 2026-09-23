@@ -150,6 +150,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                     appWidgetId,
                     ScheduleWidgetActionReceiver.ACTION_PREV,
                     dayData.offset,
+                    dayData.targetDate,
                 ),
             )
             views.setOnClickPendingIntent(
@@ -159,6 +160,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                     appWidgetId,
                     ScheduleWidgetActionReceiver.ACTION_NEXT,
                     dayData.offset,
+                    dayData.targetDate,
                 ),
             )
             views.setViewVisibility(R.id.widget_prev, View.VISIBLE)
@@ -215,12 +217,15 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             appWidgetId: Int,
             action: String,
             currentOffset: Int,
+            renderedDate: java.time.LocalDate? = null,
         ): PendingIntent {
             val intent = Intent(context, ScheduleWidgetActionReceiver::class.java).apply {
                 setPackage(context.packageName)
                 putExtra(ScheduleWidgetActionReceiver.EXTRA_ACTION, action)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(ScheduleWidgetActionReceiver.EXTRA_CURRENT_OFFSET, currentOffset)
+                // 相对偏移只在渲染的那一天成立；跨过零点还没重画时再点，就得按绝对日期重算
+                renderedDate?.let { putExtra(ScheduleWidgetActionReceiver.EXTRA_RENDERED_DATE, it.toString()) }
             }
             return PendingIntent.getBroadcast(
                 context,

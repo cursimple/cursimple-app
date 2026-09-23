@@ -4,10 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.x500x.cursimple.core.data.AppLanguage
+import com.x500x.cursimple.core.data.ClassNoticeAnimation
+import com.x500x.cursimple.core.data.ClassNoticeSkin
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.data.UserPreferences
 import com.x500x.cursimple.core.data.UserPreferencesRepository
+import com.x500x.cursimple.core.kernel.model.CancelCoursePlan
+import com.x500x.cursimple.core.kernel.model.CourseMovePlan
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -108,6 +112,48 @@ class AppPreferencesViewModel(
 
     fun setScheduleTruncationEllipsis(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleTruncationEllipsis(enabled) }
+    }
+
+    fun setClassNoticeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setClassNoticeEnabled(enabled)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun setClassNoticeAdvanceMinutes(minutes: Int) {
+        viewModelScope.launch {
+            repository.setClassNoticeAdvanceMinutes(minutes)
+            refreshScheduleOutputs()
+        }
+    }
+
+    fun setClassNoticeHeadsUpEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setClassNoticeHeadsUpEnabled(enabled) }
+    }
+
+    fun setClassNoticeLockScreenEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setClassNoticeLockScreenEnabled(enabled) }
+    }
+
+    fun setClassNoticeFocusNotificationEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setClassNoticeFocusNotificationEnabled(enabled) }
+    }
+
+    fun setClassNoticeSkin(skin: ClassNoticeSkin) {
+        viewModelScope.launch { repository.setClassNoticeSkin(skin) }
+    }
+
+    fun setClassNoticeAnimation(animation: ClassNoticeAnimation) {
+        viewModelScope.launch { repository.setClassNoticeAnimation(animation) }
+    }
+
+    fun setClassNoticeBlurEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setClassNoticeBlurEnabled(enabled) }
+    }
+
+    fun setClassNoticeBlurStrength(strength: Int) {
+        viewModelScope.launch { repository.setClassNoticeBlurStrength(strength) }
     }
 
     fun setScheduleTextVerticalCenter(enabled: Boolean) {
@@ -245,6 +291,28 @@ class AppPreferencesViewModel(
     fun upsertTemporaryScheduleOverride(override: TemporaryScheduleOverride) {
         viewModelScope.launch {
             repository.upsertTemporaryScheduleOverride(override)
+            refreshScheduleOutputs()
+        }
+    }
+
+    /** 拖动调课的改动：删和写放在同一个协程里按顺序做，免得两次写入互相覆盖。 */
+    fun applyCourseMove(plan: CourseMovePlan) {
+        applyTemporaryOverrideChanges(plan.removeIds, listOfNotNull(plan.upsert))
+    }
+
+    /** 逐门停课/恢复的改动，同样要先删后写、在一个协程里按顺序做。 */
+    fun applyCancelCoursePlan(plan: CancelCoursePlan) {
+        applyTemporaryOverrideChanges(plan.removeIds, plan.upserts)
+    }
+
+    private fun applyTemporaryOverrideChanges(
+        removeIds: List<String>,
+        upserts: List<TemporaryScheduleOverride>,
+    ) {
+        viewModelScope.launch {
+            removeIds.forEach { repository.removeTemporaryScheduleOverride(it) }
+            upserts.forEach { repository.upsertTemporaryScheduleOverride(it) }
+            // 小组件、闹钟和上课提醒都按调课列表排，改完要跟着重排，和单条增删一样
             refreshScheduleOutputs()
         }
     }

@@ -277,4 +277,88 @@ class TemporaryScheduleOverrideTest {
         )
         assertEquals(explicit, reEncoded)
     }
+
+    @Test
+    fun `挪课后原来那天不再出现这门课`() {
+        val from = LocalDate.of(2026, 5, 6)
+        val to = LocalDate.of(2026, 5, 8)
+        val course = CourseItem(
+            id = "phy",
+            title = "物理实验",
+            time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
+        )
+        val move = TemporaryScheduleOverride(
+            id = "mv",
+            type = TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = from.toString(),
+            targetDate = to.toString(),
+            moveCourseId = "phy",
+            moveToStartNode = 5,
+            moveToEndNode = 6,
+        )
+
+        assertTrue(isCourseMovedAwayFrom(from, course, listOf(move)))
+        // 别的日子、别的课都不受影响
+        assertFalse(isCourseMovedAwayFrom(to, course, listOf(move)))
+        assertFalse(isCourseMovedAwayFrom(from, course.copy(id = "other"), listOf(move)))
+    }
+
+    @Test
+    fun `挪到的那天按目标节次与星期给出课程`() {
+        val from = LocalDate.of(2026, 5, 6)
+        val to = LocalDate.of(2026, 5, 8)
+        val course = CourseItem(
+            id = "phy",
+            title = "物理实验",
+            time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
+        )
+        val move = TemporaryScheduleOverride(
+            id = "mv",
+            type = TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = from.toString(),
+            targetDate = to.toString(),
+            moveCourseId = "phy",
+            moveToStartNode = 5,
+            moveToEndNode = 6,
+        )
+
+        val moved = coursesMovedTo(to, listOf(move), courseById = { if (it == "phy") course else null })
+        assertEquals(1, moved.size)
+        val item = moved.single()
+        assertEquals("物理实验", item.title)
+        assertEquals(5, item.time.startNode)
+        assertEquals(6, item.time.endNode)
+        // 2026-05-08 是周五
+        assertEquals(5, item.time.dayOfWeek)
+
+        // 原本那天不上的课（比如那周本来就没有），挪过去也不该凭空多一节
+        val none = coursesMovedTo(
+            to,
+            listOf(move),
+            courseById = { course },
+            isOriginallyActive = { _, _ -> false },
+        )
+        assertTrue(none.isEmpty())
+
+        // 课被删了就跳过
+        assertTrue(coursesMovedTo(to, listOf(move), courseById = { null }).isEmpty())
+    }
+
+    @Test
+    fun `挪课不参与整天调课的来源日判定`() {
+        val move = TemporaryScheduleOverride(
+            id = "mv",
+            type = TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = "2026-05-06",
+            targetDate = "2026-05-08",
+            moveCourseId = "phy",
+            moveToStartNode = 5,
+        )
+        val date = LocalDate.of(2026, 5, 8)
+
+        // 整天来源日仍是它自己，不会被挪课规则带偏
+        assertEquals(date, resolveTemporaryScheduleSourceDate(date, listOf(move)))
+        assertNull(move.makeUpNodeRange())
+        assertEquals(5..5, move.moveToNodeRange())
+    }
 }

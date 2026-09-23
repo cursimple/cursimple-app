@@ -10,7 +10,10 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
+import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
+import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
@@ -202,7 +205,7 @@ object ScheduleImageLayout {
     const val PALETTE_SIZE = 8
 
     private const val DEFAULT_WEEK_COUNT = 20
-    private const val MIN_DAY_COLUMNS = 5
+    private const val DAYS_PER_WEEK = 7
 
     private data class PlacedCourse(
         val course: CourseItem,
@@ -286,16 +289,14 @@ object ScheduleImageLayout {
             )
         }
 
-        // 只裁尾：最左那列即使没课也保留，否则周日起时整页会左移一格
-        val lastCourseColumn = orderedDayOfWeeks.indices.lastOrNull {
-            placedByDay.getValue(orderedDayOfWeeks[it]).isNotEmpty()
-        }?.plus(1) ?: 0
-        val dayCount = maxOf(MIN_DAY_COLUMNS, lastCourseColumn)
-        val columns = orderedDayOfWeeks.take(dayCount)
-
+        // 一周七天、全部节次都画出来，没课的地方空着：分享出去的图要让人看到整周全貌，
+        // 裁掉周末或晚上的空行，看的人分不清是没课还是没截全
+        val columns = orderedDayOfWeeks
+        val dayCount = columns.size
         val shown = columns.flatMap { placedByDay.getValue(it) }
-        val firstRow = shown.minOfOrNull { it.rowStart } ?: 0
-        val lastRow = shown.maxOfOrNull { it.rowEnd } ?: slots.lastIndex
+
+        val firstRow = 0
+        val lastRow = slots.lastIndex
         val rowCount = lastRow - firstRow + 1
 
         val gridLeft = metrics.outerPadding
@@ -342,6 +343,8 @@ object ScheduleImageLayout {
         val holidays = columns.mapIndexedNotNull { columnIndex, day ->
             val resolution = resolutions.getValue(day)
             if (!resolution.isHoliday) return@mapIndexedNotNull null
+            // 调课可以推翻放假：这天已经排进了课，就不再拿「全天无课」的整列块盖住它们
+            if (placedByDay.getValue(day).isNotEmpty()) return@mapIndexedNotNull null
             val left = columnLeft(columnIndex)
             val rect = ScheduleImageRect(left, bodyTop, left + metrics.dayColumnWidth, bodyBottom)
             val content = rect.inset(metrics.blockPadding + metrics.blockGap)
@@ -395,6 +398,7 @@ object ScheduleImageLayout {
                             measurer = measurer,
                             labels = labels,
                             showWeeks = allWeeks,
+                            locationWeek = if (allWeeks) null else safeWeek,
                         ),
                     )
                 }
@@ -495,7 +499,22 @@ object ScheduleImageLayout {
         slots: List<ClassSlotTime>,
         allWeeks: Boolean,
     ): List<PlacedCourse> {
-        if (resolution.isHoliday) return emptyList()
+        // 放假日不出常规课，但调课可以推翻放假：被挪过来的那几门照常画出来
+        if (resolution.isHoliday) {
+            return placeCourses(
+                coursesMovedTo(
+                    date = date,
+                    overrides = overrides,
+                    courseById = { id ->
+                        (importedByDay.values.flatten() + visibleManual).firstOrNull { it.id == id }
+                    },
+                    isOriginallyActive = { course, from ->
+                        isTermWeekNumberActive(resolveTermWeekNumber(termStartDate, from), course.weeks)
+                    },
+                ),
+                slots,
+            )
+        }
         val sourceDate = resolution.sourceDate
         val sourceDay = sourceDate.dayOfWeek.value
         val candidates = if (allWeeks) {
@@ -509,6 +528,19 @@ object ScheduleImageLayout {
                 importedByDay[sourceDay].orEmpty() + importedByDay[ownDay].orEmpty() +
                     visibleManual.filter { it.time.dayOfWeek == sourceDay || it.time.dayOfWeek == ownDay }
                 ).distinct()
+                // 被单独挪到别天的课，这天不再出现
+                .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
+            // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
+            val movedIn = coursesMovedTo(
+                date = date,
+                overrides = overrides,
+                courseById = { id ->
+                    (importedByDay.values.flatten() + visibleManual).firstOrNull { it.id == id }
+                },
+                isOriginallyActive = { course, from ->
+                    isTermWeekNumberActive(resolveTermWeekNumber(termStartDate, from), course.weeks)
+                },
+            )
             filterTemporaryCancelledCourses(
                 date = date,
                 courses = pool,
@@ -517,10 +549,15 @@ object ScheduleImageLayout {
                 val courseSource = temporaryScheduleCourseSourceDate(date, course, sourceDate, overrides)
                     ?: return@filter false
                 isTermWeekNumberActive(resolveTermWeekNumber(termStartDate, courseSource), course.weeks)
-            }
+            } + movedIn
         }
 
-        return candidates
+        return placeCourses(candidates, slots)
+    }
+
+    /** 把课程按节次落到行上并排好序。 */
+    private fun placeCourses(courses: List<CourseItem>, slots: List<ClassSlotTime>): List<PlacedCourse> =
+        courses
             .map { course ->
                 val start = rowIndexOf(slots, course.time.startNode)
                 val end = rowIndexOf(slots, course.time.endNode)
@@ -535,7 +572,6 @@ object ScheduleImageLayout {
                     { it.course.id },
                 ),
             )
-    }
 
     /**
      * 全部周模式下把「同一门课按周拆成的多条」并回一条。
@@ -626,6 +662,8 @@ object ScheduleImageLayout {
         measurer: ScheduleImageTextMeasurer,
         labels: ScheduleImageLabels,
         showWeeks: Boolean,
+        // 单周出图时取该周单独设置的地点；全部周为 null，退回默认地点
+        locationWeek: Int?,
     ): ScheduleImageBlock {
         val rect = laneRect(columnLeft, laneIndex, laneWidth, bodyTop, firstRow, item.rowStart, item.rowEnd, metrics)
         val content = rect.inset(metrics.blockPadding)
@@ -642,7 +680,7 @@ object ScheduleImageLayout {
         }
         val lines = composeBlockLines(
             title = course.title,
-            details = listOfNotNull(weeksNote) + listOf(course.location, course.teacher),
+            details = listOfNotNull(weeksNote) + listOf(course.locationForWeek(locationWeek), course.teacher),
             content = content,
             titleFontSize = titleFontSize,
             detailFontSize = detailFontSize,
@@ -820,7 +858,7 @@ object ScheduleImageLayout {
         labels: ScheduleImageLabels,
         reason: String,
     ): ScheduleImageLayoutResult {
-        val right = metrics.outerPadding + metrics.nodeColumnWidth + MIN_DAY_COLUMNS * metrics.dayColumnWidth
+        val right = metrics.outerPadding + metrics.nodeColumnWidth + DAYS_PER_WEEK * metrics.dayColumnWidth
         val bottom = metrics.outerPadding + metrics.headerHeight + metrics.dayHeaderHeight
         val empty = ScheduleImageRect(metrics.outerPadding, metrics.outerPadding, right, bottom)
         return ScheduleImageLayoutResult(

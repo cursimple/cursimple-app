@@ -645,13 +645,17 @@ class ScheduleImageLayoutTest {
     }
 
     @Test
-    fun `周末无课时只画五列`() {
+    fun `周末无课时也画满七列`() {
         val result = layout(
             schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2)),
         )
 
-        assertEquals(5, result.dayHeaders.size)
-        assertEquals(listOf("周一", "周二", "周三", "周四", "周五"), result.dayHeaders.map { it.weekdayLabel })
+        // 分享图要看到整周全貌，周末没课就空着，而不是整列裁掉
+        assertEquals(7, result.dayHeaders.size)
+        assertEquals(
+            listOf("周一", "周二", "周三", "周四", "周五", "周六", "周日"),
+            result.dayHeaders.map { it.weekdayLabel },
+        )
     }
 
     @Test
@@ -665,18 +669,18 @@ class ScheduleImageLayoutTest {
     }
 
     @Test
-    fun `没有课的节次行不占地方`() {
+    fun `没有课的节次行也照常画出来`() {
         val metrics = ScheduleImageMetrics()
         val result = layout(
             schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 3, endNode = 4)),
             metrics = metrics,
         )
 
-        // 四个节次里只有第 3-4 节有课，只画这一行
-        assertEquals(1, result.rows.size)
-        assertEquals("3-4", result.rows.single().nodeLabel)
-        assertEquals("10:05", result.rows.single().startTimeLabel)
-        assertEquals("11:40", result.rows.single().endTimeLabel)
+        // 四个节次里只有第 3-4 节有课，其余几行空着但不裁掉
+        assertEquals(4, result.rows.size)
+        val row = result.rows.single { it.nodeLabel == "3-4" }
+        assertEquals("10:05", row.startTimeLabel)
+        assertEquals("11:40", row.endTimeLabel)
     }
 
     @Test
@@ -705,7 +709,7 @@ class ScheduleImageLayoutTest {
         )
 
         assertNull(result.failureReason)
-        assertEquals(5, result.holidays.size)
+        assertEquals(7, result.holidays.size)
         assertTrue(result.blocks.isEmpty())
     }
 
@@ -722,7 +726,7 @@ class ScheduleImageLayoutTest {
     }
 
     @Test
-    fun `画布尺寸随列数与行数增长`() {
+    fun `画布尺寸固定为七列与全部节次，不随课程多少变化`() {
         val metrics = ScheduleImageMetrics()
         val narrow = layout(
             schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2)),
@@ -736,9 +740,9 @@ class ScheduleImageLayoutTest {
             metrics = metrics,
         )
 
-        assertTrue(wide.width > narrow.width)
-        assertTrue(wide.height > narrow.height)
-        val expectedWidth = metrics.outerPadding * 2 + metrics.nodeColumnWidth + 5 * metrics.dayColumnWidth
+        assertEquals(wide.width, narrow.width)
+        assertEquals(wide.height, narrow.height)
+        val expectedWidth = metrics.outerPadding * 2 + metrics.nodeColumnWidth + 7 * metrics.dayColumnWidth
         assertEquals(expectedWidth.toInt(), narrow.width)
     }
 
@@ -793,7 +797,8 @@ class ScheduleImageLayoutTest {
         assertEquals("2026 秋季学期", result.title)
         assertTrue(result.subtitle.startsWith("第 2 周"))
         assertTrue(result.subtitle.contains("9月14日"))
-        assertTrue(result.subtitle.contains("9月18日"))
+        // 七列画满，日期范围到周日
+        assertTrue(result.subtitle.contains("9月20日"))
     }
 
     @Test
@@ -867,5 +872,42 @@ class ScheduleImageLayoutTest {
         assertTrue(ScheduleImageText.wrap("   ", 100f, 3, 20f, false, measurer).isEmpty())
         assertTrue(ScheduleImageText.wrap("课", 0f, 3, 20f, false, measurer).isEmpty())
         assertTrue(ScheduleImageText.wrap("课", 100f, 0, 20f, false, measurer).isEmpty())
+    }
+
+    @Test
+    fun `调课可以推翻放假但只放行被挪过去的那门`() {
+        // 第 1 周周五（09-11）放假，把周三（09-09）的大学物理挪到这天第 5-6 节
+        val holiday = HolidayCalendarSettings(
+            builtInEnabled = false,
+            entries = listOf(
+                HolidayCalendarEntry(date = "2026-09-11", kind = HolidayEntryKind.Holiday, name = "校庆"),
+            ),
+        )
+        val move = TemporaryScheduleOverride(
+            id = "mv",
+            type = TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = "2026-09-09",
+            targetDate = "2026-09-11",
+            moveCourseId = "c3",
+            moveToStartNode = 5,
+            moveToEndNode = 6,
+        )
+        val result = layout(
+            schedule = scheduleOf(
+                course("c3", "大学物理", dayOfWeek = 3, startNode = 1, endNode = 2),
+                course("c5", "体育", dayOfWeek = 5, startNode = 1, endNode = 2),
+            ),
+            holidayCalendar = holiday,
+            overrides = listOf(move),
+        )
+
+        val friday = result.blocks.filter { it.dayOfWeek == 5 }
+        // 挪过去的课照常出现，周五自己的常规课仍按放假不出
+        assertEquals(listOf("大学物理"), friday.map { it.title })
+        assertEquals(5, friday.single().startNode)
+        // 这天已经排进了课，不再画「全天无课」的整列块
+        assertTrue(result.holidays.none { it.dayOfWeek == 5 })
+        // 原本那天（周三）不再有这门课
+        assertTrue(result.blocks.none { it.dayOfWeek == 3 && it.title == "大学物理" })
     }
 }

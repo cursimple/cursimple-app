@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  通知栏小图标。
+
+  用的是主题图标那版重画过的日历 logo（挂环 + 实心标题栏 + 课表格子），
+  但那份是给启动器用的，内容压在直径 66 的安全区里；通知图标不会被裁切，
+  整块画布都能用，所以这里把它按内容中心放大到几乎铺满，小尺寸下才看得清。
+
+  必须是纯白 + 透明：系统会自己按 setColor() 给它上色，留任何颜色都会被拍平。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!--
+      内容原本的包围盒是 x 23.5~84.5、y 16.5~82.5（含描边），中心在 (54, 49.5)。
+      以该中心为轴放大 1.45 倍后约 88x96，再下移 4.5 把中心对回画布正中。
+    -->
+    <group
+        android:pivotX="54"
+        android:pivotY="49.5"
+        android:scaleX="1.45"
+        android:scaleY="1.45"
+        android:translateY="4.5">
+
+        <!-- 两个挂环，露在标题栏上沿 -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="7"
+            android:strokeLineCap="round"
+            android:pathData="M38,20 L38,30" />
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="7"
+            android:strokeLineCap="round"
+            android:pathData="M70,20 L70,30" />
+
+        <!-- 日历外框 -->
+        <path
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="5"
+            android:pathData="M34,28 h40 a8,8 0 0 1 8,8 v36 a8,8 0 0 1 -8,8 h-40 a8,8 0 0 1 -8,-8 v-36 a8,8 0 0 1 8,-8 z" />
+
+        <!-- 实心标题栏：小尺寸下靠这一条把「日历」认出来 -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M34,28 h40 a8,8 0 0 1 8,8 v8 h-56 v-8 a8,8 0 0 1 8,-8 z" />
+
+        <!-- 课表格子 -->
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M34,52 h10 v8 h-10 z M48,52 h10 v8 h-10 z M62,52 h10 v8 h-10 z M34,64 h10 v8 h-10 z M48,64 h10 v8 h-10 z" />
+    </group>
+</vector>

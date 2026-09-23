@@ -162,6 +162,15 @@
     <string name="plugin_web_ready_dialog_message">页面已停止跳转，并已捕获本次同步所需数据，是否关闭插件页并写入课表？</string>
     <string name="plugin_web_ready_dialog_confirm">关闭并写入</string>
     <string name="plugin_web_ready_dialog_dismiss">继续浏览</string>
+    <string name="plugin_web_login_save_title">保存密码？</string>
+    <string name="plugin_web_login_update_title">更新已保存的密码？</string>
+    <string name="plugin_web_login_save_message">下次打开 %1$s 的登录页时会自动填好，只保存在本机。</string>
+    <string name="plugin_web_login_save_account">账号：%1$s</string>
+    <string name="plugin_web_login_save_confirm">保存</string>
+    <string name="plugin_web_login_save_dismiss">不保存</string>
+    <string name="plugin_web_login_save_never">此网站永不保存</string>
+    <string name="plugin_detail_action_clear_passwords">清除已保存的密码</string>
+    <string name="plugin_detail_passwords_cleared">已清除这个插件保存的登录密码</string>
     <string name="plugin_web_overlay_title">正在抓取课表…</string>
     <string name="plugin_web_overlay_subtitle">请保持页面不要切换</string>
     <string name="plugin_web_preparing">正在准备网页登录环境…</string>

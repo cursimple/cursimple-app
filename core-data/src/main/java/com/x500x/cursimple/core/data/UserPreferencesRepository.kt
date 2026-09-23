@@ -74,6 +74,65 @@ object InterruptionFilterValues {
     const val ALARMS = 4
 }
 
+/**
+ * 上课通知长什么样。
+ *
+ * [System] 是系统原生样式，也是默认值；另外两种能换的东西各有天花板：
+ * - [Card] 用自绘的 RemoteViews，能换底色、排版和图；但 Android 12 起自定义通知一律
+ *   被套上系统头部，动效和毛玻璃在通知里根本没有 API，所以这一档只是「换皮」。
+ * - [Overlay] 是我们自己加的悬浮窗，动效和真毛玻璃只有它做得到；代价是要悬浮窗权限，
+ *   而且锁屏上盖不住锁屏，那时候自动退回系统通知。
+ */
+enum class ClassNoticeSkin { System, Card, Overlay }
+
+/** 悬浮窗皮肤的入场动效。 */
+enum class ClassNoticeAnimation { None, Slide, Spring }
+
+/**
+ * 上课通知：快上课时提前推一条通知。
+ *
+ * 只是一条通知，不是闹钟——不响铃、不接管屏幕，和提醒规则那套响铃闹钟完全分开。
+ *
+ * [headsUpEnabled] 是从屏幕顶部滑下来的悬浮通知横幅；
+ * [lockScreenEnabled] 决定锁屏上是否直接显示课名与地点（关掉则只显示有通知）；
+ * [focusNotificationEnabled] 是小米原子岛这类厂商焦点通知，靠附加厂商字段实现，
+ * 不支持的机型会忽略这些字段，普通通知照常。
+ */
+data class ClassNoticePreferences(
+    val enabled: Boolean = true,
+    val advanceMinutes: Int = DEFAULT_ADVANCE_MINUTES,
+    val headsUpEnabled: Boolean = true,
+    val lockScreenEnabled: Boolean = true,
+    val focusNotificationEnabled: Boolean = true,
+    /** 默认保持系统原生样式，不换皮 */
+    val skin: ClassNoticeSkin = ClassNoticeSkin.System,
+    val animation: ClassNoticeAnimation = ClassNoticeAnimation.Slide,
+    /** 毛玻璃；机型不支持跨窗口模糊时会自动降级成半透明 */
+    val blurEnabled: Boolean = true,
+    /** 毛玻璃强度，百分比。存百分比而不是像素，换算时再按屏幕密度折成 dp，各机型观感一致 */
+    val blurStrength: Int = DEFAULT_BLUR_STRENGTH,
+) {
+    companion object {
+        const val DEFAULT_ADVANCE_MINUTES = 20
+        const val MIN_ADVANCE_MINUTES = 1
+        /** 上限 60 分钟：再早就跨到上一节课了，提示也失去意义 */
+        const val MAX_ADVANCE_MINUTES = 60
+
+        const val DEFAULT_BLUR_STRENGTH = 80
+        const val MIN_BLUR_STRENGTH = 10
+        const val MAX_BLUR_STRENGTH = 100
+
+        /** 100% 对应的模糊半径（dp）。80% 正好是之前写死的那档观感 */
+        const val BLUR_RADIUS_DP_AT_FULL = 40f
+
+        fun coerceAdvanceMinutes(value: Int): Int =
+            value.coerceIn(MIN_ADVANCE_MINUTES, MAX_ADVANCE_MINUTES)
+
+        fun coerceBlurStrength(value: Int): Int =
+            value.coerceIn(MIN_BLUR_STRENGTH, MAX_BLUR_STRENGTH)
+    }
+}
+
 data class AutoSilencePreferences(
     val enabled: Boolean = false,
     val mode: AutoSilenceMode = AutoSilenceMode.Vibrate,
@@ -344,6 +403,7 @@ data class UserPreferences(
     val alarmRepeatIntervalSeconds: Int = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
     val alarmRepeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
     val autoSilence: AutoSilencePreferences = AutoSilencePreferences(),
+    val classNotice: ClassNoticePreferences = ClassNoticePreferences(),
     val autoSilenceSession: AutoSilenceSession = AutoSilenceSession(),
     /** 自动检查更新；默认开着，修好的问题得先让人知道有新版本。 */
     val autoUpdateEnabled: Boolean = true,
@@ -405,6 +465,24 @@ interface UserPreferencesRepository {
     suspend fun setScheduleAutoShrinkLongTitles(enabled: Boolean)
 
     suspend fun setScheduleTruncationEllipsis(enabled: Boolean)
+
+    suspend fun setClassNoticeEnabled(enabled: Boolean)
+
+    suspend fun setClassNoticeAdvanceMinutes(minutes: Int)
+
+    suspend fun setClassNoticeHeadsUpEnabled(enabled: Boolean)
+
+    suspend fun setClassNoticeLockScreenEnabled(enabled: Boolean)
+
+    suspend fun setClassNoticeFocusNotificationEnabled(enabled: Boolean)
+
+    suspend fun setClassNoticeSkin(skin: ClassNoticeSkin)
+
+    suspend fun setClassNoticeAnimation(animation: ClassNoticeAnimation)
+
+    suspend fun setClassNoticeBlurEnabled(enabled: Boolean)
+
+    suspend fun setClassNoticeBlurStrength(strength: Int)
     suspend fun setScheduleCourseCornerRadiusDp(radiusDp: Int)
     suspend fun setScheduleCourseCardHeightDp(heightDp: Int)
     suspend fun setScheduleOpacityPercent(percent: Int)
