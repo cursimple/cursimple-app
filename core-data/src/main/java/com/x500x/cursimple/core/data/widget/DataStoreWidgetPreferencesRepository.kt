@@ -68,6 +68,9 @@ class DataStoreWidgetPreferencesRepository(
                 ?.let { runCatching { ThemeAccent.valueOf(it) }.getOrNull() }
                 ?: ThemeAccent.Green,
             followsAppThemeAccent = preferences[KEY_WIDGET_THEME_ACCENT] == null,
+            customColorArgb = preferences[KEY_WIDGET_THEME_CUSTOM_COLOR]
+                ?.let(com.x500x.cursimple.core.data.theme.AccentColors::opaque)
+                ?: com.x500x.cursimple.core.data.theme.AccentColors.DEFAULT_CUSTOM_ARGB,
             backgroundMode = preferences[KEY_WIDGET_BACKGROUND_MODE]
                 ?.let { runCatching { WidgetBackgroundMode.valueOf(it) }.getOrNull() }
                 ?: WidgetBackgroundMode.Theme,
@@ -290,6 +293,18 @@ class DataStoreWidgetPreferencesRepository(
         releasePersistedReadPermission(previousImageUri)
     }
 
+    override suspend fun setWidgetThemeCustomColor(argb: Int) {
+        var previousImageUri: String? = null
+        store.edit { preferences ->
+            previousImageUri = preferences[KEY_WIDGET_BACKGROUND_IMAGE_URI]
+            preferences[KEY_WIDGET_THEME_CUSTOM_COLOR] = com.x500x.cursimple.core.data.theme.AccentColors.opaque(argb)
+            preferences[KEY_WIDGET_THEME_ACCENT] = ThemeAccent.Custom.name
+            preferences[KEY_WIDGET_BACKGROUND_MODE] = WidgetBackgroundMode.Theme.name
+            preferences.remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
+        }
+        releasePersistedReadPermission(previousImageUri)
+    }
+
     override suspend fun followAppThemeAccent() {
         var previousImageUri: String? = null
         store.edit { preferences ->
@@ -378,6 +393,7 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_TIMING_PROFILE_LIBRARY_JSON = stringPreferencesKey("widget_timing_profile_library_json")
         val KEY_TERM_START_DATE = stringPreferencesKey("widget_timing_term_start_date")
         val KEY_WIDGET_THEME_ACCENT = stringPreferencesKey("widget_theme_accent")
+        val KEY_WIDGET_THEME_CUSTOM_COLOR = intPreferencesKey("widget_theme_custom_color")
         val KEY_WIDGET_BACKGROUND_MODE = stringPreferencesKey("widget_background_mode")
         val KEY_WIDGET_BACKGROUND_IMAGE_URI = stringPreferencesKey("widget_background_image_uri")
         val KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK = booleanPreferencesKey("widget_open_app_on_double_click")

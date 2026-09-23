@@ -295,37 +295,11 @@ internal fun CourseEditFormFields(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        OutlinedTextField(
-            value = location,
-            onValueChange = { location = it },
-            label = { Text(stringResource(R.string.schedule_course_location_label)) },
-            singleLine = true,
-            // 每周换教室的课（物理实验之类）从这里逐周设。按钮常驻：没填默认地点、
-            // 还没选周次时也能先设，周次没选就先列出整个学期的周，保存时只留选中那几周的
-            trailingIcon = {
-                val marked = weekLocationsMap.isNotEmpty()
-                IconButton(onClick = { pickingWeekLocations = true }) {
-                    Icon(
-                        imageVector = Icons.Rounded.EditCalendar,
-                        contentDescription = stringResource(R.string.schedule_week_location_title),
-                        tint = if (marked) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
-            },
-            supportingText = weekLocationsMap.size.takeIf { it > 0 }?.let { count ->
-                {
-                    Text(
-                        text = stringResource(R.string.schedule_week_location_summary, count),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
+        CourseLocationField(
+            location = location,
+            onLocationChange = { location = it },
+            weekLocations = weekLocationsMap,
+            onPickWeekLocations = { pickingWeekLocations = true },
         )
 
         CourseFormLabel(stringResource(R.string.schedule_course_category_label))
@@ -613,9 +587,55 @@ private fun WeekMatrixDialog(
  * 上面一片周次格，哪几周设过就点亮哪几周；点一格，下面只出一个输入框填那一周的地点。
  * 不把每周都摊成一行——周次一多就是长长一条，既难看又要一直往下滚。
  */
+/**
+ * 上课地点输入框，右边带「逐周设地点」的按钮。
+ *
+ * 每周换教室的课（物理实验之类）从这里逐周设。按钮常驻：没填默认地点、还没选周次时也能先设，
+ * 周次没选就先列出整个学期的周，保存时只留选中那几周的。新建、快速添加、编辑三处共用这一个，
+ * 免得哪一处漏了按钮。
+ */
+@Composable
+internal fun CourseLocationField(
+    location: String,
+    onLocationChange: (String) -> Unit,
+    weekLocations: Map<Int, String>,
+    onPickWeekLocations: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = location,
+        onValueChange = onLocationChange,
+        label = { Text(stringResource(R.string.schedule_course_location_label)) },
+        singleLine = true,
+        trailingIcon = {
+            IconButton(onClick = onPickWeekLocations) {
+                Icon(
+                    imageVector = Icons.Rounded.EditCalendar,
+                    contentDescription = stringResource(R.string.schedule_week_location_title),
+                    tint = if (weekLocations.isNotEmpty()) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        },
+        supportingText = weekLocations.size.takeIf { it > 0 }?.let { count ->
+            {
+                Text(
+                    text = stringResource(R.string.schedule_week_location_summary, count),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+        },
+        modifier = modifier.fillMaxWidth(),
+    )
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WeekLocationDialog(
+internal fun WeekLocationDialog(
     weeks: List<Int>,
     courseTitle: String,
     baseLocation: String,

@@ -76,18 +76,18 @@ internal fun buildNextCourseRow(
     widgetTheme: WidgetThemePreferences,
 ): RemoteViews {
     val row = RemoteViews(context.packageName, R.layout.widget_next_course_row)
-    val backgroundRes = if (data.isPast) {
-        widgetRowVariantBackground(themeAccent)
-    } else {
-        widgetRowBackground(themeAccent)
-    }
-    row.setInt(R.id.next_course_row_root, "setBackgroundResource", backgroundRes)
+    row.applyAccentBackground(
+        R.id.next_course_row_root,
+        widgetTheme,
+        if (data.isPast) WidgetSurfaceTone.RowVariant else WidgetSurfaceTone.Row,
+    )
     row.applyOpenAppFillInIntent(R.id.next_course_row_root, widgetTheme)
     row.setTextViewText(R.id.next_course_label, data.label)
     row.setTextViewText(
         R.id.next_course_period,
         widgetSlotCellText(data.slotLabel, data.nodeNumbers, fallback = data.period),
     )
+    row.setTextColor(R.id.next_course_period, widgetAccentTextColor(widgetTheme))
     row.setTextViewText(R.id.next_course_name, data.title)
     row.setTextViewText(R.id.next_course_time, data.time)
     row.setTextViewText(R.id.next_course_sub, data.sub)

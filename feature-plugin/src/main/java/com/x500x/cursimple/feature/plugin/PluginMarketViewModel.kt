@@ -10,6 +10,7 @@ import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
 import com.x500x.cursimple.core.plugin.install.PluginInstallResult
 import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
+import com.x500x.cursimple.core.plugin.market.github.GitHubReleaseAsset
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,7 +36,28 @@ data class PluginMarketUiState(
     val status: PluginMarketStatus? = null,
     val lastLoadedRegistry: String? = null,
     val lastLoadedAtMillis: Long = 0L,
+    /** 正在查哪个插件（installKey）有没有新版；查的时候按钮转圈，别让人以为没反应。 */
+    val checkingUpdateKey: String? = null,
+    /** 查到了新版、要先升级才能导课的插件。 */
+    val pendingUpgrade: PendingPluginUpgrade? = null,
+    /** 升级装好了、可以接着导课的插件（installKey），界面接到后发起同步再清掉。 */
+    val readyToSyncKey: String? = null,
+    /**
+     * 已装插件现查到的最新版，键是来源仓库（小写）。
+     *
+     * 市场列表来自注册表的汇总数据，发版后要等它重新汇总、再加上本地一天的缓存才会变；
+     * 进页面时对已装的几个插件单独现查一次，新版才能立刻显示出来。
+     */
+    val latestReleases: Map<String, GitHubReleaseAsset> = emptyMap(),
 )
+
+/** 导课前查到的新版：[record] 是本机装的那份，[repo] 带着最新的 release。 */
+data class PendingPluginUpgrade(
+    val record: InstalledPluginRecord,
+    val repo: GitHubRepoSummary,
+) {
+    val latestVersion: String get() = repo.latestRelease?.tagName.orEmpty()
+}
 
 class PluginMarketViewModel(
     private val pluginManager: PluginManager,
@@ -49,6 +71,8 @@ class PluginMarketViewModel(
 
     private var pendingBytes: ByteArray? = null
     private var pendingSource: PluginInstallSource? = null
+    /** 为导课而升级时记下 installKey，装好后自动接着导课。 */
+    private var syncAfterInstallKey: String? = null
 
     private val hydrationJob: Job = viewModelScope.launch { hydrateFromCache() }
 
@@ -160,6 +184,7 @@ class PluginMarketViewModel(
             }
             val bytes = runCatching { pluginManager.downloadRemotePackage(asset.downloadUrl) }
                 .getOrElse { error ->
+                    syncAfterInstallKey = null
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -179,6 +204,81 @@ class PluginMarketViewModel(
         }
     }
 
+    /**
+     * 导课（同步课表）前先查插件有没有新版。
+     *
+     * 教务系统一改版旧插件就可能对不上，带着旧版导课多半白忙。所以先现查一次最新版：
+     * 比本机的新，就先让人升级（[PluginMarketUiState.pendingUpgrade]），升级装好后自动接着导课；
+     * 不比本机新，直接放行（[PluginMarketUiState.readyToSyncKey]）。现查失败（比如没网）时
+     * 退回市场列表里缓存的版本；两样都没有就直接导课，不因为查不到更新把人卡住。
+     */
+    fun syncWithUpdateCheck(record: InstalledPluginRecord) {
+        val slug = record.sourceRepo?.trim()?.takeIf { it.isNotEmpty() }
+        if (slug == null) {
+            _uiState.update { it.copy(readyToSyncKey = record.installKey) }
+            return
+        }
+        if (_uiState.value.checkingUpdateKey != null) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(checkingUpdateKey = record.installKey) }
+            val known = _uiState.value.marketRepos.firstOrNull { it.fullName.equals(slug, ignoreCase = true) }
+            val latest = gitHubRegistryRepository.fetchLatestReleaseAsset(slug, fresh = true)
+                ?: _uiState.value.latestReleases[slug.lowercase()]
+                ?: known?.latestRelease
+            _uiState.update { state ->
+                if (latest != null && isNewerVersion(latest.tagName, record.version)) {
+                    val repo = (known ?: minimalRepo(slug)).copy(latestRelease = latest)
+                    state.copy(checkingUpdateKey = null, pendingUpgrade = PendingPluginUpgrade(record, repo))
+                } else {
+                    state.copy(checkingUpdateKey = null, readyToSyncKey = record.installKey)
+                }
+            }
+        }
+    }
+
+    private var lastInstalledVersionCheckAt = 0L
+
+    /** 进导课页或插件页时现查已装插件的最新版；十分钟内查过就不再查。 */
+    fun refreshInstalledPluginVersions() {
+        val now = nowMillis()
+        if (now - lastInstalledVersionCheckAt < INSTALLED_VERSION_CHECK_INTERVAL_MILLIS) return
+        lastInstalledVersionCheckAt = now
+        viewModelScope.launch {
+            hydrationJob.join()
+            val slugs = _uiState.value.installedPlugins
+                .mapNotNull { it.sourceRepo?.trim()?.takeIf(String::isNotEmpty) }
+                .distinctBy { it.lowercase() }
+            val found = slugs.mapNotNull { slug ->
+                gitHubRegistryRepository.fetchLatestReleaseAsset(slug, fresh = true)?.let { slug.lowercase() to it }
+            }.toMap()
+            if (found.isNotEmpty()) {
+                _uiState.update { it.copy(latestReleases = it.latestReleases + found) }
+            }
+        }
+    }
+
+    /** 直接升级到市场上已知的新版，装好后接着导课。 */
+    fun upgradeThenSync(record: InstalledPluginRecord, repo: GitHubRepoSummary) {
+        syncAfterInstallKey = record.installKey
+        installFromGitHub(repo)
+    }
+
+    /** 升级提示里点了「升级」。 */
+    fun startPendingUpgrade() {
+        val pending = _uiState.value.pendingUpgrade ?: return
+        _uiState.update { it.copy(pendingUpgrade = null) }
+        upgradeThenSync(pending.record, pending.repo)
+    }
+
+    fun dismissPendingUpgrade() {
+        _uiState.update { it.copy(pendingUpgrade = null) }
+    }
+
+    /** 界面已经发起了同步。 */
+    fun consumeReadyToSync() {
+        _uiState.update { it.copy(readyToSyncKey = null) }
+    }
+
     fun confirmInstall() {
         val bytes = pendingBytes ?: return
         val source = pendingSource ?: PluginInstallSource.Local
@@ -192,17 +292,22 @@ class PluginMarketViewModel(
                     // 刚装好的插件默认就打开：装它就是为了用它，
                     // 不打开的话课表那边既选不到也同步不了，还得再回来摸一次开关。
                     userPreferencesRepository.setPluginEnabled(result.record.installKey, true)
+                    // 为导课而升级的，装好就接着导课，不用再回去点一次
+                    val continueSync = syncAfterInstallKey?.takeIf { it == result.record.installKey }
+                    syncAfterInstallKey = null
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             installPreview = null,
                             installPreviewOrigin = null,
                             status = PluginMarketStatus.Installed(result.record.name),
+                            readyToSyncKey = continueSync ?: it.readyToSyncKey,
                         )
                     }
                 }
 
                 is PluginInstallResult.Failure -> {
+                    syncAfterInstallKey = null
                     _uiState.update {
                         it.copy(
                             isLoading = false,
@@ -217,6 +322,7 @@ class PluginMarketViewModel(
     fun dismissInstallPreview() {
         pendingBytes = null
         pendingSource = null
+        syncAfterInstallKey = null
         _uiState.update { it.copy(installPreview = null, installPreviewOrigin = null) }
     }
 
@@ -288,3 +394,5 @@ class PluginMarketViewModelFactory(
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }
+
+private const val INSTALLED_VERSION_CHECK_INTERVAL_MILLIS = 10 * 60 * 1000L

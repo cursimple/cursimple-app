@@ -11,6 +11,8 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.theme.AccentColors
+import androidx.compose.runtime.remember
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
@@ -296,16 +298,91 @@ private val PinkSwatch = AccentSwatch(
     ),
 )
 
-/** 某个主题色在深色或浅色下的完整配色，给通知、悬浮窗这类不在 Compose 里画的地方取色用。 */
-fun appColorScheme(accent: ThemeAccent, dark: Boolean): ColorScheme =
-    swatchFor(accent).let { if (dark) it.dark else it.light }
+/**
+ * 某个主题色在深色或浅色下的完整配色，给通知、悬浮窗这类不在 Compose 里画的地方取色用。
+ * [customArgb] 只在 [ThemeAccent.Custom] 时用到。
+ */
+fun appColorScheme(
+    accent: ThemeAccent,
+    dark: Boolean,
+    customArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
+): ColorScheme = swatchFor(accent, customArgb).let { if (dark) it.dark else it.light }
 
-private fun swatchFor(accent: ThemeAccent): AccentSwatch = when (accent) {
+private fun swatchFor(accent: ThemeAccent, customArgb: Int): AccentSwatch = when (accent) {
     ThemeAccent.Green -> GreenSwatch
     ThemeAccent.Blue -> BlueSwatch
     ThemeAccent.Purple -> PurpleSwatch
     ThemeAccent.Orange -> OrangeSwatch
     ThemeAccent.Pink -> PinkSwatch
+    ThemeAccent.Custom -> customSwatch(customArgb)
+}
+
+/**
+ * 从一个自选色推出整套配色。
+ *
+ * 各档的明度照着手调的五套走（浅色：主色 0.32–0.5、容器 0.87、背景 0.97；深色：主色 0.66–0.8、
+ * 容器 0.26、表面 0.1），色相都取自选色，饱和度按档位压住，挑多艳的颜色都不会刺眼。
+ * 辅色取色相转 30° 的一档，强调色沿用内置主题共用的暖橙，错误色不变。
+ */
+private fun customSwatch(seed: Int): AccentSwatch {
+    fun tone(lightness: Float, maxSat: Float, minSat: Float = 0f, hueShift: Float = 0f): Color {
+        val (hue, saturation) = AccentColors.toHsl(seed)
+        val s = saturation.coerceIn(minSat.coerceAtMost(maxSat), maxSat)
+        return Color(AccentColors.fromHsl(hue + hueShift, s, lightness))
+    }
+    val light = lightColorScheme(
+        primary = Color(AccentColors.primary(seed, dark = false)),
+        onPrimary = Color(0xFFFFFFFF),
+        primaryContainer = tone(0.87f, 0.55f, 0.2f),
+        onPrimaryContainer = tone(0.15f, 0.7f, 0.2f),
+        secondary = tone(0.45f, 0.45f, 0.15f, hueShift = 30f),
+        onSecondary = Color(0xFFFFFFFF),
+        secondaryContainer = tone(0.89f, 0.45f, 0.15f, hueShift = 30f),
+        onSecondaryContainer = tone(0.16f, 0.5f, 0.15f, hueShift = 30f),
+        tertiary = Color(0xFFD89A4A),
+        onTertiary = Color(0xFFFFFFFF),
+        tertiaryContainer = Color(0xFFFCE5C7),
+        onTertiaryContainer = Color(0xFF40260A),
+        background = tone(0.965f, 0.25f),
+        onBackground = tone(0.12f, 0.15f),
+        surface = Color(0xFFFFFFFF),
+        onSurface = tone(0.12f, 0.15f),
+        surfaceVariant = tone(0.92f, 0.18f),
+        onSurfaceVariant = tone(0.38f, 0.12f),
+        outline = tone(0.73f, 0.12f),
+        outlineVariant = tone(0.85f, 0.10f),
+        error = Color(0xFFB3261E),
+        onError = Color(0xFFFFFFFF),
+        errorContainer = Color(0xFFF9DEDC),
+        onErrorContainer = Color(0xFF410E0B),
+    )
+    val dark = darkColorScheme(
+        primary = Color(AccentColors.primary(seed, dark = true)),
+        onPrimary = tone(0.13f, 0.7f, 0.2f),
+        primaryContainer = tone(0.26f, 0.5f, 0.2f),
+        onPrimaryContainer = tone(0.87f, 0.55f, 0.2f),
+        secondary = tone(0.76f, 0.45f, 0.15f, hueShift = 30f),
+        onSecondary = tone(0.16f, 0.5f, 0.15f, hueShift = 30f),
+        secondaryContainer = tone(0.30f, 0.4f, 0.15f, hueShift = 30f),
+        onSecondaryContainer = tone(0.89f, 0.45f, 0.15f, hueShift = 30f),
+        tertiary = Color(0xFFEEC086),
+        onTertiary = Color(0xFF40260A),
+        tertiaryContainer = Color(0xFF614021),
+        onTertiaryContainer = Color(0xFFFCE5C7),
+        background = tone(0.07f, 0.18f),
+        onBackground = tone(0.90f, 0.12f),
+        surface = tone(0.10f, 0.16f),
+        onSurface = tone(0.90f, 0.12f),
+        surfaceVariant = tone(0.15f, 0.14f),
+        onSurfaceVariant = tone(0.70f, 0.12f),
+        outline = tone(0.38f, 0.10f),
+        outlineVariant = tone(0.24f, 0.10f),
+        error = Color(0xFFF2B8B5),
+        onError = Color(0xFF601410),
+        errorContainer = Color(0xFF8C1D18),
+        onErrorContainer = Color(0xFFF9DEDC),
+    )
+    return AccentSwatch(light = light, dark = dark)
 }
 
 private val LightAccents = ScheduleAccents(
@@ -348,6 +425,8 @@ private val DarkAccents = ScheduleAccents(
 fun ClassScheduleTheme(
     themeMode: ThemeMode,
     themeAccent: ThemeAccent = ThemeAccent.Green,
+    /** 自选主题色，只在 [themeAccent] 为 [ThemeAccent.Custom] 时用到。 */
+    customAccentArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -356,19 +435,23 @@ fun ClassScheduleTheme(
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
     }
-    val swatch = swatchFor(themeAccent)
+    val swatch = remember(themeAccent, customAccentArgb) { swatchFor(themeAccent, customAccentArgb) }
     val colors = (if (isDark) swatch.dark else swatch.light).withThemedContainers()
     val accents = if (isDark) DarkAccents else LightAccents
     CompositionLocalProvider(
         LocalScheduleAccents provides accents,
-        LocalAppThemeChoice provides AppThemeChoice(themeAccent, isDark),
+        LocalAppThemeChoice provides AppThemeChoice(themeAccent, isDark, customAccentArgb),
     ) {
         MaterialTheme(colorScheme = colors, content = content)
     }
 }
 
 /** 当前生效的主题色与深浅色；上课提醒的预览要按它取色，它们不在 Compose 里画，拿不到 MaterialTheme。 */
-data class AppThemeChoice(val accent: ThemeAccent, val dark: Boolean)
+data class AppThemeChoice(
+    val accent: ThemeAccent,
+    val dark: Boolean,
+    val customArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
+)
 
 val LocalAppThemeChoice = staticCompositionLocalOf { AppThemeChoice(ThemeAccent.Green, dark = false) }
 

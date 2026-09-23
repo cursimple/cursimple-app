@@ -55,6 +55,13 @@
     <string name="plugin_card_no_permission">無許可權宣告</string>
     <string name="plugin_card_action_syncing">同步中...</string>
     <string name="plugin_card_action_sync">同步課表</string>
+    <string name="plugin_upgrade_required_title">外掛有新版本</string>
+    <string name="plugin_upgrade_required_body">「%1$s」有新版本 %2$s（目前 %3$s）。教務系統改版後舊版可能對不上，先升級再導課。</string>
+    <string name="plugin_upgrade_required_confirm">升級</string>
+    <string name="plugin_upgrade_required_dismiss">取消</string>
+    <string name="plugin_upgrade_available_line">有新版 %1$s（目前 %2$s）</string>
+    <string name="plugin_upgrade_action">升級</string>
+    <string name="plugin_upgrade_action_version">升級到 %1$s</string>
     <string name="plugin_badge_enabled">已啟用</string>
 
     <string name="plugin_detail_title">外掛詳情</string>

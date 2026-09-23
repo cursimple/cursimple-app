@@ -2314,6 +2314,8 @@ private fun widgetThemeLabel(preferences: WidgetThemePreferences): String = when
     preferences.backgroundMode == WidgetBackgroundMode.Image ->
         stringResource(R.string.settings_background_summary_image)
     preferences.followsAppThemeAccent -> stringResource(R.string.settings_accent_follow_app)
+    preferences.themeAccent == ThemeAccent.Custom ->
+        stringResource(R.string.main_accent_custom_value, formatRgbHex(preferences.customColorArgb))
     else -> themeAccentDisplayName(preferences.themeAccent)
 }
 
@@ -2324,6 +2326,7 @@ private fun themeAccentDisplayName(accent: ThemeAccent): String = when (accent) 
     ThemeAccent.Purple -> stringResource(R.string.settings_accent_purple)
     ThemeAccent.Orange -> stringResource(R.string.settings_accent_orange)
     ThemeAccent.Pink -> stringResource(R.string.settings_accent_pink)
+    ThemeAccent.Custom -> stringResource(R.string.main_accent_custom)
 }
 
 private fun unknownAppInstallSettingsIntent(context: Context): Intent =
