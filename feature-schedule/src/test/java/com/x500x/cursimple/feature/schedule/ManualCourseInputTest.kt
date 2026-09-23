@@ -10,37 +10,6 @@ import org.junit.Test
 
 class ManualCourseInputTest {
     @Test
-    fun `quick add defaults cover the week the user is looking at`() {
-        val (start, end) = quickAddDefaultWeekRange(initialWeek = 8, maxWeekCount = 30)
-
-        assertEquals(8, start)
-        assertEquals(30, end)
-        assertTrue(8 in start..end)
-    }
-
-    @Test
-    fun `quick add default range keeps the new course visible in the current week`() {
-        for (week in 1..30) {
-            val (start, end) = quickAddDefaultWeekRange(initialWeek = week, maxWeekCount = 30)
-            val course = CourseItem(
-                id = "manual-$week",
-                title = "新课",
-                weeks = (start..end).toList(),
-                time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
-            )
-
-            assertTrue("第 $week 周加的课应当在第 $week 周可见", course.isActiveInWeek(week))
-        }
-    }
-
-    @Test
-    fun `quick add default range clamps weeks outside the term`() {
-        assertEquals(1 to 30, quickAddDefaultWeekRange(initialWeek = 0, maxWeekCount = 30))
-        assertEquals(1 to 30, quickAddDefaultWeekRange(initialWeek = -4, maxWeekCount = 30))
-        assertEquals(30 to 30, quickAddDefaultWeekRange(initialWeek = 99, maxWeekCount = 30))
-    }
-
-    @Test
     fun `parity that filters out every week is rejected instead of meaning all weeks`() {
         assertNull(manualCourseWeeksOrNull(2, 2, WeekParity.Odd, maxWeekCount = 30))
         assertNull(manualCourseWeeksOrNull(3, 3, WeekParity.Even, maxWeekCount = 30))

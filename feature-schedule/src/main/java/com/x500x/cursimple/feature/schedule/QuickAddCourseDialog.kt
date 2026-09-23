@@ -40,16 +40,6 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
 
 /**
- * 空格子点击后弹出的快速加课对话框的默认周次区间。
- * 起始周取当前显示的周次，结束周取学期总周数，保证新课在当前周立刻可见。
- */
-internal fun quickAddDefaultWeekRange(initialWeek: Int, maxWeekCount: Int): Pair<Int, Int> {
-    val safeMax = maxWeekCount.coerceAtLeast(1)
-    val start = initialWeek.coerceIn(1, safeMax)
-    return start to safeMax
-}
-
-/**
  * 点击课表空白格时使用的精简版添加课程对话框。
  * 星期与起止节次固定为点击的位置，对话框只询问会变化的部分：课程名、地点、周次范围。
  */
@@ -59,7 +49,6 @@ fun QuickAddCourseDialog(
     dayOfWeek: Int,
     startNode: Int,
     endNode: Int,
-    initialWeek: Int,
     existingCourses: List<CourseItem> = emptyList(),
     maxWeekCount: Int = 30,
     /** 这一格在作息表里的名字（「第二节」「午间课」）；为空时按节号写。 */
@@ -72,9 +61,10 @@ fun QuickAddCourseDialog(
     var weekLocationsRaw by rememberSaveable { mutableStateOf("") }
     var pickingWeekLocations by rememberSaveable { mutableStateOf(false) }
     var teacher by rememberSaveable { mutableStateOf("") }
-    val defaultWeekRange = quickAddDefaultWeekRange(initialWeek, maxWeekCount)
-    var startWeekText by rememberSaveable { mutableStateOf(defaultWeekRange.first.toString()) }
-    var endWeekText by rememberSaveable { mutableStateOf(defaultWeekRange.second.toString()) }
+    // 周次留空由用户自己填，和右上角新建课程一样：预填的「当前周到学期末」多半不是这门课的
+    // 真实周次，填好了反而容易被当成已经设好直接保存
+    var startWeekText by rememberSaveable { mutableStateOf("") }
+    var endWeekText by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
 
     val titleTrimmed = title.trim()
