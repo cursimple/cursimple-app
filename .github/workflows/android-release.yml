@@ -165,3 +165,55 @@ jobs:
           body_path: ${{ env.RELEASE_NOTES }}
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
+
+      # App 检查更新先读这份清单：它在仓库里，能走国内的 jsDelivr 镜像，一次请求零点几秒；
+      # GitHub API 在国内常常十几秒甚至超时。beta.json 是含测试版在内的最新版，stable.json 只算正式版，
+      # 内容就是这一版的 update.json。正式版两份都更新，测试版只更新 beta.json；比现有的旧就不覆盖
+      - name: Publish update feed
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IS_PRERELEASE: ${{ contains(github.ref_name, '-') }}
+        run: |
+          set -euo pipefail
+          manifest="$PWD/app/build/outputs/apk/release/update.json"
+          feed_dir="$(mktemp -d)"
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads "$remote" update-feed >/dev/null; then
+            git clone --quiet --depth 1 --branch update-feed "$remote" "$feed_dir"
+          else
+            git init --quiet "$feed_dir"
+            git -C "$feed_dir" checkout --quiet --orphan update-feed
+            git -C "$feed_dir" remote add origin "$remote"
+          fi
+          new_code="$(jq -r '.versionCode' "$manifest")"
+          files=(beta.json)
+          if [ "$IS_PRERELEASE" != "true" ]; then files+=(stable.json); fi
+          changed=()
+          for file in "${files[@]}"; do
+            target="$feed_dir/$file"
+            old_code=-1
+            if [ -f "$target" ]; then old_code="$(jq -r '.versionCode // -1' "$target")"; fi
+            if [ "$new_code" -ge "$old_code" ]; then
+              jq --argjson prerelease "$IS_PRERELEASE" '. + {prerelease: $prerelease}' "$manifest" > "$target"
+              changed+=("$file")
+            else
+              echo "Skip $file: existing versionCode $old_code is newer than $new_code"
+            fi
+          done
+          # 还没发过正式版时给 stable.json 写一个「暂无正式版」标记：没开测试版的 App 读到它就知道
+          # 没有可更新的正式版，不必再退回慢得多的 GitHub API 去查一遍
+          if [ ! -f "$feed_dir/stable.json" ]; then
+            echo '{"schemaVersion":1,"noRelease":true}' > "$feed_dir/stable.json"
+            changed+=(stable.json)
+          fi
+          if [ ${#changed[@]} -eq 0 ]; then exit 0; fi
+          git -C "$feed_dir" add "${changed[@]}"
+          # 重跑同一个标签时内容不变，没东西可提交；git commit 会以失败退出，在 set -e 下把这一步判挂
+          if git -C "$feed_dir" diff --cached --quiet; then exit 0; fi
+          git -C "$feed_dir" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "update feed: ${GITHUB_REF_NAME}"
+          git -C "$feed_dir" push --quiet origin update-feed
+          for file in "${changed[@]}"; do
+            curl -fsS "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@update-feed/${file}" >/dev/null || true
+          done
