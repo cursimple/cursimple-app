@@ -208,7 +208,7 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.reminder_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.reminder_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.reminder_empty, appWidgetId, data.widgetTheme)
-            views.setInt(R.id.reminder_empty, "setBackgroundResource", widgetRowVariantBackground(data.themeAccent))
+            views.applyAccentBackground(R.id.reminder_empty, data.widgetTheme, WidgetSurfaceTone.RowVariant)
             val emptyText = data.emptySubtitle?.let { "${data.emptyTitle}\n$it" } ?: data.emptyTitle
             views.setTextViewText(R.id.reminder_empty, emptyText)
             return views

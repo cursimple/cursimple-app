@@ -10,6 +10,8 @@ enum class WidgetBackgroundMode { Theme, Image }
 
 data class WidgetThemePreferences(
     val themeAccent: ThemeAccent = ThemeAccent.Green,
+    /** 主题色为 [ThemeAccent.Custom] 时的颜色；跟随应用时是应用那一份自选色。 */
+    val customColorArgb: Int = com.x500x.cursimple.core.data.theme.AccentColors.DEFAULT_CUSTOM_ARGB,
     val backgroundMode: WidgetBackgroundMode = WidgetBackgroundMode.Theme,
     val backgroundImageUri: String? = null,
     /** 点小组件进应用；默认开着，不然新加的小组件点上去没反应，会以为是坏的。 */
@@ -26,9 +28,15 @@ data class WidgetThemePreferences(
     }
 }
 
-/** 小组件实际使用的主题色：跟随应用时用 [appThemeAccent]，单独挑过就用挑定的那个。 */
-fun WidgetThemePreferences.resolveAccent(appThemeAccent: ThemeAccent): WidgetThemePreferences =
-    if (followsAppThemeAccent) copy(themeAccent = appThemeAccent) else this
+/**
+ * 小组件实际使用的主题色：跟随应用时用 [appThemeAccent]（自选色时连同 [appCustomColorArgb]），
+ * 单独挑过就用挑定的那个。
+ */
+fun WidgetThemePreferences.resolveAccent(
+    appThemeAccent: ThemeAccent,
+    appCustomColorArgb: Int = customColorArgb,
+): WidgetThemePreferences =
+    if (followsAppThemeAccent) copy(themeAccent = appThemeAccent, customColorArgb = appCustomColorArgb) else this
 
 interface WidgetPreferencesRepository {
     val widgetDayOffsetFlow: Flow<Int>
@@ -83,6 +91,9 @@ interface WidgetPreferencesRepository {
     suspend fun activateTimingProfile(id: String)
 
     suspend fun setWidgetThemeAccent(accent: ThemeAccent)
+
+    /** 小组件单独用一个自选色。 */
+    suspend fun setWidgetThemeCustomColor(argb: Int)
 
     /** 取消单独指定的小组件主题色，重新跟随应用主题。 */
     suspend fun followAppThemeAccent()

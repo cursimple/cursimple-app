@@ -2708,6 +2708,9 @@ private fun ScheduleGrid(
                 endNode = endNode,
                 initialWeek = currentWeekIndex,
                 existingCourses = existingCourses,
+                // 和左侧节次栏同一个叫法
+                slotLabel = slots.firstOrNull { it.startNode == startNode && it.endNode == endNode }
+                    ?.label?.takeIf { it.isNotBlank() },
                 onDismiss = { addRequest = null },
                 onConfirm = { course ->
                     onAddManualCourse(course)

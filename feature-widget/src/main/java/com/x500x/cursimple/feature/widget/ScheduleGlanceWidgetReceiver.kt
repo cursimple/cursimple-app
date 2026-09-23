@@ -198,7 +198,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_course_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme)
-            views.setInt(R.id.widget_empty, "setBackgroundResource", widgetRowVariantBackground(dayData.themeAccent))
+            views.applyAccentBackground(R.id.widget_empty, dayData.widgetTheme, WidgetSurfaceTone.RowVariant)
             val emptyText = context.scheduleWidgetEmptyText(
                 scheduleWidgetEmptyLabel(
                     termStartMissing = dayData.termStartMissing,

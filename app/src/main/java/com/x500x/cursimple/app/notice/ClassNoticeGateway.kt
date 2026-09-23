@@ -26,7 +26,12 @@ object ClassNoticeGateway {
     /** 提醒跟着 App 的主题色与深浅色走，冷进程里被唤起时也从偏好里现取。 */
     suspend fun theme(context: Context): NoticeTheme {
         val preferences = DataStoreUserPreferencesRepository(context.applicationContext).preferencesFlow.first()
-        return NoticeTheme.resolve(context, preferences.themeAccent, preferences.themeMode)
+        return NoticeTheme.resolve(
+            context,
+            preferences.themeAccent,
+            preferences.themeMode,
+            preferences.themeCustomColorArgb,
+        )
     }
 
     /** 重新算下一节课并挂上闹钟；课表、作息或偏好一变就该调一次。 */

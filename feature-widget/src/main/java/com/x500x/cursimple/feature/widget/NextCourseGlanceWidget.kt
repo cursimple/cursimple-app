@@ -138,7 +138,7 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.next_course_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.next_course_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.next_course_empty, appWidgetId, data.widgetTheme)
-            views.setInt(R.id.next_course_empty, "setBackgroundResource", widgetRowVariantBackground(data.themeAccent))
+            views.applyAccentBackground(R.id.next_course_empty, data.widgetTheme, WidgetSurfaceTone.RowVariant)
             views.setTextViewText(R.id.next_course_empty, data.emptyTitle)
             return views
         }

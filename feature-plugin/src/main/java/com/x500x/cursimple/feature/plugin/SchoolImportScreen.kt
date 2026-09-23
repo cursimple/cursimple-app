@@ -86,6 +86,8 @@ fun SchoolImportRoute(
         if (pluginRegistryRepo.isNotBlank()) {
             pluginMarketViewModel.refreshIfStale(pluginRegistryRepo, MARKET_CACHE_TTL_MILLIS)
         }
+        // 已装插件单独现查最新版，有新版在列表里直接标出来
+        pluginMarketViewModel.refreshInstalledPluginVersions()
     }
 
     // 网页登录浮层开着时，返回键该退出登录流程回到搜索页，
@@ -234,13 +236,18 @@ fun SchoolImportRoute(
                         }
                     }
                     items(matched.ifEmpty { uiState.marketRepos }, key = { it.fullName }) { repo ->
+                        val installed = installedByRepo[repo.fullName]
                         SchoolPluginRow(
                             repo = repo,
-                            installed = installedByRepo[repo.fullName],
+                            installed = installed,
+                            upgrade = installed?.let { availableUpgrade(it, uiState) },
                             busy = uiState.isLoading,
+                            checking = installed != null && uiState.checkingUpdateKey == installed.installKey,
                             syncingPluginId = syncingPluginId,
                             onInstall = { pluginMarketViewModel.installFromGitHub(repo) },
-                            onSync = onSyncPlugin,
+                            // 导课前先查新版，有新版就先升级
+                            onSync = { record -> pluginMarketViewModel.syncWithUpdateCheck(record) },
+                            onUpgrade = { record, latest -> pluginMarketViewModel.upgradeThenSync(record, latest) },
                         )
                     }
                     item(key = "browse-all") {
@@ -264,6 +271,8 @@ fun SchoolImportRoute(
             }
         }
     }
+
+    PluginUpgradeGate(uiState = uiState, viewModel = pluginMarketViewModel, onSyncPlugin = onSyncPlugin)
 
     uiState.installPreview?.let { preview ->
         InstallPreviewDialog(
@@ -327,10 +336,14 @@ private fun SchoolImportSteps() {
 private fun SchoolPluginRow(
     repo: GitHubRepoSummary,
     installed: InstalledPluginRecord?,
+    /** 市场上已知有新版时是那个仓库（带着最新 release），否则为 null。 */
+    upgrade: GitHubRepoSummary?,
     busy: Boolean,
+    checking: Boolean,
     syncingPluginId: String?,
     onInstall: () -> Unit,
-    onSync: (String) -> Unit,
+    onSync: (InstalledPluginRecord) -> Unit,
+    onUpgrade: (InstalledPluginRecord, GitHubRepoSummary) -> Unit,
 ) {
     val syncing = installed != null &&
         (syncingPluginId == installed.installKey || syncingPluginId == installed.pluginId)
@@ -368,18 +381,39 @@ private fun SchoolPluginRow(
                     )
                 }
                 if (installed != null) {
+                    val newVersion = upgrade?.latestRelease?.tagName
                     Text(
-                        text = stringResource(R.string.school_import_installed_enabled),
+                        text = if (newVersion != null) {
+                            stringResource(
+                                R.string.plugin_upgrade_available_line,
+                                displayVersion(newVersion),
+                                displayVersion(installed.version),
+                            )
+                        } else {
+                            stringResource(R.string.school_import_installed_enabled)
+                        },
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (newVersion != null) {
+                            MaterialTheme.colorScheme.tertiary
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                     )
                 }
             }
             when {
-                syncing -> CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                syncing || checking -> CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+
+                // 已知有新版：按钮直接换成升级，升级装好后自动接着导课
+                installed != null && upgrade != null -> Button(
+                    onClick = { onUpgrade(installed, upgrade) },
+                    enabled = !busy,
+                ) {
+                    Text(stringResource(R.string.plugin_upgrade_action), maxLines = 1)
+                }
 
                 installed != null -> Button(
-                    onClick = { onSync(installed.installKey) },
+                    onClick = { onSync(installed) },
                     enabled = !busy,
                 ) {
                     Text(stringResource(R.string.school_import_action_sync), maxLines = 1)

@@ -76,10 +76,11 @@ internal fun buildReminderRow(
     widgetTheme: WidgetThemePreferences,
 ): RemoteViews {
     val row = RemoteViews(context.packageName, R.layout.widget_reminder_row)
-    row.setInt(R.id.reminder_row_root, "setBackgroundResource", widgetRowBackground(themeAccent))
+    row.applyAccentBackground(R.id.reminder_row_root, widgetTheme, WidgetSurfaceTone.Row)
     row.applyOpenAppFillInIntent(R.id.reminder_row_root, widgetTheme)
     row.setTextViewText(R.id.reminder_date, data.dateLabel)
     row.setTextViewText(R.id.reminder_time, data.timeLabel)
+    row.setTextColor(R.id.reminder_time, widgetAccentTextColor(widgetTheme))
     row.setTextViewText(R.id.reminder_row_title, data.title)
     row.setTextViewText(R.id.reminder_row_message, data.message)
     row.setTextViewText(R.id.reminder_countdown, data.countdown)

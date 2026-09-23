@@ -6,7 +6,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -69,6 +68,16 @@ import com.x500x.cursimple.app.update.ReleaseHighlight
 import com.x500x.cursimple.app.update.ReleaseImageLoader
 import com.x500x.cursimple.app.update.ReleaseNoteImage
 import com.x500x.cursimple.app.update.buildReleaseAnnouncement
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.input.pointer.PointerEventPass
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -137,18 +146,34 @@ private fun ReleaseAnnouncementScreen(
     val pageCount = highlights.size + if (announcement.rest.isNotEmpty()) 1 else 0
     val pagerState = rememberPagerState(pageCount = { pageCount })
     val scope = rememberCoroutineScope()
-    val dragged by pagerState.interactionSource.collectIsDraggedAsState()
-    var held by remember { mutableStateOf(false) }
+    // 手指是否按在翻页区上；只看不拦，拦了会和翻页组件自己的滑动手势抢事件
+    var touching by remember { mutableStateOf(false) }
     var zoomed by remember { mutableStateOf<ReleaseNoteImage?>(null) }
     val restScroll = rememberScrollState()
-    val onRestPage = pagerState.currentPage >= highlights.size
     // 最后一页是一长串文字：多停一会儿；往下滚了就是在读，不再自动翻走
-    val readingRest = onRestPage && restScroll.value > 0
+    val readingRest by remember {
+        derivedStateOf { pagerState.settledPage >= highlights.size && restScroll.value > 0 }
+    }
 
-    LaunchedEffect(pagerState.currentPage, dragged, held, zoomed, readingRest, pageCount) {
-        if (dragged || held || zoomed != null || readingRest || pageCount < 2) return@LaunchedEffect
-        delay(if (onRestPage) REST_PAGE_DWELL_MS else AUTO_ADVANCE_MS)
-        pagerState.animateScrollToPage((pagerState.currentPage + 1) % pageCount)
+    // 自动翻页只在某一页停稳之后才开始计时，翻页动画一旦开始就让它走完：
+    // 以前一有按下、拖动之类的状态变化就把整段计时连同正在跑的翻页动画一起取消，
+    // 页面停在两页中间，也没有任何东西再把它拉回整页。用户在动画途中上手滑，
+    // 由翻页组件自己接管（它的拖动优先级更高），松手后照常吸附到整页
+    LaunchedEffect(pagerState, pageCount) {
+        if (pageCount < 2) return@LaunchedEffect
+        snapshotFlow { pagerState.settledPage }.collectLatest { page ->
+            delay(if (page >= highlights.size) REST_PAGE_DWELL_MS else AUTO_ADVANCE_MS)
+            // 手指还按着、正在看大图、正在读最后一页时先等着，不翻
+            snapshotFlow { touching || pagerState.isScrollInProgress || zoomed != null || readingRest }
+                .first { busy -> !busy }
+            try {
+                pagerState.animateScrollToPage((page + 1) % pageCount)
+            } catch (interrupted: CancellationException) {
+                // 被用户的拖动抢走了：本轮作罢，等它停到新的一页再重新计时。
+                // 整个效果真被取消（公告关了）时照常往外抛
+                currentCoroutineContext().ensureActive()
+            }
+        }
     }
 
     Column(
@@ -175,11 +200,14 @@ private fun ReleaseAnnouncementScreen(
                 .fillMaxWidth()
                 .weight(1f)
                 .pointerInput(Unit) {
-                    detectTapGestures(onPress = {
-                        held = true
-                        tryAwaitRelease()
-                        held = false
-                    })
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        touching = true
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                        } while (event.changes.any { it.pressed })
+                        touching = false
+                    }
                 },
         ) { page ->
             if (page < highlights.size) {

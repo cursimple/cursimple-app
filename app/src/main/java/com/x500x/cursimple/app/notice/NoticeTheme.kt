@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
+import com.x500x.cursimple.core.data.theme.AccentColors
 
 /**
  * 上课提醒跟着 App 的主题色与深浅色走。
@@ -29,7 +30,22 @@ data class NoticeTheme(
     val surface: Int,
     val onSurface: Int,
     val onSurfaceVariant: Int,
+    /** 自选主题色（[ThemeAccent.Custom]）的颜色；内置主题用不到。 */
+    val customArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
 ) {
+    /**
+     * 自选色时品牌卡片的底色；内置主题为 null，用各自那张渐变图。
+     *
+     * 自选色没法事先备一张图，只能拿一张白底圆角图再着色（Android 12 起 RemoteViews 才能着色），
+     * 明度取内置那几张渐变的中段，白字照样看得清。
+     */
+    val cardTintArgb: Int?
+        get() = if (accent == ThemeAccent.Custom) {
+            AccentColors.tone(customArgb, 0.40f, maxSaturation = 0.65f, minSaturation = 0.25f)
+        } else {
+            null
+        }
+
     /**
      * 品牌卡片的底：主题色的渐变圆角块。
      *
@@ -44,20 +60,39 @@ data class NoticeTheme(
             ThemeAccent.Purple -> R.drawable.bg_class_notice_card_purple
             ThemeAccent.Orange -> R.drawable.bg_class_notice_card_orange
             ThemeAccent.Pink -> R.drawable.bg_class_notice_card_pink
+            // 着不了色的旧系统上退回色相最接近的那张；能着色时由 ClassNoticeNotifier 换成白底再着色
+            ThemeAccent.Custom -> presetCardBackground(AccentColors.nearestPreset(customArgb))
         }
 
+    private fun presetCardBackground(preset: ThemeAccent): Int = when (preset) {
+        ThemeAccent.Green, ThemeAccent.Custom -> R.drawable.bg_class_notice_card_green
+        ThemeAccent.Blue -> R.drawable.bg_class_notice_card_blue
+        ThemeAccent.Purple -> R.drawable.bg_class_notice_card_purple
+        ThemeAccent.Orange -> R.drawable.bg_class_notice_card_orange
+        ThemeAccent.Pink -> R.drawable.bg_class_notice_card_pink
+    }
+
     companion object {
-        fun of(accent: ThemeAccent, dark: Boolean): NoticeTheme = from(accent, dark, appColorScheme(accent, dark))
+        fun of(
+            accent: ThemeAccent,
+            dark: Boolean,
+            customArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
+        ): NoticeTheme = from(accent, dark, appColorScheme(accent, dark, customArgb)).copy(customArgb = customArgb)
 
         /** 界面里预览用：和当前界面同一个主题色与深浅色。 */
         @Composable
         fun current(): NoticeTheme {
             val choice = LocalAppThemeChoice.current
-            return remember(choice) { of(choice.accent, choice.dark) }
+            return remember(choice) { of(choice.accent, choice.dark, choice.customArgb) }
         }
 
         /** 按偏好里的主题色与深浅色模式取；跟随系统时看 [context] 当前是不是夜间模式。 */
-        fun resolve(context: Context, accent: ThemeAccent, mode: ThemeMode): NoticeTheme {
+        fun resolve(
+            context: Context,
+            accent: ThemeAccent,
+            mode: ThemeMode,
+            customArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
+        ): NoticeTheme {
             val dark = when (mode) {
                 ThemeMode.Dark -> true
                 ThemeMode.Light -> false
@@ -65,7 +100,7 @@ data class NoticeTheme(
                     (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                         Configuration.UI_MODE_NIGHT_YES
             }
-            return of(accent, dark)
+            return of(accent, dark, customArgb)
         }
 
         private fun from(accent: ThemeAccent, dark: Boolean, scheme: ColorScheme) = NoticeTheme(

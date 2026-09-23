@@ -88,4 +88,25 @@ class PluginMarketInstallStateTest {
 
         assertTrue(state is PluginRepoInstallState.Installed)
     }
+
+    @Test
+    fun `版本号按数字逐段比，1点0点10 比 1点0点9 新`() {
+        assertTrue(isNewerVersion("v1.0.10", "1.0.9"))
+        assertTrue(isNewerVersion("1.0.35", "1.0.34"))
+        assertTrue(isNewerVersion("2.0", "1.9.9"))
+    }
+
+    @Test
+    fun `市场版本不比本机新时不提示更新，免得一点就降级`() {
+        assertEquals(false, isNewerVersion("v1.0.33", "1.0.34"))
+        assertEquals(false, isNewerVersion("v1.0.34", "1.0.34"))
+        val state = resolveRepoInstallState("a/b", "v1.0.33", listOf(record(version = "1.0.34", sourceRepo = "a/b")))
+        assertTrue(state is PluginRepoInstallState.Installed)
+    }
+
+    @Test
+    fun `市场版本更新时标成可更新`() {
+        val state = resolveRepoInstallState("a/b", "v1.0.35", listOf(record(version = "1.0.34", sourceRepo = "a/b")))
+        assertTrue(state is PluginRepoInstallState.Updatable)
+    }
 }

@@ -140,6 +140,7 @@ fun PluginMarketRoute(
         if (pluginRegistryRepo.isNotBlank()) {
             pluginMarketViewModel.refreshIfStale(pluginRegistryRepo, MARKET_CACHE_TTL_MILLIS)
         }
+        pluginMarketViewModel.refreshInstalledPluginVersions()
     }
 
     PluginMarketScreen(
@@ -166,7 +167,13 @@ fun PluginMarketRoute(
             pluginMarketViewModel.removePlugin(installKey)
         },
         onSetPluginEnabled = onSetPluginEnabled,
-        onSyncPlugin = onSyncPlugin,
+        // 同步课表前先查插件有没有新版，有新版就先升级；放行后由下面的 PluginUpgradeGate 真正发起同步
+        onSyncPlugin = { installKey ->
+            pluginUiState.installedPlugins.firstOrNull { it.installKey == installKey }
+                ?.let(pluginMarketViewModel::syncWithUpdateCheck)
+                ?: onSyncPlugin(installKey)
+        },
+        onUpgradePlugin = pluginMarketViewModel::upgradeThenSync,
         onPickLocalComponent = { componentPackageLauncher.launch(PACKAGE_MIME_TYPES) },
         onRefreshComponentMarket = { componentMarketViewModel.loadRemoteMarket(componentMarketIndexUrl) },
         onInstallRemoteComponentEntry = componentMarketViewModel::installRemoteEntry,
@@ -174,6 +181,7 @@ fun PluginMarketRoute(
         onCancelWebSession = onCancelWebSession,
         modifier = modifier,
     )
+    PluginUpgradeGate(uiState = pluginUiState, viewModel = pluginMarketViewModel, onSyncPlugin = onSyncPlugin)
 }
 
 @Composable
@@ -196,6 +204,7 @@ private fun PluginMarketScreen(
     onRemovePlugin: (String) -> Unit,
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
+    onUpgradePlugin: (InstalledPluginRecord, GitHubRepoSummary) -> Unit,
     onPickLocalComponent: () -> Unit,
     onRefreshComponentMarket: () -> Unit,
     onInstallRemoteComponentEntry: (ComponentMarketEntry) -> Unit,
@@ -229,6 +238,7 @@ private fun PluginMarketScreen(
                     onRemovePlugin = onRemovePlugin,
                     onSetPluginEnabled = onSetPluginEnabled,
                     onSyncPlugin = onSyncPlugin,
+                    onUpgradePlugin = onUpgradePlugin,
                     modifier = Modifier.weight(1f),
                 )
 
@@ -277,6 +287,7 @@ private fun PluginListContent(
     onRemovePlugin: (String) -> Unit,
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
+    onUpgradePlugin: (InstalledPluginRecord, GitHubRepoSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var detailPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
@@ -311,10 +322,13 @@ private fun PluginListContent(
         PluginDetailScreen(
             plugin = detailPlugin,
             isEnabled = isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins),
-            isSyncing = syncingPluginId == detailPlugin.pluginId || syncingPluginId == detailPlugin.installKey,
+            isSyncing = syncingPluginId == detailPlugin.pluginId || syncingPluginId == detailPlugin.installKey ||
+                uiState.checkingUpdateKey == detailPlugin.installKey,
+            upgrade = availableUpgrade(detailPlugin, uiState),
             onBack = { detailPluginKey = null },
             onSetEnabled = { onSetPluginEnabled(detailPlugin.installKey, it) },
             onSync = { onSyncPlugin(detailPlugin.installKey) },
+            onUpgrade = { latest -> onUpgradePlugin(detailPlugin, latest) },
             onRemove = {
                 onRemovePlugin(detailPlugin.installKey)
                 detailPluginKey = null
@@ -446,9 +460,12 @@ private fun PluginListContent(
                 PluginCard(
                     plugin = plugin,
                     isEnabled = isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins),
-                    isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey,
+                    isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey ||
+                        uiState.checkingUpdateKey == plugin.installKey,
+                    upgrade = availableUpgrade(plugin, uiState),
                     onSetEnabled = { onSetPluginEnabled(plugin.installKey, it) },
                     onSync = { onSyncPlugin(plugin.installKey) },
+                    onUpgrade = { latest -> onUpgradePlugin(plugin, latest) },
                     onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
                 )
             }
@@ -1108,8 +1125,10 @@ private fun PluginCard(
     plugin: InstalledPluginRecord,
     isEnabled: Boolean,
     isSyncing: Boolean,
+    upgrade: GitHubRepoSummary?,
     onSetEnabled: (Boolean) -> Unit,
     onSync: () -> Unit,
+    onUpgrade: (GitHubRepoSummary) -> Unit,
     onOpenDetail: () -> Unit,
 ) {
     Card(
@@ -1155,20 +1174,52 @@ private fun PluginCard(
                 overflow = TextOverflow.Ellipsis,
             )
             if (isEnabled) {
-                Button(
-                    onClick = onSync,
-                    enabled = !isSyncing,
-                ) {
-                    Text(
-                        if (isSyncing) {
-                            stringResource(R.string.plugin_card_action_syncing)
-                        } else {
-                            stringResource(R.string.plugin_card_action_sync)
-                        },
-                    )
-                }
+                PluginSyncOrUpgradeButton(plugin, isSyncing, upgrade, onSync, onUpgrade)
             }
         }
+    }
+}
+
+/**
+ * 同步课表按钮；市场上已知有新版时换成「升级到 vX」，旁边写明当前版本，升级装好后自动接着同步。
+ */
+@Composable
+private fun PluginSyncOrUpgradeButton(
+    plugin: InstalledPluginRecord,
+    isSyncing: Boolean,
+    upgrade: GitHubRepoSummary?,
+    onSync: () -> Unit,
+    onUpgrade: (GitHubRepoSummary) -> Unit,
+) {
+    val newVersion = upgrade?.latestRelease?.tagName
+    if (upgrade != null && newVersion != null && !isSyncing) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = stringResource(
+                    R.string.plugin_upgrade_available_line,
+                    displayVersion(newVersion),
+                    displayVersion(plugin.version),
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+            Button(onClick = { onUpgrade(upgrade) }) {
+                Text(stringResource(R.string.plugin_upgrade_action_version, displayVersion(newVersion)))
+            }
+        }
+        return
+    }
+    Button(
+        onClick = onSync,
+        enabled = !isSyncing,
+    ) {
+        Text(
+            if (isSyncing) {
+                stringResource(R.string.plugin_card_action_syncing)
+            } else {
+                stringResource(R.string.plugin_card_action_sync)
+            },
+        )
     }
 }
 
@@ -1193,9 +1244,11 @@ private fun PluginDetailScreen(
     plugin: InstalledPluginRecord,
     isEnabled: Boolean,
     isSyncing: Boolean,
+    upgrade: GitHubRepoSummary?,
     onBack: () -> Unit,
     onSetEnabled: (Boolean) -> Unit,
     onSync: () -> Unit,
+    onUpgrade: (GitHubRepoSummary) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1261,18 +1314,7 @@ private fun PluginDetailScreen(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (isEnabled) {
-                                Button(
-                                    onClick = onSync,
-                                    enabled = !isSyncing,
-                                ) {
-                                    Text(
-                                        if (isSyncing) {
-                                            stringResource(R.string.plugin_card_action_syncing)
-                                        } else {
-                                            stringResource(R.string.plugin_card_action_sync)
-                                        },
-                                    )
-                                }
+                                PluginSyncOrUpgradeButton(plugin, isSyncing, upgrade, onSync, onUpgrade)
                             }
                             AppOutlinedButton(onClick = { showRemoveConfirm = true }) {
                                 Icon(

@@ -50,6 +50,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setThemeAccent(accent) }
     }
 
+    fun setThemeCustomColor(argb: Int) {
+        viewModelScope.launch { repository.setThemeCustomColor(argb) }
+    }
+
     fun setAppLanguage(language: AppLanguage) {
         viewModelScope.launch {
             repository.setAppLanguage(language)

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自选主题色的可点击行底；为什么套 ripple 见 widget_bg_surface_green_clickable -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#33000000">
+    <item android:drawable="@drawable/widget_bg_surface_tintable" />
+    <item
+        android:id="@android:id/mask"
+        android:drawable="@drawable/widget_bg_surface_tintable" />
+</ripple>

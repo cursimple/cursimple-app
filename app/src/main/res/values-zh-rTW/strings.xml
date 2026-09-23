@@ -907,6 +907,14 @@
     <string name="main_accent_purple">暮靄紫</string>
     <string name="main_accent_orange">暖陶橙</string>
     <string name="main_accent_pink">櫻花粉</string>
+    <string name="main_accent_custom">自訂顏色</string>
+    <string name="main_accent_custom_value">自訂 · %1$s</string>
+    <string name="theme_color_picker_title">自訂主題色</string>
+    <string name="theme_color_picker_hex">色值（#RRGGBB）</string>
+    <string name="theme_color_picker_preview_light">淺色</string>
+    <string name="theme_color_picker_preview_dark">深色</string>
+    <string name="theme_color_picker_preview_button">按鈕</string>
+    <string name="theme_color_picker_preview_container">卡片與標籤</string>
     <string name="main_language">語言</string>
     <string name="main_theme">主題</string>
     <string name="main_term_first">%1$d-%2$d 第1學期</string>
