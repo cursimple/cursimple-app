@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「悬浮窗增强」皮肤的横幅。
+
+  这是我们自己的窗口，不受 RemoteViews 那套限制：普通 View、属性动画、
+  真正的背景模糊都能用。
+
+  文字颜色和 logo 的底都按主题色在 ClassNoticeOverlay 里设，这里不写死。
+  这里不设背景也不设 margin：圆角半透明底挂在 Dialog 的 window 上（有界模糊要
+  裁进那个形状），左右边距靠把窗口宽度按屏宽减出来，都在 ClassNoticeOverlay 里。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="16dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="14dp">
+
+    <ImageView
+        android:id="@+id/overlay_logo"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:layout_marginEnd="14dp"
+        android:contentDescription="@null"
+        android:padding="2dp" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/overlay_subtext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:letterSpacing="0.04"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/overlay_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textSize="17sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/overlay_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textSize="13sp" />
+    </LinearLayout>
+</LinearLayout>

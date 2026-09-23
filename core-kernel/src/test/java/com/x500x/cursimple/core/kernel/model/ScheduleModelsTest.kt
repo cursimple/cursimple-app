@@ -132,5 +132,34 @@ class ScheduleModelsTest {
         title = title,
         time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
     )
+
+    @Test
+    fun locationForWeek_usesOverrideThenFallsBack() {
+        val course = courseOf("phy", "物理实验").copy(
+            location = "默认实验楼",
+            weekLocations = mapOf(3 to "东13-A-101", 5 to "东13-A-203"),
+        )
+
+        assertEquals("东13-A-101", course.locationForWeek(3))
+        assertEquals("东13-A-203", course.locationForWeek(5))
+        // 没设单独地点的周、以及不知道当前周时，都回退到默认
+        assertEquals("默认实验楼", course.locationForWeek(4))
+        assertEquals("默认实验楼", course.locationForWeek(null))
+    }
+
+    @Test
+    fun weekLocations_survivesJsonRoundTripAndDefaultsEmpty() {
+        val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        val course = courseOf("phy").copy(weekLocations = mapOf(3 to "A101", 10 to "B202"))
+
+        val decoded = json.decodeFromString(CourseItem.serializer(), json.encodeToString(CourseItem.serializer(), course))
+        assertEquals(mapOf(3 to "A101", 10 to "B202"), decoded.weekLocations)
+
+        // 旧数据没有 weekLocations 字段，解码后为空 map，locationForWeek 全部回退默认
+        val legacy = """{"id":"c","title":"高数","location":"东1","time":{"dayOfWeek":1,"startNode":1,"endNode":2}}"""
+        val old = json.decodeFromString(CourseItem.serializer(), legacy)
+        assertEquals(emptyMap<Int, String>(), old.weekLocations)
+        assertEquals("东1", old.locationForWeek(3))
+    }
 }
 

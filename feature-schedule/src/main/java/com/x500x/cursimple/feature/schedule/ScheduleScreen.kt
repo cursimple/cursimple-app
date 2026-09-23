@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -61,7 +62,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -99,6 +99,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -138,6 +139,10 @@ import com.x500x.cursimple.core.kernel.model.ScheduleDayResolution
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
+import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
+import com.x500x.cursimple.core.kernel.model.isCourseMovedTo
+import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import com.x500x.cursimple.core.kernel.model.startLocalTime
@@ -376,8 +381,15 @@ fun ScheduleScreen(
                     }
                 }
 
-                val locationSuffix = remember(allVisibleCourses) {
-                    allVisibleCourses.map { it.location }.let(::sharedLocationSuffix)
+                // 校名不一定写在地点里：有的教务插件把它塞成课程徽章，地点反而是干净的
+                // 「东13-C-315」。只看地点就推不出校名，徽章里那串「长江大学」就一直留在格子里，
+                // 所以两边的文字一起拿去推断。
+                val locationSuffix = remember(allVisibleCourses, state.uiSchema.courseBadges) {
+                    val texts = allVisibleCourses.map { it.location } +
+                        allVisibleCourses.flatMap {
+                            matchedBadgeLabels(it, state.uiSchema.courseBadges)
+                        }
+                    sharedLocationSuffix(texts)
                 }
 
                 CompositionLocalProvider(
@@ -877,6 +889,7 @@ fun ScheduleAppearancePreview(
                             val courseHeight = (slotHeight * placement.rowSpan) - 3.dp
                             CourseBlock(
                                 course = course,
+                                displayLocation = course.locationForWeek(mainEntry.sourceWeekIndex),
                                 badges = emptyList(),
                                 hasReminder = false,
                                 selected = false,
@@ -1352,7 +1365,19 @@ private fun DailyScheduleSection(
                         } ?: targetWeekNumber
                     // 还没开学时不按周过滤，课程照常列出并按不可用态显示
                     val beforeTerm = weekNumber != null && weekNumber < 1
+                    // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
+                    val movedInHere = coursesMovedTo(
+                        date = animatedDate,
+                        overrides = temporaryScheduleOverrides,
+                        courseById = { id -> allCourses.firstOrNull { it.id == id } },
+                        isOriginallyActive = { course, from ->
+                            val fromWeek = computeWeekNumberForDate(termStartDate, from)
+                            beforeTerm || fromWeek == null || course.isActiveInWeek(fromWeek)
+                        },
+                    )
                     val courses = allCourses
+                        // 被单独挪到别天的课，这天不再出现
+                        .filterNot { isCourseMovedAwayFrom(animatedDate, it, temporaryScheduleOverrides) }
                         // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
                         .mapNotNull { course ->
                             temporaryScheduleCourseSourceDate(
@@ -1367,8 +1392,22 @@ private fun DailyScheduleSection(
                             beforeTerm || courseWeek == null || course.isActiveInWeek(courseWeek)
                         }
                         .map { (course, _) -> course }
+                        .plus(movedInHere)
                         .sortedBy { it.time.startNode }
-                    DailyPageEntry(resolution = resolution, beforeTerm = beforeTerm, courses = courses)
+                    // 调课推翻放假时这天只剩被挪过来的那几门，且不再按休息日渲染，
+                    // 否则调过去的课会被置灰成「今天不上」。
+                    // 没有挪课的放假日保持原样：课程照常列出，只是标成不可用。
+                    val holidayOverridden = resolution.isHoliday && movedInHere.isNotEmpty()
+                    DailyPageEntry(
+                        resolution = if (holidayOverridden) resolution.copy(isHoliday = false) else resolution,
+                        beforeTerm = beforeTerm,
+                        courses = if (holidayOverridden) {
+                            movedInHere.sortedBy { it.time.startNode }
+                        } else {
+                            courses
+                        },
+                        weekNumber = weekNumber,
+                    )
                 }
                 val animatedResolution = dayEntry.resolution
                 val beforeTerm = dayEntry.beforeTerm
@@ -1376,6 +1415,7 @@ private fun DailyScheduleSection(
                 DayList(
                     slots = slots,
                     courses = active,
+                    displayWeek = dayEntry.weekNumber,
                     onHoliday = animatedResolution.isHoliday,
                     beforeTerm = beforeTerm,
                     timingProfile = timingProfile,
@@ -1482,6 +1522,7 @@ private fun DailyHeaderRow(
 private fun DayList(
     slots: List<DisplaySlot>,
     courses: List<CourseItem>,
+    displayWeek: Int?,
     onHoliday: Boolean,
     beforeTerm: Boolean,
     timingProfile: TermTimingProfile?,
@@ -1516,6 +1557,7 @@ private fun DayList(
             DayRow(
                 slot = slot,
                 courses = starting,
+                displayWeek = displayWeek,
                 onHoliday = onHoliday,
                 beforeTerm = beforeTerm,
                 timingProfile = timingProfile,
@@ -1553,6 +1595,7 @@ private fun DayList(
 private fun DayRow(
     slot: DisplaySlot,
     courses: List<CourseItem>,
+    displayWeek: Int?,
     onHoliday: Boolean,
     beforeTerm: Boolean,
     timingProfile: TermTimingProfile?,
@@ -1746,9 +1789,10 @@ private fun DayRow(
                                 maxLines = 1,
                             )
                         }
-                        if (scheduleDisplay.locationVisible && course.location.isNotBlank()) {
+                        val rowLocation = course.locationForWeek(displayWeek)
+                        if (scheduleDisplay.locationVisible && rowLocation.isNotBlank()) {
                             Text(
-                                text = formatCourseLocation(course.location, scheduleDisplay, LocalScheduleLocationSuffix.current),
+                                text = formatCourseLocation(rowLocation, scheduleDisplay, LocalScheduleLocationSuffix.current),
                                 color = onColor.copy(alpha = 0.85f),
                                 fontSize = 12.sp,
                                 maxLines = 1,
@@ -1790,6 +1834,26 @@ private fun DayRow(
                                 tint = onColor,
                                 modifier = Modifier.size(12.dp),
                             )
+                        }
+                        // 和周视图同一个「调」：放在这一列最下面，即卡片右下角
+                        if (isCourseMovedTo(targetDate, course, temporaryScheduleOverrides)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.schedule_moved_badge),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontSize = 11.sp,
+                                    lineHeight = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                )
+                            }
                         }
                     }
                 }
@@ -2437,6 +2501,7 @@ private fun ScheduleGrid(
                             val isDragging = course.id == draggingCourseId
                             CourseBlock(
                                 course = course,
+                                displayLocation = course.locationForWeek(mainEntry.sourceWeekIndex),
                                 badges = badgesForCourse(
                                     course,
                                     uiSchema.courseBadges,
@@ -2448,6 +2513,7 @@ private fun ScheduleGrid(
                                 inactive = mainEntry.inactive,
                                 onHoliday = mainEntry.onHoliday,
                                 temporarilyCancelled = mainEntry.temporarilyCancelled,
+                                movedIn = mainEntry.movedIn,
                                 cellCount = count,
                                 multiSelectMode = multiSelectMode,
                                 multiSelected = isMultiSelected,
@@ -2734,89 +2800,174 @@ internal fun fitLineCount(availableHeightDp: Float, lineHeightDp: Float): Int {
 }
 
 
+
+/**
+ * 从上往下摆，放不下的整块直接丢掉。
+ *
+ * 课程格子高度是固定的，靠行高估算去决定「地点排几行」总会差那么一点，
+ * 差出来的半行就被卡片边缘切掉，屏幕上留下「13-C-」这种半截字。
+ * 这里不估算：逐块量出真实高度，累计超过可用高度的那一块连同后面的一起不摆，
+ * 宁可不显示也不露半截。
+ *
+ * 第一块（课名）例外，再挤也要摆上——它自己有 maxLines 和省略号策略兜着，
+ * 整块丢掉会得到一张空卡片。
+ */
+@Composable
+private fun FitOrDropColumn(
+    centered: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    androidx.compose.ui.layout.Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val childConstraints = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        val placeables = mutableListOf<androidx.compose.ui.layout.Placeable>()
+        var used = 0
+        for ((index, measurable) in measurables.withIndex()) {
+            val placeable = measurable.measure(childConstraints)
+            if (index > 0 && used + placeable.height > constraints.maxHeight) break
+            placeables += placeable
+            used += placeable.height
+        }
+        val width = constraints.maxWidth
+        layout(width, used.coerceAtMost(constraints.maxHeight)) {
+            var y = 0
+            placeables.forEach { placeable ->
+                val x = if (centered) (width - placeable.width) / 2 else 0
+                placeable.placeRelative(x, y)
+                y += placeable.height
+            }
+        }
+    }
+}
+
 /**
  * 课程卡片里各行文字的排布方案。
  *
- * 规矩是「按优先级从上往下填，上一项没显示完就不显示下一项」：
- * 课名 > 地点 > 附注。课名被省略却还在下面挂着「@东…」，既没把最要紧的显示全，
- * 又多出一行看不懂的残句。
+ * 按优先级从上往下填：课名 > 地点 > 附注。能放几行就放几行，放不全的截断；
+ * 上一项没显示完就不再排下一项——空间本来就被它占满了。
  */
 internal data class CourseCardTextPlan(
     val titleLines: Int,
     val titleComplete: Boolean,
     val showLocation: Boolean,
     val locationLines: Int,
+    val locationComplete: Boolean,
     val showBadges: Boolean,
 )
 
 /**
- * 估算一段文字在给定宽度里要占几行。
+ * 按真实排版结果排出课名、地点、附注各占几行。
  *
- * 中日韩字按一个字号宽算，其余按半个——课名与教室号正好是这两类的混合。
- */
-internal fun estimatedTextLines(text: String, fontSizeDp: Float, widthDp: Float): Int {
-    if (text.isEmpty() || fontSizeDp <= 0f || widthDp <= 0f) return 0
-    val fullWidth = text.count { it.code > 0x2E80 }
-    val halfWidth = text.length - fullWidth
-    val totalWidth = (fullWidth + halfWidth * 0.5f) * fontSizeDp
-    return kotlin.math.ceil(totalWidth / widthDp).toInt().coerceAtLeast(1)
-}
-
-/**
- * 按可用高度排出课名、地点、附注各占几行。
+ * 参数里的「行底」是文字不限行数排版后，每一行底边到文字顶部的距离（像素），
+ * 由 TextMeasurer 量出。以前按字号估算每行能放几个字，中英混排、标点避头尾时
+ * 总估少一行：格子下面明明空着，课名却被截在半路。
  *
- * 课名永远先拿：它占不满才轮到地点，地点整段放不下就干脆不显示——
- * 半截的「@东…」对谁都没用，不如把高度留给课名。
+ * @param titleLineBottoms 课名各行的行底；
+ * @param locationLineBottoms 地点各行的行底，不显示地点时传空；
+ * @param badgeHeight 附注一行的高度，没有附注时传 0。
  */
 internal fun courseCardTextPlan(
-    availableHeightDp: Float,
-    contentWidthDp: Float,
-    title: String,
-    titleFontSizeDp: Float,
-    titleLineHeightDp: Float,
-    location: String,
-    locationFontSizeDp: Float,
-    locationLineHeightDp: Float,
-    locationVisible: Boolean,
-    hasBadges: Boolean,
-    badgeLineHeightDp: Float,
+    availableHeight: Float,
+    titleLineBottoms: List<Float>,
+    locationLineBottoms: List<Float>,
+    badgeHeight: Float,
 ): CourseCardTextPlan {
-    if (titleLineHeightDp <= 0f || availableHeightDp <= 0f) {
-        return CourseCardTextPlan(
-            titleLines = Int.MAX_VALUE,
-            titleComplete = true,
-            showLocation = locationVisible && location.isNotBlank(),
-            locationLines = Int.MAX_VALUE,
-            showBadges = hasBadges,
-        )
-    }
-    val titleNeeded = estimatedTextLines(title, titleFontSizeDp, contentWidthDp)
-    val titleFits = kotlin.math.floor(availableHeightDp / titleLineHeightDp).toInt()
-    val titleLines = minOf(titleNeeded, titleFits).coerceAtLeast(1)
-    val titleComplete = titleLines >= titleNeeded
-    var remaining = availableHeightDp - titleLines * titleLineHeightDp
+    fun linesThatFit(bottoms: List<Float>, height: Float) = bottoms.count { it <= height + FIT_TOLERANCE_PX }
 
-    var showLocation = false
+    // 课名再挤也至少给一行，整张卡片空着更认不出是哪门课
+    val titleLines = linesThatFit(titleLineBottoms, availableHeight)
+        .coerceAtLeast(1)
+        .coerceAtMost(titleLineBottoms.size.coerceAtLeast(1))
+    val titleComplete = titleLines >= titleLineBottoms.size
+    var remaining = availableHeight - (titleLineBottoms.getOrNull(titleLines - 1) ?: 0f)
+
     var locationLines = 0
-    if (titleComplete && locationVisible && location.isNotBlank() && locationLineHeightDp > 0f) {
-        val needed = estimatedTextLines(location, locationFontSizeDp, contentWidthDp)
-        val fits = kotlin.math.floor(remaining / locationLineHeightDp).toInt()
-        // 地点要么整段显示，要么不显示：只露「@东…」等于没说
-        if (fits >= needed) {
-            showLocation = true
-            locationLines = needed
-            remaining -= needed * locationLineHeightDp
+    if (titleComplete && locationLineBottoms.isNotEmpty()) {
+        locationLines = linesThatFit(locationLineBottoms, remaining)
+        if (locationLines > 0) {
+            remaining -= locationLineBottoms[locationLines - 1]
         }
     }
-
-    val showBadges = hasBadges && titleComplete && remaining >= badgeLineHeightDp
+    val locationComplete = locationLines >= locationLineBottoms.size
+    val showBadges = badgeHeight > 0f && titleComplete && locationComplete &&
+        badgeHeight <= remaining + FIT_TOLERANCE_PX
     return CourseCardTextPlan(
         titleLines = titleLines,
         titleComplete = titleComplete,
-        showLocation = showLocation,
+        showLocation = locationLines > 0,
         locationLines = locationLines,
+        locationComplete = locationComplete,
         showBadges = showBadges,
     )
+}
+
+/**
+ * 课程格子里的地点文字：楼名和房间号之间补「-」。
+ *
+ * 「@东16-B-103」在窄格子里会从中文与数字之间断开，「@东」被单独甩成一行；
+ * 补成「@东-16-B-103」再交给 [wrapByCharacter] 按字符折行，楼名和房间号连成一段。
+ */
+internal fun cardLocationText(location: String): String {
+    if (location.isEmpty()) return location
+    val codePoints = location.codePoints().toArray()
+    return buildString {
+        codePoints.forEachIndexed { index, codePoint ->
+            val previous = codePoints.getOrNull(index - 1)
+            if (previous != null && previous >= CJK_START && codePoint < 0x80 && Character.isLetterOrDigit(codePoint)) {
+                append('-')
+            }
+            appendCodePoint(codePoint)
+        }
+    }
+}
+
+/**
+ * 按字符贪心折行：每行塞到放不下为止再换行，不管词的边界。
+ *
+ * 排版器会把「16-B-103」当成一个整词整体挪到下一行，窄格子里前一行就空出一大截；
+ * 这里直接量宽度、在行尾插入换行符。不用零宽连接符去禁断行，是因为它在常见字体里
+ * 并不真的零宽，每个字之间会多出一点空隙。
+ *
+ * @param measureWidth 量一段文字单行排版后的宽度。
+ */
+internal fun wrapByCharacter(text: String, maxWidth: Int, measureWidth: (String) -> Int): String {
+    if (text.isEmpty() || maxWidth <= 0 || measureWidth(text) <= maxWidth) return text
+    val codePoints = text.codePoints().toArray()
+    val lines = mutableListOf<String>()
+    var start = 0
+    while (start < codePoints.size) {
+        var end = start + 1
+        while (end < codePoints.size && measureWidth(String(codePoints, start, end + 1 - start)) <= maxWidth) {
+            end += 1
+        }
+        lines += String(codePoints, start, end - start)
+        start = end
+    }
+    return lines.joinToString(separator = "\n")
+}
+
+private const val CJK_START = 0x2E80
+
+private fun androidx.compose.ui.text.TextLayoutResult.lineBottoms(): List<Float> =
+    List(lineCount) { getLineBottom(it) }
+
+/** 行底与可用高度比较时的容差，吸收像素取整误差，不然正好放得下的一行会被丢掉。 */
+private const val FIT_TOLERANCE_PX = 0.5f
+
+/**
+ * 截取排版结果的前 [lines] 行文字。
+ *
+ * 不省略时只把这几行交给 Text，而不是整段加 maxLines：课名行距压得很紧，
+ * 整段排版时下一行的字头会渗进上一行的底部，露出一排看不懂的碎笔画。
+ */
+internal fun visibleLinesText(
+    text: String,
+    layout: androidx.compose.ui.text.TextLayoutResult,
+    lines: Int,
+): String {
+    if (lines <= 0) return ""
+    if (lines >= layout.lineCount) return text
+    return text.substring(0, layout.getLineEnd(lines - 1, visibleEnd = true)).trimEnd()
 }
 
 /** 背景图解码后的长边上限，超过按 2 的幂降采样。 */
@@ -3036,7 +3187,7 @@ private fun OverlappingCoursePickerDialog(
             }
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
+            AppOutlinedButton(onClick = onDismiss) {
                 Text(stringResource(R.string.schedule_action_cancel))
             }
         },
@@ -3146,6 +3297,8 @@ private fun slotTimeRange(slot: DisplaySlot): String {
 @Composable
 private fun CourseBlock(
     course: CourseItem,
+    // 这一格实际显示的地点：设过单独地点的周用它，否则就是课程默认地点
+    displayLocation: String,
     badges: List<String>,
     hasReminder: Boolean,
     hasNote: Boolean = false,
@@ -3153,6 +3306,7 @@ private fun CourseBlock(
     inactive: Boolean,
     onHoliday: Boolean = false,
     temporarilyCancelled: Boolean,
+    movedIn: Boolean = false,
     cellCount: Int,
     multiSelectMode: Boolean,
     multiSelected: Boolean,
@@ -3363,74 +3517,121 @@ private fun CourseBlock(
                         enabled = scheduleTextStyle.autoShrinkLongTitles,
                     )
                 }
-                // 按优先级从上往下填：课名 > 地点 > 附注。
-                // 上一项没显示完就不显示下一项——课名被省略却还挂着「@东…」，
-                // 等于最要紧的没看全、又多一行残句
+                // 按优先级从上往下填：课名 > 地点 > 附注，能放几行放几行，放不全的截断
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val density = LocalDensity.current
-                    val titleLineHeightSp = titleFontSizeSp + 1f
-                    val locationText = formatCourseLocation(
-                        course.location,
-                        scheduleDisplay,
-                        LocalScheduleLocationSuffix.current,
+                    val badgeText = badges.joinToString(separator = " · ")
+                    val rawLocationText = cardLocationText(
+                        formatCourseLocation(
+                            displayLocation,
+                            scheduleDisplay,
+                            LocalScheduleLocationSuffix.current,
+                        ),
                     )
-                    val plan = with(density) {
-                        courseCardTextPlan(
-                            availableHeightDp = maxHeight.value,
-                            contentWidthDp = maxWidth.value,
-                            title = course.title,
-                            titleFontSizeDp = titleFontSizeSp.sp.toDp().value,
-                            titleLineHeightDp = titleLineHeightSp.sp.toDp().value,
-                            location = locationText,
-                            locationFontSizeDp = 10.sp.toDp().value,
-                            locationLineHeightDp = 11.sp.toDp().value,
-                            locationVisible = scheduleDisplay.locationVisible,
-                            hasBadges = badges.isNotEmpty() && !inactive,
-                            badgeLineHeightDp = 11.sp.toDp().value,
+                    val showLocationText = scheduleDisplay.locationVisible && rawLocationText.isNotBlank()
+                    val showBadgeText = badges.isNotEmpty() && !inactive
+                    val textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start
+                    val baseStyle = androidx.compose.material3.LocalTextStyle.current
+                    // 测量与绘制用同一份样式，量出来几行就是画出来几行。
+                    // 换行固定用贪心策略：每行尽量塞满，截取前几行重新排版时断行位置也不会变
+                    val titleStyle = remember(baseStyle, titleFontSizeSp, titleColor, textAlign) {
+                        baseStyle.merge(
+                            androidx.compose.ui.text.TextStyle(
+                                color = titleColor,
+                                fontSize = titleFontSizeSp.sp,
+                                // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
+                                lineHeight = (titleFontSizeSp + 1f).sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = textAlign,
+                                lineBreak = androidx.compose.ui.text.style.LineBreak.Simple,
+                            ),
                         )
                     }
-                    Column(
-                        horizontalAlignment = if (horizontalCentered) {
-                            Alignment.CenterHorizontally
-                        } else {
-                            Alignment.Start
-                        },
-                    ) {
-                        Text(
-                            text = course.title,
-                            color = titleColor,
-                            fontSize = titleFontSizeSp.sp,
-                            // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
-                            lineHeight = titleLineHeightSp.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = plan.titleLines,
-                            overflow = cellTextOverflow,
-                            textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        if (plan.showLocation) {
-                            Text(
-                                text = locationText,
+                    val locationStyle = remember(baseStyle, onColor, textAlign) {
+                        baseStyle.merge(
+                            androidx.compose.ui.text.TextStyle(
                                 color = onColor.copy(alpha = 0.85f),
                                 fontSize = 10.sp,
                                 lineHeight = 11.sp,
+                                textAlign = textAlign,
+                                lineBreak = androidx.compose.ui.text.style.LineBreak.Simple,
+                            ),
+                        )
+                    }
+                    val badgeStyle = remember(baseStyle, onColor, textAlign) {
+                        baseStyle.merge(
+                            androidx.compose.ui.text.TextStyle(
+                                color = onColor.copy(alpha = 0.9f),
+                                fontSize = 9.sp,
+                                lineHeight = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = textAlign,
+                            ),
+                        )
+                    }
+                    val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
+                    val widthConstraints = Constraints(maxWidth = constraints.maxWidth)
+                    val locationText = remember(rawLocationText, locationStyle, constraints.maxWidth) {
+                        wrapByCharacter(rawLocationText, constraints.maxWidth) { piece ->
+                            textMeasurer.measure(piece, locationStyle, softWrap = false, maxLines = 1).size.width
+                        }
+                    }
+                    val titleLayout = remember(course.title, titleStyle, constraints.maxWidth) {
+                        textMeasurer.measure(course.title, titleStyle, constraints = widthConstraints)
+                    }
+                    val locationLayout = remember(locationText, locationStyle, constraints.maxWidth, showLocationText) {
+                        if (showLocationText) {
+                            textMeasurer.measure(locationText, locationStyle, constraints = widthConstraints)
+                        } else {
+                            null
+                        }
+                    }
+                    val badgeHeight = remember(badgeText, badgeStyle, showBadgeText) {
+                        if (showBadgeText) {
+                            textMeasurer.measure(badgeText, badgeStyle, softWrap = false, maxLines = 1).size.height
+                        } else {
+                            0
+                        }
+                    }
+                    val plan = courseCardTextPlan(
+                        availableHeight = if (constraints.hasBoundedHeight) {
+                            constraints.maxHeight.toFloat()
+                        } else {
+                            Float.MAX_VALUE
+                        },
+                        titleLineBottoms = titleLayout.lineBottoms(),
+                        locationLineBottoms = locationLayout?.lineBottoms().orEmpty(),
+                        badgeHeight = badgeHeight.toFloat(),
+                    )
+                    // 开了省略号就交给 Text 在最后一行补「…」；否则只画放得下的那几行
+                    val ellipsize = scheduleTextStyle.truncationEllipsis
+                    FitOrDropColumn(centered = horizontalCentered) {
+                        Text(
+                            text = if (ellipsize) course.title else visibleLinesText(course.title, titleLayout, plan.titleLines),
+                            style = titleStyle,
+                            maxLines = plan.titleLines,
+                            overflow = cellTextOverflow,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        if (plan.showLocation && locationLayout != null) {
+                            Text(
+                                text = if (ellipsize) {
+                                    locationText
+                                } else {
+                                    visibleLinesText(locationText, locationLayout, plan.locationLines)
+                                },
+                                style = locationStyle,
                                 maxLines = plan.locationLines,
                                 overflow = cellTextOverflow,
-                                textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
                         if (plan.showBadges) {
                             Text(
-                                text = badges.joinToString(separator = " · "),
-                                color = onColor.copy(alpha = 0.9f),
-                                fontSize = 9.sp,
-                                lineHeight = 11.sp,
-                                fontWeight = FontWeight.Medium,
+                                text = badgeText,
+                                style = badgeStyle,
                                 maxLines = 1,
                                 softWrap = false,
-                                overflow = TextOverflow.Clip,
-                                textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start,
+                                overflow = cellTextOverflow,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
@@ -3507,12 +3708,43 @@ private fun CourseBlock(
             }
         }
 
-        // 右下角备注标识
-        if (hasNote && !inactive) {
+        // 右下角「调」：这门课是拖动调课单独挪过来的。
+        // 用主色实心圆，比备注、响铃那种半透明小标更显眼——调过的课最容易忘
+        if (movedIn && !inactive) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .offset(x = (-2).dp, y = (-2).dp)
+                    .size(15.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.schedule_moved_badge),
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 9.sp,
+                    lineHeight = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    softWrap = false,
+                    style = androidx.compose.ui.text.TextStyle(
+                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+                        ),
+                    ),
+                )
+            }
+        }
+
+        // 右下角备注标识；右下角被「调」占了就往左让一格
+        if (hasNote && !inactive) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = if (movedIn) (-19).dp else (-2).dp, y = (-2).dp)
                     .size(13.dp)
                     .clip(androidx.compose.foundation.shape.CircleShape)
                     .background(onColor.copy(alpha = 0.18f)),
@@ -3648,6 +3880,10 @@ internal data class CourseRenderEntry(
     val temporarilyCancelled: Boolean = false,
     /** 不可用的原因是放假而不是课程不在本周，徽标据此换文案。 */
     val onHoliday: Boolean = false,
+    /** 这一格落在第几教学周，用来取该周单独设置的地点。 */
+    val sourceWeekIndex: Int = 1,
+    /** 这门课是通过「拖动调课」单独挪过来的，卡片右下角要标「调」。 */
+    val movedIn: Boolean = false,
 )
 
 /** 按列序排列的星期值。起始日一变「列下标 + 1 = 星期」就不成立，所以直接给星期本身。 */
@@ -3827,6 +4063,8 @@ private data class DailyPageEntry(
     val resolution: ScheduleDayResolution,
     val beforeTerm: Boolean,
     val courses: List<CourseItem>,
+    /** 这一天所在的教学周，用来取该周单独设置的地点；未知时为 null。 */
+    val weekNumber: Int? = null,
 )
 
 private fun matchingTemporaryCancelRule(
@@ -3875,7 +4113,7 @@ private fun MultiSelectActionBar(
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(stringResource(R.string.schedule_multiselect_set_reminder))
             }
-            TextButton(onClick = onClear) {
+            AppOutlinedButton(onClick = onClear) {
                 Text(stringResource(R.string.schedule_action_cancel))
             }
         }
@@ -4143,6 +4381,19 @@ internal fun badgesForCourse(
     course: CourseItem,
     rules: List<CourseBadgeRule>,
     schoolName: String = "",
+): List<String> = matchedBadgeLabels(course, rules)
+    // 有的教务插件把学校名塞成徽章：一份课表就一所学校，和地点里的校名一样是噪音，
+    // 剥掉学校名后什么都不剩的徽章直接不显示（strippedLocationOrNull 剥完为空返回 null）
+    .filter { label -> schoolName.isBlank() || strippedLocationOrNull(label, schoolName) != null }
+
+/**
+ * 命中这门课的徽章文字，未经校名过滤。
+ *
+ * 推断校名时要用这一份：过滤本身依赖校名，拿过滤后的结果去推断就成了死循环。
+ */
+internal fun matchedBadgeLabels(
+    course: CourseItem,
+    rules: List<CourseBadgeRule>,
 ): List<String> {
     return rules.filter { rule ->
         ((rule.titleContains?.let { titleContains ->
@@ -4152,9 +4403,6 @@ internal fun badgesForCourse(
             (rule.startNode == null || course.time.startNode == rule.startNode) &&
             (rule.endNode == null || course.time.endNode == rule.endNode)
     }.map { it.label }
-        // 有的教务插件把学校名塞成徽章：一份课表就一所学校，和地点里的校名一样是噪音，
-        // 剥掉学校名后什么都不剩的徽章直接不显示（strippedLocationOrNull 剥完为空返回 null）
-        .filter { label -> schoolName.isBlank() || strippedLocationOrNull(label, schoolName) != null }
 }
 
 /**
@@ -4245,10 +4493,21 @@ internal fun buildWeekRenderEntries(
         val sourceWeekIndex: Int,
         val temporarilyCancelled: Boolean,
         val onHoliday: Boolean = false,
+        /**
+         * 这一格是被单独挪过来的课。
+         *
+         * 它该不该上已经按「原本那天」判过了，目标周未必在它的周次里，
+         * 再按目标周判一次会被误标成「非本周」置灰。
+         */
+        val forceActive: Boolean = false,
     ) {
         /** 放假当天与不在本周的课程一样按不可用态渲染。 */
-        fun isInactive(weekNumberKnown: Boolean): Boolean =
-            onHoliday || (weekNumberKnown && !course.isActiveInWeek(sourceWeekIndex))
+        // forceActive 排在放假之前：调课可以推翻放假，挪到休息日的课照常上，不该置灰
+        fun isInactive(weekNumberKnown: Boolean): Boolean = when {
+            forceActive -> false
+            onHoliday -> true
+            else -> weekNumberKnown && !course.isActiveInWeek(sourceWeekIndex)
+        }
     }
     // 列序由 columnDayOfWeeks 决定，星期几落在第几列不再等于「星期 - 1」
     val visibleColumns = columnDayOfWeeks
@@ -4268,7 +4527,9 @@ internal fun buildWeekRenderEntries(
             // 假日当天照常排出课程，只是渲染成不可用态；提醒仍按假日跳过。
             val sourceDate = resolution.sourceDate
             // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
-            displayCourses
+            val stayingCourses = displayCourses
+                // 被单独挪到别天的课，这天不再出现
+                .filterNot { isCourseMovedAwayFrom(actualDate, it, temporaryScheduleOverrides) }
                 .mapNotNull { course ->
                     temporaryScheduleCourseSourceDate(
                         date = actualDate,
@@ -4277,16 +4538,33 @@ internal fun buildWeekRenderEntries(
                         overrides = temporaryScheduleOverrides,
                     )?.let { course to (computeWeekNumberForDate(termStart, it) ?: weekIndex) }
                 }
+            // 从别天挪到这天的课，时间已改写到目标节次
+            val movedIn = coursesMovedTo(
+                date = actualDate,
+                overrides = temporaryScheduleOverrides,
+                courseById = { id -> displayCourses.firstOrNull { it.id == id } },
+                isOriginallyActive = { course, from ->
+                    val fromWeek = computeWeekNumberForDate(termStart, from)
+                    showEveryCourse || fromWeek == null || course.isActiveInWeek(fromWeek)
+                },
+            ).filterNot { it.reminderOnly }
+                .map { it to (computeWeekNumberForDate(termStart, actualDate) ?: weekIndex) }
+            // 周次过滤只作用于原地不动的课：挪过来的课已按它原本那天判过，
+            // 再按目标周判一次会把跨周挪的课误删
+            stayingCourses
                 .filter { (course, courseWeekIndex) ->
                     showEveryCourse || (!course.reminderOnly && course.isActiveInWeek(courseWeekIndex))
                 }
-                .mapNotNull { (course, sourceWeekIndex) ->
+                .map { (course, week) -> Triple(course, week, false) }
+                .plus(movedIn.map { (course, week) -> Triple(course, week, true) })
+                .mapNotNull { (course, sourceWeekIndex, moved) ->
                     val columnIndex = visibleColumns[dayOfWeek] ?: return@mapNotNull null
                     val placement = coursePlacement(course, slots, columnIndex) ?: return@mapNotNull null
                     Resolved(
                         course = course,
                         placement = placement,
                         sourceWeekIndex = sourceWeekIndex,
+                        forceActive = moved,
                         temporarilyCancelled = isCourseTemporarilyCancelled(
                             date = actualDate,
                             course = course,
@@ -4334,6 +4612,8 @@ internal fun buildWeekRenderEntries(
                     inactive = it.isInactive(weekNumberKnown),
                     temporarilyCancelled = it.temporarilyCancelled,
                     onHoliday = it.onHoliday,
+                    sourceWeekIndex = it.sourceWeekIndex,
+                    movedIn = it.forceActive,
                 )
         }
     }
@@ -4418,12 +4698,12 @@ private fun CourseDragConfirmDialog(
             )
         },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onConfirm) {
+            AppOutlinedButton(onClick = onConfirm) {
                 Text(stringResource(R.string.schedule_drag_confirm_apply))
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
+            AppOutlinedButton(onClick = onDismiss) {
                 Text(stringResource(R.string.schedule_drag_confirm_cancel))
             }
         },

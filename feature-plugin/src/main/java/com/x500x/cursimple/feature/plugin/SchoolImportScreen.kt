@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,12 +29,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -245,7 +244,7 @@ fun SchoolImportRoute(
                         )
                     }
                     item(key = "browse-all") {
-                        TextButton(
+                        AppOutlinedButton(
                             onClick = onBrowseAllPlugins,
                             modifier = Modifier.fillMaxWidth(),
                         ) {
@@ -386,7 +385,7 @@ private fun SchoolPluginRow(
                     Text(stringResource(R.string.school_import_action_sync), maxLines = 1)
                 }
 
-                else -> OutlinedButton(onClick = onInstall, enabled = !busy) {
+                else -> AppOutlinedButton(onClick = onInstall, enabled = !busy) {
                     Icon(
                         imageVector = Icons.Rounded.CloudDownload,
                         contentDescription = null,
@@ -446,10 +445,10 @@ private fun SchoolImportEmpty(
         }
         Button(onClick = onAction) { Text(actionText) }
         if (secondaryActionText != null && onSecondaryAction != null) {
-            TextButton(onClick = onSecondaryAction) { Text(secondaryActionText) }
+            AppOutlinedButton(onClick = onSecondaryAction) { Text(secondaryActionText) }
         }
         if (tertiaryActionText != null && onTertiaryAction != null) {
-            TextButton(onClick = onTertiaryAction) { Text(tertiaryActionText) }
+            AppOutlinedButton(onClick = onTertiaryAction) { Text(tertiaryActionText) }
         }
     }
 }

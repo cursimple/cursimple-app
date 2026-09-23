@@ -1,8 +1,10 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
@@ -55,11 +57,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
@@ -158,7 +158,13 @@ fun PluginMarketRoute(
         onInstallFromGitHub = pluginMarketViewModel::installFromGitHub,
         onConfirmInstall = pluginMarketViewModel::confirmInstall,
         onDismissInstallPreview = pluginMarketViewModel::dismissInstallPreview,
-        onRemovePlugin = pluginMarketViewModel::removePlugin,
+        onRemovePlugin = { installKey ->
+            // 移除插件时一并清掉它在网页登录里存过的密码
+            pluginUiState.installedPlugins.firstOrNull { it.installKey == installKey }?.let { record ->
+                WebLoginCredentialStore(context).clear(record.pluginId)
+            }
+            pluginMarketViewModel.removePlugin(installKey)
+        },
         onSetPluginEnabled = onSetPluginEnabled,
         onSyncPlugin = onSyncPlugin,
         onPickLocalComponent = { componentPackageLauncher.launch(PACKAGE_MIME_TYPES) },
@@ -408,7 +414,7 @@ private fun PluginListContent(
             }
             if (preview.hiddenCount > 0) {
                 item {
-                    OutlinedButton(
+                    AppOutlinedButton(
                         onClick = { browsingMarket = true },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -835,7 +841,7 @@ private fun GitHubRepoDetailScreen(
                                 Text(label, maxLines = 2)
                             }
                             if (installed != null) {
-                                OutlinedButton(onClick = { onUninstall(installed.installKey) }) {
+                                AppOutlinedButton(onClick = { onUninstall(installed.installKey) }) {
                                     Icon(
                                         imageVector = Icons.Rounded.Delete,
                                         contentDescription = null,
@@ -845,7 +851,7 @@ private fun GitHubRepoDetailScreen(
                                     Text(stringResource(R.string.plugin_repo_action_uninstall), maxLines = 2)
                                 }
                             }
-                            OutlinedButton(onClick = onOpenRepo) {
+                            AppOutlinedButton(onClick = onOpenRepo) {
                                 Icon(
                                     imageVector = Icons.Rounded.OpenInBrowser,
                                     contentDescription = null,
@@ -1009,7 +1015,7 @@ private fun PluginCountHeader(
                     modifier = modifier,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    OutlinedButton(
+                    AppOutlinedButton(
                         onClick = onPickLocalPlugin,
                         modifier = if (compact) Modifier.weight(1f) else Modifier,
                     ) {
@@ -1195,6 +1201,8 @@ private fun PluginDetailScreen(
 ) {
     var showRemoveConfirm by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
+    val credentialStore = remember { WebLoginCredentialStore(context) }
+    var hasSavedPasswords by remember(plugin.pluginId) { mutableStateOf(credentialStore.hasAny(plugin.pluginId)) }
     // 旧记录里存过渲染好的原因，没有时按记录声明的接口版本现算
     val compatibilityMessage = plugin.compatibilityMessage?.takeIf { it.isNotBlank() }
         ?: context.pluginCompatibilityText(resolvePluginCompatibility(plugin.apiVersion))
@@ -1266,7 +1274,7 @@ private fun PluginDetailScreen(
                                     )
                                 }
                             }
-                            TextButton(onClick = { showRemoveConfirm = true }) {
+                            AppOutlinedButton(onClick = { showRemoveConfirm = true }) {
                                 Icon(
                                     imageVector = Icons.Rounded.Delete,
                                     contentDescription = null,
@@ -1274,6 +1282,20 @@ private fun PluginDetailScreen(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(stringResource(R.string.plugin_detail_action_remove))
+                            }
+                        }
+                        if (hasSavedPasswords) {
+                            val clearedMessage = stringResource(R.string.plugin_detail_passwords_cleared)
+                            AppOutlinedButton(onClick = {
+                                credentialStore.clear(plugin.pluginId)
+                                hasSavedPasswords = false
+                                Toast.makeText(
+                                    context,
+                                    clearedMessage,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }) {
+                                Text(stringResource(R.string.plugin_detail_action_clear_passwords))
                             }
                         }
                     }
@@ -1399,7 +1421,7 @@ private fun PluginDetailScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showRemoveConfirm = false }) {
+                    AppOutlinedButton(onClick = { showRemoveConfirm = false }) {
                         Text(stringResource(R.string.plugin_action_cancel))
                     }
                 },
@@ -1541,7 +1563,7 @@ internal fun InstallPreviewDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            AppOutlinedButton(onClick = onDismiss) {
                 Text(stringResource(R.string.plugin_action_cancel))
             }
         },
@@ -1739,7 +1761,7 @@ private fun InstallStatePill(state: PluginRepoInstallState) {
 /** 详情页左上角的返回，带边框以便和旁边的标题区分开。 */
 @Composable
 private fun DetailBackButton(onBack: () -> Unit) {
-    OutlinedButton(
+    AppOutlinedButton(
         onClick = onBack,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
     ) {

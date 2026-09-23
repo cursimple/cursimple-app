@@ -1345,14 +1345,11 @@ class ScheduleViewModel(
         runCatching {
             val schema = pluginManager.loadUiSchema(pluginId)
             val timingProfile = normalizeTimingProfile(pluginManager.loadTimingProfile(pluginId))
-            _uiState.update {
-                it.copy(
-                    uiSchema = schema,
-                    // 插件没有节次时间表时保留已有的，用户手填的版本不能被覆盖成空
-                    timingProfile = timingProfile ?: it.timingProfile,
-                )
-            }
-            // 把节次时间配置镜像到小组件存储，用户尚未重新同步时桌面小组件也能解析出真实上课时间。
+            // 节次时间表只认存储里那一份（见 timingProfileFlow 的收集），这里不直接写进界面状态：
+            // 用户手动改过时间表时插件的这份不会落盘，界面若先用上它，课表页显示插件的时间，
+            // 小组件、闹钟、上课通知、导出却按手动那份走，两边对不上还看不出来。
+            _uiState.update { it.copy(uiSchema = schema) }
+            // 交给存储去决定要不要采用：没手动改过就写进去，界面随存储一起更新
             if (timingProfile != null) {
                 onSyncCompleted(timingProfile)
             }

@@ -10,6 +10,8 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
+import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
@@ -67,11 +69,30 @@ fun resolveClassBlocks(
     mergeGapMinutes: Long = DEFAULT_CLASS_BLOCK_MERGE_GAP_MINUTES,
 ): List<ClassBlock> {
     val day = resolveScheduleDay(date, overrides, holidayCalendar)
-    if (day.isHoliday) return emptyList()
     val termWeek = resolveTermWeekNumber(termStart, day.sourceDate)
     if (!isTermWeekNumberStarted(termWeek)) return emptyList()
+    // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
+    val movedIn = coursesMovedTo(
+        date = date,
+        overrides = overrides,
+        courseById = { id -> courses.firstOrNull { it.id == id } },
+        isOriginallyActive = { course, from ->
+            course.isActiveInTermWeekNumber(resolveTermWeekNumber(termStart, from))
+        },
+    )
+    // 放假日不上常规课，但调课可以推翻放假：被挪过来的那几门照样要静音
+    if (day.isHoliday) {
+        return mergeClassBlocks(
+            movedIn
+                .filterNot { isCourseTemporarilyCancelled(date, it, overrides) }
+                .mapNotNull { course -> course.classInterval(timingProfile)?.toBlockOn(date) },
+            mergeGapMinutes,
+        )
+    }
     val intervals = courses
         .asSequence()
+        // 被单独挪到别天的课，这天不再静音
+        .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
         // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
         .mapNotNull { course ->
             temporaryScheduleCourseSourceDate(date, course, day.sourceDate, overrides)
@@ -81,6 +102,7 @@ fun resolveClassBlocks(
             course.isActiveInTermWeekNumber(resolveTermWeekNumber(termStart, courseSource))
         }
         .map { (course, _) -> course }
+        .plus(movedIn)
         .filterNot { isCourseTemporarilyCancelled(date, it, overrides) }
         .mapNotNull { course -> course.classInterval(timingProfile)?.toBlockOn(date) }
         .toList()

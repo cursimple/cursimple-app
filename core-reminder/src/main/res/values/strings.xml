@@ -28,7 +28,7 @@
     <string name="reminder_alarm_dismissed">闹钟已关闭</string>
     <string name="reminder_snoozed_five_minutes">已延后 5 分钟</string>
     <string name="reminder_manual_alarm_default_title">手动闹钟</string>
-    <string name="reminder_manual_alarm_default_message">手动创建的提醒</string>
+    <string name="reminder_manual_alarm_default_message">手动创建的闹钟</string>
 
     <string name="reminder_system_clock_dispatch_requires_foreground">应用未在前台，系统时钟无法创建闹钟，请打开应用后重试</string>
     <string name="reminder_system_clock_dismiss_requires_foreground">应用未在前台，系统时钟无法删除闹钟，请打开应用后重试</string>
@@ -42,6 +42,7 @@
     <string name="reminder_notification_message">%1$s %2$s %3$s-%4$s · %5$s · %6$s</string>
     <string name="reminder_notification_date">%1$d月%2$d日</string>
     <string name="reminder_notification_nodes">第%1$d-%2$d节</string>
+    <string name="reminder_notification_nodes_labeled">%1$s（%2$s节）</string>
     <string name="reminder_notification_location_tbd">待定教室</string>
     <string name="reminder_weekday_other">周%1$d</string>
 

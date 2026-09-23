@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -13,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -119,10 +119,10 @@ private fun DisclaimerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onAccept) { Text(stringResource(R.string.onboarding_accept)) }
+            AppOutlinedButton(onClick = onAccept) { Text(stringResource(R.string.onboarding_accept)) }
         },
         dismissButton = {
-            TextButton(onClick = onReject) { Text(stringResource(R.string.onboarding_reject)) }
+            AppOutlinedButton(onClick = onReject) { Text(stringResource(R.string.onboarding_reject)) }
         },
     )
 }

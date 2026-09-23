@@ -3,6 +3,8 @@ package com.x500x.cursimple.feature.widget
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
+import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
@@ -40,6 +42,15 @@ internal fun resolveWidgetScheduleDay(
     // 只调某几节时，两天的课都得拿出来，再逐门问它今天归哪一天
     val candidates = (coursesOfDayOfWeek(sourceDate.dayOfWeek.value) + coursesOfDayOfWeek(targetDate.dayOfWeek.value))
         .distinct()
+        // 被单独挪到别天的课，这天不再出现
+        .filterNot { isCourseMovedAwayFrom(targetDate, it, temporaryScheduleOverrides) }
+    // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
+    val movedIn = coursesMovedTo(
+        date = targetDate,
+        overrides = temporaryScheduleOverrides,
+        courseById = { id -> (1..7).flatMap(coursesOfDayOfWeek).firstOrNull { it.id == id } },
+        isOriginallyActive = { course, from -> course.activeOnWeek(resolveWeekIndex(from, termStart)) },
+    ).visibleScheduleCourses()
     val courses = filterTemporaryCancelledCourses(
         date = targetDate,
         courses = candidates,
@@ -55,13 +66,18 @@ internal fun resolveWidgetScheduleDay(
             ) ?: return@mapNotNull null
             course.takeIf { it.activeOnWeek(resolveWeekIndex(courseSource, termStart)) }
         }
+        .plus(movedIn)
         .sortedBy { it.time.startNode }
+    // 调课可以推翻放假：休息日里被挪过来的课照常上，这天就不再整体按休息日处理，
+    // 只留这几门，倒计时与上课中判断都算上它们。
+    // 没有挪课的放假日保持原样：课程照常列出，只是标成不可用。
+    val holidayOverridden = resolution.isHoliday && movedIn.isNotEmpty()
     return WidgetScheduleDay(
         targetDate = targetDate,
         sourceDate = sourceDate,
         weekIndex = weekIndex,
         holidayLabel = if (resolution.isHoliday) widgetHolidayLabel(resolution.holidayName, resolution.holidayNameRes) else null,
-        courses = courses,
-        onHoliday = resolution.isHoliday,
+        courses = if (holidayOverridden) movedIn.sortedBy { it.time.startNode } else courses,
+        onHoliday = resolution.isHoliday && !holidayOverridden,
     )
 }

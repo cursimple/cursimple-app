@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -8,8 +10,9 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -30,14 +35,17 @@ import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.EditCalendar
 import androidx.compose.material3.Surface
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
@@ -130,6 +138,27 @@ internal fun decodeCustomWeeks(raw: String, maxWeekCount: Int): List<Int> = raw
     .distinct()
     .sorted()
 
+// 各周单独地点在表单状态里的编码：条目间用 ，周次与地点间用 。
+// 地点里可能带任何可见字符，用不可见控制符当分隔符才不会撞上教室号。
+private const val WEEK_LOC_ENTRY_SEP = "\u0002"
+private const val WEEK_LOC_KV_SEP = "\u0001"
+
+internal fun encodeWeekLocations(map: Map<Int, String>): String =
+    map.entries
+        .filter { it.value.isNotBlank() }
+        .sortedBy { it.key }
+        .joinToString(WEEK_LOC_ENTRY_SEP) { "${it.key}$WEEK_LOC_KV_SEP${it.value}" }
+
+internal fun decodeWeekLocations(raw: String): Map<Int, String> {
+    if (raw.isBlank()) return emptyMap()
+    return raw.split(WEEK_LOC_ENTRY_SEP).mapNotNull { entry ->
+        val parts = entry.split(WEEK_LOC_KV_SEP, limit = 2)
+        val week = parts.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
+        val loc = parts.getOrNull(1).orEmpty()
+        if (loc.isBlank()) null else week to loc
+    }.toMap()
+}
+
 /**
  * 课程的编辑表单本体，只负责字段与校验，按钮由调用方自己摆。
  *
@@ -175,6 +204,11 @@ internal fun CourseEditFormFields(
     var category by rememberSaveable(initial) {
         mutableStateOf(initial?.category ?: CourseCategory.Course)
     }
+    // 各周单独地点存成一串，rememberSaveable 才存得下
+    var pickingWeekLocations by rememberSaveable(initial) { mutableStateOf(false) }
+    var weekLocationsRaw by rememberSaveable(initial) {
+        mutableStateOf(encodeWeekLocations(initial?.weekLocations.orEmpty()))
+    }
 
     val titleTrimmed = title.trim()
     val startNode = startNodeText.toIntOrNull()
@@ -197,6 +231,13 @@ internal fun CourseEditFormFields(
     }
     val nodesValid = startNode != null && endNode != null &&
         startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount
+    val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
+    // 只保留当前选中周里、且真填了内容的地点；关掉开关就整份清空
+    val effectiveWeekLocations = if (weeks != null) {
+        weekLocationsMap.filterKeys { it in weeks }.mapValues { it.value.trim() }.filterValues { it.isNotBlank() }
+    } else {
+        emptyMap()
+    }
     val draft = if (titleTrimmed.isNotBlank() && nodesValid && weeks != null) {
         buildCourse(
             title = titleTrimmed,
@@ -207,6 +248,7 @@ internal fun CourseEditFormFields(
             endNode = endNode!!,
             weeks = weeks,
             category = category,
+            weekLocations = effectiveWeekLocations,
             existing = initial,
         )
     } else {
@@ -258,17 +300,42 @@ internal fun CourseEditFormFields(
             onValueChange = { location = it },
             label = { Text(stringResource(R.string.schedule_course_location_label)) },
             singleLine = true,
+            // 每周换教室的课（物理实验之类）从这里逐周设。按钮常驻：没填默认地点、
+            // 还没选周次时也能先设，周次没选就先列出整个学期的周，保存时只留选中那几周的
+            trailingIcon = {
+                val marked = weekLocationsMap.isNotEmpty()
+                IconButton(onClick = { pickingWeekLocations = true }) {
+                    Icon(
+                        imageVector = Icons.Rounded.EditCalendar,
+                        contentDescription = stringResource(R.string.schedule_week_location_title),
+                        tint = if (marked) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            },
+            supportingText = weekLocationsMap.size.takeIf { it > 0 }?.let { count ->
+                {
+                    Text(
+                        text = stringResource(R.string.schedule_week_location_summary, count),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+            },
             modifier = Modifier.fillMaxWidth(),
         )
 
         CourseFormLabel(stringResource(R.string.schedule_course_category_label))
         FlowChipRow {
-            FilterChip(
+            AppFilterChip(
                 selected = category == CourseCategory.Course,
                 onClick = { category = CourseCategory.Course },
                 label = { Text(stringResource(R.string.schedule_category_course)) },
             )
-            FilterChip(
+            AppFilterChip(
                 selected = category == CourseCategory.Exam,
                 onClick = { category = CourseCategory.Exam },
                 label = { Text(stringResource(R.string.schedule_category_exam)) },
@@ -278,7 +345,7 @@ internal fun CourseEditFormFields(
         CourseFormLabel(stringResource(R.string.schedule_add_course_time_label))
         FlowChipRow {
             (1..7).forEach { day ->
-                FilterChip(
+                AppFilterChip(
                     selected = dayOfWeek == day,
                     onClick = { dayOfWeek = day },
                     label = { Text(stringResource(scheduleWeekdayFullRes(day))) },
@@ -341,7 +408,7 @@ internal fun CourseEditFormFields(
 
         FlowChipRow {
             WeekParity.entries.forEach { p ->
-                FilterChip(
+                AppFilterChip(
                     selected = parity == p,
                     onClick = {
                         parity = p
@@ -358,6 +425,24 @@ internal fun CourseEditFormFields(
                     label = { Text(stringResource(p.labelRes)) },
                 )
             }
+        }
+
+        if (pickingWeekLocations) {
+            WeekLocationDialog(
+                weeks = weeks?.takeIf { it.isNotEmpty() } ?: (1..weekLimit).toList(),
+                courseTitle = titleTrimmed,
+                baseLocation = location.trim(),
+                weekLocations = weekLocationsMap,
+                onChange = { week, value ->
+                    weekLocationsRaw = encodeWeekLocations(
+                        weekLocationsMap.toMutableMap().apply {
+                            if (value.isBlank()) remove(week) else put(week, value)
+                        },
+                    )
+                },
+                onClearAll = { weekLocationsRaw = "" },
+                onDismiss = { pickingWeekLocations = false },
+            )
         }
 
         if (pickingWeeks) {
@@ -430,7 +515,7 @@ private fun SelectedWeeksRow(
                     )
                 }
             }
-            TextButton(onClick = onEdit) {
+            AppOutlinedButton(onClick = onEdit) {
                 Text(stringResource(R.string.schedule_week_custom_edit))
             }
         }
@@ -500,24 +585,170 @@ private fun WeekMatrixDialog(
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = {
+                    AppOutlinedButton(onClick = {
                         picked.clear()
                         picked.addAll(1..maxWeekCount)
                     }) { Text(stringResource(R.string.schedule_week_custom_all)) }
-                    TextButton(onClick = { picked.clear() }) {
+                    AppOutlinedButton(onClick = { picked.clear() }) {
                         Text(stringResource(R.string.schedule_action_clear))
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(
+            AppOutlinedButton(
                 enabled = picked.isNotEmpty(),
                 onClick = { onConfirm(picked.toSet()) },
             ) { Text(stringResource(R.string.schedule_action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+        },
+    )
+}
+
+/**
+ * 各周单独地点。
+ *
+ * 上面一片周次格，哪几周设过就点亮哪几周；点一格，下面只出一个输入框填那一周的地点。
+ * 不把每周都摊成一行——周次一多就是长长一条，既难看又要一直往下滚。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WeekLocationDialog(
+    weeks: List<Int>,
+    courseTitle: String,
+    baseLocation: String,
+    weekLocations: Map<Int, String>,
+    onChange: (Int, String) -> Unit,
+    onClearAll: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sorted = remember(weeks) { weeks.distinct().sorted() }
+    var focused by rememberSaveable(sorted) { mutableStateOf(sorted.firstOrNull()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_week_location_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 这里要让人确认「我正在给哪门课改地点」，而不是再读一遍功能说明
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = courseTitle.ifBlank {
+                                stringResource(R.string.schedule_week_location_untitled_course)
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = if (baseLocation.isBlank()) {
+                                stringResource(R.string.schedule_week_location_no_default)
+                            } else {
+                                stringResource(R.string.schedule_week_location_default, baseLocation)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.schedule_week_location_counts,
+                                weeks.size,
+                                weekLocations.count { it.value.isNotBlank() },
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                FlowRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 220.dp)
+                        .verticalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    sorted.forEach { week ->
+                        val customized = weekLocations[week]?.isNotBlank() == true
+                        val isFocused = week == focused
+                        Surface(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { focused = week },
+                            color = when {
+                                isFocused -> MaterialTheme.colorScheme.primary
+                                customized -> MaterialTheme.colorScheme.primaryContainer
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = week.toString(),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = if (customized) FontWeight.Bold else FontWeight.Normal,
+                                    color = when {
+                                        isFocused -> MaterialTheme.colorScheme.onPrimary
+                                        customized -> MaterialTheme.colorScheme.onPrimaryContainer
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                focused?.let { week ->
+                    OutlinedTextField(
+                        value = weekLocations[week].orEmpty(),
+                        onValueChange = { onChange(week, it) },
+                        label = { Text(stringResource(R.string.schedule_week_location_week, week)) },
+                        placeholder = {
+                            Text(
+                                text = baseLocation.ifBlank {
+                                    stringResource(R.string.schedule_week_location_placeholder_empty)
+                                },
+                                maxLines = 1,
+                            )
+                        },
+                        singleLine = true,
+                        trailingIcon = weekLocations[week]?.takeIf { it.isNotBlank() }?.let {
+                            {
+                                IconButton(onClick = { onChange(week, "") }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.schedule_action_clear),
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_save)) }
+        },
+        dismissButton = if (weekLocations.isNotEmpty()) {
+            {
+                AppOutlinedButton(onClick = onClearAll) { Text(stringResource(R.string.schedule_action_clear)) }
+            }
+        } else {
+            null
         },
     )
 }
@@ -552,6 +783,7 @@ private fun buildCourse(
     endNode: Int,
     weeks: List<Int>,
     category: CourseCategory,
+    weekLocations: Map<Int, String> = emptyMap(),
     existing: CourseItem? = null,
 ): CourseItem {
     val time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode)
@@ -565,6 +797,7 @@ private fun buildCourse(
             weeks = weeks,
             category = category,
             time = time,
+            weekLocations = weekLocations,
         )
     }
     return CourseItem(
@@ -575,6 +808,7 @@ private fun buildCourse(
         weeks = weeks,
         category = category,
         time = time,
+        weekLocations = weekLocations,
     )
 }
 

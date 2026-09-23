@@ -9,6 +9,7 @@ private fun textOf(block: ReleaseNoteBlock): String = when (block) {
     is ReleaseNoteBlock.Paragraph -> block.spans.joinToString("") { it.text }
     is ReleaseNoteBlock.BulletItem -> block.spans.joinToString("") { it.text }
     ReleaseNoteBlock.Divider -> "---"
+    is ReleaseNoteBlock.Gallery -> block.images.joinToString(" ") { it.url }
 }
 
 class ParseReleaseNotesTest {
@@ -135,5 +136,41 @@ class ParseInlineTest {
         val spans = parseInline("2 * 3 = 6")
 
         assertEquals("2 * 3 = 6", spans.joinToString("") { it.text })
+    }
+
+    @Test
+    fun `相邻的几张图并成一组，隔着空行也算`() {
+        val blocks = parseReleaseNotes(
+            """
+            ## 拖动调课
+
+            ![长按拖到另一天](https://example.com/a.png)
+            ![松手前确认](https://example.com/b.png "可选标题")
+
+            ![调完的课表](images/c.png)
+            说明文字
+            ![另一组](https://example.com/d.png)
+            """.trimIndent(),
+        )
+
+        val galleries = blocks.filterIsInstance<ReleaseNoteBlock.Gallery>()
+        assertEquals(2, galleries.size)
+        assertEquals(
+            listOf(
+                ReleaseNoteImage("https://example.com/a.png", "长按拖到另一天"),
+                ReleaseNoteImage("https://example.com/b.png", "松手前确认"),
+                ReleaseNoteImage("images/c.png", "调完的课表"),
+            ),
+            galleries[0].images,
+        )
+        assertEquals(listOf("https://example.com/d.png"), galleries[1].images.map { it.url })
+        assertTrue(blocks.any { it is ReleaseNoteBlock.Paragraph })
+    }
+
+    @Test
+    fun `行内夹着的图片记号不当成图`() {
+        val blocks = parseReleaseNotes("见下图 ![x](https://example.com/a.png) 这里")
+
+        assertTrue(blocks.none { it is ReleaseNoteBlock.Gallery })
     }
 }

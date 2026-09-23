@@ -6,6 +6,8 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
+import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
+import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
@@ -54,6 +56,19 @@ internal fun courseOccurrenceDates(
         .filterNot { it.isBefore(fromDate) }
         .filter { date ->
             val day = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
+            if (isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)) return@filter false
+            // 被单独挪走的课，这天不再提醒
+            if (isCourseMovedAwayFrom(date, course, temporaryScheduleOverrides)) return@filter false
+            // 被挪到这天的课要提醒；该不该上按它原本那天判。
+            // 这一步排在放假判断之前：调课可以推翻放假，挪到休息日的课照样提醒。
+            val movedHere = coursesMovedToWithOrigin(
+                date = date,
+                overrides = temporaryScheduleOverrides,
+                courseById = { id -> course.takeIf { it.id == id } },
+            ).firstOrNull()
+            if (movedHere != null) {
+                return@filter course.isActiveOnSourceDate(termStart, movedHere.second)
+            }
             if (dayPolicy.suppresses(date, day)) return@filter false
             // 只调某几节时，这门课当天到底算哪一天的安排由节次决定，不是整天一刀切
             val courseSource = temporaryScheduleCourseSourceDate(
@@ -62,7 +77,6 @@ internal fun courseOccurrenceDates(
                 sourceDate = day.sourceDate,
                 overrides = temporaryScheduleOverrides,
             ) ?: return@filter false
-            course.isActiveOnSourceDate(termStart, courseSource) &&
-                !isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)
+            course.isActiveOnSourceDate(termStart, courseSource)
         }
 }

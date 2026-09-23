@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app.guide
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -21,7 +22,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -123,7 +123,7 @@ fun FirstRunGuideOverlay(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(
+                        AppOutlinedButton(
                             onClick = onFinish,
                             contentPadding = PaddingValues(horizontal = 8.dp),
                         ) {
@@ -131,7 +131,7 @@ fun FirstRunGuideOverlay(
                         }
                         Spacer(modifier = Modifier.weight(1f))
                         if (index > 0) {
-                            TextButton(onClick = { index = previousGuideIndex(index) }) {
+                            AppOutlinedButton(onClick = { index = previousGuideIndex(index) }) {
                                 Text(stringResource(R.string.guide_previous))
                             }
                             Spacer(modifier = Modifier.width(4.dp))

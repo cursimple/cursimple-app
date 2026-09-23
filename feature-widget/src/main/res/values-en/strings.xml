@@ -2,14 +2,14 @@
 <resources>
     <string name="glance_appwidget_description">CurSimple · Daily classes</string>
     <string name="next_course_widget_description">CurSimple · Next class</string>
-    <string name="reminder_widget_description">CurSimple · Class reminders</string>
+    <string name="reminder_widget_description">CurSimple · Class alarms</string>
     <string name="widget_label_today">Daily classes</string>
     <string name="widget_label_next">Next class</string>
-    <string name="widget_label_reminder">Class reminders</string>
+    <string name="widget_label_reminder">Class alarms</string>
 
     <string name="widget_catalog_next_description">Current and next class at a glance, with time and place</string>
     <string name="widget_catalog_today_description">Classes for any date, with one-tap day switching and jump back to today</string>
-    <string name="widget_catalog_reminder_description">Class reminders about to fire</string>
+    <string name="widget_catalog_reminder_description">Class alarms about to ring</string>
 
     <string name="widget_month_day">%1$d/%2$d</string>
     <string name="widget_title_date_tag">%1$s · %2$s</string>
@@ -59,12 +59,12 @@
     <string name="widget_node_range">P%1$d-%2$d</string>
     <string name="widget_course_subtitle_placeholder">TBD</string>
     <string name="widget_exam_title">Exam · %1$s</string>
-    <string name="widget_course_reminder_badge">Alert</string>
+    <string name="widget_course_reminder_badge">Alarm</string>
 
     <string name="widget_reminder_badge_count">%1$d</string>
-    <string name="widget_reminder_empty_no_rules">No reminder rules yet</string>
-    <string name="widget_reminder_empty_no_rules_sub">Add reminders to a class in the app</string>
-    <string name="widget_reminder_empty_none_upcoming">No upcoming reminders</string>
+    <string name="widget_reminder_empty_no_rules">No alarm rules yet</string>
+    <string name="widget_reminder_empty_no_rules_sub">Add alarms to a class in the app</string>
+    <string name="widget_reminder_empty_none_upcoming">No upcoming alarms</string>
     <string name="widget_reminder_empty_none_upcoming_sub">Nothing scheduled for a while</string>
     <string name="widget_reminder_date_today">Today</string>
     <string name="widget_reminder_date_tomorrow">Tomorrow</string>
@@ -74,7 +74,7 @@
     <string name="widget_reminder_countdown_hours">%1$dh</string>
     <string name="widget_reminder_countdown_hours_minutes">%1$dh %2$dm</string>
     <string name="widget_reminder_countdown_days">in %1$dd</string>
-    <string name="widget_reminder_default_title">Class reminder</string>
+    <string name="widget_reminder_default_title">Class alarm</string>
     <string name="widget_reminder_default_message">Class starting soon</string>
     <string name="widget_reminder_snoozed_message">Snoozed 5 min</string>
     <string name="widget_diag_device">Device</string>
@@ -109,7 +109,7 @@
     <string name="widget_preview_next_title">Next class</string>
     <string name="widget_preview_next_badge">In 20 min</string>
     <string name="widget_preview_next_line">08:00-09:35 · East 13-C-315</string>
-    <string name="widget_preview_reminder_title">Class reminders</string>
+    <string name="widget_preview_reminder_title">Class alarms</string>
     <string name="widget_preview_reminder_badge">On</string>
     <string name="widget_preview_reminder_1">Today 07:50  Data Structures</string>
     <string name="widget_preview_reminder_2">Tomorrow 09:55  Modern History</string>

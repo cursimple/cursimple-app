@@ -8,117 +8,143 @@ import org.junit.Test
 /**
  * 课程卡片里几行文字的取舍。
  *
- * 规矩只有一条：按优先级从上往下填，上一项没显示完就不显示下一项。
- * 课名被省略成「汇编语言与微型…」却还在下面挂着「@东…」，是两头不讨好——
- * 最要紧的没看全，又多出一行看不懂的残句。
+ * 按优先级从上往下填：课名 > 地点 > 附注，能放几行放几行，放不全的截断。
+ * 行底由 TextMeasurer 量出，这里直接给出每行的底边位置（像素）。
  */
 class CourseCardTextPlanTest {
 
+    /** 行高 [lineHeight]、共 [lines] 行时各行的行底。 */
+    private fun bottoms(lines: Int, lineHeight: Float) = List(lines) { (it + 1) * lineHeight }
+
     private fun plan(
-        heightDp: Float,
-        widthDp: Float = 48f,
-        title: String = "高等数学",
-        location: String = "东13-C-315",
-        locationVisible: Boolean = true,
-        hasBadges: Boolean = false,
+        height: Float,
+        titleLines: Int = 1,
+        locationLines: Int = 1,
+        badgeHeight: Float = 0f,
     ) = courseCardTextPlan(
-        availableHeightDp = heightDp,
-        contentWidthDp = widthDp,
-        title = title,
-        titleFontSizeDp = 12f,
-        titleLineHeightDp = 13f,
-        location = location,
-        locationFontSizeDp = 10f,
-        locationLineHeightDp = 11f,
-        locationVisible = locationVisible,
-        hasBadges = hasBadges,
-        badgeLineHeightDp = 11f,
+        availableHeight = height,
+        titleLineBottoms = bottoms(titleLines, 40f),
+        locationLineBottoms = bottoms(locationLines, 30f),
+        badgeHeight = badgeHeight,
     )
 
     @Test
-    fun `空间够时课名与地点都显示`() {
-        val result = plan(heightDp = 80f)
+    fun `空间够时课名与地点都完整显示`() {
+        val result = plan(height = 200f, titleLines = 2, locationLines = 2)
 
         assertTrue(result.titleComplete)
-        assertTrue(result.showLocation)
-    }
-
-    @Test
-    fun `课名没显示完就不显示地点`() {
-        // 「计算机组成与系统结构」在窄格子里要折好几行，高度只够一部分
-        val result = plan(heightDp = 30f, title = "计算机组成与系统结构")
-
-        assertFalse("课名没显示完", result.titleComplete)
-        assertFalse("这时候不该再显示地点", result.showLocation)
-    }
-
-    @Test
-    fun `地点整段放不下就不显示，而不是露半截`() {
-        // 课名一行放得下（13dp），剩 17dp；地点要两行 22dp，差一截
-        val result = plan(heightDp = 30f, title = "高数", location = "东13-C-315教学楼")
-
-        assertTrue(result.titleComplete)
-        assertFalse("宁可不显示，也不要「@东…」这种残句", result.showLocation)
-    }
-
-    @Test
-    fun `课名占满全部高度时一行地点都不给`() {
-        val result = plan(heightDp = 26f, title = "计算机组成与系统结构")
-
         assertEquals(2, result.titleLines)
+        assertTrue(result.showLocation)
+        assertTrue(result.locationComplete)
+    }
+
+    @Test
+    fun `放得下几行课名就显示几行，一行都不浪费`() {
+        // 202 能放下 5 行 40 的课名；以前按字号估算只给 4 行，下面空着一大截
+        val result = plan(height = 202f, titleLines = 6)
+
+        assertEquals(5, result.titleLines)
+        assertFalse(result.titleComplete)
+    }
+
+    @Test
+    fun `课名没显示完就不再排地点`() {
+        val result = plan(height = 100f, titleLines = 4)
+
+        assertFalse(result.titleComplete)
         assertFalse(result.showLocation)
     }
 
     @Test
-    fun `关掉地点显示时只排课名`() {
-        val result = plan(heightDp = 80f, locationVisible = false)
+    fun `地点放不全时显示放得下的那几行`() {
+        // 课名 2 行占 80，剩 60，地点 3 行只放得下 2 行
+        val result = plan(height = 140f, titleLines = 2, locationLines = 3)
 
+        assertTrue(result.showLocation)
+        assertEquals(2, result.locationLines)
+        assertFalse(result.locationComplete)
+    }
+
+    @Test
+    fun `剩余高度不够一行地点时不显示地点`() {
+        val result = plan(height = 100f, titleLines = 2, locationLines = 1)
+
+        assertFalse(result.showLocation)
+    }
+
+    @Test
+    fun `正好放得下时不因像素误差丢掉一行`() {
+        val result = plan(height = 119.7f, titleLines = 3)
+
+        assertEquals(3, result.titleLines)
         assertTrue(result.titleComplete)
-        assertFalse(result.showLocation)
     }
 
     @Test
-    fun `附注排在地点之后，课名没显示完也不显示`() {
-        val truncated = plan(heightDp = 30f, title = "计算机组成与系统结构", hasBadges = true)
-        assertFalse(truncated.showBadges)
+    fun `附注排在地点之后，前面没显示完就不显示`() {
+        val cramped = plan(height = 140f, titleLines = 2, locationLines = 3, badgeHeight = 30f)
+        assertFalse(cramped.showBadges)
 
-        val roomy = plan(heightDp = 100f, title = "高数", hasBadges = true)
+        val roomy = plan(height = 200f, titleLines = 2, locationLines = 1, badgeHeight = 30f)
         assertTrue(roomy.showBadges)
     }
 
     @Test
+    fun `不显示地点时附注直接排在课名下面`() {
+        val result = courseCardTextPlan(
+            availableHeight = 80f,
+            titleLineBottoms = bottoms(1, 40f),
+            locationLineBottoms = emptyList(),
+            badgeHeight = 30f,
+        )
+
+        assertFalse(result.showLocation)
+        assertTrue(result.locationComplete)
+        assertTrue(result.showBadges)
+    }
+
+    @Test
     fun `再挤也要给课名留一行`() {
-        val result = plan(heightDp = 4f, title = "计算机组成与系统结构")
+        val result = plan(height = 4f, titleLines = 5)
 
         assertEquals(1, result.titleLines)
     }
 
     @Test
-    fun `高度未知时不做限制`() {
-        val result = courseCardTextPlan(
-            availableHeightDp = 0f,
-            contentWidthDp = 48f,
-            title = "高数",
-            titleFontSizeDp = 12f,
-            titleLineHeightDp = 13f,
-            location = "东13",
-            locationFontSizeDp = 10f,
-            locationLineHeightDp = 11f,
-            locationVisible = true,
-            hasBadges = true,
-            badgeLineHeightDp = 11f,
-        )
+    fun `格子里的地点在楼名和房间号之间补上连字符`() {
+        assertEquals("@东-16-B-103", cardLocationText("@东16-B-103"))
+        assertEquals("@实验东-5教-101", cardLocationText("@实验东5教101"))
+        // 本来就隔开的不重复补
+        assertEquals("@东-16-B-103", cardLocationText("@东-16-B-103"))
+        assertEquals("@LA BB203", cardLocationText("@LA BB203"))
+    }
 
-        assertEquals(Int.MAX_VALUE, result.titleLines)
-        assertTrue(result.showLocation)
+    /** 假定每个字宽 10。 */
+    private fun wrap(text: String, maxWidth: Int) =
+        wrapByCharacter(text, maxWidth) { it.codePointCount(0, it.length) * 10 }
+
+    @Test
+    fun `地点按字符塞满一行再换行，不按词整块挪`() {
+        // 一行放 6 个字：不会把「16-B-103」整块挪走、只留「@东-」在第一行
+        assertEquals("@东-16-\nB-103", wrap("@东-16-B-103", maxWidth = 60))
     }
 
     @Test
-    fun `中文按一个字宽、英数按半个字宽估行数`() {
-        // 48dp 宽、12dp 字号：中文一行 4 个字
-        assertEquals(1, estimatedTextLines("高等数学", fontSizeDp = 12f, widthDp = 48f))
-        assertEquals(2, estimatedTextLines("高等数学分析", fontSizeDp = 12f, widthDp = 48f))
-        // 英数各算半个字宽，一行放得下 8 个
-        assertEquals(1, estimatedTextLines("MATLAB", fontSizeDp = 12f, widthDp = 48f))
+    fun `一行放得下时原样返回`() {
+        assertEquals("@东-16", wrap("@东-16", maxWidth = 60))
+    }
+
+    @Test
+    fun `连一个字都放不下时每行至少一个字`() {
+        assertEquals("东\n1", wrap("东1", maxWidth = 5))
+    }
+
+    @Test
+    fun `高度不受限时全部显示`() {
+        val result = plan(height = Float.MAX_VALUE, titleLines = 4, locationLines = 2, badgeHeight = 30f)
+
+        assertTrue(result.titleComplete)
+        assertTrue(result.locationComplete)
+        assertTrue(result.showBadges)
     }
 }

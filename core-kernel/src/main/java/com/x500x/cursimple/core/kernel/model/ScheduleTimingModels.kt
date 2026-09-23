@@ -49,6 +49,21 @@ fun TermTimingProfile.findSlot(startNode: Int, endNode: Int): ClassSlotTime? {
     return slotTimes.firstOrNull { it.startNode == startNode && it.endNode == endNode }
 }
 
+/**
+ * 课程第 [startNode]..[endNode] 节覆盖到的节次时段，按节次先后排列。
+ *
+ * 带上在排序后作息表里的序号（从 0 起），界面据此取「第一节」「午间课」这类名字；
+ * 标签为空时也能按序号生成，和课表左侧的节次栏一致。
+ */
+fun TermTimingProfile.slotsCovering(startNode: Int, endNode: Int): List<IndexedValue<ClassSlotTime>> {
+    if (endNode < startNode) return emptyList()
+    return slotTimes
+        .filter { it.endNode >= it.startNode }
+        .sortedWith(compareBy({ it.startNode }, { it.endNode }))
+        .withIndex()
+        .filter { (_, slot) -> slot.startNode <= endNode && slot.endNode >= startNode }
+}
+
 fun TermTimingProfile.findSlotByLabel(label: String): ClassSlotTime? {
     val normalized = label.trim()
     if (normalized.isBlank()) return null

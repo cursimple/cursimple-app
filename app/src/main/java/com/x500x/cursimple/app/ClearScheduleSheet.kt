@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,7 +32,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -309,7 +309,7 @@ private fun ClearConfirmDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            AppOutlinedButton(onClick = onConfirm) {
                 Text(
                     text = stringResource(R.string.clear_confirm_button),
                     color = MaterialTheme.colorScheme.error,
@@ -317,7 +317,7 @@ private fun ClearConfirmDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.clear_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.clear_cancel)) }
         },
     )
 }

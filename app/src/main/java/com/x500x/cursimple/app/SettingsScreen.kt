@@ -2,6 +2,7 @@
 
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.app.AlarmManager
 import android.app.NotificationManager
@@ -13,6 +14,10 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.BorderStroke
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -67,9 +72,11 @@ import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.FormatAlignCenter
 import androidx.compose.material.icons.rounded.FormatSize
 import androidx.compose.material.icons.rounded.MoreHoriz
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.ImageSearch
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LineStyle
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsOff
 import androidx.compose.material.icons.rounded.OpenWith
@@ -91,6 +98,7 @@ import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Weekend
 import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -100,18 +108,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -121,6 +128,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -179,6 +187,11 @@ import com.x500x.cursimple.core.reminder.permission.launchFirstAvailableSetting
 import com.x500x.cursimple.app.reminder.AutoSilenceController
 import com.x500x.cursimple.app.util.LogExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
+import com.x500x.cursimple.app.notice.ClassNoticeNotifier
+import com.x500x.cursimple.app.notice.ClassNoticeOverlay
+import com.x500x.cursimple.core.data.ClassNoticeAnimation
+import com.x500x.cursimple.core.data.ClassNoticePreferences
+import com.x500x.cursimple.core.data.ClassNoticeSkin
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.MAX_SLOT_NODE
@@ -192,6 +205,8 @@ import com.x500x.cursimple.core.data.widget.slotTimes
 import com.x500x.cursimple.core.data.widget.timingDraftErrorText
 import com.x500x.cursimple.core.data.widget.timingTemplates
 import com.x500x.cursimple.core.data.widget.toDraftInput
+import com.x500x.cursimple.core.kernel.model.CancelCoursePlan
+import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
@@ -226,6 +241,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -259,11 +275,17 @@ private enum class SettingsDestination {
     TimingProfile,
     WidgetSettings,
     AutoSilence,
+    ClassNotice,
     Plugins,
     WebDav,
     AiImport,
     Permissions,
     UpdateHistory,
+    /** 开发者设置的几个二级页。 */
+    DevTime,
+    DevNotice,
+    DevLogs,
+    DevData,
 }
 
 enum class SettingsDestinationKey {
@@ -320,11 +342,16 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.TimingProfile -> stringResource(R.string.settings_dest_timing_profile)
     SettingsDestination.WidgetSettings -> stringResource(R.string.settings_dest_widget_settings)
     SettingsDestination.AutoSilence -> stringResource(R.string.settings_dest_auto_silence)
+    SettingsDestination.ClassNotice -> stringResource(R.string.settings_dest_class_notice)
     SettingsDestination.Plugins -> stringResource(R.string.settings_dest_plugins)
     SettingsDestination.WebDav -> "WebDAV"
     SettingsDestination.AiImport -> stringResource(R.string.settings_dest_ai_import)
     SettingsDestination.Permissions -> stringResource(R.string.settings_dest_permissions)
     SettingsDestination.UpdateHistory -> stringResource(R.string.update_history_title)
+    SettingsDestination.DevTime -> stringResource(R.string.settings_dest_dev_time)
+    SettingsDestination.DevNotice -> stringResource(R.string.settings_dest_dev_notice)
+    SettingsDestination.DevLogs -> stringResource(R.string.settings_dest_dev_logs)
+    SettingsDestination.DevData -> stringResource(R.string.settings_dest_dev_data)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -381,6 +408,16 @@ fun AppSettingsRoute(
     onScheduleTextVerticalCenterChange: (Boolean) -> Unit,
     onScheduleAutoShrinkLongTitlesChange: (Boolean) -> Unit,
     onScheduleTruncationEllipsisChange: (Boolean) -> Unit,
+    classNotice: ClassNoticePreferences = ClassNoticePreferences(),
+    onClassNoticeEnabledChange: (Boolean) -> Unit = {},
+    onClassNoticeAdvanceMinutesChange: (Int) -> Unit = {},
+    onClassNoticeHeadsUpChange: (Boolean) -> Unit = {},
+    onClassNoticeLockScreenChange: (Boolean) -> Unit = {},
+    onClassNoticeFocusChange: (Boolean) -> Unit = {},
+    onClassNoticeSkinChange: (ClassNoticeSkin) -> Unit = {},
+    onClassNoticeAnimationChange: (ClassNoticeAnimation) -> Unit = {},
+    onClassNoticeBlurChange: (Boolean) -> Unit = {},
+    onClassNoticeBlurStrengthChange: (Int) -> Unit = {},
     onScheduleCourseCornerRadiusDpChange: (Int) -> Unit,
     onScheduleCourseCardHeightDpChange: (Int) -> Unit,
     onScheduleOpacityPercentChange: (Int) -> Unit,
@@ -449,6 +486,14 @@ fun AppSettingsRoute(
     onOpenDestinationConsumed: () -> Unit = {},
     returnTarget: SettingsReturnTargetKey? = null,
     onReturnTargetReady: () -> Unit = {},
+    /** 打开全屏的拖动调课页，参数是已经选好的调课日与来源日。 */
+    onOpenCourseSwap: (LocalDate, LocalDate) -> Unit = { _, _ -> },
+    /** 按 id 找课名，调课页列「拖动调课」时用；课已删掉就返回 null。 */
+    courseTitleOf: (String) -> String? = { null },
+    /** 课表里的全部课程，临时取消页按它列出选中那天的课。 */
+    scheduleCourses: List<CourseItem> = emptyList(),
+    scheduleTimingProfile: TermTimingProfile? = null,
+    onApplyCancelPlan: (CancelCoursePlan) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -456,8 +501,24 @@ fun AppSettingsRoute(
     var backStack by rememberSaveable { mutableStateOf(listOf(SettingsDestination.Root.name)) }
     var settingsReturnReady by rememberSaveable { mutableStateOf(false) }
     val destination = SettingsDestination.valueOf(backStack.last())
+    // 各页共用一个滚动状态，进子页时位置会被压回顶部；记下根页的位置，回来时滚回去，
+    // 不然从底部的开发者入口进出一次，就得重新滑到底
+    var rootScrollOffset by rememberSaveable { mutableIntStateOf(0) }
     fun navigate(next: SettingsDestination) {
+        if (destination == SettingsDestination.Root) rootScrollOffset = scrollState.value
         backStack = backStack + next.name
+    }
+    LaunchedEffect(destination) {
+        if (destination == SettingsDestination.Root) {
+            val target = rootScrollOffset
+            // 刚切回来时根页还没排好版，可滚范围还是子页的，等它长到够再滚
+            withTimeoutOrNull(ROOT_SCROLL_RESTORE_TIMEOUT_MS) {
+                snapshotFlow { scrollState.maxValue }.first { it >= target }
+            }
+            scrollState.scrollTo(target)
+        } else {
+            scrollState.scrollTo(0)
+        }
     }
     fun savedDestinationConfigComplete(): Boolean = when (destination) {
         SettingsDestination.WebDav -> WebDavConfig(webDavUrl, webDavUsername, webDavPassword).isComplete
@@ -492,7 +553,6 @@ fun AppSettingsRoute(
     BackHandler(enabled = backStack.size > 1) {
         handleBack()
     }
-    var showTemporaryOverrides by rememberSaveable { mutableStateOf(false) }
     var showHolidayEditor by rememberSaveable { mutableStateOf(false) }
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
     var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
@@ -686,6 +746,12 @@ fun AppSettingsRoute(
 
                 SettingsGroup(stringResource(R.string.settings_group_reminder)) {
                     SettingsActionRow(
+                        icon = Icons.Rounded.NotificationsActive,
+                        title = stringResource(R.string.settings_dest_class_notice),
+                        subtitle = classNoticeSubtitle(classNotice),
+                        onClick = { navigate(SettingsDestination.ClassNotice) },
+                    )
+                    SettingsActionRow(
                         icon = Icons.Rounded.VolumeOff,
                         title = stringResource(R.string.settings_dest_auto_silence),
                         subtitle = stringResource(R.string.settings_row_auto_silence_subtitle),
@@ -786,7 +852,7 @@ fun AppSettingsRoute(
                     onClick = onPickTermStartDate,
                     trailing = if (termStartDate != null) {
                         {
-                            TextButton(
+                            AppOutlinedButton(
                                 onClick = onClearTermStartDate,
                                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                             ) {
@@ -811,20 +877,19 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.TemporaryOverrides -> {
-                SettingsActionRow(
-                    icon = Icons.Rounded.EventRepeat,
-                    title = stringResource(R.string.settings_manage_override_rules),
-                    subtitle = temporaryOverridesSubtitle(temporaryScheduleOverrides),
-                    onClick = { showTemporaryOverrides = true },
+                TemporaryOverrideSettingsSection(
+                    overrides = temporaryScheduleOverrides,
+                    onUpsert = onUpsertTemporaryScheduleOverride,
+                    onRemove = onRemoveTemporaryScheduleOverride,
+                    onClear = onClearTemporaryScheduleOverrides,
+                    onOpenCourseSwap = onOpenCourseSwap,
+                    courseTitleOf = courseTitleOf,
+                    courses = scheduleCourses,
+                    timingProfile = scheduleTimingProfile,
+                    holidayCalendar = holidayCalendar,
+                    termStartDate = termStartDate,
+                    onApplyCancelPlan = onApplyCancelPlan,
                 )
-                temporaryScheduleOverrides.forEach { rule ->
-                    SettingsActionRow(
-                        icon = Icons.Rounded.Schedule,
-                        title = formatOverrideRange(rule),
-                        subtitle = formatOverrideSource(rule),
-                        onClick = { showTemporaryOverrides = true },
-                    )
-                }
             }
 
             SettingsDestination.Holidays -> {
@@ -937,7 +1002,7 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleTextStyle -> {
-                SettingsGroup(stringResource(R.string.settings_subgroup_course_text)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_course_text), collapsible = true) {
                     NumberStepperRow(stringResource(R.string.settings_course_text_size), scheduleTextStyle.courseTextSizeSp, "sp", 8, 32, 1, onScheduleCourseTextSizeSpChange)
                     ColorAlphaRow(stringResource(R.string.settings_course_text_color), scheduleTextStyle.courseTextColorArgb, onScheduleCourseTextColorArgbChange)
                     if (scheduleCustomColorsAdaptToTheme) {
@@ -948,7 +1013,7 @@ fun AppSettingsRoute(
                     }
                 }
 
-                SettingsGroup(stringResource(R.string.settings_subgroup_exam_text)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_exam_text), collapsible = true) {
                     NumberStepperRow(stringResource(R.string.settings_exam_text_size), scheduleTextStyle.examTextSizeSp, "sp", 8, 32, 1, onScheduleExamTextSizeSpChange)
                     ColorAlphaRow(stringResource(R.string.settings_exam_text_color), scheduleTextStyle.examTextColorArgb, onScheduleExamTextColorArgbChange)
                     if (scheduleCustomColorsAdaptToTheme) {
@@ -959,7 +1024,7 @@ fun AppSettingsRoute(
                     }
                 }
 
-                SettingsGroup(stringResource(R.string.settings_subgroup_alignment)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_alignment), collapsible = true) {
                     SettingsSwitchRow(
                         icon = Icons.Rounded.FormatAlignCenter,
                         title = stringResource(R.string.settings_text_center_horizontal_title),
@@ -1018,7 +1083,7 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleCardStyle -> {
-                SettingsGroup(stringResource(R.string.settings_subgroup_card)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_card), collapsible = true) {
                     NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
                     NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
                     if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
@@ -1028,7 +1093,7 @@ fun AppSettingsRoute(
                     NumberStepperRow(stringResource(R.string.settings_inactive_course_opacity), scheduleCardStyle.inactiveCourseOpacityPercent, "%", 0, 100, 5, onScheduleInactiveCourseOpacityPercentChange)
                 }
 
-                SettingsGroup(stringResource(R.string.settings_subgroup_grid_border)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_grid_border), collapsible = true) {
                     ColorAlphaRow(stringResource(R.string.settings_grid_border_color), scheduleCardStyle.gridBorderColorArgb, onScheduleGridBorderColorArgbChange)
                     if (scheduleCustomColorsAdaptToTheme) {
                         ColorPreviewRow(
@@ -1046,6 +1111,29 @@ fun AppSettingsRoute(
                         onCheckedChange = onScheduleGridBorderDashedChange,
                     )
                 }
+            }
+
+            SettingsDestination.DevTime -> {
+                DeveloperTimeSection(
+                    debugForcedDateTime = debugForcedDateTime,
+                    onSetDebugForcedDateTime = onSetDebugForcedDateTime,
+                )
+            }
+
+            SettingsDestination.DevNotice -> {
+                ClassNoticeTestRows(classNotice)
+            }
+
+            SettingsDestination.DevLogs -> {
+                DeveloperLogsSection()
+            }
+
+            SettingsDestination.DevData -> {
+                DeveloperDataSection(
+                    privateFilesProviderEnabled = privateFilesProviderEnabled,
+                    onPrivateFilesProviderEnabledChange = onPrivateFilesProviderEnabledChange,
+                    onExportScheduleMetadata = onExportScheduleMetadata,
+                )
             }
 
             SettingsDestination.BackgroundHub -> {
@@ -1151,7 +1239,7 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.ScheduleDisplay -> {
-                SettingsGroup(stringResource(R.string.settings_subgroup_visible_range)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_visible_range), collapsible = true) {
                     WeekStartDayRow(
                         selected = scheduleDisplay.weekStartDay,
                         onSelect = onScheduleWeekStartDayChange,
@@ -1181,7 +1269,7 @@ fun AppSettingsRoute(
                     )
                 }
 
-                SettingsGroup(stringResource(R.string.settings_subgroup_cell_info)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_cell_info), collapsible = true) {
                     SettingsSwitchRow(
                         icon = Icons.Rounded.Schedule,
                         title = stringResource(R.string.settings_display_node_time_title),
@@ -1205,7 +1293,7 @@ fun AppSettingsRoute(
                     )
                 }
 
-                SettingsGroup(stringResource(R.string.settings_subgroup_interaction)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_interaction), collapsible = true) {
                     SettingsSwitchRow(
                         icon = Icons.Rounded.OpenWith,
                         title = stringResource(R.string.settings_display_course_drag_title),
@@ -1217,7 +1305,7 @@ fun AppSettingsRoute(
             }
 
             SettingsDestination.WidgetSettings -> {
-                SettingsGroup(stringResource(R.string.settings_subgroup_widget_look)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_widget_look), collapsible = true) {
                     SettingsActionRow(
                         icon = Icons.Rounded.Palette,
                         title = stringResource(R.string.settings_theme),
@@ -1238,7 +1326,7 @@ fun AppSettingsRoute(
                     )
                 }
 
-                SettingsGroup(stringResource(R.string.settings_subgroup_widget_behavior)) {
+                SettingsGroup(stringResource(R.string.settings_subgroup_widget_behavior), collapsible = true) {
                     SettingsActionRow(
                         icon = Icons.Rounded.Widgets,
                         title = stringResource(R.string.settings_widget_home_title),
@@ -1261,6 +1349,21 @@ fun AppSettingsRoute(
 
             SettingsDestination.AutoSilence -> {
                 AutoSilenceSettingsSection()
+            }
+
+            SettingsDestination.ClassNotice -> {
+                ClassNoticeSettingsSection(
+                    preferences = classNotice,
+                    onEnabledChange = onClassNoticeEnabledChange,
+                    onAdvanceMinutesChange = onClassNoticeAdvanceMinutesChange,
+                    onHeadsUpChange = onClassNoticeHeadsUpChange,
+                    onLockScreenChange = onClassNoticeLockScreenChange,
+                    onFocusChange = onClassNoticeFocusChange,
+                    onSkinChange = onClassNoticeSkinChange,
+                    onAnimationChange = onClassNoticeAnimationChange,
+                    onBlurChange = onClassNoticeBlurChange,
+                    onBlurStrengthChange = onClassNoticeBlurStrengthChange,
+                )
             }
 
             SettingsDestination.Plugins -> {
@@ -1316,7 +1419,7 @@ fun AppSettingsRoute(
                 title = { Text(stringResource(R.string.settings_reset_schedule_dialog_title)) },
                 text = { Text(stringResource(R.string.settings_reset_schedule_dialog_message)) },
                 confirmButton = {
-                    TextButton(onClick = {
+                    AppOutlinedButton(onClick = {
                         onResetScheduleAppearanceAndDisplay()
                         showResetScheduleAppearanceConfirm = false
                         Toast.makeText(
@@ -1327,7 +1430,7 @@ fun AppSettingsRoute(
                     }) { Text(stringResource(R.string.settings_reset_confirm)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showResetScheduleAppearanceConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
+                    AppOutlinedButton(onClick = { showResetScheduleAppearanceConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
                 },
             )
         }
@@ -1338,7 +1441,7 @@ fun AppSettingsRoute(
                 title = { Text(stringResource(R.string.settings_reset_all_title)) },
                 text = { Text(stringResource(R.string.settings_reset_all_dialog_message)) },
                 confirmButton = {
-                    TextButton(onClick = {
+                    AppOutlinedButton(onClick = {
                         onResetAllSettings()
                         showResetAllSettingsConfirm = false
                         Toast.makeText(
@@ -1349,7 +1452,7 @@ fun AppSettingsRoute(
                     }) { Text(stringResource(R.string.settings_reset_confirm)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showResetAllSettingsConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
+                    AppOutlinedButton(onClick = { showResetAllSettingsConfirm = false }) { Text(stringResource(R.string.settings_cancel)) }
                 },
             )
         }
@@ -1358,24 +1461,12 @@ fun AppSettingsRoute(
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             DeveloperDebugSection(
                 debugForcedDateTime = debugForcedDateTime,
-                privateFilesProviderEnabled = privateFilesProviderEnabled,
                 onSetDeveloperMode = onSetDeveloperMode,
-                onPrivateFilesProviderEnabledChange = onPrivateFilesProviderEnabledChange,
-                onSetDebugForcedDateTime = onSetDebugForcedDateTime,
-                onExportScheduleMetadata = onExportScheduleMetadata,
+                onNavigate = ::navigate,
             )
         }
     }
 
-    if (showTemporaryOverrides) {
-        TemporaryScheduleOverridesDialog(
-            overrides = temporaryScheduleOverrides,
-            onAdd = onUpsertTemporaryScheduleOverride,
-            onRemove = onRemoveTemporaryScheduleOverride,
-            onClear = onClearTemporaryScheduleOverrides,
-            onDismiss = { showTemporaryOverrides = false },
-        )
-    }
     if (showHolidayEditor) {
         HolidayCalendarDialog(
             settings = holidayCalendar,
@@ -1481,13 +1572,13 @@ private fun FloatStepperRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            OutlinedButton(
+            AppOutlinedButton(
                 onClick = { onValueChange((value - step).coerceIn(min, max)) },
                 enabled = value > min,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
             ) { Text("-") }
             Spacer(Modifier.width(8.dp))
-            OutlinedButton(
+            AppOutlinedButton(
                 onClick = { onValueChange((value + step).coerceIn(min, max)) },
                 enabled = value < max,
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -1500,11 +1591,52 @@ private fun FloatStepperRow(
 @Composable
 internal fun SettingsGroup(
     title: String,
+    /**
+     * 子页里的分组可以折叠：默认收起，点标题展开或收起。
+     * 一页里好几组选项全铺开时要滑很久才找到想改的那一项；根页的分组是入口列表，不折。
+     */
+    collapsible: Boolean = false,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
+    if (!collapsible) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SettingsSectionHeader(title)
+            content()
+        }
+        return
+    }
+    var expanded by rememberSaveable(title) { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SettingsSectionHeader(title)
-        content()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { expanded = !expanded }
+                .padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f),
+            )
+            val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "groupChevron")
+            Icon(
+                imageVector = Icons.Rounded.ExpandMore,
+                contentDescription = stringResource(
+                    if (expanded) R.string.settings_group_collapse else R.string.settings_group_expand,
+                ),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.rotate(rotation),
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                content()
+            }
+        }
     }
 }
 
@@ -1712,7 +1844,7 @@ private fun AutoSilenceSettingsSection() {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showModePicker = false }) { Text(stringResource(R.string.settings_close)) }
+                AppOutlinedButton(onClick = { showModePicker = false }) { Text(stringResource(R.string.settings_close)) }
             },
         )
     }
@@ -1929,11 +2061,11 @@ private fun AlarmDiagnosticsDialog(onDismiss: () -> Unit) {
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
         },
         dismissButton = {
             val current = report
-            TextButton(
+            AppOutlinedButton(
                 enabled = current != null,
                 onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
@@ -2204,7 +2336,7 @@ private fun unknownAppInstallSettingsIntent(context: Context): Intent =
     }
 
 @Composable
-private fun AlarmNumberSettingRow(
+internal fun AlarmNumberSettingRow(
     title: String,
     value: Int,
     unit: String,
@@ -2212,7 +2344,24 @@ private fun AlarmNumberSettingRow(
     max: Int,
     step: Int,
     onValueChange: (Int) -> Unit,
+    /** 开了之后点标题那一块可以直接键入数字，范围大、按步进点半天的那种才需要 */
+    editable: Boolean = false,
 ) {
+    var editing by remember { mutableStateOf(false) }
+    if (editing) {
+        NumberInputDialog(
+            title = title,
+            unit = unit,
+            initial = value,
+            min = min,
+            max = max,
+            onConfirm = {
+                onValueChange(it)
+                editing = false
+            },
+            onDismiss = { editing = false },
+        )
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceVariant,
@@ -2222,19 +2371,33 @@ private fun AlarmNumberSettingRow(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .then(
+                        if (editable) {
+                            Modifier.clickable { editing = true }
+                        } else {
+                            Modifier
+                        },
+                    ),
+            ) {
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = "$value $unit",
+                    text = if (editable) {
+                        stringResource(R.string.settings_number_tap_to_edit, value, unit)
+                    } else {
+                        "$value $unit"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            OutlinedButton(
+            AppOutlinedButton(
                 enabled = value > min,
                 onClick = { onValueChange((value - step).coerceAtLeast(min)) },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -2242,7 +2405,7 @@ private fun AlarmNumberSettingRow(
                 Text("-")
             }
             Spacer(modifier = Modifier.width(8.dp))
-            OutlinedButton(
+            AppOutlinedButton(
                 enabled = value < max,
                 onClick = { onValueChange((value + step).coerceAtMost(max)) },
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
@@ -2251,6 +2414,69 @@ private fun AlarmNumberSettingRow(
             }
         }
     }
+}
+
+/**
+ * 直接键入一个数字。
+ *
+ * 只认十进制数字，超出 [min]..[max] 就把「确定」禁掉并把范围写在下面——
+ * 悄悄夹到边界的话，用户会以为自己输的值生效了。
+ */
+@Composable
+private fun NumberInputDialog(
+    title: String,
+    unit: String,
+    initial: Int,
+    min: Int,
+    max: Int,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(initial.toString()) }
+    val parsed = text.trim().toIntOrNull()
+    val valid = parsed != null && parsed in min..max
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { input ->
+                        // 中文输入法会给出全角数字，顺手折回半角，免得看着是数字却解析不出来
+                        text = input.map { ch ->
+                            if (ch in '\uFF10'..'\uFF19') ch - 0xFEE0 else ch
+                        }.filter { it.isDigit() }.take(4).joinToString("")
+                    },
+                    singleLine = true,
+                    suffix = { Text(unit) },
+                    isError = text.isNotEmpty() && !valid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = stringResource(R.string.settings_number_range_hint, min, max, unit),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (text.isNotEmpty() && !valid) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
+        },
+        confirmButton = {
+            AppOutlinedButton(enabled = valid, onClick = { onConfirm(parsed!!) }) {
+                Text(stringResource(R.string.settings_number_confirm))
+            }
+        },
+        dismissButton = {
+            AppOutlinedButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_cancel))
+            }
+        },
+    )
 }
 
 private fun launchSettingsIntent(context: Context, intent: Intent) {
@@ -2436,7 +2662,7 @@ private fun WebDavSettingsSection(
         ) {
             Text(stringResource(R.string.settings_save))
         }
-        OutlinedButton(
+        AppOutlinedButton(
             enabled = !testing,
             onClick = {
                 testing = true
@@ -2582,21 +2808,17 @@ private fun SettingsEditorPanel(
     }
 }
 
+/**
+ * 设置根页底部的开发者入口。条目多了挤在一起不好找，按用途分成几个二级页，
+ * 这里只放入口和「关闭开发者模式」。
+ */
 @Composable
 private fun DeveloperDebugSection(
     debugForcedDateTime: LocalDateTime?,
-    privateFilesProviderEnabled: Boolean,
     onSetDeveloperMode: (Boolean) -> Unit,
-    onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
-    onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
-    onExportScheduleMetadata: () -> Unit,
+    onNavigate: (SettingsDestination) -> Unit,
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var pendingForcedDate by rememberSaveable { mutableStateOf<LocalDate?>(null) }
-    var showForcedDatePicker by rememberSaveable { mutableStateOf(false) }
-    var showForcedTimePicker by rememberSaveable { mutableStateOf(false) }
-
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Icon(
@@ -2617,20 +2839,9 @@ private fun DeveloperDebugSection(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        SettingsSwitchRow(
-            icon = Icons.Rounded.FolderOpen,
-            title = stringResource(R.string.settings_dev_files_title),
-            subtitle = if (privateFilesProviderEnabled) {
-                stringResource(R.string.settings_dev_files_on)
-            } else {
-                stringResource(R.string.settings_dev_files_off)
-            },
-            checked = privateFilesProviderEnabled,
-            onCheckedChange = onPrivateFilesProviderEnabledChange,
-        )
-        DeveloperActionRow(
+        SettingsActionRow(
             icon = Icons.Rounded.CalendarMonth,
-            title = stringResource(R.string.settings_dev_time_title),
+            title = stringResource(R.string.settings_dest_dev_time),
             subtitle = if (debugForcedDateTime != null) {
                 stringResource(
                     R.string.settings_dev_time_forced,
@@ -2639,111 +2850,26 @@ private fun DeveloperDebugSection(
             } else {
                 stringResource(R.string.settings_dev_time_real)
             },
-            onClick = {
-                pendingForcedDate = debugForcedDateTime?.toLocalDate() ?: BeijingTime.today()
-                showForcedDatePicker = true
-            },
+            onClick = { onNavigate(SettingsDestination.DevTime) },
         )
-        if (debugForcedDateTime != null) {
-            DeveloperActionRow(
-                icon = Icons.Rounded.Restore,
-                title = stringResource(R.string.settings_dev_time_restore_title),
-                subtitle = stringResource(R.string.settings_dev_time_restore_subtitle),
-                onClick = {
-                    onSetDebugForcedDateTime(null)
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.settings_toast_dev_time_restored),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                },
-            )
-        }
-        DeveloperActionRow(
-            icon = Icons.Rounded.Download,
-            title = stringResource(R.string.settings_dev_export_logs_title),
-            subtitle = stringResource(R.string.settings_dev_export_logs_subtitle),
-            onClick = {
-                scope.launch {
-                    val intent = LogExporter.exportRecentLogs(context)
-                    if (intent != null) {
-                        runCatching {
-                            val chooser = Intent.createChooser(
-                                intent,
-                                context.getString(R.string.settings_dev_export_logs_title),
-                            ).apply {
-                                clipData = intent.clipData
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(chooser)
-                        }.onFailure {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.settings_toast_share_failed, it.message.toString()),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                    } else {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.settings_toast_export_logs_failed),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }
-            },
+        SettingsActionRow(
+            icon = Icons.Rounded.NotificationsActive,
+            title = stringResource(R.string.settings_dest_dev_notice),
+            subtitle = stringResource(R.string.settings_dev_hub_notice_subtitle),
+            onClick = { onNavigate(SettingsDestination.DevNotice) },
         )
-        DeveloperActionRow(
-            icon = Icons.Rounded.Delete,
-            title = stringResource(R.string.settings_dev_clear_logs_title),
-            subtitle = stringResource(R.string.settings_dev_clear_logs_subtitle),
-            onClick = {
-                scope.launch {
-                    if (LogExporter.clearLogs(context)) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.settings_toast_logs_cleared),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    } else {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.settings_toast_clear_logs_failed),
-                            Toast.LENGTH_SHORT,
-                        ).show()
-                    }
-                }
-            },
-        )
-        DeveloperActionRow(
-            icon = Icons.Rounded.Schedule,
-            title = stringResource(R.string.settings_dev_export_metadata_title),
-            subtitle = stringResource(R.string.settings_dev_export_metadata_subtitle),
-            onClick = onExportScheduleMetadata,
-        )
-        var showPluginLog by rememberSaveable { mutableStateOf(false) }
-        DeveloperActionRow(
+        SettingsActionRow(
             icon = Icons.Rounded.Code,
-            title = stringResource(R.string.settings_dev_plugin_log_title),
-            subtitle = stringResource(R.string.settings_dev_plugin_log_subtitle),
-            onClick = { showPluginLog = true },
+            title = stringResource(R.string.settings_dest_dev_logs),
+            subtitle = stringResource(R.string.settings_dev_hub_logs_subtitle),
+            onClick = { onNavigate(SettingsDestination.DevLogs) },
         )
-        if (showPluginLog) {
-            androidx.compose.ui.window.Dialog(
-                onDismissRequest = { showPluginLog = false },
-                properties = androidx.compose.ui.window.DialogProperties(
-                    usePlatformDefaultWidth = false,
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = false,
-                ),
-            ) {
-                com.x500x.cursimple.feature.plugin.PluginLogScreen(
-                    onBack = { showPluginLog = false },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
+        SettingsActionRow(
+            icon = Icons.Rounded.Download,
+            title = stringResource(R.string.settings_dest_dev_data),
+            subtitle = stringResource(R.string.settings_dev_hub_data_subtitle),
+            onClick = { onNavigate(SettingsDestination.DevData) },
+        )
         DeveloperActionRow(
             icon = Icons.Rounded.BugReport,
             title = stringResource(R.string.settings_dev_disable_title),
@@ -2753,6 +2879,50 @@ private fun DeveloperDebugSection(
                 Toast.makeText(
                     context,
                     context.getString(R.string.settings_toast_dev_mode_off),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            },
+        )
+    }
+}
+
+/** 开发者 · 时间调试：把「现在」钉在某个时刻，课表、小组件、闹钟都按它算。 */
+@Composable
+private fun DeveloperTimeSection(
+    debugForcedDateTime: LocalDateTime?,
+    onSetDebugForcedDateTime: (LocalDateTime?) -> Unit,
+) {
+    val context = LocalContext.current
+    var pendingForcedDate by rememberSaveable { mutableStateOf<LocalDate?>(null) }
+    var showForcedDatePicker by rememberSaveable { mutableStateOf(false) }
+    var showForcedTimePicker by rememberSaveable { mutableStateOf(false) }
+
+    DeveloperActionRow(
+        icon = Icons.Rounded.CalendarMonth,
+        title = stringResource(R.string.settings_dev_time_title),
+        subtitle = if (debugForcedDateTime != null) {
+            stringResource(
+                R.string.settings_dev_time_forced,
+                DateTimeFormatter.ofPattern("yyyy/M/d EEEE HH:mm").format(debugForcedDateTime),
+            )
+        } else {
+            stringResource(R.string.settings_dev_time_real)
+        },
+        onClick = {
+            pendingForcedDate = debugForcedDateTime?.toLocalDate() ?: BeijingTime.today()
+            showForcedDatePicker = true
+        },
+    )
+    if (debugForcedDateTime != null) {
+        DeveloperActionRow(
+            icon = Icons.Rounded.Restore,
+            title = stringResource(R.string.settings_dev_time_restore_title),
+            subtitle = stringResource(R.string.settings_dev_time_restore_subtitle),
+            onClick = {
+                onSetDebugForcedDateTime(null)
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_dev_time_restored),
                     Toast.LENGTH_SHORT,
                 ).show()
             },
@@ -2794,6 +2964,155 @@ private fun DeveloperDebugSection(
 
 }
 
+/** 开发者 · 日志：导出、清空诊断日志，实时看插件运行事件。 */
+@Composable
+private fun DeveloperLogsSection() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    DeveloperActionRow(
+        icon = Icons.Rounded.Download,
+        title = stringResource(R.string.settings_dev_export_logs_title),
+        subtitle = stringResource(R.string.settings_dev_export_logs_subtitle),
+        onClick = {
+            scope.launch {
+                val intent = LogExporter.exportRecentLogs(context)
+                if (intent != null) {
+                    runCatching {
+                        val chooser = Intent.createChooser(
+                            intent,
+                            context.getString(R.string.settings_dev_export_logs_title),
+                        ).apply {
+                            clipData = intent.clipData
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(chooser)
+                    }.onFailure {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.settings_toast_share_failed, it.message.toString()),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                } else {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_toast_export_logs_failed),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        },
+    )
+    DeveloperActionRow(
+        icon = Icons.Rounded.Delete,
+        title = stringResource(R.string.settings_dev_clear_logs_title),
+        subtitle = stringResource(R.string.settings_dev_clear_logs_subtitle),
+        onClick = {
+            scope.launch {
+                if (LogExporter.clearLogs(context)) {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_toast_logs_cleared),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_toast_clear_logs_failed),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
+        },
+    )
+    var showPluginLog by rememberSaveable { mutableStateOf(false) }
+    DeveloperActionRow(
+        icon = Icons.Rounded.Code,
+        title = stringResource(R.string.settings_dev_plugin_log_title),
+        subtitle = stringResource(R.string.settings_dev_plugin_log_subtitle),
+        onClick = { showPluginLog = true },
+    )
+    if (showPluginLog) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { showPluginLog = false },
+            properties = androidx.compose.ui.window.DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = true,
+                dismissOnClickOutside = false,
+            ),
+        ) {
+            com.x500x.cursimple.feature.plugin.PluginLogScreen(
+                onBack = { showPluginLog = false },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+/** 开发者 · 数据与文件：私有目录的文件管理器入口，导出课表元数据。 */
+@Composable
+private fun DeveloperDataSection(
+    privateFilesProviderEnabled: Boolean,
+    onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
+    onExportScheduleMetadata: () -> Unit,
+) {
+    SettingsSwitchRow(
+        icon = Icons.Rounded.FolderOpen,
+        title = stringResource(R.string.settings_dev_files_title),
+        subtitle = if (privateFilesProviderEnabled) {
+            stringResource(R.string.settings_dev_files_on)
+        } else {
+            stringResource(R.string.settings_dev_files_off)
+        },
+        checked = privateFilesProviderEnabled,
+        onCheckedChange = onPrivateFilesProviderEnabledChange,
+    )
+    DeveloperActionRow(
+        icon = Icons.Rounded.Schedule,
+        title = stringResource(R.string.settings_dev_export_metadata_title),
+        subtitle = stringResource(R.string.settings_dev_export_metadata_subtitle),
+        onClick = onExportScheduleMetadata,
+    )
+    ReleaseAnnouncementPreviewRow()
+}
+
+/**
+ * 发版前在真机上看更新公告的样子：把公告的 .md 和图片放进私有目录的 release-preview 里，
+ * 这里读出来按更新公告弹窗原样显示。图按文件名从这个目录取，公告里的 GitHub 地址不用改。
+ */
+@Composable
+private fun ReleaseAnnouncementPreviewRow() {
+    val context = LocalContext.current
+    val previewDir = remember(context) { java.io.File(context.filesDir, RELEASE_PREVIEW_DIR) }
+    var preview by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val missingMessage = stringResource(R.string.settings_dev_release_preview_missing, RELEASE_PREVIEW_DIR)
+    DeveloperActionRow(
+        icon = Icons.Rounded.NewReleases,
+        title = stringResource(R.string.settings_dev_release_preview_title),
+        subtitle = stringResource(R.string.settings_dev_release_preview_subtitle, RELEASE_PREVIEW_DIR),
+        onClick = {
+            val notes = previewDir.listFiles { file -> file.extension.equals("md", ignoreCase = true) }
+                ?.maxByOrNull { it.lastModified() }
+            if (notes == null) {
+                Toast.makeText(context, missingMessage, Toast.LENGTH_LONG).show()
+            } else {
+                preview = notes.nameWithoutExtension.removePrefix("v") to notes.readText()
+            }
+        },
+    )
+    preview?.let { (version, markdown) ->
+        com.x500x.cursimple.app.ReleaseAnnouncementDialog(
+            versionName = version,
+            markdown = markdown,
+            imageLoader = com.x500x.cursimple.app.update.rememberReleaseImageLoader(previewDir),
+            onDismiss = { preview = null },
+        )
+    }
+}
+
+private const val RELEASE_PREVIEW_DIR = "release-preview"
+
 @Composable
 private fun DeveloperActionRow(
     icon: ImageVector,
@@ -2826,12 +3145,12 @@ private fun ForcedTimePickerDialog(
         title = { Text(stringResource(R.string.settings_dev_time_picker_title)) },
         text = { TimePicker(state = state) },
         confirmButton = {
-            TextButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
+            AppOutlinedButton(onClick = { onConfirm(LocalTime.of(state.hour, state.minute)) }) {
                 Text(stringResource(R.string.settings_confirm))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -3081,7 +3400,7 @@ private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> 
                             Text(stringResource(label), maxLines = 2)
                         }
                     } else {
-                        OutlinedButton(onClick = { onSelect(day) }) {
+                        AppOutlinedButton(onClick = { onSelect(day) }) {
                             Text(stringResource(label), maxLines = 2)
                         }
                     }
@@ -3402,7 +3721,7 @@ private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFi
                     if (mode == selected) {
                         Button(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
                     } else {
-                        OutlinedButton(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
+                        AppOutlinedButton(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
                     }
                 }
             }
@@ -3454,7 +3773,7 @@ private fun VisibleDaysRow(
                     if (days == selected) {
                         Button(onClick = { onSelect(days) }) { Text(stringResource(label), maxLines = 1) }
                     } else {
-                        OutlinedButton(onClick = { onSelect(days) }) { Text(stringResource(label), maxLines = 1) }
+                        AppOutlinedButton(onClick = { onSelect(days) }) { Text(stringResource(label), maxLines = 1) }
                     }
                 }
             }
@@ -3478,3 +3797,85 @@ private fun SettingsHintText(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
+
+
+/**
+ * 开发者设置里的上课提醒测试：不用等到快上课，直接看各种样式弹出来的样子。
+ *
+ * 「悬浮窗」「系统通知」两项不看当前选的样式，强制走那一条路，
+ * 用来排查某台机器上到底是哪一路不显示。
+ */
+@Composable
+private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
+    val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
+    val context = LocalContext.current
+    fun warnIfBlocked(preferences: ClassNoticePreferences) {
+        if (ClassNoticeNotifier.systemBlocked(context, preferences)) {
+            Toast.makeText(
+                context,
+                context.getString(R.string.settings_toast_dev_notice_blocked),
+                Toast.LENGTH_SHORT,
+            ).show()
+        }
+    }
+    DeveloperActionRow(
+        icon = Icons.Rounded.NotificationsActive,
+        title = stringResource(R.string.settings_dev_notice_test_title),
+        subtitle = stringResource(R.string.settings_dev_notice_test_subtitle),
+        onClick = {
+            warnIfBlocked(classNotice)
+            ClassNoticeNotifier.notifyPreview(context, classNotice, noticeTheme)
+        },
+    )
+    DeveloperActionRow(
+        icon = Icons.Rounded.Layers,
+        title = stringResource(R.string.settings_dev_notice_overlay_title),
+        subtitle = stringResource(R.string.settings_dev_notice_overlay_subtitle),
+        onClick = {
+            if (!ClassNoticeOverlay.canDraw(context)) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.settings_toast_dev_notice_no_overlay),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                context.openOverlayPermissionSettings()
+            } else {
+                val forced = classNotice.copy(skin = ClassNoticeSkin.Overlay)
+                ClassNoticeOverlay.show(context, ClassNoticeNotifier.previewContent(context, forced), forced, noticeTheme)
+            }
+        },
+    )
+    DeveloperActionRow(
+        icon = Icons.Rounded.Notifications,
+        title = stringResource(R.string.settings_dev_notice_system_title),
+        subtitle = stringResource(R.string.settings_dev_notice_system_subtitle),
+        onClick = {
+            val forced = classNotice.copy(skin = ClassNoticeSkin.System)
+            warnIfBlocked(forced)
+            ClassNoticeNotifier.notifyPreview(context, forced, noticeTheme)
+        },
+    )
+    DeveloperActionRow(
+        icon = Icons.Rounded.Schedule,
+        title = stringResource(R.string.settings_dev_notice_delayed_title),
+        subtitle = stringResource(R.string.settings_dev_notice_delayed_subtitle),
+        onClick = {
+            warnIfBlocked(classNotice)
+            val app = context.applicationContext
+            // 用主线程 Handler 而不是界面协程：人切到后台或锁屏后，这一页的协程可能已经被取消
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+                { ClassNoticeNotifier.notifyPreview(app, classNotice, noticeTheme) },
+                DEV_NOTICE_DELAY_MS,
+            )
+            Toast.makeText(
+                context,
+                context.getString(R.string.settings_toast_dev_notice_delayed),
+                Toast.LENGTH_SHORT,
+            ).show()
+        },
+    )
+}
+
+private const val DEV_NOTICE_DELAY_MS = 5_000L
+
+private const val ROOT_SCROLL_RESTORE_TIMEOUT_MS = 500L

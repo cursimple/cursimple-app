@@ -206,4 +206,18 @@ class TimingProfileEditingTest {
             }
         }
     }
+
+    @Test
+    fun `中文输入法打出的全角冒号与全角数字照样能解析`() {
+        // 中文键盘下 ":" 会变成全角「：」，肉眼几乎看不出差别
+        assertEquals("16:05", normalizeTimeOrNull("16\uFF1A05"))
+        // 有些输入法还会给出中文冒号「∶」
+        assertEquals("08:00", normalizeTimeOrNull("8\u223600"))
+        // 全角数字
+        assertEquals("16:05", normalizeTimeOrNull("\uFF11\uFF16\uFF1A\uFF10\uFF15"))
+        // 半角照常
+        assertEquals("16:05", normalizeTimeOrNull("16:05"))
+        // 真正的乱输入仍然拒绝
+        assertNull(normalizeTimeOrNull("16点05"))
+    }
 }

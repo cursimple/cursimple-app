@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,7 +21,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -91,7 +91,7 @@ fun WeekPickerSheet(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(
+                AppOutlinedButton(
                     onClick = { onSetSelectedAsCurrent(selectedWeek) },
                     enabled = selectedWeek >= 1,
                 ) {
@@ -249,7 +249,7 @@ private fun DeleteWeekConfirmDialog(
         title = { Text(stringResource(R.string.week_picker_delete_title, week)) },
         text = { Text(stringResource(R.string.week_picker_delete_body)) },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            AppOutlinedButton(onClick = onConfirm) {
                 Text(
                     text = stringResource(R.string.week_picker_delete_confirm),
                     color = MaterialTheme.colorScheme.error,
@@ -257,7 +257,7 @@ private fun DeleteWeekConfirmDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.week_picker_delete_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.week_picker_delete_cancel)) }
         },
     )
 }

@@ -10,6 +10,8 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
+import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
+import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
@@ -93,7 +95,20 @@ fun planScheduleOccurrences(
     var date = iterationStart
     while (!date.isAfter(iterationEnd)) {
         val dayResolution = resolveScheduleDay(date, overrides, holidayCalendar)
-        if (dayResolution.isHoliday) {
+        // 放假日不出常规课，但调课可以推翻放假：只把被挪过来的那几门排进去
+        val holidayMovedIn = if (dayResolution.isHoliday) {
+            coursesMovedToWithOrigin(
+                date = date,
+                overrides = overrides,
+                courseById = { id -> (importedByDay.values.flatten() + visibleManual).firstOrNull { it.id == id } },
+                isOriginallyActive = { course, from ->
+                    isTermWeekNumberActive(resolveTermWeekNumber(termStartDate, from), course.weeks)
+                },
+            )
+        } else {
+            null
+        }
+        if (holidayMovedIn != null && holidayMovedIn.isEmpty()) {
             date = date.plusDays(1)
             continue
         }
@@ -105,7 +120,18 @@ fun planScheduleOccurrences(
             importedByDay[sourceDayOfWeek].orEmpty() + importedByDay[ownDayOfWeek].orEmpty() +
                 visibleManual.filter { it.time.dayOfWeek == sourceDayOfWeek || it.time.dayOfWeek == ownDayOfWeek }
             ).distinct()
-        val candidates = filterTemporaryCancelledCourses(
+            // 被单独挪到别天的课，这天不再出现
+            .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
+        // 从别天挪到这天的课；该不该上已按它原本那天判过，算作一次调课落位
+        val movedIn = coursesMovedToWithOrigin(
+            date = date,
+            overrides = overrides,
+            courseById = { id -> (importedByDay.values.flatten() + visibleManual).firstOrNull { it.id == id } },
+            isOriginallyActive = { course, from ->
+                isTermWeekNumberActive(resolveTermWeekNumber(termStartDate, from), course.weeks)
+            },
+        )
+        val candidates = holidayMovedIn ?: filterTemporaryCancelledCourses(
             date = date,
             courses = pool,
             overrides = overrides,
@@ -116,7 +142,7 @@ fun planScheduleOccurrences(
                 return@mapNotNull null
             }
             course to courseSource
-        }
+        } + movedIn
 
         for ((course, courseSourceDate) in candidates) {
             val key = courseKey(course)

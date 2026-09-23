@@ -162,6 +162,15 @@
     <string name="plugin_web_ready_dialog_message">頁面已停止跳轉，並已捕獲本次同步所需資料，是否關閉外掛頁並寫入課表？</string>
     <string name="plugin_web_ready_dialog_confirm">關閉並寫入</string>
     <string name="plugin_web_ready_dialog_dismiss">繼續瀏覽</string>
+    <string name="plugin_web_login_save_title">儲存密碼？</string>
+    <string name="plugin_web_login_update_title">更新已儲存的密碼？</string>
+    <string name="plugin_web_login_save_message">下次開啟 %1$s 的登入頁時會自動填好，只儲存在本機。</string>
+    <string name="plugin_web_login_save_account">帳號：%1$s</string>
+    <string name="plugin_web_login_save_confirm">儲存</string>
+    <string name="plugin_web_login_save_dismiss">不儲存</string>
+    <string name="plugin_web_login_save_never">此網站永不儲存</string>
+    <string name="plugin_detail_action_clear_passwords">清除已儲存的密碼</string>
+    <string name="plugin_detail_passwords_cleared">已清除這個外掛儲存的登入密碼</string>
     <string name="plugin_web_overlay_title">正在抓取課表…</string>
     <string name="plugin_web_overlay_subtitle">請保持頁面不要切換</string>
     <string name="plugin_web_preparing">正在準備網頁登入環境…</string>

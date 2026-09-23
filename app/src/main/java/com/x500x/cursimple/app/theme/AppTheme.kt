@@ -7,7 +7,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry
@@ -294,6 +296,10 @@ private val PinkSwatch = AccentSwatch(
     ),
 )
 
+/** 某个主题色在深色或浅色下的完整配色，给通知、悬浮窗这类不在 Compose 里画的地方取色用。 */
+fun appColorScheme(accent: ThemeAccent, dark: Boolean): ColorScheme =
+    swatchFor(accent).let { if (dark) it.dark else it.light }
+
 private fun swatchFor(accent: ThemeAccent): AccentSwatch = when (accent) {
     ThemeAccent.Green -> GreenSwatch
     ThemeAccent.Blue -> BlueSwatch
@@ -351,9 +357,38 @@ fun ClassScheduleTheme(
         ThemeMode.Dark -> true
     }
     val swatch = swatchFor(themeAccent)
-    val colors = if (isDark) swatch.dark else swatch.light
+    val colors = (if (isDark) swatch.dark else swatch.light).withThemedContainers()
     val accents = if (isDark) DarkAccents else LightAccents
-    CompositionLocalProvider(LocalScheduleAccents provides accents) {
+    CompositionLocalProvider(
+        LocalScheduleAccents provides accents,
+        LocalAppThemeChoice provides AppThemeChoice(themeAccent, isDark),
+    ) {
         MaterialTheme(colorScheme = colors, content = content)
     }
+}
+
+/** 当前生效的主题色与深浅色；上课提醒的预览要按它取色，它们不在 Compose 里画，拿不到 MaterialTheme。 */
+data class AppThemeChoice(val accent: ThemeAccent, val dark: Boolean)
+
+val LocalAppThemeChoice = staticCompositionLocalOf { AppThemeChoice(ThemeAccent.Green, dark = false) }
+
+/**
+ * 补齐 surfaceContainer 那一组颜色。
+ *
+ * 各主题只写了 surface / surfaceVariant，没写 surfaceContainer*。对话框、菜单、
+ * 底部面板、抽屉用的正是这一组，没写就回落到 Material 默认的淡紫色，
+ * 于是绿色主题里弹出来一个紫底对话框。这里按 surface → surfaceVariant 插值出五档，
+ * 跟着当前主题与深浅色走。
+ */
+private fun ColorScheme.withThemedContainers(): ColorScheme {
+    fun mix(t: Float) = lerp(surface, surfaceVariant, t)
+    return copy(
+        surfaceContainerLowest = surface,
+        surfaceContainerLow = mix(0.25f),
+        surfaceContainer = mix(0.45f),
+        surfaceContainerHigh = mix(0.65f),
+        surfaceContainerHighest = surfaceVariant,
+        surfaceBright = surface,
+        surfaceDim = mix(0.85f),
+    )
 }

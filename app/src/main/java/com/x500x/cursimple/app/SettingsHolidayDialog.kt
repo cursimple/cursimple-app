@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,11 +15,9 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
@@ -103,7 +102,7 @@ internal fun HolidayCalendarDialog(
                 ) {
                     Text(stringResource(R.string.settings_holiday_set_holiday))
                 }
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = {
                         onUpsert(
                             HolidayCalendarEntry(
@@ -119,7 +118,7 @@ internal fun HolidayCalendarDialog(
                     Text(stringResource(R.string.settings_holiday_set_workday))
                 }
                 if (userEntry != null) {
-                    OutlinedButton(
+                    AppOutlinedButton(
                         onClick = { onRemove(targetDate.toString()) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
@@ -145,11 +144,11 @@ internal fun HolidayCalendarDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_done)) }
         },
         dismissButton = if (settings.entries.isNotEmpty()) {
             {
-                TextButton(onClick = onClear) { Text(stringResource(R.string.settings_clear_all)) }
+                AppOutlinedButton(onClick = onClear) { Text(stringResource(R.string.settings_clear_all)) }
             }
         } else null,
     )
@@ -191,7 +190,7 @@ internal fun HolidayEntryRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onRemove) {
+            AppOutlinedButton(onClick = onRemove) {
                 Text(stringResource(R.string.settings_delete))
             }
         }

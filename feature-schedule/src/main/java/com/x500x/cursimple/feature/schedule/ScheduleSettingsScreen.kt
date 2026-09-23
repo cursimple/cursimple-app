@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.app.AlarmManager
 import android.content.Context
 import android.content.Intent
@@ -43,12 +44,10 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -421,7 +420,7 @@ private fun ExactAlarmBanner() {
                     color = MaterialTheme.colorScheme.onErrorContainer,
                 )
             }
-            TextButton(
+            AppOutlinedButton(
                 onClick = {
                     launchFirstAvailableSetting(context, AlarmSettingsIntents.exactAlarm(context))
                 },
@@ -458,7 +457,7 @@ private fun AlarmManagementCard(
             title = stringResource(R.string.schedule_alarm_card_title),
             subtitle = if (appRecords.isEmpty()) stringResource(R.string.schedule_alarm_card_empty_subtitle) else stringResource(R.string.schedule_alarm_card_count, appRecords.size),
             trailing = {
-                TextButton(onClick = onRefresh) {
+                AppOutlinedButton(onClick = onRefresh) {
                     Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(stringResource(R.string.schedule_action_refresh))
@@ -604,7 +603,7 @@ private fun RuleManagementCard(
             icon = Icons.Rounded.Event,
             title = stringResource(R.string.schedule_placeholder_card_title),
             subtitle = if (placeholders.isEmpty()) stringResource(R.string.schedule_placeholder_empty) else pluralStringResource(R.plurals.schedule_placeholder_count, placeholders.size, placeholders.size),
-            trailing = { OutlinedButton(onClick = onAddPlaceholder) { Text(stringResource(R.string.schedule_placeholder_add_title)) } },
+            trailing = { AppOutlinedButton(onClick = onAddPlaceholder) { Text(stringResource(R.string.schedule_placeholder_add_title)) } },
         )
         placeholders.forEach { group ->
             val course = group.representative
@@ -623,8 +622,8 @@ private fun RuleManagementCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                TextButton(onClick = { onEditPlaceholder(group) }) { Text(stringResource(R.string.schedule_action_edit)) }
-                TextButton(onClick = { onDeletePlaceholder(course.id) }) { Text(stringResource(R.string.schedule_action_delete)) }
+                AppOutlinedButton(onClick = { onEditPlaceholder(group) }) { Text(stringResource(R.string.schedule_action_edit)) }
+                AppOutlinedButton(onClick = { onDeletePlaceholder(course.id) }) { Text(stringResource(R.string.schedule_action_delete)) }
             }
         }
     }
@@ -747,7 +746,7 @@ private fun ExamReminderCard(
                 },
             )
         }
-        TextButton(onClick = onOpenRules) { Text(stringResource(R.string.schedule_exam_open_rules)) }
+        AppOutlinedButton(onClick = onOpenRules) { Text(stringResource(R.string.schedule_exam_open_rules)) }
     }
     if (showConfirm) {
         AlertDialog(
@@ -766,12 +765,12 @@ private fun ExamReminderCard(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     onSave(true, 40, null)
                     showConfirm = false
                 }) { Text(stringResource(R.string.schedule_exam_confirm_ok)) }
             },
-            dismissButton = { TextButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.schedule_action_cancel)) } },
+            dismissButton = { AppOutlinedButton(onClick = { showConfirm = false }) { Text(stringResource(R.string.schedule_action_cancel)) } },
         )
     }
 }

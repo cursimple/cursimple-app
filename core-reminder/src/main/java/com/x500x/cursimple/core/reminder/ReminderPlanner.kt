@@ -20,6 +20,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderCustomOccupancy
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.model.isLegacy
+import com.x500x.cursimple.core.reminder.model.notificationLabelFor
 import com.x500x.cursimple.core.reminder.model.stableText
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -233,6 +234,7 @@ class ReminderPlanner {
         startNode = course.time.startNode,
         endNode = course.time.endNode,
         location = course.location,
+        slotLabel = slot.notificationLabelFor(course.time.startNode, course.time.endNode),
     )
 
     private fun ReminderRule.matches(course: CourseItem): Boolean {

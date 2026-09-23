@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,10 +24,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -226,7 +225,7 @@ internal fun TimingProfileSettingsSection() {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        OutlinedButton(
+        AppOutlinedButton(
             onClick = {
                 drafts.add(SlotDraftInput("", "", "", "", ""))
             },
@@ -236,7 +235,7 @@ internal fun TimingProfileSettingsSection() {
             Spacer(modifier = Modifier.width(6.dp))
             Text(stringResource(R.string.settings_timing_add_row))
         }
-        OutlinedButton(
+        AppOutlinedButton(
             onClick = { showTemplatePicker = true },
             modifier = Modifier.weight(1f),
         ) {
@@ -314,7 +313,7 @@ internal fun TimingProfileSettingsSection() {
     }
 
     if (manuallyEdited) {
-        TextButton(
+        AppOutlinedButton(
             onClick = {
                 scope.launch {
                     repository.clearManualTimingProfileFlag()
@@ -465,7 +464,7 @@ internal fun TimingTemplatePickerDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
