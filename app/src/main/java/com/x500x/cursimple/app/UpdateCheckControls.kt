@@ -69,10 +69,11 @@ import com.x500x.cursimple.app.download.mirrorDownloaderLabels
 import com.x500x.cursimple.app.download.SharedPrefsMirrorPreferenceStore
 import com.x500x.cursimple.app.update.UPDATE_POLL_TICK_MILLIS
 import com.x500x.cursimple.app.update.UpdateNoticeState
-import com.x500x.cursimple.app.update.UpdatePeekResult
-import com.x500x.cursimple.app.update.UpdatePollAction
+import com.x500x.cursimple.app.update.UpdateAutoCheckSession
 import com.x500x.cursimple.app.update.UpdatePollStore
-import com.x500x.cursimple.app.update.updatePollAction
+import com.x500x.cursimple.app.update.autoUpdateCheckDue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.repeatOnLifecycle
 import com.x500x.cursimple.app.update.UpdatePanelStatus
 import com.x500x.cursimple.app.update.shouldPromptUpdate
 import com.x500x.cursimple.app.update.shouldShowUpdateBadge
@@ -509,66 +510,55 @@ fun AutomaticUpdateCheckPrompt(
         }
     }
 
-    // 后台轮询：以前只在启动时查一次，装了之后发新版要么等下次冷启动、
-    // 要么自己点进设置，用户根本不知道有更新。
-    // 轮询主体是带 ETag 的条件请求，没新版时服务端回 304、不带响应体，
-    // 一次几百字节；只有探到变化才去跑流量大得多的完整检查。
-    LaunchedEffect(autoCheckEnabled, betaUpdatesEnabled) {
+    // 自动检查：每次启动 App（进课表页）先查一次；之后开着或切回前台时，距上次查完满半小时再查，
+    // 没查成的五分钟后重试；切换了测试版开关马上重查。检查只读一份几百字节的版本清单，走国内 CDN，查一次零点几秒。
+    // 查到新版且没被静音、忽略，就弹窗；点「稍后」只管这一次启动，下次打开还会提醒
+    val latestNotice by rememberUpdatedState(updateNotice)
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    LaunchedEffect(autoCheckEnabled, betaUpdatesEnabled, lifecycleOwner) {
         if (!autoCheckEnabled) return@LaunchedEffect
         pollStore.invalidateFor(BuildConfig.VERSION_CODE)
-
-        suspend fun runFullCheck() {
-            pollStore.setLastFullCheckAtMillis(System.currentTimeMillis())
-            when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
-                is AppUpdateCheckResult.Available -> {
-                    onUpdateFound(result.info.versionCode, result.info.versionName)
-                    val found = updateNotice.copy(
-                        versionCode = result.info.versionCode,
-                        versionName = result.info.versionName,
-                    )
-                    if (shouldPromptUpdate(found, BuildConfig.VERSION_CODE, promptedThisSession)) {
-                        promptedThisSession = true
-                        pendingUpdate = result.info
-                    }
-                }
-                AppUpdateCheckResult.UpToDate, AppUpdateCheckResult.NoRelease -> onUpdateNoticeCleared()
-                else -> Unit
-            }
-        }
-
-        while (true) {
-            val action = updatePollAction(
-                nowMillis = System.currentTimeMillis(),
-                lastPeekAtMillis = pollStore.lastPeekAtMillis(),
-                lastFullCheckAtMillis = pollStore.lastFullCheckAtMillis(),
-                hasEtag = pollStore.etag(betaUpdatesEnabled) != null,
-            )
-            when (action) {
-                UpdatePollAction.FullCheck -> {
-                    runFullCheck()
-                    // 完整检查顺手把 ETag 种下去，后面才有条件请求可发
-                    (checker.peek(betaUpdatesEnabled, knownEtag = null) as? UpdatePeekResult.Changed)
-                        ?.let { pollStore.setEtag(betaUpdatesEnabled, it.etag) }
-                    pollStore.setLastPeekAtMillis(System.currentTimeMillis())
-                }
-
-                UpdatePollAction.Peek -> {
-                    val known = pollStore.etag(betaUpdatesEnabled)
-                    when (val peeked = checker.peek(betaUpdatesEnabled, known)) {
-                        UpdatePeekResult.Unchanged -> pollStore.setLastPeekAtMillis(System.currentTimeMillis())
-                        is UpdatePeekResult.Changed -> {
-                            pollStore.setEtag(betaUpdatesEnabled, peeked.etag)
-                            pollStore.setLastPeekAtMillis(System.currentTimeMillis())
-                            runFullCheck()
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                val due = autoUpdateCheckDue(
+                    nowMillis = System.currentTimeMillis(),
+                    checkedThisLaunch = UpdateAutoCheckSession.checkedThisLaunch,
+                    lastCheckAtMillis = pollStore.lastCheckAtMillis(),
+                    lastFailureAtMillis = pollStore.lastFailureAtMillis(),
+                    channelChanged = pollStore.lastCheckIncludedPrerelease()
+                        ?.let { it != betaUpdatesEnabled } ?: false,
+                )
+                if (due) {
+                    val result = checker.check(includePrerelease = betaUpdatesEnabled)
+                    UpdateAutoCheckSession.checkedThisLaunch = true
+                    pollStore.setLastCheckIncludedPrerelease(betaUpdatesEnabled)
+                    // 查完才记时间：记早了，查到一半被打断（切后台、改了测试版开关）就会白等半小时
+                    when (result) {
+                        is AppUpdateCheckResult.Available -> {
+                            pollStore.setLastCheckAtMillis(System.currentTimeMillis())
+                            onUpdateFound(result.info.versionCode, result.info.versionName)
+                            val found = latestNotice.copy(
+                                versionCode = result.info.versionCode,
+                                versionName = result.info.versionName,
+                            )
+                            if (pendingUpdate == null &&
+                                shouldPromptUpdate(found, BuildConfig.VERSION_CODE, promptedThisSession)
+                            ) {
+                                promptedThisSession = true
+                                pendingUpdate = result.info
+                            }
                         }
-                        // 探不通就别改时间戳，等下一拍再试；连不上时也不去跑完整检查
-                        UpdatePeekResult.Unknown -> Unit
+                        AppUpdateCheckResult.UpToDate, AppUpdateCheckResult.NoRelease -> {
+                            pollStore.setLastCheckAtMillis(System.currentTimeMillis())
+                            onUpdateNoticeCleared()
+                        }
+                        // 回退版本只在手动检查时提示；没查成的记下时间，稍后重试
+                        is AppUpdateCheckResult.Rollback -> pollStore.setLastCheckAtMillis(System.currentTimeMillis())
+                        else -> pollStore.setLastFailureAtMillis(System.currentTimeMillis())
                     }
                 }
-
-                UpdatePollAction.Skip -> Unit
+                kotlinx.coroutines.delay(UPDATE_POLL_TICK_MILLIS)
             }
-            kotlinx.coroutines.delay(UPDATE_POLL_TICK_MILLIS)
         }
     }
 

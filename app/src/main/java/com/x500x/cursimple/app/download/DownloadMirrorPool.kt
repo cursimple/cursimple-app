@@ -42,17 +42,21 @@ class DownloadMirrorPool {
         }
     }
 
-    /** 实测能透传 api.github.com 真实状态码的镜像；down.npee.cn 出错时把错误包成 200 文本，靠正文校验兜住。 */
+    /**
+     * 实测能透传 api.github.com 真实状态码的镜像，按 2026-09 实测的成功率和速度排。
+     *
+     * 那一轮 github.yuansi.xyz、down.npee.cn、cors.isteed.cc、ghfast.top 代理 API 三次全挂，已移出；
+     * 检查更新现在先读仓库里的版本清单（见 AppUpdateChecker.checkFromFeed），这里只是兜底。
+     */
     private fun apiCapableProxyCandidates(url: String): List<DownloadCandidate> {
         return listOf(
-            DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
-            DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
-            DownloadCandidate("github.chenc.dev", "https://github.chenc.dev/$url"),
             DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
+            DownloadCandidate("github.chenc.dev", "https://github.chenc.dev/$url"),
+            DownloadCandidate("gh-proxy.org", "https://gh-proxy.org/$url"),
+            DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
             DownloadCandidate("hub.ilatency.com", "https://hub.ilatency.com/$url"),
-            DownloadCandidate("github.yuansi.xyz", "https://github.yuansi.xyz/$url"),
-            DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
-            DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
+            DownloadCandidate("cdn.gh-proxy.com", "https://cdn.gh-proxy.com/$url"),
+            DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
             DownloadCandidate(DownloadSourceIds.GITHUB_ORIGIN, url),
         )
     }
@@ -81,31 +85,40 @@ class DownloadMirrorPool {
     private fun commonGithubProxyCandidates(url: String): List<DownloadCandidate> {
         // 注意：monlor / imciel / fastgit / llkk 等对 API 会返回自家的 404 页面，
         // 只能用于文件下载，加进 API 候选会污染“没有发布版本”的判定
+        // 按 2026-09 实测排：同一个 release 文件每家请求三次，三次都成功的按中位耗时从快到慢。
+        // 那一轮一并试过的 ghproxy.cc、github.moeyy.xyz、gh.ddlc.top、ghproxy.cn、ghps.cc 等十几家
+        // 三次全挂，没有收进来
         return listOf(
-            DownloadCandidate("ghfast.top", "https://ghfast.top/$url"),
-            DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
+            DownloadCandidate("ghproxy.monkeyray.net", "https://ghproxy.monkeyray.net/$url"),
             DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
-            DownloadCandidate("gh.monlor.com", "https://gh.monlor.com/$url"),
-            DownloadCandidate("ghproxy.imciel.com", "https://ghproxy.imciel.com/$url"),
-            DownloadCandidate("gh.jasonzeng.dev", "https://gh.jasonzeng.dev/$url"),
-            DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
-            DownloadCandidate("fastgit.cc", "https://fastgit.cc/$url"),
             DownloadCandidate("gh.llkk.cc", "https://gh.llkk.cc/$url"),
-            DownloadCandidate("ghp.keleyaa.com", "https://ghp.keleyaa.com/$url"),
-            DownloadCandidate("ghproxy.net", "https://ghproxy.net/$url"),
+            DownloadCandidate("gh-proxy.org", "https://gh-proxy.org/$url"),
+            DownloadCandidate("ghproxy.imciel.com", "https://ghproxy.imciel.com/$url"),
+            DownloadCandidate("gh.halonice.com", "https://gh.halonice.com/$url"),
+            DownloadCandidate("fastgit.cc", "https://fastgit.cc/$url"),
+            DownloadCandidate("gh.monlor.com", "https://gh.monlor.com/$url"),
+            DownloadCandidate("gh.jasonzeng.dev", "https://gh.jasonzeng.dev/$url"),
             DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
             DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
+            DownloadCandidate("gh.nxnow.top", "https://gh.nxnow.top/$url"),
+            DownloadCandidate("ghfast.top", "https://ghfast.top/$url"),
+            DownloadCandidate("ghproxy.net", "https://ghproxy.net/$url"),
+            DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
+            DownloadCandidate("ghp.keleyaa.com", "https://ghp.keleyaa.com/$url"),
+            DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
             DownloadCandidate(DownloadSourceIds.GITHUB_ORIGIN, url),
         )
     }
 
     private fun RepoFile?.orEmptyRepoFileCandidates(): List<DownloadCandidate> {
         val repoFile = this ?: return emptyList()
+        // 国内的 jsDelivr 镜像实测都在 0.2 秒内，排在最前
         return listOf(
             DownloadCandidate("jsdmirror CDN", "https://cdn.jsdmirror.com/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
-            DownloadCandidate("jsDelivr testingcf", "https://testingcf.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
+            DownloadCandidate("jsd.onmicrosoft.cn", "https://jsd.onmicrosoft.cn/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsdelivr.net.cn", "https://cdn.jsdelivr.net.cn/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsdmirror.cn", "https://cdn.jsdmirror.cn/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
+            DownloadCandidate("jsDelivr testingcf", "https://testingcf.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr CDN", "https://cdn.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr Fastly", "https://fastly.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsDelivr gcore", "https://gcore.jsdelivr.net/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),

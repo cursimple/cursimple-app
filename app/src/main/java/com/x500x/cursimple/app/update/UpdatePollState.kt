@@ -3,102 +3,96 @@ package com.x500x.cursimple.app.update
 import android.content.Context
 
 /**
- * 后台轮询检查更新的节流状态。
+ * 自动检查更新的节流状态。
  *
- * 存 ETag 是为了发条件请求：服务端没变时回 304、不带响应体，一次几百字节。
- * 存上次检查时间是为了跨进程节流——轮询协程活在组合里，切后台再回来会重新起一个，
+ * 存上次检查的时间是为了跨进程节流：检查协程活在组合里，切后台再回来会重新起一个，
  * 只靠内存里的标志会导致每次切回前台都重查一遍。
  */
 class UpdatePollStore(context: Context) {
     private val prefs = context.applicationContext
         .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /** 上次条件请求拿到的 ETag，按「是否含测试版」分开存，两条路查的是不同接口。 */
-    fun etag(includePrerelease: Boolean): String? =
-        prefs.getString(etagKey(includePrerelease), null)
+    /** 上次顺利查完（有新版、已是最新、没有发布都算）的时间。 */
+    fun lastCheckAtMillis(): Long = prefs.getLong(KEY_LAST_CHECK_AT, 0L)
 
-    fun setEtag(includePrerelease: Boolean, etag: String?) {
-        prefs.edit().apply {
-            if (etag.isNullOrBlank()) remove(etagKey(includePrerelease)) else putString(etagKey(includePrerelease), etag)
-        }.apply()
+    fun setLastCheckAtMillis(millis: Long) {
+        prefs.edit().putLong(KEY_LAST_CHECK_AT, millis).apply()
     }
 
-    fun lastPeekAtMillis(): Long = prefs.getLong(KEY_LAST_PEEK_AT, 0L)
+    /** 上次没查成（没网、镜像全挂）的时间。 */
+    fun lastFailureAtMillis(): Long = prefs.getLong(KEY_LAST_FAILURE_AT, 0L)
 
-    fun setLastPeekAtMillis(millis: Long) {
-        prefs.edit().putLong(KEY_LAST_PEEK_AT, millis).apply()
+    fun setLastFailureAtMillis(millis: Long) {
+        prefs.edit().putLong(KEY_LAST_FAILURE_AT, millis).apply()
     }
 
-    fun lastFullCheckAtMillis(): Long = prefs.getLong(KEY_LAST_FULL_CHECK_AT, 0L)
+    /** 上次查的是不是含测试版的那条；换了通道时上次的结果不作数，得马上重查。 */
+    fun lastCheckIncludedPrerelease(): Boolean? =
+        if (prefs.contains(KEY_LAST_CHANNEL_BETA)) prefs.getBoolean(KEY_LAST_CHANNEL_BETA, false) else null
 
-    fun setLastFullCheckAtMillis(millis: Long) {
-        prefs.edit().putLong(KEY_LAST_FULL_CHECK_AT, millis).apply()
+    fun setLastCheckIncludedPrerelease(includePrerelease: Boolean) {
+        prefs.edit().putBoolean(KEY_LAST_CHANNEL_BETA, includePrerelease).apply()
     }
 
-    /** 换了版本就把 ETag 作废：装上新版后同一个 304 不再代表「我已经是最新」。 */
+    /** 换了版本就从头算：装上新版后，上一版查到的结果不再作数。 */
     fun invalidateFor(versionCode: Int) {
         if (prefs.getInt(KEY_VERSION_CODE, -1) == versionCode) return
         prefs.edit()
             .putInt(KEY_VERSION_CODE, versionCode)
-            .remove(etagKey(true))
-            .remove(etagKey(false))
-            .putLong(KEY_LAST_PEEK_AT, 0L)
-            .putLong(KEY_LAST_FULL_CHECK_AT, 0L)
+            .putLong(KEY_LAST_CHECK_AT, 0L)
+            .putLong(KEY_LAST_FAILURE_AT, 0L)
             .apply()
     }
 
-    private fun etagKey(includePrerelease: Boolean) =
-        if (includePrerelease) KEY_ETAG_PRERELEASE else KEY_ETAG_STABLE
-
     private companion object {
         const val PREFS_NAME = "app_update_poll"
-        const val KEY_ETAG_STABLE = "etag_stable"
-        const val KEY_ETAG_PRERELEASE = "etag_prerelease"
-        const val KEY_LAST_PEEK_AT = "last_peek_at"
-        const val KEY_LAST_FULL_CHECK_AT = "last_full_check_at"
+        const val KEY_LAST_CHECK_AT = "last_full_check_at"
+        const val KEY_LAST_FAILURE_AT = "last_failure_at"
         const val KEY_VERSION_CODE = "version_code"
+        const val KEY_LAST_CHANNEL_BETA = "last_channel_beta"
     }
 }
 
-/** 轮询协程多久醒一次。醒来只查表决定要不要发请求，本身不产生流量。 */
+/**
+ * 这次启动（进程）里有没有自动查过更新。
+ *
+ * 每次打开 App 都查一次，不受 [UPDATE_RECHECK_INTERVAL_MILLIS] 限制：检查现在只读一份几百字节的
+ * 版本清单，便宜得很，而用户最希望的就是一打开就知道有没有新版。
+ */
+object UpdateAutoCheckSession {
+    @Volatile
+    var checkedThisLaunch: Boolean = false
+}
+
+/** 检查协程多久醒一次看看到没到该查的时候。醒来本身不产生流量。 */
 const val UPDATE_POLL_TICK_MILLIS: Long = 60 * 1000L
 
-/** 轮询节拍：两次条件请求之间至少隔这么久。 */
-const val UPDATE_PEEK_INTERVAL_MILLIS: Long = 15 * 60 * 1000L
+/** App 开着或切回前台时，距上次查完至少隔这么久才再查。 */
+const val UPDATE_RECHECK_INTERVAL_MILLIS: Long = 30 * 60 * 1000L
+
+/** 上次没查成时，隔这么久再试。 */
+const val UPDATE_RETRY_AFTER_FAILURE_MILLIS: Long = 5 * 60 * 1000L
 
 /**
- * 条件请求探不通时，退回完整检查的最小间隔。
+ * 现在该不该自动查一次更新。
  *
- * 源站被墙时 [AppUpdateChecker.peek] 一直给 Unknown，此时只能靠走镜像的完整检查兜底；
- * 那一趟流量大得多，所以间隔放宽到几小时，不跟着轮询节拍走。
- */
-const val UPDATE_FULL_CHECK_FALLBACK_MILLIS: Long = 6 * 60 * 60 * 1000L
-
-/**
- * 这一轮该做什么。
+ * 这次启动还没查过就查；查过了就看上一次的结果：没查成的隔 [retryAfterFailureMillis] 重试，
+ * 查成了的隔 [recheckIntervalMillis] 再查。
  *
- * 分三种：什么都不用做、发一次条件请求、直接跑完整检查。
+ * 以前是先向 api.github.com 发条件请求探「有没有变」，变了才完整检查；但那个接口在国内
+ * 常常连不上，探测一直给「不知道」，于是再也不跑完整检查，有新版也从不弹窗。
  */
-enum class UpdatePollAction { Skip, Peek, FullCheck }
-
-/**
- * 依据上次探测/完整检查的时间决定这一轮的动作。
- *
- * 从没查过时先跑一次完整检查：此时既没有 ETag 可比，也还不知道有没有新版，
- * 条件请求只会白跑一趟。
- */
-fun updatePollAction(
+fun autoUpdateCheckDue(
     nowMillis: Long,
-    lastPeekAtMillis: Long,
-    lastFullCheckAtMillis: Long,
-    hasEtag: Boolean,
-    peekIntervalMillis: Long = UPDATE_PEEK_INTERVAL_MILLIS,
-    fullCheckFallbackMillis: Long = UPDATE_FULL_CHECK_FALLBACK_MILLIS,
-): UpdatePollAction = when {
-    lastFullCheckAtMillis <= 0L -> UpdatePollAction.FullCheck
-    // 没有 ETag 就发不出有意义的条件请求，等冷却期到了直接走完整检查
-    !hasEtag && nowMillis - lastFullCheckAtMillis >= fullCheckFallbackMillis -> UpdatePollAction.FullCheck
-    !hasEtag -> UpdatePollAction.Skip
-    nowMillis - lastPeekAtMillis >= peekIntervalMillis -> UpdatePollAction.Peek
-    else -> UpdatePollAction.Skip
+    checkedThisLaunch: Boolean,
+    lastCheckAtMillis: Long,
+    lastFailureAtMillis: Long,
+    /** 刚切换了「测试版更新」开关：上次查的是另一条通道，结果不作数。 */
+    channelChanged: Boolean = false,
+    recheckIntervalMillis: Long = UPDATE_RECHECK_INTERVAL_MILLIS,
+    retryAfterFailureMillis: Long = UPDATE_RETRY_AFTER_FAILURE_MILLIS,
+): Boolean = when {
+    !checkedThisLaunch || channelChanged -> true
+    lastFailureAtMillis > lastCheckAtMillis -> nowMillis - lastFailureAtMillis >= retryAfterFailureMillis
+    else -> nowMillis - lastCheckAtMillis >= recheckIntervalMillis
 }
