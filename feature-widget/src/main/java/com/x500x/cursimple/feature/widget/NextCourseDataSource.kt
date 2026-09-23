@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
+import com.x500x.cursimple.core.data.widget.courseSlotLabelText
 import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.coursesOfDay
@@ -25,6 +26,10 @@ internal data class NextCourseRow(
     val sub: String,
     val isFocus: Boolean,
     val isPast: Boolean,
+    /** 节次名字，如「第一节」；横跨几个时段或作息表里没有时为空。 */
+    val slotLabel: String? = null,
+    /** 节号范围，如「1-1」「3-4」；作息表里没有对应时段时为空，只显示 [period]。 */
+    val nodeNumbers: String = "",
 ) {
     val stableId: Long = id.hashCode().toLong()
 }
@@ -182,6 +187,12 @@ internal object NextCourseDataSource {
                 sub = sub,
                 isFocus = course === live || (live == null && course === firstUpcoming),
                 isPast = entry.status == CourseStatus.Past,
+                slotLabel = appContext.courseSlotLabelText(
+                    timingProfile,
+                    course.time.startNode,
+                    course.time.endNode,
+                ),
+                nodeNumbers = widgetNodeNumbersText(timingProfile, course.time.startNode, course.time.endNode),
             )
         }
 

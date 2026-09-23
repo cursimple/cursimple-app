@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.content.Context
 import android.os.Build
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
@@ -138,7 +138,7 @@ internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
-                        TextButton(
+                        AppOutlinedButton(
                             onClick = {
                                 if (
                                     permission == AlarmPermission.Notifications &&
@@ -161,12 +161,12 @@ internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
             }
         },
         confirmButton = {
-            TextButton(onClick = { state.refresh(context) }) {
+            AppOutlinedButton(onClick = { state.refresh(context) }) {
                 Text(stringResource(R.string.schedule_alarm_permission_gate_recheck))
             }
         },
         dismissButton = {
-            TextButton(onClick = { state.dismiss() }) {
+            AppOutlinedButton(onClick = { state.dismiss() }) {
                 Text(stringResource(R.string.schedule_action_cancel))
             }
         },

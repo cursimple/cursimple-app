@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -19,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -151,7 +151,7 @@ internal fun ScheduleBackgroundCropDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f),
                     )
-                    TextButton(
+                    AppOutlinedButton(
                         enabled = zoom != 1f || offsetX != 0f || offsetY != 0f,
                         onClick = {
                             zoom = 1f
@@ -163,7 +163,7 @@ internal fun ScheduleBackgroundCropDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            AppOutlinedButton(
                 enabled = preview != null && !working,
                 onClick = {
                     working = true
@@ -190,7 +190,7 @@ internal fun ScheduleBackgroundCropDialog(
             ) { Text(stringResource(R.string.settings_confirm)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

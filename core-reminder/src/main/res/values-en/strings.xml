@@ -28,7 +28,7 @@
     <string name="reminder_alarm_dismissed">Alarm dismissed</string>
     <string name="reminder_snoozed_five_minutes">Snoozed for 5 minutes</string>
     <string name="reminder_manual_alarm_default_title">Manual alarm</string>
-    <string name="reminder_manual_alarm_default_message">Manually created reminder</string>
+    <string name="reminder_manual_alarm_default_message">Manually created alarm</string>
 
     <string name="reminder_system_clock_dispatch_requires_foreground">The app is not in the foreground, so the system clock cannot create the alarm. Open the app and retry</string>
     <string name="reminder_system_clock_dismiss_requires_foreground">The app is not in the foreground, so the system clock cannot delete the alarm. Open the app and retry</string>
@@ -42,6 +42,7 @@
     <string name="reminder_notification_message">%1$s %2$s %3$s-%4$s · %5$s · %6$s</string>
     <string name="reminder_notification_date">%1$d/%2$d</string>
     <string name="reminder_notification_nodes">Periods %1$d-%2$d</string>
+    <string name="reminder_notification_nodes_labeled">%1$s (P%2$s)</string>
     <string name="reminder_notification_location_tbd">Room TBD</string>
     <string name="reminder_weekday_other">Day %1$d</string>
 

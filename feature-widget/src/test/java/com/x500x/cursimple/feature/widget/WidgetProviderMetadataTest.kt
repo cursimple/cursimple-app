@@ -28,7 +28,9 @@ class WidgetProviderMetadataTest {
     fun `next course and reminder providers span a full home row too`() {
         val next = providerXml("next_course_widget_info.xml")
         assertEquals("4", next.androidAttribute("targetCellWidth"))
-        assertEquals("1", next.androidAttribute("targetCellHeight"))
+        // 默认两行：一行只放得下状态和课名，时间与地点会被截掉
+        assertEquals("2", next.androidAttribute("targetCellHeight"))
+        assertEquals("110dp", next.androidAttribute("minHeight"))
         assertEquals("180dp", next.androidAttribute("minWidth"))
 
         val reminder = providerXml("reminder_widget_info.xml")

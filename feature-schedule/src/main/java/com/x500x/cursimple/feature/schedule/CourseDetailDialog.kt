@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.NotificationsOff
@@ -41,11 +43,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -71,10 +71,13 @@ import com.x500x.cursimple.core.data.note.COURSE_NOTE_MAX_LENGTH
 import com.x500x.cursimple.core.data.note.CourseNoteInput
 import com.x500x.cursimple.core.data.note.courseNoteLength
 import com.x500x.cursimple.core.data.note.validateCourseNote
+import com.x500x.cursimple.core.kernel.model.CourseDetailField
+import com.x500x.cursimple.core.data.widget.courseSlotLabelText
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.ExamCountdown
+import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.examCountdownOrNull
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
@@ -257,12 +260,16 @@ fun CourseDetailDialog(
     } else {
         "?"
     }
-    val nodeRange = if (course.time.startNode == course.time.endNode) {
+    val context = LocalContext.current
+    // 和课表左侧的节次栏一个叫法（「第一节」「午间课」）；跨了几个时段、或作息表里找不到时才写节号
+    val slotName = remember(course.time, timingProfile, context) {
+        context.courseSlotLabelText(timingProfile, course.time.startNode, course.time.endNode)
+    }
+    val nodeRange = slotName ?: if (course.time.startNode == course.time.endNode) {
         stringResource(R.string.schedule_node_single, course.time.startNode)
     } else {
         stringResource(R.string.schedule_node_range, course.time.startNode, course.time.endNode)
     }
-    val context = LocalContext.current
     val classTime = remember(course, timingProfile) { resolveClassTime(course, timingProfile) }
     val classTimeText = remember(classTime, context) { context.classTimeText(classTime) }
     // 没有节次时间表时，上课时间只能按节次描述，跟副标题里的节次是同一句话，
@@ -287,13 +294,13 @@ fun CourseDetailDialog(
             title = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_title)) },
             text = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_body, course.title)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     confirmRestore = false
                     onRestorePluginCourse(course)
                 }) { Text(stringResource(R.string.schedule_action_restore_plugin)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRestore = false }) {
+                AppOutlinedButton(onClick = { confirmRestore = false }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -414,8 +421,10 @@ fun CourseDetailDialog(
                             classTimeText = classTimeText,
                             weeksText = weeksText,
                             examCountdown = examCountdown,
-                            location = course.location,
+                            // 详情按你正在看的这一周显示地点；这周设过单独地点就显示那一个
+                            location = course.locationForWeek(visibleWeekNumber),
                             teacher = course.teacher,
+                            details = course.details,
                             manual = manual,
                             pluginOverride = pluginOverride,
                         )
@@ -505,7 +514,7 @@ private fun CourseEditSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
         ) {
-            TextButton(onClick = onCancel) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppOutlinedButton(onClick = onCancel) { Text(stringResource(R.string.schedule_action_cancel)) }
             Spacer(Modifier.width(8.dp))
             Button(
                 onClick = { draft?.let(onSave) },
@@ -528,6 +537,7 @@ private fun CourseFactsCard(
     examCountdown: ExamCountdown?,
     location: String,
     teacher: String,
+    details: List<CourseDetailField>,
     manual: Boolean,
     pluginOverride: Boolean,
 ) {
@@ -574,6 +584,14 @@ private fun CourseFactsCard(
                     icon = Icons.Rounded.Person,
                     title = stringResource(R.string.schedule_course_detail_teacher),
                     body = teacher,
+                )
+            }
+            // 教务带来的课程序号、学分这类，插件给什么列什么
+            details.forEach { field ->
+                DetailRow(
+                    icon = Icons.Rounded.Info,
+                    title = field.label,
+                    body = field.value,
                 )
             }
             // 数据来源信息量低，降为浅色脚注一行
@@ -743,7 +761,7 @@ private fun CourseNoteSection(
                 maxLines = 1,
             )
             if (!editing) {
-                TextButton(
+                AppOutlinedButton(
                     onClick = { editing = true },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                 ) {
@@ -776,7 +794,7 @@ private fun CourseNoteSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (savedNote.isNotBlank()) {
-                    OutlinedButton(
+                    AppOutlinedButton(
                         onClick = {
                             draft = ""
                             onSave("")
@@ -788,7 +806,7 @@ private fun CourseNoteSection(
                     }
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                TextButton(
+                AppOutlinedButton(
                     onClick = {
                         draft = savedNote
                         editing = false
@@ -869,7 +887,7 @@ private fun ExamReminderMuteRow(
                 )
             }
             if (enabled) {
-                TextButton(onClick = if (muted) onRestore else onMute) {
+                AppOutlinedButton(onClick = if (muted) onRestore else onMute) {
                     Text(stringResource(if (muted) R.string.schedule_action_restore else R.string.schedule_exam_mute_this))
                 }
             }

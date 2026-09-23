@@ -47,6 +47,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderAlarmSettings
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 import com.x500x.cursimple.core.reminder.model.SystemAlarmSyncSummary
 import com.x500x.cursimple.app.reminder.SystemAlarmCheckScheduler
+import com.x500x.cursimple.app.notice.ClassNoticeGateway
 import com.x500x.cursimple.feature.widget.ScheduleWidgetUpdater
 import com.x500x.cursimple.feature.widget.ScheduleWidgetWorkScheduler
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
@@ -262,6 +263,8 @@ class AppContainer(
             timingProfile
         }
         ScheduleWidgetUpdater.refreshAll(app)
+        // 课表或作息一变，下一节课就可能变了，上课通知的闹钟跟着重挂
+        runCatching { ClassNoticeGateway.reschedule(app) }
         scheduleSystemAlarmChecks(effectiveProfile)
     }
 

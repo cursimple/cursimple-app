@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,14 +23,12 @@ import androidx.compose.material.icons.rounded.OpenWith
 import androidx.compose.material.icons.rounded.SettingsBackupRestore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Remove
@@ -154,13 +154,13 @@ internal fun CourseActionSheet(
             title = { Text(stringResource(R.string.schedule_library_delete_title)) },
             text = { Text(stringResource(R.string.schedule_library_delete_body, course.title)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     confirmDelete = false
                     onDelete()
                 }) { Text(stringResource(R.string.schedule_library_delete_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDelete = false }) {
+                AppOutlinedButton(onClick = { confirmDelete = false }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -173,13 +173,13 @@ internal fun CourseActionSheet(
             title = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_title)) },
             text = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_body, course.title)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     confirmRestore = false
                     onRestorePlugin()
                 }) { Text(stringResource(R.string.schedule_action_restore_plugin)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRestore = false }) {
+                AppOutlinedButton(onClick = { confirmRestore = false }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -304,7 +304,7 @@ internal fun MoveCourseDialog(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     (1..7).forEach { day ->
-                        FilterChip(
+                        AppFilterChip(
                             selected = dayOfWeek == day,
                             onClick = { dayOfWeek = day },
                             label = { Text(stringResource(scheduleWeekdayFullRes(day)), maxLines = 1) },
@@ -381,12 +381,12 @@ internal fun MoveCourseDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(target) }, enabled = !unchanged) {
+            AppOutlinedButton(onClick = { onConfirm(target) }, enabled = !unchanged) {
                 Text(stringResource(R.string.schedule_move_dialog_confirm))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }

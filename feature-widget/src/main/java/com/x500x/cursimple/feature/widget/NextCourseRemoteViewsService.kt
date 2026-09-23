@@ -84,7 +84,10 @@ internal fun buildNextCourseRow(
     row.setInt(R.id.next_course_row_root, "setBackgroundResource", backgroundRes)
     row.applyOpenAppFillInIntent(R.id.next_course_row_root, widgetTheme)
     row.setTextViewText(R.id.next_course_label, data.label)
-    row.setTextViewText(R.id.next_course_period, data.period)
+    row.setTextViewText(
+        R.id.next_course_period,
+        widgetSlotCellText(data.slotLabel, data.nodeNumbers, fallback = data.period),
+    )
     row.setTextViewText(R.id.next_course_name, data.title)
     row.setTextViewText(R.id.next_course_time, data.time)
     row.setTextViewText(R.id.next_course_sub, data.sub)
