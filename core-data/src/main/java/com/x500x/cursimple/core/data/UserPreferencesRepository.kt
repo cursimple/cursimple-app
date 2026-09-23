@@ -33,7 +33,11 @@ import kotlin.math.pow
 
 enum class ThemeMode { System, Light, Dark }
 
-enum class ThemeAccent { Green, Blue, Purple, Orange, Pink }
+/**
+ * 主题色。前五个是手调好的配色；[Custom] 是用户在调色板里自选的颜色，
+ * 颜色值另存在 [UserPreferences.themeCustomColorArgb]，其余配色都由它推出来。
+ */
+enum class ThemeAccent { Green, Blue, Purple, Orange, Pink, Custom }
 
 /** 界面语言。[System] 跟随系统设置，其余为用户显式选定。 */
 enum class AppLanguage(val tag: String) {
@@ -356,6 +360,8 @@ private fun srgbChannelToLinear(channelByte: Int): Double {
 data class UserPreferences(
     val themeMode: ThemeMode = ThemeMode.Light,
     val themeAccent: ThemeAccent = ThemeAccent.Green,
+    /** 自选主题色（[ThemeAccent.Custom]）的颜色，不透明 ARGB；选内置色时保留上次挑的，再切回来不用重挑。 */
+    val themeCustomColorArgb: Int = com.x500x.cursimple.core.data.theme.AccentColors.DEFAULT_CUSTOM_ARGB,
     val appLanguage: AppLanguage = AppLanguage.System,
     val termStartDate: LocalDate? = null,
     /** 开学日期是否由用户自己定过。为假时才允许从插件同步的作息里继承。 */
@@ -441,6 +447,9 @@ interface UserPreferencesRepository {
     val preferencesFlow: Flow<UserPreferences>
     suspend fun setThemeMode(mode: ThemeMode)
     suspend fun setThemeAccent(accent: ThemeAccent)
+
+    /** 选用自选主题色：同时把主题色切到 [ThemeAccent.Custom]。 */
+    suspend fun setThemeCustomColor(argb: Int)
 
     /** 记下 / 撤销用户对某项厂商权限的手动确认。 */
     suspend fun setVendorPermissionAck(key: String, acked: Boolean)

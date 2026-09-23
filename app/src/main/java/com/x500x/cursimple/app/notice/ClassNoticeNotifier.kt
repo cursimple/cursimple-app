@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
@@ -221,7 +222,7 @@ object ClassNoticeNotifier {
         title: String,
         body: String,
     ): RemoteViews = RemoteViews(context.packageName, R.layout.notification_class_notice_card).apply {
-        setInt(R.id.class_notice_card_root, "setBackgroundResource", theme.cardBackgroundRes)
+        applyCardBackground(theme)
         setTextViewText(R.id.class_notice_card_subtext, subText)
         setTextViewText(R.id.class_notice_card_title, title)
         setTextViewText(R.id.class_notice_card_body, body)
@@ -237,9 +238,23 @@ object ClassNoticeNotifier {
         context.packageName,
         R.layout.notification_class_notice_card_compact,
     ).apply {
-        setInt(R.id.class_notice_card_root, "setBackgroundResource", theme.cardBackgroundRes)
+        applyCardBackground(theme)
         setTextViewText(R.id.class_notice_card_title, title)
         setTextViewText(R.id.class_notice_card_body, body)
+    }
+
+    /**
+     * 品牌卡片的底：内置主题换对应的渐变图；自选色在 Android 12 起换成白底圆角图再着色，
+     * 更早的系统没法给 RemoteViews 着色，用 [NoticeTheme.cardBackgroundRes] 给的最接近的那张。
+     */
+    private fun RemoteViews.applyCardBackground(theme: NoticeTheme) {
+        val tint = theme.cardTintArgb
+        if (tint != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            setInt(R.id.class_notice_card_root, "setBackgroundResource", R.drawable.bg_class_notice_card_tintable)
+            setColorStateList(R.id.class_notice_card_root, "setBackgroundTintList", ColorStateList.valueOf(tint))
+        } else {
+            setInt(R.id.class_notice_card_root, "setBackgroundResource", theme.cardBackgroundRes)
+        }
     }
 
     /** 裁好的品牌图只跟资源走，一个进程算一次就够 */

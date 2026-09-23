@@ -82,12 +82,11 @@ internal fun buildScheduleCourseRow(
 ): RemoteViews {
     val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
     // 正在上的那一节用更深的同色底，一眼能从一列课里挑出来
-    val background = if (rowData.status == CourseStatus.Live) {
-        widgetRowVariantBackground(themeAccent)
-    } else {
-        widgetRowBackground(themeAccent)
-    }
-    row.setInt(R.id.course_row_root, "setBackgroundResource", background)
+    row.applyAccentBackground(
+        R.id.course_row_root,
+        widgetTheme,
+        if (rowData.status == CourseStatus.Live) WidgetSurfaceTone.RowVariant else WidgetSurfaceTone.Row,
+    )
     row.applyOpenAppFillInIntent(R.id.course_row_root, widgetTheme)
     row.setTextViewText(
         R.id.course_nodes,
@@ -134,7 +133,7 @@ internal fun buildScheduleCourseRow(
 }
 
 internal fun widgetRowBackground(accent: ThemeAccent): Int = when (accent) {
-    ThemeAccent.Green -> R.drawable.widget_bg_surface_green_clickable
+    ThemeAccent.Green, ThemeAccent.Custom -> R.drawable.widget_bg_surface_green_clickable
     ThemeAccent.Blue -> R.drawable.widget_bg_surface_blue_clickable
     ThemeAccent.Purple -> R.drawable.widget_bg_surface_purple_clickable
     ThemeAccent.Orange -> R.drawable.widget_bg_surface_orange_clickable
@@ -142,7 +141,7 @@ internal fun widgetRowBackground(accent: ThemeAccent): Int = when (accent) {
 }
 
 internal fun widgetRowVariantBackground(accent: ThemeAccent): Int = when (accent) {
-    ThemeAccent.Green -> R.drawable.widget_bg_surface_variant_green_clickable
+    ThemeAccent.Green, ThemeAccent.Custom -> R.drawable.widget_bg_surface_variant_green_clickable
     ThemeAccent.Blue -> R.drawable.widget_bg_surface_variant_blue_clickable
     ThemeAccent.Purple -> R.drawable.widget_bg_surface_variant_purple_clickable
     ThemeAccent.Orange -> R.drawable.widget_bg_surface_variant_orange_clickable

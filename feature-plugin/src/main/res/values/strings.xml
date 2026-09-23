@@ -55,6 +55,13 @@
     <string name="plugin_card_no_permission">无权限声明</string>
     <string name="plugin_card_action_syncing">同步中...</string>
     <string name="plugin_card_action_sync">同步课表</string>
+    <string name="plugin_upgrade_required_title">插件有新版本</string>
+    <string name="plugin_upgrade_required_body">「%1$s」有新版本 %2$s（当前 %3$s）。教务系统改版后旧版可能对不上，先升级再导课。</string>
+    <string name="plugin_upgrade_required_confirm">升级</string>
+    <string name="plugin_upgrade_required_dismiss">取消</string>
+    <string name="plugin_upgrade_available_line">有新版 %1$s（当前 %2$s）</string>
+    <string name="plugin_upgrade_action">升级</string>
+    <string name="plugin_upgrade_action_version">升级到 %1$s</string>
     <string name="plugin_badge_enabled">已启用</string>
 
     <string name="plugin_detail_title">插件详情</string>

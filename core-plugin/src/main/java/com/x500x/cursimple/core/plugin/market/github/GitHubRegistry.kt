@@ -114,15 +114,22 @@ class GitHubRegistryRepository(
 
     /**
      * 读取仓库最新 release 里的 manifest.json，其中声明了插件包文件名和市场展示的版本号。
+     *
+     * [fresh] 为真时在地址上挂一个按分钟变的参数：导课前查新版要的是此刻的最新版，
+     * 这个地址走镜像和 CDN，不加参数时可能拿到几小时前缓存的旧清单。
      */
-    suspend fun fetchLatestReleaseAsset(repoSlug: String): GitHubReleaseAsset? = withContext(Dispatchers.IO) {
+    suspend fun fetchLatestReleaseAsset(
+        repoSlug: String,
+        fresh: Boolean = false,
+    ): GitHubReleaseAsset? = withContext(Dispatchers.IO) {
         runCatching {
             pluginRequire(
                 repoSlug.matches(REPO_SLUG_REGEX),
                 R.string.plugin_error_plugin_repo_invalid,
                 repoSlug,
             )
-            val raw = fetchText(latestReleaseDownloadUrl(repoSlug, RELEASE_MANIFEST_FILE))
+            val manifestUrl = latestReleaseDownloadUrl(repoSlug, RELEASE_MANIFEST_FILE)
+            val raw = fetchText(if (fresh) "$manifestUrl?ts=${System.currentTimeMillis() / 60_000}" else manifestUrl)
             val manifest = json.decodeFromString<LatestPluginReleaseManifest>(raw)
             val filename = manifest.filename.ifBlank { manifest.name }.trim()
             val version = manifest.version.trim()

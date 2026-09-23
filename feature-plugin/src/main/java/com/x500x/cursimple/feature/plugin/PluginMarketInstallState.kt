@@ -34,16 +34,37 @@ internal fun resolveRepoInstallState(
     val record = installed.firstOrNull { it.sourceRepo?.trim()?.lowercase() == slug }
         ?: return PluginRepoInstallState.NotInstalled
     val tag = latestTag?.trim().orEmpty()
-    return when {
-        tag.isEmpty() -> PluginRepoInstallState.Installed(record)
-        isSameVersion(record.version, tag) -> PluginRepoInstallState.Installed(record)
-        else -> PluginRepoInstallState.Updatable(record, tag)
+    return if (tag.isNotEmpty() && isNewerVersion(tag, record.version)) {
+        PluginRepoInstallState.Updatable(record, tag)
+    } else {
+        PluginRepoInstallState.Installed(record)
     }
 }
 
-/** 市场的版本号带 v 前缀，插件清单里不带，比较前统一去掉。 */
-private fun isSameVersion(installedVersion: String, marketTag: String): Boolean =
-    normalizeVersion(installedVersion) == normalizeVersion(marketTag)
+/**
+ * [candidate] 是不是比 [installed] 新。
+ *
+ * 市场的版本号带 v 前缀、插件清单里不带，先去掉；再按点分的数字逐段比，1.0.10 比 1.0.9 新。
+ * 以前只比字符串是否相同，市场上的版本比本机旧（比如本地装了测试版）也会提示「可更新」，
+ * 一点就降级了。解析不出数字时退回「不相同就算新」。
+ */
+internal fun isNewerVersion(candidate: String, installed: String): Boolean {
+    val a = versionParts(candidate)
+    val b = versionParts(installed)
+    if (a == null || b == null) return normalizeVersion(candidate) != normalizeVersion(installed)
+    for (index in 0 until maxOf(a.size, b.size)) {
+        val left = a.getOrElse(index) { 0 }
+        val right = b.getOrElse(index) { 0 }
+        if (left != right) return left > right
+    }
+    return false
+}
+
+private fun versionParts(value: String): List<Int>? {
+    val core = normalizeVersion(value).substringBefore('-').substringBefore('+')
+    if (core.isBlank()) return null
+    return core.split('.').map { it.toIntOrNull() ?: return null }
+}
 
 private fun normalizeVersion(value: String): String =
     value.trim().removePrefix("v").removePrefix("V")

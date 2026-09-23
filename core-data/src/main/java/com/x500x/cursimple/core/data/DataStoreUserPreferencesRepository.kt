@@ -58,6 +58,9 @@ class DataStoreUserPreferencesRepository(
             themeAccent = prefs[KEY_THEME_ACCENT]
                 ?.let { runCatching { ThemeAccent.valueOf(it) }.getOrNull() }
                 ?: ThemeAccent.Green,
+            themeCustomColorArgb = prefs[KEY_THEME_CUSTOM_COLOR]
+                ?.let(com.x500x.cursimple.core.data.theme.AccentColors::opaque)
+                ?: com.x500x.cursimple.core.data.theme.AccentColors.DEFAULT_CUSTOM_ARGB,
             appLanguage = prefs[KEY_APP_LANGUAGE]
                 ?.let { runCatching { AppLanguage.valueOf(it) }.getOrNull() }
                 ?: AppLanguage.System,
@@ -157,6 +160,13 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setThemeAccent(accent: ThemeAccent) {
         store.edit { prefs -> prefs[KEY_THEME_ACCENT] = accent.name }
+    }
+
+    override suspend fun setThemeCustomColor(argb: Int) {
+        store.edit { prefs ->
+            prefs[KEY_THEME_CUSTOM_COLOR] = com.x500x.cursimple.core.data.theme.AccentColors.opaque(argb)
+            prefs[KEY_THEME_ACCENT] = ThemeAccent.Custom.name
+        }
     }
 
     override suspend fun setAppLanguage(language: AppLanguage) {
@@ -679,6 +689,7 @@ class DataStoreUserPreferencesRepository(
             previousAlarmRingtoneUri = prefs[KEY_ALARM_RINGTONE_URI]
             prefs.remove(KEY_THEME_MODE)
             prefs.remove(KEY_THEME_ACCENT)
+            prefs.remove(KEY_THEME_CUSTOM_COLOR)
             prefs.remove(KEY_APP_LANGUAGE)
             prefs.remove(KEY_DEVELOPER_MODE)
             prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
@@ -1078,6 +1089,7 @@ class DataStoreUserPreferencesRepository(
     private companion object {
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
         val KEY_THEME_ACCENT = stringPreferencesKey("theme_accent")
+        val KEY_THEME_CUSTOM_COLOR = intPreferencesKey("theme_custom_color")
         val KEY_APP_LANGUAGE = stringPreferencesKey("app_language")
         val KEY_TERM_START_EPOCH_DAY = longPreferencesKey("term_start_epoch_day")
         val KEY_TERM_START_USER_DECIDED = booleanPreferencesKey("term_start_user_decided")

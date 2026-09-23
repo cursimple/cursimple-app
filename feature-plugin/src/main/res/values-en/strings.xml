@@ -57,6 +57,13 @@
     <string name="plugin_card_no_permission">No permissions declared</string>
     <string name="plugin_card_action_syncing">Syncing…</string>
     <string name="plugin_card_action_sync">Sync schedule</string>
+    <string name="plugin_upgrade_required_title">Plugin update available</string>
+    <string name="plugin_upgrade_required_body">“%1$s” has a new version %2$s (installed: %3$s). Older versions may no longer work with the school system, so update before importing.</string>
+    <string name="plugin_upgrade_required_confirm">Update</string>
+    <string name="plugin_upgrade_required_dismiss">Cancel</string>
+    <string name="plugin_upgrade_available_line">New version %1$s (installed: %2$s)</string>
+    <string name="plugin_upgrade_action">Update</string>
+    <string name="plugin_upgrade_action_version">Update to %1$s</string>
     <string name="plugin_badge_enabled">Enabled</string>
 
     <string name="plugin_detail_title">Plugin details</string>

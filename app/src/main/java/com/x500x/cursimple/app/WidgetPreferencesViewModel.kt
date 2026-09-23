@@ -25,6 +25,13 @@ class WidgetPreferencesViewModel(
         }
     }
 
+    fun setWidgetThemeCustomColor(argb: Int) {
+        viewModelScope.launch {
+            repository.setWidgetThemeCustomColor(argb)
+            refreshWidgets()
+        }
+    }
+
     fun followAppThemeAccent() {
         viewModelScope.launch {
             repository.followAppThemeAccent()

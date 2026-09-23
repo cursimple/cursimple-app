@@ -62,11 +62,15 @@ fun QuickAddCourseDialog(
     initialWeek: Int,
     existingCourses: List<CourseItem> = emptyList(),
     maxWeekCount: Int = 30,
+    /** 这一格在作息表里的名字（「第二节」「午间课」）；为空时按节号写。 */
+    slotLabel: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (CourseItem) -> Unit,
 ) {
     var title by rememberSaveable { mutableStateOf("") }
     var location by rememberSaveable { mutableStateOf("") }
+    var weekLocationsRaw by rememberSaveable { mutableStateOf("") }
+    var pickingWeekLocations by rememberSaveable { mutableStateOf(false) }
     var teacher by rememberSaveable { mutableStateOf("") }
     val defaultWeekRange = quickAddDefaultWeekRange(initialWeek, maxWeekCount)
     var startWeekText by rememberSaveable { mutableStateOf(defaultWeekRange.first.toString()) }
@@ -74,6 +78,7 @@ fun QuickAddCourseDialog(
     var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
 
     val titleTrimmed = title.trim()
+    val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
     val startWeek = startWeekText.toIntOrNull()
     val endWeek = endWeekText.toIntOrNull()
     val weeksValid = startWeek != null && endWeek != null &&
@@ -132,8 +137,9 @@ fun QuickAddCourseDialog(
                         enabled = false,
                         label = {
                             Text(
-                                if (startNode == endNode) stringResource(R.string.schedule_node_single, startNode)
-                                else stringResource(R.string.schedule_node_range, startNode, endNode)
+                                slotLabel
+                                    ?: if (startNode == endNode) stringResource(R.string.schedule_node_single, startNode)
+                                    else stringResource(R.string.schedule_node_range, startNode, endNode)
                             )
                         },
                         colors = AssistChipDefaults.assistChipColors(
@@ -153,12 +159,12 @@ fun QuickAddCourseDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    OutlinedTextField(
-                        value = location,
-                        onValueChange = { location = it },
-                        label = { Text(stringResource(R.string.schedule_course_location_label)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                    // 和新建、编辑课程同一个地点框：点课表空格快速加课时也能逐周设地点
+                    CourseLocationField(
+                        location = location,
+                        onLocationChange = { location = it },
+                        weekLocations = weekLocationsMap,
+                        onPickWeekLocations = { pickingWeekLocations = true },
                     )
                     OutlinedTextField(
                         value = teacher,
@@ -242,6 +248,11 @@ fun QuickAddCourseDialog(
                                 title = titleTrimmed,
                                 teacher = teacher.trim(),
                                 location = location.trim(),
+                                // 只留选中周里、真填了内容的那几周
+                                weekLocations = weekLocationsMap
+                                    .filterKeys { it in weeks }
+                                    .mapValues { it.value.trim() }
+                                    .filterValues { it.isNotBlank() },
                                 weeks = weeks,
                                 category = category,
                                 time = CourseTimeSlot(
@@ -256,5 +267,29 @@ fun QuickAddCourseDialog(
                 }
             }
         }
+    }
+
+    if (pickingWeekLocations) {
+        val startWeek = startWeekText.toIntOrNull()
+        val endWeek = endWeekText.toIntOrNull()
+        WeekLocationDialog(
+            weeks = if (startWeek != null && endWeek != null && startWeek in 1..endWeek) {
+                (startWeek..endWeek).toList()
+            } else {
+                (1..maxWeekCount).toList()
+            },
+            courseTitle = title.trim(),
+            baseLocation = location.trim(),
+            weekLocations = weekLocationsMap,
+            onChange = { week, value ->
+                weekLocationsRaw = encodeWeekLocations(
+                    weekLocationsMap.toMutableMap().apply {
+                        if (value.isBlank()) remove(week) else put(week, value)
+                    },
+                )
+            },
+            onClearAll = { weekLocationsRaw = "" },
+            onDismiss = { pickingWeekLocations = false },
+        )
     }
 }
