@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,10 +24,8 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -246,13 +246,13 @@ private fun FilterBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FilterChip(
+            AppFilterChip(
                 selected = levelFilter == null,
                 onClick = { onLevelFilter(null) },
                 label = { Text(stringResource(R.string.plugin_log_filter_all_levels)) },
             )
             PluginLogLevel.values().forEach { lv ->
-                FilterChip(
+                AppFilterChip(
                     selected = levelFilter == lv,
                     onClick = { onLevelFilter(lv) },
                     label = { Text(lv.short) },
@@ -263,13 +263,13 @@ private fun FilterBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FilterChip(
+            AppFilterChip(
                 selected = sourceFilter == null,
                 onClick = { onSourceFilter(null) },
                 label = { Text(stringResource(R.string.plugin_log_filter_all_sources)) },
             )
             PluginLogSource.values().forEach { src ->
-                FilterChip(
+                AppFilterChip(
                     selected = sourceFilter == src,
                     onClick = { onSourceFilter(src) },
                     label = { Text(src.token) },
@@ -277,7 +277,7 @@ private fun FilterBar(
             }
         }
         if (pinnedTraceId != null) {
-            AssistChip(
+            AppAssistChip(
                 onClick = onClearPinnedTrace,
                 label = {
                     Text(
@@ -336,7 +336,7 @@ private fun LogEntryRow(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             entry.traceId?.let { trace ->
-                AssistChip(
+                AppAssistChip(
                     onClick = onPinTrace,
                     label = { Text(trace.takeLast(8), fontFamily = FontFamily.Monospace) },
                     modifier = Modifier.height(24.dp),

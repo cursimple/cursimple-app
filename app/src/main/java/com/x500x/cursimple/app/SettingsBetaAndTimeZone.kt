@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -13,7 +14,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,13 +56,13 @@ internal fun BetaUpdatesRow(
             title = { Text(stringResource(R.string.settings_beta_updates_confirm_title)) },
             text = { Text(stringResource(R.string.settings_beta_updates_confirm_body)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     showConfirm = false
                     onEnabledChange(true)
                 }) { Text(stringResource(R.string.settings_beta_updates_confirm_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) {
+                AppOutlinedButton(onClick = { showConfirm = false }) {
                     Text(stringResource(R.string.settings_cancel))
                 }
             },
@@ -221,7 +221,7 @@ private fun TimeZonePickerDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

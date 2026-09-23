@@ -59,6 +59,8 @@ class ClassScheduleApplication : Application() {
         )
         appContainer = AppContainer(this)
         ScheduleWidgetWorkScheduler.schedule(this)
+        // 零点精确闹钟之外的第二道保险：进程活着时换天/解锁就把过期的小组件重画
+        com.x500x.cursimple.feature.widget.WidgetDayChangeWatcher.register(this)
         LogCleanupScheduler.schedule(this)
 
         // 调度闹钟同步 WorkManager 任务

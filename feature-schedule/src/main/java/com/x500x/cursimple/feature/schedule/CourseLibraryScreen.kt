@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,13 +18,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -102,13 +101,13 @@ internal fun CourseLibraryScreen(
             title = { Text(stringResource(R.string.schedule_library_delete_title)) },
             text = { Text(stringResource(R.string.schedule_library_delete_body, target.course.title)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     onRemoveCourse(target.course.id)
                     pendingDelete = null
                 }) { Text(stringResource(R.string.schedule_library_delete_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) {
+                AppOutlinedButton(onClick = { pendingDelete = null }) {
                     Text(stringResource(R.string.schedule_library_delete_cancel))
                 }
             },
@@ -122,13 +121,13 @@ internal fun CourseLibraryScreen(
             title = { Text(stringResource(R.string.schedule_library_restore_title)) },
             text = { Text(stringResource(R.string.schedule_library_restore_body, target.course.title)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     onRemoveCourse(target.course.id)
                     pendingRestore = null
                 }) { Text(stringResource(R.string.schedule_library_restore_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingRestore = null }) {
+                AppOutlinedButton(onClick = { pendingRestore = null }) {
                     Text(stringResource(R.string.schedule_library_delete_cancel))
                 }
             },
@@ -165,13 +164,13 @@ internal fun CourseLibraryScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     onUpdateCourse(course.copy(time = time))
                     pendingMove = null
                 }) { Text(stringResource(R.string.schedule_move_dialog_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingMove = null }) {
+                AppOutlinedButton(onClick = { pendingMove = null }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -204,7 +203,7 @@ internal fun CourseLibraryScreen(
     }
     val hiddenToggle = @Composable {
         if (hiddenCourses.isNotEmpty()) {
-            TextButton(onClick = { showHidden = !showHidden }) {
+            AppOutlinedButton(onClick = { showHidden = !showHidden }) {
                 Text(
                     stringResource(
                         if (showHidden) {
@@ -243,7 +242,7 @@ internal fun CourseLibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 CourseSortMode.entries.forEach { mode ->
-                    FilterChip(
+                    AppFilterChip(
                         selected = mode == sortMode,
                         onClick = { sortMode = mode },
                         label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 1) },
@@ -265,7 +264,7 @@ internal fun CourseLibraryScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 CourseSortMode.entries.forEach { mode ->
-                    FilterChip(
+                    AppFilterChip(
                         selected = mode == sortMode,
                         onClick = { sortMode = mode },
                         label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 2) },
@@ -422,22 +421,22 @@ private fun CourseLibraryRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                OutlinedButton(onClick = { onEdit(course) }) {
+                AppOutlinedButton(onClick = { onEdit(course) }) {
                     Text(stringResource(R.string.schedule_action_edit), maxLines = 2)
                 }
-                OutlinedButton(onClick = { onMove(course) }) {
+                AppOutlinedButton(onClick = { onMove(course) }) {
                     Text(stringResource(R.string.schedule_course_action_move), maxLines = 2)
                 }
-                OutlinedButton(onClick = { onSetReminder(course) }) {
+                AppOutlinedButton(onClick = { onSetReminder(course) }) {
                     Text(stringResource(R.string.schedule_action_reminder), maxLines = 2)
                 }
                 if (entry.restorable) {
-                    OutlinedButton(onClick = { onRestore(entry) }) {
+                    AppOutlinedButton(onClick = { onRestore(entry) }) {
                         Text(stringResource(R.string.schedule_action_restore_plugin), maxLines = 2)
                     }
                 }
                 // 插件课删不掉原件，但可以把它盖住；两种情况用户看到的都是「删除」
-                OutlinedButton(onClick = { onDelete(entry) }) {
+                AppOutlinedButton(onClick = { onDelete(entry) }) {
                     Text(stringResource(R.string.schedule_action_delete), maxLines = 2)
                 }
             }
@@ -476,7 +475,7 @@ private fun HiddenCourseList(
                             maxLines = 1,
                         )
                     }
-                    TextButton(onClick = { onRestore(course.id) }) {
+                    AppOutlinedButton(onClick = { onRestore(course.id) }) {
                         Text(stringResource(R.string.schedule_action_restore))
                     }
                 }

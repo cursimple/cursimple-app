@@ -4,6 +4,12 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!--
+        只给「上课通知 - 悬浮窗增强」这一档皮肤用：动效和毛玻璃在通知 API 里没有，
+        要这两样就只能自己加一个窗口来画。默认皮肤是系统原生样式，用不到这条权限，
+        所以不主动申请，用户选了那一档才去引导授权。
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!--
         Android 14 起 SCHEDULE_EXACT_ALARM 默认不授予，闹钟会在排程前就被挡下。
         USE_EXACT_ALARM 安装即授予，适用于以闹钟为核心功能的应用；
         旧系统上仍用 SCHEDULE_EXACT_ALARM，那一档装了就自动给。
@@ -183,6 +189,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User scheduled course alarms ring when the app process is not already open" />
         </service>
+        <receiver
+            android:name=".app.notice.ClassNoticeReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>

@@ -2,6 +2,7 @@
 
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,11 +31,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -54,7 +53,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.R
@@ -124,26 +125,18 @@ fun UpdateHistorySection(
 
     Column(modifier = modifier.fillMaxWidth()) {
         when {
-            loading -> Text(
+            loading -> UpdateHistoryPlaceholder(
                 text = stringResource(R.string.update_history_loading),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 8.dp),
             )
 
-            releases == null -> Text(
+            releases == null -> UpdateHistoryPlaceholder(
                 text = stringResource(R.string.update_history_failed),
-                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(vertical = 8.dp),
             )
 
-            releases.orEmpty().isEmpty() -> Text(
+            releases.orEmpty().isEmpty() -> UpdateHistoryPlaceholder(
                 // 正式版还没发过时就是空的，说清楚而不是留一片白
                 text = stringResource(R.string.update_history_empty),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 8.dp),
             )
 
             else -> releases.orEmpty().forEach { release ->
@@ -156,6 +149,33 @@ fun UpdateHistorySection(
                 )
             }
         }
+    }
+}
+
+/**
+ * 没有内容可列时的那行字。
+ *
+ * 这一页除了它整屏都是空的，贴在左上角看着像渲染没完；
+ * 外层是 verticalScroll 的 Column，子项拿不到视口高度，weight/fillMaxHeight 都用不上，
+ * 所以给一块足够高的区域把它居中放进去。
+ */
+@Composable
+private fun UpdateHistoryPlaceholder(
+    text: String,
+    color: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 320.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = color,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -202,11 +222,19 @@ private fun UpdateHistoryRow(
             }
             if (expanded) {
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    text = release.notes.ifBlank { stringResource(R.string.update_history_no_notes) },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                if (release.notes.isBlank()) {
+                    Text(
+                        text = stringResource(R.string.update_history_no_notes),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    // 发布说明是 Markdown，和检查更新弹窗走同一套渲染；
+                    // 这里原先直接塞进 Text，标题的 ## 和列表的 - 全裸着显示
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        ReleaseNotesBody(release.notes)
+                    }
+                }
             }
         }
     }
@@ -248,7 +276,7 @@ fun UpdateCheckDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
         },
     )
 }
@@ -615,6 +643,16 @@ fun ReleaseAnnouncementGate(
     }
 
     if (!visible) return
+    // 说明拿到了就交给公告本身：带图的铺满全屏翻页，没图的仍是下面这种小弹窗
+    (notes as? ReleaseNotesState.Loaded)?.let { loaded ->
+        ReleaseAnnouncementDialog(
+            versionName = releaseVersionName(),
+            markdown = loaded.text,
+            imageLoader = com.x500x.cursimple.app.update.rememberReleaseImageLoader(),
+            onDismiss = { visible = false },
+        )
+        return
+    }
     AlertDialog(
         onDismissRequest = { visible = false },
         title = { Text(stringResource(R.string.update_announcement_title, releaseVersionName())) },
@@ -635,19 +673,16 @@ fun ReleaseAnnouncementGate(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = { attempt++ }) {
+                        AppOutlinedButton(onClick = { attempt++ }) {
                             Text(stringResource(R.string.update_announcement_retry))
                         }
-                        TextButton(onClick = { uriHandler.openUri(releaseUrl()) }) {
+                        AppOutlinedButton(onClick = { uriHandler.openUri(releaseUrl()) }) {
                             Text(stringResource(R.string.update_announcement_open_release))
                         }
                     }
                 }
 
-                is ReleaseNotesState.Loaded -> ReleaseNotesCard(
-                    markdown = state.text,
-                    maxHeight = 300.dp,
-                )
+                is ReleaseNotesState.Loaded -> ReleaseNotesCard(markdown = state.text, maxHeight = 300.dp)
             }
         },
         confirmButton = {
@@ -719,7 +754,7 @@ private fun UpdateRollbackDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }
@@ -784,7 +819,7 @@ private fun UpdateAvailableDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            AppOutlinedButton(onClick = onDismiss) {
                 Text(stringResource(R.string.update_dialog_later))
             }
         },
@@ -984,7 +1019,7 @@ private fun UpdateActionRow(
                 UpdateBadgeDot()
                 Spacer(modifier = Modifier.width(10.dp))
             }
-            OutlinedButton(
+            AppOutlinedButton(
                 onClick = onClick,
                 enabled = enabled,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),

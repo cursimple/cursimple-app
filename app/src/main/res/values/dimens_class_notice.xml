@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 悬浮窗离屏幕顶的距离，和系统悬浮横幅大致落在同一条线上 -->
+    <dimen name="class_notice_overlay_top">48dp</dimen>
+    <!-- 左右各留这么多。窗口宽度 = 屏宽 - 2 * 这个值，模糊范围因此正好等于卡片 -->
+    <dimen name="class_notice_overlay_side">12dp</dimen>
+</resources>

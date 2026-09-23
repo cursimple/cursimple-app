@@ -105,6 +105,7 @@ class DataStoreUserPreferencesRepository(
             alarmRepeatCount = (prefs[KEY_ALARM_REPEAT_COUNT] ?: DEFAULT_REPEAT_COUNT)
                 .coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT),
             autoSilence = prefs.toAutoSilencePreferences(),
+            classNotice = prefs.toClassNoticePreferences(),
             autoSilenceSession = prefs.toAutoSilenceSession(),
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: true,
             betaUpdatesEnabled = prefs[KEY_BETA_UPDATES_ENABLED] ?: false,
@@ -234,6 +235,48 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setScheduleTruncationEllipsis(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_TRUNCATION_ELLIPSIS] = enabled }
+    }
+
+    override suspend fun setClassNoticeEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_ENABLED] = enabled }
+    }
+
+    override suspend fun setClassNoticeAdvanceMinutes(minutes: Int) {
+        store.edit { prefs ->
+            prefs[KEY_CLASS_NOTICE_ADVANCE_MINUTES] =
+                ClassNoticePreferences.coerceAdvanceMinutes(minutes)
+        }
+    }
+
+    override suspend fun setClassNoticeHeadsUpEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_HEADS_UP] = enabled }
+    }
+
+    override suspend fun setClassNoticeLockScreenEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_LOCK_SCREEN] = enabled }
+    }
+
+    override suspend fun setClassNoticeFocusNotificationEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_FOCUS] = enabled }
+    }
+
+    override suspend fun setClassNoticeSkin(skin: ClassNoticeSkin) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_SKIN] = skin.name }
+    }
+
+    override suspend fun setClassNoticeAnimation(animation: ClassNoticeAnimation) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_ANIMATION] = animation.name }
+    }
+
+    override suspend fun setClassNoticeBlurEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_BLUR] = enabled }
+    }
+
+    override suspend fun setClassNoticeBlurStrength(strength: Int) {
+        store.edit { prefs ->
+            prefs[KEY_CLASS_NOTICE_BLUR_STRENGTH] =
+                ClassNoticePreferences.coerceBlurStrength(strength)
+        }
     }
 
     override suspend fun setScheduleTextVerticalCenter(enabled: Boolean) {
@@ -922,6 +965,28 @@ class DataStoreUserPreferencesRepository(
         )
     }
 
+    /** 上课通知偏好；默认开，提前 20 分钟，悬浮通知与锁屏显示都开着。 */
+    private fun Preferences.toClassNoticePreferences(): ClassNoticePreferences =
+        ClassNoticePreferences(
+            enabled = this[KEY_CLASS_NOTICE_ENABLED] ?: true,
+            advanceMinutes = ClassNoticePreferences.coerceAdvanceMinutes(
+                this[KEY_CLASS_NOTICE_ADVANCE_MINUTES] ?: ClassNoticePreferences.DEFAULT_ADVANCE_MINUTES,
+            ),
+            headsUpEnabled = this[KEY_CLASS_NOTICE_HEADS_UP] ?: true,
+            lockScreenEnabled = this[KEY_CLASS_NOTICE_LOCK_SCREEN] ?: true,
+            focusNotificationEnabled = this[KEY_CLASS_NOTICE_FOCUS] ?: true,
+            skin = this[KEY_CLASS_NOTICE_SKIN]
+                ?.let { runCatching { ClassNoticeSkin.valueOf(it) }.getOrNull() }
+                ?: ClassNoticeSkin.System,
+            animation = this[KEY_CLASS_NOTICE_ANIMATION]
+                ?.let { runCatching { ClassNoticeAnimation.valueOf(it) }.getOrNull() }
+                ?: ClassNoticeAnimation.Slide,
+            blurEnabled = this[KEY_CLASS_NOTICE_BLUR] ?: true,
+            blurStrength = ClassNoticePreferences.coerceBlurStrength(
+                this[KEY_CLASS_NOTICE_BLUR_STRENGTH] ?: ClassNoticePreferences.DEFAULT_BLUR_STRENGTH,
+            ),
+        )
+
     private fun Preferences.toAutoSilencePreferences(): AutoSilencePreferences = AutoSilencePreferences(
         enabled = this[KEY_AUTO_SILENCE_ENABLED] ?: false,
         mode = this[KEY_AUTO_SILENCE_MODE]
@@ -1031,6 +1096,15 @@ class DataStoreUserPreferencesRepository(
             booleanPreferencesKey("schedule_auto_shrink_long_titles")
         val KEY_SCHEDULE_TRUNCATION_ELLIPSIS =
             booleanPreferencesKey("schedule_truncation_ellipsis")
+        val KEY_CLASS_NOTICE_ENABLED = booleanPreferencesKey("class_notice_enabled")
+        val KEY_CLASS_NOTICE_ADVANCE_MINUTES = intPreferencesKey("class_notice_advance_minutes")
+        val KEY_CLASS_NOTICE_HEADS_UP = booleanPreferencesKey("class_notice_heads_up")
+        val KEY_CLASS_NOTICE_LOCK_SCREEN = booleanPreferencesKey("class_notice_lock_screen")
+        val KEY_CLASS_NOTICE_FOCUS = booleanPreferencesKey("class_notice_focus")
+        val KEY_CLASS_NOTICE_SKIN = stringPreferencesKey("class_notice_skin")
+        val KEY_CLASS_NOTICE_ANIMATION = stringPreferencesKey("class_notice_animation")
+        val KEY_CLASS_NOTICE_BLUR = booleanPreferencesKey("class_notice_blur")
+        val KEY_CLASS_NOTICE_BLUR_STRENGTH = intPreferencesKey("class_notice_blur_strength")
         val KEY_SCHEDULE_TEXT_FULL_CENTER = booleanPreferencesKey("schedule_text_full_center")
         val KEY_SCHEDULE_COURSE_CORNER_RADIUS_DP = intPreferencesKey("schedule_course_corner_radius_dp")
         val KEY_SCHEDULE_COURSE_CARD_HEIGHT_DP = intPreferencesKey("schedule_course_card_height_dp")

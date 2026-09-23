@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +34,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -182,13 +182,13 @@ fun TermManagementScreen(
             title = { Text(stringResource(R.string.term_delete_title)) },
             text = { Text(stringResource(R.string.term_delete_message, term.name)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     onDelete(term.id)
                     deleteTarget = null
                 }) { Text(stringResource(R.string.term_delete_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.term_cancel)) }
+                AppOutlinedButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.term_cancel)) }
             },
         )
     }
@@ -372,12 +372,12 @@ private fun CreateTermDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            AppOutlinedButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim(), date) },
             ) { Text(stringResource(R.string.term_create_confirm)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
     )
     if (showDate) {
         TermDatePickerDialog(
@@ -410,12 +410,12 @@ private fun RenameDialog(
             )
         },
         confirmButton = {
-            TextButton(
+            AppOutlinedButton(
                 enabled = name.isNotBlank(),
                 onClick = { onConfirm(name.trim()) },
             ) { Text(stringResource(R.string.term_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
     )
 }
 
@@ -432,11 +432,11 @@ private fun TermDatePickerDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onConfirm(selectedDate) }) {
+            AppOutlinedButton(onClick = { onConfirm(selectedDate) }) {
                 Text(stringResource(R.string.term_date_confirm))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.term_cancel)) } },
         text = {
             CalendarMonthPicker(selected = selectedDate, onSelect = { selectedDate = it })
         },

@@ -18,4 +18,34 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowDisablePreview">true</item>
     </style>
+
+    <!--
+      上课通知悬浮窗用的主题。
+
+      窗口背景交给代码设成那张圆角半透明 drawable（有界模糊要裁进这个形状），
+      所以这里只负责把系统自带的窗口装饰、变暗和默认进出场动画全部关掉。
+    -->
+    <style name="ClassNoticeOverlayDialog" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <!-- Material 对话框默认带窗口阴影，这里会在圆角卡片下方露出一块方角的灰影 -->
+        <item name="android:windowElevation">0dp</item>
+    </style>
+
+    <!--
+      悬浮窗的入场/退场动画挂在窗口上，而不是窗口里的内容上：圆角底和毛玻璃都属于窗口，
+      只动内容的话，那块玻璃一出来就已经在原位，只有文字在框里挪一下，几种动效看不出差别。
+    -->
+    <style name="ClassNoticeOverlayAnim.Slide" parent="">
+        <item name="android:windowEnterAnimation">@anim/class_notice_slide_in</item>
+        <item name="android:windowExitAnimation">@anim/class_notice_slide_out</item>
+    </style>
+
+    <style name="ClassNoticeOverlayAnim.Spring" parent="">
+        <item name="android:windowEnterAnimation">@anim/class_notice_spring_in</item>
+        <item name="android:windowExitAnimation">@anim/class_notice_spring_out</item>
+    </style>
 </resources>

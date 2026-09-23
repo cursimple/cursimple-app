@@ -7,6 +7,8 @@ import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.R
 import com.x500x.cursimple.core.data.toLocale
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
+import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.slotsCovering
 import java.time.LocalTime
 import java.util.Locale
 
@@ -186,6 +188,22 @@ fun Context.classSlotLabelText(slot: ClassSlotTime, fallbackIndex: Int): String 
         ?: getString(R.string.data_timing_slot_label_period, fallbackIndex)
 }
 
+/**
+ * 一门课所在节次的名字，如「第一节」「午间课」。
+ *
+ * 小组件、通知里给人看的是这个名字，「1-1」这种节号只作补充。
+ * 只在课程落在同一个时段里时才有名字：跨了几个时段的课（如 3-4 节横跨第二、三节）
+ * 拼出「第二节–第三节」反而难读，直接看节号更清楚；作息表里找不到对应时段时同样返回 null。
+ */
+fun Context.courseSlotLabelText(profile: TermTimingProfile?, startNode: Int, endNode: Int): String? =
+    slotLabelText(profile?.slotsCovering(startNode, endNode).orEmpty())
+
+/** 同 [courseSlotLabelText]，直接给出已经算好的时段（带作息表里的序号）。 */
+fun Context.slotLabelText(covering: List<IndexedValue<ClassSlotTime>>): String? {
+    val (index, slot) = covering.singleOrNull() ?: return null
+    return classSlotLabelText(slot, index + 1).trim().takeIf { it.isNotBlank() }
+}
+
 /** 按序号生成的节次名，没有任何标签信息时使用。 */
 fun Context.classSlotLabelOfIndex(index: Int): String =
     getString(R.string.data_timing_slot_label_period, index)
@@ -211,9 +229,14 @@ private val BLOCK_LABEL_KEYS = listOf(
     SLOT_LABEL_KEY_BLOCK_8,
 )
 
-/** 把用户输入的 "8:0" 之类补齐成 "08:00"，无法解析成合法时刻时返回 null。 */
+/**
+ * 把用户输入的 "8:0" 之类补齐成 "08:00"，无法解析成合法时刻时返回 null。
+ *
+ * 中文输入法下打出来的多半是全角冒号「：」甚至全角数字，肉眼和半角几乎没区别，
+ * 直接判格式错会让人对着看起来没问题的输入反复重填——所以先统一成半角再解析。
+ */
 fun normalizeTimeOrNull(raw: String): String? {
-    val text = raw.trim()
+    val text = raw.trim().halfWidthDigitsAndColon()
     if (text.isEmpty()) return null
     val parts = text.split(":")
     if (parts.size != 2) return null
@@ -224,6 +247,17 @@ fun normalizeTimeOrNull(raw: String): String? {
         "%02d:%02d".format(time.hour, time.minute)
     }.getOrNull()
 }
+
+/** 全角数字与全角/中文冒号统一成半角，其余字符原样保留。 */
+private fun String.halfWidthDigitsAndColon(): String = map { ch ->
+    when (ch) {
+        // 全角冒号、中文冒号
+        '\uFF1A', '\u2236' -> ':'
+        // 全角数字 ０-９
+        in '\uFF10'..'\uFF19' -> ch - 0xFEE0
+        else -> ch
+    }
+}.joinToString("")
 
 /** 把编辑行解析并校验成节次时间表。校验失败时逐条返回问题。 */
 fun buildTimingSlots(drafts: List<SlotDraftInput>): TimingDraftResult {

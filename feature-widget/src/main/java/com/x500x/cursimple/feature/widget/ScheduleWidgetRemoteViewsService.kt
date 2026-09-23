@@ -89,7 +89,10 @@ internal fun buildScheduleCourseRow(
     }
     row.setInt(R.id.course_row_root, "setBackgroundResource", background)
     row.applyOpenAppFillInIntent(R.id.course_row_root, widgetTheme)
-    row.setTextViewText(R.id.course_nodes, rowData.nodeRange)
+    row.setTextViewText(
+        R.id.course_nodes,
+        widgetSlotCellText(rowData.slotLabel, rowData.nodeNumbers, fallback = rowData.nodeRange),
+    )
     row.setTextViewText(R.id.course_time, rowData.timeRange)
     row.setTextViewText(R.id.course_title, rowData.title)
     row.setTextViewText(R.id.course_subtitle, rowData.subtitle)

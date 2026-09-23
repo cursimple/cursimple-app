@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.os.Message
@@ -36,7 +37,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -126,6 +126,16 @@ fun PluginWebSessionScreen(
         )
     }
     val uploadStage = remember(request.token) { mutableStateOf<UploadStage?>(null) }
+    val credentialStore = remember { WebLoginCredentialStore(context) }
+    val pendingCredential = remember(request.token) { mutableStateOf<WebLoginCredential?>(null) }
+    val loginAssist = remember(request.token) {
+        WebLoginAssist(
+            pluginId = request.pluginId,
+            allowedHosts = request.allowedHosts,
+            store = credentialStore,
+            onCaptured = { pendingCredential.value = it },
+        )
+    }
     val pendingCompletion = remember(request.token) {
         mutableStateOf<WebSessionCompletionCandidate?>(null)
     }
@@ -513,7 +523,7 @@ fun PluginWebSessionScreen(
                         style = buttonTextStyle,
                     )
                 }
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = {
                         val popup = popupWebViewState.value
                         if (popup != null) {
@@ -533,9 +543,9 @@ fun PluginWebSessionScreen(
                                 popupWebViewState.value = null
                                 popup.destroy()
                             }
-                            return@OutlinedButton
+                            return@AppOutlinedButton
                         }
-                        val webView = webViewState.value ?: return@OutlinedButton
+                        val webView = webViewState.value ?: return@AppOutlinedButton
                         val list = webView.copyBackForwardList()
                         val current = list.currentIndex
                         var target = -1
@@ -564,7 +574,7 @@ fun PluginWebSessionScreen(
                         style = buttonTextStyle,
                     )
                 }
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = {
                         foregroundWebView()?.reload()
                     },
@@ -698,6 +708,7 @@ fun PluginWebSessionScreen(
                 handleNavigation = ::handleNavigation,
                 handleAutoNavigation = ::handleAutoNavigation,
                 networkPacketStore = networkPacketStore,
+                loginAssist = loginAssist,
                 onPageNavigation = ::markNavigationChanged,
                 probeWebSession = { view, target -> probeWebSession(view, target) },
                 modifier = Modifier.fillMaxSize(),
@@ -720,12 +731,73 @@ fun PluginWebSessionScreen(
                 }) { Text(stringResource(R.string.plugin_web_ready_dialog_confirm)) }
             },
             dismissButton = {
-                androidx.compose.material3.TextButton(onClick = { pendingCompletion.value = null }) {
+                AppOutlinedButton(onClick = { pendingCompletion.value = null }) {
                     Text(stringResource(R.string.plugin_web_ready_dialog_dismiss))
                 }
             },
         )
     }
+
+    pendingCredential.value?.let { credential ->
+        SaveLoginCredentialDialog(
+            credential = credential,
+            isUpdate = remember(credential) {
+                credentialStore.find(request.pluginId, credential.host)?.username == credential.username
+            },
+            onSave = {
+                pendingCredential.value = null
+                credentialStore.save(request.pluginId, credential)
+            },
+            onNever = {
+                pendingCredential.value = null
+                credentialStore.setNeverSave(request.pluginId, credential.host)
+            },
+            onDismiss = { pendingCredential.value = null },
+        )
+    }
+}
+
+@Composable
+private fun SaveLoginCredentialDialog(
+    credential: WebLoginCredential,
+    isUpdate: Boolean,
+    onSave: () -> Unit,
+    onNever: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(
+                    if (isUpdate) R.string.plugin_web_login_update_title else R.string.plugin_web_login_save_title,
+                ),
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(stringResource(R.string.plugin_web_login_save_message, credential.host))
+                Text(
+                    text = stringResource(R.string.plugin_web_login_save_account, credential.username),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = onSave) { Text(stringResource(R.string.plugin_web_login_save_confirm)) }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.TextButton(onClick = onNever) {
+                    Text(stringResource(R.string.plugin_web_login_save_never))
+                }
+                AppOutlinedButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.plugin_web_login_save_dismiss))
+                }
+            }
+        },
+    )
 }
 
 @Composable
@@ -784,6 +856,7 @@ private fun PluginWebViewHost(
     handleNavigation: (WebView?, String) -> Boolean,
     handleAutoNavigation: (WebView?, String) -> Boolean,
     networkPacketStore: WebNetworkPacketStore,
+    loginAssist: WebLoginAssist,
     onPageNavigation: () -> Unit,
     probeWebSession: (WebView?, String) -> Unit,
     modifier: Modifier = Modifier,
@@ -833,6 +906,7 @@ private fun PluginWebViewHost(
                     handleNavigation = handleNavigation,
                     handleAutoNavigation = handleAutoNavigation,
                     networkPacketStore = networkPacketStore,
+                    loginAssist = loginAssist,
                     onPageNavigation = onPageNavigation,
                 )
             }
@@ -920,9 +994,18 @@ private fun WebView.configurePluginWebView(
     handleNavigation: (WebView?, String) -> Boolean,
     handleAutoNavigation: (WebView?, String) -> Boolean,
     networkPacketStore: WebNetworkPacketStore,
+    loginAssist: WebLoginAssist,
     onPageNavigation: () -> Unit,
 ) {
     applyPluginBrowserSettings(pluginUserAgent.value)
+    // 老站兼容：白名单域名上补回 document.domain 与被代理剥掉的 jQuery，详见 LegacySiteCompat
+    val legacySiteCompat = LegacySiteCompat(
+        context = context.applicationContext,
+        allowedHosts = request.allowedHosts,
+        userAgent = { pluginUserAgent.value },
+    )
+    legacySiteCompat.install(this)
+    loginAssist.install(this)
     addJavascriptInterface(
         PluginWebSessionBridge(
             request = request,
@@ -994,6 +1077,7 @@ private fun WebView.configurePluginWebView(
                         handleNavigation = handleNavigation,
                         handleAutoNavigation = handleAutoNavigation,
                         networkPacketStore = networkPacketStore,
+                        loginAssist = loginAssist,
                         onPageNavigation = onPageNavigation,
                     )
                 }
@@ -1059,12 +1143,18 @@ private fun WebView.configurePluginWebView(
             view: WebView?,
             webRequest: WebResourceRequest?,
         ): WebResourceResponse? {
-            if (webRequest == null || webRequest.isForMainFrame) {
-                return super.shouldInterceptRequest(view, webRequest)
+            if (webRequest == null) {
+                return null
             }
-            val packetResponse = networkPacketStore.capture(webRequest)
-                ?: return super.shouldInterceptRequest(view, webRequest)
-            return packetResponse
+            if (webRequest.isForMainFrame) {
+                return legacySiteCompat.interceptDocument(webRequest)
+                    ?: super.shouldInterceptRequest(view, webRequest)
+            }
+            // 插件声明的抓包优先；没命中时 iframe 里的页面导航同样要补 Origin-Agent-Cluster，
+            // aTrust 的握手恰恰发生在壳页和网关 iframe 之间
+            return networkPacketStore.capture(webRequest)
+                ?: legacySiteCompat.interceptDocument(webRequest)
+                ?: super.shouldInterceptRequest(view, webRequest)
         }
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
@@ -1134,6 +1224,8 @@ private fun WebView.configurePluginWebView(
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
+            // 记住密码对弹窗里的登录页同样生效，放在前台判断之前
+            view?.let { loginAssist.onPageFinished(it, url) }
             if (!isForegroundWebView(view)) {
                 return
             }

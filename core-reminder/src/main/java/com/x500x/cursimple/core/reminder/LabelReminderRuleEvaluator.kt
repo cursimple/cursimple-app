@@ -9,6 +9,8 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
+import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.startLocalTimeOrNull
@@ -113,10 +115,25 @@ internal class LabelReminderRuleEvaluator {
         // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val day = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
-        if (dayPolicy.suppresses(targetDate, day)) return emptyList()
-        return schedule.dailySchedules
-            .flatMap { it.courses }
+        val allCourses = schedule.dailySchedules.flatMap { it.courses }
+        // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
+        val movedIn = coursesMovedTo(
+            date = targetDate,
+            overrides = temporaryScheduleOverrides,
+            courseById = { id -> allCourses.firstOrNull { it.id == id } },
+            isOriginallyActive = { course, from -> course.isActiveInTermWeek(resolveTermWeek(termStart, from)) },
+        )
+        // 放假日不上常规课，但调课可以推翻放假：只留被挪过来的那几门
+        if (dayPolicy.suppresses(targetDate, day)) {
+            return movedIn
+                .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
+                .mapNotNull { course -> course.toDailyObject(timingProfile, targetDate) }
+                .sortedWith(compareBy<DailyReminderObject> { it.slot.startTime }.thenBy { it.course.title })
+        }
+        return allCourses
             .asSequence()
+            // 被单独挪到别天的课，这天不再提醒
+            .filterNot { isCourseMovedAwayFrom(targetDate, it, temporaryScheduleOverrides) }
             // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
             .mapNotNull { course ->
                 temporaryScheduleCourseSourceDate(
@@ -128,21 +145,21 @@ internal class LabelReminderRuleEvaluator {
             }
             .filter { (course, courseSource) -> course.isActiveInTermWeek(resolveTermWeek(termStart, courseSource)) }
             .map { (course, _) -> course }
+            .plus(movedIn)
             .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
-            .mapNotNull { course ->
-                val label = course.reminderSlotLabel(timingProfile)?.trim()?.takeIf { it.isNotBlank() }
-                    ?: return@mapNotNull null
-                val slot = reminderSlot(course, timingProfile, label)
-                    ?: return@mapNotNull null
-                DailyReminderObject(
-                    slotLabel = label,
-                    course = course,
-                    date = targetDate,
-                    slot = slot,
-                )
-            }
+            .mapNotNull { course -> course.toDailyObject(timingProfile, targetDate) }
             .sortedWith(compareBy<DailyReminderObject> { it.slot.startTime }.thenBy { it.course.title })
             .toList()
+    }
+
+    /** 课程配上它的节次标签与节次时间；没有标签或对不上节次的课不产生提醒对象。 */
+    private fun CourseItem.toDailyObject(
+        timingProfile: TermTimingProfile,
+        date: LocalDate,
+    ): DailyReminderObject? {
+        val label = reminderSlotLabel(timingProfile)?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val slot = reminderSlot(this, timingProfile, label) ?: return null
+        return DailyReminderObject(slotLabel = label, course = this, date = date, slot = slot)
     }
 
     fun evaluate(
@@ -265,6 +282,10 @@ internal class LabelReminderRuleEvaluator {
             startNode = daily.course.time.startNode,
             endNode = daily.course.time.endNode,
             location = daily.course.location,
+            // 规则按标签匹配到的课，标签就是它所在时段的名字；横跨几个时段时只写节号
+            slotLabel = daily.slotLabel.trim().takeIf {
+                daily.slot.startNode <= daily.course.time.startNode && daily.slot.endNode >= daily.course.time.endNode
+            }.orEmpty(),
         )
 
     private fun reminderSlot(

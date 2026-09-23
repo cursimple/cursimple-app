@@ -1,7 +1,12 @@
 package com.x500x.cursimple.feature.widget
 
 import android.content.Context
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.RelativeSizeSpan
 import androidx.annotation.StringRes
+import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.slotsCovering
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import java.time.LocalDate
 
@@ -285,6 +290,35 @@ internal fun widgetCourseStatusRes(status: CourseStatus, exam: Boolean): Int = w
 
 internal fun Context.widgetNodeRangeText(startNode: Int, endNode: Int): String =
     getString(R.string.widget_node_range, startNode, endNode)
+
+/**
+ * 跟在节次名字后面的节号，一律写成范围：「1-1」「3-4」。
+ * 作息表里找不到这门课的时段时返回空串，界面退回「1-2节」的旧写法。
+ */
+internal fun widgetNodeNumbersText(profile: TermTimingProfile?, startNode: Int, endNode: Int): String =
+    if (profile?.slotsCovering(startNode, endNode).isNullOrEmpty()) "" else "$startNode-$endNode"
+
+/**
+ * 节次那一格的文字：
+ * - 落在一个时段里：「第一节」这类名字为主，节号缩小放在括号里跟在后面，如「第一节 (1-1)」；
+ * - 横跨几个时段：没有单一的名字可叫，只写节号「3-4」；
+ * - 作息表里没有对应时段：退回原来的「1-2节」。
+ *
+ * 数据类里只存纯文本，样式在绑定视图时才拼：带样式的文字做不了可靠的相等比较，
+ * 会让列表版本号每次都变。
+ */
+internal fun widgetSlotCellText(slotLabel: String?, nodeNumbers: String, fallback: String): CharSequence {
+    if (nodeNumbers.isBlank()) return fallback
+    if (slotLabel.isNullOrBlank()) return nodeNumbers
+    val text = SpannableStringBuilder(slotLabel).append(' ')
+    val start = text.length
+    text.append("(").append(nodeNumbers).append(")")
+    text.setSpan(RelativeSizeSpan(WIDGET_NODE_NUMBERS_SCALE), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    return text
+}
+
+/** 节号相对节次名字的字号比例。 */
+private const val WIDGET_NODE_NUMBERS_SCALE = 0.78f
 
 /** 考试课程在标题上带前缀，其余课程直接用标题。 */
 internal fun Context.widgetCourseTitleText(title: String, exam: Boolean): String =

@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -23,11 +24,9 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -133,7 +132,7 @@ internal fun ReminderRuleEditorDialog(
                         onDelete = { conditions = conditions.filterIndexed { i, _ -> i != index } },
                     )
                 }
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = {
                         conditions += ReminderLabelCondition(labels.first(), ReminderLabelPresence.Exists)
                     },
@@ -152,7 +151,7 @@ internal fun ReminderRuleEditorDialog(
                         onDelete = { actions = actions.filterIndexed { i, _ -> i != index } },
                     )
                 }
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = {
                         actions += ReminderLabelAction(labels.first(), ReminderLabelActionType.Remind)
                     },
@@ -179,7 +178,7 @@ internal fun ReminderRuleEditorDialog(
                 Text(stringResource(R.string.schedule_action_save))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 

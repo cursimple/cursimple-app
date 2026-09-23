@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -19,10 +20,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -80,13 +79,13 @@ internal fun TimingProfileLibrarySection(
             title = { Text(stringResource(R.string.settings_timing_profile_delete_title)) },
             text = { Text(stringResource(R.string.settings_timing_profile_delete_body, name)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     onDelete(target)
                     pendingDelete = null
                 }) { Text(stringResource(R.string.settings_timing_profile_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingDelete = null }) {
+                AppOutlinedButton(onClick = { pendingDelete = null }) {
                     Text(stringResource(R.string.settings_cancel))
                 }
             },
@@ -120,7 +119,7 @@ internal fun TimingProfileLibrarySection(
         )
     }
 
-    OutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth()) {
+    AppOutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth()) {
         Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(6.dp))
         Text(stringResource(R.string.settings_timing_profile_create))
@@ -183,18 +182,18 @@ private fun TimingProfileRow(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (!selected) {
-                    OutlinedButton(onClick = onActivate) {
+                    AppOutlinedButton(onClick = onActivate) {
                         Text(stringResource(R.string.settings_timing_profile_use), maxLines = 1)
                     }
                 }
-                OutlinedButton(onClick = onRename) {
+                AppOutlinedButton(onClick = onRename) {
                     Text(stringResource(R.string.settings_timing_profile_rename), maxLines = 1)
                 }
-                OutlinedButton(onClick = onDuplicate) {
+                AppOutlinedButton(onClick = onDuplicate) {
                     Text(stringResource(R.string.settings_timing_profile_duplicate), maxLines = 1)
                 }
                 if (deletable) {
-                    OutlinedButton(onClick = onDelete) {
+                    AppOutlinedButton(onClick = onDelete) {
                         Text(stringResource(R.string.settings_timing_profile_delete), maxLines = 1)
                     }
                 }
@@ -222,13 +221,13 @@ internal fun TimingProfileNameDialog(
             )
         },
         confirmButton = {
-            TextButton(
+            AppOutlinedButton(
                 onClick = { onConfirm(name) },
                 enabled = name.isNotBlank(),
             ) { Text(stringResource(R.string.settings_confirm)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_cancel)) }
         },
     )
 }

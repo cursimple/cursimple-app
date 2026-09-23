@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -19,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -118,7 +118,7 @@ fun QuickAddCourseDialog(
 
                 // 星期与节次范围以只读 chip 固定展示，标明新课程会落在哪个位置。
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AssistChip(
+                    AppAssistChip(
                         onClick = {},
                         enabled = false,
                         label = { Text(stringResource(scheduleWeekdayFullRes(dayOfWeek))) },
@@ -127,7 +127,7 @@ fun QuickAddCourseDialog(
                             disabledLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         ),
                     )
-                    AssistChip(
+                    AppAssistChip(
                         onClick = {},
                         enabled = false,
                         label = {
@@ -169,7 +169,7 @@ fun QuickAddCourseDialog(
                     )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AssistChip(
+                        AppAssistChip(
                             onClick = { category = CourseCategory.Course },
                             label = { Text(stringResource(R.string.schedule_category_course)) },
                             colors = AssistChipDefaults.assistChipColors(
@@ -185,7 +185,7 @@ fun QuickAddCourseDialog(
                                 },
                             ),
                         )
-                        AssistChip(
+                        AppAssistChip(
                             onClick = { category = CourseCategory.Exam },
                             label = { Text(stringResource(R.string.schedule_category_exam)) },
                             colors = AssistChipDefaults.assistChipColors(
@@ -231,7 +231,7 @@ fun QuickAddCourseDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+                    AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
                         enabled = canSave,

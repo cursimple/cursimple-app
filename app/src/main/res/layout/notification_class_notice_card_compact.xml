@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「品牌卡片」皮肤的折叠态（通知栏收起时、以及悬浮横幅）。
+
+  系统只给自定义内容区约 48dp 高，用展开态那份带 40dp 图、12dp 内边距的布局会被
+  拦腰切掉第二行，所以这里单独排一份紧凑的：小一号的图、压到 4dp 的内边距、两行字。
+  别为了省一个文件把两种状态合成一份——合了就一定有一头难看。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:id="@+id/class_notice_card_root"
+    android:layout_height="wrap_content"
+    android:background="@drawable/bg_class_notice_card_green"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="12dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="12dp"
+    android:paddingBottom="4dp">
+
+    <ImageView
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginEnd="10dp"
+        android:background="@drawable/bg_class_notice_logo_badge"
+        android:padding="1dp"
+        android:contentDescription="@null"
+        android:src="@mipmap/ic_launcher_foreground" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/class_notice_card_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/class_notice_card_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#E6FFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+</LinearLayout>

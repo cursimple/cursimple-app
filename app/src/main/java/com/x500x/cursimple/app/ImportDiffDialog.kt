@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
@@ -27,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,7 +75,7 @@ fun ImportDiffDialog(
                 )
             },
             confirmButton = {
-                TextButton(
+                AppOutlinedButton(
                     enabled = termName.isNotBlank(),
                     onClick = {
                         namingNewTerm = false
@@ -84,7 +84,7 @@ fun ImportDiffDialog(
                 ) { Text(stringResource(R.string.import_diff_new_term_confirm)) }
             },
             dismissButton = {
-                TextButton(onClick = { namingNewTerm = false }) {
+                AppOutlinedButton(onClick = { namingNewTerm = false }) {
                     Text(stringResource(R.string.import_diff_cancel))
                 }
             },
@@ -131,16 +131,16 @@ fun ImportDiffDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { namingNewTerm = true }) {
+            AppOutlinedButton(onClick = { namingNewTerm = true }) {
                 Text(stringResource(R.string.import_diff_new_term))
             }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onDismiss) {
+                AppOutlinedButton(onClick = onDismiss) {
                     Text(stringResource(R.string.import_diff_cancel))
                 }
-                TextButton(onClick = onOverwrite) {
+                AppOutlinedButton(onClick = onOverwrite) {
                     Text(
                         text = stringResource(R.string.import_diff_overwrite),
                         color = MaterialTheme.colorScheme.error,

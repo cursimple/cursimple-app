@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
@@ -34,6 +35,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
@@ -75,9 +79,9 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ripple
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -122,9 +126,13 @@ import com.x500x.cursimple.app.update.shouldShowUpdateBadge
 import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
+import com.x500x.cursimple.feature.schedule.CourseSwapScreen
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
 import com.x500x.cursimple.core.kernel.model.termWeekLabel
 import com.x500x.cursimple.core.kernel.model.termWeekText
+import com.x500x.cursimple.core.kernel.model.planCourseMove
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModel
 import com.x500x.cursimple.feature.plugin.ComponentMarketViewModelFactory
@@ -140,6 +148,7 @@ import com.x500x.cursimple.feature.schedule.ScheduleViewModel
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.schedule.ScheduleViewModelFactory
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
+import com.x500x.cursimple.feature.schedule.time.today
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
@@ -201,6 +210,9 @@ class MainActivity : ComponentActivity() {
                     ) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
+                    // 拖动调课页要摆开的两天，由临时调课表单选好后带过来
+                    var swapTargetDate by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
+                    var swapSourceDate by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
                     var settingsReturnTarget by rememberSaveable { mutableStateOf<SettingsReturnTargetKey?>(null) }
                     var showAddMenu by remember { mutableStateOf(false) }
@@ -310,13 +322,13 @@ class MainActivity : ComponentActivity() {
                                 Text(stringResource(R.string.main_term_start_missing_body))
                             },
                             confirmButton = {
-                                TextButton(onClick = {
+                                AppOutlinedButton(onClick = {
                                     showTermStartReminder = false
                                     showDatePicker = true
                                 }) { Text(stringResource(R.string.main_go_to_settings)) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showTermStartReminder = false }) {
+                                AppOutlinedButton(onClick = { showTermStartReminder = false }) {
                                     Text(stringResource(R.string.main_later))
                                 }
                             },
@@ -577,19 +589,41 @@ class MainActivity : ComponentActivity() {
                                 CenterAlignedTopAppBar(
                                     title = {
                                         if (currentScreen == AppScreen.Schedule) {
+                                            // detectTapGestures 不像 clickable 那样自带水波纹，
+                                            // 点下去毫无反应会让人以为没点中。这里自己接一个
+                                            // interactionSource，在按下/抬起时发 PressInteraction，
+                                            // 单击开面板、双击回本周的手势都保持不变。
+                                            val weekTitleInteraction = remember { MutableInteractionSource() }
                                             Column(
                                                 modifier = Modifier
                                                     .guideAnchor(GuideAnchor.WeekTitle)
+                                                    .clip(RoundedCornerShape(50))
+                                                    .indication(weekTitleInteraction, ripple())
                                                     // 单击开周次面板，双击直接回本周——翻远了要回来不用再点两下
                                                     .pointerInput(Unit) {
                                                         detectTapGestures(
+                                                            onPress = { offset ->
+                                                                val press = PressInteraction.Press(offset)
+                                                                weekTitleInteraction.emit(press)
+                                                                val released = tryAwaitRelease()
+                                                                weekTitleInteraction.emit(
+                                                                    if (released) {
+                                                                        PressInteraction.Release(press)
+                                                                    } else {
+                                                                        PressInteraction.Cancel(press)
+                                                                    },
+                                                                )
+                                                            },
                                                             onTap = { showWeekMenu = true },
                                                             onDoubleTap = {
                                                                 weekOffset = 0
                                                                 dayOffset = 0
                                                             },
                                                         )
-                                                    },
+                                                    }
+                                                    // 内边距放在水波纹里面：整块（周次 + 学期那行）一起亮。
+                                                    // 左右要留够半个高度，胶囊两头的圆弧才不会切到学期文字
+                                                    .padding(horizontal = 20.dp, vertical = 4.dp),
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
                                                 // 未设置开学日期或尚未开学时都不存在“当前周”，底色与徽章都不应出现
@@ -700,7 +734,17 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 },
                                                 shape = RoundedCornerShape(8.dp),
-                                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                                // 周/日 是个切换钮：给它描边并按当前模式换底色，
+                                                // 一眼看出能点、也看出现在停在哪个模式
+                                                color = if (scheduleViewMode == ScheduleViewMode.Week) {
+                                                    MaterialTheme.colorScheme.primaryContainer
+                                                } else {
+                                                    MaterialTheme.colorScheme.surfaceVariant
+                                                },
+                                                border = androidx.compose.foundation.BorderStroke(
+                                                    1.dp,
+                                                    MaterialTheme.colorScheme.outline,
+                                                ),
                                                 modifier = Modifier
                                                     .padding(horizontal = 4.dp)
                                                     .height(32.dp)
@@ -720,7 +764,11 @@ class MainActivity : ComponentActivity() {
                                                         ),
                                                         style = MaterialTheme.typography.titleSmall,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        color = if (scheduleViewMode == ScheduleViewMode.Week) {
+                                                            MaterialTheme.colorScheme.onPrimaryContainer
+                                                        } else {
+                                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                                        },
                                                         maxLines = 1,
                                                         softWrap = false,
                                                     )
@@ -734,6 +782,10 @@ class MainActivity : ComponentActivity() {
                                                     Surface(
                                                         shape = CircleShape,
                                                         color = MaterialTheme.colorScheme.surfaceVariant,
+                                                        border = androidx.compose.foundation.BorderStroke(
+                                                            1.dp,
+                                                            MaterialTheme.colorScheme.outline,
+                                                        ),
                                                         modifier = Modifier.size(32.dp),
                                                     ) {
                                                         Box(contentAlignment = Alignment.Center) {
@@ -893,20 +945,40 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
-                                    AppScreen.Reminders -> SettingsRoute(
-                                        viewModel = scheduleViewModel,
-                                        alarmRingtoneUri = prefs.alarmRingtoneUri,
-                                        alarmAlertMode = prefs.alarmAlertMode,
-                                        alarmRingDurationSeconds = prefs.alarmRingDurationSeconds,
-                                        alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
-                                        alarmRepeatCount = prefs.alarmRepeatCount,
-                                        onAlarmRingtoneUriChange = prefsViewModel::setAlarmRingtoneUri,
-                                        onAlarmAlertModeChange = prefsViewModel::setAlarmAlertMode,
-                                        onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
-                                        onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
-                                        onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
-                                        onPickSystemRingtone = ::pickSystemRingtone,
-                                        onPickLocalAudio = ::pickLocalAudio,
+                                    AppScreen.Reminders -> RemindersScreen(
+                                        classNotice = prefs.classNotice,
+                                        onClassNoticeEnabledChange = prefsViewModel::setClassNoticeEnabled,
+                                        onClassNoticeAdvanceMinutesChange =
+                                            prefsViewModel::setClassNoticeAdvanceMinutes,
+                                        onClassNoticeHeadsUpChange =
+                                            prefsViewModel::setClassNoticeHeadsUpEnabled,
+                                        onClassNoticeLockScreenChange =
+                                            prefsViewModel::setClassNoticeLockScreenEnabled,
+                                        onClassNoticeFocusChange =
+                                            prefsViewModel::setClassNoticeFocusNotificationEnabled,
+                                        onClassNoticeSkinChange = prefsViewModel::setClassNoticeSkin,
+                                        onClassNoticeAnimationChange = prefsViewModel::setClassNoticeAnimation,
+                                        onClassNoticeBlurChange = prefsViewModel::setClassNoticeBlurEnabled,
+                                        onClassNoticeBlurStrengthChange =
+                                            prefsViewModel::setClassNoticeBlurStrength,
+                                        alarmsContent = { alarmsModifier ->
+                                            SettingsRoute(
+                                                viewModel = scheduleViewModel,
+                                                alarmRingtoneUri = prefs.alarmRingtoneUri,
+                                                alarmAlertMode = prefs.alarmAlertMode,
+                                                alarmRingDurationSeconds = prefs.alarmRingDurationSeconds,
+                                                alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
+                                                alarmRepeatCount = prefs.alarmRepeatCount,
+                                                onAlarmRingtoneUriChange = prefsViewModel::setAlarmRingtoneUri,
+                                                onAlarmAlertModeChange = prefsViewModel::setAlarmAlertMode,
+                                                onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
+                                                onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
+                                                onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
+                                                onPickSystemRingtone = ::pickSystemRingtone,
+                                                onPickLocalAudio = ::pickLocalAudio,
+                                                modifier = alarmsModifier,
+                                            )
+                                        },
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -963,6 +1035,24 @@ class MainActivity : ComponentActivity() {
                                         onScheduleTextVerticalCenterChange = prefsViewModel::setScheduleTextVerticalCenter,
                                         onScheduleAutoShrinkLongTitlesChange = prefsViewModel::setScheduleAutoShrinkLongTitles,
                                         onScheduleTruncationEllipsisChange = prefsViewModel::setScheduleTruncationEllipsis,
+                                        classNotice = prefs.classNotice,
+                                        onClassNoticeEnabledChange = prefsViewModel::setClassNoticeEnabled,
+                                        onClassNoticeAdvanceMinutesChange =
+                                            prefsViewModel::setClassNoticeAdvanceMinutes,
+                                        onClassNoticeHeadsUpChange =
+                                            prefsViewModel::setClassNoticeHeadsUpEnabled,
+                                        onClassNoticeLockScreenChange =
+                                            prefsViewModel::setClassNoticeLockScreenEnabled,
+                                        onClassNoticeFocusChange =
+                                            prefsViewModel::setClassNoticeFocusNotificationEnabled,
+                                        onClassNoticeSkinChange =
+                                            prefsViewModel::setClassNoticeSkin,
+                                        onClassNoticeAnimationChange =
+                                            prefsViewModel::setClassNoticeAnimation,
+                                        onClassNoticeBlurChange =
+                                            prefsViewModel::setClassNoticeBlurEnabled,
+                                        onClassNoticeBlurStrengthChange =
+                                            prefsViewModel::setClassNoticeBlurStrength,
                                         onScheduleCourseCornerRadiusDpChange = prefsViewModel::setScheduleCourseCornerRadiusDp,
                                         onScheduleCourseCardHeightDpChange = prefsViewModel::setScheduleCourseCardHeightDp,
                                         onScheduleOpacityPercentChange = prefsViewModel::setScheduleOpacityPercent,
@@ -1060,6 +1150,21 @@ class MainActivity : ComponentActivity() {
                                             settingsReturnTarget = null
                                             openSettingsDestination = null
                                         },
+                                        onOpenCourseSwap = { target, source ->
+                                            swapTargetDate = target
+                                            swapSourceDate = source
+                                            subScreen = MainActivity.SubScreen.CourseSwap
+                                        },
+                                        courseTitleOf = { id ->
+                                            scheduleState.schedule
+                                                .allCoursesWith(scheduleState.manualCourses)
+                                                .firstOrNull { it.id == id }
+                                                ?.title
+                                        },
+                                        scheduleCourses = scheduleState.schedule
+                                            .allCoursesWith(scheduleState.manualCourses),
+                                        scheduleTimingProfile = scheduleState.timingProfile,
+                                        onApplyCancelPlan = prefsViewModel::applyCancelCoursePlan,
                                         onExportScheduleMetadata = {
                                             scope.launch {
                                                 val snapshot = ScheduleMetadataExportSnapshot(
@@ -1197,6 +1302,62 @@ class MainActivity : ComponentActivity() {
                             )
                             androidx.activity.compose.BackHandler { subScreen = null }
                         }
+                        MainActivity.SubScreen.CourseSwap -> {
+                            val today = LocalAppZone.current.today()
+                            // 两天由临时调课表单带过来；万一没带就退回今天与明天，页面里还能再改
+                            val swapLeft = swapTargetDate ?: today
+                            val swapRight = swapSourceDate ?: today.plusDays(1)
+                            var pickingSwapLeft by rememberSaveable { mutableStateOf(false) }
+                            var pickingSwapRight by rememberSaveable { mutableStateOf(false) }
+                            CourseSwapScreen(
+                                leftDate = swapLeft,
+                                rightDate = swapRight,
+                                timingProfile = scheduleState.timingProfile,
+                                termStartDate = prefs.termStartDate,
+                                allCourses = scheduleState.schedule.allCoursesWith(scheduleState.manualCourses),
+                                overrides = prefs.temporaryScheduleOverrides,
+                                holidayCalendar = prefs.holidayCalendar,
+                                onPickLeftDate = { pickingSwapLeft = true },
+                                onPickRightDate = { pickingSwapRight = true },
+                                onMove = { course, from, to, startNode, endNode ->
+                                    // 拖的可能是已经挪过一次的课，要改写原记录而不是再叠一条，见 planCourseMove
+                                    val natural = scheduleState.schedule
+                                        .allCoursesWith(scheduleState.manualCourses)
+                                        .firstOrNull { it.id == course.id }
+                                        ?.time ?: course.time
+                                    prefsViewModel.applyCourseMove(
+                                        planCourseMove(
+                                            overrides = prefs.temporaryScheduleOverrides,
+                                            courseId = course.id,
+                                            from = from,
+                                            to = to,
+                                            toStartNode = startNode,
+                                            toEndNode = endNode,
+                                            naturalStartNode = natural.startNode,
+                                            naturalEndNode = natural.endNode,
+                                            newId = { java.util.UUID.randomUUID().toString() },
+                                        ),
+                                    )
+                                },
+                                onBack = { subScreen = null },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            if (pickingSwapLeft) {
+                                SettingsDatePickerDialog(
+                                    initial = swapLeft,
+                                    onConfirm = { swapTargetDate = it; pickingSwapLeft = false },
+                                    onDismiss = { pickingSwapLeft = false },
+                                )
+                            }
+                            if (pickingSwapRight) {
+                                SettingsDatePickerDialog(
+                                    initial = swapRight,
+                                    onConfirm = { swapSourceDate = it; pickingSwapRight = false },
+                                    onDismiss = { pickingSwapRight = false },
+                                )
+                            }
+                            androidx.activity.compose.BackHandler { subScreen = null }
+                        }
                         MainActivity.SubScreen.SchoolImport -> {
                             SchoolImportRoute(
                                 pluginMarketViewModel = pluginMarketViewModel,
@@ -1326,13 +1487,13 @@ class MainActivity : ComponentActivity() {
                             title = { Text(stringResource(R.string.main_clear_term_start_title)) },
                             text = { Text(stringResource(R.string.main_clear_term_start_body)) },
                             confirmButton = {
-                                TextButton(onClick = {
+                                AppOutlinedButton(onClick = {
                                     setActiveTermStartDate(null)
                                     showClearTermStartConfirm = false
                                 }) { Text(stringResource(R.string.main_clear)) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { showClearTermStartConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
+                                AppOutlinedButton(onClick = { showClearTermStartConfirm = false }) { Text(stringResource(R.string.main_cancel)) }
                             },
                         )
                     }
@@ -1395,7 +1556,7 @@ class MainActivity : ComponentActivity() {
                                 )
                             },
                             confirmButton = {
-                                TextButton(onClick = {
+                                AppOutlinedButton(onClick = {
                                     setActiveTermStartDate(derivedStart)
                                     weekOffset = 0
                                     dayOffset = 0
@@ -1403,7 +1564,7 @@ class MainActivity : ComponentActivity() {
                                 }) { Text(stringResource(R.string.main_set_current_week_confirm_action)) }
                             },
                             dismissButton = {
-                                TextButton(onClick = { pendingCurrentWeek = null }) {
+                                AppOutlinedButton(onClick = { pendingCurrentWeek = null }) {
                                     Text(stringResource(R.string.main_cancel))
                                 }
                             },
@@ -1512,7 +1673,7 @@ class MainActivity : ComponentActivity() {
         About(R.string.screen_about, Icons.Rounded.Info),
     }
 
-    enum class SubScreen { TermManagement, ImportExport, SchoolImport }
+    enum class SubScreen { TermManagement, ImportExport, SchoolImport, CourseSwap }
 }
 
 private fun Intent.pickedRingtoneUri(): Uri? =
@@ -1660,7 +1821,7 @@ private fun DrawerAppearanceShortcut(
     modifier: Modifier = Modifier,
     badge: Boolean = false,
 ) {
-    TextButton(
+    AppOutlinedButton(
         onClick = onClick,
         modifier = modifier,
         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
@@ -1698,12 +1859,12 @@ private fun TermStartDatePicker(
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
-            TextButton(onClick = { onConfirm(selectedDate) }) {
+            AppOutlinedButton(onClick = { onConfirm(selectedDate) }) {
                 Text(stringResource(R.string.main_confirm))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
         text = {
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -1799,7 +1960,7 @@ private fun CurrentWeekDialog(
             ) { Text(stringResource(R.string.main_set)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
     )
 }
@@ -1840,7 +2001,7 @@ private fun ThemeModeDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
         },
     )
 }
@@ -1895,7 +2056,7 @@ private fun AppLanguageDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_cancel)) }
         },
     )
 }
@@ -1961,7 +2122,7 @@ private fun ThemeAccentDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
         },
     )
 }

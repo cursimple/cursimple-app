@@ -2,6 +2,7 @@
 
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -255,18 +255,18 @@ fun WidgetPickerSheet(
             title = { Text(stringResource(R.string.widget_pin_permission_notice_title)) },
             text = { Text(stringResource(R.string.widget_pin_permission_notice_body)) },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     permissionNoticeEntry = null
                     WidgetCatalog.openShortcutPermission(context)
                 }) { Text(stringResource(R.string.widget_pin_permission_notice_open)) }
             },
             dismissButton = {
                 Row {
-                    TextButton(onClick = {
+                    AppOutlinedButton(onClick = {
                         permissionNoticeEntry = null
                         pendingConfirm = entry
                     }) { Text(stringResource(R.string.widget_pin_permission_notice_skip)) }
-                    TextButton(onClick = {
+                    AppOutlinedButton(onClick = {
                         permissionNoticeEntry = null
                         onVendorPermissionAckChange(VendorPermissionKey.SHORTCUT_PIN, true)
                         pendingConfirm = entry
@@ -284,13 +284,13 @@ fun WidgetPickerSheet(
             text = { Text(stringResource(R.string.widget_pin_unconfirmed_body, unconfirmed.title)) },
             confirmButton = {
                 // 厂商机型上先给权限入口：这项没给的话再点几次一键添加也还是没反应
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     pinUnconfirmed = null
                     WidgetCatalog.openShortcutPermission(context)
                 }) { Text(stringResource(R.string.widget_pin_unconfirmed_permission)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     pinUnconfirmed = null
                     manualGuideEntry = unconfirmed
                 }) {
@@ -341,19 +341,19 @@ fun WidgetPickerSheet(
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
+                AppOutlinedButton(onClick = {
                     val entry = pending
                     pendingConfirm = null
                     // 这家桌面不响应一键添加，别再让用户点一次等十几秒
                     if (preferManualAdd) {
                         manualGuideEntry = entry
-                        return@TextButton
+                        return@AppOutlinedButton
                     }
                     // 厂商机型上缺这两项时桌面会把添加请求静默丢掉，先问一次再发请求。
                     // 用户选「先不管」就直接继续，下次点添加还会再问，直到勾了已开启
                     if (needsVendorPermissionNotice) {
                         permissionNoticeEntry = entry
-                        return@TextButton
+                        return@AppOutlinedButton
                     }
                     when (val result = WidgetCatalog.requestPin(context, entry)) {
                         is WidgetCatalog.PinRequestResult.Started -> {
@@ -373,7 +373,7 @@ fun WidgetPickerSheet(
                 }) { Text(stringResource(R.string.widget_confirm_add)) }
             },
             dismissButton = {
-                TextButton(onClick = { pendingConfirm = null }) { Text(stringResource(R.string.widget_confirm_cancel)) }
+                AppOutlinedButton(onClick = { pendingConfirm = null }) { Text(stringResource(R.string.widget_confirm_cancel)) }
             },
         )
     }
@@ -440,10 +440,10 @@ private fun WidgetHelpDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
         },
         dismissButton = {
-            TextButton(
+            AppOutlinedButton(
                 onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
                     clipboard?.setPrimaryClip(
@@ -676,19 +676,19 @@ private fun ManualAddGuideDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.widget_help_got_it)) }
         },
         dismissButton = {
             Row {
                 // 判定有可能是误判（换了桌面、系统升级），留一条回去的路
                 onRetryPin?.let { retry ->
-                    TextButton(onClick = {
+                    AppOutlinedButton(onClick = {
                         onDismiss()
                         retry()
                     }) { Text(stringResource(R.string.widget_manual_retry_pin)) }
                 }
                 if (permissionTip != null) {
-                    TextButton(onClick = {
+                    AppOutlinedButton(onClick = {
                         onOpenAppDetails()
                         onDismiss()
                     }) { Text(stringResource(R.string.widget_manual_open_settings)) }

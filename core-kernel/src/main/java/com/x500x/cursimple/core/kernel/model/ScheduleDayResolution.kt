@@ -66,3 +66,44 @@ fun resolveScheduleDay(
         makeUpNodeRange = if (holiday) null else matchingTemporaryScheduleOverride(date, overrides)?.makeUpNodeRange(),
     )
 }
+
+/**
+ * [date] 当天实际要上的课，按起始节次排序，和课表主界面同一套判定：
+ * 调课按来源日取课、按来源日所在周判断上不上，被挪走的课不出现，挪过来的课落到目标节次，
+ * 放假日只剩被挪过来的那几门。
+ *
+ * [includeCancelled] 为真时连临时取消掉的也列出来，给「选一天、逐门点取消」那种
+ * 要显示已取消状态、还能点回来的界面用。[termStartDate] 为空时不按周次过滤。
+ */
+fun coursesScheduledOn(
+    date: LocalDate,
+    courses: List<CourseItem>,
+    overrides: List<TemporaryScheduleOverride>,
+    holidayCalendar: HolidayCalendarSettings,
+    termStartDate: LocalDate?,
+    includeCancelled: Boolean = false,
+): List<CourseItem> {
+    val resolution = resolveScheduleDay(date, overrides, holidayCalendar)
+    val activeOn: (CourseItem, LocalDate) -> Boolean = { course, day ->
+        termStartDate == null || course.isActiveInTermWeekNumber(resolveTermWeekNumber(termStartDate, day))
+    }
+    val movedIn = coursesMovedTo(
+        date = date,
+        overrides = overrides,
+        courseById = { id -> courses.firstOrNull { it.id == id } },
+        isOriginallyActive = activeOn,
+    )
+    val staying = if (resolution.isHoliday) {
+        emptyList()
+    } else {
+        courses
+            .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
+            .filter { course ->
+                val source = temporaryScheduleCourseSourceDate(date, course, resolution.sourceDate, overrides)
+                source != null && activeOn(course, source)
+            }
+    }
+    return (staying + movedIn)
+        .let { all -> if (includeCancelled) all else all.filterNot { isCourseTemporarilyCancelled(date, it, overrides) } }
+        .sortedWith(compareBy({ it.time.startNode }, { it.time.endNode }))
+}

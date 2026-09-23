@@ -165,6 +165,15 @@
     <string name="plugin_web_ready_dialog_message">The page has stopped navigating and the data this sync needs has been captured. Close the plugin page and write the schedule?</string>
     <string name="plugin_web_ready_dialog_confirm">Close and write</string>
     <string name="plugin_web_ready_dialog_dismiss">Keep browsing</string>
+    <string name="plugin_web_login_save_title">Save password?</string>
+    <string name="plugin_web_login_update_title">Update saved password?</string>
+    <string name="plugin_web_login_save_message">It will be filled in automatically next time you open the %1$s sign-in page. Stored on this device only.</string>
+    <string name="plugin_web_login_save_account">Account: %1$s</string>
+    <string name="plugin_web_login_save_confirm">Save</string>
+    <string name="plugin_web_login_save_dismiss">Not now</string>
+    <string name="plugin_web_login_save_never">Never for this site</string>
+    <string name="plugin_detail_action_clear_passwords">Clear saved passwords</string>
+    <string name="plugin_detail_passwords_cleared">Cleared the sign-in passwords saved for this plugin</string>
     <string name="plugin_web_overlay_title">Capturing the schedule…</string>
     <string name="plugin_web_overlay_subtitle">Please stay on this page</string>
     <string name="plugin_web_preparing">Preparing the web sign-in environment…</string>

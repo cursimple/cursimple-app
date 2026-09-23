@@ -2,6 +2,8 @@
 
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -50,15 +52,12 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -701,7 +700,7 @@ fun ImportExportScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { qrBitmap = null }) { Text(stringResource(R.string.ie_close)) }
+                AppOutlinedButton(onClick = { qrBitmap = null }) { Text(stringResource(R.string.ie_close)) }
             },
         )
     }
@@ -712,7 +711,7 @@ fun ImportExportScreen(
             title = { Text(stringResource(R.string.ie_qr_error_title)) },
             text = { Text(message) },
             confirmButton = {
-                TextButton(onClick = { qrError = null }) { Text(stringResource(R.string.ie_got_it)) }
+                AppOutlinedButton(onClick = { qrError = null }) { Text(stringResource(R.string.ie_got_it)) }
             },
         )
     }
@@ -781,7 +780,7 @@ fun ImportExportScreen(
                 }
             },
             dismissButton = {
-                TextButton(
+                AppOutlinedButton(
                     enabled = !webDavBusy,
                     onClick = { pendingRestore = null },
                 ) { Text(stringResource(R.string.ie_cancel)) }
@@ -919,7 +918,7 @@ fun ImportExportScreen(
                 }
             },
             dismissButton = {
-                TextButton(
+                AppOutlinedButton(
                     enabled = !importing,
                     onClick = { pendingImport = null },
                 ) { Text(stringResource(R.string.ie_cancel)) }
@@ -1146,7 +1145,7 @@ private fun WebDavPanel(
                             },
                         )
                     }
-                    OutlinedButton(
+                    AppOutlinedButton(
                         onClick = onRefresh,
                         enabled = enabled,
                         modifier = Modifier.weight(1f),
@@ -1241,7 +1240,7 @@ private fun ImportPanel(
                     Spacer(Modifier.size(6.dp))
                     Text(stringResource(R.string.ie_scan))
                 }
-                OutlinedButton(
+                AppOutlinedButton(
                     onClick = onPickImage,
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
@@ -1357,13 +1356,13 @@ private fun ScheduleImagePanel(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilterChip(
+                AppFilterChip(
                     selected = allWeeks,
                     onClick = { onAllWeeksChange(true) },
                     enabled = canExport && !busy,
                     label = { Text(stringResource(R.string.ie_image_scope_all_weeks)) },
                 )
-                FilterChip(
+                AppFilterChip(
                     selected = !allWeeks,
                     onClick = { onAllWeeksChange(false) },
                     enabled = canExport && !busy,
@@ -1405,7 +1404,7 @@ private fun ScheduleImagePanel(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            OutlinedButton(
+            AppOutlinedButton(
                 onClick = onExport,
                 enabled = canExport && !busy,
                 modifier = Modifier.fillMaxWidth(),
@@ -1468,7 +1467,7 @@ private fun Panel(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(12.dp))
-            OutlinedButton(
+            AppOutlinedButton(
                 onClick = onAction,
                 enabled = actionEnabled,
                 modifier = Modifier.fillMaxWidth(),

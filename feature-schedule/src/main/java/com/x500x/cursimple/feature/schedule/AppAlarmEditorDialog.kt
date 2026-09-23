@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +28,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -292,7 +292,7 @@ private fun AlarmEditor(
                 },
             ) { Text(confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -411,7 +411,7 @@ private fun AlarmRingtoneChooserDialog(
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        confirmButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -439,7 +439,7 @@ private fun AlarmAlertModeChooserDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        confirmButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -489,7 +489,7 @@ internal fun AlarmAlertModeSelector(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showChooser = false }) {
+                AppOutlinedButton(onClick = { showChooser = false }) {
                     Text(stringResource(R.string.schedule_action_cancel))
                 }
             },
@@ -618,12 +618,12 @@ private fun AlarmDatePickerDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = { onPick(selected) }) {
+            AppOutlinedButton(onClick = { onPick(selected) }) {
                 Text(stringResource(R.string.schedule_action_save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }

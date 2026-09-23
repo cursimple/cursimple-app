@@ -1,6 +1,7 @@
 package com.x500x.cursimple.core.reminder.model
 
 import android.content.Context
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import com.x500x.cursimple.core.reminder.R
 import kotlinx.serialization.SerialName
@@ -31,6 +32,11 @@ data class ReminderNotificationMessage(
     @SerialName("startNode") val startNode: Int,
     @SerialName("endNode") val endNode: Int,
     @SerialName("location") val location: String,
+    /**
+     * 节次名字，如「第一节」「午间课」，通知里以它为主、节号作补充。
+     * 课程横跨几个时段时没有单一的名字，留空只写节号；旧版本存下的计划没有这一项，同样只写节号。
+     */
+    @SerialName("slotLabel") val slotLabel: String = "",
 )
 
 fun Context.reminderNotificationTitleText(title: ReminderNotificationTitle): String {
@@ -67,9 +73,22 @@ fun Context.reminderNotificationMessageText(message: ReminderNotificationMessage
     weekdayText(message.dayOfWeek),
     message.startTime,
     message.endTime,
-    getString(R.string.reminder_notification_nodes, message.startNode, message.endNode),
+    reminderNotificationNodesText(message),
     message.location.ifBlank { getString(R.string.reminder_notification_location_tbd) },
 )
+
+/** 节次那一段：有名字时「第一节（1-1节）」，名字在前、节号一律写成范围；没有名字时只写节号。 */
+private fun Context.reminderNotificationNodesText(message: ReminderNotificationMessage): String {
+    val label = message.slotLabel.trim()
+    if (label.isEmpty()) {
+        return getString(R.string.reminder_notification_nodes, message.startNode, message.endNode)
+    }
+    return getString(
+        R.string.reminder_notification_nodes_labeled,
+        label,
+        "${message.startNode}-${message.endNode}",
+    )
+}
 
 /** 计划带类型文案时按当前语言渲染，否则用计划里已有的文本。 */
 fun Context.reminderPlanTitleText(plan: ReminderPlan): String =
@@ -120,3 +139,9 @@ private fun stableWeekdayName(dayOfWeek: Int): String = when (dayOfWeek) {
     7 -> "周日"
     else -> "周$dayOfWeek"
 }
+
+/**
+ * 通知里用的节次名字：时段完整包住这门课时才用它的名字，横跨几个时段的课返回空串只写节号。
+ */
+fun ClassSlotTime.notificationLabelFor(startNode: Int, endNode: Int): String =
+    label.trim().takeIf { this.startNode <= startNode && this.endNode >= endNode }.orEmpty()

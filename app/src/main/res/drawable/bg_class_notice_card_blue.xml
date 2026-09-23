@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 品牌卡片的底（蓝主题色）：主题色往深处走的渐变，上面放白字。说明见 NoticeTheme.cardBackgroundRes -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="#FF2C5390"
+        android:endColor="#FF4A7DC4" />
+    <corners android:radius="16dp" />
+</shape>
