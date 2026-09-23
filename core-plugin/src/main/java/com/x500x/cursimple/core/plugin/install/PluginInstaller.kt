@@ -2,6 +2,7 @@ package com.x500x.cursimple.core.plugin.install
 
 import com.x500x.cursimple.core.plugin.PluginArgumentException
 import com.x500x.cursimple.core.plugin.R
+import java.io.File
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.packageformat.PluginPackageLayout
@@ -75,7 +76,9 @@ class PluginInstaller(
                 storagePath = targetDir.absolutePath,
                 bundled = false,
             ).copy(sourceRepo = sourceRepo?.trim()?.takeIf { it.isNotBlank() })
+            val previous = registryRepository.findByInstallKey(record.installKey)
             registryRepository.saveInstalledPlugin(record)
+            removeReplacedVersion(previous, targetDir)
             PluginLogger.info(
                 "plugin.install.success",
                 mapOf(
@@ -99,6 +102,28 @@ class PluginInstaller(
             )
             PluginInstallResult.Failure(pluginReasonOr(it, R.string.plugin_error_install_failed))
         }
+    }
+
+    /**
+     * 升级后删掉旧版本的目录。
+     *
+     * 目录名带着版本号，新版装在新目录里、记录也指过去了，旧目录就再也用不上；
+     * 不删的话每升级一次就多留一份。只删和新目录同在插件根目录下的那个，
+     * 内置插件与路径对不上的一概不碰。删不掉也不影响这次安装。
+     */
+    private fun removeReplacedVersion(previous: InstalledPluginRecord?, targetDir: java.io.File) {
+        if (previous == null || previous.isBundled) return
+        val oldDir = previous.storagePath.takeIf { it.isNotBlank() }?.let(::File) ?: return
+        if (oldDir.canonicalPath == targetDir.canonicalPath) return
+        if (oldDir.parentFile?.canonicalPath != targetDir.parentFile?.canonicalPath) return
+        runCatching { oldDir.deleteRecursively() }
+            .onFailure { error ->
+                PluginLogger.warn(
+                    "plugin.install.old_version_cleanup_failed",
+                    mapOf("pluginId" to previous.pluginId),
+                    error,
+                )
+            }
     }
 
     private fun verifyLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {

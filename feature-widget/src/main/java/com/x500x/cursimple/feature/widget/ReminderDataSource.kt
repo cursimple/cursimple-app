@@ -78,7 +78,7 @@ internal object ReminderDataSource {
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
         // 没单独挑过小组件配色时跟着应用主题色走
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
-            .resolveAccent(userPrefs.themeAccent)
+            .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
         val zone = BeijingTime.zone
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
 

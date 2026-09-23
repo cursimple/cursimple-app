@@ -929,6 +929,14 @@
     <string name="main_accent_purple">Dusk purple</string>
     <string name="main_accent_orange">Terracotta</string>
     <string name="main_accent_pink">Blossom pink</string>
+    <string name="main_accent_custom">Custom color</string>
+    <string name="main_accent_custom_value">Custom · %1$s</string>
+    <string name="theme_color_picker_title">Custom theme color</string>
+    <string name="theme_color_picker_hex">Hex (#RRGGBB)</string>
+    <string name="theme_color_picker_preview_light">Light</string>
+    <string name="theme_color_picker_preview_dark">Dark</string>
+    <string name="theme_color_picker_preview_button">Button</string>
+    <string name="theme_color_picker_preview_container">Cards &amp; chips</string>
     <string name="main_language">Language</string>
     <string name="main_theme">Theme</string>
     <string name="main_term_first">%1$d-%2$d Term 1</string>

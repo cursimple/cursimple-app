@@ -189,7 +189,11 @@ class MainActivity : ComponentActivity() {
             )
             val widgetPrefs by widgetPrefsViewModel.state.collectAsStateWithLifecycle()
 
-            ClassScheduleTheme(themeMode = prefs.themeMode, themeAccent = prefs.themeAccent) {
+            ClassScheduleTheme(
+                themeMode = prefs.themeMode,
+                themeAccent = prefs.themeAccent,
+                customAccentArgb = prefs.themeCustomColorArgb,
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -491,6 +495,7 @@ class MainActivity : ComponentActivity() {
                         prefs.termStartDate,
                         prefs.debugForcedDateTime,
                         prefs.themeAccent,
+                        prefs.themeCustomColorArgb,
                     ) {
                         if (scheduleState.initialized) {
                             container.refreshWidgets(scheduleState.timingProfile)
@@ -984,7 +989,7 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.Settings -> AppSettingsRoute(
                                         themeMode = prefs.themeMode,
-                                        themeAccentLabel = themeAccentLabel(prefs.themeAccent),
+                                        themeAccentLabel = themeAccentLabel(prefs.themeAccent, prefs.themeCustomColorArgb),
                                         termStartDate = prefs.termStartDate,
                                         termStartUserDecided = prefs.termStartUserDecided,
                                         scheduleTextStyle = prefs.scheduleTextStyle,
@@ -1457,9 +1462,14 @@ class MainActivity : ComponentActivity() {
                     if (showThemeAccentDialog) {
                         ThemeAccentDialog(
                             current = prefs.themeAccent,
+                            customArgb = prefs.themeCustomColorArgb,
                             onDismiss = { showThemeAccentDialog = false },
                             onSelect = {
                                 prefsViewModel.setThemeAccent(it)
+                                showThemeAccentDialog = false
+                            },
+                            onSelectCustom = {
+                                prefsViewModel.setThemeCustomColor(it)
                                 showThemeAccentDialog = false
                             },
                         )
@@ -1468,9 +1478,19 @@ class MainActivity : ComponentActivity() {
                     if (showWidgetThemeAccentDialog) {
                         ThemeAccentDialog(
                             current = widgetPrefs.themeAccent,
+                            // 小组件还没单独挑过自选色时，调色板从应用那份自选色起步
+                            customArgb = if (widgetPrefs.followsAppThemeAccent) {
+                                prefs.themeCustomColorArgb
+                            } else {
+                                widgetPrefs.customColorArgb
+                            },
                             onDismiss = { showWidgetThemeAccentDialog = false },
                             onSelect = {
                                 widgetPrefsViewModel.setWidgetThemeAccent(it)
+                                showWidgetThemeAccentDialog = false
+                            },
+                            onSelectCustom = {
+                                widgetPrefsViewModel.setWidgetThemeCustomColor(it)
                                 showWidgetThemeAccentDialog = false
                             },
                             followAppSelected = widgetPrefs.followsAppThemeAccent,
@@ -2021,9 +2041,13 @@ private val themeAccentOptions = listOf(
 )
 
 @Composable
-private fun themeAccentLabel(accent: ThemeAccent): String =
-    themeAccentOptions.firstOrNull { it.accent == accent }?.let { stringResource(it.labelRes) }
-        ?: accent.name
+private fun themeAccentLabel(accent: ThemeAccent, customArgb: Int): String =
+    if (accent == ThemeAccent.Custom) {
+        stringResource(R.string.main_accent_custom_value, formatRgbHex(customArgb))
+    } else {
+        themeAccentOptions.firstOrNull { it.accent == accent }?.let { stringResource(it.labelRes) }
+            ?: accent.name
+    }
 
 @Composable
 private fun AppLanguageDialog(
@@ -2064,12 +2088,17 @@ private fun AppLanguageDialog(
 @Composable
 private fun ThemeAccentDialog(
     current: ThemeAccent,
+    /** 自选色当前的颜色，调色板从它起步。 */
+    customArgb: Int,
     onDismiss: () -> Unit,
     onSelect: (ThemeAccent) -> Unit,
+    /** 在调色板里挑好了自选色。 */
+    onSelectCustom: (Int) -> Unit,
     /** 传了这个回调就多给一项「跟随应用主题」，小组件配色用得上。 */
     followAppSelected: Boolean = false,
     onSelectFollowApp: (() -> Unit)? = null,
 ) {
+    var pickingCustom by rememberSaveable { mutableStateOf(false) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.main_theme)) },
@@ -2119,12 +2148,57 @@ private fun ThemeAccentDialog(
                         Text(stringResource(option.labelRes), style = MaterialTheme.typography.bodyLarge)
                     }
                 }
+                // 最后一项是自选色：点开调色板挑，或者直接输 #RRGGBB / RGB
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { pickingCustom = true }
+                        .padding(horizontal = 8.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    androidx.compose.material3.RadioButton(
+                        selected = current == ThemeAccent.Custom && !followAppSelected,
+                        onClick = { pickingCustom = true },
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(androidx.compose.ui.graphics.Color(customArgb)),
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.main_accent_custom), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            text = formatRgbHex(customArgb),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    androidx.compose.material3.Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Rounded.Palette,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         },
         confirmButton = {
             AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
         },
     )
+    if (pickingCustom) {
+        ThemeColorPickerDialog(
+            initialArgb = customArgb,
+            onDismiss = { pickingCustom = false },
+            onConfirm = {
+                pickingCustom = false
+                onSelectCustom(it)
+            },
+        )
+    }
 }
 
 @Composable

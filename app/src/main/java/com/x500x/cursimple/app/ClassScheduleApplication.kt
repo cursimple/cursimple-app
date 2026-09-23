@@ -138,7 +138,8 @@ class ClassScheduleApplication : Application() {
         appScope.launch {
             appContainer.bootstrapJob.join()
             appContainer.userPreferencesRepository.preferencesFlow
-                .map { it.themeAccent }
+                // 自选色换了颜色、主题色本身没变时也得重画小组件
+                .map { it.themeAccent to it.themeCustomColorArgb }
                 .distinctUntilChanged()
                 .drop(1)
                 .collect {
