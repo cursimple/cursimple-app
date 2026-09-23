@@ -1,84 +1,55 @@
 package com.x500x.cursimple.app.update
 
-import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
+/** 自动检查更新该不该查：每次启动先查一次，之后查成的隔半小时、没查成的隔五分钟。 */
 class UpdatePollStateTest {
 
     private val minute = 60 * 1000L
+    private val now = 1_000_000_000L
 
     @Test
-    fun `the very first round runs a full check`() {
-        // 还没有 ETag 可比，条件请求只会白跑一趟
-        assertEquals(
-            UpdatePollAction.FullCheck,
-            updatePollAction(
-                nowMillis = 0L,
-                lastPeekAtMillis = 0L,
-                lastFullCheckAtMillis = 0L,
-                hasEtag = false,
+    fun `每次启动都先查一次，哪怕刚查过`() {
+        assertTrue(
+            autoUpdateCheckDue(
+                nowMillis = now,
+                checkedThisLaunch = false,
+                lastCheckAtMillis = now - minute,
+                lastFailureAtMillis = 0L,
             ),
         )
     }
 
     @Test
-    fun `a peek fires once the interval has passed`() {
-        assertEquals(
-            UpdatePollAction.Peek,
-            updatePollAction(
-                nowMillis = 20 * minute,
-                lastPeekAtMillis = 0L,
-                lastFullCheckAtMillis = 1L,
-                hasEtag = true,
-            ),
+    fun `这次启动查过了，半小时内不再查`() {
+        assertFalse(autoUpdateCheckDue(now, true, lastCheckAtMillis = now - 10 * minute, lastFailureAtMillis = 0L))
+        assertTrue(autoUpdateCheckDue(now, true, lastCheckAtMillis = now - 31 * minute, lastFailureAtMillis = 0L))
+    }
+
+    @Test
+    fun `没查成的隔五分钟就重试，不用等半小时`() {
+        val lastCheck = now - 60 * minute
+        assertFalse(autoUpdateCheckDue(now, true, lastCheck, lastFailureAtMillis = now - 2 * minute))
+        assertTrue(autoUpdateCheckDue(now, true, lastCheck, lastFailureAtMillis = now - 6 * minute))
+    }
+
+    @Test
+    fun `失败之后又查成了，按查成的时间算`() {
+        assertFalse(
+            autoUpdateCheckDue(now, true, lastCheckAtMillis = now - 3 * minute, lastFailureAtMillis = now - 10 * minute),
         )
     }
 
     @Test
-    fun `nothing happens inside the interval`() {
-        assertEquals(
-            UpdatePollAction.Skip,
-            updatePollAction(
-                nowMillis = 5 * minute,
-                lastPeekAtMillis = 0L,
-                lastFullCheckAtMillis = 1L,
-                hasEtag = true,
-            ),
-        )
-    }
-
-    @Test
-    fun `without an etag it waits for the full-check cooldown instead of peeking`() {
-        // 源站不通时拿不到 ETag，这时只能靠走镜像的完整检查兜底，但间隔要放宽
-        assertEquals(
-            UpdatePollAction.Skip,
-            updatePollAction(
-                nowMillis = 30 * minute,
-                lastPeekAtMillis = 0L,
-                lastFullCheckAtMillis = 1L,
-                hasEtag = false,
-            ),
-        )
-        assertEquals(
-            UpdatePollAction.FullCheck,
-            updatePollAction(
-                nowMillis = 7 * 60 * minute,
-                lastPeekAtMillis = 0L,
-                lastFullCheckAtMillis = 1L,
-                hasEtag = false,
-            ),
-        )
-    }
-
-    @Test
-    fun `a fresh peek does not trigger another one`() {
-        assertEquals(
-            UpdatePollAction.Skip,
-            updatePollAction(
-                nowMillis = 100 * minute,
-                lastPeekAtMillis = 99 * minute,
-                lastFullCheckAtMillis = 1L,
-                hasEtag = true,
+    fun `切换了测试版开关马上重查`() {
+        assertTrue(
+            autoUpdateCheckDue(
+                now, true,
+                lastCheckAtMillis = now - minute,
+                lastFailureAtMillis = 0L,
+                channelChanged = true,
             ),
         )
     }

@@ -2706,7 +2706,6 @@ private fun ScheduleGrid(
                 dayOfWeek = day,
                 startNode = startNode,
                 endNode = endNode,
-                initialWeek = currentWeekIndex,
                 existingCourses = existingCourses,
                 // 和左侧节次栏同一个叫法
                 slotLabel = slots.firstOrNull { it.startNode == startNode && it.endNode == endNode }
