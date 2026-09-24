@@ -10,9 +10,12 @@ import com.x500x.cursimple.app.holiday.HolidayEveNoticeWorker
 import com.x500x.cursimple.app.holiday.HolidaySyncOutcome
 import com.x500x.cursimple.app.holiday.holidaySyncYears
 import com.x500x.cursimple.core.data.AppLocale
+import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
+import com.x500x.cursimple.app.notice.AlarmPreNoticeScheduler
 import android.os.Build
 import com.x500x.cursimple.app.reminder.AlarmKeepAliveService
 import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
+import com.x500x.cursimple.app.reminder.ReminderGuardJobService
 import com.x500x.cursimple.app.util.AppDiagnosticsFileSink
 import com.x500x.cursimple.app.util.AppDiagnosticsLogger
 import com.x500x.cursimple.app.util.LogCleanupScheduler
@@ -26,6 +29,7 @@ import com.x500x.cursimple.feature.widget.applyWidgetProviderVisibility
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
@@ -58,6 +62,8 @@ class ClassScheduleApplication : Application() {
             ),
         )
         appContainer = AppContainer(this)
+        // 要赶在别的启动任务之前：系统记的退出原因只保留最近几条
+        com.x500x.cursimple.app.reminder.ForceStopMonitor.onProcessStart(this)
         ScheduleWidgetWorkScheduler.schedule(this)
         // 零点精确闹钟之外的第二道保险：进程活着时换天/解锁就把过期的小组件重画
         com.x500x.cursimple.feature.widget.WidgetDayChangeWatcher.register(this)
@@ -96,6 +102,30 @@ class ClassScheduleApplication : Application() {
                     } else {
                         AlarmKeepAliveService.stop(this@ClassScheduleApplication)
                     }
+                }
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            // 巡检任务跟着上课提醒与守护的开关走，两个都关了才撤
+            appContainer.userPreferencesRepository.preferencesFlow
+                .map { it.classNotice.enabled to it.alarmKeepAliveEnabled }
+                .distinctUntilChanged()
+                .collect { ReminderGuardJobService.applyPreference(this@ClassScheduleApplication) }
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            // 闹钟增删改或预告设置一变，最近那个闹钟就可能换了，预告跟着重排
+            combine(
+                DataStoreReminderRepository(this@ClassScheduleApplication).systemAlarmRecordsFlow
+                    .map { records -> records.filter { it.enabled }.map { it.alarmKey to it.triggerAtMillis }.toSet() },
+                appContainer.userPreferencesRepository.preferencesFlow.map { it.alarmPreNotice },
+            ) { records, settings -> records to settings }
+                .distinctUntilChanged()
+                .collect {
+                    runCatching { AlarmPreNoticeScheduler.reschedule(this@ClassScheduleApplication) }
+                        .onFailure { error -> ReminderLogger.warn("alarm_pre_notice.reschedule.failure", emptyMap(), error) }
                 }
         }
 

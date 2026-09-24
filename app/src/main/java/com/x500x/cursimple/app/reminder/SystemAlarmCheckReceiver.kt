@@ -70,6 +70,11 @@ class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
                     app.appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
                     // 重启后闹钟全部重排，守护服务也要按开关回到位
                     AlarmKeepAliveService.applyPreference(app)
+                    // 重启会清掉看门狗闹钟；拿到精确闹钟权限后也要换成精确的那一档重挂
+                    if (intent.action == AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED) {
+                        ReminderWatchdogAlarm.cancel(app)
+                    }
+                    ReminderGuardJobService.applyPreference(app)
                 }
                 Intent.ACTION_TIME_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED,

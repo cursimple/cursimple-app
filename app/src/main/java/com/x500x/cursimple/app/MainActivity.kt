@@ -264,6 +264,14 @@ class MainActivity : ComponentActivity() {
                             userPreferencesRepository = container.userPreferencesRepository,
                         ),
                     )
+                    // 启动后在后台先把插件清单和已装插件的最新版拉好：等点进导课页再现拉，
+                    // 第一次就得对着转圈等；拉过之后镜像也挑好了，后面的请求都快
+                    androidx.compose.runtime.LaunchedEffect(prefs.pluginRegistryRepo) {
+                        if (prefs.pluginRegistryRepo.isBlank()) return@LaunchedEffect
+                        kotlinx.coroutines.delay(PLUGIN_PREFETCH_DELAY_MILLIS)
+                        pluginMarketViewModel.refreshIfStale(prefs.pluginRegistryRepo, PLUGIN_PREFETCH_MAX_AGE_MILLIS)
+                        pluginMarketViewModel.refreshInstalledPluginVersions()
+                    }
                     val componentMarketViewModel: ComponentMarketViewModel = viewModel(
                         factory = ComponentMarketViewModelFactory(
                             repository = container.pluginComponentRepository,
@@ -335,6 +343,36 @@ class MainActivity : ComponentActivity() {
                                 AppOutlinedButton(onClick = { showTermStartReminder = false }) {
                                     Text(stringResource(R.string.main_later))
                                 }
+                            },
+                        )
+                    }
+                    // 上次是被强行停止的：这之间的闹钟都没响，得让人知道原因和怎么避免
+                    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
+                    var showForceStopPrompt by remember {
+                        mutableStateOf(com.x500x.cursimple.app.reminder.ForceStopMonitor.promptPending(appContext))
+                    }
+                    if (showForceStopPrompt && !updateDialogVisible) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = {
+                                showForceStopPrompt = false
+                                com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(appContext)
+                            },
+                            title = { Text(stringResource(R.string.force_stop_prompt_title)) },
+                            text = { Text(stringResource(R.string.force_stop_prompt_body)) },
+                            confirmButton = {
+                                androidx.compose.material3.Button(onClick = {
+                                    showForceStopPrompt = false
+                                    com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(appContext)
+                                    currentScreen = AppScreen.Settings
+                                    subScreen = null
+                                    openSettingsDestination = SettingsDestinationKey.Permissions
+                                }) { Text(stringResource(R.string.main_go_to_settings)) }
+                            },
+                            dismissButton = {
+                                AppOutlinedButton(onClick = {
+                                    showForceStopPrompt = false
+                                    com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(appContext)
+                                }) { Text(stringResource(R.string.main_later)) }
                             },
                         )
                     }
@@ -936,6 +974,7 @@ class MainActivity : ComponentActivity() {
                                         onCompleteWebSession = scheduleViewModel::completeWebSession,
                                         onCancelWebSession = scheduleViewModel::cancelWebSession,
                                         modifier = Modifier.fillMaxSize(),
+                                        syncStatusMessage = scheduleState.statusMessage,
                                     )
 
                                     AppScreen.Courses -> CourseLibraryRoute(
@@ -2236,3 +2275,9 @@ internal fun resolveDayOffsetForSelectedWeek(
     val targetDate = targetMonday.plusDays(weekdayOffset)
     return ChronoUnit.DAYS.between(today, targetDate).toInt()
 }
+
+/** 启动后隔一会儿再预取插件清单，不和首屏抢网络。 */
+private const val PLUGIN_PREFETCH_DELAY_MILLIS = 3_000L
+
+/** 和导课页同一个缓存时效：一天内拉过就不重拉。 */
+private const val PLUGIN_PREFETCH_MAX_AGE_MILLIS = 24 * 60 * 60 * 1000L

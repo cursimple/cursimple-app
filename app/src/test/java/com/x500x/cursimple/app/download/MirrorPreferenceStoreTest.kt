@@ -62,9 +62,10 @@ class MirrorPreferenceStoreTest {
 
         val rounds = raceRounds(candidates, preferredUrl = "ud", roundSize = 2)
 
-        assertEquals(listOf("ud"), rounds.first().map { it.url })
+        // 记住的镜像领头，和下一个一起竞速；它卡住时不用等满超时
+        assertEquals(listOf("ud", "ua"), rounds.first().map { it.url })
         assertEquals(
-            listOf(listOf("ua", "ub"), listOf("uc", "ue"), listOf("uf")),
+            listOf(listOf("ub", "uc"), listOf("ue", "uf")),
             rounds.drop(1).map { round -> round.map { it.url } },
         )
     }

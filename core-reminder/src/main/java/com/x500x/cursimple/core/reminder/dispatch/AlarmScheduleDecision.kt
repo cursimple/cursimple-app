@@ -21,15 +21,16 @@ data class AlarmScheduleDecision(
 /**
  * 决定这次排程走哪些通道。
  *
- * setAlarmClock 由系统按用户闹钟对待，不需要精确闹钟权限，任何时候都作为主通道。
- * 备通道用的 setExactAndAllowWhileIdle 受权限约束，拿不到权限时只挂主通道，
- * 而不是整条排程放弃。
+ * setAlarmClock 是最硬的一档：不受休眠限流、不受待机分组配额、用户把应用设成「限制后台」也照响。
+ * 但它和精确闹钟一样要权限（AlarmManagerService 里没有权限会直接抛 SecurityException），
+ * 以前以为它不用权限，Android 12 上权限被收回时整条排程失败，连降级的窗口闹钟都没挂上。
+ * 所以有权限时主通道用它、再挂一条精确备通道；没权限时退到窗口闹钟，晚几分钟也比不响强。
  */
 fun alarmScheduleDecision(
     canScheduleExact: Boolean,
     alarmClockAvailable: Boolean = true,
 ): AlarmScheduleDecision = when {
-    alarmClockAvailable -> AlarmScheduleDecision(AlarmPrimaryChannel.AlarmClock, backup = canScheduleExact)
+    alarmClockAvailable && canScheduleExact -> AlarmScheduleDecision(AlarmPrimaryChannel.AlarmClock, backup = true)
     canScheduleExact -> AlarmScheduleDecision(AlarmPrimaryChannel.Window, backup = true)
     else -> AlarmScheduleDecision(AlarmPrimaryChannel.Window, backup = false)
 }

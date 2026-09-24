@@ -10,6 +10,8 @@ import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * 上课通知取数的入口。
@@ -18,6 +20,10 @@ import kotlinx.coroutines.flow.first
  * 不依赖 Activity 或 AppContainer，广播在冷进程里被唤起时也能跑。
  */
 object ClassNoticeGateway {
+
+    // 启动时好几路（小组件刷新、时区、强制时间）会同时来重排。「先取消再挂」交错执行时，
+    // 一路刚挂上的闹钟会被另一路作废，最后留下重复或失效的闹钟，所以排成一队
+    private val rescheduleLock = Mutex()
 
     suspend fun preferences(context: Context): ClassNoticePreferences =
         DataStoreUserPreferencesRepository(context.applicationContext)
@@ -35,7 +41,9 @@ object ClassNoticeGateway {
     }
 
     /** 重新算下一节课并挂上闹钟；课表、作息或偏好一变就该调一次。 */
-    suspend fun reschedule(context: Context) {
+    suspend fun reschedule(context: Context) = rescheduleLock.withLock { rescheduleLocked(context) }
+
+    private suspend fun rescheduleLocked(context: Context) {
         val app = context.applicationContext
         val termProfileRepository = DataStoreTermProfileRepository(app)
         val scheduleRepository = DataStoreScheduleRepository(app, termProfileRepository)
@@ -62,6 +70,7 @@ object ClassNoticeGateway {
             termStartDate = userPreferences.termStartDate,
             overrides = userPreferences.temporaryScheduleOverrides,
             holidayCalendar = userPreferences.holidayCalendar,
+            advanceMinutes = notice.advanceMinutes,
         )
         ClassNoticeScheduler.reschedule(app, notice, upcoming, now)
     }

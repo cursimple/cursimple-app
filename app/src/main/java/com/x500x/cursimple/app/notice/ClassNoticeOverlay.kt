@@ -22,6 +22,8 @@ import com.x500x.cursimple.app.MainActivity
 import com.x500x.cursimple.core.data.ClassNoticeAnimation
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * 「悬浮窗增强」皮肤。
@@ -49,6 +51,9 @@ object ClassNoticeOverlay {
     /** 自动收起的时间，和系统悬浮横幅的观感对齐 */
     private const val VISIBLE_MILLIS = 6_000L
 
+    /** 接收器最多陪悬浮窗等这么久：展示时长加上冷启动建窗口、退场动画的余量 */
+    private const val HOLD_MILLIS = VISIBLE_MILLIS + 3_000L
+
     /** 没有有界模糊时底色要浓得多，不然半透明一层压在桌面上几乎看不出边 */
     private const val SURFACE_ALPHA_BLURRED = 0.70f
     private const val SURFACE_ALPHA_SOLID = 0.94f
@@ -58,6 +63,10 @@ object ClassNoticeOverlay {
     /** 同一时刻只挂一个，来了新的就把旧的顶掉 */
     private var current: Dialog? = null
     private val dismissRunnable = Runnable { dismiss() }
+
+    /** 最近一次 [show] 的窗口什么时候没了（收起、被顶掉或压根没挂上） */
+    @Volatile
+    private var gone: CompletableDeferred<Unit>? = null
 
     /** 有没有权限画悬浮窗。 */
     fun canDraw(context: Context): Boolean = Settings.canDrawOverlays(context)
@@ -82,7 +91,27 @@ object ClassNoticeOverlay {
         theme: NoticeTheme,
     ) {
         val app = context.applicationContext
-        mainHandler.post { showOnMain(app, content, preferences, theme) }
+        // 在投递前就建好，调用方紧接着 awaitGone 时不会错过
+        val done = CompletableDeferred<Unit>()
+        gone = done
+        mainHandler.post {
+            runCatching { showOnMain(app, content, preferences, theme, done) }
+                .onFailure { ReminderLogger.warn("class_notice.overlay.show_failed", emptyMap(), it) }
+            // 没挂上就立刻放行；挂上了由窗口的收起回调放行
+            if (current == null) done.complete(Unit)
+        }
+    }
+
+    /**
+     * 等到 [show] 挂的悬浮窗收起。
+     *
+     * 应用退出后提醒是在一个临时唤起的进程里弹的：广播接收器一结束，进程就会被系统
+     * 冻结或回收，而悬浮窗是在主线程上异步建的——接收器先报完成的话，窗口不是还没挂上
+     * 就被冻住，就是挂上了收不起来。所以接收器得陪它等到收起再走。
+     */
+    suspend fun awaitGone() {
+        val done = gone ?: return
+        withTimeoutOrNull(HOLD_MILLIS) { done.await() }
     }
 
     private fun showOnMain(
@@ -90,6 +119,7 @@ object ClassNoticeOverlay {
         content: ClassNoticeNotifier.Content,
         preferences: ClassNoticePreferences,
         theme: NoticeTheme,
+        done: CompletableDeferred<Unit>,
     ) {
         dismissNow()
         val themed = android.view.ContextThemeWrapper(context, R.style.ClassNoticeOverlayDialog)
@@ -105,7 +135,7 @@ object ClassNoticeOverlay {
             }
         }
         view.findViewById<TextView>(R.id.overlay_subtext).apply {
-            text = context.getString(R.string.class_notice_subtext, content.minutesUntilStart)
+            text = content.subText(context)
             setTextColor(theme.primary)
         }
         view.findViewById<TextView>(R.id.overlay_title).apply {
@@ -140,6 +170,7 @@ object ClassNoticeOverlay {
             ),
         )
         dialog.setCancelable(false)
+        dialog.setOnDismissListener { done.complete(Unit) }
         val window = dialog.window ?: return
         window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         window.addFlags(
