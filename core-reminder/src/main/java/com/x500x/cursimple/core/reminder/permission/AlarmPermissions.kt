@@ -156,12 +156,56 @@ object AlarmSettingsIntents {
      * 先试能直接落到本应用那一页的入口（带包名 extra），落不到才退回总列表——
      * 总列表要用户自己在几百个应用里翻着找，等于没给入口。
      */
-    fun vendorAutoStart(context: Context): List<Intent> =
-        perAppVendorPermissionPages(context) +
-            VENDOR_AUTO_START_COMPONENTS.map { (pkg, activity) ->
-                Intent().setClassName(pkg, activity)
-            } +
-            appDetails(context)
+    fun vendorAutoStart(context: Context): List<Intent> = buildList {
+        // 小米官方文档给的自启动入口，直接停在本应用上
+        if (VendorRom.current() == VendorRom.Xiaomi) {
+            add(
+                Intent("miui.intent.action.OP_AUTO_START")
+                    .addCategory(Intent.CATEGORY_DEFAULT)
+                    .putExtra("extra_pkgname", context.packageName),
+            )
+        }
+        addAll(perAppVendorPermissionPages(context))
+        addAll(VENDOR_AUTO_START_COMPONENTS.map { (pkg, activity) -> Intent().setClassName(pkg, activity) })
+        add(appDetails(context))
+    }
+
+    /**
+     * 厂商自己的省电策略：小米要设成「无限制」，否则后台一会儿就被冻住；
+     * 三星是「永不休眠的应用」。和系统那个电池优化白名单是两回事，两边都得放开。
+     */
+    fun vendorBatterySaver(context: Context): List<Intent> = buildList {
+        when (VendorRom.current()) {
+            VendorRom.Xiaomi -> {
+                listOf("miui.intent.action.HIDDEN_APPS_CONFIG_ACTIVITY", "miui.intent.action.POWER_HIDE_MODE_APP_LIST")
+                    .forEach { action ->
+                        add(
+                            Intent(action)
+                                .setClassName("com.miui.powerkeeper", "com.miui.powerkeeper.ui.HiddenAppsConfigActivity")
+                                .putExtra("package_name", context.packageName)
+                                .putExtra("package_label", context.applicationInfo.loadLabel(context.packageManager)),
+                        )
+                    }
+            }
+            VendorRom.Samsung -> add(
+                Intent("com.samsung.android.sm.ACTION_OPEN_CHECKABLE_LISTACTIVITY")
+                    .setPackage("com.samsung.android.lool")
+                    .putExtra("activity_type", 2),
+            )
+            VendorRom.Vivo -> add(
+                Intent().setClassName(
+                    "com.vivo.abe",
+                    "com.vivo.applicationbehaviorengine.ui.ExcessivePowerManagerActivity",
+                ),
+            )
+            else -> Unit
+        }
+        addAll(batteryOptimization(context))
+    }
+
+    /** 这家系统有没有要单独放开的省电策略页。 */
+    fun hasVendorBatterySaver(): Boolean =
+        VendorRom.current() in setOf(VendorRom.Xiaomi, VendorRom.Samsung, VendorRom.Vivo)
 
     /**
      * 各厂商「单个应用的权限详情页」。
@@ -209,11 +253,17 @@ object AlarmSettingsIntents {
     fun appDetails(context: Context): Intent =
         Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).setData(packageUri(context))
 
-    /** 有没有厂商专用的自启动页面，用来决定要不要在权限页里露出这一项。 */
+    /**
+     * 要不要在权限页里露出自启动这一项。
+     *
+     * 以前是查厂商页面在不在，但 Android 11 起查别的应用要在清单里声明，查不到就一律当不存在，
+     * 结果国产机上这一项从来没显示过。现在先按厂商认：这几家都有自启动管控。
+     */
     fun hasVendorAutoStartPage(context: Context): Boolean =
-        VENDOR_AUTO_START_COMPONENTS.any { (pkg, activity) ->
-            resolves(context, Intent().setClassName(pkg, activity))
-        }
+        VendorRom.current() != VendorRom.Other ||
+            VENDOR_AUTO_START_COMPONENTS.any { (pkg, activity) ->
+                resolves(context, Intent().setClassName(pkg, activity))
+            }
 
     fun resolves(context: Context, intent: Intent): Boolean =
         runCatching {
@@ -233,21 +283,18 @@ object AlarmSettingsIntents {
         // 华为 EMUI / HarmonyOS
         "com.huawei.systemmanager" to "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
         "com.huawei.systemmanager" to "com.huawei.systemmanager.appcontrol.activity.StartupAppControlActivity",
-        "com.huawei.systemmanager" to "com.huawei.systemmanager.optimize.process.ProtectActivity",
         // 荣耀
         "com.hihonor.systemmanager" to "com.hihonor.systemmanager.startupmgr.ui.StartupNormalAppListActivity",
+        "com.hihonor.systemmanager" to "com.hihonor.systemmanager.appcontrol.activity.StartupAppControlActivity",
         // OPPO / realme ColorOS
         "com.coloros.safecenter" to "com.coloros.safecenter.permission.startup.StartupAppListActivity",
         "com.coloros.safecenter" to "com.coloros.safecenter.startupapp.StartupAppListActivity",
         "com.oppo.safe" to "com.oppo.safe.permission.startup.StartupAppListActivity",
-        // vivo / iQOO
-        "com.vivo.permissionmanager" to "com.vivo.permissionmanager.activity.BgStartUpManagerActivity",
+        "com.oplus.battery" to "com.oplus.startupapp.view.StartupAppListActivity",
+        // vivo / iQOO（BgStartUpManagerActivity 有签名保护，第三方打不开，不再列）
         "com.iqoo.secure" to "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity",
         // 一加
         "com.oneplus.security" to "com.oneplus.security.chainlaunch.view.ChainLaunchAppListActivity",
-        // 三星
-        "com.samsung.android.lool" to "com.samsung.android.sm.ui.battery.BatteryActivity",
-        "com.samsung.android.sm" to "com.samsung.android.sm.ui.battery.BatteryActivity",
         // 魅族
         "com.meizu.safe" to "com.meizu.safe.permission.SmartBGActivity",
     )
@@ -261,7 +308,9 @@ object AlarmSettingsIntents {
 fun launchFirstAvailableSetting(context: Context, intents: List<Intent>): Boolean {
     for (intent in intents) {
         val candidate = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (!AlarmSettingsIntents.resolves(context, candidate)) continue
+        // 不先用 queryIntentActivities 过滤：Android 11 起查不到清单里没声明的应用，
+        // 厂商设置页会被当成不存在而全部跳过。直接启动，不存在（ActivityNotFound）
+        // 或没权限（华为、OPPO 新系统的 SecurityException）就换下一个
         if (runCatching { context.startActivity(candidate) }.isSuccess) return true
     }
     return false

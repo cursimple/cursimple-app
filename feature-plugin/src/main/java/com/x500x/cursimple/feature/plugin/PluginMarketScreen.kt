@@ -107,6 +107,8 @@ fun PluginMarketRoute(
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 课表那边的同步进度与结果（正在打开登录页、导入成功、失败原因）。 */
+    syncStatusMessage: String? = null,
 ) {
     val context = LocalContext.current
     val pluginUiState by pluginMarketViewModel.uiState.collectAsStateWithLifecycle()
@@ -149,6 +151,7 @@ fun PluginMarketRoute(
         selectedTab = selectedTab,
         enabledPluginIds = enabledPluginIds,
         syncingPluginId = syncingPluginId,
+        syncStatusMessage = syncStatusMessage,
         missingComponents = missingComponents,
         pendingWebSession = pendingWebSession,
         pluginRegistryRepo = pluginRegistryRepo,
@@ -194,6 +197,7 @@ private fun PluginMarketScreen(
     missingComponents: List<PluginComponentRequirement>,
     pendingWebSession: WebSessionRequest?,
     pluginRegistryRepo: String,
+    syncStatusMessage: String?,
     onSelectTab: (PluginPlatformTab) -> Unit,
     onPickLocalPlugin: () -> Unit,
     onRefreshMarket: () -> Unit,
@@ -228,6 +232,7 @@ private fun PluginMarketScreen(
                     uiState = uiState,
                     enabledPluginIds = enabledPluginIds,
                     syncingPluginId = syncingPluginId,
+                    syncStatusMessage = syncStatusMessage,
                     missingComponents = missingComponents,
                     pluginRegistryRepo = pluginRegistryRepo,
                     onOpenComponents = { onSelectTab(PluginPlatformTab.Components) },
@@ -277,6 +282,7 @@ private fun PluginListContent(
     uiState: PluginMarketUiState,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
+    syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
     pluginRegistryRepo: String,
     onOpenComponents: () -> Unit,
@@ -323,7 +329,7 @@ private fun PluginListContent(
             plugin = detailPlugin,
             isEnabled = isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins),
             isSyncing = syncingPluginId == detailPlugin.pluginId || syncingPluginId == detailPlugin.installKey ||
-                uiState.checkingUpdateKey == detailPlugin.installKey,
+                uiState.checkingUpdateKey == detailPlugin.installKey || uiState.upgradingKey == detailPlugin.installKey,
             upgrade = availableUpgrade(detailPlugin, uiState),
             onBack = { detailPluginKey = null },
             onSetEnabled = { onSetPluginEnabled(detailPlugin.installKey, it) },
@@ -394,9 +400,25 @@ private fun PluginListContent(
             }
         }
 
-        // 「已刷新今日闹钟」这类课表域的提示与「已加载 N 个插件」这种流水账
-        // 不该常驻在插件页上：它们是一次性反馈，出现在这里只是占位置。
-        // 真正要用户处理的（缺组件、同步失败）另有卡片，不走这里。
+        // 「已加载 N 个插件」这种流水账不常驻；但进行中的步骤和失败原因必须看得见，
+        // 以前这里一并删掉了，查新版、升级、下载失败、导课失败在插件页上全都没有声音
+        val busyText = when {
+            uiState.checkingUpdateKey != null || uiState.upgradingKey != null ->
+                uiState.status?.let { context.pluginMarketStatusText(it) }
+            syncingPluginId != null -> syncStatusMessage?.takeIf { it.isNotBlank() }
+            else -> null
+        }
+        val failureText = uiState.status?.takeIf {
+            it is PluginMarketStatus.DownloadFailed ||
+                it is PluginMarketStatus.InstallFailed ||
+                it is PluginMarketStatus.ParsePackageFailed ||
+                it is PluginMarketStatus.MarketLoadFailed ||
+                it is PluginMarketStatus.ReleaseAssetMissing
+        }?.let { context.pluginMarketStatusText(it) }
+        when {
+            busyText != null -> item(key = "busy") { SchoolImportProgressCard(text = busyText) }
+            failureText != null -> item(key = "failure") { StatusCard(message = failureText) }
+        }
 
         item {
             MarketSectionHeader(registryRepo = pluginRegistryRepo)
@@ -461,7 +483,7 @@ private fun PluginListContent(
                     plugin = plugin,
                     isEnabled = isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins),
                     isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey ||
-                        uiState.checkingUpdateKey == plugin.installKey,
+                        uiState.checkingUpdateKey == plugin.installKey || uiState.upgradingKey == plugin.installKey,
                     upgrade = availableUpgrade(plugin, uiState),
                     onSetEnabled = { onSetPluginEnabled(plugin.installKey, it) },
                     onSync = { onSyncPlugin(plugin.installKey) },

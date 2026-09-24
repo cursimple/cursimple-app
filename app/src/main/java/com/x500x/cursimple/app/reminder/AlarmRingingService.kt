@@ -90,7 +90,11 @@ class AlarmRingingService : Service() {
                 requestFinish(reason = "user_snooze", snooze = true, intent = intent)
                 return START_NOT_STICKY
             }
-            ACTION_RING -> startRinging(intent, startId)
+            ACTION_RING -> {
+                // 响起来了就有响铃界面，「x 分钟后闹钟响」那条预告收掉
+                com.x500x.cursimple.app.notice.ClassNoticeNotifier.cancelAlarmPreview(this)
+                startRinging(intent, startId)
+            }
             else -> stopSelf(startId)
         }
         return START_NOT_STICKY

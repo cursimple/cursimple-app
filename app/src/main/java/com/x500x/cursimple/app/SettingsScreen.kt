@@ -295,6 +295,9 @@ enum class SettingsDestinationKey {
 
     /** 侧边栏「调课」直达的临时调课页。 */
     TemporaryOverrides,
+
+    /** 发现被强行停止后，从提示直达权限页。 */
+    Permissions,
 }
 
 enum class SettingsReturnTargetKey {
@@ -306,6 +309,7 @@ private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (
     SettingsDestinationKey.AiImport -> SettingsDestination.AiImport
     SettingsDestinationKey.ScheduleBackground -> SettingsDestination.BackgroundHub
     SettingsDestinationKey.TemporaryOverrides -> SettingsDestination.TemporaryOverrides
+    SettingsDestinationKey.Permissions -> SettingsDestination.Permissions
 }
 
 /** 深链跳转时补齐的上级页面，返回键沿这条链逐级回退。 */
@@ -1884,6 +1888,8 @@ private fun PermissionsSection(
         if (!state.batteryOptimizationIgnored) add(stringResource(R.string.settings_permission_background))
         // 守护没开的话，退出应用后闹钟照样可能被厂商系统清掉，和缺权限同等重要
         if (!alarmKeepAliveEnabled) add(stringResource(R.string.settings_alarm_keep_alive_title))
+        // 小米国行不开自启动时，划掉应用就是强行停止，闹钟全被清掉
+        if (state.miuiAutoStart == false) add(stringResource(R.string.settings_permission_autostart_title))
     }
 
     PermissionSummaryCard(missing = missingAlarmPermissions)
@@ -1961,24 +1967,60 @@ private fun PermissionsSection(
         },
     )
     if (AlarmSettingsIntents.hasVendorAutoStartPage(context)) {
-        // 这两项系统不提供查询接口，读不到真实状态，只能由用户自己勾一下；
+        // 小米能查到真实状态就照实显示；别家不提供查询接口，只能由用户自己勾一下，
         // 勾过就当已开启，界面不再催，用到它的地方也不再弹提示
-        VendorPermissionRow(
-            icon = Icons.Rounded.Restore,
-            title = stringResource(R.string.settings_permission_autostart_title),
-            subtitle = stringResource(R.string.settings_permission_autostart_off),
-            acked = VendorPermissionKey.AUTO_START in vendorPermissionAcks,
-            onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
-            onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.AUTO_START, it) },
-        )
-        VendorPermissionRow(
-            icon = Icons.Rounded.Notifications,
-            title = stringResource(R.string.settings_permission_background_popup_title),
-            subtitle = stringResource(R.string.settings_permission_background_popup_off),
-            acked = VendorPermissionKey.BACKGROUND_POPUP in vendorPermissionAcks,
-            onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
-            onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.BACKGROUND_POPUP, it) },
-        )
+        val miuiAutoStart = state.miuiAutoStart
+        if (miuiAutoStart != null) {
+            PermissionRow(
+                icon = Icons.Rounded.Restore,
+                title = stringResource(R.string.settings_permission_autostart_title),
+                granted = miuiAutoStart,
+                offText = stringResource(R.string.settings_permission_autostart_off_xiaomi),
+                onText = stringResource(R.string.settings_permission_manage_hint),
+                onClick = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
+            )
+        } else {
+            VendorPermissionRow(
+                icon = Icons.Rounded.Restore,
+                title = stringResource(R.string.settings_permission_autostart_title),
+                subtitle = stringResource(R.string.settings_permission_autostart_off),
+                acked = VendorPermissionKey.AUTO_START in vendorPermissionAcks,
+                onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.vendorAutoStart(context)) },
+                onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.AUTO_START, it) },
+            )
+        }
+        val miuiPopup = state.miuiBackgroundPopup
+        if (miuiPopup != null) {
+            PermissionRow(
+                icon = Icons.Rounded.Notifications,
+                title = stringResource(R.string.settings_permission_background_popup_title),
+                granted = miuiPopup,
+                offText = stringResource(R.string.settings_permission_background_popup_off),
+                onText = stringResource(R.string.settings_permission_manage_hint),
+                onClick = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
+            )
+        } else {
+            VendorPermissionRow(
+                icon = Icons.Rounded.Notifications,
+                title = stringResource(R.string.settings_permission_background_popup_title),
+                subtitle = stringResource(R.string.settings_permission_background_popup_off),
+                acked = VendorPermissionKey.BACKGROUND_POPUP in vendorPermissionAcks,
+                onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.backgroundPopup(context)) },
+                onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.BACKGROUND_POPUP, it) },
+            )
+        }
+        if (AlarmSettingsIntents.hasVendorBatterySaver()) {
+            VendorPermissionRow(
+                icon = Icons.Rounded.Restore,
+                title = stringResource(R.string.settings_permission_vendor_battery_title),
+                subtitle = stringResource(R.string.settings_permission_vendor_battery_off),
+                acked = VendorPermissionKey.BATTERY_SAVER in vendorPermissionAcks,
+                onOpen = { launchSettingsIntents(context, AlarmSettingsIntents.vendorBatterySaver(context)) },
+                onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.BATTERY_SAVER, it) },
+            )
+        }
+        // 每家都认的最后一道：在最近任务里把课简锁住，一键清理就不会带走它。系统不给接口，只能教
+        VendorKeepAliveGuide()
     }
     PermissionRow(
         icon = Icons.Rounded.Code,
@@ -2094,6 +2136,9 @@ private data class AppPermissionState(
     val batteryOptimizationIgnored: Boolean,
     val camera: Boolean,
     val installPackages: Boolean,
+    /** 小米的自启动 / 后台弹出界面，查不到（非小米）为 null。 */
+    val miuiAutoStart: Boolean? = null,
+    val miuiBackgroundPopup: Boolean? = null,
 )
 
 private fun readPermissionState(context: Context): AppPermissionState {
@@ -2107,7 +2152,56 @@ private fun readPermissionState(context: Context): AppPermissionState {
             PackageManager.PERMISSION_GRANTED,
         installPackages = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
             context.packageManager.canRequestPackageInstalls(),
+        miuiAutoStart = com.x500x.cursimple.core.reminder.permission.MiuiPermissions.autoStart(context),
+        miuiBackgroundPopup = com.x500x.cursimple.core.reminder.permission.MiuiPermissions.backgroundStartActivity(context),
     )
+}
+
+/**
+ * 最后一道：在最近任务里把课简锁住。
+ *
+ * 各家都认这一招，锁住后一键清理不会带走它；但系统没有接口，只能按厂商说清楚怎么操作。
+ * 顺带把最近一次被系统强行停止的时间摆出来：那次之后到下次打开应用之间的闹钟都不会响。
+ */
+@Composable
+private fun VendorKeepAliveGuide() {
+    val context = LocalContext.current
+    val guideRes = when (com.x500x.cursimple.core.reminder.permission.VendorRom.current()) {
+        com.x500x.cursimple.core.reminder.permission.VendorRom.Xiaomi -> R.string.settings_keepalive_guide_xiaomi
+        com.x500x.cursimple.core.reminder.permission.VendorRom.Huawei,
+        com.x500x.cursimple.core.reminder.permission.VendorRom.Honor -> R.string.settings_keepalive_guide_huawei
+        com.x500x.cursimple.core.reminder.permission.VendorRom.Oppo,
+        com.x500x.cursimple.core.reminder.permission.VendorRom.OnePlus -> R.string.settings_keepalive_guide_oppo
+        com.x500x.cursimple.core.reminder.permission.VendorRom.Vivo -> R.string.settings_keepalive_guide_vivo
+        else -> R.string.settings_keepalive_guide_generic
+    }
+    val lastForceStop = remember { com.x500x.cursimple.app.reminder.ForceStopMonitor.lastForceStopAtMillis(context) }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = stringResource(R.string.settings_keepalive_guide_title),
+                style = MaterialTheme.typography.titleSmall,
+            )
+            Text(
+                text = stringResource(guideRes),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (lastForceStop != null) {
+                val whenText = java.time.Instant.ofEpochMilli(lastForceStop)
+                    .atZone(java.time.ZoneId.systemDefault())
+                    .format(java.time.format.DateTimeFormatter.ofPattern("M/d HH:mm"))
+                Text(
+                    text = stringResource(R.string.settings_keepalive_force_stopped, whenText),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+    }
 }
 
 /** 每次回到前台重读一次权限，跟随用户在系统设置里的改动。 */

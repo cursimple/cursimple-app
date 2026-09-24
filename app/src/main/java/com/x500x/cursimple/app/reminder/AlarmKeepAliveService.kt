@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -15,6 +16,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.MainActivity
+import com.x500x.cursimple.app.notice.ClassNoticeGateway
+import com.x500x.cursimple.app.notice.ClassNoticeScheduler
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -41,6 +44,17 @@ import java.time.format.DateTimeFormatter
 class AlarmKeepAliveService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** 是用户关掉的，还是被系统或厂商杀掉的：只有后者要自己回来 */
+    private var stoppedOnPurpose = false
+
+    // 上课提醒一发完就排下一节，常驻通知上的「下一次提醒」要跟着变
+    private val classNoticeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        scope.launch {
+            runCatching { refreshNotification() }
+                .onFailure { ReminderLogger.warn("reminder.keep_alive.refresh.failure", emptyMap(), it) }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -48,11 +62,14 @@ class AlarmKeepAliveService : Service() {
         createChannel()
         // 拉起后必须尽快进入前台，先挂一条不带下一场时间的通知，读到数据再刷新文案
         startForegroundCompat(buildNotification(nextAlarmText = null))
+        getSharedPreferences(ClassNoticeScheduler.STATE_PREFS, MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(classNoticeListener)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForegroundCompat(buildNotification(nextAlarmText = null))
         if (intent?.action == ACTION_STOP) {
+            stoppedOnPurpose = true
             stopSelfCompat()
             return START_NOT_STICKY
         }
@@ -73,20 +90,33 @@ class AlarmKeepAliveService : Service() {
         ReminderLogger.info("reminder.keep_alive.task_removed", emptyMap())
         // 划掉最近任务时进程随时可能被收走，这里先排一条几秒后的自启动闹钟兜底
         scheduleRestart(applicationContext)
+        // 趁进程还在把上课提醒重挂一遍：部分系统划掉任务会连带清掉挂着的闹钟
+        scope.launch {
+            runCatching { ClassNoticeGateway.reschedule(applicationContext) }
+                .onFailure { ReminderLogger.warn("reminder.keep_alive.class_notice.failure", emptyMap(), it) }
+        }
     }
 
     override fun onDestroy() {
+        // 不是用户关的就是被收走的（省电清理、内存回收）：排一条自启动闹钟，几秒后回来
+        if (!stoppedOnPurpose) scheduleRestart(applicationContext)
+        getSharedPreferences(ClassNoticeScheduler.STATE_PREFS, MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(classNoticeListener)
         scope.cancel()
         super.onDestroy()
     }
 
     private suspend fun refreshNotification() {
-        val nextAt = DataStoreReminderRepository(applicationContext)
+        val now = BeijingTime.nowMillis(BeijingTime.zone)
+        val nextAlarmAt = DataStoreReminderRepository(applicationContext)
             .systemAlarmRecordsFlow
             .first()
             .map { it.triggerAtMillis }
-            .filter { it > BeijingTime.nowMillis(BeijingTime.zone) }
+            .filter { it > now }
             .minOrNull()
+        // 闹钟和上课提醒都靠这条守护，哪个先到就显示哪个
+        val nextNoticeAt = ClassNoticeScheduler.nextFireAtMillis(applicationContext)?.takeIf { it > now }
+        val nextAt = listOfNotNull(nextAlarmAt, nextNoticeAt).minOrNull()
         val text = nextAt?.let {
             getString(R.string.alarm_keep_alive_next, formatClock(it))
         }
@@ -138,7 +168,7 @@ class AlarmKeepAliveService : Service() {
     private fun createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = getSystemService(NotificationManager::class.java) ?: return
-        if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+        // 渠道已存在时再建一次只会更新名称和描述，老用户也能看到改过的文案
         val channel = NotificationChannel(
             CHANNEL_ID,
             getString(R.string.alarm_keep_alive_channel),

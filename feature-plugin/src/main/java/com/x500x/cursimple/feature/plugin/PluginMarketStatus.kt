@@ -16,6 +16,9 @@ sealed interface PluginMarketStatus {
     /** 正在拉取注册表。 */
     data object LoadingMarket : PluginMarketStatus
 
+    /** 导课前正在查插件 [name] 有没有新版。 */
+    data class CheckingUpdate(val name: String) : PluginMarketStatus
+
     /** 注册表里一个插件也没有。 */
     data object MarketEmpty : PluginMarketStatus
 
@@ -83,6 +86,7 @@ internal fun Context.pluginMarketStatusText(status: PluginMarketStatus): String 
         getString(R.string.plugin_market_status_registry_not_configured)
 
     PluginMarketStatus.LoadingMarket -> getString(R.string.plugin_market_status_loading)
+    is PluginMarketStatus.CheckingUpdate -> getString(R.string.plugin_market_status_checking_update, status.name)
     PluginMarketStatus.MarketEmpty -> getString(R.string.plugin_market_status_market_empty)
     is PluginMarketStatus.MarketLoaded ->
         resources.getQuantityString(
