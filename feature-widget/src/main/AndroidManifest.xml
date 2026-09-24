@@ -83,9 +83,6 @@
             <meta-data
                 android:name="vivo.widget.description"
                 android:resource="@string/glance_appwidget_description" />
-            <meta-data android:name="com.hihonor.widget.type" android:value="honorcard" />
-            <meta-data android:name="com.huawei.android.launcher.WIDGET_SUPPORT" android:value="true" />
-            <meta-data android:name="oppoWidgetVersion" android:value="1" />
         </receiver>
 
         <!-- Next course -->
@@ -128,9 +125,6 @@
             <meta-data
                 android:name="vivo.widget.description"
                 android:resource="@string/next_course_widget_description" />
-            <meta-data android:name="com.hihonor.widget.type" android:value="honorcard" />
-            <meta-data android:name="com.huawei.android.launcher.WIDGET_SUPPORT" android:value="true" />
-            <meta-data android:name="oppoWidgetVersion" android:value="1" />
         </receiver>
 
         <!-- Reminder -->
@@ -173,9 +167,6 @@
             <meta-data
                 android:name="vivo.widget.description"
                 android:resource="@string/reminder_widget_description" />
-            <meta-data android:name="com.hihonor.widget.type" android:value="honorcard" />
-            <meta-data android:name="com.huawei.android.launcher.WIDGET_SUPPORT" android:value="true" />
-            <meta-data android:name="oppoWidgetVersion" android:value="1" />
         </receiver>
     </application>
 

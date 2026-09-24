@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -167,15 +168,33 @@ fun SchoolImportRoute(
             // 只留有信息量的状态：加载中、失败要让用户看见，
             // 「已加载 N 个插件」说的是清单总数，紧挨着下面的「搜到 M 个」像在自相矛盾，
             // 而且下面那行已经把总数说清楚了。
-            uiState.status
-                ?.takeUnless { it is PluginMarketStatus.MarketLoaded }
-                ?.let { status ->
-                    Text(
-                        text = context.pluginMarketStatusText(status),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            // 查新版、升级、登录抓课表、写入课表，这一路每一步都要看得见：
+            // 以前只有按钮位置一个小圈，状态字还压在页面最底下，看着像没反应
+            val busyText = when {
+                uiState.checkingUpdateKey != null || uiState.upgradingKey != null ->
+                    uiState.status?.let { context.pluginMarketStatusText(it) }
+                        ?: stringResource(R.string.school_import_busy_default)
+                syncingPluginId != null ->
+                    syncStatusMessage?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.school_import_busy_default)
+                else -> null
+            }
+            if (busyText != null) {
+                SchoolImportProgressCard(text = busyText)
+            } else {
+                uiState.status
+                    ?.takeUnless { it is PluginMarketStatus.MarketLoaded }
+                    ?.let { status ->
+                        Text(
+                            text = context.pluginMarketStatusText(status),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+            }
+            if (uiState.isRefreshingReleases && busyText == null) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
 
             if (uiState.marketRepos.isNotEmpty()) {
                 Text(
@@ -242,7 +261,8 @@ fun SchoolImportRoute(
                             installed = installed,
                             upgrade = installed?.let { availableUpgrade(it, uiState) },
                             busy = uiState.isLoading,
-                            checking = installed != null && uiState.checkingUpdateKey == installed.installKey,
+                            checking = installed != null &&
+                                (uiState.checkingUpdateKey == installed.installKey || uiState.upgradingKey == installed.installKey),
                             syncingPluginId = syncingPluginId,
                             onInstall = { pluginMarketViewModel.installFromGitHub(repo) },
                             // 导课前先查新版，有新版就先升级
@@ -261,7 +281,8 @@ fun SchoolImportRoute(
                 }
             }
 
-            syncStatusMessage?.takeIf { it.isNotBlank() }?.let { message ->
+            // 进行中的已经在上面的卡片里了，这里只留结果（导入成功、失败原因）
+            syncStatusMessage?.takeIf { it.isNotBlank() && syncingPluginId == null }?.let { message ->
                 Text(
                     text = message,
                     style = MaterialTheme.typography.bodySmall,
@@ -429,6 +450,33 @@ private fun SchoolPluginRow(
                     Text(stringResource(R.string.school_import_action_install), maxLines = 1)
                 }
             }
+        }
+    }
+}
+
+/** 进行中的那一步：转圈加一句话。导课页和插件页共用。 */
+@Composable
+internal fun SchoolImportProgressCard(text: String) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
         }
     }
 }

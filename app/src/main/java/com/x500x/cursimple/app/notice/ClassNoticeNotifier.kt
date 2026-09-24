@@ -10,6 +10,9 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.drawable.Icon
+import android.net.Uri
+import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
 import android.widget.RemoteViews
@@ -20,6 +23,7 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.MainActivity
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
+import org.json.JSONObject
 
 /**
  * 上课通知的投递。
@@ -43,6 +47,20 @@ object ClassNoticeNotifier {
 
     private const val NOTIFICATION_ID = 0x0C1A
 
+    /** 闹钟预告单独一个 id：和上课通知同时挂着时互不覆盖。 */
+    private const val ALARM_NOTIFICATION_ID = 0x0C20
+
+    private val CLOCK_PATTERN = Regex("\\d{1,2}:\\d{2}")
+
+    /** 这条通知在提醒什么。 */
+    enum class Kind {
+        /** 快上课了 */
+        Class,
+
+        /** 闹钟快响了：[Content.courseTitle] 是闹钟名，[Content.startAtMillis] 是响铃时刻 */
+        AlarmPreview,
+    }
+
     /** 一条上课通知要显示的内容。 */
     data class Content(
         val courseTitle: String,
@@ -53,7 +71,26 @@ object ClassNoticeNotifier {
         val startAtMillis: Long = 0L,
         /** 节次名字，如「第一节」「午间课」；作息表里没有时为空 */
         val slotLabel: String = "",
+        /** 下课时刻：通知挂到这时才自动收走；拿不到就传 0 */
+        val endAtMillis: Long = 0L,
+        /** 已经上课了：把「还有多久」换成「上课中」，只更新不再提醒 */
+        val inProgress: Boolean = false,
+        val kind: Kind = Kind.Class,
     ) {
+        val notificationId: Int
+            get() = if (kind == Kind.AlarmPreview) ALARM_NOTIFICATION_ID else NOTIFICATION_ID
+
+        /** 头部那句「还有多久」；悬浮窗和通知共用 */
+        fun subText(context: Context): String = when {
+            kind == Kind.AlarmPreview -> context.getString(R.string.alarm_pre_notice_subtext, minutesUntilStart)
+            inProgress -> context.getString(R.string.class_notice_subtext_in_progress)
+            else -> context.getString(R.string.class_notice_subtext, minutesUntilStart)
+        }
+
+        /** 「08:00」：状态栏胶囊只放得下这么几个字 */
+        val startClock: String
+            get() = CLOCK_PATTERN.find(timeRange)?.value ?: timeRange.substringBefore('-').trim()
+
         /** 「第一节 08:00-09:35」：节次名字比钟点更好认，放在前面 */
         val whenText: String
             get() = listOf(slotLabel, timeRange).filter { it.isNotBlank() }.joinToString(" ")
@@ -63,6 +100,12 @@ object ClassNoticeNotifier {
         ensureChannel(context)
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
+        // 上课那一刻的更新只改还挂着的那条：用户已经划掉的就别再冒出来
+        val activeChannel = if (content.inProgress) {
+            activeNoticeChannel(context) ?: return
+        } else {
+            null
+        }
         // Android 13+ 的运行时权限：引导页申请过，但用户随时可以撤销
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -72,14 +115,15 @@ object ClassNoticeNotifier {
         }
 
         // 一行版，给 MIUI 焦点通知的 ticker 和不支持副标题的老系统兜底
-        val title = context.getString(
-            R.string.class_notice_title,
-            content.minutesUntilStart,
-            content.courseTitle,
-        )
+        val title = when {
+            content.kind == Kind.AlarmPreview ->
+                context.getString(R.string.alarm_pre_notice_title, content.minutesUntilStart, content.courseTitle)
+            content.inProgress -> context.getString(R.string.class_notice_title_in_progress, content.courseTitle)
+            else -> context.getString(R.string.class_notice_title, content.minutesUntilStart, content.courseTitle)
+        }
         // 正文分三层：头部说「还有多久」，标题给课名，正文给时间地点。
         // 全堆在标题里会被截断，分开之后课名才是最显眼的那一行
-        val subText = context.getString(R.string.class_notice_subtext, content.minutesUntilStart)
+        val subText = content.subText(context)
         val body = listOf(content.whenText, content.location)
             .filter { it.isNotBlank() }
             .joinToString(" · ")
@@ -98,7 +142,8 @@ object ClassNoticeNotifier {
 
         // 悬浮窗皮肤是「系统通知照发 + 解锁时额外画一层」：悬浮窗盖不住锁屏，
         // 通知栏和锁屏还得靠这条通知。此时把系统横幅压下去，免得两个横幅一起弹。
-        val overlayTakesOver = preferences.skin == ClassNoticeSkin.Overlay &&
+        val overlayTakesOver = !content.inProgress &&
+            preferences.skin == ClassNoticeSkin.Overlay &&
             ClassNoticeOverlay.canShowNow(context)
         if (overlayTakesOver) {
             ClassNoticeOverlay.show(context, content, preferences, theme)
@@ -106,7 +151,8 @@ object ClassNoticeNotifier {
 
         val builder = NotificationCompat.Builder(
             context,
-            channelIdFor(preferences, overlayTakesOver),
+            // 更新时沿用原来那条的渠道，换渠道等于另发一条
+            activeChannel ?: channelIdFor(preferences, overlayTakesOver),
         )
             // 专画的白色剪影 logo：Android 12+ 会把它放进一个用 setColor 上色的圆里，
             // 圆用主题色，和 App 里看到的是同一个颜色
@@ -127,7 +173,15 @@ object ClassNoticeNotifier {
                 context.getString(R.string.class_notice_action_open),
                 openApp,
             )
-            .setAutoCancel(true)
+            .addAction(
+                R.drawable.ic_notification,
+                context.getString(R.string.class_notice_action_dismiss),
+                ClassNoticeScheduler.dismissIntent(context, content.notificationId),
+            )
+            // 点开看课表不算「知道了」：通知得一直挂到下课，除非自己划掉或点「知道了」
+            .setAutoCancel(false)
+            // 上课那一刻会原地更新成「上课中」，更新不再响、不再弹横幅
+            .setOnlyAlertOnce(true)
             // 事件类通知：系统据此决定摆放位置，也让免打扰放行更合理
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             // 只对 Android 7 及以下有意义；8 以上看的是上面挑的那个渠道的 importance
@@ -154,10 +208,18 @@ object ClassNoticeNotifier {
         // 「19:00-20:35」这种真实时间段，「19:59」会被当成一个钟点读；而且走到一半
         // 还会和「20 分钟后上课」这句静态文案对不上。静态文案更准也更好懂。
         builder.setShowWhen(false)
-        // 上课了这条就该走人，不留一条已经过期的「20 分钟后上课」挂在通知栏
-        if (content.startAtMillis > 0L) {
-            val remaining = content.startAtMillis - System.currentTimeMillis()
+        // 挂到下课才自动收走；上课时会被更新成「上课中」，不会留着过期的「20 分钟后上课」。
+        // 闹钟预告挂到响铃那一刻：响起来之后有响铃界面，不用它了
+        val expireAt = content.endAtMillis.takeIf { it > 0L && content.kind == Kind.Class }
+            ?: content.startAtMillis
+        if (expireAt > 0L) {
+            val remaining = expireAt - System.currentTimeMillis()
             if (remaining > 0L) builder.setTimeoutAfter(remaining)
+        }
+        // 常驻：「清除全部」清不掉，只有自己划掉或点「知道了」才走。
+        // Android 14 起常驻通知照样能划掉；更早的系统上常驻就划不掉了，那边只保留不自动消失
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            builder.setOngoing(true)
         }
 
         // 品牌卡片皮肤：换掉内容区的底色与排版。Android 12 起系统还会在外面套一层
@@ -180,10 +242,33 @@ object ClassNoticeNotifier {
         }
 
         if (preferences.focusNotificationEnabled) {
-            builder.addExtras(miuiFocusExtras(title, body))
+            val chipText = when {
+                content.kind == Kind.AlarmPreview ->
+                    context.getString(R.string.alarm_pre_notice_chip, content.startClock)
+                content.inProgress -> context.getString(R.string.class_notice_chip_in_progress)
+                else -> context.getString(R.string.class_notice_chip_upcoming, content.startClock)
+            }
+            // Android 16 的实时活动：锁屏、息屏置顶，状态栏挂一个小胶囊。
+            // 它不收自定义布局，品牌卡片那一档只能照普通通知显示
+            if (preferences.skin != ClassNoticeSkin.Card &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+            ) {
+                builder.setRequestPromotedOngoing(true)
+                    .setShortCriticalText(chipText)
+            }
+            builder.addExtras(
+                miuiFocusExtras(
+                    context = context,
+                    ticker = "$chipText ${content.courseTitle}",
+                    frontTitle = if (content.inProgress) chipText else subText,
+                    content = content,
+                    body = body,
+                    float = preferences.headsUpEnabled && !overlayTakesOver && !content.inProgress,
+                ),
+            )
         }
 
-        runCatching { manager.notify(NOTIFICATION_ID, builder.build()) }
+        runCatching { manager.notify(content.notificationId, builder.build()) }
     }
 
     /** 示例通知的内容；设置页预览与开发者设置里的测试共用这一份。 */
@@ -202,6 +287,8 @@ object ClassNoticeNotifier {
      * startAtMillis 给 0，免得预览的那条被 setTimeoutAfter 立刻收走。
      */
     fun notifyPreview(context: Context, preferences: ClassNoticePreferences, theme: NoticeTheme) {
+        // 同一条通知只提醒一次，不先收掉的话连点两次预览第二次就不弹了
+        cancel(context)
         notify(
             context = context,
             content = previewContent(context, preferences),
@@ -210,8 +297,37 @@ object ClassNoticeNotifier {
         )
     }
 
-    fun cancel(context: Context) {
-        runCatching { NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID) }
+    fun cancel(context: Context, notificationId: Int = NOTIFICATION_ID) {
+        runCatching { NotificationManagerCompat.from(context).cancel(notificationId) }
+    }
+
+    /** 闹钟响起来了，预告就不用挂着了。 */
+    fun cancelAlarmPreview(context: Context) = cancel(context, ALARM_NOTIFICATION_ID)
+
+    /** 设置页「预览闹钟预告」用的示例。 */
+    fun alarmPreviewSample(context: Context, minutes: Int): Content {
+        val ringAt = System.currentTimeMillis() + minutes * 60_000L
+        val clock = java.time.Instant.ofEpochMilli(ringAt)
+            .atZone(com.x500x.cursimple.core.kernel.time.BeijingTime.zone)
+            .toLocalTime()
+        val text = "%02d:%02d".format(clock.hour, clock.minute)
+        return Content(
+            courseTitle = context.getString(R.string.alarm_pre_notice_preview_title),
+            location = "",
+            timeRange = context.getString(R.string.alarm_pre_notice_ring_at, text),
+            minutesUntilStart = minutes,
+            // 预览不让它到点自己消失，和上课通知预览一样
+            startAtMillis = 0L,
+            kind = Kind.AlarmPreview,
+        )
+    }
+
+    /** 上课通知还挂着的话，它走的是哪个渠道；已经被划掉就是 null。 */
+    private fun activeNoticeChannel(context: Context): String? {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return null
+        val active = runCatching { manager.activeNotifications }.getOrNull() ?: return null
+        val notice = active.firstOrNull { it.id == NOTIFICATION_ID } ?: return null
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) notice.notification.channelId else CHANNEL_ID
     }
 
     /** 品牌卡片皮肤的展开态：三行，宽松。 */
@@ -304,16 +420,95 @@ object ClassNoticeNotifier {
     }
 
     /**
-     * 小米原子岛（焦点通知）识别的附加字段。
+     * 小米焦点通知 / 超级岛的附加字段，按澎湃OS开发者平台《超级岛开发指南》的 param_v2 协议。
      *
      * 这是厂商扩展，不在 AOSP 里；别的机型读不到这些键，会当普通通知照常显示，
-     * 所以不必按厂商分支，附上就好。
+     * 所以不必按厂商分支，附上就好。ticker 必须带：OS2 上没有它状态栏不显示。
      */
-    private fun miuiFocusExtras(title: String, body: String): Bundle = Bundle().apply {
-        putBoolean("miui.focus.enable", true)
-        putString("miui.focus.ticker", title)
-        putString("miui.focus.title", title)
-        putString("miui.focus.content", body)
+    private fun miuiFocusExtras(
+        context: Context,
+        ticker: String,
+        frontTitle: String,
+        content: Content,
+        body: String,
+        float: Boolean,
+    ): Bundle {
+        val pic = "miui.focus.pic_app"
+        val picInfo = JSONObject().put("type", 1).put("pic", pic)
+        val param = JSONObject()
+            .put("protocol", 1)
+            .put("business", "class_notice")
+            .put("enableFloat", float)
+            .put("updatable", true)
+            .put("ticker", ticker)
+            .put("tickerPic", pic)
+            .put("aodTitle", ticker)
+            .put("aodPic", pic)
+            .put(
+                "param_island",
+                JSONObject()
+                    .put("islandProperty", 1)
+                    .put(
+                        "bigIslandArea",
+                        JSONObject().put(
+                            "imageTextInfoLeft",
+                            JSONObject()
+                                .put("type", 1)
+                                .put("picInfo", picInfo)
+                                .put(
+                                    "textInfo",
+                                    JSONObject()
+                                        .put("frontTitle", frontTitle)
+                                        .put("title", content.courseTitle)
+                                        .put("content", content.location.ifBlank { content.whenText }),
+                                ),
+                        ),
+                    )
+                    .put("smallIslandArea", JSONObject().put("picInfo", picInfo)),
+            )
+            .put(
+                "baseInfo",
+                JSONObject()
+                    .put("title", content.courseTitle)
+                    .put("content", body)
+                    .put("type", 2),
+            )
+        return Bundle().apply {
+            putString("miui.focus.param", JSONObject().put("param_v2", param).toString())
+            putBundle(
+                "miui.focus.pics",
+                Bundle().apply {
+                    putParcelable(pic, Icon.createWithResource(context, R.mipmap.ic_launcher))
+                },
+            )
+        }
+    }
+
+    /**
+     * 系统那一层有没有放行「岛」式展示。
+     *
+     * 小米要用户在系统里给这个应用开焦点通知；Android 16 的实时活动也能被用户按应用关掉。
+     * 两边都查不到（别的厂商、老系统）时算放行，反正会按普通通知显示。
+     */
+    fun islandBlocked(context: Context): Boolean {
+        val focusProtocol = runCatching {
+            Settings.System.getInt(context.contentResolver, "notification_focus_protocol", 0)
+        }.getOrDefault(0)
+        if (focusProtocol > 0) {
+            val allowed = runCatching {
+                context.contentResolver.call(
+                    Uri.parse("content://miui.statusbar.notification.public"),
+                    "canShowFocus",
+                    null,
+                    Bundle().apply { putString("package", context.packageName) },
+                )?.getBoolean("canShowFocus", false)
+            }.getOrNull()
+            if (allowed == false) return true
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+            return !NotificationManagerCompat.from(context).canPostPromotedNotifications()
+        }
+        return false
     }
 
     /**

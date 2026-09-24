@@ -13,6 +13,10 @@ import com.x500x.cursimple.core.plugin.market.github.GitHubRegistryRepository
 import com.x500x.cursimple.core.plugin.market.github.GitHubReleaseAsset
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -38,6 +42,10 @@ data class PluginMarketUiState(
     val lastLoadedAtMillis: Long = 0L,
     /** 正在查哪个插件（installKey）有没有新版；查的时候按钮转圈，别让人以为没反应。 */
     val checkingUpdateKey: String? = null,
+    /** 正在为导课升级哪个插件（installKey）：下载、解析、安装这一路按钮都转圈。 */
+    val upgradingKey: String? = null,
+    /** 列表已经出来了、还在后台补各插件的版本信息。 */
+    val isRefreshingReleases: Boolean = false,
     /** 查到了新版、要先升级才能导课的插件。 */
     val pendingUpgrade: PendingPluginUpgrade? = null,
     /** 升级装好了、可以接着导课的插件（installKey），界面接到后发起同步再清掉。 */
@@ -132,35 +140,58 @@ class PluginMarketViewModel(
         }
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, status = PluginMarketStatus.LoadingMarket) }
-            runCatching { gitHubRegistryRepository.fetchAll(slug) }
-                .onSuccess { repos ->
-                    val now = nowMillis()
-                    val status = if (repos.isEmpty()) {
+            // 第一步只拉注册表（几百字节，走 CDN 很快），拿到就先把列表摆出来。
+            // 以前要等每个插件的最新版清单都查完才显示，那一步走 GitHub 代理，国内常要十几秒，
+            // 第一次进导课页就对着转圈干等
+            val summaries = runCatching { gitHubRegistryRepository.fetchRegistry(slug) }
+                .getOrElse { error ->
+                    _uiState.update {
+                        it.copy(isLoading = false, status = PluginMarketStatus.MarketLoadFailed(error))
+                    }
+                    return@launch
+                }
+            val known = _uiState.value.marketRepos.associateBy { it.fullName.lowercase() }
+            val listed = summaries.map { summary ->
+                summary.latestRelease?.let { return@map summary }
+                summary.copy(latestRelease = known[summary.fullName.lowercase()]?.latestRelease)
+            }
+            val now = nowMillis()
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isRefreshingReleases = listed.isNotEmpty(),
+                    marketRepos = listed,
+                    lastLoadedRegistry = slug,
+                    lastLoadedAtMillis = now,
+                    status = if (listed.isEmpty()) {
                         PluginMarketStatus.MarketEmpty
                     } else {
-                        PluginMarketStatus.MarketLoaded(repos.size)
+                        PluginMarketStatus.MarketLoaded(listed.size)
+                    },
+                )
+            }
+            persistMarketCache(listed, now, slug)
+            if (listed.isEmpty()) return@launch
+            // 第二步在后台并发补各插件的最新版；装插件、判断有没有新版要用，列表本身不等它
+            val filled = coroutineScope {
+                listed.map { repo ->
+                    async {
+                        val fetched = gitHubRegistryRepository.fetchLatestReleaseAsset(repo.fullName)
+                        repo.copy(latestRelease = fetched ?: repo.latestRelease)
                     }
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            marketRepos = repos,
-                            lastLoadedRegistry = slug,
-                            lastLoadedAtMillis = now,
-                            status = status,
-                        )
-                    }
-                    val encoded = runCatching { json.encodeToString(repos) }.getOrNull().orEmpty()
-                    userPreferencesRepository.setPluginMarketCache(encoded, now, slug)
-                }
-                .onFailure { error ->
-                    _uiState.update {
-                        it.copy(
-                            isLoading = false,
-                            status = PluginMarketStatus.MarketLoadFailed(error),
-                        )
-                    }
-                }
+                }.awaitAll()
+            }
+            _uiState.update { state ->
+                // 这期间列表可能又被刷新过，只在还是同一份时写回
+                if (state.lastLoadedAtMillis != now) state else state.copy(marketRepos = filled, isRefreshingReleases = false)
+            }
+            persistMarketCache(filled, now, slug)
         }
+    }
+
+    private suspend fun persistMarketCache(repos: List<GitHubRepoSummary>, now: Long, slug: String) {
+        val encoded = runCatching { json.encodeToString(repos) }.getOrNull().orEmpty()
+        userPreferencesRepository.setPluginMarketCache(encoded, now, slug)
     }
 
     fun previewLocalPackage(bytes: ByteArray) {
@@ -168,14 +199,23 @@ class PluginMarketViewModel(
     }
 
     fun installFromGitHub(repo: GitHubRepoSummary) {
-        val asset = repo.latestRelease
-        if (asset == null) {
-            _uiState.update {
-                it.copy(status = PluginMarketStatus.ReleaseAssetMissing(repo.fullName))
-            }
-            return
-        }
         viewModelScope.launch {
+            // 列表先出来、版本信息后补，点安装时可能还没补到这一条，就地现查
+            val asset = repo.latestRelease ?: run {
+                _uiState.update { it.copy(isLoading = true, status = PluginMarketStatus.LoadingMarket) }
+                gitHubRegistryRepository.fetchLatestReleaseAsset(repo.fullName)
+            }
+            if (asset == null) {
+                syncAfterInstallKey = null
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        upgradingKey = null,
+                        status = PluginMarketStatus.ReleaseAssetMissing(repo.fullName),
+                    )
+                }
+                return@launch
+            }
             _uiState.update {
                 it.copy(
                     isLoading = true,
@@ -188,6 +228,7 @@ class PluginMarketViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            upgradingKey = null,
                             status = PluginMarketStatus.DownloadFailed(error),
                         )
                     }
@@ -220,17 +261,33 @@ class PluginMarketViewModel(
         }
         if (_uiState.value.checkingUpdateKey != null) return
         viewModelScope.launch {
-            _uiState.update { it.copy(checkingUpdateKey = record.installKey) }
+            _uiState.update {
+                it.copy(checkingUpdateKey = record.installKey, status = PluginMarketStatus.CheckingUpdate(record.name))
+            }
             val known = _uiState.value.marketRepos.firstOrNull { it.fullName.equals(slug, ignoreCase = true) }
-            val latest = gitHubRegistryRepository.fetchLatestReleaseAsset(slug, fresh = true)
+            // 查新版最多等几秒：网慢时宁可先用缓存里的版本导课，也别让人对着转圈等半分钟
+            val fetched = withTimeoutOrNull(UPDATE_CHECK_TIMEOUT_MILLIS) {
+                gitHubRegistryRepository.fetchLatestReleaseAsset(slug, fresh = true)
+            }
+            val latest = fetched
                 ?: _uiState.value.latestReleases[slug.lowercase()]
                 ?: known?.latestRelease
             _uiState.update { state ->
+                val releases = if (fetched != null) {
+                    state.latestReleases + (slug.lowercase() to fetched)
+                } else {
+                    state.latestReleases
+                }
+                val cleared = state.copy(
+                    checkingUpdateKey = null,
+                    latestReleases = releases,
+                    status = state.status.takeUnless { it is PluginMarketStatus.CheckingUpdate },
+                )
                 if (latest != null && isNewerVersion(latest.tagName, record.version)) {
                     val repo = (known ?: minimalRepo(slug)).copy(latestRelease = latest)
-                    state.copy(checkingUpdateKey = null, pendingUpgrade = PendingPluginUpgrade(record, repo))
+                    cleared.copy(pendingUpgrade = PendingPluginUpgrade(record, repo))
                 } else {
-                    state.copy(checkingUpdateKey = null, readyToSyncKey = record.installKey)
+                    cleared.copy(readyToSyncKey = record.installKey)
                 }
             }
         }
@@ -242,15 +299,23 @@ class PluginMarketViewModel(
     fun refreshInstalledPluginVersions() {
         val now = nowMillis()
         if (now - lastInstalledVersionCheckAt < INSTALLED_VERSION_CHECK_INTERVAL_MILLIS) return
-        lastInstalledVersionCheckAt = now
         viewModelScope.launch {
             hydrationJob.join()
-            val slugs = _uiState.value.installedPlugins
+            // 已装列表是另一路流读出来的，进程刚起来时可能还是空的
+            val installed = _uiState.value.installedPlugins.ifEmpty { pluginManager.installedPluginsFlow.first() }
+            val slugs = installed
                 .mapNotNull { it.sourceRepo?.trim()?.takeIf(String::isNotEmpty) }
                 .distinctBy { it.lowercase() }
-            val found = slugs.mapNotNull { slug ->
-                gitHubRegistryRepository.fetchLatestReleaseAsset(slug, fresh = true)?.let { slug.lowercase() to it }
-            }.toMap()
+            if (slugs.isEmpty()) return@launch
+            lastInstalledVersionCheckAt = now
+            // 各插件并发查，不用一个等一个
+            val found = coroutineScope {
+                slugs.map { slug ->
+                    async {
+                        gitHubRegistryRepository.fetchLatestReleaseAsset(slug, fresh = true)?.let { slug.lowercase() to it }
+                    }
+                }.awaitAll()
+            }.filterNotNull().toMap()
             if (found.isNotEmpty()) {
                 _uiState.update { it.copy(latestReleases = it.latestReleases + found) }
             }
@@ -260,6 +325,7 @@ class PluginMarketViewModel(
     /** 直接升级到市场上已知的新版，装好后接着导课。 */
     fun upgradeThenSync(record: InstalledPluginRecord, repo: GitHubRepoSummary) {
         syncAfterInstallKey = record.installKey
+        _uiState.update { it.copy(upgradingKey = record.installKey) }
         installFromGitHub(repo)
     }
 
@@ -298,6 +364,7 @@ class PluginMarketViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            upgradingKey = null,
                             installPreview = null,
                             installPreviewOrigin = null,
                             status = PluginMarketStatus.Installed(result.record.name),
@@ -311,6 +378,7 @@ class PluginMarketViewModel(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            upgradingKey = null,
                             status = PluginMarketStatus.InstallFailed(result.error),
                         )
                     }
@@ -323,7 +391,7 @@ class PluginMarketViewModel(
         pendingBytes = null
         pendingSource = null
         syncAfterInstallKey = null
-        _uiState.update { it.copy(installPreview = null, installPreviewOrigin = null) }
+        _uiState.update { it.copy(installPreview = null, installPreviewOrigin = null, upgradingKey = null) }
     }
 
     fun removePlugin(pluginKey: String) {
@@ -359,9 +427,11 @@ class PluginMarketViewModel(
                     }
                 }
                 .onFailure { error ->
+                    syncAfterInstallKey = null
                     _uiState.update {
                         it.copy(
                             isLoading = false,
+                            upgradingKey = null,
                             installPreviewOrigin = null,
                             status = PluginMarketStatus.ParsePackageFailed(error),
                         )
@@ -396,3 +466,6 @@ class PluginMarketViewModelFactory(
 }
 
 private const val INSTALLED_VERSION_CHECK_INTERVAL_MILLIS = 10 * 60 * 1000L
+
+/** 导课前查新版最多等这么久，超时就按缓存里的版本走。 */
+private const val UPDATE_CHECK_TIMEOUT_MILLIS = 4_000L

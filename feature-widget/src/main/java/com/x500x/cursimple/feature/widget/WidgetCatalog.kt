@@ -82,7 +82,9 @@ object WidgetCatalog {
      * 所以在厂商机型上先请求副本；被禁用的组件直接跳过，请求它必定落空。
      */
     fun pinCandidates(context: Context, entry: WidgetCatalogEntry): List<ComponentName> {
-        val vendorFirst = detectLauncherVendor(context) != LauncherVendor.Other
+        // 只有 vivo 要先请求副本。小米上带 miuiWidget 的副本没过小米审核时根本不显示，
+        // 先请求它等于白请求，通用那份才是看得见的
+        val vendorFirst = detectLauncherVendor(context) == LauncherVendor.Vivo
         val ordered = if (vendorFirst) {
             entry.vendorProviders + entry.provider
         } else {

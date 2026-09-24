@@ -449,17 +449,20 @@ fun PluginWebSessionScreen(
     }
 
     val urlLowerForOverlay = currentUrl.value.lowercase()
-    val onScrapeablePage = urlLowerForOverlay.contains("/eams/") &&
+    // 「/eams」不带尾斜杠：新版教务是 /eams5-student/ 这类路径，带斜杠就匹配不上，整段抓取都没有转圈
+    val onScrapeablePage = urlLowerForOverlay.contains("/eams") &&
         !urlLowerForOverlay.contains("login")
-    val rawShowWorkingOverlay = onScrapeablePage &&
+    val browsingForCapture = onScrapeablePage &&
         pageReadyAtMs.value > 0L &&
-        uploadStage.value == null &&
         pageError.value == null &&
         blockedUrl.value == null &&
         consoleError.value == null &&
-        pendingCompletion.value == null &&
-        !isFinishing.value &&
         (tickNow.value - pageReadyAtMs.value) >= 300L
+    // 登录之后到课表写完这一整段都要有转圈：打包、写入、等页面稳定这几步以前把遮罩撤了，
+    // 只剩一行小字，看上去像卡住了；交给插件解析时整个会话还开着，也一直转着
+    val uploading = uploadStage.value != null || isFinishing.value
+    val waitingStable = pendingCompletion.value?.requiresUserConfirmation == false
+    val rawShowWorkingOverlay = uploading || waitingStable || browsingForCapture
     val showWorkingOverlay = remember(request.token) { mutableStateOf(false) }
     val lastWorkingOverlayChangeMs = remember(request.token) { mutableStateOf(0L) }
     androidx.compose.runtime.LaunchedEffect(rawShowWorkingOverlay) {
@@ -714,7 +717,7 @@ fun PluginWebSessionScreen(
                 modifier = Modifier.fillMaxSize(),
             )
             if (showWorkingOverlay.value) {
-                PluginWorkingOverlay()
+                PluginWorkingOverlay(stageLabel = uploadStage.value?.let { stringResource(it.labelRes) })
             }
         }
     }
@@ -801,7 +804,7 @@ private fun SaveLoginCredentialDialog(
 }
 
 @Composable
-private fun PluginWorkingOverlay() {
+private fun PluginWorkingOverlay(stageLabel: String? = null) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -829,7 +832,7 @@ private fun PluginWorkingOverlay() {
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    text = stringResource(R.string.plugin_web_overlay_subtitle),
+                    text = stageLabel ?: stringResource(R.string.plugin_web_overlay_subtitle),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

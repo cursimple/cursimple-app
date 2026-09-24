@@ -49,6 +49,7 @@ class ClassNoticePlannerTest {
         courses: List<CourseItem>,
         overrides: List<TemporaryScheduleOverride> = emptyList(),
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
+        advanceMinutes: Int = 0,
     ) = ClassNoticePlanner.nextClass(
         now = now,
         allCourses = courses,
@@ -56,6 +57,7 @@ class ClassNoticePlannerTest {
         termStartDate = termStart,
         overrides = overrides,
         holidayCalendar = holidayCalendar,
+        advanceMinutes = advanceMinutes,
     )
 
     @Test
@@ -180,5 +182,32 @@ class ClassNoticePlannerTest {
         )
 
         assertEquals("实验楼B203", result?.displayLocation())
+    }
+
+    @Test
+    fun `刚发完这节的提醒，下一节要排到后面那节课`() {
+        val courses = listOf(
+            course("上午课", dayOfWeek = 1, startNode = 1, endNode = 2),
+            course("下午课", dayOfWeek = 1, startNode = 5, endNode = 6),
+        )
+        // 8:00 的课提前 10 分钟提醒，7:50 提醒到点时再排：这节已提醒过，得排下午那节
+        val result = nextClass(
+            now = LocalDateTime.of(2026, 9, 7, 7, 50),
+            courses = courses,
+            advanceMinutes = 10,
+        )
+
+        assertEquals("下午课", result?.course?.title)
+    }
+
+    @Test
+    fun `提醒点还没到的课照常排上`() {
+        val result = nextClass(
+            now = LocalDateTime.of(2026, 9, 7, 7, 49),
+            courses = listOf(course("上午课", dayOfWeek = 1, startNode = 1, endNode = 2)),
+            advanceMinutes = 10,
+        )
+
+        assertEquals("上午课", result?.course?.title)
     }
 }

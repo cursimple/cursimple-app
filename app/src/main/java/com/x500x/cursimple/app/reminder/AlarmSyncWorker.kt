@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.x500x.cursimple.app.AppContainer
+import com.x500x.cursimple.app.notice.ClassNoticeGateway
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 import kotlinx.coroutines.Dispatchers
@@ -64,6 +65,10 @@ class AlarmSyncWorker(
             )
 
             AutoSilenceController.evaluate(applicationContext, reason = WORKER_NAME)
+
+            // 上课提醒一次只挂一个闹钟，被系统清掉就断了；定期巡检时顺手重挂，最多断一个周期
+            runCatching { ClassNoticeGateway.reschedule(applicationContext) }
+                .onFailure { ReminderLogger.warn("class_notice.worker.reschedule.failure", emptyMap(), it) }
 
             // 如果有失败的重试一次
             if (totalFailed > 0) {

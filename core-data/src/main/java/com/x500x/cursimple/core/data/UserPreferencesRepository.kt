@@ -137,6 +137,24 @@ data class ClassNoticePreferences(
     }
 }
 
+/**
+ * 闹钟响前的预告：闹钟快响时先弹一条通知（悬浮窗皮肤下也弹悬浮窗），样式跟上课通知走。
+ * 默认关：早起闹钟前几分钟亮屏弹一条，没开过这个的人会被吓到。
+ */
+data class AlarmPreNoticePreferences(
+    val enabled: Boolean = false,
+    val advanceMinutes: Int = DEFAULT_ADVANCE_MINUTES,
+) {
+    companion object {
+        const val DEFAULT_ADVANCE_MINUTES = 5
+        const val MIN_ADVANCE_MINUTES = 1
+        const val MAX_ADVANCE_MINUTES = 60
+
+        fun coerceAdvanceMinutes(value: Int): Int =
+            value.coerceIn(MIN_ADVANCE_MINUTES, MAX_ADVANCE_MINUTES)
+    }
+}
+
 data class AutoSilencePreferences(
     val enabled: Boolean = false,
     val mode: AutoSilenceMode = AutoSilenceMode.Vibrate,
@@ -276,6 +294,9 @@ object VendorPermissionKey {
     /** 后台弹出界面。 */
     const val BACKGROUND_POPUP = "vendor_background_popup"
 
+    /** 厂商省电策略（小米「无限制」、三星「永不休眠」）。 */
+    const val BATTERY_SAVER = "vendor_battery_saver"
+
     /** 桌面快捷方式：没有它时一键添加小组件会被桌面静默丢弃。 */
     const val SHORTCUT_PIN = "vendor_shortcut_pin"
 }
@@ -377,8 +398,11 @@ data class UserPreferences(
     val holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
     /** 放假当天是否跳过提醒。默认照常提醒，安静与否交给用户决定。 */
     val skipRemindersOnHoliday: Boolean = false,
-    /** 常驻前台服务守着提醒：退出应用后进程还在，厂商系统不容易顺手把闹钟一起清掉。 */
-    val alarmKeepAliveEnabled: Boolean = false,
+    /**
+     * 常驻前台服务守着提醒：退出应用后进程还在，厂商系统不容易顺手把闹钟一起清掉。
+     * 默认开：不开的话大多数国产机上退出应用就收不到提醒，用户也想不到要来这里开。
+     */
+    val alarmKeepAliveEnabled: Boolean = true,
     /**
      * 用户自己确认已经开好的厂商权限。
      *
@@ -410,6 +434,7 @@ data class UserPreferences(
     val alarmRepeatCount: Int = DEFAULT_APP_ALARM_REPEAT_COUNT,
     val autoSilence: AutoSilencePreferences = AutoSilencePreferences(),
     val classNotice: ClassNoticePreferences = ClassNoticePreferences(),
+    val alarmPreNotice: AlarmPreNoticePreferences = AlarmPreNoticePreferences(),
     val autoSilenceSession: AutoSilenceSession = AutoSilenceSession(),
     /** 自动检查更新；默认开着，修好的问题得先让人知道有新版本。 */
     val autoUpdateEnabled: Boolean = true,
@@ -492,6 +517,10 @@ interface UserPreferencesRepository {
     suspend fun setClassNoticeBlurEnabled(enabled: Boolean)
 
     suspend fun setClassNoticeBlurStrength(strength: Int)
+
+    suspend fun setAlarmPreNoticeEnabled(enabled: Boolean)
+
+    suspend fun setAlarmPreNoticeAdvanceMinutes(minutes: Int)
     suspend fun setScheduleCourseCornerRadiusDp(radiusDp: Int)
     suspend fun setScheduleCourseCardHeightDp(heightDp: Int)
     suspend fun setScheduleOpacityPercent(percent: Int)

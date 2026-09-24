@@ -15,11 +15,11 @@ class AlarmScheduleDecisionTest {
     }
 
     @Test
-    fun `losing exact permission keeps the alarm clock channel and only drops the backup`() {
+    fun `losing exact permission falls back to a window instead of failing`() {
         val decision = alarmScheduleDecision(canScheduleExact = false)
 
-        // setAlarmClock 由系统按用户闹钟对待，权限被收回也不该整条放弃排程
-        assertEquals(AlarmPrimaryChannel.AlarmClock, decision.primary)
+        // setAlarmClock 没有精确闹钟权限会抛异常，得退到窗口闹钟，不能整条排程落空
+        assertEquals(AlarmPrimaryChannel.Window, decision.primary)
         assertEquals(false, decision.backup)
     }
 

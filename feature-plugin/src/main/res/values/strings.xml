@@ -187,6 +187,7 @@
 
     <string name="plugin_market_status_registry_not_configured">请先在设置-插件中配置注册表仓库</string>
     <string name="plugin_market_status_loading">正在加载插件市场...</string>
+    <string name="plugin_market_status_checking_update">正在检查「%1$s」有没有新版…</string>
     <string name="plugin_market_status_market_empty">插件市场为空</string>
     <plurals name="plugin_market_status_market_loaded">
         <item quantity="other">已加载 %1$d 个插件</item>
@@ -248,6 +249,7 @@
     <string name="plugin_permission_component_use">调用已安装组件</string>
     <!-- 从教务系统导课的引导页 -->
     <string name="school_import_title">从教务系统导课</string>
+    <string name="school_import_busy_default">正在处理…</string>
     <string name="school_import_back">返回</string>
     <string name="school_import_step_search">搜学校</string>
     <string name="school_import_step_install">装插件</string>
