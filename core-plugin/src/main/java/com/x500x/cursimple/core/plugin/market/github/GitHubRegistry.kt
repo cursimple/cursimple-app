@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.plugin.market.github
 import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.pluginCheck
 import com.x500x.cursimple.core.plugin.pluginRequire
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -121,6 +122,40 @@ class GitHubRegistryRepository(
     suspend fun fetchLatestReleaseAsset(
         repoSlug: String,
         fresh: Boolean = false,
+    ): GitHubReleaseAsset? {
+        val key = repoSlug.trim().lowercase()
+        val now = System.currentTimeMillis()
+        // 进导课页、查已装版本、点导课前查新版，三处前后脚都要同一份清单，
+        // 以前各发各的，走一趟镜像就是几秒；一分钟内查过的直接用，正在查的等着同一趟
+        releaseCache[key]?.takeIf { now - it.atMillis < if (fresh) FRESH_RELEASE_TTL_MILLIS else RELEASE_TTL_MILLIS }
+            ?.let { return it.asset }
+        val (deferred, owner) = synchronized(inFlight) {
+            inFlight[key]?.let { it to false } ?: CompletableDeferred<GitHubReleaseAsset?>().also {
+                inFlight[key] = it
+            }.let { it to true }
+        }
+        if (!owner) return deferred.await()
+        return try {
+            fetchLatestReleaseAssetUncached(repoSlug, fresh).also { asset ->
+                if (asset != null) releaseCache[key] = CachedRelease(asset, System.currentTimeMillis())
+                deferred.complete(asset)
+            }
+        } catch (error: Throwable) {
+            deferred.complete(null)
+            throw error
+        } finally {
+            synchronized(inFlight) { inFlight.remove(key) }
+        }
+    }
+
+    private class CachedRelease(val asset: GitHubReleaseAsset, val atMillis: Long)
+
+    private val releaseCache = java.util.concurrent.ConcurrentHashMap<String, CachedRelease>()
+    private val inFlight = HashMap<String, CompletableDeferred<GitHubReleaseAsset?>>()
+
+    private suspend fun fetchLatestReleaseAssetUncached(
+        repoSlug: String,
+        fresh: Boolean,
     ): GitHubReleaseAsset? = withContext(Dispatchers.IO) {
         runCatching {
             pluginRequire(
@@ -176,6 +211,10 @@ class GitHubRegistryRepository(
             System.currentTimeMillis() / CACHE_BUCKET_MILLIS
 
         private const val CACHE_BUCKET_MILLIS = 5 * 60 * 1000L
+
+        /** 要最新版时，一分钟内查过的算数：导课前那次查询紧跟在进页面那次后面。 */
+        private const val FRESH_RELEASE_TTL_MILLIS = 60 * 1000L
+        private const val RELEASE_TTL_MILLIS = 10 * 60 * 1000L
         private const val PLUGIN_STARS_BRANCH = "plugin-stars-data"
         private const val PLUGIN_STARS_FILE = "plugins-stars.json"
         private const val RELEASE_MANIFEST_FILE = "manifest.json"

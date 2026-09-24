@@ -19,11 +19,13 @@ internal object WidgetProviderVisibility {
 
     fun apply(context: Context) {
         val appContext = context.applicationContext
+        // 只有小米、vivo 的桌面真认副本上的元数据。华为 / 荣耀 / OPPO 上副本只是重复的一份，
+        // 荣耀的 honorcard 标记没在荣耀那边登记过时还会把副本藏起来，所以这几家都收起副本
         val keepVendorCopies = when (WidgetCatalog.detectLauncherVendor(appContext)) {
             WidgetCatalog.LauncherVendor.Miui,
+            WidgetCatalog.LauncherVendor.Vivo -> true
             WidgetCatalog.LauncherVendor.Huawei,
             WidgetCatalog.LauncherVendor.Oppo,
-            WidgetCatalog.LauncherVendor.Vivo -> true
             WidgetCatalog.LauncherVendor.Samsung,
             WidgetCatalog.LauncherVendor.Other -> false
         }

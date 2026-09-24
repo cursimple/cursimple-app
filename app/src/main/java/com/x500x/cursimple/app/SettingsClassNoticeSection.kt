@@ -19,7 +19,9 @@ import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VerticalAlignTop
@@ -28,7 +30,10 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -83,11 +88,13 @@ internal fun ClassNoticeSettingsSection(
     LaunchedEffect(Unit) { ClassNoticeNotifier.ensureChannel(context) }
     // 用户可能刚跳去系统设置改完就回来，回到前台时重新查一次拦没拦
     var blocked by remember { mutableStateOf(ClassNoticeNotifier.systemBlocked(context, preferences)) }
+    var islandBlocked by remember { mutableStateOf(ClassNoticeNotifier.islandBlocked(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 blocked = ClassNoticeNotifier.systemBlocked(context, preferences)
+                islandBlocked = ClassNoticeNotifier.islandBlocked(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -184,6 +191,15 @@ internal fun ClassNoticeSettingsSection(
             checked = preferences.focusNotificationEnabled,
             onCheckedChange = onFocusChange,
         )
+        // 小米的焦点通知、Android 16 的实时活动都得用户在系统里另外放行，应用里开了也不算数
+        if (preferences.focusNotificationEnabled && islandBlocked) {
+            SettingsActionRow(
+                icon = Icons.Rounded.OpenInNew,
+                title = stringResource(R.string.settings_class_notice_open_system),
+                subtitle = stringResource(R.string.settings_class_notice_focus_blocked),
+                onClick = { context.openIslandSettings(ClassNoticeNotifier.channelIdFor(preferences)) },
+            )
+        }
 
         ClassNoticeSkinSettings(
             preferences = preferences,
@@ -191,6 +207,80 @@ internal fun ClassNoticeSettingsSection(
             onAnimationChange = onAnimationChange,
             onBlurChange = onBlurChange,
             onBlurStrengthChange = onBlurStrengthChange,
+        )
+    }
+
+    // 守护和闹钟预告不跟着上课通知的总开关走：只用闹钟、不要上课通知的人也用得上
+    ReminderGuardAndAlarmPreNoticeSettings(noticePreferences = preferences)
+}
+
+/**
+ * 提醒守护与闹钟响前提醒。
+ *
+ * 自己读写偏好：这一页在设置和「提醒」页两处都有，两处的上层各传一遍开关太容易漏
+ * （以前「提醒」页那份就没传，守护开关一直显示关、点了也没反应）。
+ */
+@Composable
+private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repository = remember(context) {
+        com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository(context.applicationContext)
+    }
+    val userPreferences by repository.preferencesFlow.collectAsState(initial = null)
+    val current = userPreferences ?: return
+    val keepAliveEnabled = current.alarmKeepAliveEnabled
+    val preNotice = current.alarmPreNotice
+    val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
+
+    // 部分手机划掉应用会连带清掉挂着的闹钟和提醒，开关放在这里才找得到
+    SettingsSwitchRow(
+        icon = Icons.Rounded.Restore,
+        title = stringResource(R.string.settings_alarm_keep_alive_title),
+        subtitle = stringResource(
+            if (keepAliveEnabled) {
+                R.string.settings_alarm_keep_alive_on
+            } else {
+                R.string.settings_alarm_keep_alive_off
+            },
+        ),
+        checked = keepAliveEnabled,
+        onCheckedChange = { enabled -> scope.launch { repository.setAlarmKeepAliveEnabled(enabled) } },
+    )
+
+    SettingsSectionHeader(stringResource(R.string.settings_alarm_pre_notice_section))
+    SettingsSwitchRow(
+        icon = Icons.Rounded.Alarm,
+        title = stringResource(R.string.settings_alarm_pre_notice_title),
+        subtitle = stringResource(R.string.settings_alarm_pre_notice_subtitle),
+        checked = preNotice.enabled,
+        onCheckedChange = { enabled -> scope.launch { repository.setAlarmPreNoticeEnabled(enabled) } },
+    )
+    if (preNotice.enabled) {
+        AlarmNumberSettingRow(
+            title = stringResource(R.string.settings_alarm_pre_notice_advance),
+            value = preNotice.advanceMinutes,
+            unit = stringResource(R.string.settings_class_notice_minute_unit),
+            min = com.x500x.cursimple.core.data.AlarmPreNoticePreferences.MIN_ADVANCE_MINUTES,
+            max = com.x500x.cursimple.core.data.AlarmPreNoticePreferences.MAX_ADVANCE_MINUTES,
+            step = 1,
+            onValueChange = { minutes -> scope.launch { repository.setAlarmPreNoticeAdvanceMinutes(minutes) } },
+            editable = true,
+        )
+        SettingsActionRow(
+            icon = Icons.Rounded.Visibility,
+            title = stringResource(R.string.settings_alarm_pre_notice_preview),
+            subtitle = stringResource(R.string.settings_alarm_pre_notice_preview_subtitle),
+            onClick = {
+                val app = context.applicationContext
+                ClassNoticeNotifier.cancelAlarmPreview(app)
+                ClassNoticeNotifier.notify(
+                    app,
+                    ClassNoticeNotifier.alarmPreviewSample(app, preNotice.advanceMinutes),
+                    noticePreferences,
+                    noticeTheme,
+                )
+            },
         )
     }
 }
@@ -409,6 +499,21 @@ internal fun android.content.Context.openOverlayPermissionSettings() {
         if (packageManager.resolveActivity(candidate, 0) == null) continue
         if (runCatching { startActivity(candidate) }.isSuccess) return
     }
+}
+
+/** 实时活动有单独的放行页（Android 16 QPR1 起）；没有这页就去通知设置，小米的焦点通知开关也在那里。 */
+private fun android.content.Context.openIslandSettings(channelId: String) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        val promotion = Intent("android.settings.APP_NOTIFICATION_PROMOTION_SETTINGS")
+            .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (packageManager.resolveActivity(promotion, 0) != null &&
+            runCatching { startActivity(promotion) }.isSuccess
+        ) {
+            return
+        }
+    }
+    openClassNoticeSettings(channelId)
 }
 
 /** 直达本应用的通知设置；跳不过去就退回应用详情页。 */

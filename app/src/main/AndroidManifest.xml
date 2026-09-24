@@ -3,6 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Android 16 实时活动：上课通知在状态栏挂胶囊、锁屏置顶 -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!--
         只给「上课通知 - 悬浮窗增强」这一档皮肤用：动效和毛玻璃在通知 API 里没有，
         要这两样就只能自己加一个窗口来画。默认皮肤是系统原生样式，用不到这条权限，
@@ -45,6 +47,23 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
+        <!--
+            各家的自启动、省电策略设置页。Android 11 起不声明就查不到这些应用，
+            权限页会以为厂商页面不存在，自启动那一项就不显示。
+        -->
+        <package android:name="com.miui.securitycenter" />
+        <package android:name="com.miui.powerkeeper" />
+        <package android:name="com.huawei.systemmanager" />
+        <package android:name="com.hihonor.systemmanager" />
+        <package android:name="com.coloros.safecenter" />
+        <package android:name="com.oplus.battery" />
+        <package android:name="com.oppo.safe" />
+        <package android:name="com.vivo.permissionmanager" />
+        <package android:name="com.vivo.abe" />
+        <package android:name="com.iqoo.secure" />
+        <package android:name="com.oneplus.security" />
+        <package android:name="com.samsung.android.lool" />
+        <package android:name="com.meizu.safe" />
     </queries>
 
     <uses-feature
@@ -168,6 +187,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.x500x.cursimple.action.KEEP_ALIVE_RESTART" />
+                <action android:name="com.x500x.cursimple.action.REMINDER_WATCHDOG" />
             </intent-filter>
         </receiver>
 
@@ -180,6 +200,11 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Keeps user scheduled course alarms registered after the app is swiped away" />
         </service>
+        <!-- 提醒巡检：系统每 15 分钟拉起一次，重挂上课提醒、拉回守护服务 -->
+        <service
+            android:name=".app.reminder.ReminderGuardJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <service
             android:name=".app.reminder.AlarmRingingService"
@@ -191,6 +216,9 @@
         </service>
         <receiver
             android:name=".app.notice.ClassNoticeReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".app.notice.AlarmPreNoticeReceiver"
             android:exported="false" />
 
     </application>

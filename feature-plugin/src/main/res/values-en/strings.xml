@@ -190,6 +190,7 @@
 
     <string name="plugin_market_status_registry_not_configured">Set the registry repository in Settings - Plugins first</string>
     <string name="plugin_market_status_loading">Loading the plugin marketplace…</string>
+    <string name="plugin_market_status_checking_update">Checking %1$s for updates…</string>
     <string name="plugin_market_status_market_empty">The plugin marketplace is empty</string>
     <plurals name="plugin_market_status_market_loaded">
         <item quantity="one">Loaded %1$d plugin</item>
@@ -253,6 +254,7 @@
     <string name="plugin_permission_component_use">Use installed components</string>
     <!-- Guided import from the university system -->
     <string name="school_import_title">Import from your university</string>
+    <string name="school_import_busy_default">Working…</string>
     <string name="school_import_back">Back</string>
     <string name="school_import_step_search">Find your school</string>
     <string name="school_import_step_install">Install the plugin</string>

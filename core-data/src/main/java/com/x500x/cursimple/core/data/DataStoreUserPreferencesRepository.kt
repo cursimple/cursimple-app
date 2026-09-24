@@ -82,7 +82,7 @@ class DataStoreUserPreferencesRepository(
                 syncedYears = decodeSyncedHolidayYears(prefs[KEY_HOLIDAY_CALENDAR_SYNCED_JSON]),
             ),
             skipRemindersOnHoliday = prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] ?: false,
-            alarmKeepAliveEnabled = prefs[KEY_ALARM_KEEP_ALIVE] ?: false,
+            alarmKeepAliveEnabled = prefs[KEY_ALARM_KEEP_ALIVE] ?: true,
             vendorPermissionAcks = prefs[KEY_VENDOR_PERMISSION_ACKS].orEmpty(),
             widgetPinUnsupportedOnDevice = prefs[KEY_WIDGET_PIN_UNSUPPORTED] ?: false,
             reminderMutedDates = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toSet(),
@@ -109,6 +109,12 @@ class DataStoreUserPreferencesRepository(
                 .coerceIn(MIN_REPEAT_COUNT, MAX_REPEAT_COUNT),
             autoSilence = prefs.toAutoSilencePreferences(),
             classNotice = prefs.toClassNoticePreferences(),
+            alarmPreNotice = AlarmPreNoticePreferences(
+                enabled = prefs[KEY_ALARM_PRE_NOTICE_ENABLED] ?: false,
+                advanceMinutes = AlarmPreNoticePreferences.coerceAdvanceMinutes(
+                    prefs[KEY_ALARM_PRE_NOTICE_MINUTES] ?: AlarmPreNoticePreferences.DEFAULT_ADVANCE_MINUTES,
+                ),
+            ),
             autoSilenceSession = prefs.toAutoSilenceSession(),
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: true,
             betaUpdatesEnabled = prefs[KEY_BETA_UPDATES_ENABLED] ?: false,
@@ -280,6 +286,16 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setClassNoticeBlurEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_CLASS_NOTICE_BLUR] = enabled }
+    }
+
+    override suspend fun setAlarmPreNoticeEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_ALARM_PRE_NOTICE_ENABLED] = enabled }
+    }
+
+    override suspend fun setAlarmPreNoticeAdvanceMinutes(minutes: Int) {
+        store.edit { prefs ->
+            prefs[KEY_ALARM_PRE_NOTICE_MINUTES] = AlarmPreNoticePreferences.coerceAdvanceMinutes(minutes)
+        }
     }
 
     override suspend fun setClassNoticeBlurStrength(strength: Int) {
@@ -1117,6 +1133,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_CLASS_NOTICE_ANIMATION = stringPreferencesKey("class_notice_animation")
         val KEY_CLASS_NOTICE_BLUR = booleanPreferencesKey("class_notice_blur")
         val KEY_CLASS_NOTICE_BLUR_STRENGTH = intPreferencesKey("class_notice_blur_strength")
+        val KEY_ALARM_PRE_NOTICE_ENABLED = booleanPreferencesKey("alarm_pre_notice_enabled")
+        val KEY_ALARM_PRE_NOTICE_MINUTES = intPreferencesKey("alarm_pre_notice_minutes")
         val KEY_SCHEDULE_TEXT_FULL_CENTER = booleanPreferencesKey("schedule_text_full_center")
         val KEY_SCHEDULE_COURSE_CORNER_RADIUS_DP = intPreferencesKey("schedule_course_corner_radius_dp")
         val KEY_SCHEDULE_COURSE_CARD_HEIGHT_DP = intPreferencesKey("schedule_course_card_height_dp")

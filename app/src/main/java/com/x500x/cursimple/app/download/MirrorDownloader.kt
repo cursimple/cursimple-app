@@ -415,8 +415,11 @@ class MirrorDownloader(
 /**
  * 把镜像候选切成一轮轮并发请求。
  *
- * 上次成功的镜像单独占第一轮，命中时整次只发一个请求；其余按 [roundSize] 分批，
+ * 上次成功的镜像排在第一轮最前，和其余几个一起竞速；其余按 [roundSize] 分批，
  * 免得一次把十几个镜像全打一遍。
+ *
+ * 以前记住的镜像单独占一轮，它要是卡住（国内代理说挂就挂），要等连接加读取两段超时
+ * 十几秒才轮到别的镜像，导课页第一次检索插件就卡在这里。小文件多发三个请求不值什么。
  */
 internal fun raceRounds(
     candidates: List<DownloadCandidate>,
@@ -427,5 +430,7 @@ internal fun raceRounds(
     val size = roundSize.coerceAtLeast(1)
     val preferred = candidates.firstOrNull { it.url == preferredUrl }
         ?: return candidates.chunked(size)
-    return listOf(listOf(preferred)) + candidates.filterNot { it.url == preferred.url }.chunked(size)
+    val rest = candidates.filterNot { it.url == preferred.url }
+    val firstRound = listOf(preferred) + rest.take(size - 1)
+    return listOf(firstRound) + rest.drop(size - 1).chunked(size)
 }

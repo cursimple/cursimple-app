@@ -46,6 +46,8 @@ object ClassNoticePlanner {
         termStartDate: LocalDate?,
         overrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings,
+        /** 提前几分钟提醒：提醒点已经过了的课不算「下一节」，要接着往后找。 */
+        advanceMinutes: Int = 0,
         lookaheadDays: Int = LOOKAHEAD_DAYS,
     ): UpcomingClass? {
         if (timingProfile == null || timingProfile.slotTimes.isEmpty()) return null
@@ -67,8 +69,10 @@ object ClassNoticePlanner {
                         slots = timingProfile.slotsCovering(course.time.startNode, course.time.endNode),
                     )
                 }
-                // 已经开始的课不再提示，只找还没上的
-                .filter { it.startAt.isAfter(now) }
+                // 提醒点已过的课不再提示，只找还来得及提醒的。
+                // 刚发完一条提醒时正处在这节课的提醒点上，若只看「还没开始」，
+                // 找到的还是这节课，下一节就永远排不上，退出应用后提醒链就断了
+                .filter { it.startAt.minusMinutes(advanceMinutes.toLong()).isAfter(now) }
                 .minByOrNull { it.startAt }
                 ?.let { return it }
         }
