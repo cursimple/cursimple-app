@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 节日、节气当天的问候。不写进更新公告，留点惊喜 -->
+<resources>
+    <string name="greeting_title_festival_new_year">🎉 元旦快乐</string>
+    <string-array name="greeting_lines_festival_new_year">
+        <item>新的一年开始啦，愿你这一年的课都不在早八。</item>
+        <item>元旦快乐！新年新气象，今天就先别想作业了。</item>
+        <item>又翻过一页日历，新的一年也请多多指教。</item>
+    </string-array>
+    <string name="greeting_title_festival_valentine">💝 情人节快乐</string>
+    <string-array name="greeting_lines_festival_valentine">
+        <item>今天是情人节。有人陪就好好约会，没人陪就好好爱自己。</item>
+        <item>情人节快乐！就算只和课表约会，也要吃点甜的。</item>
+        <item>愿你今天收到的消息，都比作业提醒更甜。</item>
+    </string-array>
+    <string name="greeting_title_festival_womens_day">🌷 妇女节快乐</string>
+    <string-array name="greeting_lines_festival_womens_day">
+        <item>三八节快乐！愿你永远自由、自信、闪闪发光。</item>
+        <item>今天是妇女节，给自己买束花吧，你值得。</item>
+    </string-array>
+    <string name="greeting_title_festival_arbor_day">🌱 植树节</string>
+    <string-array name="greeting_lines_festival_arbor_day">
+        <item>今天植树节。不种树的话，给自己种个小目标也行。</item>
+        <item>植树节到了，出门看看绿色，眼睛也歇一歇。</item>
+    </string-array>
+    <string name="greeting_title_festival_april_fools">🤡 愚人节</string>
+    <string-array name="greeting_lines_festival_april_fools">
+        <item>今天愚人节，收到「明天停课」的消息先别急着信。</item>
+        <item>愚人节快乐！被整了记得笑一笑，整人也要有分寸哦。</item>
+    </string-array>
+    <string name="greeting_title_festival_labor_day">🛠️ 劳动节快乐</string>
+    <string-array name="greeting_lines_festival_labor_day">
+        <item>劳动节快乐！辛苦的你，这几天好好歇一歇。</item>
+        <item>五一快乐，放假就把闹钟关掉，睡到自然醒吧。</item>
+        <item>致敬每一个努力的人，也包括认真上课的你。</item>
+    </string-array>
+    <string name="greeting_title_festival_youth_day">✨ 五四青年节</string>
+    <string-array name="greeting_lines_festival_youth_day">
+        <item>青年节快乐！愿你永远年轻，永远热泪盈眶。</item>
+        <item>今天是五四青年节，趁年轻，去做想做的事。</item>
+    </string-array>
+    <string name="greeting_title_festival_childrens_day">🎈 儿童节快乐</string>
+    <string-array name="greeting_lines_festival_childrens_day">
+        <item>儿童节快乐！再大也可以当一天小朋友。</item>
+        <item>六一快乐，今天允许自己幼稚一点，开心最重要。</item>
+    </string-array>
+    <string name="greeting_title_festival_teachers_day">🍎 教师节快乐</string>
+    <string-array name="greeting_lines_festival_teachers_day">
+        <item>今天是教师节，别忘了跟教过你的老师说声谢谢。</item>
+        <item>教师节快乐！上课时认真一点，就是送给老师最好的礼物。</item>
+    </string-array>
+    <string name="greeting_title_festival_national_day">🇨🇳 国庆节快乐</string>
+    <string-array name="greeting_lines_festival_national_day">
+        <item>国庆快乐！放假就好好歇着，课表先放一边～</item>
+        <item>祖国生日快乐！这几天没课，出去走走吧。</item>
+        <item>假期第一天，睡个懒觉，愿你玩得开心、回来平安。</item>
+    </string-array>
+    <string name="greeting_title_festival_christmas_eve">🍎 平安夜</string>
+    <string-array name="greeting_lines_festival_christmas_eve">
+        <item>平安夜，愿你平平安安，今晚早点休息。</item>
+        <item>今天平安夜，记得吃个苹果，给自己一点仪式感。</item>
+    </string-array>
+    <string name="greeting_title_festival_christmas">🎄 圣诞快乐</string>
+    <string-array name="greeting_lines_festival_christmas">
+        <item>圣诞快乐！愿你期末顺利，礼物多多。</item>
+        <item>Merry Christmas！今天也要开开心心的。</item>
+    </string-array>
+    <string name="greeting_title_festival_mothers_day">💐 母亲节</string>
+    <string-array name="greeting_lines_festival_mothers_day">
+        <item>今天是母亲节，给妈妈打个电话吧。</item>
+        <item>母亲节快乐，别忘了跟妈妈说一声「我爱你」。</item>
+    </string-array>
+    <string name="greeting_title_festival_fathers_day">👔 父亲节</string>
+    <string-array name="greeting_lines_festival_fathers_day">
+        <item>今天是父亲节，给老爸发条消息吧，他嘴上不说，心里会很开心。</item>
+        <item>父亲节快乐，记得问问爸爸最近累不累。</item>
+    </string-array>
+    <string name="greeting_title_festival_new_years_eve">🧧 除夕快乐</string>
+    <string-array name="greeting_lines_festival_new_years_eve">
+        <item>今天除夕，好好吃顿团圆饭，新的一年顺顺利利。</item>
+        <item>除夕快乐！守岁的时候记得许个愿。</item>
+    </string-array>
+    <string name="greeting_title_festival_spring_festival">🧨 新春快乐</string>
+    <string-array name="greeting_lines_festival_spring_festival">
+        <item>新春快乐！祝你新的一年万事顺意，红包多多。</item>
+        <item>过年好！这学期也要顺顺利利、不挂科。</item>
+        <item>春节快乐，今天就只管吃好玩好。</item>
+    </string-array>
+    <string name="greeting_title_festival_lantern">🏮 元宵节快乐</string>
+    <string-array name="greeting_lines_festival_lantern">
+        <item>元宵节快乐！今天吃汤圆了吗？</item>
+        <item>月圆人团圆，元宵节快乐，新学期也要加油。</item>
+    </string-array>
+    <string name="greeting_title_festival_dragon_head">🐉 二月二，龙抬头</string>
+    <string-array name="greeting_lines_festival_dragon_head">
+        <item>今天二月二龙抬头，适合剪个头发，换个心情。</item>
+        <item>龙抬头，好运也抬头，这学期一切顺利。</item>
+    </string-array>
+    <string name="greeting_title_festival_dragon_boat">🎋 端午安康</string>
+    <string-array name="greeting_lines_festival_dragon_boat">
+        <item>端午安康！今天吃粽子了吗？甜的还是咸的？</item>
+        <item>端午节到了，愿你安康，假期好好放松一下。</item>
+    </string-array>
+    <string name="greeting_title_festival_qixi">🌌 七夕</string>
+    <string-array name="greeting_lines_festival_qixi">
+        <item>今天七夕，愿有情人终成眷属，单身的也要快快乐乐。</item>
+        <item>七夕快乐，今晚抬头看看银河吧。</item>
+    </string-array>
+    <string name="greeting_title_festival_mid_autumn">🥮 中秋快乐</string>
+    <string-array name="greeting_lines_festival_mid_autumn">
+        <item>中秋快乐！今晚记得看月亮，吃块月饼。</item>
+        <item>月圆人团圆，不管你在哪，都祝你中秋快乐。</item>
+        <item>中秋节到了，给家里打个电话吧。</item>
+    </string-array>
+    <string name="greeting_title_festival_double_ninth">🍂 重阳节</string>
+    <string-array name="greeting_lines_festival_double_ninth">
+        <item>今天重阳节，登高望远，也记得问候家里的老人。</item>
+        <item>九九重阳，天高气爽，适合出去走走。</item>
+    </string-array>
+    <string name="greeting_title_festival_laba">🥣 腊八节</string>
+    <string-array name="greeting_lines_festival_laba">
+        <item>今天腊八，喝碗腊八粥暖暖身子，年也快到了。</item>
+        <item>过了腊八就是年，期末加油，马上就放假啦。</item>
+    </string-array>
+    <string name="greeting_title_term_spring_equinox">🌸 春分</string>
+    <string-array name="greeting_lines_term_spring_equinox">
+        <item>今天春分，昼夜一样长，春天正好。</item>
+        <item>春分到了，出门看看花吧。</item>
+    </string-array>
+    <string name="greeting_title_term_pure_brightness">🌿 清明</string>
+    <string-array name="greeting_lines_term_pure_brightness">
+        <item>今天清明，愿你心里清朗，出行平安。</item>
+        <item>清明时节雨纷纷，出门记得带伞。</item>
+    </string-array>
+    <string name="greeting_title_term_grain_rain">🌧️ 谷雨</string>
+    <string-array name="greeting_lines_term_grain_rain">
+        <item>今天谷雨，是春天的最后一个节气，好好珍惜春天。</item>
+        <item>谷雨到了，雨水多，记得带伞。</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_summer">☀️ 立夏</string>
+    <string-array name="greeting_lines_term_start_of_summer">
+        <item>今天立夏，夏天正式来啦，记得多喝水。</item>
+        <item>立夏了，西瓜和冰饮可以安排上了。</item>
+    </string-array>
+    <string name="greeting_title_term_grain_buds">🌾 小满</string>
+    <string-array name="greeting_lines_term_grain_buds">
+        <item>今天小满，小满胜万全，不必太满，刚刚好就好。</item>
+        <item>小满到了，愿你事事小满，心里知足。</item>
+    </string-array>
+    <string name="greeting_title_term_grain_in_ear">🌾 芒种</string>
+    <string-array name="greeting_lines_term_grain_in_ear">
+        <item>今天芒种，忙着种也忙着收，期末也快到了，加油。</item>
+        <item>芒种到了，天越来越热，注意防暑。</item>
+    </string-array>
+    <string name="greeting_title_term_summer_solstice">🌞 夏至</string>
+    <string-array name="greeting_lines_term_summer_solstice">
+        <item>今天夏至，是一年里白天最长的一天。</item>
+        <item>夏至到了，天热，别在太阳底下待太久。</item>
+    </string-array>
+    <string name="greeting_title_term_minor_heat">🍉 小暑</string>
+    <string-array name="greeting_lines_term_minor_heat">
+        <item>今天小暑，开始热起来了，注意防暑。</item>
+        <item>小暑到了，来块西瓜吧。</item>
+    </string-array>
+    <string name="greeting_title_term_major_heat">🔥 大暑</string>
+    <string-array name="greeting_lines_term_major_heat">
+        <item>今天大暑，一年里最热的时候，出门记得防晒。</item>
+        <item>大暑到了，多喝水，少熬夜。</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_autumn">🍁 立秋</string>
+    <string-array name="greeting_lines_term_start_of_autumn">
+        <item>今天立秋，秋天要来了，不过热还会持续一阵。</item>
+        <item>立秋了，可以「贴秋膘」啦。</item>
+    </string-array>
+    <string name="greeting_title_term_end_of_heat">🍃 处暑</string>
+    <string-array name="greeting_lines_term_end_of_heat">
+        <item>今天处暑，暑气就要结束了。</item>
+        <item>处暑到了，早晚开始凉快了。</item>
+    </string-array>
+    <string name="greeting_title_term_white_dew">💧 白露</string>
+    <string-array name="greeting_lines_term_white_dew">
+        <item>今天白露，早晚凉了，别再光着胳膊出门。</item>
+        <item>白露到了，秋意渐浓，注意别着凉。</item>
+    </string-array>
+    <string name="greeting_title_term_autumn_equinox">🌕 秋分</string>
+    <string-array name="greeting_lines_term_autumn_equinox">
+        <item>今天秋分，昼夜又一样长了。</item>
+        <item>秋分到了，秋高气爽，适合出去走走。</item>
+    </string-array>
+    <string name="greeting_title_term_cold_dew">🍂 寒露</string>
+    <string-array name="greeting_lines_term_cold_dew">
+        <item>今天寒露，天凉了，记得加衣服。</item>
+        <item>寒露到了，早晚温差大，别感冒了。</item>
+    </string-array>
+    <string name="greeting_title_term_frost_descent">❄️ 霜降</string>
+    <string-array name="greeting_lines_term_frost_descent">
+        <item>今天霜降，是秋天的最后一个节气，注意保暖。</item>
+        <item>霜降到了，天更冷了，被窝会越来越难离开。</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_winter">🧣 立冬</string>
+    <string-array name="greeting_lines_term_start_of_winter">
+        <item>今天立冬，早晚凉了，出门多带件外套。</item>
+        <item>立冬了，吃顿饺子暖暖身子吧。</item>
+    </string-array>
+    <string name="greeting_title_term_minor_snow">🌨️ 小雪</string>
+    <string-array name="greeting_lines_term_minor_snow">
+        <item>今天小雪，天冷了，多穿点再出门。</item>
+        <item>小雪到了，早八起床更难了，加油。</item>
+    </string-array>
+    <string name="greeting_title_term_major_snow">☃️ 大雪</string>
+    <string-array name="greeting_lines_term_major_snow">
+        <item>今天大雪，注意保暖，路滑慢点走。</item>
+        <item>大雪到了，愿你的冬天暖暖的。</item>
+    </string-array>
+    <string name="greeting_title_term_winter_solstice">🥟 冬至</string>
+    <string-array name="greeting_lines_term_winter_solstice">
+        <item>今天冬至，吃饺子了吗？</item>
+        <item>冬至是白天最短的一天，过了今天，白天就一天天变长了。</item>
+    </string-array>
+    <string name="greeting_title_term_minor_cold">🧤 小寒</string>
+    <string-array name="greeting_lines_term_minor_cold">
+        <item>今天小寒，天寒地冻，注意保暖。</item>
+        <item>小寒到了，期末加油，寒假就在前面。</item>
+    </string-array>
+    <string name="greeting_title_term_major_cold">🧊 大寒</string>
+    <string-array name="greeting_lines_term_major_cold">
+        <item>今天大寒，是最后一个节气，春天快来了。</item>
+        <item>大寒到了，再冷也快过年了。</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_spring">🌱 立春</string>
+    <string-array name="greeting_lines_term_start_of_spring">
+        <item>今天立春，春天来啦。</item>
+        <item>立春了，愿你新的一年像春天一样。</item>
+    </string-array>
+    <string name="greeting_title_term_rain_water">🌦️ 雨水</string>
+    <string-array name="greeting_lines_term_rain_water">
+        <item>今天雨水，天慢慢暖了，春雨也要来了。</item>
+        <item>雨水到了，出门记得带伞。</item>
+    </string-array>
+    <string name="greeting_title_term_awakening_of_insects">⚡ 惊蛰</string>
+    <string-array name="greeting_lines_term_awakening_of_insects">
+        <item>今天惊蛰，春雷一响，万物复苏。</item>
+        <item>惊蛰到了，新学期也该苏醒啦。</item>
+    </string-array>
+</resources>

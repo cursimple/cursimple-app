@@ -99,8 +99,8 @@ enum class ClassNoticeAnimation { None, Slide, Spring }
  *
  * [headsUpEnabled] 是从屏幕顶部滑下来的悬浮通知横幅；
  * [lockScreenEnabled] 决定锁屏上是否直接显示课名与地点（关掉则只显示有通知）；
- * [focusNotificationEnabled] 是小米原子岛这类厂商焦点通知，靠附加厂商字段实现，
- * 不支持的机型会忽略这些字段，普通通知照常。
+ * [focusNotificationEnabled] 是状态栏胶囊：Android 16 实时活动（ColorOS 流体云、HyperOS、
+ * 荣耀、One UI 8.5、Pixel）加小米焦点通知，不支持的机型会忽略，普通通知照常。
  */
 data class ClassNoticePreferences(
     val enabled: Boolean = true,
@@ -329,6 +329,11 @@ data class ScheduleDisplayPreferences(
     val weekStartDay: WeekStartDay = WeekStartDay.Monday,
     /** 允许在课表上拖动调整课程。默认关闭，避免误触改动课表。 */
     val courseDragEnabled: Boolean = false,
+    /**
+     * 双指缩放课表：放大后上下左右随意拖动查看，塞不下的部分滚动。
+     * 默认关闭，关着时课表和原来一样，单指手势不受影响。
+     */
+    val pinchZoomEnabled: Boolean = false,
 )
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
@@ -399,10 +404,24 @@ data class UserPreferences(
     /** 放假当天是否跳过提醒。默认照常提醒，安静与否交给用户决定。 */
     val skipRemindersOnHoliday: Boolean = false,
     /**
-     * 常驻前台服务守着提醒：退出应用后进程还在，厂商系统不容易顺手把闹钟一起清掉。
-     * 默认开：不开的话大多数国产机上退出应用就收不到提醒，用户也想不到要来这里开。
+     * 静默守护：退出应用后靠巡检闹钟和巡检任务定时重挂上课提醒、体检闹钟，不挂任何通知。
+     * 默认开：部分国产机划掉应用会一并清掉闹钟，不开的话要等下次打开应用才补回来，
+     * 用户也想不到要来这里开。存储换了新键，早先关过常驻守护的人升级后也回到开。
      */
     val alarmKeepAliveEnabled: Boolean = true,
+    /**
+     * 通知运行时权限是否已经问过。
+     *
+     * 拒绝过一次、后来又进来了不能每次启动都弹，权限页和通知引导随时可以补；
+     * 撤销过权限的人每重启一次都被问就是骚扰，所以只问一次、记下来了就不再问。
+     */
+    val notificationPermissionStartupAsked: Boolean = false,
+    /**
+     * 启动时「打开状态栏胶囊」的提示是否已经弹过。
+     *
+     * 胶囊要用户到系统里放行，应用自己开不了；启动时提一次，之后交给通知引导，不反复打扰。
+     */
+    val islandStartupPromptShown: Boolean = false,
     /**
      * 用户自己确认已经开好的厂商权限。
      *
@@ -545,6 +564,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleWeekStartDay(day: WeekStartDay)
 
     suspend fun setCourseDragEnabled(enabled: Boolean)
+    suspend fun setSchedulePinchZoomEnabled(enabled: Boolean)
     suspend fun setScheduleLocationVisible(visible: Boolean)
     suspend fun setScheduleTeacherVisible(visible: Boolean)
     suspend fun setTotalScheduleDisplayEnabled(enabled: Boolean)
@@ -565,8 +585,14 @@ interface UserPreferencesRepository {
 
     suspend fun setSkipRemindersOnHoliday(enabled: Boolean)
 
-    /** 开关常驻的闹钟守护服务。 */
+    /** 「静默守护」开关，见 [UserPreferences.alarmKeepAliveEnabled]。 */
     suspend fun setAlarmKeepAliveEnabled(enabled: Boolean)
+
+    /** 通知权限问过了：拒绝过一次就不在启动时打扰了，见 [UserPreferences.notificationPermissionStartupAsked]。 */
+    suspend fun markNotificationPermissionStartupAsked()
+
+    /** 启动时的胶囊提示弹过了，见 [UserPreferences.islandStartupPromptShown]。 */
+    suspend fun markIslandStartupPromptShown()
 
     /** 把某一天设为静音或取消静音，当天不再下发任何课程提醒。 */
     suspend fun setReminderMuted(date: String, muted: Boolean)
@@ -640,6 +666,8 @@ object AppBackupStores {
     const val REMINDERS = "reminder_store"
     const val PLUGIN_REGISTRY = "plugin_registry_store"
     const val PLUGIN_COMPONENTS = "plugin_component_store"
+    const val SCHEDULE_EVENTS = "schedule_events_store"
+    const val MEMOS = "memo_store"
 
     /** 备份里出现过的全部存储名，用于判断一份文件是否真的属于本应用。 */
     val ALL: Set<String> = setOf(
@@ -652,6 +680,8 @@ object AppBackupStores {
         REMINDERS,
         PLUGIN_REGISTRY,
         PLUGIN_COMPONENTS,
+        SCHEDULE_EVENTS,
+        MEMOS,
     )
 }
 

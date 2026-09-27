@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -36,6 +37,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
+import com.x500x.cursimple.feature.schedule.time.LocalAppZone
+import com.x500x.cursimple.feature.schedule.time.today
 import androidx.compose.ui.platform.LocalConfiguration
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
@@ -62,9 +66,38 @@ internal fun CourseLibraryScreen(
     hiddenCourses: List<CourseItem> = emptyList(),
     onRestoreCourse: (String) -> Unit = {},
     onSetReminder: (CourseItem) -> Unit = {},
+    /** 用户排进课表的事务，和课程分栏显示 */
+    events: List<ScheduleEvent> = emptyList(),
+    onSaveEvent: (ScheduleEvent) -> Unit = {},
+    onRemoveEvent: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    var tab by rememberSaveable { mutableStateOf(LibraryTab.Courses) }
+    // 新建事务时是一件空的草稿，修改时是原件；为 null 表示没在编辑
+    var eventEditing by remember { mutableStateOf<ScheduleEvent?>(null) }
+    var addingEvent by remember { mutableStateOf(false) }
+    // 走应用自己的「今天」：跟随时区设置，开发者调试里钉的日期也作数
+    val appZone = LocalAppZone.current
+    val today = remember(appZone) { appZone.today() }
+    if (addingEvent || eventEditing != null) {
+        ScheduleEventEditorDialog(
+            initial = eventEditing,
+            defaultDate = today,
+            onDismiss = {
+                addingEvent = false
+                eventEditing = null
+            },
+            onSave = { event ->
+                onSaveEvent(event)
+                addingEvent = false
+                eventEditing = null
+                // 刚加的事务要能马上看到
+                tab = LibraryTab.Events
+            },
+        )
+    }
+    val matchedEvents = remember(events, query) { events.filter { matchesEventQuery(it, query) } }
     var sortMode by rememberSaveable { mutableStateOf(CourseSortMode.ByWeekday) }
     var editing by remember { mutableStateOf<CourseItem?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -193,6 +226,23 @@ internal fun CourseLibraryScreen(
             Text(stringResource(R.string.schedule_library_add), maxLines = 2)
         }
     }
+    val addEventButton = @Composable {
+        FilledTonalButton(onClick = { addingEvent = true }) {
+            Text(stringResource(R.string.schedule_library_add_event), maxLines = 2)
+        }
+    }
+    val tabChips = @Composable {
+        AppFilterChip(
+            selected = tab == LibraryTab.Courses,
+            onClick = { tab = LibraryTab.Courses },
+            label = { Text(stringResource(R.string.schedule_library_tab_courses, entries.size), maxLines = 1) },
+        )
+        AppFilterChip(
+            selected = tab == LibraryTab.Events,
+            onClick = { tab = LibraryTab.Events },
+            label = { Text(stringResource(R.string.schedule_library_tab_events, events.size), maxLines = 1) },
+        )
+    }
     val summaryText = @Composable { textModifier: Modifier ->
         Text(
             text = pluralStringResource(R.plurals.schedule_library_summary, matched.size, matched.size),
@@ -235,21 +285,25 @@ internal fun CourseLibraryScreen(
             ) {
                 searchField(Modifier.weight(1f))
                 addButton()
+                addEventButton()
             }
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                CourseSortMode.entries.forEach { mode ->
+                tabChips()
+                if (tab == LibraryTab.Courses) CourseSortMode.entries.forEach { mode ->
                     AppFilterChip(
                         selected = mode == sortMode,
                         onClick = { sortMode = mode },
                         label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 1) },
                     )
                 }
-                summaryText(Modifier.align(Alignment.CenterVertically))
-                hiddenToggle()
+                if (tab == LibraryTab.Courses) {
+                    summaryText(Modifier.align(Alignment.CenterVertically))
+                    hiddenToggle()
+                }
             }
         } else {
             searchField(
@@ -258,28 +312,60 @@ internal fun CourseLibraryScreen(
                     .padding(top = 12.dp),
             )
 
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                addButton()
+                addEventButton()
+            }
+
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CourseSortMode.entries.forEach { mode ->
-                    AppFilterChip(
-                        selected = mode == sortMode,
-                        onClick = { sortMode = mode },
-                        label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 2) },
-                    )
-                }
-                addButton()
+                tabChips()
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                summaryText(Modifier.weight(1f))
-                hiddenToggle()
+            if (tab == LibraryTab.Courses) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    CourseSortMode.entries.forEach { mode ->
+                        AppFilterChip(
+                            selected = mode == sortMode,
+                            onClick = { sortMode = mode },
+                            label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 2) },
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    summaryText(Modifier.weight(1f))
+                    hiddenToggle()
+                }
             }
+        }
+
+        if (tab == LibraryTab.Events) {
+            when {
+                events.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_events_empty))
+                matchedEvents.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_no_match))
+                else -> EventLibraryList(
+                    events = matchedEvents,
+                    today = today,
+                    onEdit = { eventEditing = it },
+                    onDelete = onRemoveEvent,
+                )
+            }
+            return@Column
         }
 
         if (showHidden && hiddenCourses.isNotEmpty()) {

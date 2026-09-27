@@ -206,7 +206,7 @@ internal fun ThemeColorPickerDialog(
 
 /** 饱和度（横）× 明度（竖）的方块，拖动或点一下选色。 */
 @Composable
-private fun SaturationValuePanel(
+internal fun SaturationValuePanel(
     hue: Float,
     saturation: Float,
     value: Float,
@@ -241,7 +241,7 @@ private fun SaturationValuePanel(
 
 /** 色相条，从红绕一圈回到红。 */
 @Composable
-private fun HueBar(hue: Float, onChange: (Float) -> Unit) {
+internal fun HueBar(hue: Float, onChange: (Float) -> Unit) {
     val colors = remember { (0..6).map { Color(hsvToArgb(it * 60f, 1f, 1f)) } }
     fun pick(x: Float, width: Float) = onChange((x / width).coerceIn(0f, 1f) * 359.9f)
     Canvas(
@@ -309,7 +309,7 @@ private fun ThemeColorPreview(argb: Int) {
     }
 }
 
-private val QUICK_COLORS = listOf(
+internal val QUICK_COLORS = listOf(
     0xFFE53935, 0xFFD81B60, 0xFF8E24AA, 0xFF5E35B1, 0xFF3949AB, 0xFF1E88E5,
     0xFF039BE5, 0xFF00ACC1, 0xFF00897B, 0xFF43A047, 0xFF7CB342, 0xFFC0CA33,
     0xFFFDD835, 0xFFFFB300, 0xFFFB8C00, 0xFFF4511E, 0xFF6D4C41, 0xFF546E7A,
@@ -331,8 +331,8 @@ internal fun parseRgbHex(input: String): Int? {
     return value or 0xFF000000.toInt()
 }
 
-private fun argbToHsv(argb: Int): FloatArray =
+internal fun argbToHsv(argb: Int): FloatArray =
     FloatArray(3).also { android.graphics.Color.colorToHSV(argb, it) }
 
-private fun hsvToArgb(hue: Float, saturation: Float, value: Float): Int =
+internal fun hsvToArgb(hue: Float, saturation: Float, value: Float): Int =
     android.graphics.Color.HSVToColor(floatArrayOf(hue, saturation, value))

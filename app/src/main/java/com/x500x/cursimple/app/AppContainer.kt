@@ -64,6 +64,10 @@ import java.io.File
 import java.net.URI
 import java.time.LocalDate
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.data.event.DataStoreScheduleEventRepository
+import com.x500x.cursimple.core.data.event.ScheduleEventRepository
+import com.x500x.cursimple.core.data.memo.DataStoreMemoRepository
+import com.x500x.cursimple.core.data.memo.MemoRepository
 import com.x500x.cursimple.core.data.note.CourseNoteRepository
 import com.x500x.cursimple.core.data.note.DataStoreCourseNoteRepository
 import com.x500x.cursimple.R
@@ -84,6 +88,10 @@ class AppContainer(
     val manualCourseRepository: ManualCourseRepository = manualStore
     private val courseNoteStore = DataStoreCourseNoteRepository(app, termProfileRepository)
     val courseNoteRepository: CourseNoteRepository = courseNoteStore
+    private val scheduleEventStore = DataStoreScheduleEventRepository(app)
+    val scheduleEventRepository: ScheduleEventRepository = scheduleEventStore
+    private val memoStore = DataStoreMemoRepository(app)
+    val memoRepository: MemoRepository = memoStore
     private val sharedDownloader = MirrorDownloader(
         labels = app.mirrorDownloaderLabels(),
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
@@ -163,6 +171,8 @@ class AppContainer(
                 reminderRepository.exportBackupSnapshot(),
                 pluginRegistryRepository.exportBackupSnapshot(),
                 pluginComponentRepository.exportBackupSnapshot(),
+                scheduleEventStore.exportBackupSnapshot(),
+                memoStore.exportBackupSnapshot(),
             ),
         )
     }
@@ -194,6 +204,10 @@ class AppContainer(
             ?.let { pluginRegistryRepository.restoreBackupSnapshot(it) }
         payload.store(AppBackupStores.PLUGIN_COMPONENTS)
             ?.let { pluginComponentRepository.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.SCHEDULE_EVENTS)
+            ?.let { scheduleEventStore.restoreBackupSnapshot(it) }
+        payload.store(AppBackupStores.MEMOS)
+            ?.let { memoStore.restoreBackupSnapshot(it) }
         refreshScheduleOutputs()
     }
 

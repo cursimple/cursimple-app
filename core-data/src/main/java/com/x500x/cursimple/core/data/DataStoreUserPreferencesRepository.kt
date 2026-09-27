@@ -83,6 +83,8 @@ class DataStoreUserPreferencesRepository(
             ),
             skipRemindersOnHoliday = prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] ?: false,
             alarmKeepAliveEnabled = prefs[KEY_ALARM_KEEP_ALIVE] ?: true,
+            notificationPermissionStartupAsked = prefs[KEY_NOTIFICATION_PERMISSION_ASKED] ?: false,
+            islandStartupPromptShown = prefs[KEY_ISLAND_PROMPT_SHOWN] ?: false,
             vendorPermissionAcks = prefs[KEY_VENDOR_PERMISSION_ACKS].orEmpty(),
             widgetPinUnsupportedOnDevice = prefs[KEY_WIDGET_PIN_UNSUPPORTED] ?: false,
             reminderMutedDates = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toSet(),
@@ -406,6 +408,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setCourseDragEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED] = enabled }
+    }
+
+    override suspend fun setSchedulePinchZoomEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED] = enabled }
     }
 
     override suspend fun setScheduleWeekStartDay(day: WeekStartDay) {
@@ -860,6 +866,14 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_ALARM_KEEP_ALIVE] = enabled }
     }
 
+    override suspend fun markNotificationPermissionStartupAsked() {
+        store.edit { prefs -> prefs[KEY_NOTIFICATION_PERMISSION_ASKED] = true }
+    }
+
+    override suspend fun markIslandStartupPromptShown() {
+        store.edit { prefs -> prefs[KEY_ISLAND_PROMPT_SHOWN] = true }
+    }
+
     override suspend fun setReminderMuted(date: String, muted: Boolean) {
         store.edit { prefs ->
             val current = prefs[KEY_REMINDER_MUTED_DATES].orEmpty().toMutableSet()
@@ -986,6 +1000,7 @@ class DataStoreUserPreferencesRepository(
                 ?.let { raw -> runCatching { WeekStartDay.valueOf(raw) }.getOrNull() }
                 ?: WeekStartDay.Monday,
             courseDragEnabled = this[KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED] ?: false,
+            pinchZoomEnabled = this[KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED] ?: false,
             locationVisible = this[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
             totalScheduleDisplayEnabled = this[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
@@ -1071,6 +1086,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE)
         remove(KEY_SCHEDULE_DISPLAY_WEEK_START_DAY)
         remove(KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED)
+        remove(KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE)
@@ -1128,7 +1144,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_CLASS_NOTICE_ADVANCE_MINUTES = intPreferencesKey("class_notice_advance_minutes")
         val KEY_CLASS_NOTICE_HEADS_UP = booleanPreferencesKey("class_notice_heads_up")
         val KEY_CLASS_NOTICE_LOCK_SCREEN = booleanPreferencesKey("class_notice_lock_screen")
-        val KEY_CLASS_NOTICE_FOCUS = booleanPreferencesKey("class_notice_focus")
+        // 换过一次键名：老版本关着的状态胶囊借这次统一回到默认开，之后用户自己关的照常记在新键上
+        val KEY_CLASS_NOTICE_FOCUS = booleanPreferencesKey("class_notice_focus_v2")
         val KEY_CLASS_NOTICE_SKIN = stringPreferencesKey("class_notice_skin")
         val KEY_CLASS_NOTICE_ANIMATION = stringPreferencesKey("class_notice_animation")
         val KEY_CLASS_NOTICE_BLUR = booleanPreferencesKey("class_notice_blur")
@@ -1158,6 +1175,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_WEEK_START_DAY = stringPreferencesKey("schedule_display_week_start_day")
         val KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED =
             booleanPreferencesKey("schedule_display_course_drag_enabled")
+        val KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED =
+            booleanPreferencesKey("schedule_display_pinch_zoom_enabled")
         val KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE = booleanPreferencesKey("schedule_display_location_visible")
         val KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED =
             booleanPreferencesKey("schedule_display_location_prefix_at_enabled")
@@ -1171,7 +1190,10 @@ class DataStoreUserPreferencesRepository(
         val KEY_HOLIDAY_CALENDAR_ENTRIES_JSON = stringPreferencesKey("holiday_calendar_entries_json")
         val KEY_HOLIDAY_CALENDAR_SYNCED_JSON = stringPreferencesKey("holiday_calendar_synced_json")
         val KEY_SKIP_REMINDERS_ON_HOLIDAY = booleanPreferencesKey("skip_reminders_on_holiday")
-        val KEY_ALARM_KEEP_ALIVE = booleanPreferencesKey("alarm_keep_alive_enabled")
+        // 换过键名：旧键记的是常驻守护服务那一档，关过它的人不该连静默守护也一并关掉
+        val KEY_ALARM_KEEP_ALIVE = booleanPreferencesKey("silent_guard_enabled")
+        val KEY_NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_startup_asked")
+        val KEY_ISLAND_PROMPT_SHOWN = booleanPreferencesKey("island_startup_prompt_shown")
         val KEY_VENDOR_PERMISSION_ACKS = stringSetPreferencesKey("vendor_permission_acks")
         val KEY_WIDGET_PIN_UNSUPPORTED = booleanPreferencesKey("widget_pin_unsupported_on_device")
         val KEY_REMINDER_MUTED_DATES = stringSetPreferencesKey("reminder_muted_dates")

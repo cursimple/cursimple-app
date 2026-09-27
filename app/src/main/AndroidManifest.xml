@@ -191,16 +191,7 @@
             </intent-filter>
         </receiver>
 
-        <service
-            android:name=".app.reminder.AlarmKeepAliveService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse"
-            android:stopWithTask="false">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Keeps user scheduled course alarms registered after the app is swiped away" />
-        </service>
-        <!-- 提醒巡检：系统每 15 分钟拉起一次，重挂上课提醒、拉回守护服务 -->
+        <!-- 提醒巡检（静默守护）：系统每 15 分钟拉起一次，重挂上课提醒和闹钟 -->
         <service
             android:name=".app.reminder.ReminderGuardJobService"
             android:exported="false"

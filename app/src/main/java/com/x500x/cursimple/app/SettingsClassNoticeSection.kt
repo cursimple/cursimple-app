@@ -4,6 +4,7 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Alarm
 import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VerticalAlignTop
@@ -36,6 +38,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +52,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import com.x500x.cursimple.R
+import com.x500x.cursimple.app.notice.ClassNoticeGateway
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.app.notice.ClassNoticeOverlay
 import com.x500x.cursimple.core.data.ClassNoticeAnimation
@@ -101,13 +105,28 @@ internal fun ClassNoticeSettingsSection(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // 「通知弹出引导」弹窗：总开关打开时有未放行的项就自动弹一次；常驻入口行随时能自查
+    var showGuide by remember { mutableStateOf(false) }
+    var guideAutoShown by rememberSaveable { mutableStateOf(false) }
+
     SettingsSwitchRow(
         icon = Icons.Rounded.NotificationsActive,
         title = stringResource(R.string.settings_class_notice_enable_title),
         subtitle = stringResource(R.string.settings_class_notice_enable_subtitle),
         checked = preferences.enabled,
-        onCheckedChange = onEnabledChange,
+        onCheckedChange = { enabled ->
+            onEnabledChange(enabled)
+            if (enabled && !guideAutoShown &&
+                hasPendingNoticeGuideStep(context.applicationContext, preferences)
+            ) {
+                guideAutoShown = true
+                showGuide = true
+            }
+        },
     )
+    if (showGuide) {
+        NotificationGuideDialog(preferences = preferences, onDismiss = { showGuide = false })
+    }
 
     if (preferences.enabled) {
         // 系统那一层被关掉时，应用里怎么开都不会弹——先把话说清楚并给个直达入口
@@ -156,6 +175,13 @@ internal fun ClassNoticeSettingsSection(
                     },
                 )
             },
+        )
+        // 动作从来不只是「去系统设置」——每个品牌要放行的项不一样，这里一次性列清楚
+        SettingsActionRow(
+            icon = Icons.Rounded.Route,
+            title = stringResource(R.string.settings_class_notice_guide_row_title),
+            subtitle = stringResource(R.string.settings_class_notice_guide_row_subtitle),
+            onClick = { showGuide = true },
         )
 
         AlarmNumberSettingRow(
@@ -215,7 +241,7 @@ internal fun ClassNoticeSettingsSection(
 }
 
 /**
- * 提醒守护与闹钟响前提醒。
+ * 静默守护与闹钟响前提醒。
  *
  * 自己读写偏好：这一页在设置和「提醒」页两处都有，两处的上层各传一遍开关太容易漏
  * （以前「提醒」页那份就没传，守护开关一直显示关、点了也没反应）。
@@ -233,7 +259,8 @@ private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNotic
     val preNotice = current.alarmPreNotice
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
 
-    // 部分手机划掉应用会连带清掉挂着的闹钟和提醒，开关放在这里才找得到
+    // 部分手机划掉应用会连带清掉挂着的闹钟和提醒，开关放在这里才找得到。
+    // 静默守护不起常驻服务、不挂「正在守护」，靠巡检闹钟和巡检任务在后台守着
     SettingsSwitchRow(
         icon = Icons.Rounded.Restore,
         title = stringResource(R.string.settings_alarm_keep_alive_title),
@@ -273,13 +300,15 @@ private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNotic
             subtitle = stringResource(R.string.settings_alarm_pre_notice_preview_subtitle),
             onClick = {
                 val app = context.applicationContext
-                ClassNoticeNotifier.cancelAlarmPreview(app)
-                ClassNoticeNotifier.notify(
-                    app,
-                    ClassNoticeNotifier.alarmPreviewSample(app, preNotice.advanceMinutes),
-                    noticePreferences,
-                    noticeTheme,
-                )
+                if (!warnIfPreviewBlocked(context, noticePreferences)) {
+                    ClassNoticeNotifier.cancelAlarmPreview(app)
+                    ClassNoticeNotifier.notify(
+                        app,
+                        ClassNoticeNotifier.alarmPreviewSample(app, preNotice.advanceMinutes),
+                        noticePreferences,
+                        noticeTheme,
+                    )
+                }
             },
         )
     }
@@ -301,6 +330,7 @@ private fun ClassNoticeSkinSettings(
     onBlurStrengthChange: (Int) -> Unit,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
     SettingsSectionHeader(stringResource(R.string.settings_class_notice_skin_header))
 
@@ -381,7 +411,19 @@ private fun ClassNoticeSkinSettings(
         icon = Icons.Rounded.Visibility,
         title = stringResource(R.string.settings_class_notice_preview),
         subtitle = stringResource(R.string.settings_class_notice_preview_desc),
-        onClick = { ClassNoticeNotifier.notifyPreview(context, preferences, noticeTheme) },
+        onClick = {
+            if (!warnIfPreviewBlocked(context, preferences)) {
+                val app = context.applicationContext
+                scope.launch {
+                    ClassNoticeNotifier.notifyPreview(
+                        context = app,
+                        content = ClassNoticeGateway.previewContent(app, preferences),
+                        preferences = preferences,
+                        theme = noticeTheme,
+                    )
+                }
+            }
+        },
     )
 
     // 厂商胶囊这块我们插不上手，说清楚比让人反复试要好
@@ -499,10 +541,11 @@ internal fun android.content.Context.openOverlayPermissionSettings() {
         if (packageManager.resolveActivity(candidate, 0) == null) continue
         if (runCatching { startActivity(candidate) }.isSuccess) return
     }
+    toastSettingsGoneSilently()
 }
 
 /** 实时活动有单独的放行页（Android 16 QPR1 起）；没有这页就去通知设置，小米的焦点通知开关也在那里。 */
-private fun android.content.Context.openIslandSettings(channelId: String) {
+internal fun android.content.Context.openIslandSettings(channelId: String) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
         val promotion = Intent("android.settings.APP_NOTIFICATION_PROMOTION_SETTINGS")
             .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
@@ -516,8 +559,8 @@ private fun android.content.Context.openIslandSettings(channelId: String) {
     openClassNoticeSettings(channelId)
 }
 
-/** 直达本应用的通知设置；跳不过去就退回应用详情页。 */
-private fun android.content.Context.openClassNoticeSettings(channelId: String) {
+/** 直达本应用的通知设置；跳不过去就退回应用详情页，真打不开再出声。 */
+internal fun android.content.Context.openClassNoticeSettings(channelId: String) {
     val intents = buildList {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             add(
@@ -546,4 +589,44 @@ private fun android.content.Context.openClassNoticeSettings(channelId: String) {
         }.getOrDefault(false)
         if (launched) return
     }
+    toastSettingsGoneSilently()
+}
+
+/** 跳转链试到底都没动静（部分厂商把设置页藏起来），起码留个声、不让人以为点了没反应。 */
+private fun android.content.Context.toastSettingsGoneSilently() {
+    Toast.makeText(
+        this,
+        getString(R.string.settings_toast_open_settings_manually),
+        Toast.LENGTH_LONG,
+    ).show()
+}
+
+/**
+ * 点「预览」前先把拦路的说清楚：被拦时弹什么都不会出现，给个提示并直达系统设置。
+ * 返回 true 表示已经接管这次点击，不该再真的去投递预览。
+ */
+private fun warnIfPreviewBlocked(
+    context: android.content.Context,
+    preferences: ClassNoticePreferences,
+): Boolean {
+    if (ClassNoticeNotifier.systemBlocked(context, preferences)) {
+        Toast.makeText(
+            context,
+            context.getString(R.string.settings_toast_preview_blocked),
+            Toast.LENGTH_SHORT,
+        ).show()
+        context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(preferences))
+        return true
+    }
+    // 悬浮窗皮肤没权限会悄悄退回系统横幅，和「预览弹的是悬浮窗」的预期对不上
+    if (preferences.skin == ClassNoticeSkin.Overlay && !ClassNoticeOverlay.canDraw(context)) {
+        Toast.makeText(
+            context,
+            context.getString(R.string.settings_toast_preview_no_overlay),
+            Toast.LENGTH_SHORT,
+        ).show()
+        context.openOverlayPermissionSettings()
+        return true
+    }
+    return false
 }

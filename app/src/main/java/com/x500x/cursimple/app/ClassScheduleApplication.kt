@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app
 
 import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
 import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
@@ -13,7 +14,7 @@ import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.app.notice.AlarmPreNoticeScheduler
 import android.os.Build
-import com.x500x.cursimple.app.reminder.AlarmKeepAliveService
+import com.x500x.cursimple.app.reminder.AlarmRuntimeMaintenance
 import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
 import com.x500x.cursimple.app.reminder.ReminderGuardJobService
 import com.x500x.cursimple.app.util.AppDiagnosticsFileSink
@@ -49,6 +50,46 @@ class ClassScheduleApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 应用回到前台时补发那条错过了的上课通知：提醒点过了、课还没开始，
+        // 打开应用就要弹出来，别一节都没提醒过
+        var startedActivities = 0
+        registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: android.app.Activity) {
+                val becameForeground = ++startedActivities == 1
+                if (becameForeground) {
+                    appScope.launch {
+                        runCatching {
+                            com.x500x.cursimple.app.notice.ClassNoticeGateway.catchUpIfMissed(activity.applicationContext)
+                        }.onFailure { ReminderLogger.warn("class_notice.catch_up.failure", emptyMap(), it) }
+                        // 放假安排、节日节气这些和日期有关的数据，打开 App 时静默刷新一次
+                        syncDateDataIfDue()
+                        // 节日问候白天没发出去（省电、进程被收走），打开 App 时补上
+                        runCatching {
+                            com.x500x.cursimple.app.greeting.FestivalGreeting.postIfDue(activity.applicationContext, catchUp = true)
+                        }
+                    }
+                }
+            }
+
+            override fun onActivityStopped(activity: android.app.Activity) {
+                if (startedActivities > 0) startedActivities--
+                if (startedActivities == 0) {
+                    // 退到后台的这一刻进程一定还活着，趁现在把排程补齐：
+                    // 之后被系统回收、被厂商冻结，挂在系统里的精确闹钟照样会把提醒送到
+                    val app = activity.applicationContext
+                    appScope.launch {
+                        runCatching { com.x500x.cursimple.app.reminder.ReminderGuardJobService.onAppBackground(app) }
+                            .onFailure { ReminderLogger.warn("reminder.silent_guard.background.failure", emptyMap(), it) }
+                    }
+                }
+            }
+
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) = Unit
+            override fun onActivityResumed(activity: android.app.Activity) = Unit
+            override fun onActivityPaused(activity: android.app.Activity) = Unit
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
+            override fun onActivityDestroyed(activity: android.app.Activity) = Unit
+        })
         val diagnosticsSink = AppDiagnosticsFileSink(this)
         AppDiagnosticsLogger.setSink(diagnosticsSink)
         ReminderLogger.setSink(diagnosticsSink)
@@ -73,6 +114,7 @@ class ClassScheduleApplication : Application() {
         AlarmSyncScheduler.schedulePeriodicSync(this)
         AlarmSyncScheduler.scheduleDailyGuard(this)
         HolidayEveNoticeWorker.schedule(this)
+        com.x500x.cursimple.app.greeting.FestivalGreetingWorker.schedule(this)
 
         appScope.launch {
             // 非厂商机型上把 MIUI/vivo 副本 receiver 收起来，选择器里每个小组件才只出现一次。
@@ -90,28 +132,23 @@ class ClassScheduleApplication : Application() {
             syncHolidayCalendar()
         }
 
+        // 早先的常驻守护服务已经拿掉，它那个「提醒守护」渠道留在系统通知设置里只会让人困惑
+        removeLegacyKeepAliveChannel()
+
         appScope.launch {
             appContainer.bootstrapJob.join()
-            // 守护服务跟着开关走：开着就保证它在，关掉就收回那条常驻通知
+            // 静默守护：巡检闹钟和巡检任务跟着开关挂上或撤掉，都不挂通知。
+            // 开着时每次启动顺手重挂一遍上课提醒、体检闹钟，退到后台前先把排程补齐
             appContainer.userPreferencesRepository.preferencesFlow
                 .map { it.alarmKeepAliveEnabled }
                 .distinctUntilChanged()
                 .collect { enabled ->
+                    ReminderGuardJobService.applyPreference(this@ClassScheduleApplication)
                     if (enabled) {
-                        AlarmKeepAliveService.start(this@ClassScheduleApplication, rescheduleAlarms = true)
-                    } else {
-                        AlarmKeepAliveService.stop(this@ClassScheduleApplication)
+                        runCatching { AlarmRuntimeMaintenance.onAlarmStarted(this@ClassScheduleApplication) }
+                            .onFailure { ReminderLogger.warn("reminder.silent_guard.resync.failure", emptyMap(), it) }
                     }
                 }
-        }
-
-        appScope.launch {
-            appContainer.bootstrapJob.join()
-            // 巡检任务跟着上课提醒与守护的开关走，两个都关了才撤
-            appContainer.userPreferencesRepository.preferencesFlow
-                .map { it.classNotice.enabled to it.alarmKeepAliveEnabled }
-                .distinctUntilChanged()
-                .collect { ReminderGuardJobService.applyPreference(this@ClassScheduleApplication) }
         }
 
         appScope.launch {
@@ -192,18 +229,34 @@ class ClassScheduleApplication : Application() {
      * 取回当年与次年的放假安排。
      * 缓存足够新时同步器自己跳过，不会每次启动都联网；取不到就沿用已有数据。
      */
-    private suspend fun syncHolidayCalendar() {
+    /**
+     * 打开 App 时静默刷新和日期有关的数据：放假安排、节日节气日期表。
+     * 只在回到前台时做——闹钟、巡检在后台拉起进程时不联网；一小时内来回切换也不重复下。
+     */
+    private suspend fun syncDateDataIfDue() {
+        val prefs = getSharedPreferences(DATE_DATA_PREFS, MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        if (now - prefs.getLong(KEY_DATE_DATA_SYNCED_AT, 0L) < DATE_DATA_MIN_INTERVAL_MILLIS) return
+        prefs.edit().putLong(KEY_DATE_DATA_SYNCED_AT, now).apply()
+        appContainer.bootstrapJob.join()
+        syncHolidayCalendar(force = true)
+        runCatching {
+            com.x500x.cursimple.app.greeting.FestivalDataset.sync(this, dateDataDownloader())
+        }.onFailure { AppDiagnosticsLogger.warn("date_data.festival_sync.failure", emptyMap(), it) }
+    }
+
+    private fun dateDataDownloader() = MirrorDownloader(
+        labels = mirrorDownloaderLabels(),
+        preferenceStore = SharedPrefsMirrorPreferenceStore(this),
+    )
+
+    private suspend fun syncHolidayCalendar(force: Boolean = false) {
         runCatching {
             val repository = appContainer.userPreferencesRepository
             val cached = repository.preferencesFlow.first().holidayCalendar.syncedYears
-            val syncer = HolidayCalendarSyncer(
-                MirrorDownloader(
-                    labels = mirrorDownloaderLabels(),
-                    preferenceStore = SharedPrefsMirrorPreferenceStore(this),
-                ),
-            )
+            val syncer = HolidayCalendarSyncer(dateDataDownloader())
             val updated = syncer
-                .sync(years = holidaySyncYears(BeijingTime.today()), cached = cached)
+                .sync(years = holidaySyncYears(BeijingTime.today()), cached = cached, force = force)
                 .filterIsInstance<HolidaySyncOutcome.Updated>()
                 .map { it.year }
             if (updated.isNotEmpty()) {
@@ -213,4 +266,18 @@ class ClassScheduleApplication : Application() {
         }
     }
 
+    private fun removeLegacyKeepAliveChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        runCatching {
+            getSystemService(NotificationManager::class.java)
+                ?.deleteNotificationChannel(LEGACY_KEEP_ALIVE_CHANNEL_ID)
+        }
+    }
+
+    private companion object {
+        const val LEGACY_KEEP_ALIVE_CHANNEL_ID = "course_alarm_keep_alive"
+        const val DATE_DATA_PREFS = "date_data_sync"
+        const val KEY_DATE_DATA_SYNCED_AT = "synced_at"
+        const val DATE_DATA_MIN_INTERVAL_MILLIS = 60 * 60 * 1000L
+    }
 }
