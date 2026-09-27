@@ -5,6 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.x500x.cursimple.core.data.ManualCourseRepository
+import com.x500x.cursimple.core.data.event.ScheduleEventRepository
+import com.x500x.cursimple.core.data.memo.MemoRepository
+import com.x500x.cursimple.core.kernel.model.MemoNote
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.data.ScheduleRepository
 import com.x500x.cursimple.core.data.note.CourseNote
 import com.x500x.cursimple.core.data.note.CourseNoteIndex
@@ -97,6 +101,10 @@ data class ScheduleUiState(
     val missingComponents: List<PluginComponentRequirement> = emptyList(),
     val manualCourses: List<CourseItem> = emptyList(),
     val courseNotes: CourseNoteIndex = CourseNoteIndex(),
+    /** 用户排进课表的事务，按真实日期与钟点画在网格上 */
+    val events: List<ScheduleEvent> = emptyList(),
+    /** 备忘录：按课名归到各门课的笔记本里 */
+    val memos: List<MemoNote> = emptyList(),
     /** 每完成一次插件同步递增，界面据此跳转，不再比较提示文字。 */
     val syncCompletedCount: Int = 0,
     /** 等用户决定「覆盖还是另存」的那一份导入结果；为空表示没有待确认的导入。 */
@@ -137,6 +145,8 @@ class ScheduleViewModel(
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
     /** 新建一个学期并切过去；课表与手动课都按学期分区，切完再写就落在新表里。 */
     private val createTermAndActivate: suspend (String) -> Unit = {},
+    private val scheduleEventRepository: ScheduleEventRepository? = null,
+    private val memoRepository: MemoRepository? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     /** 状态提示要按当前语言渲染，这里只取应用级 Context，不持有 Activity。 */
@@ -174,6 +184,16 @@ class ScheduleViewModel(
                 _uiState.update { it.copy(manualCourses = courses) }
                 refreshCourseNoteIndex()
                 reconcileCourseNotes()
+            }
+        }
+        memoRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.notesFlow.collect { notes -> _uiState.update { it.copy(memos = notes) } }
+            }
+        }
+        scheduleEventRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.eventsFlow.collect { events -> _uiState.update { it.copy(events = events) } }
             }
         }
         courseNoteRepository?.let { repository ->
@@ -441,6 +461,28 @@ class ScheduleViewModel(
         val courses = _uiState.value.noteMatchCourses()
         if (courses.isEmpty()) return
         viewModelScope.launch { runCatching { repository.reconcile(courses) } }
+    }
+
+    /** 新建或修改一件事务；id 已存在就是修改。 */
+    fun saveEvent(event: ScheduleEvent) {
+        val repository = scheduleEventRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.upsert(event) }
+    }
+
+    /** 新建或修改一条备忘；id 已存在就是修改。 */
+    fun saveMemo(note: MemoNote) {
+        val repository = memoRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.upsert(note) }
+    }
+
+    fun removeMemo(noteId: String) {
+        val repository = memoRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.remove(noteId) }
+    }
+
+    fun removeEvent(eventId: String) {
+        val repository = scheduleEventRepository ?: return
+        viewModelScope.launch(ioDispatcher) { repository.remove(eventId) }
     }
 
     fun addManualCourse(course: CourseItem) {
@@ -2018,6 +2060,8 @@ class ScheduleViewModelFactory(
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
     private val createTermAndActivate: suspend (String) -> Unit = {},
+    private val scheduleEventRepository: ScheduleEventRepository? = null,
+    private val memoRepository: MemoRepository? = null,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ScheduleViewModel::class.java)) {
@@ -2035,6 +2079,8 @@ class ScheduleViewModelFactory(
                 resolveTimingProfile = resolveTimingProfile,
                 timingProfileFlow = timingProfileFlow,
                 createTermAndActivate = createTermAndActivate,
+                scheduleEventRepository = scheduleEventRepository,
+                memoRepository = memoRepository,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

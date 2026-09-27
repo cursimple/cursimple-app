@@ -13,8 +13,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * 守护服务被划掉任务带走之后，由它把服务重新拉起来。
- * 顺带按开关确认一次：用户已经关掉守护时不再复活。
+ * 静默守护的看门狗闹钟落到这里：重挂上课提醒、体检闹钟，再把下一环续上。
+ *
+ * [ACTION_RESTART] 是早先常驻守护服务的自启动闹钟，服务已经拿掉了；
+ * 从旧版升级上来时可能还有一条挂在系统里，响了就当一次巡检，不再拉服务。
  */
 class AlarmKeepAliveRestartReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -27,7 +29,6 @@ class AlarmKeepAliveRestartReceiver : BroadcastReceiver() {
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
                 ReminderLogger.info(if (watchdog) "reminder.watchdog.fire" else "reminder.keep_alive.restart", emptyMap())
-                AlarmKeepAliveService.applyPreference(appContext)
                 // 进程被带走时挂着的上课提醒可能一起没了，拉起来顺手补上
                 runCatching { ClassNoticeGateway.reschedule(appContext) }
                     .onFailure { ReminderLogger.warn("reminder.keep_alive.class_notice.failure", emptyMap(), it) }

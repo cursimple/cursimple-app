@@ -240,6 +240,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setCourseDragEnabled(enabled) }
     }
 
+    fun setSchedulePinchZoomEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setSchedulePinchZoomEnabled(enabled) }
+    }
+
     fun setScheduleWeekStartDay(day: WeekStartDay) {
         viewModelScope.launch {
             repository.setScheduleWeekStartDay(day)
@@ -386,6 +390,14 @@ class AppPreferencesViewModel(
 
     fun setDisclaimerAccepted(accepted: Boolean) {
         viewModelScope.launch { repository.setDisclaimerAccepted(accepted) }
+    }
+
+    fun markNotificationPermissionStartupAsked() {
+        viewModelScope.launch { repository.markNotificationPermissionStartupAsked() }
+    }
+
+    fun markIslandStartupPromptShown() {
+        viewModelScope.launch { repository.markIslandStartupPromptShown() }
     }
 
     fun setDebugForcedDateTime(dateTime: LocalDateTime?) {

@@ -5,7 +5,7 @@
 - Android 7.0（API 24）到 Android 16（targetSdk 36）
 - `armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64` 四种 ABI splits + `universal` 通用包
 - Compose 主界面
-- Glance 桌面小组件
+- RemoteViews 桌面小组件（今日课表、下一节课、提醒）
 - 使用 manifest + WebView 的 JS 插件平台完成学校课表采集
 - GitHub 注册表驱动的插件市场（[cursimple-plugins](https://github.com/cursimple/cursimple-plugins)）
 - 课程提醒（系统闹钟 / 应用内闹钟双后端）
@@ -116,6 +116,24 @@ export async function run(ctx) {
   - 方式 A：点击"在 GitHub 编辑"按钮，直接跳转 GitHub 网页编辑器，权限完全交给 GitHub（非协作者会进入 fork & PR 流程）。
   - 方式 B：在页面内粘贴一个 [Fine-grained PAT](https://github.com/settings/personal-access-tokens/new)（仓库 `Contents: Read & Write`），直接增删并 commit。Token 只保存在浏览器 localStorage。
 - 注册表仓库默认为 `cursimple/cursimple-plugins`，可在 应用 → 设置 → 插件 中改为自己 fork 的仓库。
+
+## 日期数据
+
+和日期有关的数据都不写死在代码里，App 回到前台时静默联网刷新（一小时内不重复），取不到时沿用本地缓存：
+
+- **放假安排**：取自公开维护的 [NateScarlet/holiday-cn](https://github.com/NateScarlet/holiday-cn)，每次覆盖当年往后两年，还没发布的年份跳过。
+- **节日与节气**：`data/calendar/cn-festivals.json`，列出往后几十年每一天是什么节日、节气。App 从本仓库 `main` 分支经下载镜像取回。
+  要延长年份或调整节日，改 `scripts/gen_cn_calendar.py` 后重新生成（依赖寿星天文历 `pip install sxtwl`），提交到 `main` 即可，不用发版：
+
+  ```bash
+  python3 scripts/gen_cn_calendar.py 2024 2060
+  ```
+
+## 发布说明与更新公告
+
+- 每个版本的说明写在 `docs/release-notes/v<版本>.md`，配图放在 `docs/release-notes/images/v<版本>/`，公告里按 `raw.githubusercontent.com/.../v<版本>/...` 引用。
+- 带图的 `##` 小节会变成翻页公告的一页亮点，不带图的小节归到最后一页的文字清单。
+- 发版前可以在真机上预览：把 `.md` 和图片放进应用私有目录的 `release-preview`，到「设置 → 高级诊断 → 数据与文件 → 预览本地更新公告」查看。
 
 ## GitHub Actions
 

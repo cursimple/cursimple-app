@@ -50,6 +50,8 @@ object ClassNoticeNotifier {
     /** 闹钟预告单独一个 id：和上课通知同时挂着时互不覆盖。 */
     private const val ALARM_NOTIFICATION_ID = 0x0C20
 
+    private const val SAMSUNG_AUTOMATION_EXTRA = "android.ongoingActivityNoti.automation"
+
     private val CLOCK_PATTERN = Regex("\\d{1,2}:\\d{2}")
 
     /** 这条通知在提醒什么。 */
@@ -208,6 +210,11 @@ object ClassNoticeNotifier {
         // 「19:00-20:35」这种真实时间段，「19:59」会被当成一个钟点读；而且走到一半
         // 还会和「20 分钟后上课」这句静态文案对不上。静态文案更准也更好懂。
         builder.setShowWhen(false)
+        // 状态栏胶囊：系统拿 when 做倒计时，when 在过去时胶囊里就不写字。
+        // 默认是发通知那一刻，早就过去了，改成上课时刻；通知里照旧不显示时间戳
+        if (!content.inProgress && content.startAtMillis > System.currentTimeMillis()) {
+            builder.setWhen(content.startAtMillis)
+        }
         // 挂到下课才自动收走；上课时会被更新成「上课中」，不会留着过期的「20 分钟后上课」。
         // 闹钟预告挂到响铃那一刻：响起来之后有响铃界面，不用它了
         val expireAt = content.endAtMillis.takeIf { it > 0L && content.kind == Kind.Class }
@@ -222,9 +229,14 @@ object ClassNoticeNotifier {
             builder.setOngoing(true)
         }
 
+        // 实时活动（状态栏胶囊 + 通知栏/锁屏置顶那张卡）只认系统模板，挂了自定义布局就不给上岛。
+        // ColorOS 流体云、HyperOS、荣耀、Pixel 都走这一套；系统放行时胶囊比卡片配色要紧，
+        // 品牌卡片这一档就让位给系统模板，没放行的手机上照旧画卡片
+        val promoted = preferences.focusNotificationEnabled && StatusBarChipSupport.allowed(context)
+
         // 品牌卡片皮肤：换掉内容区的底色与排版。Android 12 起系统还会在外面套一层
         // 它自己的头部，所以这一档能换的只有这一块，动效和毛玻璃通知里做不到。
-        if (preferences.skin == ClassNoticeSkin.Card) {
+        if (preferences.skin == ClassNoticeSkin.Card && !promoted) {
             // 折叠态（含悬浮横幅）系统只给约 48dp 高，得用单独那份紧凑布局；
             // 「还有多久」并进正文排成两行，展开后才回到三行的宽松版
             val compact = compactCardRemoteViews(
@@ -242,19 +254,23 @@ object ClassNoticeNotifier {
         }
 
         if (preferences.focusNotificationEnabled) {
+            // 胶囊最宽 96dp，文字不到 7 个字符才保证整段显示，塞不下就只剩图标：
+            // 「08:00上课」正好 7 个、中文又宽，好几台机器上只看到图标。只放钟点，前面的课表图标已经说明是上课
             val chipText = when {
                 content.kind == Kind.AlarmPreview ->
                     context.getString(R.string.alarm_pre_notice_chip, content.startClock)
                 content.inProgress -> context.getString(R.string.class_notice_chip_in_progress)
                 else -> context.getString(R.string.class_notice_chip_upcoming, content.startClock)
             }
-            // Android 16 的实时活动：锁屏、息屏置顶，状态栏挂一个小胶囊。
-            // 它不收自定义布局，品牌卡片那一档只能照普通通知显示
-            if (preferences.skin != ClassNoticeSkin.Card &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-            ) {
+            // Android 16 的实时活动：通知栏、锁屏置顶，状态栏挂一个小胶囊。
+            // 用户在系统里关着也照样申请：之后打开时下一次更新就能上岛，不用等重新排
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 builder.setRequestPromotedOngoing(true)
                     .setShortCriticalText(chipText)
+                // One UI 8.5 起实时活动还要过三星自己的白名单，带上这个标记就按标准实时活动放行
+                // （反编译 SystemUI 得来，不需要任何权限）。别的系统不认这个键，带着也无妨。
+                // 千万别加 ongoingActivityNoti.style：那会把通知送进三星私有卡片那条路，反而不上岛
+                builder.addExtras(Bundle().apply { putBoolean(SAMSUNG_AUTOMATION_EXTRA, true) })
             }
             builder.addExtras(
                 miuiFocusExtras(
@@ -295,6 +311,17 @@ object ClassNoticeNotifier {
             preferences = preferences,
             theme = theme,
         )
+    }
+
+    /** 指定内容的预览：设置页拿到「下一节课」的真实内容时用这个。 */
+    fun notifyPreview(
+        context: Context,
+        content: Content,
+        preferences: ClassNoticePreferences,
+        theme: NoticeTheme,
+    ) {
+        cancel(context)
+        notify(context = context, content = content, preferences = preferences, theme = theme)
     }
 
     fun cancel(context: Context, notificationId: Int = NOTIFICATION_ID) {
@@ -491,10 +518,7 @@ object ClassNoticeNotifier {
      * 两边都查不到（别的厂商、老系统）时算放行，反正会按普通通知显示。
      */
     fun islandBlocked(context: Context): Boolean {
-        val focusProtocol = runCatching {
-            Settings.System.getInt(context.contentResolver, "notification_focus_protocol", 0)
-        }.getOrDefault(0)
-        if (focusProtocol > 0) {
+        if (miuiFocusProtocol(context) > 0) {
             val allowed = runCatching {
                 context.contentResolver.call(
                     Uri.parse("content://miui.statusbar.notification.public"),
@@ -505,11 +529,20 @@ object ClassNoticeNotifier {
             }.getOrNull()
             if (allowed == false) return true
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-            return !NotificationManagerCompat.from(context).canPostPromotedNotifications()
+        if (StatusBarChipSupport.level() == StatusBarChipSupport.Level.PlatformDecides) {
+            return !StatusBarChipSupport.allowed(context)
         }
         return false
     }
+
+    /** 这台手机有没有任何一种「岛」：小米焦点通知或 Android 16 实时活动。都没有就不必引导用户去开。 */
+    fun islandAvailable(context: Context): Boolean =
+        miuiFocusProtocol(context) > 0 ||
+            StatusBarChipSupport.level() != StatusBarChipSupport.Level.Unsupported
+
+    private fun miuiFocusProtocol(context: Context): Int = runCatching {
+        Settings.System.getInt(context.contentResolver, "notification_focus_protocol", 0)
+    }.getOrDefault(0)
 
     /**
      * 通知渠道。
@@ -569,9 +602,15 @@ object ClassNoticeNotifier {
     }
 
     /** 系统层面是否还拦着：通知总开关关了，或当前在用的那个渠道被用户调低/关掉。 */
-    fun systemBlocked(context: Context, preferences: ClassNoticePreferences): Boolean {
-        val manager = NotificationManagerCompat.from(context)
-        if (!manager.areNotificationsEnabled()) return true
+    fun systemBlocked(context: Context, preferences: ClassNoticePreferences): Boolean =
+        masterNotificationsBlocked(context) || channelBlocked(context, preferences)
+
+    /** 通知总开关被关掉了。 */
+    fun masterNotificationsBlocked(context: Context): Boolean =
+        !NotificationManagerCompat.from(context).areNotificationsEnabled()
+
+    /** 当前在用的那个渠道被用户调低或关掉；渠道还没建出来时按没被拦算，发第一条时会先建。 */
+    fun channelBlocked(context: Context, preferences: ClassNoticePreferences): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
         val channel = context.getSystemService(NotificationManager::class.java)
             ?.getNotificationChannel(channelIdFor(preferences))

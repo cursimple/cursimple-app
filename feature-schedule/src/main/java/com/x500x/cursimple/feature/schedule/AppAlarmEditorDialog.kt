@@ -297,7 +297,7 @@ private fun AlarmEditor(
 }
 
 @Composable
-private fun AlarmEditorSection(title: String, content: @Composable () -> Unit) {
+internal fun AlarmEditorSection(title: String, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = title,
@@ -311,7 +311,7 @@ private fun AlarmEditorSection(title: String, content: @Composable () -> Unit) {
 
 /** 名称在左、当前值在右，同一行显示，点整行打开选择器。 */
 @Composable
-private fun AlarmValueRow(label: String, value: String, onClick: () -> Unit) {
+internal fun AlarmValueRow(label: String, value: String, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -594,7 +594,7 @@ internal fun alarmAlertModeLabelRes(mode: AlarmAlertMode?): Int = when (mode) {
 
 /** 日期跟随界面语言，日期与星期都取当前区域的写法。 */
 @Composable
-private fun formatPickerDate(date: LocalDate): String {
+internal fun formatPickerDate(date: LocalDate): String {
     val locale = LocalConfiguration.current.locales[0]
     val day = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale).format(date)
     val weekday = date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
@@ -602,7 +602,7 @@ private fun formatPickerDate(date: LocalDate): String {
 }
 
 @Composable
-private fun AlarmDatePickerDialog(
+internal fun AlarmDatePickerDialog(
     initial: LocalDate,
     onDismiss: () -> Unit,
     onPick: (LocalDate) -> Unit,

@@ -8,11 +8,10 @@ import android.os.Build
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 
 /**
- * 提醒的看门狗闹钟：每 15 分钟响一次，确认守护服务还在、上课提醒还挂着，然后把自己续上。
+ * 提醒的看门狗闹钟（静默守护的一环）：每 15 分钟响一次，确认上课提醒和闹钟还挂着，然后把自己续上。
  *
- * 和 [ReminderGuardJobService] 分工：JobScheduler 由系统挑时机跑，省电但可能被推迟，
- * 而且 Android 12 起从后台拉不起前台服务；精确闹钟触发的广播是少数被放行拉起前台服务的时机，
- * 守护被杀后靠它才能真正回来。两条都挂着，一条被厂商拦掉还有另一条。
+ * 和 [ReminderGuardJobService] 分工：JobScheduler 由系统挑时机跑，省电但可能被推迟好久；
+ * 精确闹钟到点就响，进程不在也会被拉起来。两条都挂着，一条被厂商拦掉还有另一条。
  */
 object ReminderWatchdogAlarm {
     const val ACTION_WATCHDOG = "com.x500x.cursimple.action.REMINDER_WATCHDOG"
@@ -32,7 +31,7 @@ object ReminderWatchdogAlarm {
         val operation = pendingIntent(app, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
         val triggerAt = System.currentTimeMillis() + INTERVAL_MILLIS
         runCatching {
-            // 没有精确闹钟权限就退回不精确的：晚一点巡检也比不巡检强，只是拉不起前台服务
+            // 没有精确闹钟权限就退回不精确的：晚一点巡检也比不巡检强
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
             } else {

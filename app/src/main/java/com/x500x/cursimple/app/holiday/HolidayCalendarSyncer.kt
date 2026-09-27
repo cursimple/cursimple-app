@@ -94,5 +94,8 @@ internal fun SyncedHolidayYear.isFresh(now: Instant): Boolean {
     return fetched.plusSeconds(FRESH_DAYS * 24 * 60 * 60).isAfter(now)
 }
 
-/** 需要覆盖的年份：当年与次年，跨年时次年数据已经就位。 */
-fun holidaySyncYears(today: java.time.LocalDate): List<Int> = listOf(today.year, today.year + 1)
+/**
+ * 需要覆盖的年份：当年往后两年。放假通知一般年底才发，没发布的年份取不到就跳过，
+ * 发布了下次打开 App 就会取到，跨年时新一年的数据早已就位。
+ */
+fun holidaySyncYears(today: java.time.LocalDate): List<Int> = listOf(today.year, today.year + 1, today.year + 2)

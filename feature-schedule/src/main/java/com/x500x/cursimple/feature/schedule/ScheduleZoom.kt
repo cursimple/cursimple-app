@@ -1,0 +1,304 @@
+package com.x500x.cursimple.feature.schedule
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.AnimationState
+import androidx.compose.animation.core.animateDecay
+import androidx.compose.animation.splineBasedDecay
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ZoomOutMap
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+/** 放大的上限：再大一格就比整屏还高了，也没有更多可看的 */
+internal const val SCHEDULE_MAX_ZOOM = 3f
+
+/** 比这个大才算「放大了」：手指一抖的 1.003 倍不该锁住翻周 */
+internal const val SCHEDULE_ZOOM_EPSILON = 1.01f
+
+/** 松手后比例提示再停这么久才淡出，来得及看清停在多少 */
+private const val PERCENT_LINGER_MILLIS = 700L
+
+/**
+ * 可以双指缩放的课表容器。
+ *
+ * 不是把画好的课表当图片拉大——那样字会糊——而是按放大后的密度重新排一遍：
+ * 课表拿到的仍是原来那么多 dp，只是每个 dp 占的像素变多了，字和线都是清楚的。
+ * 放大后的画布比屏幕大，单指往任意方向拖着看（松手有惯性），
+ * 双指捏合以两指中点为中心缩放，同时双指也能拖。
+ * 没放大时不拦任何单指手势，课表和外面的翻周照旧。
+ *
+ * 横竖两个方向是一次拖动一起挪的：两层各管一个方向的滚动容器会把斜着拖锁成一个方向，
+ * 做不到「任意拖动」，所以偏移自己管。
+ *
+ * [content] 拿到的是一个读取当前偏移的函数，给表头、节次栏冻结用：
+ * 在绘制阶段读，拖动时不会让整张课表每帧重组。第二个参数是现在算不算放大了（捏合中也算），
+ * 冻结的表头按它垫不透明底色。
+ *
+ * 捏合的过程中不重新排版：换一次密度整张课表每格的字都要重新量，手指每动一下来一遍，
+ * 手机稍差一点就一顿一顿的，模拟器上甚至报过无响应。捏合时先把排好的画面按比例放大（只动图层），
+ * 松手那一刻再按最终倍数排一次，字照样是清楚的。
+ */
+@Composable
+internal fun ZoomableScheduleBox(
+    enabled: Boolean,
+    zoom: Float,
+    onZoomChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (stickyOffset: () -> IntOffset, zoomed: Boolean) -> Unit,
+) {
+    if (!enabled) {
+        Box(modifier) { content({ IntOffset.Zero }, false) }
+        return
+    }
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val currentZoom by rememberUpdatedState(zoom)
+    val currentOnZoomChange by rememberUpdatedState(onZoomChange)
+    // 画布左上角相对屏幕往左、往上挪了多少像素
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+    var flingJob by remember { mutableStateOf<Job?>(null) }
+    // 双指捏合进行中：屏幕中间浮出当前比例，松手后再停一会儿才淡出
+    var pinching by remember { mutableStateOf(false) }
+    // 捏合中手指跟着的倍数；松手才交给 [onZoomChange]，课表按它重新排版
+    var liveZoom by remember { mutableFloatStateOf(zoom) }
+    val shownZoom = if (pinching) liveZoom else zoom
+    val zoomed = shownZoom > SCHEDULE_ZOOM_EPSILON
+    var showPercent by remember { mutableStateOf(false) }
+    LaunchedEffect(pinching) {
+        if (pinching) {
+            showPercent = true
+        } else {
+            delay(PERCENT_LINGER_MILLIS)
+            showPercent = false
+        }
+    }
+
+    BoxWithConstraints(modifier = modifier.clipToBounds()) {
+        val viewportWidth = constraints.maxWidth.toFloat()
+        val viewportHeight = constraints.maxHeight.toFloat()
+        fun maxX(z: Float) = (viewportWidth * (z - 1f)).coerceAtLeast(0f)
+        fun maxY(z: Float) = (viewportHeight * (z - 1f)).coerceAtLeast(0f)
+        fun moveTo(x: Float, y: Float, z: Float = currentZoom) {
+            offsetX = x.coerceIn(0f, maxX(z))
+            offsetY = y.coerceIn(0f, maxY(z))
+        }
+        // 缩小之后原来的偏移可能越界了，收回来
+        if (offsetX > maxX(shownZoom) || offsetY > maxY(shownZoom)) moveTo(offsetX, offsetY, shownZoom)
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(viewportWidth, viewportHeight) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        do {
+                            // 在最先那一轮就截住双指：课程块、翻周都拿不到这次手势
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            if (event.changes.count { it.pressed } >= 2) {
+                                flingJob?.cancel()
+                                if (!pinching) {
+                                    liveZoom = currentZoom
+                                    pinching = true
+                                }
+                                val old = liveZoom
+                                val next = (old * event.calculateZoom()).coerceIn(1f, SCHEDULE_MAX_ZOOM)
+                                val pan = event.calculatePan()
+                                val centroid = event.calculateCentroid(useCurrent = true)
+                                val ratio = next / old
+                                // 两指中点下面那一点缩放前后留在原处，再跟着双指挪
+                                moveTo(
+                                    (offsetX + centroid.x) * ratio - centroid.x - pan.x,
+                                    (offsetY + centroid.y) * ratio - centroid.y - pan.y,
+                                    next,
+                                )
+                                liveZoom = next
+                                event.changes.forEach { it.consume() }
+                            }
+                        } while (event.changes.any { it.pressed })
+                        if (pinching) {
+                            // 先交出最终倍数再收尾，同一帧里生效，不会闪一下旧倍数
+                            if (liveZoom != currentZoom) currentOnZoomChange(liveZoom)
+                            pinching = false
+                        }
+                    }
+                }
+                .pointerInput(zoomed, viewportWidth, viewportHeight) {
+                    if (!zoomed) return@pointerInput
+                    val tracker = VelocityTracker()
+                    detectDragGestures(
+                        onDragStart = {
+                            flingJob?.cancel()
+                            tracker.resetTracking()
+                        },
+                        onDrag = { change, drag ->
+                            change.consume()
+                            tracker.addPosition(change.uptimeMillis, change.position)
+                            moveTo(offsetX - drag.x, offsetY - drag.y)
+                        },
+                        onDragEnd = {
+                            val velocity = tracker.calculateVelocity()
+                            flingJob = scope.launch {
+                                val decay = splineBasedDecay<Float>(density)
+                                coroutineScope {
+                                    launch {
+                                        AnimationState(offsetX, -velocity.x).animateDecay(decay) {
+                                            moveTo(value, offsetY)
+                                            if (value <= 0f || value >= maxX(currentZoom)) cancelAnimation()
+                                        }
+                                    }
+                                    launch {
+                                        AnimationState(offsetY, -velocity.y).animateDecay(decay) {
+                                            moveTo(offsetX, value)
+                                            if (value <= 0f || value >= maxY(currentZoom)) cancelAnimation()
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                    )
+                },
+        ) {
+            CompositionLocalProvider(
+                LocalDensity provides Density(density.density * zoom, density.fontScale),
+            ) {
+                Box(
+                    modifier = Modifier.layout { measurable, _ ->
+                        // 课表按放大前的 dp 尺寸排，像素上铺满放大后的画布；
+                        // 偏移和捏合中的倍数只在摆放时读，拖动、捏合只重新摆放、不重新排版
+                        val width = (viewportWidth * zoom).roundToInt()
+                        val height = (viewportHeight * zoom).roundToInt()
+                        val placeable = measurable.measure(Constraints.fixed(width, height))
+                        layout(viewportWidth.roundToInt(), viewportHeight.roundToInt()) {
+                            val scale = if (pinching) liveZoom / zoom else 1f
+                            placeable.placeWithLayer(-offsetX.roundToInt(), -offsetY.roundToInt()) {
+                                scaleX = scale
+                                scaleY = scale
+                                transformOrigin = TransformOrigin(0f, 0f)
+                            }
+                        }
+                    },
+                ) {
+                    // 捏合中画面被图层放大了，冻结的表头按放大前的尺寸挪，放大后正好贴边
+                    content(
+                        {
+                            val scale = if (pinching) liveZoom / zoom else 1f
+                            IntOffset((offsetX / scale).roundToInt(), (offsetY / scale).roundToInt())
+                        },
+                        zoomed,
+                    )
+                }
+            }
+        }
+        // 右上角：放大了才出现，一点回到原比例
+        AnimatedVisibility(
+            visible = zoomed,
+            enter = fadeIn() + scaleIn(initialScale = 0.85f),
+            exit = fadeOut() + scaleOut(targetScale = 0.85f),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 6.dp, end = 6.dp),
+        ) {
+            Surface(
+                onClick = {
+                    flingJob?.cancel()
+                    currentOnZoomChange(1f)
+                    offsetX = 0f
+                    offsetY = 0f
+                },
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shadowElevation = 3.dp,
+            ) {
+                Row(
+                    modifier = Modifier.padding(start = 10.dp, end = 14.dp, top = 7.dp, bottom = 7.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ZoomOutMap,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.schedule_zoom_reset),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                }
+            }
+        }
+        // 捏合时屏幕中间的比例：跟着手指实时变，到头了注明最大
+        AnimatedVisibility(
+            visible = showPercent,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            val percent = (shownZoom * 100).roundToInt()
+            Surface(
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.82f),
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            ) {
+                Text(
+                    text = when {
+                        shownZoom >= SCHEDULE_MAX_ZOOM -> stringResource(R.string.schedule_zoom_percent_max, percent)
+                        else -> stringResource(R.string.schedule_zoom_percent, percent)
+                    },
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
+                )
+            }
+        }
+    }
+}
