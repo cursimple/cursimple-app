@@ -1,39 +1,39 @@
 {
   "schemaVersion": 1,
-  "versionCode": 29,
-  "versionName": "0.7.3-beta.4",
-  "tagName": "v0.7.3-beta.4",
+  "versionCode": 30,
+  "versionName": "0.7.4",
+  "tagName": "v0.7.4",
   "assets": [
     {
       "abi": "arm64-v8a",
       "fileName": "CurSimple-arm64-v8a.apk",
-      "sha256": "cf4a8fe22a1b16cb6a33aeb611f004632524ea0cadc477d3e4bdf50f26091296",
-      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.3-beta.4/CurSimple-arm64-v8a.apk"
+      "sha256": "cc2d9c6024252b758e270e6efcda768a748192e8d949bcc94a95d7233b1b2a4b",
+      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.4/CurSimple-arm64-v8a.apk"
     },
     {
       "abi": "armeabi-v7a",
       "fileName": "CurSimple-armeabi-v7a.apk",
-      "sha256": "2d3ebf21a3c64915fe2abcb81830042377f30078a3ae55256aa1540dc0d23646",
-      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.3-beta.4/CurSimple-armeabi-v7a.apk"
+      "sha256": "157c3705d45591846ad83d9d3bbbaa9cfe657aab8b4b717ee32ea27a3856fd15",
+      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.4/CurSimple-armeabi-v7a.apk"
     },
     {
       "abi": "universal",
       "fileName": "CurSimple-universal.apk",
-      "sha256": "7745f18cd059668e8bf69b0af9cbfbe2c3c4a7b8cfb089ccfbe49aab6a079fde",
-      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.3-beta.4/CurSimple-universal.apk"
+      "sha256": "02fd3967b883374e2c7020797089598d0b494094b147e58498848f3c18f281ae",
+      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.4/CurSimple-universal.apk"
     },
     {
       "abi": "x86_64",
       "fileName": "CurSimple-x86_64.apk",
-      "sha256": "db5a33be5a288d8cccbc4bc1363139ca333fc6b2e5bfd8c5bb5d441b18027cbc",
-      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.3-beta.4/CurSimple-x86_64.apk"
+      "sha256": "8021e4332d81248d842fe3c644062a3bd61a8acc8ca53d60d3338f076f6ded47",
+      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.4/CurSimple-x86_64.apk"
     },
     {
       "abi": "x86",
       "fileName": "CurSimple-x86.apk",
-      "sha256": "a428ee5b7795916e309f0b4f749ec32ecfc5f04327aa9df7b15f93b3707398ef",
-      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.3-beta.4/CurSimple-x86.apk"
+      "sha256": "cdb6d9d3cdae96208828055519ded4320224bd6d480db1d415a3a67a5a7fa750",
+      "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.4/CurSimple-x86.apk"
     }
   ],
-  "prerelease": true
+  "prerelease": false
 }
