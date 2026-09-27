@@ -97,8 +97,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -123,6 +126,8 @@ import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
+import com.x500x.cursimple.core.kernel.model.occurrencesOn
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
@@ -264,6 +269,8 @@ fun ScheduleRoute(
         onRemoveTemporaryScheduleOverride = onRemoveTemporaryScheduleOverride,
         onUpsertHolidayEntry = onUpsertHolidayEntry,
         onRemoveHolidayEntry = onRemoveHolidayEntry,
+        onSaveEvent = viewModel::saveEvent,
+        onRemoveEvent = viewModel::removeEvent,
         modifier = modifier,
     )
 }
@@ -312,8 +319,52 @@ fun ScheduleScreen(
     /** 双击日期栏改这一天的放假状态。 */
     onUpsertHolidayEntry: (HolidayCalendarEntry) -> Unit = {},
     onRemoveHolidayEntry: (LocalDate) -> Unit = {},
+    onSaveEvent: (ScheduleEvent) -> Unit = {},
+    onRemoveEvent: (String) -> Unit = {},
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
+    // 点开的事务与它在哪天；编辑中的事务
+    var eventDetail by remember { mutableStateOf<Pair<ScheduleEvent, LocalDate>?>(null) }
+    var eventEditing by remember { mutableStateOf<ScheduleEvent?>(null) }
+    // 点开「⋯」：这一段时间里叠在一起的几件事务
+    var eventGroup by remember { mutableStateOf<Pair<List<ScheduleEvent>, LocalDate>?>(null) }
+    eventGroup?.let { (events, date) ->
+        ScheduleEventGroupDialog(
+            events = events,
+            date = date,
+            onPick = { picked ->
+                eventGroup = null
+                eventDetail = picked to date
+            },
+            onDismiss = { eventGroup = null },
+        )
+    }
+    eventDetail?.let { (event, date) ->
+        ScheduleEventDetailDialog(
+            event = event,
+            date = date,
+            onEdit = {
+                eventDetail = null
+                eventEditing = event
+            },
+            onDelete = {
+                eventDetail = null
+                onRemoveEvent(event.id)
+            },
+            onDismiss = { eventDetail = null },
+        )
+    }
+    eventEditing?.let { event ->
+        ScheduleEventEditorDialog(
+            initial = event,
+            defaultDate = event.localDate ?: LocalAppZone.current.today(),
+            onDismiss = { eventEditing = null },
+            onSave = {
+                onSaveEvent(it)
+                eventEditing = null
+            },
+        )
+    }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
     // 建提醒前的权限闸门：缺通知或精确闹钟权限时先把人送去授权
     val context = LocalContext.current
@@ -435,6 +486,10 @@ fun ScheduleScreen(
                             temporaryScheduleOverrides = temporaryScheduleOverrides,
                             holidayCalendar = holidayCalendar,
                             onDayHeaderDoubleTap = { date -> daySheetDate = date },
+                            events = state.events,
+                            onEventClick = { event, date -> eventDetail = event to date },
+                            onEventLongClick = { event, _ -> eventEditing = event },
+                            onEventGroupClick = { events, date -> eventGroup = events to date },
                         )
 
                         ScheduleViewMode.Day -> DailyScheduleSection(
@@ -462,6 +517,9 @@ fun ScheduleScreen(
                             scheduleDisplay = scheduleDisplay,
                             customColorsAdaptToTheme = customColorsAdaptToTheme,
                             onDayHeaderDoubleTap = { date -> daySheetDate = date },
+                            events = state.events,
+                            onEventClick = { event, date -> eventDetail = event to date },
+                            onEventLongClick = { event, _ -> eventEditing = event },
                         )
                     }
                 }
@@ -731,11 +789,15 @@ fun ScheduleAppearancePreview(
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
     modifier: Modifier = Modifier,
+    /** 只画前几节；设置页把预览钉在顶上时只要两节，省地方 */
+    maxSlots: Int = Int.MAX_VALUE,
+    /** 预览最高多高；排出来比它高就整体等比缩小（宽度照样铺满），不会把下面挤没 */
+    maxHeight: Dp = Dp.Unspecified,
 ) {
     val previewWeek = remember(scheduleDisplay.weekStartDay) {
         appearancePreviewWeek(scheduleDisplay.weekStartDay)
     }
-    val previewSlots = remember { appearancePreviewSlots() }
+    val previewSlots = remember(maxSlots) { appearancePreviewSlots().take(maxSlots) }
     val previewCourses = remember { appearancePreviewCourses() }
     val columnDayOfWeeks = remember(
         scheduleDisplay.saturdayVisible,
@@ -763,153 +825,160 @@ fun ScheduleAppearancePreview(
     val slotHeight = scheduleCardStyle.courseCardHeightDp.dp
     val dayHeaderHeight = 52.dp
     val previewHeight = dayHeaderHeight + slotHeight * previewSlots.size + 16.dp
+    // 缩放用的是换一个更小的密度：文字、卡片一起按比例变小，宽度还是占满，不会两边空出一截
+    val baseDensity = LocalDensity.current
+    val fitScale = if (maxHeight.isSpecified && previewHeight > maxHeight) maxHeight / previewHeight else 1f
 
-    BoxWithConstraints(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(previewHeight)
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surface),
+    CompositionLocalProvider(
+        LocalDensity provides Density(baseDensity.density * fitScale, baseDensity.fontScale),
     ) {
-        val cellGroups = remember(activeEntries) {
-            activeEntries
-                .groupBy { it.placement.dayIndex to it.placement.rowIndex }
-                .map { (_, list) ->
-                    val main = list.first()
-                    val sorted = list.map { it.course }.distinctBy { it.id }
-                    Triple(main, sorted, sorted.size)
-                }
-        }
-        val visibleDays = remember(previewWeek.days, columnDayOfWeeks) {
-            previewWeek.days.filter { it.dayOfWeek in columnDayOfWeeks }
-        }
-        val availableWidth = (maxWidth - 8.dp).coerceAtLeast(0.dp)
-        val dayColumnCount = visibleDays.size.coerceAtLeast(1)
-        val timeColumnWidth = timeColumnWidth(availableWidth, scheduleTextStyle.headerTextSizeSp, previewSlots.map { it.label })
-        val gridWidth = (availableWidth - timeColumnWidth).coerceAtLeast(0.dp)
-        val dayColumnWidth = (gridWidth / dayColumnCount).coerceAtLeast(36.dp)
-        val gridHeight = slotHeight * previewSlots.size
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+        BoxWithConstraints(
+            modifier = modifier
+                .fillMaxWidth()
+                .height(previewHeight)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surface),
         ) {
-            Row(
-                modifier = Modifier.height(dayHeaderHeight),
-                verticalAlignment = Alignment.CenterVertically,
+            val cellGroups = remember(activeEntries) {
+                activeEntries
+                    .groupBy { it.placement.dayIndex to it.placement.rowIndex }
+                    .map { (_, list) ->
+                        val main = list.first()
+                        val sorted = list.map { it.course }.distinctBy { it.id }
+                        Triple(main, sorted, sorted.size)
+                    }
+            }
+            val visibleDays = remember(previewWeek.days, columnDayOfWeeks) {
+                previewWeek.days.filter { it.dayOfWeek in columnDayOfWeeks }
+            }
+            val availableWidth = (maxWidth - 8.dp).coerceAtLeast(0.dp)
+            val dayColumnCount = visibleDays.size.coerceAtLeast(1)
+            val timeColumnWidth = timeColumnWidth(availableWidth, scheduleTextStyle.headerTextSizeSp, previewSlots.map { it.label })
+            val gridWidth = (availableWidth - timeColumnWidth).coerceAtLeast(0.dp)
+            val dayColumnWidth = (gridWidth / dayColumnCount).coerceAtLeast(36.dp)
+            val gridHeight = slotHeight * previewSlots.size
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                MonthCornerCell(
-                    monthNumber = previewWeek.days.firstOrNull()?.monthNumber,
-                    width = timeColumnWidth,
-                    scheduleTextStyle = scheduleTextStyle,
-                    customColorsAdaptToTheme = customColorsAdaptToTheme,
-                )
-                visibleDays.forEach { day ->
-                    DayHeader(
-                        day = day,
-                        width = dayColumnWidth,
+                Row(
+                    modifier = Modifier.height(dayHeaderHeight),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    MonthCornerCell(
+                        monthNumber = previewWeek.days.firstOrNull()?.monthNumber,
+                        width = timeColumnWidth,
                         scheduleTextStyle = scheduleTextStyle,
                         customColorsAdaptToTheme = customColorsAdaptToTheme,
                     )
-                }
-            }
-
-            Row(verticalAlignment = Alignment.Top) {
-                Column(
-                    modifier = Modifier.width(timeColumnWidth),
-                ) {
-                    previewSlots.forEach { slot ->
-                        TimeCell(
-                            slot = slot,
-                            height = slotHeight,
-                            showTime = scheduleDisplay.nodeColumnTimeEnabled,
+                    visibleDays.forEach { day ->
+                        DayHeader(
+                            day = day,
+                            width = dayColumnWidth,
                             scheduleTextStyle = scheduleTextStyle,
                             customColorsAdaptToTheme = customColorsAdaptToTheme,
                         )
                     }
                 }
 
-                val darkTheme = isDarkColorScheme()
-                Box(
-                    modifier = Modifier
-                        .width(dayColumnWidth * dayColumnCount)
-                        .height(gridHeight)
-                        .clip(RoundedCornerShape(16.dp)),
-                ) {
-                    ScheduleGridBackground(
-                        scheduleBackground = scheduleBackground,
-                        scheduleCardStyle = scheduleCardStyle,
-                        customColorsAdaptToTheme = customColorsAdaptToTheme,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                Row(verticalAlignment = Alignment.Top) {
+                    Column(
+                        modifier = Modifier.width(timeColumnWidth),
+                    ) {
+                        previewSlots.forEach { slot ->
+                            TimeCell(
+                                slot = slot,
+                                height = slotHeight,
+                                showTime = scheduleDisplay.nodeColumnTimeEnabled,
+                                scheduleTextStyle = scheduleTextStyle,
+                                customColorsAdaptToTheme = customColorsAdaptToTheme,
+                            )
+                        }
+                    }
+
+                    val darkTheme = isDarkColorScheme()
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .drawBehind {
-                                val lineColor = colorFromArgb(
-                                    scheduleCardStyle.gridBorderColorArgb,
-                                    darkTheme = darkTheme,
-                                    adaptToTheme = customColorsAdaptToTheme,
-                                    role = ScheduleCustomColorRole.Foreground,
-                                ).withOpacityPercent(scheduleCardStyle.gridBorderOpacityPercent)
-                                val strokeWidth = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
-                                if (strokeWidth <= 0f) return@drawBehind
-                                val pathEffect = if (scheduleCardStyle.gridBorderDashed) {
-                                    PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()), 0f)
-                                } else {
-                                    null
-                                }
-                                for (i in 1 until previewSlots.size) {
-                                    val y = slotHeight.toPx() * i
-                                    drawLine(
-                                        color = lineColor,
-                                        start = androidx.compose.ui.geometry.Offset(0f, y),
-                                        end = androidx.compose.ui.geometry.Offset(size.width, y),
-                                        strokeWidth = strokeWidth,
-                                        pathEffect = pathEffect,
-                                    )
-                                }
-                                for (i in 1 until dayColumnCount) {
-                                    val x = dayColumnWidth.toPx() * i
-                                    drawLine(
-                                        color = lineColor,
-                                        start = androidx.compose.ui.geometry.Offset(x, 0f),
-                                        end = androidx.compose.ui.geometry.Offset(x, size.height),
-                                        strokeWidth = strokeWidth,
-                                        pathEffect = pathEffect,
-                                    )
-                                }
-                            },
+                            .width(dayColumnWidth * dayColumnCount)
+                            .height(gridHeight)
+                            .clip(RoundedCornerShape(16.dp)),
                     ) {
-                        cellGroups.forEach { (mainEntry, _, count) ->
-                            val placement = mainEntry.placement
-                            val course = mainEntry.course
-                            val courseHeight = (slotHeight * placement.rowSpan) - 3.dp
-                            CourseBlock(
-                                course = course,
-                                displayLocation = course.locationForWeek(mainEntry.sourceWeekIndex),
-                                badges = emptyList(),
-                                hasReminder = false,
-                                selected = false,
-                                inactive = mainEntry.inactive,
-                                temporarilyCancelled = false,
-                                cellCount = count,
-                                multiSelectMode = false,
-                                multiSelected = false,
-                                scheduleTextStyle = scheduleTextStyle,
-                                scheduleCardStyle = scheduleCardStyle,
-                                scheduleDisplay = scheduleDisplay,
-                                customColorsAdaptToTheme = customColorsAdaptToTheme,
-                                width = dayColumnWidth - 2.dp,
-                                height = courseHeight,
-                                offsetX = dayColumnWidth * placement.dayIndex + 1.dp,
-                                offsetY = slotHeight * placement.rowIndex + 1.dp,
-                                interactive = false,
-                                onClick = {},
-                                onLongClick = {},
-                            )
+                        ScheduleGridBackground(
+                            scheduleBackground = scheduleBackground,
+                            scheduleCardStyle = scheduleCardStyle,
+                            customColorsAdaptToTheme = customColorsAdaptToTheme,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .drawBehind {
+                                    val lineColor = colorFromArgb(
+                                        scheduleCardStyle.gridBorderColorArgb,
+                                        darkTheme = darkTheme,
+                                        adaptToTheme = customColorsAdaptToTheme,
+                                        role = ScheduleCustomColorRole.Foreground,
+                                    ).withOpacityPercent(scheduleCardStyle.gridBorderOpacityPercent)
+                                    val strokeWidth = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
+                                    if (strokeWidth <= 0f) return@drawBehind
+                                    val pathEffect = if (scheduleCardStyle.gridBorderDashed) {
+                                        PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()), 0f)
+                                    } else {
+                                        null
+                                    }
+                                    for (i in 1 until previewSlots.size) {
+                                        val y = slotHeight.toPx() * i
+                                        drawLine(
+                                            color = lineColor,
+                                            start = androidx.compose.ui.geometry.Offset(0f, y),
+                                            end = androidx.compose.ui.geometry.Offset(size.width, y),
+                                            strokeWidth = strokeWidth,
+                                            pathEffect = pathEffect,
+                                        )
+                                    }
+                                    for (i in 1 until dayColumnCount) {
+                                        val x = dayColumnWidth.toPx() * i
+                                        drawLine(
+                                            color = lineColor,
+                                            start = androidx.compose.ui.geometry.Offset(x, 0f),
+                                            end = androidx.compose.ui.geometry.Offset(x, size.height),
+                                            strokeWidth = strokeWidth,
+                                            pathEffect = pathEffect,
+                                        )
+                                    }
+                                },
+                        ) {
+                            cellGroups.forEach { (mainEntry, _, count) ->
+                                val placement = mainEntry.placement
+                                val course = mainEntry.course
+                                val courseHeight = (slotHeight * placement.rowSpan) - 3.dp
+                                CourseBlock(
+                                    course = course,
+                                    displayLocation = course.locationForWeek(mainEntry.sourceWeekIndex),
+                                    badges = emptyList(),
+                                    hasReminder = false,
+                                    selected = false,
+                                    inactive = mainEntry.inactive,
+                                    temporarilyCancelled = false,
+                                    cellCount = count,
+                                    multiSelectMode = false,
+                                    multiSelected = false,
+                                    scheduleTextStyle = scheduleTextStyle,
+                                    scheduleCardStyle = scheduleCardStyle,
+                                    scheduleDisplay = scheduleDisplay,
+                                    customColorsAdaptToTheme = customColorsAdaptToTheme,
+                                    width = dayColumnWidth - 2.dp,
+                                    height = courseHeight,
+                                    offsetX = dayColumnWidth * placement.dayIndex + 1.dp,
+                                    offsetY = slotHeight * placement.rowIndex + 1.dp,
+                                    interactive = false,
+                                    onClick = {},
+                                    onLongClick = {},
+                                )
+                            }
                         }
                     }
                 }
@@ -952,12 +1021,20 @@ private fun WeeklyScheduleSection(
     temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     onDayHeaderDoubleTap: (LocalDate) -> Unit = {},
+    events: List<ScheduleEvent> = emptyList(),
+    onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
+    onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
+    onEventGroupClick: (List<ScheduleEvent>, LocalDate) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val slotContext = LocalContext.current
     val slots = remember(slotContext, schedule, timingProfile, manualCourses) {
         displaySlots(slotContext, schedule, timingProfile, manualCourses)
     }
+    // 缩放倍数跨周保留：放大看完这周，翻到下周还是同样大小
+    var zoom by rememberSaveable { mutableStateOf(1f) }
+    if (!scheduleDisplay.pinchZoomEnabled && zoom != 1f) zoom = 1f
+    val zoomed = zoom > SCHEDULE_ZOOM_EPSILON
     val allCourses = remember(schedule, manualCourses) {
         schedule.allCoursesWith(manualCourses).visibleScheduleCourses()
     }
@@ -1085,6 +1162,8 @@ private fun WeeklyScheduleSection(
                         .fillMaxSize()
                         .nestedScroll(edgeNestedScroll),
                     beyondViewportPageCount = 1,
+                    // 放大后单指左右拖是在看课表，不能顺手翻到下一周
+                    userScrollEnabled = !zoomed,
                 ) { page ->
                     if (addPageEnabled && page == pageCount - 1) {
                         AddWeekPage(onClick = { onAddWeek?.invoke() })
@@ -1149,10 +1228,18 @@ private fun WeeklyScheduleSection(
                                     text = LocalContext.current.emptyScheduleHintText(hint),
                                 )
                             }
-                            ScheduleGrid(
+                            ZoomableScheduleBox(
+                                enabled = scheduleDisplay.pinchZoomEnabled,
+                                zoom = zoom,
+                                onZoomChange = { zoom = it },
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .weight(1f),
+                            ) { stickyOffset, boxZoomed ->
+                            ScheduleGrid(
+                                modifier = Modifier.fillMaxSize(),
+                                stickyOffset = stickyOffset,
+                                pinnedHeaders = boxZoomed,
                                 week = pageWeek,
                                 slots = slots,
                                 activeEntries = active,
@@ -1179,7 +1266,12 @@ private fun WeeklyScheduleSection(
                                 onResizeCourse = onResizeCourse,
                                 onMoveBlocked = onMoveBlocked,
                                 onDayHeaderDoubleTap = onDayHeaderDoubleTap,
+                                events = events,
+                                onEventClick = onEventClick,
+                                onEventLongClick = onEventLongClick,
+                                onEventGroupClick = onEventGroupClick,
                             )
+                            }
                         }
                     }
                 }
@@ -1261,6 +1353,9 @@ private fun DailyScheduleSection(
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
     onDayHeaderDoubleTap: (LocalDate) -> Unit = {},
+    events: List<ScheduleEvent> = emptyList(),
+    onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
+    onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     val slotContext = LocalContext.current
@@ -1431,6 +1526,9 @@ private fun DailyScheduleSection(
                     scheduleCardStyle = scheduleCardStyle,
                     scheduleDisplay = scheduleDisplay,
                     customColorsAdaptToTheme = customColorsAdaptToTheme,
+                    events = events,
+                    onEventClick = onEventClick,
+                    onEventLongClick = onEventLongClick,
                 )
             }
         }
@@ -1538,14 +1636,39 @@ private fun DayList(
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
+    events: List<ScheduleEvent> = emptyList(),
+    onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
+    onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
 ) {
+    // 事务按开始钟点插到节次之间；没有钟点的节次排在最后，保持原来的先后
+    val dayEvents = remember(events, targetDate) { events.occurrencesOn(targetDate) }
+    val timedOrder = remember(slots, dayEvents) {
+        val slotKeys = slots.mapIndexed { index, slot ->
+            (clockMinute(slot.startTime) ?: (24 * 60 + index)) to slot
+        }
+        val eventKeys = dayEvents.map { (it.startMinute ?: 0) to it }
+        // 同一分钟开始时先列课再列事务
+        (slotKeys + eventKeys).sortedWith(compareBy({ it.first }, { if (it.second is ScheduleEvent) 1 else 0 }))
+            .map { it.second }
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        slots.forEach { slot ->
+        timedOrder.forEach { item ->
+            if (item is ScheduleEvent) {
+                DayEventRow(
+                    event = item,
+                    cornerRadius = scheduleCardStyle.courseCornerRadiusDp.dp,
+                    titleSizeSp = scheduleTextStyle.courseTextSizeSp.toFloat(),
+                    onClick = { onEventClick(item, targetDate) },
+                    onLongClick = { onEventLongClick(item, targetDate) },
+                )
+                return@forEach
+            }
+            val slot = item as DisplaySlot
             val coursesInSlot = courses.filter { course ->
                 course.time.startNode <= slot.endNode && course.time.endNode >= slot.startNode
             }
@@ -1575,7 +1698,7 @@ private fun DayList(
                 customColorsAdaptToTheme = customColorsAdaptToTheme,
             )
         }
-        if (courses.isEmpty()) {
+        if (courses.isEmpty() && dayEvents.isEmpty()) {
             Text(
                 text = stringResource(R.string.schedule_day_no_courses),
                 modifier = Modifier
@@ -2208,6 +2331,14 @@ private fun ScheduleGrid(
     onResizeCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onMoveBlocked: () -> Unit = {},
     onDayHeaderDoubleTap: (LocalDate) -> Unit = {},
+    events: List<ScheduleEvent> = emptyList(),
+    onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
+    onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
+    onEventGroupClick: (List<ScheduleEvent>, LocalDate) -> Unit = { _, _ -> },
+    /** 放大后外层的滚动位置：表头跟着纵向、节次栏跟着横向反向挪，看起来就是冻结在边上 */
+    stickyOffset: () -> androidx.compose.ui.unit.IntOffset = { androidx.compose.ui.unit.IntOffset.Zero },
+    /** 冻结的表头与节次栏要垫一层不透明底色，不然滚过去的课会透出来 */
+    pinnedHeaders: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val cellGroups = remember(activeEntries) {
@@ -2225,6 +2356,20 @@ private fun ScheduleGrid(
         week.days.filter { it.dayOfWeek in columnDayOfWeeks }
     }
     val dayColumnCount = visibleDays.size.coerceAtLeast(1)
+    // 这一周每一列当天的事务
+    val dayEvents = remember(events, visibleDays) { visibleDays.map { events.occurrencesOn(it.date) } }
+    // 纵轴：没有事务落在节次以外时和原来的等高网格一模一样
+    val timeline = remember(slots, dayEvents) {
+        GridTimeline.build(
+            slots = slots.map { it.clock() },
+            events = dayEvents.flatten().mapNotNull { event ->
+                val start = event.startMinute ?: return@mapNotNull null
+                val end = event.endMinute ?: return@mapNotNull null
+                MinuteRange(start, end)
+            },
+        )
+    }
+    val rows = timeline.rows
 
     // 空白格点击添加的浮层状态。提升到网格作用域，使对话框能在内层定位 Box 之外读取。提示格在 2.5 秒后自动清除。
     var hintCell by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<Int, Int>?>(null) }
@@ -2292,26 +2437,94 @@ private fun ScheduleGrid(
             },
         )
         val totalWidth = maxWidth
-        val dayColumnWidth = ((totalWidth - timeColumnWidth) / dayColumnCount).coerceAtLeast(36.dp)
-        val gridWidth = dayColumnWidth * dayColumnCount
         // 平铺是「把所有节次塞进一屏」，塞不下时它既不滚动也不缩，底下几节直接够不着。
         // 横屏高度只有竖屏的一半，节次一多必然塞不下；竖屏节次很多时同样会。
         // 所以先算一遍塞不塞得下，塞不下就自动按可滚动处理。
+        // 插出来的段按节高折算，一起参与平铺，所以除的是总节高数而不是节数
         val fitSlotHeight = if (slots.isEmpty()) {
             MIN_FIT_SLOT_HEIGHT
         } else {
-            (maxHeight - dayHeaderMinHeight) / slots.size
+            (maxHeight - dayHeaderMinHeight) / timeline.totalUnits
         }
-        val fitMode = scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit &&
-            slots.isNotEmpty() &&
-            fitSlotHeight >= MIN_FIT_SLOT_HEIGHT
-        val slotHeight = if (fitMode) {
+        val fitRequested = scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit && slots.isNotEmpty()
+        val fitMode = fitRequested && fitSlotHeight >= MIN_FIT_SLOT_HEIGHT
+        // 本来一屏塞得下、只是这周插了段才塞不下：格子保持平铺允许的最矮高度、改成可滚动。
+        // 否则多加一件事整张课表就突然跳成设置里的大格子，看着像排版坏了
+        val squeezedByEvents = fitRequested && !fitMode && timeline.hasInsertedRows &&
+            (maxHeight - dayHeaderMinHeight) / slots.size >= MIN_FIT_SLOT_HEIGHT
+        val slotHeight = when {
             // 平铺时把剩余高度均分给每节，课名靠自身省略号收尾
-            fitSlotHeight
-        } else {
-            scheduleCardStyle.courseCardHeightDp.dp
+            fitMode -> fitSlotHeight
+            squeezedByEvents -> MIN_FIT_SLOT_HEIGHT
+            else -> scheduleCardStyle.courseCardHeightDp.dp
         }
-        val gridHeight = slotHeight * slots.size
+        val gridHeight = slotHeight * timeline.totalUnits
+
+        // 同一天里叠在一起的课与事务并排分道：课在左、事务在右；不叠的照旧占满整列
+        val minEventUnits = EVENT_MIN_HEIGHT / slotHeight
+        // 每一列当天的事务按画出来的位置归组：单独一件照常画，互相叠着的几件合成一块「⋯」
+        val dayEventGroups = remember(dayEvents, timeline, minEventUnits) {
+            dayEvents.map { list ->
+                val placed = list.map { event ->
+                    val top = timeline.yOf(event.startMinute ?: 0)
+                    val bottom = maxOf(timeline.yOf(event.endMinute ?: 0), top + minEventUnits)
+                        .coerceAtMost(timeline.totalUnits)
+                    Triple(event, top, bottom)
+                }
+                clusterByOverlap(placed, { it.second }, { it.third }).map { group ->
+                    PlacedEventGroup(
+                        events = group.map { it.first },
+                        top = group.minOf { it.second },
+                        bottom = group.maxOf { it.third },
+                    )
+                }
+            }
+        }
+        val lanes = remember(cellGroups, dayEventGroups, timeline) {
+            val items = cellGroups.map { (entry, _, _) ->
+                val p = entry.placement
+                LaneItem<Any>(
+                    key = p.dayIndex to p.rowIndex,
+                    top = timeline.slotTop(p.rowIndex),
+                    bottom = timeline.slotBottom(p.rowIndex + p.rowSpan - 1),
+                    order = 0,
+                ) to p.dayIndex
+            } + dayEventGroups.flatMapIndexed { dayIndex, groups ->
+                groups.map { group ->
+                    LaneItem<Any>(
+                        key = EventLaneKey(dayIndex, group.key),
+                        top = group.top,
+                        bottom = group.bottom,
+                        order = 1,
+                    ) to dayIndex
+                }
+            }
+            items.groupBy({ it.second }, { it.first })
+                .values
+                .fold(emptyMap<Any, LanePosition>()) { acc, day -> acc + assignLanes(day) }
+        }
+        // 哪天有块要并排，那一列就按道数放宽，并排之后每块仍有正常一列宽；没有重叠的周各列等宽
+        val columns = remember(lanes, dayColumnCount) {
+            val laneCounts = IntArray(dayColumnCount) { 1 }
+            lanes.forEach { (key, position) ->
+                val day = when (key) {
+                    is EventLaneKey -> key.dayIndex
+                    is Pair<*, *> -> key.first as? Int
+                    else -> null
+                } ?: return@forEach
+                if (day in laneCounts.indices) laneCounts[day] = maxOf(laneCounts[day], position.laneCount)
+            }
+            DayColumns.of(laneCounts.toList())
+        }
+        // 「普通一列」的宽度。放宽只在塞得下时才放：好几天都要并排时收回放宽的量，一天都不挤出屏幕
+        val gridAvailable = totalWidth - timeColumnWidth
+        val fittedColumns = remember(columns, gridAvailable) {
+            columns.fitInto(availableDp = gridAvailable.value, minUnitDp = MIN_DAY_COLUMN_DP)
+        }
+        val dayColumnWidth = (gridAvailable / fittedColumns.totalUnits).coerceAtLeast(MIN_DAY_COLUMN_DP.dp)
+        val gridWidth = dayColumnWidth * fittedColumns.totalUnits
+        val columnX: (Int) -> Dp = { index -> dayColumnWidth * fittedColumns.start(index) }
+        val columnWidth: (Int) -> Dp = { index -> dayColumnWidth * fittedColumns.width(index) }
 
         // 背景铺满整块课表，节次列与日期行都在其上，否则图片只盖住中间一块
         ScheduleGridBackground(
@@ -2332,20 +2545,33 @@ private fun ScheduleGrid(
             },
         ) {
             // 顶部周日期头
+            val pinnedColor = MaterialTheme.colorScheme.surface
+            val pinnedBackground = if (pinnedHeaders) Modifier.background(pinnedColor) else Modifier
             Row(
-                modifier = Modifier.heightIn(min = dayHeaderMinHeight),
+                modifier = Modifier
+                    .zIndex(2f)
+                    .graphicsLayer { translationY = stickyOffset().y.toFloat() }
+                    .then(pinnedBackground)
+                    .heightIn(min = dayHeaderMinHeight),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                MonthCornerCell(
-                    monthNumber = week.days.firstOrNull()?.monthNumber,
-                    width = timeColumnWidth,
-                    scheduleTextStyle = scheduleTextStyle,
-                    customColorsAdaptToTheme = customColorsAdaptToTheme,
-                )
-                visibleDays.forEach { day ->
+                Box(
+                    modifier = Modifier
+                        .zIndex(1f)
+                        .graphicsLayer { translationX = stickyOffset().x.toFloat() }
+                        .then(pinnedBackground),
+                ) {
+                    MonthCornerCell(
+                        monthNumber = week.days.firstOrNull()?.monthNumber,
+                        width = timeColumnWidth,
+                        scheduleTextStyle = scheduleTextStyle,
+                        customColorsAdaptToTheme = customColorsAdaptToTheme,
+                    )
+                }
+                visibleDays.forEachIndexed { index, day ->
                     DayHeader(
                         day = day,
-                        width = dayColumnWidth,
+                        width = columnWidth(index),
                         scheduleTextStyle = scheduleTextStyle,
                         customColorsAdaptToTheme = customColorsAdaptToTheme,
                         onDoubleTap = { onDayHeaderDoubleTap(day.date) },
@@ -2355,16 +2581,28 @@ private fun ScheduleGrid(
 
             Row(verticalAlignment = Alignment.Top) {
                 Column(
-                    modifier = Modifier.width(timeColumnWidth),
+                    modifier = Modifier
+                        .zIndex(1f)
+                        .graphicsLayer { translationX = stickyOffset().x.toFloat() }
+                        .then(pinnedBackground)
+                        .width(timeColumnWidth),
                 ) {
-                    slots.forEach { slot ->
-                        TimeCell(
-                            slot = slot,
-                            height = slotHeight,
-                            showTime = scheduleDisplay.nodeColumnTimeEnabled,
-                            scheduleTextStyle = scheduleTextStyle,
-                            customColorsAdaptToTheme = customColorsAdaptToTheme,
-                        )
+                    rows.forEach { row ->
+                        when (row) {
+                            is TimelineRow.Slot -> TimeCell(
+                                slot = slots[row.index],
+                                height = slotHeight,
+                                showTime = scheduleDisplay.nodeColumnTimeEnabled,
+                                scheduleTextStyle = scheduleTextStyle,
+                                customColorsAdaptToTheme = customColorsAdaptToTheme,
+                            )
+                            is TimelineRow.Gap -> InsertedTimeCell(
+                                startMinute = row.startMinute,
+                                endMinute = row.endMinute,
+                                height = slotHeight * row.height,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f),
+                            )
+                        }
                     }
                 }
 
@@ -2375,6 +2613,8 @@ private fun ScheduleGrid(
                 ) {
                     val density = androidx.compose.ui.platform.LocalDensity.current
                     val darkTheme = isDarkColorScheme()
+                    // 插出来的段铺一层很淡的主色，一眼看出这段是为事务临时撑开的
+                    val insertedTint = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -2386,6 +2626,13 @@ private fun ScheduleGrid(
                                     role = ScheduleCustomColorRole.Foreground,
                                 )
                                     .withOpacityPercent(scheduleCardStyle.gridBorderOpacityPercent)
+                                rows.filterIsInstance<TimelineRow.Gap>().forEach { gap ->
+                                    drawRect(
+                                        color = insertedTint,
+                                        topLeft = androidx.compose.ui.geometry.Offset(0f, gap.top * slotHeight.toPx()),
+                                        size = androidx.compose.ui.geometry.Size(size.width, gap.height * slotHeight.toPx()),
+                                    )
+                                }
                                 val strokeWidth = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
                                 if (strokeWidth <= 0f) return@drawBehind
                                 val pathEffect = if (scheduleCardStyle.gridBorderDashed) {
@@ -2393,8 +2640,8 @@ private fun ScheduleGrid(
                                 } else {
                                     null
                                 }
-                                for (i in 1 until slots.size) {
-                                    val y = (slotHeight.toPx() * i)
+                                for (i in 1 until rows.size) {
+                                    val y = slotHeight.toPx() * rows[i].top
                                     drawLine(
                                         color = lineColor,
                                         start = androidx.compose.ui.geometry.Offset(0f, y),
@@ -2404,7 +2651,7 @@ private fun ScheduleGrid(
                                     )
                                 }
                                 for (i in 1 until dayColumnCount) {
-                                    val x = dayColumnWidth.toPx() * i
+                                    val x = columnX(i).toPx()
                                     drawLine(
                                         color = lineColor,
                                         start = androidx.compose.ui.geometry.Offset(x, 0f),
@@ -2414,13 +2661,15 @@ private fun ScheduleGrid(
                                     )
                                 }
                             }
-                            .pointerInput(slots.size, dayColumnWidth, slotHeight, occupiedCells, dayColumnCount) {
+                            .pointerInput(slots.size, dayColumnWidth, slotHeight, occupiedCells, fittedColumns, timeline) {
                                 detectTapGestures(
                                     onTap = { offset: androidx.compose.ui.geometry.Offset ->
                                         val dayWidthPx = with(density) { dayColumnWidth.toPx() }
                                         val slotHeightPx = with(density) { slotHeight.toPx() }
-                                        val day = (offset.x / dayWidthPx).toInt().coerceIn(0, dayColumnCount - 1)
-                                        val slot = (offset.y / slotHeightPx).toInt().coerceIn(0, slots.size - 1)
+                                        val day = fittedColumns.indexAt(offset.x / dayWidthPx)
+                                        // 插出来的段里没有节次，点了不出加课
+                                        val slot = timeline.slotIndexAt(offset.y / slotHeightPx)
+                                            ?: return@detectTapGestures
                                         if ((day to slot) !in occupiedCells) {
                                             hintCell = day to slot
                                         }
@@ -2430,8 +2679,10 @@ private fun ScheduleGrid(
                                     onDoubleTap = { offset: androidx.compose.ui.geometry.Offset ->
                                         val dayWidthPx = with(density) { dayColumnWidth.toPx() }
                                         val slotHeightPx = with(density) { slotHeight.toPx() }
-                                        val day = (offset.x / dayWidthPx).toInt().coerceIn(0, dayColumnCount - 1)
-                                        val slot = (offset.y / slotHeightPx).toInt().coerceIn(0, slots.size - 1)
+                                        val day = fittedColumns.indexAt(offset.x / dayWidthPx)
+                                        // 插出来的段里没有节次，点了不出加课
+                                        val slot = timeline.slotIndexAt(offset.y / slotHeightPx)
+                                            ?: return@detectTapGestures
                                         if ((day to slot) !in occupiedCells) {
                                             visibleDays.getOrNull(day)?.let { onDayHeaderDoubleTap(it.date) }
                                         }
@@ -2442,14 +2693,45 @@ private fun ScheduleGrid(
 
                         val dayWidthPx = with(density) { dayColumnWidth.toPx() }
                         val slotHeightPx = with(density) { slotHeight.toPx() }
+                        // 拖动与改跨度按「挪了几节」吸附。插了段之后一节不再是固定高度，
+                        // 先在纵轴上找到最近的那一节，再折回等高网格下的位移交给原来的算法
+                        val snapDragY: (Int, Float) -> Float = { startRow, dy ->
+                            if (!timeline.hasInsertedRows) {
+                                dy
+                            } else {
+                                val target = timeline.nearestSlotIndex(timeline.slotTop(startRow) + dy / slotHeightPx)
+                                (target - startRow) * slotHeightPx
+                            }
+                        }
+                        // 横向同理：列宽不再相等时，先按手指落在哪一列算，再折回等宽网格下的位移
+                        val snapDragX: (Int, Float) -> Float = { startDay, dx ->
+                            if (fittedColumns.isUniform) {
+                                dx
+                            } else {
+                                val center = fittedColumns.start(startDay) + fittedColumns.width(startDay) / 2f
+                                val target = fittedColumns.indexAt(center + dx / dayWidthPx)
+                                (target - startDay) * dayWidthPx
+                            }
+                        }
+                        val snapResizeY: (CourseResizeEdge, Int, Int, Float) -> Float = { edge, startRow, span, dy ->
+                            if (!timeline.hasInsertedRows) {
+                                dy
+                            } else if (edge == CourseResizeEdge.Top) {
+                                snapDragY(startRow, dy)
+                            } else {
+                                val endRow = startRow + span - 1
+                                val target = timeline.nearestSlotIndex(timeline.slotBottom(endRow) + dy / slotHeightPx - 1f)
+                                (target - endRow) * slotHeightPx
+                            }
+                        }
                         val dragTarget = draggingCourseId?.let { id ->
                             cellGroups.firstOrNull { it.first.course.id == id }?.let { (entry, _, _) ->
                                 resolveCourseDragTarget(
                                     startDayIndex = entry.placement.dayIndex,
                                     startRowIndex = entry.placement.rowIndex,
                                     rowSpan = entry.placement.rowSpan,
-                                    dragOffsetX = dragOffset.x,
-                                    dragOffsetY = dragOffset.y,
+                                    dragOffsetX = snapDragX(entry.placement.dayIndex, dragOffset.x),
+                                    dragOffsetY = snapDragY(entry.placement.rowIndex, dragOffset.y),
                                     dayColumnWidthPx = dayWidthPx,
                                     slotHeightPx = slotHeightPx,
                                     dayColumnCount = dayColumnCount,
@@ -2465,11 +2747,13 @@ private fun ScheduleGrid(
                                 ?.first?.placement?.rowSpan ?: 1
                             Box(
                                 modifier = Modifier
-                                    .width(dayColumnWidth - 2.dp)
-                                    .height(slotHeight * span - 3.dp)
+                                    .width(columnWidth(target.dayIndex) - 2.dp)
+                                    .height(
+                                        slotHeight * (timeline.slotBottom(target.rowIndex + span - 1) - timeline.slotTop(target.rowIndex)) - 3.dp,
+                                    )
                                     .offset(
-                                        x = dayColumnWidth * target.dayIndex + 1.dp,
-                                        y = slotHeight * target.rowIndex + 1.dp,
+                                        x = columnX(target.dayIndex) + 1.dp,
+                                        y = slotHeight * timeline.slotTop(target.rowIndex) + 1.dp,
                                     )
                                     .background(
                                         color = if (target.isValid) {
@@ -2497,7 +2781,12 @@ private fun ScheduleGrid(
                             val placement = mainEntry.placement
                             val course = mainEntry.course
                             val isMultiSelected = course.id in multiSelectedIds
-                            val courseHeight = (slotHeight * placement.rowSpan) - 3.dp
+                            val courseTop = timeline.slotTop(placement.rowIndex)
+                            val courseBottom = timeline.slotBottom(placement.rowIndex + placement.rowSpan - 1)
+                            val courseHeight = slotHeight * (courseBottom - courseTop) - 3.dp
+                            val lane = lanes[placement.dayIndex to placement.rowIndex] ?: LanePosition(0, 1)
+                            val (laneStart, laneSpan) = laneFraction(lane)
+                            val colWidth = columnWidth(placement.dayIndex)
                             val isDragging = course.id == draggingCourseId
                             CourseBlock(
                                 course = course,
@@ -2521,10 +2810,10 @@ private fun ScheduleGrid(
                                 scheduleCardStyle = scheduleCardStyle,
                                 scheduleDisplay = scheduleDisplay,
                                 customColorsAdaptToTheme = customColorsAdaptToTheme,
-                                width = dayColumnWidth - 2.dp,
+                                width = colWidth * laneSpan - 2.dp,
                                 height = courseHeight,
-                                offsetX = dayColumnWidth * placement.dayIndex + 1.dp,
-                                offsetY = slotHeight * placement.rowIndex + 1.dp,
+                                offsetX = columnX(placement.dayIndex) + colWidth * laneStart + 1.dp,
+                                offsetY = slotHeight * courseTop + 1.dp,
                                 onClick = {
                                     val columnDate = visibleDays.getOrNull(placement.dayIndex)?.date
                                         ?: week.weekStart
@@ -2559,7 +2848,7 @@ private fun ScheduleGrid(
                                         startRowIndex = placement.rowIndex,
                                         rowSpan = placement.rowSpan,
                                         edge = edge,
-                                        dragOffsetY = settled,
+                                        dragOffsetY = snapResizeY(edge, placement.rowIndex, placement.rowSpan, settled),
                                         slotHeightPx = slotHeightPx,
                                         slotCount = slots.size,
                                         dayIndex = placement.dayIndex,
@@ -2589,8 +2878,8 @@ private fun ScheduleGrid(
                                         startDayIndex = placement.dayIndex,
                                         startRowIndex = placement.rowIndex,
                                         rowSpan = placement.rowSpan,
-                                        dragOffsetX = dragOffset.x,
-                                        dragOffsetY = dragOffset.y,
+                                        dragOffsetX = snapDragX(placement.dayIndex, dragOffset.x),
+                                        dragOffsetY = snapDragY(placement.rowIndex, dragOffset.y),
                                         dayColumnWidthPx = dayWidthPx,
                                         slotHeightPx = slotHeightPx,
                                         dayColumnCount = dayColumnCount,
@@ -2617,6 +2906,44 @@ private fun ScheduleGrid(
                             )
                         }
 
+                        // 事务按钟点定位，和节次对不齐也照画；只占它自己那一段，不撑满整格
+                        dayEventGroups.forEachIndexed { dayIndex, groups ->
+                            val date = visibleDays.getOrNull(dayIndex)?.date ?: return@forEachIndexed
+                            groups.forEach { group ->
+                                val lane = lanes[EventLaneKey(dayIndex, group.key)] ?: LanePosition(0, 1)
+                                val (laneStart, laneSpan) = laneFraction(lane)
+                                val colWidth = columnWidth(dayIndex)
+                                val blockWidth = colWidth * laneSpan - 2.dp
+                                val blockHeight = slotHeight * (group.bottom - group.top) - 2.dp
+                                val blockX = columnX(dayIndex) + colWidth * laneStart + 1.dp
+                                val blockY = slotHeight * group.top + 1.dp
+                                val single = group.events.singleOrNull()
+                                if (single != null) {
+                                    EventBlock(
+                                        event = single,
+                                        width = blockWidth,
+                                        height = blockHeight,
+                                        offsetX = blockX,
+                                        offsetY = blockY,
+                                        cornerRadius = scheduleCardStyle.courseCornerRadiusDp.dp,
+                                        titleSizeSp = scheduleTextStyle.courseTextSizeSp.toFloat(),
+                                        onClick = { onEventClick(single, date) },
+                                        onLongClick = { onEventLongClick(single, date) },
+                                    )
+                                } else {
+                                    EventGroupBlock(
+                                        events = group.events,
+                                        width = blockWidth,
+                                        height = blockHeight,
+                                        offsetX = blockX,
+                                        offsetY = blockY,
+                                        cornerRadius = scheduleCardStyle.courseCornerRadiusDp.dp,
+                                        onClick = { onEventGroupClick(group.events, date) },
+                                    )
+                                }
+                            }
+                        }
+
                         // 点击提示浮层：半透明底色加居中的加号按钮。保留上一个提示格，用透明度做淡出动画，
                         // 而不是在计时器清空 hintCell 的瞬间直接从组合树里移除。
                         val lastHintCell = androidx.compose.runtime.remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -2634,11 +2961,11 @@ private fun ScheduleGrid(
                                 if (slot != null) {
                                     Box(
                                         modifier = Modifier
-                                            .width(dayColumnWidth - 2.dp)
+                                            .width(columnWidth(day) - 2.dp)
                                             .height(slotHeight - 3.dp)
                                             .offset(
-                                                x = dayColumnWidth * day + 1.dp,
-                                                y = slotHeight * slotIdx + 1.dp,
+                                                x = columnX(day) + 1.dp,
+                                                y = slotHeight * timeline.slotTop(slotIdx) + 1.dp,
                                             )
                                             .alpha(hintAlpha)
                                             .background(
@@ -2758,6 +3085,24 @@ private fun GridScrollIndicator(
 /** 日视图向前后各铺这么多天，够覆盖一整学年。 */
 private const val DAY_PAGE_SPAN = 200
 
+/** 普通一列最窄的宽度，和原来等宽网格的下限一致 */
+private const val MIN_DAY_COLUMN_DP = 36f
+
+/** 事务块最矮的高度：十分钟的事按比例只有几 dp，至少要放得下一行字。 */
+private val EVENT_MIN_HEIGHT = 22.dp
+
+/** 事务在分道表里的键：同一件每周重复的事一周里可能出现在好几列。 */
+private data class EventLaneKey(val dayIndex: Int, val eventId: String)
+
+/** 网格里的一块事务：一件，或者互相叠着的好几件合成的「⋯」。 */
+private data class PlacedEventGroup(
+    val events: List<ScheduleEvent>,
+    val top: Float,
+    val bottom: Float,
+) {
+    val key: String get() = events.first().id
+}
+
 /** 平铺时每节至少留出的高度，再挤就连课名都放不下。 */
 private val MIN_FIT_SLOT_HEIGHT = 52.dp
 
@@ -2860,12 +3205,12 @@ internal data class CourseCardTextPlan(
 /**
  * 按真实排版结果排出课名、地点、附注各占几行。
  *
- * 参数里的「行底」是文字不限行数排版后，每一行底边到文字顶部的距离（像素），
- * 由 TextMeasurer 量出。以前按字号估算每行能放几个字，中英混排、标点避头尾时
- * 总估少一行：格子下面明明空着，课名却被截在半路。
+ * 参数里的「行底」是文字截到这一行为止画出来的高度（像素），由 TextMeasurer 量出，
+ * 最后一行底下的字体下沿也算在里面，见 cutHeights。以前按字号估算每行能放几个字，
+ * 中英混排、标点避头尾时总估少一行：格子下面明明空着，课名却被截在半路。
  *
- * @param titleLineBottoms 课名各行的行底；
- * @param locationLineBottoms 地点各行的行底，不显示地点时传空；
+ * @param titleLineBottoms 课名截到各行时的高度；
+ * @param locationLineBottoms 地点截到各行时的高度，不显示地点时传空；
  * @param badgeHeight 附注一行的高度，没有附注时传 0。
  */
 internal fun courseCardTextPlan(
@@ -2902,6 +3247,61 @@ internal fun courseCardTextPlan(
         showBadges = showBadges,
     )
 }
+
+/** 自动缩小时课名最小到这么大：再小连笔画都糊成一团 */
+private const val MIN_FIT_TITLE_SP = 8f
+
+/** 格子里地点的字号，和自动缩小时它最小到多大 */
+private const val CARD_LOCATION_SP = 10f
+private const val MIN_FIT_LOCATION_SP = 8f
+
+/** 格子里的课名、地点按比例缩：行距始终比字号高 1sp，和不缩时一样紧凑 */
+private fun androidx.compose.ui.text.TextStyle.scaledCardText(
+    baseSp: Float,
+    scale: Float,
+    minSp: Float = MIN_FIT_TITLE_SP,
+): androidx.compose.ui.text.TextStyle {
+    val size = (baseSp * scale).coerceAtLeast(minSp)
+    return copy(fontSize = size.sp, lineHeight = (size + 1f).sp)
+}
+
+/**
+ * 「长课名自动缩小」时课名和地点一起缩到多少才放得下。
+ *
+ * [measure] 按缩放比例量出课名、地点各行的行底（像素），不显示地点时地点给空。
+ * 返回 1 表示不用再缩；缩到 [minScale] 课名加地点仍放不全时，退一步：课名保持完整，
+ * 地点露出的行数取缩到最小时能露出的那么多，在这个前提下字号尽量大。
+ * 缩到最小也露不出一行地点，就不缩了——没必要为了什么都换不来把课名缩小。
+ */
+internal fun fitCourseCardTextScale(
+    availableHeight: Float,
+    minScale: Float,
+    measure: (scale: Float) -> Pair<List<Float>, List<Float>>,
+): Float {
+    fun plan(scale: Float) = measure(scale).let { (title, location) ->
+        courseCardTextPlan(availableHeight, title, location, badgeHeight = 0f)
+    }
+    fun fitsAll(scale: Float) = plan(scale).let { it.titleComplete && it.locationComplete }
+    if (minScale >= 1f || fitsAll(1f)) return 1f
+    val target: (Float) -> Boolean = if (fitsAll(minScale)) {
+        ::fitsAll
+    } else {
+        val bestLocationLines = plan(minScale).takeIf { it.titleComplete }?.locationLines ?: 0
+        { scale -> plan(scale).let { it.titleComplete && it.locationLines >= bestLocationLines } }
+    }
+    if (target(1f)) return 1f
+    if (!target(minScale)) return minScale
+    // target(low) 成立、target(high) 不成立，二分到差不到 1%
+    var low = minScale
+    var high = 1f
+    while (high - low > FIT_SCALE_PRECISION) {
+        val mid = (low + high) / 2f
+        if (target(mid)) low = mid else high = mid
+    }
+    return low
+}
+
+private const val FIT_SCALE_PRECISION = 0.01f
 
 /**
  * 课程格子里的地点文字：楼名和房间号之间补「-」。
@@ -2950,8 +3350,23 @@ internal fun wrapByCharacter(text: String, maxWidth: Int, measureWidth: (String)
 
 private const val CJK_START = 0x2E80
 
-private fun androidx.compose.ui.text.TextLayoutResult.lineBottoms(): List<Float> =
-    List(lineCount) { getLineBottom(it) }
+/**
+ * 截到每一行为止，画出来有多高（像素）。
+ *
+ * 中间那些行的底边只算到行距为止，截下来当最后一行画时底下还要留出字体的下沿。
+ * 只拿行底比较的话，地点那一行看着正好放得下，实际画出来高了几个像素，被整行丢掉；
+ * 换成书法体这类下沿大的系统字体差得更多，格子里明明空着一截，地点就是不显示。
+ * 多出来的量 [lastLineExtra] 只和字体、字号有关，见 [lastLineExtra]。
+ */
+private fun androidx.compose.ui.text.TextLayoutResult.cutHeights(lastLineExtra: Float): List<Float> =
+    List(lineCount) { line -> getLineBottom(line) + if (line == lineCount - 1) 0f else lastLineExtra }
+
+/** 一行字当最后一行画，比它夹在多行中间时高出多少。 */
+private fun androidx.compose.ui.text.TextMeasurer.lastLineExtra(style: androidx.compose.ui.text.TextStyle): Float {
+    val alone = measure("汉", style, softWrap = false, maxLines = 1).size.height.toFloat()
+    val inMiddle = measure("汉\n汉", style).getLineBottom(0)
+    return (alone - inMiddle).coerceAtLeast(0f)
+}
 
 /** 行底与可用高度比较时的容差，吸收像素取整误差，不然正好放得下的一行会被丢掉。 */
 private const val FIT_TOLERANCE_PX = 0.5f
@@ -3535,7 +3950,7 @@ private fun CourseBlock(
                     val baseStyle = androidx.compose.material3.LocalTextStyle.current
                     // 测量与绘制用同一份样式，量出来几行就是画出来几行。
                     // 换行固定用贪心策略：每行尽量塞满，截取前几行重新排版时断行位置也不会变
-                    val titleStyle = remember(baseStyle, titleFontSizeSp, titleColor, textAlign) {
+                    val baseTitleStyle = remember(baseStyle, titleFontSizeSp, titleColor, textAlign) {
                         baseStyle.merge(
                             androidx.compose.ui.text.TextStyle(
                                 color = titleColor,
@@ -3548,7 +3963,7 @@ private fun CourseBlock(
                             ),
                         )
                     }
-                    val locationStyle = remember(baseStyle, onColor, textAlign) {
+                    val baseLocationStyle = remember(baseStyle, onColor, textAlign) {
                         baseStyle.merge(
                             androidx.compose.ui.text.TextStyle(
                                 color = onColor.copy(alpha = 0.85f),
@@ -3572,6 +3987,52 @@ private fun CourseBlock(
                     }
                     val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
                     val widthConstraints = Constraints(maxWidth = constraints.maxWidth)
+                    // 开了「长课名自动缩小」：按字数定的字号放不下课名加地点时，两者一起再缩，
+                    // 缩到都放得下为止。以前只看字数，格子明明还空着一截，地点却因为差一点点被整行丢掉
+                    val fitScale = remember(
+                        course.title,
+                        rawLocationText,
+                        showLocationText,
+                        baseTitleStyle,
+                        baseLocationStyle,
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                        scheduleTextStyle.autoShrinkLongTitles,
+                    ) {
+                        if (!scheduleTextStyle.autoShrinkLongTitles || !constraints.hasBoundedHeight) {
+                            1f
+                        } else {
+                            fitCourseCardTextScale(
+                                availableHeight = constraints.maxHeight.toFloat(),
+                                minScale = (MIN_FIT_TITLE_SP / titleFontSizeSp).coerceAtMost(1f),
+                            ) { scale ->
+                                val fittedTitle = baseTitleStyle.scaledCardText(titleFontSizeSp, scale)
+                                val fittedLocation = baseLocationStyle.scaledCardText(CARD_LOCATION_SP, scale, MIN_FIT_LOCATION_SP)
+                                val titleBottoms = textMeasurer.measure(course.title, fittedTitle, constraints = widthConstraints)
+                                    .cutHeights(textMeasurer.lastLineExtra(fittedTitle))
+                                val locationBottoms = if (showLocationText) {
+                                    val wrapped = wrapByCharacter(rawLocationText, constraints.maxWidth) { piece ->
+                                        textMeasurer.measure(piece, fittedLocation, softWrap = false, maxLines = 1).size.width
+                                    }
+                                    textMeasurer.measure(wrapped, fittedLocation, constraints = widthConstraints)
+                                        .cutHeights(textMeasurer.lastLineExtra(fittedLocation))
+                                } else {
+                                    emptyList()
+                                }
+                                titleBottoms to locationBottoms
+                            }
+                        }
+                    }
+                    val titleStyle = remember(baseTitleStyle, fitScale) {
+                        if (fitScale >= 1f) baseTitleStyle else baseTitleStyle.scaledCardText(titleFontSizeSp, fitScale)
+                    }
+                    val locationStyle = remember(baseLocationStyle, fitScale) {
+                        if (fitScale >= 1f) {
+                            baseLocationStyle
+                        } else {
+                            baseLocationStyle.scaledCardText(CARD_LOCATION_SP, fitScale, MIN_FIT_LOCATION_SP)
+                        }
+                    }
                     val locationText = remember(rawLocationText, locationStyle, constraints.maxWidth) {
                         wrapByCharacter(rawLocationText, constraints.maxWidth) { piece ->
                             textMeasurer.measure(piece, locationStyle, softWrap = false, maxLines = 1).size.width
@@ -3587,6 +4048,8 @@ private fun CourseBlock(
                             null
                         }
                     }
+                    val titleLastLineExtra = remember(titleStyle) { textMeasurer.lastLineExtra(titleStyle) }
+                    val locationLastLineExtra = remember(locationStyle) { textMeasurer.lastLineExtra(locationStyle) }
                     val badgeHeight = remember(badgeText, badgeStyle, showBadgeText) {
                         if (showBadgeText) {
                             textMeasurer.measure(badgeText, badgeStyle, softWrap = false, maxLines = 1).size.height
@@ -3600,8 +4063,8 @@ private fun CourseBlock(
                         } else {
                             Float.MAX_VALUE
                         },
-                        titleLineBottoms = titleLayout.lineBottoms(),
-                        locationLineBottoms = locationLayout?.lineBottoms().orEmpty(),
+                        titleLineBottoms = titleLayout.cutHeights(titleLastLineExtra),
+                        locationLineBottoms = locationLayout?.cutHeights(locationLastLineExtra).orEmpty(),
                         badgeHeight = badgeHeight.toFloat(),
                     )
                     // 开了省略号就交给 Text 在最后一行补「…」；否则只画放得下的那几行

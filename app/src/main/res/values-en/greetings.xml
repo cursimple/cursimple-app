@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 节日、节气当天的问候。不写进更新公告，留点惊喜 -->
+<resources>
+    <string name="greeting_title_festival_new_year">🎉 Happy New Year</string>
+    <string-array name="greeting_lines_festival_new_year">
+        <item>A new year begins. May none of your classes this year start at 8 a.m.</item>
+        <item>Happy New Year! Forget about homework, just for today.</item>
+        <item>Another page turned. Here\'s to a great year ahead.</item>
+    </string-array>
+    <string name="greeting_title_festival_valentine">💝 Happy Valentine\'s Day</string>
+    <string-array name="greeting_lines_festival_valentine">
+        <item>It\'s Valentine\'s Day. Date someone, or treat yourself. Both count.</item>
+        <item>Happy Valentine\'s Day! Even if your only date is your timetable, have something sweet.</item>
+        <item>May every message you get today be sweeter than a homework reminder.</item>
+    </string-array>
+    <string name="greeting_title_festival_womens_day">🌷 Happy Women\'s Day</string>
+    <string-array name="greeting_lines_festival_womens_day">
+        <item>Happy Women\'s Day! Stay free, confident and shining.</item>
+        <item>It\'s Women\'s Day. Buy yourself some flowers. You deserve them.</item>
+    </string-array>
+    <string name="greeting_title_festival_arbor_day">🌱 Arbor Day</string>
+    <string-array name="greeting_lines_festival_arbor_day">
+        <item>It\'s Arbor Day. No tree to plant? Plant a small goal instead.</item>
+        <item>Arbor Day today. Go look at something green and rest your eyes.</item>
+    </string-array>
+    <string name="greeting_title_festival_april_fools">🤡 April Fools\' Day</string>
+    <string-array name="greeting_lines_festival_april_fools">
+        <item>It\'s April Fools\'. If someone says class is cancelled tomorrow, double-check.</item>
+        <item>Happy April Fools\'! Laugh it off when you get pranked, and prank kindly.</item>
+    </string-array>
+    <string name="greeting_title_festival_labor_day">🛠️ Happy Labour Day</string>
+    <string-array name="greeting_lines_festival_labor_day">
+        <item>Happy Labour Day! You\'ve worked hard. Take a proper rest.</item>
+        <item>Happy May Day. Turn off the alarm and sleep in.</item>
+        <item>Here\'s to everyone who works hard, including you in class.</item>
+    </string-array>
+    <string name="greeting_title_festival_youth_day">✨ Youth Day</string>
+    <string-array name="greeting_lines_festival_youth_day">
+        <item>Happy Youth Day! Stay young and stay passionate.</item>
+        <item>It\'s Youth Day. Go do what you want while you\'re young.</item>
+    </string-array>
+    <string name="greeting_title_festival_childrens_day">🎈 Happy Children\'s Day</string>
+    <string-array name="greeting_lines_festival_childrens_day">
+        <item>Happy Children\'s Day! You\'re never too old to be a kid for a day.</item>
+        <item>Be a little silly today. Being happy is what matters.</item>
+    </string-array>
+    <string name="greeting_title_festival_teachers_day">🍎 Happy Teachers\' Day</string>
+    <string-array name="greeting_lines_festival_teachers_day">
+        <item>It\'s Teachers\' Day. Say thanks to a teacher who helped you.</item>
+        <item>Happy Teachers\' Day! Paying attention in class is the best gift.</item>
+    </string-array>
+    <string name="greeting_title_festival_national_day">🎉 Happy National Day</string>
+    <string-array name="greeting_lines_festival_national_day">
+        <item>Happy National Day! Put the timetable aside and rest.</item>
+        <item>No classes for a few days. Get out and enjoy yourself.</item>
+        <item>First day of the holiday. Sleep in, have fun, and travel safe.</item>
+    </string-array>
+    <string name="greeting_title_festival_christmas_eve">🍎 Christmas Eve</string>
+    <string-array name="greeting_lines_festival_christmas_eve">
+        <item>It\'s Christmas Eve. Stay safe and get some rest tonight.</item>
+        <item>Christmas Eve today. Treat yourself to something nice.</item>
+    </string-array>
+    <string name="greeting_title_festival_christmas">🎄 Merry Christmas</string>
+    <string-array name="greeting_lines_festival_christmas">
+        <item>Merry Christmas! Good luck with finals, and lots of presents.</item>
+        <item>Merry Christmas! Have a happy day.</item>
+    </string-array>
+    <string name="greeting_title_festival_mothers_day">💐 Mother\'s Day</string>
+    <string-array name="greeting_lines_festival_mothers_day">
+        <item>It\'s Mother\'s Day. Give your mum a call.</item>
+        <item>Happy Mother\'s Day. Don\'t forget to tell her you love her.</item>
+    </string-array>
+    <string name="greeting_title_festival_fathers_day">👔 Father\'s Day</string>
+    <string-array name="greeting_lines_festival_fathers_day">
+        <item>It\'s Father\'s Day. Send your dad a message. He\'ll be happier than he lets on.</item>
+        <item>Happy Father\'s Day. Ask your dad how he\'s been.</item>
+    </string-array>
+    <string name="greeting_title_festival_new_years_eve">🧧 Happy Lunar New Year\'s Eve</string>
+    <string-array name="greeting_lines_festival_new_years_eve">
+        <item>It\'s New Year\'s Eve. Enjoy the reunion dinner.</item>
+        <item>Happy New Year\'s Eve! Make a wish at midnight.</item>
+    </string-array>
+    <string name="greeting_title_festival_spring_festival">🧨 Happy Spring Festival</string>
+    <string-array name="greeting_lines_festival_spring_festival">
+        <item>Happy Lunar New Year! Wishing you luck and plenty of red envelopes.</item>
+        <item>Happy New Year! May this term go smoothly.</item>
+        <item>Happy Spring Festival. Today is just for eating and having fun.</item>
+    </string-array>
+    <string name="greeting_title_festival_lantern">🏮 Happy Lantern Festival</string>
+    <string-array name="greeting_lines_festival_lantern">
+        <item>Happy Lantern Festival! Had some tangyuan yet?</item>
+        <item>Full moon, full house. Good luck with the new term.</item>
+    </string-array>
+    <string name="greeting_title_festival_dragon_head">🐉 Dragon Raises Its Head</string>
+    <string-array name="greeting_lines_festival_dragon_head">
+        <item>Today the dragon raises its head. A good day for a haircut.</item>
+        <item>The dragon raises its head, and so does your luck. Have a great term.</item>
+    </string-array>
+    <string name="greeting_title_festival_dragon_boat">🎋 Dragon Boat Festival</string>
+    <string-array name="greeting_lines_festival_dragon_boat">
+        <item>Happy Dragon Boat Festival! Sweet zongzi or savoury?</item>
+        <item>Wishing you good health this Dragon Boat Festival. Relax a little.</item>
+    </string-array>
+    <string name="greeting_title_festival_qixi">🌌 Qixi Festival</string>
+    <string-array name="greeting_lines_festival_qixi">
+        <item>It\'s Qixi. To couples and singles alike: be happy.</item>
+        <item>Happy Qixi. Look up at the Milky Way tonight.</item>
+    </string-array>
+    <string name="greeting_title_festival_mid_autumn">🥮 Happy Mid-Autumn Festival</string>
+    <string-array name="greeting_lines_festival_mid_autumn">
+        <item>Happy Mid-Autumn! Look at the moon tonight and have a mooncake.</item>
+        <item>Wherever you are, happy Mid-Autumn Festival.</item>
+        <item>It\'s Mid-Autumn. Give your family a call.</item>
+    </string-array>
+    <string name="greeting_title_festival_double_ninth">🍂 Double Ninth Festival</string>
+    <string-array name="greeting_lines_festival_double_ninth">
+        <item>It\'s the Double Ninth Festival. Climb somewhere high, and call your grandparents.</item>
+        <item>Clear skies for Double Ninth. A good day for a walk.</item>
+    </string-array>
+    <string name="greeting_title_festival_laba">🥣 Laba Festival</string>
+    <string-array name="greeting_lines_festival_laba">
+        <item>It\'s Laba. Have a warm bowl of Laba congee. New Year is close.</item>
+        <item>After Laba comes the New Year. Hang in there, the break is coming.</item>
+    </string-array>
+    <string name="greeting_title_term_spring_equinox">🌸 Spring Equinox</string>
+    <string-array name="greeting_lines_term_spring_equinox">
+        <item>Spring Equinox: day and night are equal today.</item>
+        <item>It\'s the Spring Equinox. Go see some flowers.</item>
+    </string-array>
+    <string name="greeting_title_term_pure_brightness">🌿 Qingming</string>
+    <string-array name="greeting_lines_term_pure_brightness">
+        <item>It\'s Qingming. Travel safe.</item>
+        <item>Qingming often brings rain. Take an umbrella.</item>
+    </string-array>
+    <string name="greeting_title_term_grain_rain">🌧️ Grain Rain</string>
+    <string-array name="greeting_lines_term_grain_rain">
+        <item>Grain Rain: the last solar term of spring. Enjoy it.</item>
+        <item>Grain Rain today. Expect showers.</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_summer">☀️ Start of Summer</string>
+    <string-array name="greeting_lines_term_start_of_summer">
+        <item>Summer officially starts today. Drink plenty of water.</item>
+        <item>Start of Summer. Time for watermelon.</item>
+    </string-array>
+    <string name="greeting_title_term_grain_buds">🌾 Grain Buds</string>
+    <string-array name="greeting_lines_term_grain_buds">
+        <item>Grain Buds: a little full is just right.</item>
+        <item>It\'s Grain Buds. Be content with a little.</item>
+    </string-array>
+    <string name="greeting_title_term_grain_in_ear">🌾 Grain in Ear</string>
+    <string-array name="greeting_lines_term_grain_in_ear">
+        <item>Grain in Ear: busy sowing and harvesting. Finals are near. Keep going.</item>
+        <item>It\'s getting hot. Stay cool.</item>
+    </string-array>
+    <string name="greeting_title_term_summer_solstice">🌞 Summer Solstice</string>
+    <string-array name="greeting_lines_term_summer_solstice">
+        <item>Summer Solstice: the longest day of the year.</item>
+        <item>It\'s hot today. Don\'t stay in the sun too long.</item>
+    </string-array>
+    <string name="greeting_title_term_minor_heat">🍉 Minor Heat</string>
+    <string-array name="greeting_lines_term_minor_heat">
+        <item>Minor Heat: it\'s warming up. Stay cool.</item>
+        <item>Minor Heat today. Have some watermelon.</item>
+    </string-array>
+    <string name="greeting_title_term_major_heat">🔥 Major Heat</string>
+    <string-array name="greeting_lines_term_major_heat">
+        <item>Major Heat: the hottest time of the year. Wear sunscreen.</item>
+        <item>Drink water and don\'t stay up too late.</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_autumn">🍁 Start of Autumn</string>
+    <string-array name="greeting_lines_term_start_of_autumn">
+        <item>Autumn starts today, though the heat will linger a while.</item>
+        <item>Start of Autumn. Time to eat well.</item>
+    </string-array>
+    <string name="greeting_title_term_end_of_heat">🍃 End of Heat</string>
+    <string-array name="greeting_lines_term_end_of_heat">
+        <item>End of Heat: summer is nearly over.</item>
+        <item>Mornings and evenings are getting cooler.</item>
+    </string-array>
+    <string name="greeting_title_term_white_dew">💧 White Dew</string>
+    <string-array name="greeting_lines_term_white_dew">
+        <item>White Dew: it\'s cooler now. Bring a layer.</item>
+        <item>Autumn is settling in. Don\'t catch a cold.</item>
+    </string-array>
+    <string name="greeting_title_term_autumn_equinox">🌕 Autumn Equinox</string>
+    <string-array name="greeting_lines_term_autumn_equinox">
+        <item>Autumn Equinox: day and night are equal again.</item>
+        <item>Crisp autumn weather. A good day for a walk.</item>
+    </string-array>
+    <string name="greeting_title_term_cold_dew">🍂 Cold Dew</string>
+    <string-array name="greeting_lines_term_cold_dew">
+        <item>Cold Dew: it\'s getting chilly. Dress warmly.</item>
+        <item>Big temperature swings today. Don\'t catch a cold.</item>
+    </string-array>
+    <string name="greeting_title_term_frost_descent">❄️ Frost\'s Descent</string>
+    <string-array name="greeting_lines_term_frost_descent">
+        <item>Frost\'s Descent: the last solar term of autumn. Keep warm.</item>
+        <item>It\'s getting colder. Leaving bed will only get harder.</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_winter">🧣 Start of Winter</string>
+    <string-array name="greeting_lines_term_start_of_winter">
+        <item>Winter starts today. Bring a jacket.</item>
+        <item>Start of Winter. Warm up with some dumplings.</item>
+    </string-array>
+    <string name="greeting_title_term_minor_snow">🌨️ Minor Snow</string>
+    <string-array name="greeting_lines_term_minor_snow">
+        <item>Minor Snow: it\'s cold. Dress warmly.</item>
+        <item>Early classes just got harder. You\'ve got this.</item>
+    </string-array>
+    <string name="greeting_title_term_major_snow">☃️ Major Snow</string>
+    <string-array name="greeting_lines_term_major_snow">
+        <item>Major Snow: keep warm and watch your step.</item>
+        <item>Wishing you a warm winter.</item>
+    </string-array>
+    <string name="greeting_title_term_winter_solstice">🥟 Winter Solstice</string>
+    <string-array name="greeting_lines_term_winter_solstice">
+        <item>It\'s the Winter Solstice. Had your dumplings?</item>
+        <item>The shortest day of the year. Days get longer from here.</item>
+    </string-array>
+    <string name="greeting_title_term_minor_cold">🧤 Minor Cold</string>
+    <string-array name="greeting_lines_term_minor_cold">
+        <item>Minor Cold: bundle up.</item>
+        <item>Hang in there through finals. Winter break is ahead.</item>
+    </string-array>
+    <string name="greeting_title_term_major_cold">🧊 Major Cold</string>
+    <string-array name="greeting_lines_term_major_cold">
+        <item>Major Cold: the last solar term. Spring is on its way.</item>
+        <item>It\'s cold, but the New Year is almost here.</item>
+    </string-array>
+    <string name="greeting_title_term_start_of_spring">🌱 Start of Spring</string>
+    <string-array name="greeting_lines_term_start_of_spring">
+        <item>Spring starts today.</item>
+        <item>Start of Spring. May your year bloom.</item>
+    </string-array>
+    <string name="greeting_title_term_rain_water">🌦️ Rain Water</string>
+    <string-array name="greeting_lines_term_rain_water">
+        <item>Rain Water: it\'s warming up and the spring rain is coming.</item>
+        <item>Take an umbrella today.</item>
+    </string-array>
+    <string name="greeting_title_term_awakening_of_insects">⚡ Awakening of Insects</string>
+    <string-array name="greeting_lines_term_awakening_of_insects">
+        <item>Awakening of Insects: spring thunder wakes everything up.</item>
+        <item>Time to wake up for the new term, too.</item>
+    </string-array>
+</resources>

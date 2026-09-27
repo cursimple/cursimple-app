@@ -59,13 +59,21 @@
                 android:visibility="gone" />
         </LinearLayout>
 
+        <!--
+          高度跟着内容走：课少的时候列表不撑满，底下空出来的地方归外层，点了照样打开应用。
+          ListView 占满时，行下面那片空白的触摸被它自己吃掉，只有正好点在课上才进得去。
+          课多时 wrap_content 在这里拿到的是剩余高度的上限，照样能滚。
+          listSelector 透明：它默认的按下高亮是直角矩形，还把行下面的间距也算进去，
+          会比圆角卡片大一圈；卡片自己的 ripple 已经按圆角裁好了，用那个就够。
+        -->
         <ListView
             android:id="@+id/next_course_list"
             android:layout_width="match_parent"
-            android:layout_height="0dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:layout_weight="1"
             android:cacheColorHint="@android:color/transparent"
+            android:drawSelectorOnTop="false"
+            android:listSelector="@android:color/transparent"
             android:divider="@null"
             android:dividerHeight="0dp"
             android:scrollbars="none" />

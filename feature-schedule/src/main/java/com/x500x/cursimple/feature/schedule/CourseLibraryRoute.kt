@@ -62,6 +62,9 @@ fun CourseLibraryRoute(
         hiddenCourses = hiddenCourses,
         onRestoreCourse = viewModel::restoreHiddenCourse,
         onSetReminder = { reminderTarget = it },
+        events = state.events,
+        onSaveEvent = viewModel::saveEvent,
+        onRemoveEvent = viewModel::removeEvent,
         modifier = modifier,
     )
 }

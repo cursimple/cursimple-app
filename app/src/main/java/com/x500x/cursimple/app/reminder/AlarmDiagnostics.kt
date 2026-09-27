@@ -1,6 +1,5 @@
 package com.x500x.cursimple.app.reminder
 
-import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
@@ -42,9 +41,10 @@ object AlarmDiagnostics {
         val records = runCatching {
             DataStoreReminderRepository(appContext).systemAlarmRecordsFlow.first()
         }.getOrDefault(emptyList())
-        val keepAliveEnabled = runCatching {
-            DataStoreUserPreferencesRepository(appContext).preferencesFlow.first().alarmKeepAliveEnabled
-        }.getOrDefault(false)
+        val preferences = runCatching {
+            DataStoreUserPreferencesRepository(appContext).preferencesFlow.first()
+        }.getOrNull()
+        val silentGuard = preferences?.alarmKeepAliveEnabled ?: false
 
         val lines = buildList {
             add(appContext.getString(R.string.alarm_diag_device) to "${Build.MANUFACTURER} ${Build.MODEL}")
@@ -100,7 +100,7 @@ object AlarmDiagnostics {
 
             add(
                 appContext.getString(R.string.alarm_diag_keep_alive) to
-                    appContext.keepAliveState(keepAliveEnabled),
+                    appContext.silentGuardState(silentGuard),
             )
             add(
                 appContext.getString(R.string.alarm_diag_registered) to
@@ -165,26 +165,14 @@ object AlarmDiagnostics {
         )
     }
 
-    private fun Context.keepAliveState(enabled: Boolean): String {
-        if (!enabled) return getString(R.string.alarm_diag_keep_alive_off)
-        return getString(
-            if (isKeepAliveRunning()) {
-                R.string.alarm_diag_keep_alive_running
-            } else {
-                R.string.alarm_diag_keep_alive_dead
-            },
-        )
-    }
-
-    /** getRunningServices 从 Android 8 起只返回自己的服务，这里查的正是自己的，够用。 */
-    private fun Context.isKeepAliveRunning(): Boolean {
-        val manager = getSystemService(ActivityManager::class.java) ?: return false
-        val className = AlarmKeepAliveService::class.java.name
-        return runCatching {
-            @Suppress("DEPRECATION")
-            manager.getRunningServices(Int.MAX_VALUE).any { it.service.className == className }
-        }.getOrDefault(false)
-    }
+    /** 静默守护不起服务，看的是巡检任务挂没挂上。 */
+    private fun Context.silentGuardState(enabled: Boolean): String = getString(
+        when {
+            !enabled -> R.string.alarm_diag_keep_alive_off
+            ReminderGuardJobService.isScheduled(this) -> R.string.alarm_diag_keep_alive_silent
+            else -> R.string.alarm_diag_keep_alive_silent_missing
+        },
+    )
 
     /**
      * 记录里有几条、系统里还剩几条。

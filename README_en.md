@@ -28,15 +28,20 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 <div align="center">
 
-| Week view | Day view | Plugin marketplace |
+| Week view | Day view | Notes |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/week.png" width="230"> | <img src="docs/screenshots/day.png" width="230"> | <img src="docs/screenshots/plugin.png" width="230"> |
-| Every period fits one screen, multi-period courses render as one block | Swipe between days, following your finger with the neighbours in view | Browse and install school plugins from the GitHub registry |
+| <img src="docs/screenshots/week.png" width="230"> | <img src="docs/screenshots/day.png" width="230"> | <img src="docs/screenshots/memo.png" width="230"> |
+| Every period on one screen, with your own events placed at their real times | Swipe between days; events sit between classes | One notebook per course: checklists, priorities and due dates |
 
-| Reminders | Settings | About |
+| Pinch to zoom | Class notice | Settings |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/reminder.png" width="230"> | <img src="docs/screenshots/settings.png" width="230"> | <img src="docs/screenshots/about.png" width="230"> |
-| Rules built from period conditions, with per-rule alarm overrides | Six groups, nothing common buried more than two levels deep | Release channel, runtime and tech stack at a glance |
+| <img src="docs/screenshots/zoom.png" width="230"> | <img src="docs/screenshots/notice.png" width="230"> | <img src="docs/screenshots/settings.png" width="230"> |
+| Zoom up to 300% and pan freely; headers stay pinned | Course, time and room just before class, with a status bar chip | Search jumps straight to a setting; pick your own quick settings |
+
+| Reminder settings | Manage list | Plugin marketplace |
+|:--:|:--:|:--:|
+| <img src="docs/screenshots/reminder.png" width="230"> | <img src="docs/screenshots/library.png" width="230"> | <img src="docs/screenshots/plugin.png" width="230"> |
+| Class notices and alarms managed separately, with a per-device setup guide | Courses and events in one searchable list | Browse and install school plugins from a GitHub registry |
 
 </div>
 
@@ -44,47 +49,59 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 ### Timetable
 
-| Capability | Details |
+| Feature | Details |
 |---|---|
-| Week and day views | The week view fits every period on one screen by default; the day view pages between dates with the neighbours in view |
-| Multi-period and alternating weeks | Consecutive periods render as one block; odd, even or arbitrary week sets are supported |
-| Temporary changes | Swap one day's schedule for another day's, or clear a whole day |
-| Holidays and make-up days | Built-in holiday data with online sync, plus manual make-up days |
-| Drag to move | Drag a course card to another cell, with a confirmation before it lands |
-| Appearance | Text size and colour, header, card radius and opacity, grid lines, background image with cropping |
-| Light and dark | Custom colours can invert automatically to follow the system theme |
+| Week / day view | The week view fits every period on one screen by default; the day view pages sideways and peeks at neighbouring days |
+| Events | Meetings, clubs or a game of badminton go straight onto the timetable at their real start and end times. When they overlap a class they sit beside it, several overlapping events fold into a "⋯" you can open, and events outside class hours get their own band that disappears when the event is deleted |
+| Pinch to zoom | Once enabled in settings, zoom up to 300% and drag in any direction; the day header and period column stay pinned |
+| Multi-period and alternating weeks | Back-to-back periods render as one block; odd, even and arbitrary week patterns are supported |
+| Make-up days and cancellations | Swap a day's classes for another day's, take a whole day off, or cancel a single course |
+| Drag to reschedule | Long-press a course card and drop it on another day or period, confirm before it moves; drag it back to undo |
+| Holidays and make-up workdays | The public holiday schedule refreshes silently whenever the app opens with a connection; extra make-up days can be added by hand |
+| Appearance | Text, header, cards, grid lines and a croppable background image; every colour is picked from a palette |
+| Shrink long titles | Font size follows the space actually left in the cell, so the title and room fit whenever they can |
+
+### Notes
+
+The **Notes** page in the drawer gives every course its own notebook, plus one for anything else. Notes support checklists you can tick right on the card (with progress), priorities, pinning and due dates; the overview shows what's open, due today and overdue at a glance. Editing is what-you-see-is-what-you-get: lists, headings, quotes and bold render as you type.
 
 ### Reminders
 
-| Capability | Details |
+| Feature | Details |
 |---|---|
-| Exact alarms | Uses `USE_EXACT_ALARM`, granted at install, so Android 14+ does not deny scheduling by default |
-| Self-healing | Missing alarms are reconciled after reboot, time zone change, locale change, and after a force stop when the app is next opened |
-| Rule-based | Reminders come from period plus condition plus action, covering whole periods, the first class of the day, exams and more |
-| Sound and mode | System ringtone or local audio; ring, vibrate or both, with adjustable duration and repeat count |
-| Auto silence in class | Follows the period times and restores the previous ringer mode afterwards |
+| Class notices | A notice with the course, period, time and room just before class. Three styles: system, branded card and overlay; the overlay supports blur and animation and can be swiped away |
+| Status bar chip | On systems with Live Updates (Android 16, ColorOS 16, One UI 8.5 and later, among others) a class chip sits in the status bar and the notice is pinned to the top of the shade; Xiaomi HyperOS uses focus notifications |
+| No missed notices | If the reminder time was missed but class hasn't started, the notice is posted when you open the app; minutes are counted from the real clock |
+| Silent guard | No persistent "guarding" notification: after you leave the app, periodic checks re-register any notices or alarms the system cleared |
+| Setup guide | Lists exactly what this phone needs allowed (notifications, heads-up, overlay, chip, background pop-ups) and opens each system page directly |
+| Alarms | Exact alarms generated from "period + condition + action" rules; system ringtones or local audio, ring, vibrate or both, with an optional heads-up before the alarm rings |
+| Silence during class | Enters silent mode on schedule and restores the previous ringer mode after class |
 
 ### Home screen widgets
 
-Three Glance widgets, each spanning a full home row by default: timetable (4×2), next class (4×1) and reminders (4×2). Refresh has four layers — the system period, a WorkManager period, an alarm guard chain, and exact refreshes aligned to period boundaries (5 minutes before a class, at its start, and at its end) so the in-class state never lags.
+Three widgets: today's timetable, next class and reminders. Tapping empty space opens the app too. Refresh is layered four ways: the system period, a WorkManager period, the alarm guard chain, and exact refreshes aligned to period boundaries (5 minutes before class, class start, class end).
+
+### Settings
+
+The search box at the top finds any setting by name, page or keyword. **Quick settings** is its own block: tap + to choose what goes in, or long-press any item below and drag it up; long-press a tile to reorder it. The home page switches between list and grid layouts.
 
 ### Data
 
-| Capability | Details |
+| Feature | Details |
 |---|---|
-| Import and export | Local JSON backup, QR code and code-string exchange, timetable image export, `.ics` export |
-| WebDAV | Backup and restore to a self-hosted or third-party WebDAV server |
-| Image import | Recognise courses from a timetable screenshot or photo; bring your own API |
-| System calendar | Write the whole term to the phone calendar, undoable in one tap |
-| Term profiles | Multiple terms side by side, each with its own timetable, period times and week numbering |
+| Import and export | Local JSON backup (including events and notes), timetable exchange by QR code or passphrase, timetable image export, `.ics` export |
+| WebDAV | Back up to and restore from a self-hosted or third-party WebDAV server |
+| AI screenshot import | Recognise courses from a screenshot or photo of a timetable; bring your own API |
+| System calendar | Write the whole term into the phone's calendar, undoable in one tap |
+| Term profiles | Several terms side by side, each with its own timetable, periods and week count |
 
 ### Elsewhere
 
-- **Languages**: Simplified Chinese, Traditional Chinese and English, switched inside the app without touching the system locale
-- **Time zone**: Set independently of the device, so online classes across time zones need no system change
-- **Update channel**: Stable only by default; enabling beta updates surfaces prereleases, and turning it back off detects the stable release and offers a rollback
-- **Release notes**: The first launch after an update shows what changed in that version
-- **ABI splits**: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64` and a `universal` package
+- **Languages**: Simplified Chinese, Traditional Chinese and English, switched instantly inside the app, independent of the system language
+- **Time zone**: Can be set independently of the device, so online classes across time zones don't need a system change
+- **Updates**: Once a new version is found, tap **Update** to download and install it; only stable releases by default, prereleases after opting in to beta updates
+- **Release notes**: The first launch after an update pages through the highlights of that version
+- **Per-ABI builds**: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64` and a `universal` APK
 
 ## Download
 
@@ -104,8 +121,9 @@ After installing:
 1. Set the term start date (the hint button on the timetable screen, or the drawer)
 2. Open **Plugins** and install the plugin for your school from the marketplace
 3. Sign in to the school portal through the plugin and sync your timetable
+4. Open **Settings → Class notice → Notification setup guide** and allow what it lists, so notices show up on time
 
-If no plugin covers your school, add courses by hand or import them from a QR code or an image.
+If no plugin covers your school, add courses and events by hand in **Manage list**, or import them from a QR code or an image.
 
 ## Plugin system
 
@@ -163,8 +181,8 @@ CLASS_VIEWER_KEY_PASSWORD=replace with the key password
 The version lives in exactly one place, `gradle.properties`:
 
 ```properties
-app.versionCode=9
-app.versionName=0.7.0-beta.4
+app.versionCode=30
+app.versionName=0.7.4
 ```
 
 ### Modules
@@ -194,7 +212,7 @@ Deeper development notes live in the [developer documentation](README_dev.md).
 <details>
 <summary><b>Alarms do not ring, or reminders are late</b></summary>
 
-Go through **Settings → Reminders and permissions → Permissions** and check notification and alarm access. Chinese OEM ROMs additionally need autostart and background execution granted in the system settings. Note that alarms wiped by a system force stop can only be restored the next time the app is opened; swiping the app away from Recents does not affect them.
+Start with **Settings → Class notice → Notification setup guide** and allow whatever it lists as missing. Then check alarm access under **Settings → Reminders and permissions → Permissions**, which also has per-brand shortcuts for autostart, background pop-ups and battery policy. On some Chinese OEM systems, swiping the app away from Recents is the same as a force stop and clears its alarms until the app is opened again; locking CurSimple in Recents avoids that.
 
 </details>
 
@@ -215,7 +233,7 @@ The current week and term appear at the top of the timetable screen. A blank wee
 <details>
 <summary><b>Widgets do not refresh</b></summary>
 
-Allow the app to run in the background, then check **Settings → Appearance → Widget settings**. If it still lags, remove the widget and add it again.
+Allow the app to run in the background, then check **Settings → Quick settings → Widgets**. If it still lags, remove the widget and add it again.
 
 </details>
 

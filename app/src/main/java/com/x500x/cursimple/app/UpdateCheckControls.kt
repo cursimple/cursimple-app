@@ -273,6 +273,8 @@ fun UpdateCheckDialog(
                     onMuteUpdateVersion = onMuteUpdateVersion,
                     onUpdateFound = onUpdateFound,
                     onUpdateNoticeCleared = onUpdateNoticeCleared,
+                    // 点「检查更新」打开这个框本身就是在要检查：查到了直接弹，不用再点一次「检查」
+                    checkOnOpen = true,
                 )
             }
         },
@@ -294,6 +296,7 @@ fun UpdateCheckSection(
     onUpdateFound: (Int, String) -> Unit,
     onUpdateNoticeCleared: () -> Unit,
     modifier: Modifier = Modifier,
+    checkOnOpen: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -311,11 +314,13 @@ fun UpdateCheckSection(
     var pendingRollback by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var autoCheckedForCurrentEntry by rememberSaveable { mutableStateOf(false) }
+    // 查到过的新版本。自动检查查到时不弹窗，只在这一行上写出来；记下它，
+    // 这一行的按钮就能直接下载，点这一行就能看更新内容，不用再「检查」一遍才出弹窗
+    var foundUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
 
     fun dismissPendingUpdate() {
         pendingUpdate = null
         pendingRollback = null
-        downloadedApk = null
     }
 
     fun downloadAndInstall(info: AppUpdateInfo) {
@@ -353,7 +358,12 @@ fun UpdateCheckSection(
             checking = true
             status = UpdatePanelStatus.Checking
             dismissPendingUpdate()
-            when (val result = checker.check(includePrerelease = betaUpdatesEnabled)) {
+            val result = checker.check(includePrerelease = betaUpdatesEnabled)
+            val found = (result as? AppUpdateCheckResult.Available)?.info
+            // 换了版本，之前下好的安装包就不是这一版了
+            if (found?.versionCode != foundUpdate?.versionCode) downloadedApk = null
+            foundUpdate = found
+            when (result) {
                 AppUpdateCheckResult.NoRelease -> {
                     onUpdateNoticeCleared()
                     status = UpdatePanelStatus.NoRelease
@@ -388,6 +398,13 @@ fun UpdateCheckSection(
     }
 
     LaunchedEffect(autoCheckEnabled) {
+        if (checkOnOpen) {
+            if (!autoCheckedForCurrentEntry) {
+                autoCheckedForCurrentEntry = true
+                checkUpdate(manual = true)
+            }
+            return@LaunchedEffect
+        }
         if (!autoCheckEnabled) {
             autoCheckedForCurrentEntry = false
             return@LaunchedEffect
@@ -409,15 +426,35 @@ fun UpdateCheckSection(
             checked = autoCheckEnabled,
             onCheckedChange = onAutoCheckEnabledChange,
         )
+        val update = foundUpdate
         UpdateActionRow(
             icon = Icons.Rounded.SystemUpdate,
             title = stringResource(R.string.update_check_title),
-            subtitle = updatePanelStatusText(status),
+            subtitle = if (update != null && status is UpdatePanelStatus.Available) {
+                stringResource(R.string.update_status_available_tap, update.versionName)
+            } else {
+                updatePanelStatusText(status)
+            },
             badge = shouldShowUpdateBadge(updateNotice, BuildConfig.VERSION_CODE),
             enabled = !checking && !downloading,
-            buttonText = if (checking) stringResource(R.string.update_check_checking) else stringResource(R.string.update_check_button),
-            onClick = { checkUpdate(manual = true) },
+            buttonText = when {
+                checking -> stringResource(R.string.update_check_checking)
+                downloading -> stringResource(R.string.update_dialog_downloading)
+                update == null -> stringResource(R.string.update_check_button)
+                downloadedApk?.exists() == true -> stringResource(R.string.update_dialog_install)
+                else -> stringResource(R.string.update_dialog_update)
+            },
+            highlighted = update != null,
+            onClick = { if (update != null) downloadAndInstall(update) else checkUpdate(manual = true) },
+            onRowClick = update?.let { { pendingUpdate = it } },
         )
+        // 在这一行上直接下载时，进度就画在这里；从弹窗里下的，弹窗自己有进度条
+        if (downloading && pendingUpdate == null) {
+            // 和这一行的文字对齐，不贴着卡片边
+            Box(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                UpdateDownloadProgressRow(downloadProgress)
+            }
+        }
     }
 
     pendingUpdate?.let { info ->
@@ -431,6 +468,7 @@ fun UpdateCheckSection(
                 onIgnoreUpdateVersion(info.versionCode)
                 status = UpdatePanelStatus.IgnoredManual(info.versionName)
                 dismissPendingUpdate()
+                foundUpdate = null
             },
             onMute = {
                 onMuteUpdateVersion(info.versionCode)
@@ -976,9 +1014,14 @@ private fun UpdateActionRow(
     buttonText: String,
     onClick: () -> Unit,
     badge: Boolean = false,
+    highlighted: Boolean = false,
+    onRowClick: (() -> Unit)? = null,
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .then(if (onRowClick != null) Modifier.clickable(onClick = onRowClick) else Modifier),
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(12.dp),
     ) {
@@ -1009,12 +1052,23 @@ private fun UpdateActionRow(
                 UpdateBadgeDot()
                 Spacer(modifier = Modifier.width(10.dp))
             }
-            AppOutlinedButton(
-                onClick = onClick,
-                enabled = enabled,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
-            ) {
-                Text(buttonText)
+            // 查到新版时按钮换成实心的「更新」，比「检查」显眼，一看就知道点它能直接装
+            if (highlighted) {
+                Button(
+                    onClick = onClick,
+                    enabled = enabled,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                ) {
+                    Text(buttonText)
+                }
+            } else {
+                AppOutlinedButton(
+                    onClick = onClick,
+                    enabled = enabled,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                ) {
+                    Text(buttonText)
+                }
             }
         }
     }

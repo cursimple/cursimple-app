@@ -261,13 +261,20 @@ object WidgetCatalog {
                 "com.miui.securitycenter",
                 "com.miui.permcenter.permissions.AppPermissionsEditorActivity",
             ).putExtra("extra_pkgname", packageName),
+            // OPPO / realme ColorOS（两种包名，新旧版本换过）
+            Intent().setClassName(
+                "com.coloros.safecenter",
+                "com.coloros.safecenter.permission.PermissionManagerActivity",
+            ).putExtra("packageName", packageName),
+            Intent().setClassName(
+                "com.oplus.safecenter",
+                "com.coloros.safecenter.permission.PermissionManagerActivity",
+            ).putExtra("packageName", packageName),
         )
         for (intent in candidates) {
             val candidate = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val resolves = runCatching {
-                context.packageManager.queryIntentActivities(candidate, PackageManager.MATCH_DEFAULT_ONLY).isNotEmpty()
-            }.getOrDefault(false)
-            if (!resolves) continue
+            // 国产系统把设置页藏起来时 queryIntentActivities 查不到它，白白错过——
+            // 不设这道预检，起不来的 Intent 自己会抛，接着试下一个就是
             if (runCatching { context.startActivity(candidate) }.isSuccess) return true
         }
         return openAppDetails(context)
