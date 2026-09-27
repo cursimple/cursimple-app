@@ -71,7 +71,7 @@ import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 /** 节次上课时间的编辑区，含作息套数管理与模板套用。 */
 
 @Composable
-internal fun TimingProfileEntryRow(onClick: () -> Unit) {
+internal fun TimingProfileEntryRow(quickId: String? = null, onClick: () -> Unit) {
     val context = LocalContext.current
     val repository = remember(context) { DataStoreWidgetPreferencesRepository(context.applicationContext) }
     val profile by repository.timingProfileFlow.collectAsState(initial = null)
@@ -86,6 +86,7 @@ internal fun TimingProfileEntryRow(onClick: () -> Unit) {
         title = stringResource(R.string.settings_dest_timing_profile),
         subtitle = subtitle,
         onClick = onClick,
+        quickId = quickId,
     )
 }
 

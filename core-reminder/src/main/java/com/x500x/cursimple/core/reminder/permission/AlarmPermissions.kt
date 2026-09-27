@@ -198,6 +198,9 @@ object AlarmSettingsIntents {
                     "com.vivo.applicationbehaviorengine.ui.ExcessivePowerManagerActivity",
                 ),
             )
+            // 华为 / 荣耀的「受保护的后台应用」：名单外的应用熄屏一会儿就被强制断网冻住
+            VendorRom.Huawei -> addAll(huaweiProtectCandidates("com.huawei.systemmanager"))
+            VendorRom.Honor -> addAll(huaweiProtectCandidates("com.hihonor.systemmanager"))
             else -> Unit
         }
         addAll(batteryOptimization(context))
@@ -205,7 +208,13 @@ object AlarmSettingsIntents {
 
     /** 这家系统有没有要单独放开的省电策略页。 */
     fun hasVendorBatterySaver(): Boolean =
-        VendorRom.current() in setOf(VendorRom.Xiaomi, VendorRom.Samsung, VendorRom.Vivo)
+        VendorRom.current() in setOf(VendorRom.Xiaomi, VendorRom.Samsung, VendorRom.Vivo, VendorRom.Huawei, VendorRom.Honor)
+
+    /** 华为系守护名单页：HarmonyOS、MagicOS 到现在都认这两个类名，逐个试。 */
+    private fun huaweiProtectCandidates(securityPkg: String): List<Intent> = listOf(
+        Intent().setClassName(securityPkg, "$securityPkg.optimize.process.ProtectActivity"),
+        Intent().setClassName(securityPkg, "$securityPkg.powermanager.HwPowerManagerActivity"),
+    )
 
     /**
      * 各厂商「单个应用的权限详情页」。
@@ -232,6 +241,11 @@ object AlarmSettingsIntents {
         // OPPO / realme ColorOS
         Intent().setClassName(
             "com.coloros.safecenter",
+            "com.coloros.safecenter.permission.PermissionManagerActivity",
+        ).putExtra("packageName", context.packageName),
+        // OPPO ColorOS 14 起安全中心包名换成了 oplus，页面还是原来那个
+        Intent().setClassName(
+            "com.oplus.safecenter",
             "com.coloros.safecenter.permission.PermissionManagerActivity",
         ).putExtra("packageName", context.packageName),
         // 华为 / 荣耀：没有稳定的单应用权限页，退到应用详情页由系统自己定位
@@ -291,6 +305,7 @@ object AlarmSettingsIntents {
         "com.coloros.safecenter" to "com.coloros.safecenter.startupapp.StartupAppListActivity",
         "com.oppo.safe" to "com.oppo.safe.permission.startup.StartupAppListActivity",
         "com.oplus.battery" to "com.oplus.startupapp.view.StartupAppListActivity",
+        "com.oplus.safecenter" to "com.coloros.safecenter.permission.startup.StartupAppListActivity",
         // vivo / iQOO（BgStartUpManagerActivity 有签名保护，第三方打不开，不再列）
         "com.iqoo.secure" to "com.iqoo.secure.ui.phoneoptimize.AddWhiteListActivity",
         // 一加

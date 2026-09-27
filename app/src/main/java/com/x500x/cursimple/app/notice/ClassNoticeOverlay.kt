@@ -54,6 +54,9 @@ object ClassNoticeOverlay {
     /** 接收器最多陪悬浮窗等这么久：展示时长加上冷启动建窗口、退场动画的余量 */
     private const val HOLD_MILLIS = VISIBLE_MILLIS + 3_000L
 
+    /** 滑出去这么远就收起，不够就弹回原位 */
+    private const val SWIPE_DISMISS_DP = 48f
+
     /** 没有有界模糊时底色要浓得多，不然半透明一层压在桌面上几乎看不出边 */
     private const val SURFACE_ALPHA_BLURRED = 0.70f
     private const val SURFACE_ALPHA_SOLID = 0.94f
@@ -148,15 +151,6 @@ object ClassNoticeOverlay {
                 .joinToString(" · ")
             setTextColor(theme.onSurfaceVariant)
         }
-        view.setOnClickListener {
-            runCatching {
-                context.startActivity(
-                    Intent(context, MainActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
-                )
-            }
-            dismiss()
-        }
 
         val dialog = Dialog(themed, R.style.ClassNoticeOverlayDialog)
         // inflate(res, null) 会把根布局上的 layout_height 丢掉，setContentView(View)
@@ -206,6 +200,27 @@ object ClassNoticeOverlay {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && blurred) {
             window.setBackgroundBlurRadius(blurRadiusPx(context, preferences))
         }
+
+        // 点一下打开 App；往上或往两边滑就收起，挡着东西时不用干等六秒
+        view.setOnTouchListener(
+            SwipeToDismiss(
+                window = window,
+                touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop,
+                dismissDistance = SWIPE_DISMISS_DP * density,
+                onHold = { mainHandler.removeCallbacks(dismissRunnable) },
+                onRelease = { mainHandler.postDelayed(dismissRunnable, VISIBLE_MILLIS) },
+                onTap = {
+                    runCatching {
+                        context.startActivity(
+                            Intent(context, MainActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+                        )
+                    }
+                    dismiss()
+                },
+                onDismiss = { dismiss() },
+            ),
+        )
 
         val shown = runCatching { dialog.show() }.isSuccess
         if (!shown) {
@@ -278,5 +293,62 @@ object ClassNoticeOverlay {
         val dialog = current ?: return
         current = null
         runCatching { dialog.dismiss() }
+    }
+}
+
+/**
+ * 悬浮窗的手势：拖动时整个窗口跟着手指走（往下拖不动，免得挡住更多内容），
+ * 松手时往上或往两边滑够了就收起，不够就弹回；几乎没动就当是点了一下。
+ * 手指按着的时候不自动收起，松开后重新计时。
+ */
+private class SwipeToDismiss(
+    private val window: android.view.Window,
+    private val touchSlop: Int,
+    private val dismissDistance: Float,
+    private val onHold: () -> Unit,
+    private val onRelease: () -> Unit,
+    private val onTap: () -> Unit,
+    private val onDismiss: () -> Unit,
+) : android.view.View.OnTouchListener {
+    private var downX = 0f
+    private var downY = 0f
+    private var baseX = 0
+    private var baseY = 0
+    private var dragging = false
+
+    override fun onTouch(view: android.view.View, event: android.view.MotionEvent): Boolean {
+        val dx = event.rawX - downX
+        val dy = (event.rawY - downY).coerceAtMost(0f)
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> {
+                downX = event.rawX
+                downY = event.rawY
+                baseX = window.attributes.x
+                baseY = window.attributes.y
+                dragging = false
+                onHold()
+            }
+            android.view.MotionEvent.ACTION_MOVE -> {
+                if (!dragging && kotlin.math.hypot(dx, event.rawY - downY) > touchSlop) dragging = true
+                if (dragging) moveTo(baseX + dx.toInt(), baseY + dy.toInt())
+            }
+            android.view.MotionEvent.ACTION_UP -> when {
+                !dragging -> onTap()
+                -dy > dismissDistance || kotlin.math.abs(dx) > dismissDistance -> onDismiss()
+                else -> {
+                    moveTo(baseX, baseY)
+                    onRelease()
+                }
+            }
+            android.view.MotionEvent.ACTION_CANCEL -> {
+                moveTo(baseX, baseY)
+                onRelease()
+            }
+        }
+        return true
+    }
+
+    private fun moveTo(x: Int, y: Int) {
+        runCatching { window.attributes = window.attributes.apply { this.x = x; this.y = y } }
     }
 }

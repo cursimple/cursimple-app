@@ -2,8 +2,14 @@ package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -28,11 +35,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +93,7 @@ internal fun ColorAlphaRow(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ColorPickerDialog(
     title: String,
@@ -93,22 +103,35 @@ internal fun ColorPickerDialog(
 ) {
     val normalized = initialArgb and 0xFFFF_FFFFL
     var alpha by rememberSaveable(normalized) { mutableIntStateOf(argbAlphaByte(normalized)) }
-    var red by rememberSaveable(normalized) { mutableIntStateOf(argbRedByte(normalized)) }
-    var green by rememberSaveable(normalized) { mutableIntStateOf(argbGreenByte(normalized)) }
-    var blue by rememberSaveable(normalized) { mutableIntStateOf(argbBlueByte(normalized)) }
+    val initialHsv = remember(normalized) { argbToHsv((normalized and 0xFF_FFFFFF).toInt()) }
+    var hue by rememberSaveable(normalized) { mutableStateOf(initialHsv[0]) }
+    var saturation by rememberSaveable(normalized) { mutableStateOf(initialHsv[1]) }
+    var value by rememberSaveable(normalized) { mutableStateOf(initialHsv[2]) }
     var hexText by rememberSaveable(normalized) { mutableStateOf(formatArgb(normalized)) }
 
-    fun currentArgb(): Long = argbFromComponents(alpha, red, green, blue)
+    fun currentRgb(): Int = hsvToArgb(hue, saturation, value) and 0xFFFFFF
+    fun currentArgb(): Long = (alpha.toLong() shl 24 or currentRgb().toLong()) and 0xFFFF_FFFFL
     fun syncHex() {
         hexText = formatArgb(currentArgb())
     }
-    fun applyParsed(value: Long) {
-        val color = value and 0xFFFF_FFFFL
-        alpha = argbAlphaByte(color)
-        red = argbRedByte(color)
-        green = argbGreenByte(color)
-        blue = argbBlueByte(color)
-        hexText = formatArgb(color)
+
+    /** 调色板、色相条、常用色改了颜色：联动 hex 框；透明度不动。 */
+    fun applyHsv(h: Float, s: Float, v: Float) {
+        hue = h
+        saturation = s
+        value = v
+        syncHex()
+    }
+
+    /** hex 框改的颜色：把调色板挪过去；透明度没带时保留当前值。 */
+    fun applyParsed(color: Long) {
+        val v = color and 0xFFFF_FFFFL
+        alpha = argbAlphaByte(v)
+        val hsv = argbToHsv((v and 0xFF_FFFFFF).toInt())
+        hue = hsv[0]
+        saturation = hsv[1]
+        value = hsv[2]
+        hexText = formatArgb(v)
     }
 
     AlertDialog(
@@ -117,45 +140,72 @@ internal fun ColorPickerDialog(
         text = {
             Column(
                 modifier = Modifier
-                    .heightIn(max = 520.dp)
+                    .heightIn(max = 560.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                SaturationValuePanel(
+                    hue = hue,
+                    saturation = saturation,
+                    value = value,
+                    onChange = { s, v -> applyHsv(hue, s, v) },
+                )
+                HueBar(hue = hue, onChange = { h -> applyHsv(h, saturation, value) })
+                // 常用色：点一下直接拿，比拖更能让人知道「大概长什么样」
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    QUICK_COLORS.forEach { quick ->
+                        val selected = quick == currentRgb()
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(Color(quick))
+                                .border(
+                                    width = if (selected) 3.dp else 1.dp,
+                                    color = if (selected) {
+                                        MaterialTheme.colorScheme.onSurface
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    },
+                                    shape = CircleShape,
+                                )
+                                .clickable {
+                                    val hsv = argbToHsv(quick)
+                                    applyHsv(hsv[0], hsv[1], hsv[2])
+                                },
+                        )
+                    }
+                }
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 52.dp),
+                        .heightIn(min = 44.dp),
                     color = Color(currentArgb()),
                     shape = RoundedCornerShape(12.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                 ) {}
+                ColorComponentSlider(
+                    label = stringResource(R.string.settings_color_transparency),
+                    value = alphaToTransparencyPercent(alpha),
+                    max = 100,
+                ) {
+                    alpha = transparencyPercentToAlpha(it)
+                    syncHex()
+                }
                 OutlinedTextField(
                     value = hexText,
-                    onValueChange = { value ->
-                        hexText = value
-                        parseArgbInput(value, alpha)?.let(::applyParsed)
+                    onValueChange = { input ->
+                        hexText = input
+                        parseArgbInput(input, alpha)?.let(::applyParsed)
                     },
                     label = { Text("ARGB") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     modifier = Modifier.fillMaxWidth(),
                 )
-                ColorComponentSlider(stringResource(R.string.settings_color_red), red, 255) {
-                    red = it
-                    syncHex()
-                }
-                ColorComponentSlider(stringResource(R.string.settings_color_green), green, 255) {
-                    green = it
-                    syncHex()
-                }
-                ColorComponentSlider(stringResource(R.string.settings_color_blue), blue, 255) {
-                    blue = it
-                    syncHex()
-                }
-                ColorComponentSlider(stringResource(R.string.settings_color_transparency), alphaToTransparencyPercent(alpha), 100) {
-                    alpha = transparencyPercentToAlpha(it)
-                    syncHex()
-                }
             }
         },
         confirmButton = {

@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
- * 提醒的巡检任务：每 15 分钟由系统拉起一次，把上课提醒的闹钟重挂一遍，守护服务不在了就拉回来。
+ * 提醒的巡检任务（静默守护的一环）：每 15 分钟由系统拉起一次，把上课提醒和闹钟重挂一遍。
  *
  * 为什么另起一个 JobScheduler 任务，而不只靠 WorkManager 那条两小时一次的巡检：
  * 上课提醒一次只挂一个闹钟，被厂商系统清掉之后，下一次补回来之前的提醒全都丢了，
@@ -38,10 +38,6 @@ class ReminderGuardJobService : JobService() {
                     AlarmRegistrationRepair.repairIfMissing(applicationContext, reason = "guard_job")
                     AlarmPreNoticeScheduler.reschedule(applicationContext)
                 }.onFailure { ReminderLogger.warn("reminder.guard_job.alarm_repair.failure", emptyMap(), it) }
-                // 后台拉起前台服务在 Android 12 起受限，只有忽略电池优化等豁免情况下才放行；
-                // 起不来也没关系，上面的闹钟已经重挂好了
-                runCatching { AlarmKeepAliveService.applyPreference(applicationContext) }
-                    .onFailure { ReminderLogger.warn("reminder.guard_job.keep_alive.failure", emptyMap(), it) }
             } finally {
                 jobFinished(params, false)
             }
@@ -60,13 +56,29 @@ class ReminderGuardJobService : JobService() {
         private const val JOB_ID = 0x0C1E
         private const val INTERVAL_MILLIS = 15 * 60 * 1000L
 
-        /** 上课提醒或守护开着就挂上巡检，都关了就撤掉；已经挂着同样的任务时不重复提交。 */
+        /** 应用退到后台时跑一遍和巡检相同的体检，再确认巡检和看门狗都挂着。 */
+        suspend fun onAppBackground(context: Context) {
+            val app = context.applicationContext
+            val preferences = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
+            if (!preferences.alarmKeepAliveEnabled) return
+            ReminderLogger.info("reminder.silent_guard.app_background", emptyMap())
+            runCatching { ClassNoticeGateway.reschedule(app) }
+                .onFailure { ReminderLogger.warn("reminder.silent_guard.class_notice.failure", emptyMap(), it) }
+            runCatching {
+                AlarmRegistrationRepair.repairIfMissing(app, reason = "app_background")
+                AlarmPreNoticeScheduler.reschedule(app)
+            }.onFailure { ReminderLogger.warn("reminder.silent_guard.alarm_repair.failure", emptyMap(), it) }
+            schedule(app)
+            ReminderWatchdogAlarm.ensureScheduled(app)
+        }
+
+        /** 静默守护开着就挂上巡检，关了就撤掉；已经挂着同样的任务时不重复提交。 */
         suspend fun applyPreference(context: Context) {
             val preferences = runCatching {
                 DataStoreUserPreferencesRepository(context.applicationContext).preferencesFlow.first()
             }.getOrNull() ?: return
-            // 闹钟的体检也挂在这两条上，所以只要守护开着就留着，不看有没有开上课通知
-            if (preferences.classNotice.enabled || preferences.alarmKeepAliveEnabled) {
+            // 上课提醒和闹钟的体检都挂在这两条上，只看静默守护的开关
+            if (preferences.alarmKeepAliveEnabled) {
                 schedule(context)
                 ReminderWatchdogAlarm.ensureScheduled(context)
             } else {
@@ -90,6 +102,11 @@ class ReminderGuardJobService : JobService() {
             runCatching { scheduler.schedule(job) }
                 .onFailure { ReminderLogger.warn("reminder.guard_job.schedule.failure", emptyMap(), it) }
         }
+
+        /** 巡检任务现在挂没挂着；静默守护靠它，自检页要看。 */
+        fun isScheduled(context: Context): Boolean = runCatching {
+            context.getSystemService(JobScheduler::class.java)?.getPendingJob(JOB_ID) != null
+        }.getOrDefault(false)
 
         private fun cancel(context: Context) {
             runCatching { context.getSystemService(JobScheduler::class.java)?.cancel(JOB_ID) }

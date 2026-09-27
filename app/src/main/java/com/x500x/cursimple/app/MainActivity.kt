@@ -47,6 +47,7 @@ import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Menu
@@ -142,6 +143,7 @@ import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
 import com.x500x.cursimple.feature.plugin.SchoolImportRoute
 import com.x500x.cursimple.feature.schedule.AddCourseDialog
 import com.x500x.cursimple.feature.schedule.CourseLibraryRoute
+import com.x500x.cursimple.feature.schedule.MemoRoute
 import com.x500x.cursimple.feature.schedule.ScheduleRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewMode
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
@@ -201,8 +203,18 @@ class MainActivity : ComponentActivity() {
                     if (prefs.loaded) {
                         OnboardingGate(
                             disclaimerAccepted = prefs.disclaimerAccepted,
+                            notificationPermissionAskedBefore = prefs.notificationPermissionStartupAsked,
                             onAccept = { prefsViewModel.setDisclaimerAccepted(true) },
                             onReject = { finishAndRemoveTask() },
+                            onNotificationAsked = { prefsViewModel.markNotificationPermissionStartupAsked() },
+                        )
+                    }
+                    if (prefs.loaded && prefs.disclaimerAccepted) {
+                        IslandStartupPrompt(
+                            classNotice = prefs.classNotice,
+                            notificationPermissionAsked = prefs.notificationPermissionStartupAsked,
+                            promptShown = prefs.islandStartupPromptShown,
+                            onShown = { prefsViewModel.markIslandStartupPromptShown() },
                         )
                     }
                     if (prefs.loaded && prefs.disclaimerAccepted) {
@@ -228,6 +240,8 @@ class MainActivity : ComponentActivity() {
                             reminderCoordinator = container.reminderCoordinator,
                             manualCourseRepository = container.manualCourseRepository,
                             courseNoteRepository = container.courseNoteRepository,
+                            scheduleEventRepository = container.scheduleEventRepository,
+                            memoRepository = container.memoRepository,
                             normalizeTimingProfile = { profile ->
                                 container.normalizeTimingProfileForActiveTerm(profile)
                             },
@@ -989,6 +1003,11 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
+                                    AppScreen.Memos -> MemoRoute(
+                                        viewModel = scheduleViewModel,
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+
                                     AppScreen.Reminders -> RemindersScreen(
                                         classNotice = prefs.classNotice,
                                         onClassNoticeEnabledChange = prefsViewModel::setClassNoticeEnabled,
@@ -1120,6 +1139,8 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setScheduleWeekStartDay,
                                         onCourseDragEnabledChange =
                                             prefsViewModel::setCourseDragEnabled,
+                                        onSchedulePinchZoomEnabledChange =
+                                            prefsViewModel::setSchedulePinchZoomEnabled,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
@@ -1726,6 +1747,7 @@ class MainActivity : ComponentActivity() {
     ) {
         Schedule(R.string.screen_schedule, Icons.AutoMirrored.Rounded.MenuBook),
         Courses(R.string.screen_courses, Icons.AutoMirrored.Rounded.ListAlt),
+        Memos(R.string.screen_memos, Icons.Rounded.EditNote),
         Plugins(R.string.screen_plugins, Icons.Rounded.Extension),
         Reminders(R.string.screen_reminders, Icons.Rounded.Notifications),
         Settings(R.string.screen_settings, Icons.Rounded.Settings),
@@ -1863,10 +1885,19 @@ private fun AppDrawer(
                 )
             }
 
+            // 版本号也能点：看到这里有新版的人，点版本号就是想更新
             Text(
                 text = stringResource(R.string.main_drawer_version, appVersionName),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (updateBadgeVisible) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable(onClick = onOpenUpdateCheck)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
     }

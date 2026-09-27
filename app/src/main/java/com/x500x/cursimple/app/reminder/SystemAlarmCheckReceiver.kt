@@ -68,8 +68,6 @@ class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
                 ACTION_HTC_QUICKBOOT_POWERON,
                 AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
                     app.appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
-                    // 重启后闹钟全部重排，守护服务也要按开关回到位
-                    AlarmKeepAliveService.applyPreference(app)
                     // 重启会清掉看门狗闹钟；拿到精确闹钟权限后也要换成精确的那一档重挂
                     if (intent.action == AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED) {
                         ReminderWatchdogAlarm.cancel(app)
