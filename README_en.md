@@ -18,7 +18,7 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![API](https://img.shields.io/badge/Android-7.0%2B%20(API%2024--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
-[Download](#download) · [Features](#features) · [Plugins](#plugin-system) · [Build from source](#build-from-source) · [中文](README.md)
+[Website](https://cursimple.github.io/cursimple-app/) · [Download](#download) · [Features](#features) · [Plugins](#plugin-system) · [Build from source](#build-from-source) · [中文](README.md)
 
 </div>
 
@@ -105,14 +105,15 @@ The search box at the top finds any setting by name, page or keyword. **Quick se
 
 ## Download
 
-Grab the APK for your device from [Releases](https://github.com/cursimple/cursimple-app/releases):
+Grab the APK for your device from the [website](https://cursimple.github.io/cursimple-app/#download) or [Releases](https://github.com/cursimple/cursimple-app/releases):
 
 | File | Device |
 |---|---|
-| `app-arm64-v8a-release.apk` | Modern 64-bit ARM phones — pick this one unless you know otherwise |
-| `app-armeabi-v7a-release.apk` | Older 32-bit ARM devices |
-| `app-x86_64-release.apk` | Intel devices and emulators |
-| `app-universal-release.apk` | Works everywhere, at a larger size |
+| `CurSimple-arm64-v8a.apk` | Modern 64-bit ARM phones — pick this one unless you know otherwise |
+| `CurSimple-armeabi-v7a.apk` | Older 32-bit ARM devices |
+| `CurSimple-x86_64.apk` | Intel devices and emulators |
+| `CurSimple-x86.apk` | 32-bit Intel devices |
+| `CurSimple-universal.apk` | Works everywhere, at a larger size |
 
 Versions with a `-beta` or `-alpha` suffix are prereleases and are marked as such on GitHub.
 
