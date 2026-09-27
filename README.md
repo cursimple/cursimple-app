@@ -18,7 +18,7 @@
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![API](https://img.shields.io/badge/Android-7.0%2B%20(API%2024--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
-[下载安装](#下载安装) · [功能特性](#功能特性) · [插件系统](#插件系统) · [从源码构建](#从源码构建) · [English](README_en.md)
+[官网](https://cursimple.github.io/cursimple-app/) · [下载安装](#下载安装) · [功能特性](#功能特性) · [插件系统](#插件系统) · [从源码构建](#从源码构建) · [English](README_en.md)
 
 </div>
 
@@ -105,14 +105,15 @@
 
 ## 下载安装
 
-到 [Releases](https://github.com/cursimple/cursimple-app/releases) 下载对应架构的 APK：
+到 [官网](https://cursimple.github.io/cursimple-app/#download)（可选国内加速、扫码下载）或 [Releases](https://github.com/cursimple/cursimple-app/releases) 下载对应架构的 APK：
 
 | 文件 | 适用设备 |
 |---|---|
-| `app-arm64-v8a-release.apk` | 现代 64 位 ARM 手机（绝大多数设备选这个） |
-| `app-armeabi-v7a-release.apk` | 较旧的 32 位 ARM 设备 |
-| `app-x86_64-release.apk` | Intel 架构设备与模拟器 |
-| `app-universal-release.apk` | 不确定架构时选这个，体积较大 |
+| `CurSimple-arm64-v8a.apk` | 现代 64 位 ARM 手机（绝大多数设备选这个） |
+| `CurSimple-armeabi-v7a.apk` | 较旧的 32 位 ARM 设备 |
+| `CurSimple-x86_64.apk` | Intel 架构设备与模拟器 |
+| `CurSimple-x86.apk` | 32 位 Intel 设备 |
+| `CurSimple-universal.apk` | 不确定架构时选这个，体积较大 |
 
 版本号带 `-beta`、`-alpha` 等后缀的是预发布版，会标记为 Pre-release。
 
