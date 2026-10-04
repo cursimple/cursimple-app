@@ -35,5 +35,5 @@
       "downloadUrl": "https://github.com/cursimple/cursimple-app/releases/download/v0.7.4/CurSimple-x86.apk"
     }
   ],
-  "prerelease": false
+  "prerelease": true
 }
