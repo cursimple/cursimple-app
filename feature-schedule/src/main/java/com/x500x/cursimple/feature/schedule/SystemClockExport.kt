@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -158,6 +159,7 @@ internal fun SystemClockExportDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val appContext = context.applicationContext
     val repository = remember(appContext) { DataStoreUserPreferencesRepository(appContext) }
     val preferences by repository.preferencesFlow.collectAsState(initial = UserPreferences())
@@ -270,10 +272,10 @@ internal fun SystemClockExportDialog(
                             val muted = allSent && canMute && mute
                             if (muted) repository.setReminderMuted(plan.date.toString(), muted = true)
                             val message = when {
-                                sent == null -> context.getString(R.string.schedule_system_clock_no_app)
-                                allSent && muted -> context.resources.getQuantityString(R.plurals.schedule_system_clock_done_muted, sent, sent)
-                                allSent -> context.resources.getQuantityString(R.plurals.schedule_system_clock_done, sent, sent)
-                                else -> context.getString(R.string.schedule_system_clock_partial, sent, plan.writable.size)
+                                sent == null -> resources.getString(R.string.schedule_system_clock_no_app)
+                                allSent && muted -> resources.getQuantityString(R.plurals.schedule_system_clock_done_muted, sent, sent)
+                                allSent -> resources.getQuantityString(R.plurals.schedule_system_clock_done, sent, sent)
+                                else -> resources.getString(R.string.schedule_system_clock_partial, sent, plan.writable.size)
                             }
                             Toast.makeText(appContext, message, Toast.LENGTH_LONG).show()
                             sending = false
