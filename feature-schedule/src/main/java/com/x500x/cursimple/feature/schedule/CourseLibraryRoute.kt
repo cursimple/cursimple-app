@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,7 +18,7 @@ import com.x500x.cursimple.core.kernel.model.hiddenCourses
 fun CourseLibraryRoute(
     viewModel: ScheduleViewModel,
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
-    maxWeekCount: Int = 30,
+    maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()

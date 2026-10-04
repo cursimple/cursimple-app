@@ -165,6 +165,7 @@ h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.2; font-weight: 800; le
 .points b { display: block; color: var(--ink); font-size: 16.5px; margin-bottom: 1px; }
 
 .tabs { display: inline-flex; padding: 5px; gap: 2px; border-radius: 999px; background: #fff; box-shadow: var(--shadow); }
+.tabs { flex-wrap: wrap; justify-content: center; }
 .tabs button { padding: 7px 16px; border-radius: 999px; font-size: 14.5px; color: var(--ink-2); transition: background .25s, color .25s; }
 .tabs button:hover { color: var(--g-dd); }
 .tabs button:active { transform: scale(.95); }
@@ -178,6 +179,9 @@ h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.2; font-weight: 800; le
 .duo .card-img { position: absolute; width: 64%; }
 .duo .card-img:first-child { left: 0; top: 40px; transform: rotate(-4deg); z-index: 2; }
 .duo .card-img:last-child { right: 0; top: 0; transform: rotate(3deg); }
+.alarm-shots { height: 560px; }
+.alarm-shots .card-img { width: 47%; }
+.shot-note { margin-top: 20px; color: var(--mute); font-size: 13.5px; }
 
 .stack { position: relative; padding-bottom: 20px; }
 .stack-top { position: absolute; width: 360px; left: 50%; bottom: 60px; transform: translateX(-50%) rotate(-2deg); border: 6px solid #fff; }

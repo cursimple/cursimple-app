@@ -30,6 +30,8 @@ object ScheduleWidgetUpdater {
         ScheduleGlanceWidgetReceiver.updateWidgets(app)
         NextCourseGlanceWidgetReceiver.updateWidgets(app)
         ReminderGlanceWidgetReceiver.updateWidgets(app)
+        CalendarWidgetReceiver.updateWidgets(app)
+        PendingTaskWidgetReceiver.updateWidgets(app)
         // 作息或课表变化后边界随之改变，这里是所有变更路径的汇聚点
         rescheduleBoundaryRefresh(app)
         // 守护链被清掉后没有自身事件能拉起来，借每次刷新把它补回去

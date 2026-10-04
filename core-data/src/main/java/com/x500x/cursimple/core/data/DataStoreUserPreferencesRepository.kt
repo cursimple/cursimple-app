@@ -81,7 +81,7 @@ class DataStoreUserPreferencesRepository(
                 entries = decodeHolidayCalendarEntries(prefs[KEY_HOLIDAY_CALENDAR_ENTRIES_JSON]),
                 syncedYears = decodeSyncedHolidayYears(prefs[KEY_HOLIDAY_CALENDAR_SYNCED_JSON]),
             ),
-            skipRemindersOnHoliday = prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] ?: false,
+            skipRemindersOnHoliday = prefs[KEY_SKIP_REMINDERS_ON_HOLIDAY] ?: true,
             alarmKeepAliveEnabled = prefs[KEY_ALARM_KEEP_ALIVE] ?: true,
             notificationPermissionStartupAsked = prefs[KEY_NOTIFICATION_PERMISSION_ASKED] ?: false,
             islandStartupPromptShown = prefs[KEY_ISLAND_PROMPT_SHOWN] ?: false,
@@ -129,6 +129,9 @@ class DataStoreUserPreferencesRepository(
             pluginRegistryRepo = prefs[KEY_PLUGIN_REGISTRY_REPO]
                 ?.takeIf(String::isNotBlank)
                 ?: DEFAULT_PLUGIN_REGISTRY_REPO,
+            pluginSources = restoredPluginSources(prefs[KEY_PLUGIN_SOURCES], prefs[KEY_PLUGIN_REGISTRY_REPO]),
+            componentSources = prefs[KEY_COMPONENT_SOURCES]?.let(::decodeMarketSources)
+                ?: listOf(DEFAULT_COMPONENT_REGISTRY_REPO),
             pluginMarketCacheJson = prefs[KEY_PLUGIN_MARKET_CACHE_JSON].orEmpty(),
             pluginMarketCachedAtMillis = prefs[KEY_PLUGIN_MARKET_CACHED_AT_MILLIS] ?: 0L,
             pluginMarketCachedRegistry = prefs[KEY_PLUGIN_MARKET_CACHED_REGISTRY].orEmpty(),
@@ -282,6 +285,12 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_CLASS_NOTICE_SKIN] = skin.name }
     }
 
+    override suspend fun setClassNoticeBannerDurationSeconds(seconds: Int) {
+        store.edit { prefs ->
+            prefs[KEY_CLASS_NOTICE_BANNER_DURATION] = ClassNoticePreferences.coerceBannerDurationSeconds(seconds)
+        }
+    }
+
     override suspend fun setClassNoticeAnimation(animation: ClassNoticeAnimation) {
         store.edit { prefs -> prefs[KEY_CLASS_NOTICE_ANIMATION] = animation.name }
     }
@@ -400,6 +409,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED] = enabled }
+    }
+
+    override suspend fun setTodayOverviewEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_TODAY_OVERVIEW_ENABLED] = enabled }
     }
 
     override suspend fun setScheduleSaturdayVisible(visible: Boolean) {
@@ -634,6 +647,14 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_PLUGIN_REGISTRY_REPO] = repo.trim() }
     }
 
+    override suspend fun setPluginSources(sources: List<String>) {
+        store.edit { prefs -> prefs[KEY_PLUGIN_SOURCES] = encodeMarketSources(sources) }
+    }
+
+    override suspend fun setComponentSources(sources: List<String>) {
+        store.edit { prefs -> prefs[KEY_COMPONENT_SOURCES] = encodeMarketSources(sources) }
+    }
+
     override suspend fun setPluginMarketCache(json: String, atMillis: Long, registry: String) {
         store.edit { prefs ->
             if (json.isBlank()) {
@@ -731,6 +752,8 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_UPDATE_NOTICE_VERSION_NAME)
             prefs.remove(KEY_MUTED_UPDATE_VERSION_CODE)
             prefs.remove(KEY_PLUGIN_REGISTRY_REPO)
+            prefs.remove(KEY_PLUGIN_SOURCES)
+            prefs.remove(KEY_COMPONENT_SOURCES)
             prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
             prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
             prefs.remove(KEY_PLUGIN_MARKET_CACHED_AT_MILLIS)
@@ -990,6 +1013,7 @@ class DataStoreUserPreferencesRepository(
 
     private fun Preferences.toScheduleDisplay(): ScheduleDisplayPreferences {
         return ScheduleDisplayPreferences(
+            todayOverviewEnabled = this[KEY_TODAY_OVERVIEW_ENABLED] ?: true,
             nodeColumnTimeEnabled = this[KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED] ?: true,
             saturdayVisible = this[KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE] ?: true,
             weekendVisible = this[KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE] ?: true,
@@ -1019,13 +1043,16 @@ class DataStoreUserPreferencesRepository(
             focusNotificationEnabled = this[KEY_CLASS_NOTICE_FOCUS] ?: true,
             skin = this[KEY_CLASS_NOTICE_SKIN]
                 ?.let { runCatching { ClassNoticeSkin.valueOf(it) }.getOrNull() }
-                ?: ClassNoticeSkin.System,
+                ?: ClassNoticeSkin.Overlay,
             animation = this[KEY_CLASS_NOTICE_ANIMATION]
                 ?.let { runCatching { ClassNoticeAnimation.valueOf(it) }.getOrNull() }
                 ?: ClassNoticeAnimation.Slide,
             blurEnabled = this[KEY_CLASS_NOTICE_BLUR] ?: true,
             blurStrength = ClassNoticePreferences.coerceBlurStrength(
                 this[KEY_CLASS_NOTICE_BLUR_STRENGTH] ?: ClassNoticePreferences.DEFAULT_BLUR_STRENGTH,
+            ),
+            bannerDurationSeconds = ClassNoticePreferences.coerceBannerDurationSeconds(
+                this[KEY_CLASS_NOTICE_BANNER_DURATION] ?: ClassNoticePreferences.DEFAULT_BANNER_DURATION_SECONDS,
             ),
         )
 
@@ -1081,6 +1108,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT)
         remove(KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME)
         remove(KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED)
+        remove(KEY_TODAY_OVERVIEW_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE)
@@ -1150,6 +1178,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_CLASS_NOTICE_ANIMATION = stringPreferencesKey("class_notice_animation")
         val KEY_CLASS_NOTICE_BLUR = booleanPreferencesKey("class_notice_blur")
         val KEY_CLASS_NOTICE_BLUR_STRENGTH = intPreferencesKey("class_notice_blur_strength")
+        val KEY_CLASS_NOTICE_BANNER_DURATION = intPreferencesKey("class_notice_banner_duration_seconds")
         val KEY_ALARM_PRE_NOTICE_ENABLED = booleanPreferencesKey("alarm_pre_notice_enabled")
         val KEY_ALARM_PRE_NOTICE_MINUTES = intPreferencesKey("alarm_pre_notice_minutes")
         val KEY_SCHEDULE_TEXT_FULL_CENTER = booleanPreferencesKey("schedule_text_full_center")
@@ -1169,6 +1198,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_CUSTOM_COLORS_ADAPT_TO_THEME =
             booleanPreferencesKey("schedule_custom_colors_adapt_to_theme")
         val KEY_SCHEDULE_DISPLAY_NODE_COLUMN_TIME_ENABLED = booleanPreferencesKey("schedule_display_node_column_time_enabled")
+        val KEY_TODAY_OVERVIEW_ENABLED = booleanPreferencesKey("schedule_today_overview_enabled")
         val KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE = booleanPreferencesKey("schedule_display_saturday_visible")
         val KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE = booleanPreferencesKey("schedule_display_weekend_visible")
         val KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE = stringPreferencesKey("schedule_display_row_fit_mode")
@@ -1235,6 +1265,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_UPDATE_NOTICE_VERSION_NAME = stringPreferencesKey("update_notice_version_name")
         val KEY_MUTED_UPDATE_VERSION_CODE = intPreferencesKey("muted_update_version_code")
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")
+        /** 一行一个 `owner/repo`；存成空串表示用户把来源全删了，和「从没存过」区分开 */
+        val KEY_PLUGIN_SOURCES = stringPreferencesKey("plugin_sources")
+        val KEY_COMPONENT_SOURCES = stringPreferencesKey("component_sources")
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
         val KEY_PLUGIN_MARKET_CACHE_JSON = stringPreferencesKey("plugin_market_cache_json")
         val KEY_PLUGIN_MARKET_CACHED_AT_MILLIS = longPreferencesKey("plugin_market_cached_at_millis")

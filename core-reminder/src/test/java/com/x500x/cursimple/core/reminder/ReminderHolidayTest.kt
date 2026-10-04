@@ -28,6 +28,28 @@ class ReminderHolidayTest {
     private val fromDate = LocalDate.of(2026, 9, 7)
 
     @Test
+    fun defaultPlannerPolicySkipsHolidays() {
+        val plans = planner.expandRule(singleCourseRule(), schedule(), profile(), fromDate, holidayCalendar = HolidayCalendarSettings())
+        assertFalse(plans.any { it.message.startsWith("10月5日") })
+    }
+
+    @Test
+    fun movingACourseDoesNotBypassAnExplicitlyMutedDate() {
+        val target = LocalDate.of(2026, 10, 3)
+        val move = TemporaryScheduleOverride(
+            id = "move", type = TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = "2026-09-07", targetDate = target.toString(),
+            moveCourseId = "math", moveToStartNode = 1, moveToEndNode = 2,
+        )
+        val policy = ReminderDayPolicy(mutedDates = setOf(target))
+        val calendar = HolidayCalendarSettings(entries = listOf(HolidayCalendarEntry(target.toString(), HolidayEntryKind.Workday)))
+        for (rule in listOf(singleCourseRule(), labelRule(), firstCourseRule())) {
+            val plans = planner.expandRule(rule, schedule(), profile(), fromDate, listOf(move), holidayCalendar = calendar, dayPolicy = policy)
+            assertFalse(plans.any { it.message.startsWith("10月3日") })
+        }
+    }
+
+    @Test
     fun builtInHolidayRemovesCourseReminder() {
         val dates = planDates(holidayCalendar = HolidayCalendarSettings())
 
@@ -128,7 +150,7 @@ class ReminderHolidayTest {
     }
 
     @Test
-    fun holidaysKeepTheirRemindersByDefault() {
+    fun explicitlyDisablingHolidaySkipKeepsTheirReminders() {
         val dates = planDates(
             holidayCalendar = HolidayCalendarSettings(),
             dayPolicy = ReminderDayPolicy.ALWAYS,

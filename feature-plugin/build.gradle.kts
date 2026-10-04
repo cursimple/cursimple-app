@@ -14,6 +14,12 @@ android {
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    testOptions {
+        // 仅提高测试 APK 的 targetSdk，避免 API 36 的旧应用兼容弹窗遮挡 Compose。
+        targetSdk = 36
     }
 
     buildFeatures {
@@ -40,6 +46,7 @@ dependencies {
 
     implementation(project(":core-plugin"))
     implementation(project(":core-data"))
+    implementation(project(":core-kernel"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.webkit)
@@ -49,6 +56,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.okhttp)
+    implementation(libs.zxing.core)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -58,4 +67,10 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
 
     testImplementation(libs.junit4)
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

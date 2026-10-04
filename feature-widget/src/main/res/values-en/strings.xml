@@ -116,4 +116,57 @@
     <string name="widget_preview_reminder_sub_1">10 min before · East 13-C-315</string>
     <string name="widget_preview_reminder_sub_2">10 min before · East 11-A-207</string>
     <string name="widget_diag_pin_ignored">Declared supported, but this launcher ignores it (manual add is used instead)</string>
+
+    <!-- 课程日历与待完成 -->
+    <string name="calendar_widget_description">CurSimple · Course calendar</string>
+    <string name="tasks_widget_description">CurSimple · To-do</string>
+    <string name="widget_label_calendar">Course calendar</string>
+    <string name="widget_label_tasks">To-do</string>
+    <string name="widget_catalog_calendar_description">Week timetable and month calendar; tap a day to open its classes</string>
+    <string name="widget_catalog_tasks_description">Unfinished tasks from your components, sorted by deadline</string>
+    <string name="widget_background_image_error">Background image unavailable</string>
+    <string name="widget_calendar_mode_week">Wk</string>
+    <string name="widget_calendar_mode_month">Mo</string>
+    <string name="widget_calendar_mode_switch">Switch between week and month view</string>
+    <string name="widget_calendar_reset_week">This week</string>
+    <string name="widget_calendar_reset_month">This month</string>
+    <string name="widget_calendar_week_title">Week %1$d</string>
+    <string name="widget_calendar_before_term_title">Before term</string>
+    <string name="widget_calendar_range">%1$s – %2$s</string>
+    <string name="widget_calendar_month_title">%2$s %1$d</string>
+    <string name="widget_calendar_today_subtitle">Today %1$s</string>
+    <string name="widget_calendar_no_term_start">Term start not set</string>
+    <string name="widget_calendar_tag_holiday">Off</string>
+    <string name="widget_calendar_tag_makeup">Work</string>
+    <string name="widget_calendar_legend_class">Class</string>
+    <string name="widget_calendar_legend_exam">Exam</string>
+    <string name="widget_calendar_legend_event">Event</string>
+    <string name="widget_calendar_empty_week">No classes this week</string>
+    <string name="widget_calendar_empty_no_term">Set the term start to show classes</string>
+    <string name="widget_tasks_badge">%1$d left</string>
+    <string name="widget_tasks_empty">Nothing to do\nTasks synced by your components appear here by deadline</string>
+    <string name="widget_tasks_empty_hint">Tasks synced by your components appear here by deadline</string>
+    <string name="widget_tasks_due_at">Due %1$s</string>
+    <string name="widget_tasks_start_at">Starts %1$s</string>
+    <string name="widget_tasks_no_time">No deadline</string>
+    <string name="widget_tasks_overdue">Overdue</string>
+    <string name="widget_tasks_started">Started</string>
+    <string name="widget_tasks_left_minutes">%1$d min left</string>
+    <string name="widget_tasks_left_hours">%1$d h left</string>
+    <string name="widget_tasks_left_days">In %1$d days</string>
+    <string name="widget_tasks_today_time">Today %1$s</string>
+    <string name="widget_tasks_tomorrow_time">Tomorrow %1$s</string>
+    <string-array name="widget_calendar_weekdays">
+        <item>M</item>
+        <item>T</item>
+        <item>W</item>
+        <item>T</item>
+        <item>F</item>
+        <item>S</item>
+        <item>S</item>
+    </string-array>
+    <string name="widget_calendar_legend_holiday">Day off</string>
+    <string name="widget_calendar_legend_makeup">Make-up day</string>
+    <string name="widget_page_prev">Previous</string>
+    <string name="widget_page_next">Next</string>
 </resources>

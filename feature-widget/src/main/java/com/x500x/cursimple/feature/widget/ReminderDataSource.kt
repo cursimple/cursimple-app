@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.widget
 
+import com.x500x.cursimple.core.kernel.mood.dayMoodLine
+import com.x500x.cursimple.core.kernel.mood.DayMood
 import android.content.Context
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -131,13 +133,12 @@ internal object ReminderDataSource {
             )
         }
 
-        val emptyTitle = appContext.getString(
-            if (rules.isEmpty()) {
-                R.string.widget_reminder_empty_no_rules
-            } else {
-                R.string.widget_reminder_empty_none_upcoming
-            },
-        )
+        val emptyTitle = if (rules.isEmpty()) {
+            appContext.getString(R.string.widget_reminder_empty_no_rules)
+        } else {
+            appContext.dayMoodLine(today, DayMood.NoAlarms)
+                ?: appContext.getString(R.string.widget_reminder_empty_none_upcoming)
+        }
         val emptySubtitle = appContext.getString(
             if (rules.isEmpty()) {
                 R.string.widget_reminder_empty_no_rules_sub

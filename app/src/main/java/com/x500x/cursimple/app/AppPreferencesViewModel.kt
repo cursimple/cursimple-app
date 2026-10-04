@@ -160,6 +160,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setClassNoticeBlurStrength(strength) }
     }
 
+    fun setClassNoticeBannerDurationSeconds(seconds: Int) {
+        viewModelScope.launch { repository.setClassNoticeBannerDurationSeconds(seconds) }
+    }
+
     fun setScheduleTextVerticalCenter(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleTextVerticalCenter(enabled) }
     }
@@ -222,6 +226,10 @@ class AppPreferencesViewModel(
 
     fun setScheduleNodeColumnTimeEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleNodeColumnTimeEnabled(enabled) }
+    }
+
+    fun setTodayOverviewEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setTodayOverviewEnabled(enabled) }
     }
 
     fun setScheduleSaturdayVisible(visible: Boolean) {
@@ -443,6 +451,14 @@ class AppPreferencesViewModel(
 
     fun setPluginRegistryRepo(repo: String) {
         viewModelScope.launch { repository.setPluginRegistryRepo(repo) }
+    }
+
+    fun setPluginSources(sources: List<String>) {
+        viewModelScope.launch { repository.setPluginSources(sources) }
+    }
+
+    fun setComponentSources(sources: List<String>) {
+        viewModelScope.launch { repository.setComponentSources(sources) }
     }
 
     fun setComponentMarketIndexUrl(url: String) {

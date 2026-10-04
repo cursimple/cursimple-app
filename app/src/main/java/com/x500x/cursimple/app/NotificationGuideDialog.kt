@@ -40,6 +40,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.app.notice.ClassNoticeOverlay
+import com.x500x.cursimple.app.notice.SelfDrawnNotice
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
 import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
@@ -215,8 +216,10 @@ internal fun buildNotificationGuideSteps(
                 },
             ),
         )
-        // 悬浮窗皮肤才需要悬浮窗权限，其余皮肤用不上这份提示
-        if (preferences.skin == ClassNoticeSkin.Overlay) {
+        // 悬浮窗皮肤才需要悬浮窗权限；系统横幅指望不上的手机横幅全靠悬浮窗，也得要
+        if (preferences.skin == ClassNoticeSkin.Overlay ||
+            (preferences.headsUpEnabled && SelfDrawnNotice.only())
+        ) {
             add(
                 NotificationGuideStep(
                     title = context.getString(R.string.notice_guide_step_overlay_title),

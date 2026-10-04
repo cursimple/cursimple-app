@@ -308,6 +308,7 @@ data class EditableAppAlarmSettings(
     val repeatIntervalSeconds: Int? = null,
     val repeatCount: Int? = null,
     val triggerAtMillis: Long? = null,
+    val allowOnHoliday: Boolean = false,
 )
 
 data class ReminderPlan(
@@ -325,6 +326,7 @@ data class ReminderPlan(
     val ringDurationSeconds: Int? = null,
     val repeatIntervalSeconds: Int? = null,
     val repeatCount: Int? = null,
+    val allowOnHoliday: Boolean = false,
 )
 
 sealed interface TriggeredAppAlarmFinishAction {
@@ -379,6 +381,7 @@ data class SystemAlarmRecord(
     @SerialName("ringtoneUriOverride") val ringtoneUriOverride: String? = null,
     @SerialName("alertModeOverride") val alertModeOverride: AlarmAlertMode? = null,
     @SerialName("manualAlarm") val manualAlarm: Boolean = false,
+    @SerialName("allowOnHoliday") val allowOnHoliday: Boolean = false,
     @SerialName("createdAtMillis") val createdAtMillis: Long,
 )
 
@@ -437,6 +440,7 @@ fun ReminderPlan.toAppAlarmRecord(
         repeatCount = repeatCount,
         ringtoneUriOverride = ringtoneUri,
         alertModeOverride = alertMode,
+        allowOnHoliday = allowOnHoliday,
         createdAtMillis = createdAtMillis,
     )
 }

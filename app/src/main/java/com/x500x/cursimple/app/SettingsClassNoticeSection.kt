@@ -55,6 +55,7 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.notice.ClassNoticeGateway
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.app.notice.ClassNoticeOverlay
+import com.x500x.cursimple.app.notice.SelfDrawnNotice
 import com.x500x.cursimple.core.data.ClassNoticeAnimation
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
@@ -85,6 +86,7 @@ internal fun ClassNoticeSettingsSection(
     onAnimationChange: (ClassNoticeAnimation) -> Unit,
     onBlurChange: (Boolean) -> Unit,
     onBlurStrengthChange: (Int) -> Unit,
+    onBannerDurationChange: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     // 渠道只在第一次发通知时才会建，但「去系统设置」要跳到渠道页——
@@ -93,12 +95,14 @@ internal fun ClassNoticeSettingsSection(
     // 用户可能刚跳去系统设置改完就回来，回到前台时重新查一次拦没拦
     var blocked by remember { mutableStateOf(ClassNoticeNotifier.systemBlocked(context, preferences)) }
     var islandBlocked by remember { mutableStateOf(ClassNoticeNotifier.islandBlocked(context)) }
+    var canDrawOverlay by remember { mutableStateOf(ClassNoticeOverlay.canDraw(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 blocked = ClassNoticeNotifier.systemBlocked(context, preferences)
                 islandBlocked = ClassNoticeNotifier.islandBlocked(context)
+                canDrawOverlay = ClassNoticeOverlay.canDraw(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -108,6 +112,7 @@ internal fun ClassNoticeSettingsSection(
     // 「通知弹出引导」弹窗：总开关打开时有未放行的项就自动弹一次；常驻入口行随时能自查
     var showGuide by remember { mutableStateOf(false) }
     var guideAutoShown by rememberSaveable { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
 
     SettingsSwitchRow(
         icon = Icons.Rounded.NotificationsActive,
@@ -126,6 +131,15 @@ internal fun ClassNoticeSettingsSection(
     )
     if (showGuide) {
         NotificationGuideDialog(preferences = preferences, onDismiss = { showGuide = false })
+    }
+    SettingsActionRow(
+        icon = Icons.Rounded.NotificationsActive,
+        title = stringResource(R.string.settings_dev_notice_diagnostics_title),
+        subtitle = stringResource(R.string.settings_dev_notice_diagnostics_subtitle),
+        onClick = { showDiagnostics = true },
+    )
+    if (showDiagnostics) {
+        ClassNoticeDiagnosticsDialog(preferences, onDismiss = { showDiagnostics = false })
     }
 
     if (preferences.enabled) {
@@ -149,6 +163,75 @@ internal fun ClassNoticeSettingsSection(
                     )
                 }
             }
+        }
+        // vivo 没备案时系统那头全绿、现象照旧，不说清楚用户只会一遍遍去系统里找开关
+        val selfDrawnReason = SelfDrawnNotice.reason()
+        if (!blocked && selfDrawnReason != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = stringResource(R.string.settings_class_notice_self_drawn_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                    Text(
+                        text = stringResource(selfDrawnReason.bodyRes()),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    )
+                }
+            }
+            SettingsActionRow(
+                icon = Icons.Rounded.Layers,
+                title = stringResource(
+                    if (canDrawOverlay) {
+                        R.string.settings_class_notice_overlay_granted
+                    } else {
+                        R.string.settings_class_notice_overlay_permission
+                    },
+                ),
+                subtitle = stringResource(
+                    if (canDrawOverlay) {
+                        R.string.settings_class_notice_self_drawn_overlay_on
+                    } else {
+                        R.string.settings_class_notice_self_drawn_overlay_off
+                    },
+                ),
+                onClick = { context.openOverlayPermissionSettings() },
+                trailing = {
+                    Text(
+                        text = stringResource(
+                            if (canDrawOverlay) {
+                                R.string.settings_class_notice_permission_badge_on
+                            } else {
+                                R.string.settings_class_notice_permission_badge_off
+                            },
+                        ),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (canDrawOverlay) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                    )
+                },
+            )
+            // 厂商的「锁屏显示」「后台弹出界面」查不到开没开，只能给个直达入口：没开时锁屏那一版会被系统悄悄拦掉
+            SettingsActionRow(
+                icon = Icons.Rounded.Lock,
+                title = stringResource(R.string.settings_class_notice_self_drawn_lock_title),
+                subtitle = stringResource(selfDrawnReason.lockSubtitleRes()),
+                onClick = {
+                    launchSettingsIntents(
+                        context,
+                        com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents.backgroundPopup(context),
+                    )
+                },
+            )
         }
         // 通知权限是这一整块的前提，状态得一眼看见，不用点进系统里才知道
         SettingsActionRow(
@@ -210,7 +293,8 @@ internal fun ClassNoticeSettingsSection(
             checked = preferences.lockScreenEnabled,
             onCheckedChange = onLockScreenChange,
         )
-        SettingsSwitchRow(
+        // 只用自己画的手机上胶囊出不来，开关留着只会让人以为坏了
+        if (!SelfDrawnNotice.only()) SettingsSwitchRow(
             icon = Icons.Rounded.Star,
             title = stringResource(R.string.settings_class_notice_focus_title),
             subtitle = stringResource(R.string.settings_class_notice_focus_subtitle),
@@ -218,7 +302,7 @@ internal fun ClassNoticeSettingsSection(
             onCheckedChange = onFocusChange,
         )
         // 小米的焦点通知、Android 16 的实时活动都得用户在系统里另外放行，应用里开了也不算数
-        if (preferences.focusNotificationEnabled && islandBlocked) {
+        if (preferences.focusNotificationEnabled && islandBlocked && !SelfDrawnNotice.only()) {
             SettingsActionRow(
                 icon = Icons.Rounded.OpenInNew,
                 title = stringResource(R.string.settings_class_notice_open_system),
@@ -233,6 +317,7 @@ internal fun ClassNoticeSettingsSection(
             onAnimationChange = onAnimationChange,
             onBlurChange = onBlurChange,
             onBlurStrengthChange = onBlurStrengthChange,
+            onBannerDurationChange = onBannerDurationChange,
         )
     }
 
@@ -328,61 +413,37 @@ private fun ClassNoticeSkinSettings(
     onAnimationChange: (ClassNoticeAnimation) -> Unit,
     onBlurChange: (Boolean) -> Unit,
     onBlurStrengthChange: (Int) -> Unit,
+    onBannerDurationChange: (Int) -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
     SettingsSectionHeader(stringResource(R.string.settings_class_notice_skin_header))
 
-    ClassNoticeSkinOption(
-        title = stringResource(R.string.settings_class_notice_skin_system),
-        description = stringResource(R.string.settings_class_notice_skin_system_desc),
-        selected = preferences.skin == ClassNoticeSkin.System,
-        onClick = { onSkinChange(ClassNoticeSkin.System) },
-    )
-    ClassNoticeSkinOption(
-        title = stringResource(R.string.settings_class_notice_skin_card),
-        description = stringResource(R.string.settings_class_notice_skin_card_desc),
-        selected = preferences.skin == ClassNoticeSkin.Card,
-        onClick = { onSkinChange(ClassNoticeSkin.Card) },
-    )
-    ClassNoticeSkinOption(
-        title = stringResource(R.string.settings_class_notice_skin_overlay),
-        description = stringResource(R.string.settings_class_notice_skin_overlay_desc),
-        selected = preferences.skin == ClassNoticeSkin.Overlay,
-        onClick = { onSkinChange(ClassNoticeSkin.Overlay) },
-    )
+    // 只用自己画的手机上，系统原生和品牌卡片两档都弹不出来，选了也白选：只留自绘横幅的那几项，
+    // 悬浮窗权限在上面的说明卡片下已经有一行了
+    val selfDrawnOnly = SelfDrawnNotice.only()
+    if (!selfDrawnOnly) ClassNoticeSkinOptions(preferences, onSkinChange)
 
-    if (preferences.skin == ClassNoticeSkin.Overlay) {
-        // 用户可能刚去系统里授完权回来，回到前台重新查一次
-        var canDraw by remember { mutableStateOf(ClassNoticeOverlay.canDraw(context)) }
-        val lifecycleOwner = LocalLifecycleOwner.current
-        DisposableEffect(lifecycleOwner) {
-            val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) {
-                    canDraw = ClassNoticeOverlay.canDraw(context)
-                }
-            }
-            lifecycleOwner.lifecycle.addObserver(observer)
-            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-        }
+    if (preferences.skin == ClassNoticeSkin.Overlay || selfDrawnOnly) {
+        if (!selfDrawnOnly) OverlayPermissionRow()
 
-        if (canDraw) {
-            SettingsActionRow(
-                icon = Icons.Rounded.Layers,
-                title = stringResource(R.string.settings_class_notice_overlay_granted),
-                subtitle = stringResource(R.string.settings_class_notice_overlay_granted_desc),
-                onClick = { context.openOverlayPermissionSettings() },
-            )
-        } else {
-            SettingsActionRow(
-                icon = Icons.Rounded.Layers,
-                title = stringResource(R.string.settings_class_notice_overlay_permission),
-                subtitle = stringResource(R.string.settings_class_notice_overlay_permission_desc),
-                onClick = { context.openOverlayPermissionSettings() },
-            )
-        }
-
+        AlarmNumberSettingRow(
+            title = stringResource(R.string.settings_class_notice_banner_duration),
+            value = preferences.bannerDurationSeconds,
+            unit = stringResource(R.string.settings_class_notice_seconds_unit),
+            min = ClassNoticePreferences.MIN_BANNER_DURATION_SECONDS,
+            max = ClassNoticePreferences.MAX_BANNER_DURATION_SECONDS,
+            step = 5,
+            onValueChange = onBannerDurationChange,
+            editable = true,
+        )
+        Text(
+            text = stringResource(R.string.settings_class_notice_banner_duration_desc),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
         ClassNoticeAnimationPicker(
             selected = preferences.animation,
             onSelect = onAnimationChange,
@@ -628,5 +689,83 @@ private fun warnIfPreviewBlocked(
         context.openOverlayPermissionSettings()
         return true
     }
+    // 只用自己画的手机上没悬浮窗权限时预览照发，但系统横幅不会弹，先说一声免得以为坏了
+    if (preferences.headsUpEnabled && SelfDrawnNotice.only() && !ClassNoticeOverlay.canDraw(context)) {
+        Toast.makeText(
+            context,
+            context.getString(R.string.settings_toast_preview_self_drawn_no_overlay),
+            Toast.LENGTH_LONG,
+        ).show()
+    }
     return false
+}
+
+/** 三档皮肤的单选。 */
+@Composable
+private fun ClassNoticeSkinOptions(
+    preferences: ClassNoticePreferences,
+    onSkinChange: (ClassNoticeSkin) -> Unit,
+) {
+    ClassNoticeSkinOption(
+        title = stringResource(R.string.settings_class_notice_skin_system),
+        description = stringResource(R.string.settings_class_notice_skin_system_desc),
+        selected = preferences.skin == ClassNoticeSkin.System,
+        onClick = { onSkinChange(ClassNoticeSkin.System) },
+    )
+    ClassNoticeSkinOption(
+        title = stringResource(R.string.settings_class_notice_skin_card),
+        description = stringResource(R.string.settings_class_notice_skin_card_desc),
+        selected = preferences.skin == ClassNoticeSkin.Card,
+        onClick = { onSkinChange(ClassNoticeSkin.Card) },
+    )
+    ClassNoticeSkinOption(
+        title = stringResource(R.string.settings_class_notice_skin_overlay),
+        description = stringResource(R.string.settings_class_notice_skin_overlay_desc),
+        selected = preferences.skin == ClassNoticeSkin.Overlay,
+        onClick = { onSkinChange(ClassNoticeSkin.Overlay) },
+    )
+}
+
+/** 悬浮窗皮肤那一档的权限行；用户可能刚去系统里授完权回来，回到前台重新查一次。 */
+@Composable
+private fun OverlayPermissionRow() {
+    val context = LocalContext.current
+    var canDraw by remember { mutableStateOf(ClassNoticeOverlay.canDraw(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                canDraw = ClassNoticeOverlay.canDraw(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    if (canDraw) {
+        SettingsActionRow(
+            icon = Icons.Rounded.Layers,
+            title = stringResource(R.string.settings_class_notice_overlay_granted),
+            subtitle = stringResource(R.string.settings_class_notice_overlay_granted_desc),
+            onClick = { context.openOverlayPermissionSettings() },
+        )
+    } else {
+        SettingsActionRow(
+            icon = Icons.Rounded.Layers,
+            title = stringResource(R.string.settings_class_notice_overlay_permission),
+            subtitle = stringResource(R.string.settings_class_notice_overlay_permission_desc),
+            onClick = { context.openOverlayPermissionSettings() },
+        )
+    }
+}
+
+/** 说明卡片的正文：各家管得不一样，按原因挑。 */
+private fun SelfDrawnNotice.Reason.bodyRes(): Int = when (this) {
+    SelfDrawnNotice.Reason.Vivo -> R.string.settings_class_notice_self_drawn_body_vivo
+    SelfDrawnNotice.Reason.Huawei -> R.string.settings_class_notice_self_drawn_body_huawei
+}
+
+/** 锁屏那一版要放行的两项，各家在设置里的叫法不一样。 */
+private fun SelfDrawnNotice.Reason.lockSubtitleRes(): Int = when (this) {
+    SelfDrawnNotice.Reason.Vivo -> R.string.settings_class_notice_self_drawn_lock_subtitle_vivo
+    SelfDrawnNotice.Reason.Huawei -> R.string.settings_class_notice_self_drawn_lock_subtitle_other
 }

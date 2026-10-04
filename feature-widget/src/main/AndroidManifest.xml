@@ -168,6 +168,101 @@
                 android:name="vivo.widget.description"
                 android:resource="@string/reminder_widget_description" />
         </receiver>
+
+        <!-- Course calendar (week / month) -->
+        <receiver
+            android:name=".CalendarWidgetReceiver"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_calendar"
+            android:label="@string/widget_label_calendar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".CalendarWidgetReceiverMIUI"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_calendar"
+            android:label="@string/widget_label_calendar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_widget_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/calendar_widget_description" />
+        </receiver>
+
+        <!-- Pending tasks from components: a component widget, enabled only while a component is installed -->
+        <receiver
+            android:name=".PendingTaskWidgetReceiver"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_tasks"
+            android:label="@string/widget_label_tasks">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tasks_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".PendingTaskWidgetReceiverMIUI"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_tasks"
+            android:label="@string/widget_label_tasks">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/tasks_widget_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/tasks_widget_description" />
+        </receiver>
+
+        <receiver
+            android:name=".CalendarWidgetActionReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".PendingTaskRemoteViewsService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
     </application>
 
 </manifest>

@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
@@ -85,6 +86,7 @@ internal fun AppAlarmEditorDialog(
         initialDuration = record.ringDurationSeconds ?: DEFAULT_APP_ALARM_RING_DURATION_SECONDS,
         initialInterval = record.repeatIntervalSeconds ?: DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS,
         initialCount = record.repeatCount ?: DEFAULT_APP_ALARM_REPEAT_COUNT,
+        initialAllowOnHoliday = record.allowOnHoliday,
         onPickSystemRingtone = onPickSystemRingtone,
         onPickLocalAudio = onPickLocalAudio,
         onDismiss = onDismiss,
@@ -136,6 +138,7 @@ private fun AlarmEditor(
     onDismiss: () -> Unit,
     onConfirm: (Long, String, String, EditableAppAlarmSettings) -> Unit,
     editableContent: Boolean = false,
+    initialAllowOnHoliday: Boolean = false,
 ) {
     val editorZone = LocalAppZone.current
     val timeState = rememberTimePickerState(
@@ -153,6 +156,7 @@ private fun AlarmEditor(
     var duration by rememberSaveable { mutableStateOf(initialDuration) }
     var interval by rememberSaveable { mutableStateOf(initialInterval) }
     var count by rememberSaveable { mutableStateOf(initialCount) }
+    var allowOnHoliday by rememberSaveable { mutableStateOf(initialAllowOnHoliday) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showRingtoneChooser by rememberSaveable { mutableStateOf(false) }
     var showAlertModeChooser by rememberSaveable { mutableStateOf(false) }
@@ -236,6 +240,17 @@ private fun AlarmEditor(
                 }
 
                 AlarmEditorSection(stringResource(R.string.schedule_alarm_section_ring)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.schedule_alarm_allow_holiday), fontWeight = FontWeight.SemiBold)
+                            Text(
+                                stringResource(R.string.schedule_alarm_allow_holiday_desc),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(checked = allowOnHoliday, onCheckedChange = { allowOnHoliday = it })
+                    }
                     AlarmValueRow(
                         label = stringResource(R.string.schedule_ringtone_section),
                         value = stringResource(alarmRingtoneLabelRes(ringtone)),
@@ -287,6 +302,7 @@ private fun AlarmEditor(
                         ringDurationSeconds = duration,
                         repeatIntervalSeconds = interval,
                         repeatCount = count,
+                        allowOnHoliday = allowOnHoliday,
                     )
                     onConfirm(millis, alarmTitle.trim(), alarmMessage.trim(), settings)
                 },

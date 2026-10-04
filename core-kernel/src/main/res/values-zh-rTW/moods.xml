@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 没课、放假、下课后的随机一句；挑选逻辑见 DayMood.kt -->
+<resources>
+    <string-array name="mood_tomorrow_free">
+        <item>明天沒課，今晚可以多玩一會兒</item>
+        <item>明天空閒，想想去哪兒逛逛</item>
+        <item>明日無課，懶覺預定</item>
+        <item>明天課表放空，好好安排一下</item>
+    </string-array>
+    <string-array name="mood_week_free">
+        <item>這週沒課，好好享受</item>
+        <item>一整週空白，像放假一樣</item>
+        <item>這週課表放了個長假</item>
+        <item>本週無課，去做點想做的事</item>
+    </string-array>
+    <string-array name="mood_no_alarms">
+        <item>最近沒有鬧鐘要響，安心睡</item>
+        <item>鬧鐘都在休息，你也歇歇</item>
+        <item>接下來清清靜靜，沒有鬧鐘打擾</item>
+        <item>暫時沒有鬧鐘，懶覺自由</item>
+    </string-array>
+    <string-array name="mood_tasks_clear">
+        <item>任務清零，可以理直氣壯地休息</item>
+        <item>沒有待辦，獎勵自己一下</item>
+        <item>作業都交了？那就好好放鬆</item>
+        <item>清單空空，心裡輕輕</item>
+    </string-array>
+    <string-array name="mood_late_night">
+        <item>夜深了，課表也要睡了</item>
+        <item>這個點還醒著？早點睡，明天的你會謝謝你</item>
+        <item>熬夜不加學分，早點睡吧</item>
+        <item>星星都下班了，你也歇歇吧</item>
+        <item>夜貓子，記得給明天留點電</item>
+        <item>放下手機，做個好夢</item>
+    </string-array>
+    <string-array name="mood_holiday_new_year">
+        <item>新年第一天，願你今年少點早八</item>
+        <item>元旦快樂，新的一年也請多指教</item>
+        <item>日曆翻篇，新故事開張</item>
+        <item>新年好！今天的課表空空如也</item>
+        <item>新的一年，從睡個懶覺開始</item>
+    </string-array>
+    <string-array name="mood_holiday_spring_eve">
+        <item>除夕快樂，年夜飯多吃兩碗</item>
+        <item>今晚守歲，來年順順利利</item>
+        <item>課表已打烊，回家吃團圓飯吧</item>
+        <item>紅包拿到手軟，作業先放一放</item>
+    </string-array>
+    <string-array name="mood_holiday_spring">
+        <item>新春快樂，願你新年門門不當</item>
+        <item>過年好！親戚問成績就說在努力</item>
+        <item>年味正濃，課表也在過年</item>
+        <item>吃好喝好，開學再見</item>
+        <item>恭喜發財，今天不用上課</item>
+    </string-array>
+    <string-array name="mood_holiday_qingming">
+        <item>清明時節，出門看看春天</item>
+        <item>風輕草青，休息一下</item>
+        <item>踏青去吧，課本先放一放</item>
+        <item>春光正好，別全用來補覺</item>
+    </string-array>
+    <string-array name="mood_holiday_labour">
+        <item>五一快樂，今天的勞動是休息</item>
+        <item>勞動最光榮，偷個懶也挺香</item>
+        <item>去看人山人海，或者完美避開它們</item>
+        <item>小長假到帳，課表放你一馬</item>
+    </string-array>
+    <string-array name="mood_holiday_dragon_boat">
+        <item>端午安康，粽子你站甜還是鹹？</item>
+        <item>吃個粽子，看場龍舟</item>
+        <item>端午快樂，課表也去划龍舟了</item>
+        <item>甜粽鹹粽都好吃，假期最好吃</item>
+    </string-array>
+    <string-array name="mood_holiday_mid_autumn">
+        <item>中秋快樂，今晚記得抬頭看月亮</item>
+        <item>月餅吃了嗎？五仁也給個機會</item>
+        <item>月圓人團圓，課表也放假</item>
+        <item>千里共嬋娟，給家裡打個電話吧</item>
+    </string-array>
+    <string-array name="mood_holiday_national">
+        <item>國慶快樂，好好放個假</item>
+        <item>黃金週開始，去哪兒都是人</item>
+        <item>七天長假，作業別全留到第七天</item>
+        <item>假期愉快，記得把作業帶回家</item>
+    </string-array>
+    <string-array name="mood_holiday_other">
+        <item>放假啦，今天課表放空</item>
+        <item>好好休息，假期就是用來浪費的</item>
+        <item>今天不用上課，做點喜歡的事吧</item>
+        <item>假期愉快，充好電再出發</item>
+    </string-array>
+    <string-array name="mood_holiday_last_day">
+        <item>假期餘額不足，明天課表上線</item>
+        <item>最後一天假，玩盡興也別忘了作業</item>
+        <item>明天要上課了，今晚早點睡</item>
+        <item>收收心，明天的課已經在排隊</item>
+        <item>假期最後一天，記得設好明天的鬧鐘</item>
+    </string-array>
+    <string-array name="mood_weekend_free">
+        <item>週末沒課，睡到自然醒</item>
+        <item>今天課表放空，去曬曬太陽</item>
+        <item>週末愉快，做點和學習無關的事</item>
+        <item>難得清閒，獎勵自己一杯奶茶</item>
+        <item>沒課的週末，最適合發呆</item>
+        <item>休息也是功課的一部分</item>
+    </string-array>
+    <string-array name="mood_sunday_night">
+        <item>週末餘額不足，明天見</item>
+        <item>週日晚上，記得收拾書包</item>
+        <item>新的一週快開始了，早點休息</item>
+        <item>明天有課，今晚別熬太晚</item>
+    </string-array>
+    <string-array name="mood_weekday_free">
+        <item>今天沒課，偷得浮生半日閒</item>
+        <item>平日沒課，是課表送你的禮物</item>
+        <item>難得空閒，去圖書館或者去睡覺</item>
+        <item>沒課的一天，節奏自己定</item>
+        <item>今天的時間全歸你</item>
+    </string-array>
+    <string-array name="mood_done_tomorrow_holiday">
+        <item>課上完了，明天放假！</item>
+        <item>今天收工，假期就在明天</item>
+        <item>下課鈴一響，假期開始倒數</item>
+        <item>最後一節已結束，準備放假吧</item>
+    </string-array>
+    <string-array name="mood_done_friday">
+        <item>本週課程全部通關，週末快樂</item>
+        <item>週五下課，週末啟動</item>
+        <item>一週辛苦了，好好犒勞自己</item>
+        <item>課都上完了，週末去哪兒玩？</item>
+    </string-array>
+    <string-array name="mood_done_evening">
+        <item>今天的課都上完了，晚上好好放鬆</item>
+        <item>辛苦一天，吃頓好的</item>
+        <item>下課啦，今晚的時間都是你的</item>
+        <item>課程已結束，記得早點休息</item>
+    </string-array>
+    <string-array name="mood_done">
+        <item>今天的課都上完了，辛苦啦</item>
+        <item>今日課程已通關</item>
+        <item>下課啦，剩下的時間歸你</item>
+        <item>收工！今天表現不錯</item>
+        <item>今天的任務完成，去做喜歡的事吧</item>
+    </string-array>
+</resources>

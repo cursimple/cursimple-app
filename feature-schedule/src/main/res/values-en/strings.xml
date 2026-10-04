@@ -761,4 +761,67 @@
     <string name="memo_notebook_search">Search course, teacher or room</string>
     <string name="memo_notebook_search_clear">Clear search</string>
     <string name="memo_notebook_search_empty">No matching course</string>
+    <string name="memo_search_hint">Title, text or course</string>
+    <string name="memo_search_clear">Clear search</string>
+    <string name="memo_search_close">Close search</string>
+    <string name="memo_search_empty">No matching notes</string>
+    <string name="schedule_today_rest">No class today</string>
+    <string name="schedule_today_current">In class now</string>
+    <string name="schedule_today_next">Next class</string>
+    <string name="schedule_today_empty">No classes today</string>
+    <string name="schedule_today_finished">Classes finished for today</string>
+    <string name="schedule_today_count">%1$d classes today · %2$d yet to start</string>
+    <string name="schedule_today_open">Open today’s schedule</string>
+    <string name="schedule_alarm_allow_holiday">Ring on holidays</string>
+    <string name="schedule_alarm_allow_holiday_desc">Applies only to this alarm. Otherwise follows the holiday-skip setting; muted dates take priority.</string>
+    <string name="schedule_alarm_holiday_skipped">Holiday: this alarm will be skipped without sound or vibration</string>
+    <string name="schedule_alarm_date_muted">Muted date: this alarm will be skipped</string>
+    <string name="schedule_today_details">Today’s agenda</string>
+    <string name="schedule_today_overview_title">Today overview</string>
+    <string name="schedule_today_need_timing">Class times need setup</string>
+    <string name="schedule_today_time_missing">Class time not set</string>
+    <string name="schedule_today_unknown_count">%1$d classes have no times set; countdown unavailable</string>
+    <string name="schedule_today_minutes_to_start">Class starts in %1$d minutes</string>
+    <string name="schedule_today_minutes_to_end">Class ends in %1$d minutes</string>
+    <string name="schedule_today_next_brief">Next: %1$s · %2$s</string>
+    <string name="schedule_today_conflicts">%1$d class time conflicts today; open for details</string>
+    <string name="schedule_today_week_unknown">Term start is not set; showing weekday matches. Please check teaching weeks</string>
+    <string name="schedule_today_pending">Upcoming</string>
+    <string name="schedule_today_done">Finished</string>
+    <string name="schedule_today_open_course_hint">Tap a class to view details and edit its time, location or reminders.</string>
+    <string name="schedule_today_done_count">%1$d / %2$d done</string>
+    <string name="schedule_today_hours_to_start">Starts in %1$d h %2$d min</string>
+    <string name="schedule_today_conflict_short">%1$d conflicts</string>
+    <string name="schedule_today_see_all">Today’s agenda</string>
+    <string name="schedule_today_date_header">%3$s, %1$d/%2$d</string>
+    <string name="schedule_today_progress_desc">%1$d of %2$d classes done today</string>
+    <string name="schedule_system_clock_action">Add to Clock</string>
+    <string name="schedule_system_clock_title">Add to system Clock</string>
+    <plurals name="schedule_system_clock_intro">
+        <item quantity="one">This will add tomorrow\'s (%1$d/%2$d) %3$d alarm to the system Clock:</item>
+        <item quantity="other">This will add tomorrow\'s (%1$d/%2$d) %3$d alarms to the system Clock:</item>
+    </plurals>
+    <plurals name="schedule_system_clock_not_yet">
+        <item quantity="one">%1$d more alarm (%2$s) can\'t be added yet: the Clock app only takes a time of day, so adding it now would make it ring today. Come back after %3$s today to add it.</item>
+        <item quantity="other">%1$d more alarms (from %2$s) can\'t be added yet: the Clock app only takes a time of day, so adding them now would make them ring today. Come back after %3$s today to add them all.</item>
+    </plurals>
+    <string name="schedule_system_clock_mute">Mute CurSimple\'s own alarms tomorrow</string>
+    <string name="schedule_system_clock_mute_desc">So both don\'t ring at once. You can unmute from the alarm list.</string>
+    <string name="schedule_system_clock_mute_unavailable">Some alarms weren\'t added, so tomorrow won\'t be muted; otherwise they wouldn\'t ring anywhere.</string>
+    <string name="schedule_system_clock_caveat">Alarms in the Clock app have to be turned off or deleted there by you, and won\'t follow schedule changes or holidays.</string>
+    <string name="schedule_system_clock_empty">No CurSimple alarms tomorrow, nothing to add.</string>
+    <string name="schedule_system_clock_muted">Tomorrow is muted, so CurSimple won\'t ring and there\'s nothing to add.</string>
+    <string name="schedule_system_clock_confirm">Add</string>
+    <string name="schedule_system_clock_label">CurSimple: %1$s</string>
+    <plurals name="schedule_system_clock_done">
+        <item quantity="one">Sent %1$d alarm to the Clock app, please check it there</item>
+        <item quantity="other">Sent %1$d alarms to the Clock app, please check them there</item>
+    </plurals>
+    <plurals name="schedule_system_clock_done_muted">
+        <item quantity="one">Sent %1$d alarm to the Clock app and muted CurSimple\'s own alarms tomorrow. Please check it there</item>
+        <item quantity="other">Sent %1$d alarms to the Clock app and muted CurSimple\'s own alarms tomorrow. Please check them there</item>
+    </plurals>
+    <string name="schedule_system_clock_partial">Only %1$d of %2$d alarms were sent; tomorrow was not muted. Please check the Clock app</string>
+    <string name="schedule_system_clock_no_app">No Clock app found that accepts alarms</string>
+    <string name="schedule_alarm_unmute_date">Unmute</string>
 </resources>

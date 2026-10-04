@@ -29,6 +29,11 @@ import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.ReminderCoordinator
+import com.x500x.cursimple.core.reminder.alarmDaySuppression
+import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockDismisser
+import com.x500x.cursimple.core.data.reminderDayPolicy
+import com.x500x.cursimple.core.data.UserPreferences
+import com.x500x.cursimple.app.holiday.HolidayAlarmNotifier
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockIntents
 import com.x500x.cursimple.core.reminder.dispatch.alarmRampVolume
 import com.x500x.cursimple.core.reminder.dispatch.ALARM_VOLUME_RAMP_MILLIS
@@ -54,6 +59,7 @@ class AlarmRingingService : Service() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(serviceJob + Dispatchers.Default)
     private val finishMutex = Mutex()
+    private val arrivalMutex = Mutex()
     private var ringJob: Job? = null
     private var vibrationStopJob: Job? = null
     private var ringtone: Ringtone? = null
@@ -110,6 +116,58 @@ class AlarmRingingService : Service() {
     }
 
     private fun startRinging(intent: Intent, startId: Int) {
+        // 假日校验先读取本地数据，期间也持有唤醒锁，避免后台冷启动在读完前休眠。
+        if (currentAlarm == null && ringJob?.isActive != true) acquireWakeLock(STARTUP_WAKE_LOCK_MILLIS)
+        serviceScope.launch {
+            try {
+                arrivalMutex.withLock {
+                    val alarm = intent.toActiveAlarm()
+                    val now = System.currentTimeMillis()
+                    val prefs = runCatching { DataStoreUserPreferencesRepository(applicationContext).preferencesFlow.first() }
+                        .getOrElse {
+                            ReminderLogger.warn("reminder.holiday.preferences_read_failed", emptyMap(), it)
+                            UserPreferences()
+                        }
+                    val repository = DataStoreReminderRepository(applicationContext)
+                    val record = runCatching { repository.getSystemAlarmRecords().firstOrNull { it.alarmKey == alarm.alarmKey } }.getOrNull()
+                    if (record?.enabled == false) {
+                        withContext(Dispatchers.Main) { retireStart(startId) }
+                        return@withLock
+                    }
+                    val allow = record?.allowOnHoliday ?: alarm.allowOnHoliday
+                    fun suppression(at: Long) = alarmDaySuppression(
+                        at, allow, BeijingTime.zone, prefs.reminderDayPolicy(), prefs.holidayCalendar, prefs.temporaryScheduleOverrides,
+                    )
+                    val reason = suppression(alarm.triggerAtMillis.takeIf { it > 0L } ?: now) ?: suppression(now)
+                    if (reason != null) {
+                        val outdated = intent.getLongExtra(EXTRA_GENERATION, 0L) < AlarmArrivalLedger.currentGeneration(applicationContext)
+                        val first = !outdated && (alarm.alarmKey.isBlank() || AlarmArrivalLedger.claim(applicationContext, alarm.alarmKey, alarm.triggerAtMillis))
+                        if (first) {
+                            ReminderLogger.info("reminder.holiday.skipped", mapOf("alarmKey" to alarm.alarmKey, "reason" to reason.name))
+                            AlarmRingHistory.record(applicationContext, AlarmRingOutcome.Skipped, alarm.title)
+                            HolidayAlarmNotifier.postSkipped(applicationContext, alarm.title.ifBlank { alarm.message }, reason)
+                            if (record != null) {
+                                AppAlarmClockDismisser(applicationContext).dismiss(record)
+                                repository.removeSystemAlarmRecord(record.alarmKey, record.backend)
+                            }
+                            // 仅消费本次闹钟，保留课程规则，下一个上课日照常排程。
+                            runPostFinishMaintenance()
+                        }
+                        withContext(Dispatchers.Main) { retireStart(startId) }
+                        return@withLock
+                    }
+                    intent.putExtra(AppAlarmClockIntents.EXTRA_ALLOW_ON_HOLIDAY, allow)
+                    withContext(Dispatchers.Main) { startAllowedAlarm(intent, startId) }
+                }
+            } catch (error: Throwable) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                ReminderLogger.warn("reminder.holiday.check_failed", emptyMap(), error)
+                withContext(Dispatchers.Main) { retireStart(startId) }
+            }
+        }
+    }
+
+    private fun startAllowedAlarm(intent: Intent, startId: Int) {
         // 系统在派发闹钟时只给极短的唤醒时间，先抢锁再干活，否则中途 CPU 睡下就响一半。
         // 但正在响铃时（备通道紧随主通道到达）已持有更长的响铃锁，这里若再抢 60s 启动锁会把它顶短，
         // 全屏响铃页被抑制、屏幕没亮时首响就会被截断到 60s，所以响铃中不重复抢。
@@ -208,6 +266,18 @@ class AlarmRingingService : Service() {
             val alertMode = alarm.alertMode ?: prefs.alarmAlertMode
             val ringtoneUri = alarm.ringtoneUri ?: prefs.alarmRingtoneUri
             repeat(repeatCount) { index ->
+                // 重复响铃跨过零点，或用户刚把当天静音，也要在下一轮声音开始前重新判定。
+                val livePrefs = DataStoreUserPreferencesRepository(applicationContext).preferencesFlow.first()
+                val suppressed = alarmDaySuppression(
+                    System.currentTimeMillis(), alarm.allowOnHoliday, BeijingTime.zone,
+                    livePrefs.reminderDayPolicy(), livePrefs.holidayCalendar, livePrefs.temporaryScheduleOverrides,
+                )
+                if (suppressed != null) {
+                    HolidayAlarmNotifier.postSkipped(applicationContext, alarm.title, suppressed)
+                    AlarmRingHistory.record(applicationContext, AlarmRingOutcome.Skipped, alarm.title)
+                    finishRinging(alarm, reason = "holiday_or_muted", snooze = false)
+                    return@launch
+                }
                 val round = index + 1
                 ReminderLogger.info(
                     "reminder.app_alarm_clock.ringing.round.start",
@@ -349,6 +419,7 @@ class AlarmRingingService : Service() {
             ringDurationSeconds = ringDurationSeconds,
             repeatIntervalSeconds = repeatIntervalSeconds,
             repeatCount = repeatCount,
+            allowOnHoliday = allowOnHoliday,
         )
     }
 

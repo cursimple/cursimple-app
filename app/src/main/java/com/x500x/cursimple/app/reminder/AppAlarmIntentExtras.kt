@@ -18,6 +18,7 @@ internal data class ActiveAlarm(
     val ringDurationSeconds: Int?,
     val repeatIntervalSeconds: Int?,
     val repeatCount: Int?,
+    val allowOnHoliday: Boolean = false,
 )
 
 /** 闹钟在 intent 之间传递的全部 extra，响铃、通知按钮与锁屏界面共用这一份字段表。 */
@@ -28,6 +29,7 @@ internal fun ActiveAlarm.toAlarmExtras(): Map<String, Any> = buildMap {
     put(AppAlarmClockIntents.EXTRA_PLAN_ID, planId)
     courseId?.let { put(AppAlarmClockIntents.EXTRA_COURSE_ID, it) }
     put(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, triggerAtMillis)
+    put(AppAlarmClockIntents.EXTRA_ALLOW_ON_HOLIDAY, allowOnHoliday)
     put(AppAlarmClockIntents.EXTRA_TITLE, title)
     put(AppAlarmClockIntents.EXTRA_MESSAGE, message)
     ringtoneUri?.let { put(AppAlarmClockIntents.EXTRA_RINGTONE_URI, it) }
@@ -52,6 +54,7 @@ internal fun activeAlarmFromExtras(readExtra: (String) -> Any?): ActiveAlarm = A
     ringDurationSeconds = readExtra(AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS).asPositiveInt(),
     repeatIntervalSeconds = readExtra(AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS).asPositiveInt(),
     repeatCount = readExtra(AppAlarmClockIntents.EXTRA_REPEAT_COUNT).asPositiveInt(),
+    allowOnHoliday = readExtra(AppAlarmClockIntents.EXTRA_ALLOW_ON_HOLIDAY) as? Boolean ?: false,
 )
 
 internal fun Intent.putAlarmExtras(alarm: ActiveAlarm): Intent = apply {
@@ -60,6 +63,7 @@ internal fun Intent.putAlarmExtras(alarm: ActiveAlarm): Intent = apply {
             is Int -> putExtra(key, value)
             is Long -> putExtra(key, value)
             is String -> putExtra(key, value)
+            is Boolean -> putExtra(key, value)
         }
     }
 }

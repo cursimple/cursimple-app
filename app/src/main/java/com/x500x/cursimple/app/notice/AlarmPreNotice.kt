@@ -9,6 +9,8 @@ import android.os.Build
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.ClassScheduleApplication
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
+import com.x500x.cursimple.core.data.reminderDayPolicy
+import com.x500x.cursimple.core.reminder.alarmDaySuppression
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockRegistrationVerifier
@@ -43,12 +45,14 @@ object AlarmPreNoticeScheduler {
     suspend fun reschedule(context: Context) = lock.withLock {
         val app = context.applicationContext
         cancel(app)
-        val settings = DataStoreUserPreferencesRepository(app).preferencesFlow.first().alarmPreNotice
+        val preferences = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
+        val settings = preferences.alarmPreNotice
         if (!settings.enabled) return@withLock
         val leadMillis = settings.advanceMinutes * 60_000L
         val now = System.currentTimeMillis()
         val next = DataStoreReminderRepository(app).systemAlarmRecordsFlow.first()
             .filter { it.enabled && it.triggerAtMillis - leadMillis > now }
+            .filter { alarmDaySuppression(it.triggerAtMillis, it.allowOnHoliday, BeijingTime.zone, preferences.reminderDayPolicy(), preferences.holidayCalendar, preferences.temporaryScheduleOverrides) == null }
             .minByOrNull { it.triggerAtMillis }
             ?: return@withLock
         val intent = Intent(app, AlarmPreNoticeReceiver::class.java).apply {
@@ -149,7 +153,10 @@ class AlarmPreNoticeReceiver : BroadcastReceiver() {
                 // 闹钟在这期间被删了、关了或改了时间，就不预告这一条
                 if (record != null && record.triggerAtMillis == AlarmPreNoticeScheduler.triggerAtOf(intent)) {
                     val preferences = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
-                    if (preferences.alarmPreNotice.enabled) {
+                    if (preferences.alarmPreNotice.enabled && alarmDaySuppression(
+                        record.triggerAtMillis, record.allowOnHoliday, BeijingTime.zone, preferences.reminderDayPolicy(),
+                        preferences.holidayCalendar, preferences.temporaryScheduleOverrides,
+                    ) == null) {
                         ClassNoticeNotifier.notify(
                             app,
                             record.toPreviewContent(app),
@@ -159,7 +166,7 @@ class AlarmPreNoticeReceiver : BroadcastReceiver() {
                     }
                 }
                 AlarmPreNoticeScheduler.reschedule(app)
-                ClassNoticeOverlay.awaitGone()
+                ClassNoticeOverlay.awaitShown()
             } catch (error: Throwable) {
                 ReminderLogger.warn("alarm_pre_notice.deliver.failure", emptyMap(), error)
             } finally {

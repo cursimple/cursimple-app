@@ -33,16 +33,15 @@
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
+            <ImageView
                 android:id="@+id/widget_prev"
                 android:layout_width="34dp"
                 android:layout_height="34dp"
                 android:background="@drawable/widget_bg_icon"
-                android:gravity="center"
-                android:text="‹"
-                android:textColor="#4E5968"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:contentDescription="@string/widget_page_prev"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_ic_chevron_left" />
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -75,16 +74,15 @@
                     android:textSize="10sp" />
             </LinearLayout>
 
-            <TextView
+            <ImageView
                 android:id="@+id/widget_next"
                 android:layout_width="34dp"
                 android:layout_height="34dp"
                 android:background="@drawable/widget_bg_icon"
-                android:gravity="center"
-                android:text="›"
-                android:textColor="#4E5968"
-                android:textSize="20sp"
-                android:textStyle="bold" />
+                android:contentDescription="@string/widget_page_next"
+                android:padding="7dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/widget_ic_chevron_right" />
         </LinearLayout>
 
         <TextView

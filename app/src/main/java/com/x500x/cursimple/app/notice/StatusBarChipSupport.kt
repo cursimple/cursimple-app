@@ -15,7 +15,7 @@ import com.x500x.cursimple.core.reminder.permission.VendorRom
 object StatusBarChipSupport {
 
     enum class Level {
-        /** Android 16 以前，或 One UI 8.5 以前：发了也只是一条普通常驻通知 */
+        /** Android 16 以前、One UI 8.5 以前，或只用自己画的系统：发了也只是一条普通通知 */
         Unsupported,
 
         /** ColorOS / OxygenOS / realme UI 16 起：流体云直接接标准接口，系统 API 的回答不可信 */
@@ -46,6 +46,8 @@ object StatusBarChipSupport {
         if (sdk < Build.VERSION_CODES.BAKLAVA) return Level.Unsupported
         // One UI 的版本号写成 80500 这样：主版本 ×10000 + 次版本 ×100
         if (vendor == VendorRom.Samsung && (oneUiVersion ?: 0) < ONE_UI_8_5) return Level.Unsupported
+        // 只用自己画的系统：标准胶囊不画（vivo 原子岛要单独申请），胶囊要的 ongoing 还会让横幅和锁屏提醒全没了
+        if (SelfDrawnNotice.reasonFor(vendor) != null) return Level.Unsupported
         // Oplus 家读不出版本号时也按 16 算：能跑到这里已经是 Android 16 了
         if (vendor == VendorRom.Oppo || vendor == VendorRom.OnePlus) {
             return if ((oplusMajor ?: 16) >= 16) Level.AlwaysOn else Level.PlatformDecides
@@ -62,7 +64,7 @@ object StatusBarChipSupport {
     @Volatile
     private var cached: Level? = null
 
-    private fun prop(key: String): String? = runCatching {
+    internal fun prop(key: String): String? = runCatching {
         val clazz = Class.forName("android.os.SystemProperties")
         clazz.getMethod("get", String::class.java).invoke(null, key) as? String
     }.getOrNull()?.takeIf { it.isNotBlank() }

@@ -58,6 +58,7 @@ internal fun RemindersScreen(
     onClassNoticeAnimationChange: (ClassNoticeAnimation) -> Unit,
     onClassNoticeBlurChange: (Boolean) -> Unit,
     onClassNoticeBlurStrengthChange: (Int) -> Unit,
+    onClassNoticeBannerDurationChange: (Int) -> Unit,
     alarmsContent: @Composable (Modifier) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -108,6 +109,7 @@ internal fun RemindersScreen(
                         onAnimationChange = onClassNoticeAnimationChange,
                         onBlurChange = onClassNoticeBlurChange,
                         onBlurStrengthChange = onClassNoticeBlurStrengthChange,
+                        onBannerDurationChange = onClassNoticeBannerDurationChange,
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                 }

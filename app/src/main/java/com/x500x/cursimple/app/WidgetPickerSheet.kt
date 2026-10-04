@@ -27,6 +27,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Today
+import androidx.compose.material.icons.rounded.TaskAlt
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,7 +78,8 @@ fun WidgetPickerSheet(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val entries = WidgetCatalog.entries(context)
+    // 组件小组件只在装了组件时列出；装上 / 移除组件后重新打开面板即刷新
+    val entries = WidgetCatalog.pickerEntries(context)
     val pinSupported = WidgetCatalog.isPinSupported(context)
 
     var refreshTick by remember { mutableIntStateOf(0) }
@@ -175,7 +178,21 @@ fun WidgetPickerSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(4.dp))
-            entries.forEach { entry ->
+            entries.forEachIndexed { index, entry ->
+                // 系统小组件在前；组件小组件另起一组，标明内容来自组件
+                if (entry.fromComponents && entries.getOrNull(index - 1)?.fromComponents != true) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = stringResource(R.string.widget_section_components),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = stringResource(R.string.widget_section_components_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 val installed = (installedCounts[entry.id] ?: 0) > 0
                 val count = installedCounts[entry.id] ?: 0
                 WidgetPickerRow(
@@ -566,6 +583,8 @@ private fun WidgetPickerRow(
         "next" -> Icons.Rounded.AccessTime
         "today" -> Icons.Rounded.Today
         "reminder" -> Icons.Rounded.NotificationsActive
+        "calendar" -> Icons.Rounded.CalendarMonth
+        "tasks" -> Icons.Rounded.TaskAlt
         else -> Icons.Rounded.Widgets
     }
     Surface(

@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppSearchField
+import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -30,7 +33,6 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Schedule
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -51,6 +53,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -76,7 +82,6 @@ import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /** 一个笔记本：一门课，或者不属于哪门课的「其他」（[key] 为空）。 */
 internal data class MemoNotebook(
@@ -150,7 +155,12 @@ internal fun memoPriorityLabel(priority: MemoPriority): String = stringResource(
 
 /** 侧边栏「备忘录」和 ScheduleViewModel 的接线：课程从课表里来，笔记单独存。 */
 @Composable
-fun MemoRoute(viewModel: ScheduleViewModel, modifier: Modifier = Modifier) {
+fun MemoRoute(
+    viewModel: ScheduleViewModel,
+    modifier: Modifier = Modifier,
+    searchOpen: Boolean = false,
+    onCloseSearch: () -> Unit = {},
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val courses = remember(state.schedule, state.manualCourses) {
         state.schedule.allCoursesWith(state.manualCourses).visibleScheduleCourses()
@@ -161,6 +171,8 @@ fun MemoRoute(viewModel: ScheduleViewModel, modifier: Modifier = Modifier) {
         onSave = viewModel::saveMemo,
         onRemove = viewModel::removeMemo,
         modifier = modifier,
+        searchOpen = searchOpen,
+        onCloseSearch = onCloseSearch,
     )
 }
 
@@ -171,6 +183,8 @@ internal fun MemoScreen(
     onSave: (MemoNote) -> Unit,
     onRemove: (String) -> Unit,
     modifier: Modifier = Modifier,
+    searchOpen: Boolean = false,
+    onCloseSearch: () -> Unit = {},
 ) {
     val zone = LocalAppZone.current
     val now = remember(memos, zone) { BeijingTime.nowDateTimeIn(zone) }
@@ -178,6 +192,8 @@ internal fun MemoScreen(
     val notebooks = remember(courses, memos, otherTitle) { buildMemoNotebooks(courses, memos, otherTitle) }
     var selection by remember { mutableStateOf<MemoSelection>(MemoSelection.All) }
     var quickFilter by rememberSaveable { mutableStateOf<MemoQuickFilter?>(null) }
+    var searchQuery by rememberSaveable(searchOpen) { mutableStateOf("") }
+    val searching = searchOpen && searchQuery.isNotBlank()
     // 编辑中的笔记；新建时是一条只填了所属课程的草稿
     var editing by remember { mutableStateOf<MemoNote?>(null) }
     var pendingDelete by remember { mutableStateOf<MemoNote?>(null) }
@@ -185,7 +201,7 @@ internal fun MemoScreen(
     val selectedKey = (selection as? MemoSelection.Notebook)?.key
     val inAll = selection == MemoSelection.All
     val notebookOf = remember(notebooks) { notebooks.associateBy { it.key } }
-    val visible = remember(memos, selection, quickFilter, now) {
+    val currentMemos = remember(memos, selection, quickFilter, now) {
         memos
             .filter { inAll || it.courseKey == selectedKey }
             .filter { note ->
@@ -196,7 +212,17 @@ internal fun MemoScreen(
                     MemoQuickFilter.Overdue -> note.dueState(now) == MemoDueState.Overdue
                 }
             }
-            .sortedWith(memoComparator(now))
+    }
+    val courseSearchText = remember(notebooks) {
+        notebooks.associate { it.key to "${it.title} · ${it.subtitle}" }
+    }
+    val visible = remember(memos, currentMemos, searchOpen, searchQuery, courseSearchText, now) {
+        searchMemoNotes(
+            memos = memos,
+            query = searchQuery.takeIf { searchOpen }.orEmpty(),
+            currentMemos = currentMemos,
+            courseSearchText = courseSearchText,
+        ).sortedWith(memoComparator(now))
     }
     val (active, done) = visible.partition { !it.completed }
 
@@ -218,21 +244,16 @@ internal fun MemoScreen(
         )
     }
     pendingDelete?.let { target ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            title = { Text(stringResource(R.string.memo_delete_title)) },
-            text = {
-                Text(stringResource(R.string.memo_delete_body, target.title.ifBlank { stringResource(R.string.memo_untitled) }))
+        AppConfirmationDialog(
+            title = stringResource(R.string.memo_delete_title),
+            message = stringResource(R.string.memo_delete_body, target.title.ifBlank { stringResource(R.string.memo_untitled) }),
+            confirmLabel = stringResource(R.string.schedule_action_delete),
+            cancelLabel = stringResource(R.string.schedule_action_cancel),
+            onConfirm = {
+                onRemove(target.id)
+                pendingDelete = null
             },
-            confirmButton = {
-                AppOutlinedButton(onClick = {
-                    onRemove(target.id)
-                    pendingDelete = null
-                }) { Text(stringResource(R.string.schedule_action_delete)) }
-            },
-            dismissButton = {
-                AppOutlinedButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.schedule_action_cancel)) }
-            },
+            onDismiss = { pendingDelete = null },
         )
     }
 
@@ -248,81 +269,98 @@ internal fun MemoScreen(
     fun update(note: MemoNote) = onSave(note.copy(updatedAt = System.currentTimeMillis()))
 
     MemoTapShieldHost(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            item(key = "selector") {
-                MemoNotebookSelector(
-                    notebooks = notebooks,
-                    memos = memos,
-                    selection = selection,
-                    onSelect = {
-                        selection = it
-                        quickFilter = null
+        Column(modifier = Modifier.fillMaxSize()) {
+            if (searchOpen) {
+                MemoSearchRow(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onClose = {
+                        searchQuery = ""
+                        onCloseSearch()
                     },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
-            if (inAll) {
-                item(key = "stats") {
-                    MemoStatsRow(memos = memos, now = now, selected = quickFilter, onSelect = { quickFilter = it })
-                }
-            } else {
-                item(key = "header") {
-                    MemoNotebookHeader(
-                        notebook = notebookOf[selectedKey],
-                        memos = memos.filter { it.courseKey == selectedKey },
-                    )
-                }
-            }
-            if (visible.isEmpty()) {
-                item(key = "empty") {
-                    MemoEmptyHint(
-                        text = stringResource(
-                            when {
-                                quickFilter != null && inAll -> R.string.memo_empty_filter
-                                inAll -> R.string.memo_empty_all
-                                else -> R.string.memo_empty_notebook
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (!searching) {
+                    item(key = "selector") {
+                        MemoNotebookSelector(
+                            notebooks = notebooks,
+                            memos = memos,
+                            selection = selection,
+                            onSelect = {
+                                selection = it
+                                quickFilter = null
                             },
-                        ),
-                    )
+                        )
+                    }
+                    if (inAll) {
+                        item(key = "stats") {
+                            MemoStatsRow(memos = memos, now = now, selected = quickFilter, onSelect = { quickFilter = it })
+                        }
+                    } else {
+                        item(key = "header") {
+                            MemoNotebookHeader(
+                                notebook = notebookOf[selectedKey],
+                                memos = memos.filter { it.courseKey == selectedKey },
+                            )
+                        }
+                    }
                 }
-            }
-            items(active, key = { it.id }) { note ->
-                MemoCard(
-                    note = note,
-                    now = now,
-                    notebook = notebookOf[note.courseKey],
-                    showNotebook = inAll,
-                    onOpen = { editing = note },
-                    onToggleLine = { line -> update(note.copy(body = toggleChecklistLine(note.body, line))) },
-                    onToggleCompleted = { update(note.copy(completed = !note.completed)) },
-                    onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
-                    onDelete = { pendingDelete = note },
-                )
-            }
-            if (done.isNotEmpty()) {
-                item(key = "done-header") {
-                    Text(
-                        text = pluralStringResource(R.plurals.memo_done_header, done.size, done.size),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp, start = 4.dp),
-                    )
+                if (visible.isEmpty()) {
+                    item(key = "empty") {
+                        MemoEmptyHint(
+                            text = stringResource(
+                                when {
+                                    searching -> R.string.memo_search_empty
+                                    quickFilter != null && inAll -> R.string.memo_empty_filter
+                                    inAll -> R.string.memo_empty_all
+                                    else -> R.string.memo_empty_notebook
+                                },
+                            ),
+                            modifier = if (searching) Modifier.testTag("memo-search-empty") else Modifier,
+                        )
+                    }
                 }
-                items(done, key = { it.id }) { note ->
+                items(active, key = { it.id }) { note ->
                     MemoCard(
                         note = note,
                         now = now,
                         notebook = notebookOf[note.courseKey],
-                        showNotebook = inAll,
+                        showNotebook = inAll || searching,
                         onOpen = { editing = note },
-                        onToggleLine = null,
+                        onToggleLine = { line -> update(note.copy(body = toggleChecklistLine(note.body, line))) },
                         onToggleCompleted = { update(note.copy(completed = !note.completed)) },
                         onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
                         onDelete = { pendingDelete = note },
                     )
+                }
+                if (done.isNotEmpty()) {
+                    item(key = "done-header") {
+                        Text(
+                            text = pluralStringResource(R.plurals.memo_done_header, done.size, done.size),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                        )
+                    }
+                    items(done, key = { it.id }) { note ->
+                        MemoCard(
+                            note = note,
+                            now = now,
+                            notebook = notebookOf[note.courseKey],
+                            showNotebook = inAll || searching,
+                            onOpen = { editing = note },
+                            onToggleLine = null,
+                            onToggleCompleted = { update(note.copy(completed = !note.completed)) },
+                            onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
+                            onDelete = { pendingDelete = note },
+                        )
+                    }
                 }
             }
         }
@@ -334,6 +372,43 @@ internal fun MemoScreen(
                 .align(Alignment.BottomEnd)
                 .padding(20.dp),
         )
+    }
+}
+
+@Composable
+private fun MemoSearchRow(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        AppSearchField(
+            query = query,
+            onQueryChange = onQueryChange,
+            hint = stringResource(R.string.memo_search_hint),
+            clearLabel = stringResource(R.string.memo_search_clear),
+            modifier = Modifier.weight(1f),
+            fieldModifier = Modifier.testTag("memo-search-field"),
+            clearModifier = Modifier.testTag("memo-search-clear"),
+            onSearch = { keyboard?.hide() },
+        )
+        AppOutlinedButton(
+            onClick = {
+                keyboard?.hide()
+                focusManager.clearFocus()
+                onClose()
+            },
+            modifier = Modifier.testTag("memo-search-close"),
+        ) {
+            Text(stringResource(R.string.schedule_action_cancel))
+        }
     }
 }
 
@@ -408,7 +483,7 @@ private fun MemoStatCard(
 ) {
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = if (selected) accent.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceContainerLow,
         border = androidx.compose.foundation.BorderStroke(
             if (selected) 1.5.dp else 1.dp,
@@ -416,14 +491,25 @@ private fun MemoStatCard(
         ),
         modifier = modifier,
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Row(
+            modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
             Text(
                 text = value.toString(),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (value > 0) accent else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -459,9 +545,9 @@ private fun MemoNotebookHeader(notebook: MemoNotebook?, memos: List<MemoNote>) {
 }
 
 @Composable
-private fun MemoEmptyHint(text: String) {
+private fun MemoEmptyHint(text: String, modifier: Modifier = Modifier) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 40.dp),
         contentAlignment = Alignment.Center,
@@ -723,7 +809,8 @@ internal fun memoDueText(due: LocalDateTime, now: LocalDateTime): String {
     } else {
         stringResource(R.string.memo_due_pattern_year)
     }
-    return due.format(DateTimeFormatter.ofPattern(pattern, Locale.getDefault()))
+    // 跟着界面语言走：Locale.getDefault() 在切换应用语言后不会触发重组
+    return due.format(DateTimeFormatter.ofPattern(pattern, LocalConfiguration.current.locales[0]))
 }
 
 /** 「3 天」「5 小时」「20 分钟」：取最大的那一级，够看出紧不紧急就行 */

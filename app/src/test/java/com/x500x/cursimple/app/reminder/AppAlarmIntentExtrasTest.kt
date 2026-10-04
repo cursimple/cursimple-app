@@ -27,6 +27,7 @@ class AppAlarmIntentExtrasTest {
         assertEquals(30, forwarded[AppAlarmClockIntents.EXTRA_RING_DURATION_SECONDS])
         assertEquals(90, forwarded[AppAlarmClockIntents.EXTRA_REPEAT_INTERVAL_SECONDS])
         assertEquals(3, forwarded[AppAlarmClockIntents.EXTRA_REPEAT_COUNT])
+        assertEquals(true, forwarded[AppAlarmClockIntents.EXTRA_ALLOW_ON_HOLIDAY])
     }
 
     @Test
@@ -58,6 +59,7 @@ class AppAlarmIntentExtrasTest {
         assertNull(alarm.ringDurationSeconds)
         assertNull(alarm.repeatIntervalSeconds)
         assertNull(alarm.repeatCount)
+        assertEquals(false, alarm.allowOnHoliday)
     }
 
     private fun sampleAlarm(): ActiveAlarm = ActiveAlarm(
@@ -74,5 +76,6 @@ class AppAlarmIntentExtrasTest {
         ringDurationSeconds = 30,
         repeatIntervalSeconds = 90,
         repeatCount = 3,
+        allowOnHoliday = true,
     )
 }

@@ -30,8 +30,17 @@ data class InstalledPluginRecord(
     @SerialName("isBundled") val isBundled: Boolean = false,
     /** 装自插件市场时记下来源仓库，市场据此判断已装与可更新；本地包安装为 null。 */
     @SerialName("sourceRepo") val sourceRepo: String? = null,
+    /** 见 PluginManifest.kind；老记录没有这个字段，按导课插件算 */
+    @SerialName("kind") val kind: String = PluginManifest.KIND_SCHEDULE,
+    /** 收录它的来源仓库；与用于检查新版的插件仓库 [sourceRepo] 分开保存。 */
+    @SerialName("registrySource") val registrySource: String? = null,
 ) {
     val installKey: String get() = pluginInstallKey(pluginId, source)
+
+    /** 同版本重装也必须使运行中的页面和脚本缓存失效。 */
+    val packageRevision: String get() = "$installKey:$versionCode:$installedAt:$storagePath"
+
+    val isExtension: Boolean get() = kind == PluginManifest.KIND_EXTENSION
 }
 
 @Serializable

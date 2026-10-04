@@ -1,19 +1,19 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.text.format.Formatter
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -26,14 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.IconButton
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -41,32 +33,29 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Extension
+import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.OpenInBrowser
-import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,6 +63,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -83,21 +76,23 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.core.plugin.install.PluginCompatibilityStatus
+import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
 import com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled
 import com.x500x.cursimple.core.plugin.install.pluginCompatibilityText
 import com.x500x.cursimple.core.plugin.install.resolvePluginCompatibility
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
+import com.x500x.cursimple.core.plugin.market.github.MarketSourceKind
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 
 @Composable
 fun PluginMarketRoute(
     pluginMarketViewModel: PluginMarketViewModel,
-    componentMarketViewModel: ComponentMarketViewModel,
-    pluginRegistryRepo: String,
-    componentMarketIndexUrl: String,
+    pluginSources: List<String>,
+    componentSources: List<String>,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
     missingComponents: List<PluginComponentRequirement>,
@@ -109,10 +104,16 @@ fun PluginMarketRoute(
     modifier: Modifier = Modifier,
     /** 课表那边的同步进度与结果（正在打开登录页、导入成功、失败原因）。 */
     syncStatusMessage: String? = null,
+    /** 扩展组件的设置面板要用；为空时扩展组件按普通插件详情显示 */
+    extensionActions: com.x500x.cursimple.feature.plugin.extension.ExtensionHostActions? = null,
+    /** 从侧边栏日历页点「设置」过来时，直接打开这个组件的设置面板 */
+    openExtensionPluginId: String? = null,
+    onExtensionOpenConsumed: () -> Unit = {},
+    /** 账号身份和刷新版本组成的标识；不要传访问令牌。 */
+    accountKey: String? = null,
 ) {
     val context = LocalContext.current
     val pluginUiState by pluginMarketViewModel.uiState.collectAsStateWithLifecycle()
-    val componentUiState by componentMarketViewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by rememberSaveable { mutableStateOf(PluginPlatformTab.Plugins) }
 
     val pluginPackageLauncher = rememberLauncherForActivityResult(
@@ -126,38 +127,32 @@ fun PluginMarketRoute(
                 }
         }
     }
-    val componentPackageLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument(),
-    ) { uri ->
-        uri?.let {
-            runCatching { context.readContentBytes(it) }
-                .onSuccess(componentMarketViewModel::installLocalPackage)
-                .onFailure { error ->
-                    componentMarketViewModel.setStatus(componentPackageReadFailure(error))
-                }
-        }
+
+    LaunchedEffect(openExtensionPluginId) {
+        if (openExtensionPluginId != null) selectedTab = PluginPlatformTab.Extensions
     }
 
-    LaunchedEffect(pluginRegistryRepo) {
-        if (pluginRegistryRepo.isNotBlank()) {
-            pluginMarketViewModel.refreshIfStale(pluginRegistryRepo, MARKET_CACHE_TTL_MILLIS)
-        }
+    LaunchedEffect(pluginSources, componentSources, accountKey) {
+        pluginMarketViewModel.setSources(pluginSources, componentSources)
+        pluginMarketViewModel.onAccountChanged(accountKey)
+        pluginMarketViewModel.refreshIfStale(MARKET_CACHE_TTL_MILLIS)
         pluginMarketViewModel.refreshInstalledPluginVersions()
     }
 
     PluginMarketScreen(
         uiState = pluginUiState,
-        componentUiState = componentUiState,
-        selectedTab = selectedTab,
+        // 兼容旧页面状态：曾选中运行环境时回到插件页。
+        selectedTab = selectedTab.takeIf { it in PluginPlatformTab.visibleTabs } ?: PluginPlatformTab.Plugins,
         enabledPluginIds = enabledPluginIds,
         syncingPluginId = syncingPluginId,
         syncStatusMessage = syncStatusMessage,
         missingComponents = missingComponents,
         pendingWebSession = pendingWebSession,
-        pluginRegistryRepo = pluginRegistryRepo,
+        pluginSources = pluginSources,
+        componentSources = componentSources,
         onSelectTab = { selectedTab = it },
         onPickLocalPlugin = { pluginPackageLauncher.launch(PACKAGE_MIME_TYPES) },
-        onRefreshMarket = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+        onRefreshMarket = { pluginMarketViewModel.loadRegistry() },
         onOpenRepo = { url -> context.openExternalUrl(url) },
         onInstallFromGitHub = pluginMarketViewModel::installFromGitHub,
         onConfirmInstall = pluginMarketViewModel::confirmInstall,
@@ -177,26 +172,26 @@ fun PluginMarketRoute(
                 ?: onSyncPlugin(installKey)
         },
         onUpgradePlugin = pluginMarketViewModel::upgradeThenSync,
-        onPickLocalComponent = { componentPackageLauncher.launch(PACKAGE_MIME_TYPES) },
-        onRefreshComponentMarket = { componentMarketViewModel.loadRemoteMarket(componentMarketIndexUrl) },
-        onInstallRemoteComponentEntry = componentMarketViewModel::installRemoteEntry,
         onCompleteWebSession = onCompleteWebSession,
         onCancelWebSession = onCancelWebSession,
+        extensionActions = extensionActions,
+        openExtensionPluginId = openExtensionPluginId,
+        onExtensionOpenConsumed = onExtensionOpenConsumed,
         modifier = modifier,
     )
     PluginUpgradeGate(uiState = pluginUiState, viewModel = pluginMarketViewModel, onSyncPlugin = onSyncPlugin)
 }
 
 @Composable
-private fun PluginMarketScreen(
+internal fun PluginMarketScreen(
     uiState: PluginMarketUiState,
-    componentUiState: ComponentMarketUiState,
     selectedTab: PluginPlatformTab,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
     missingComponents: List<PluginComponentRequirement>,
     pendingWebSession: WebSessionRequest?,
-    pluginRegistryRepo: String,
+    pluginSources: List<String>,
+    componentSources: List<String>,
     syncStatusMessage: String?,
     onSelectTab: (PluginPlatformTab) -> Unit,
     onPickLocalPlugin: () -> Unit,
@@ -209,49 +204,50 @@ private fun PluginMarketScreen(
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
     onUpgradePlugin: (InstalledPluginRecord, GitHubRepoSummary) -> Unit,
-    onPickLocalComponent: () -> Unit,
-    onRefreshComponentMarket: () -> Unit,
-    onInstallRemoteComponentEntry: (ComponentMarketEntry) -> Unit,
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
+    extensionActions: com.x500x.cursimple.feature.plugin.extension.ExtensionHostActions?,
+    openExtensionPluginId: String?,
+    onExtensionOpenConsumed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val catalogState = rememberSaveableStateHolder()
+    var detailVisible by remember(selectedTab) { mutableStateOf(false) }
+    var downloadTarget by remember { mutableStateOf<GitHubRepoSummary?>(null) }
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            PluginPlatformTabs(
+            if (!detailVisible) PluginPlatformTabs(
                 selected = selectedTab,
                 onSelect = onSelectTab,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
             )
-            when (selectedTab) {
-                PluginPlatformTab.Plugins -> PluginListContent(
+            catalogState.SaveableStateProvider(selectedTab.name) {
+                val extensionMode = selectedTab == PluginPlatformTab.Extensions
+                PluginListContent(
                     uiState = uiState,
                     enabledPluginIds = enabledPluginIds,
                     syncingPluginId = syncingPluginId,
                     syncStatusMessage = syncStatusMessage,
-                    missingComponents = missingComponents,
-                    pluginRegistryRepo = pluginRegistryRepo,
-                    onOpenComponents = { onSelectTab(PluginPlatformTab.Components) },
+                    missingComponents = if (extensionMode) emptyList() else missingComponents,
+                    pluginRegistryRepo = if (extensionMode) componentSources.firstOrNull().orEmpty()
+                        else pluginSources.firstOrNull().orEmpty(),
+                    extensionMode = extensionMode,
                     onPickLocalPlugin = onPickLocalPlugin,
                     onRefreshMarket = onRefreshMarket,
                     onOpenRepo = onOpenRepo,
-                    onInstallFromGitHub = onInstallFromGitHub,
+                    onInstallFromGitHub = { repo -> downloadTarget = repo; onInstallFromGitHub(repo) },
                     onRemovePlugin = onRemovePlugin,
                     onSetPluginEnabled = onSetPluginEnabled,
                     onSyncPlugin = onSyncPlugin,
-                    onUpgradePlugin = onUpgradePlugin,
-                    modifier = Modifier.weight(1f),
-                )
-
-                PluginPlatformTab.Components -> ComponentMarketScreen(
-                    uiState = componentUiState,
-                    onPickLocalPackage = onPickLocalComponent,
-                    onRefreshMarket = onRefreshComponentMarket,
-                    onInstallRemoteEntry = onInstallRemoteComponentEntry,
+                    onUpgradePlugin = { record, repo -> downloadTarget = repo; onUpgradePlugin(record, repo) },
+                    extensionActions = extensionActions,
+                    openExtensionPluginId = openExtensionPluginId,
+                    onExtensionOpenConsumed = onExtensionOpenConsumed,
+                    onDetailVisibilityChange = { detailVisible = it },
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -261,11 +257,22 @@ private fun PluginMarketScreen(
             InstallPreviewDialog(
                 preview = preview,
                 origin = uiState.installPreviewOrigin,
+                packageSizeBytes = uiState.packageSizeBytes,
                 isLoading = uiState.isLoading,
                 onDismiss = onDismissInstallPreview,
                 onConfirm = onConfirmInstall,
             )
         }
+
+        val upgradingRecord = uiState.installedPlugins.firstOrNull { it.installKey == uiState.upgradingKey }
+        MarketDownloadOverlay(
+            downloading = uiState.isLoading && uiState.status is PluginMarketStatus.DownloadingAsset,
+            progress = uiState.downloadProgress,
+            displayName = upgradingRecord?.name ?: downloadTarget?.let { it.detailDisplayTitle() },
+            extensionMode = upgradingRecord?.isExtension ?: downloadTarget?.isExtension
+                ?: (selectedTab == PluginPlatformTab.Extensions),
+            onCancel = onDismissInstallPreview,
+        )
 
         pendingWebSession?.let { request ->
             WebSessionOverlay(
@@ -278,14 +285,15 @@ private fun PluginMarketScreen(
 }
 
 @Composable
-private fun PluginListContent(
+internal fun PluginListContent(
     uiState: PluginMarketUiState,
     enabledPluginIds: Set<String>,
     syncingPluginId: String?,
     syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
     pluginRegistryRepo: String,
-    onOpenComponents: () -> Unit,
+    /** true 时是「组件」标签页：只列扩展组件；false 时只列学校系统插件 */
+    extensionMode: Boolean,
     onPickLocalPlugin: () -> Unit,
     onRefreshMarket: () -> Unit,
     onOpenRepo: (String) -> Unit,
@@ -294,47 +302,82 @@ private fun PluginListContent(
     onSetPluginEnabled: (String, Boolean) -> Unit,
     onSyncPlugin: (String) -> Unit,
     onUpgradePlugin: (InstalledPluginRecord, GitHubRepoSummary) -> Unit,
+    extensionActions: com.x500x.cursimple.feature.plugin.extension.ExtensionHostActions?,
+    openExtensionPluginId: String?,
+    onExtensionOpenConsumed: () -> Unit,
     modifier: Modifier = Modifier,
+    onDetailVisibilityChange: (Boolean) -> Unit = {},
 ) {
     var detailPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // 两个标签页共用这份列表：插件页只看学校系统，组件页只看扩展组件
+    val shownInstalled = uiState.installedPlugins.filter { it.isExtension == extensionMode }
+    val catalogRepos = (uiState.allMarketRepos + uiState.marketRepos + uiState.componentRepos)
+        .distinctBy { it.fullName.lowercase() }
+    val shownRepos = catalogRepos.filter { it.isExtension == extensionMode }
+    LaunchedEffect(openExtensionPluginId, uiState.installedPlugins, enabledPluginIds) {
+        if (!extensionMode) return@LaunchedEffect
+        val target = openExtensionPluginId ?: return@LaunchedEffect
+        val record = uiState.installedPlugins.firstOrNull { it.installKey == target && it.isExtension }
+            ?: uiState.installedPlugins.filter { it.pluginId == target && it.isExtension }
+                .let { matches -> matches.filter { com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled(it, enabledPluginIds, uiState.installedPlugins) }.ifEmpty { matches } }
+                .maxByOrNull { it.versionCode }
+            ?: return@LaunchedEffect
+        detailPluginKey = installedPluginKey(record)
+        onExtensionOpenConsumed()
+    }
     var detailRepoSlug by rememberSaveable { mutableStateOf<String?>(null) }
-    var browsingMarket by rememberSaveable { mutableStateOf(false) }
+    var catalogTab by rememberSaveable { mutableStateOf(MarketCatalogTab.Installed) }
+    var query by rememberSaveable { mutableStateOf("") }
+    val filteredRepos = remember(shownRepos, query) { filterMarketRepos(shownRepos, query) }
+    val filteredInstalled = remember(shownInstalled, shownRepos, query) {
+        filterInstalledPlugins(shownInstalled, shownRepos, query)
+    }
     val detailPlugin = detailPluginKey?.let { key ->
         uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
     }
-    val detailRepo = detailRepoSlug?.let { slug -> uiState.marketRepos.firstOrNull { it.fullName == slug } }
-
-    LaunchedEffect(uiState.installPreview, uiState.isLoading) {
-        if (detailRepoSlug != null && uiState.installPreview == null && !uiState.isLoading && uiState.status != null) {
-            kotlinx.coroutines.delay(300)
-            detailRepoSlug = null
-        }
-    }
+    val detailRepo = detailRepoSlug?.let { slug -> catalogRepos.firstOrNull { it.fullName == slug } }
+    SideEffect { onDetailVisibilityChange(detailPlugin != null || detailRepo != null) }
 
     // 详情页要先退回列表，否则系统返回键会一路退出应用
     androidx.activity.compose.BackHandler(
-        enabled = detailPluginKey != null || detailRepoSlug != null || browsingMarket,
+        enabled = detailPluginKey != null || detailRepoSlug != null,
     ) {
-        when {
-            detailPluginKey != null || detailRepoSlug != null -> {
-                detailPluginKey = null
-                detailRepoSlug = null
-            }
-            else -> browsingMarket = false
-        }
+        detailPluginKey = null
+        detailRepoSlug = null
     }
 
+    // 扩展组件点开就是它的设置面板：登录、同步、提醒方式都在那里
+    if (detailPlugin != null && detailPlugin.isExtension && extensionActions != null) {
+        com.x500x.cursimple.feature.plugin.extension.ExtensionSettingsScreen(
+            record = detailPlugin,
+            actions = extensionActions,
+            onBack = { detailPluginKey = null },
+            onRemove = {
+                onRemovePlugin(detailPlugin.installKey)
+                detailPluginKey = null
+            },
+            modifier = modifier,
+        )
+        return
+    }
     if (detailPlugin != null) {
         PluginDetailScreen(
             plugin = detailPlugin,
+            repo = catalogRepos.firstOrNull { it.fullName.equals(detailPlugin.sourceRepo?.trim(), ignoreCase = true) },
+            registrySource = detailPlugin.registrySourceFor(catalogRepos, pluginRegistryRepo),
             isEnabled = isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins),
             isSyncing = syncingPluginId == detailPlugin.pluginId || syncingPluginId == detailPlugin.installKey ||
                 uiState.checkingUpdateKey == detailPlugin.installKey || uiState.upgradingKey == detailPlugin.installKey,
-            upgrade = availableUpgrade(detailPlugin, uiState),
+            upgrade = availableUpgrade(detailPlugin, uiState.copy(marketRepos = catalogRepos)),
             onBack = { detailPluginKey = null },
             onSetEnabled = { onSetPluginEnabled(detailPlugin.installKey, it) },
             onSync = { onSyncPlugin(detailPlugin.installKey) },
-            onUpgrade = { latest -> onUpgradePlugin(detailPlugin, latest) },
+            onUpgrade = { latest ->
+                if (detailPlugin.isExtension || !isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins)) {
+                    onInstallFromGitHub(latest)
+                } else onUpgradePlugin(detailPlugin, latest)
+            },
+            onOpenRepo = onOpenRepo,
             onRemove = {
                 onRemovePlugin(detailPlugin.installKey)
                 detailPluginKey = null
@@ -352,6 +395,7 @@ private fun PluginListContent(
                 installed = uiState.installedPlugins,
             ),
             isLoading = uiState.isLoading,
+            registryRepo = pluginRegistryRepo,
             onBack = { detailRepoSlug = null },
             onOpenRepo = { onOpenRepo(detailRepo.htmlUrl) },
             onInstall = { onInstallFromGitHub(detailRepo) },
@@ -361,41 +405,30 @@ private fun PluginListContent(
         return
     }
 
-    if (browsingMarket) {
-        MarketBrowseScreen(
-            repos = uiState.marketRepos,
-            installed = uiState.installedPlugins,
-            onBack = { browsingMarket = false },
-            onOpenDetail = { repo -> detailRepoSlug = repo.fullName },
-            modifier = modifier,
-        )
-        return
-    }
 
     val context = LocalContext.current
-    val enabledCount = uiState.installedPlugins.count { plugin ->
-        isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins)
-    }
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = modifier.fillMaxSize().testTag("catalog-list"),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item {
-            PluginCountHeader(
-                enabledCount = enabledCount,
-                totalCount = uiState.installedPlugins.size,
+        item(key = "controls") {
+            MarketCatalogControls(
+                tab = catalogTab,
+                onSelectTab = { catalogTab = it },
+                query = query,
+                onQueryChange = { query = it },
+                extensionMode = extensionMode,
                 isLoading = uiState.isLoading,
-                onPickLocalPlugin = onPickLocalPlugin,
-                onRefreshMarket = onRefreshMarket,
+                isRefreshingReleases = uiState.isRefreshingReleases,
+                onImport = onPickLocalPlugin,
+                onRefresh = onRefreshMarket,
             )
         }
-
         if (missingComponents.isNotEmpty()) {
             item {
                 MissingComponentsCard(
                     components = missingComponents,
-                    onOpenComponents = onOpenComponents,
                 )
             }
         }
@@ -412,7 +445,7 @@ private fun PluginListContent(
             it is PluginMarketStatus.DownloadFailed ||
                 it is PluginMarketStatus.InstallFailed ||
                 it is PluginMarketStatus.ParsePackageFailed ||
-                it is PluginMarketStatus.MarketLoadFailed ||
+                (it is PluginMarketStatus.MarketLoadFailed && uiState.sourceErrors.isEmpty()) ||
                 it is PluginMarketStatus.ReleaseAssetMissing
         }?.let { context.pluginMarketStatusText(it) }
         when {
@@ -420,74 +453,83 @@ private fun PluginListContent(
             failureText != null -> item(key = "failure") { StatusCard(message = failureText) }
         }
 
-        item {
-            MarketSectionHeader(registryRepo = pluginRegistryRepo)
+        val sourceKind = if (extensionMode) MarketSourceKind.Component else MarketSourceKind.Plugin
+        items(uiState.sourceErrors.filter { it.kind == sourceKind }, key = { "source-error:${it.kind}:${it.source}" }) { failure ->
+            MarketSourceErrorCard(failure, uiState.isLoading, onRefreshMarket)
         }
 
-        if (uiState.marketRepos.isEmpty()) {
-            item {
-                EmptyStateCard(
-                    title = if (uiState.isLoading) {
-                        stringResource(R.string.plugin_market_loading_title)
-                    } else {
-                        stringResource(R.string.plugin_market_empty_title)
-                    },
-                    subtitle = if (uiState.isLoading) {
-                        stringResource(R.string.plugin_market_loading_subtitle)
-                    } else {
-                        stringResource(R.string.plugin_market_empty_subtitle)
-                    },
-                )
-            }
-        } else {
-            val preview = marketPreview(uiState.marketRepos)
-            item {
-                MarketGrid(
-                    repos = preview.visible,
-                    installed = uiState.installedPlugins,
-                    onOpenDetail = { repo -> detailRepoSlug = repo.fullName },
-                )
-            }
-            if (preview.hiddenCount > 0) {
-                item {
-                    AppOutlinedButton(
-                        onClick = { browsingMarket = true },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            pluralStringResource(
-                                R.plurals.plugin_market_browse_all,
-                                uiState.marketRepos.size,
-                                uiState.marketRepos.size,
-                            ),
-                        )
+        val marketSelected = catalogTab == MarketCatalogTab.Market
+        item(key = "count") {
+            Text(
+                text = pluralStringResource(
+                    if (marketSelected && extensionMode) R.plurals.extension_search_count
+                    else if (marketSelected) R.plurals.plugin_market_search_count
+                    else R.plurals.plugin_catalog_installed_count,
+                    if (marketSelected) filteredRepos.size else filteredInstalled.size,
+                    if (marketSelected) filteredRepos.size else filteredInstalled.size,
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        val empty = if (marketSelected) filteredRepos.isEmpty() else filteredInstalled.isEmpty()
+        if (empty) {
+            item(key = "empty") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    EmptyStateCard(
+                        title = when {
+                            query.isNotBlank() -> stringResource(
+                                if (extensionMode) R.string.extension_search_empty else R.string.plugin_market_search_empty,
+                                query.trim(),
+                            )
+                            marketSelected && uiState.isLoading -> stringResource(R.string.plugin_market_loading_title)
+                            marketSelected && extensionMode -> stringResource(R.string.extension_market_empty_title)
+                            marketSelected -> stringResource(R.string.plugin_market_empty_title)
+                            extensionMode -> stringResource(R.string.extension_installed_empty_title)
+                            else -> stringResource(R.string.plugin_market_installed_empty_title)
+                        },
+                        subtitle = when {
+                            query.isNotBlank() -> stringResource(R.string.plugin_catalog_search_empty_hint)
+                            marketSelected && uiState.isLoading -> stringResource(R.string.plugin_market_loading_subtitle)
+                            marketSelected && extensionMode -> stringResource(R.string.extension_market_empty_subtitle)
+                            marketSelected -> stringResource(R.string.plugin_market_empty_subtitle)
+                            extensionMode -> stringResource(R.string.extension_installed_empty_subtitle)
+                            else -> stringResource(R.string.plugin_market_installed_empty_subtitle)
+                        },
+                    )
+                    if (!marketSelected && query.isBlank()) {
+                        Button(onClick = { catalogTab = MarketCatalogTab.Market }) {
+                            Text(stringResource(R.string.plugin_catalog_browse_market))
+                        }
                     }
                 }
             }
-        }
-
-        item {
-            SectionTitle(stringResource(R.string.plugin_market_section_installed))
-        }
-
-        if (uiState.installedPlugins.isEmpty()) {
-            item {
-                EmptyStateCard(
-                    title = stringResource(R.string.plugin_market_installed_empty_title),
-                    subtitle = stringResource(R.string.plugin_market_installed_empty_subtitle),
+        } else if (marketSelected) {
+            items(filteredRepos, key = { "repo:${it.fullName}" }) { repo ->
+                GitHubRepoCard(
+                    repo = repo,
+                    registryRepo = pluginRegistryRepo,
+                    installState = resolveRepoInstallState(repo.fullName, repo.latestRelease?.tagName, uiState.installedPlugins),
+                    isLoading = uiState.isLoading,
+                    isRefreshingReleases = uiState.isRefreshingReleases,
+                    onInstall = { onInstallFromGitHub(repo) },
+                    onOpenDetail = { detailRepoSlug = repo.fullName },
                 )
             }
         } else {
-            items(uiState.installedPlugins, key = { installedPluginKey(it) }) { plugin ->
+            items(filteredInstalled, key = { "installed:${installedPluginKey(it)}" }) { plugin ->
                 PluginCard(
                     plugin = plugin,
+                    registrySource = plugin.registrySourceFor(shownRepos, pluginRegistryRepo),
                     isEnabled = isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins),
                     isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey ||
                         uiState.checkingUpdateKey == plugin.installKey || uiState.upgradingKey == plugin.installKey,
-                    upgrade = availableUpgrade(plugin, uiState),
+                    isLoading = uiState.isLoading,
+                    upgrade = availableUpgrade(plugin, uiState.copy(marketRepos = catalogRepos)),
                     onSetEnabled = { onSetPluginEnabled(plugin.installKey, it) },
                     onSync = { onSyncPlugin(plugin.installKey) },
                     onUpgrade = { latest -> onUpgradePlugin(plugin, latest) },
+                    onInstallUpgrade = { latest -> onInstallFromGitHub(latest) },
                     onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
                 )
             }
@@ -495,124 +537,79 @@ private fun PluginListContent(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MarketSectionHeader(registryRepo: String) {
-    Column {
-        SectionTitle(stringResource(R.string.plugin_market_section_market))
+internal fun GitHubRepoCard(
+    repo: GitHubRepoSummary,
+    registryRepo: String,
+    installState: PluginRepoInstallState,
+    isLoading: Boolean,
+    isRefreshingReleases: Boolean,
+    onInstall: () -> Unit,
+    onOpenDetail: () -> Unit,
+) {
+    MarketItemSurface(Modifier.testTag("repo:${repo.fullName}")) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OwnerAvatar(owner = repo.owner, size = 40.dp)
+            Spacer(Modifier.width(12.dp))
+            Text(
+                text = repo.displayTitle,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            VersionPill(repo.latestRelease?.tagName)
+            InstallStatePill(installState)
+        }
+        MarketSourceLabel(repo.marketSource(registryRepo))
         Text(
-            text = registryRepo.ifBlank { stringResource(R.string.plugin_market_registry_unset) },
-            style = MaterialTheme.typography.labelSmall,
+            text = repo.description.ifBlank { stringResource(R.string.plugin_market_repo_no_description) },
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = 3,
             overflow = TextOverflow.Ellipsis,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            RepoInstallButton(repo, installState, isLoading, isRefreshingReleases, onInstall)
+            AppOutlinedButton(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_catalog_details)) }
+        }
+    }
+}
+
+@Composable
+private fun RepoInstallButton(
+    repo: GitHubRepoSummary,
+    installState: PluginRepoInstallState,
+    isLoading: Boolean,
+    isRefreshingReleases: Boolean,
+    onInstall: () -> Unit,
+) {
+    val hasRelease = repo.latestRelease?.tagName?.isNotBlank() == true
+    Button(
+        onClick = onInstall,
+        enabled = hasRelease && !isLoading && installState !is PluginRepoInstallState.Installed,
+        modifier = Modifier.testTag("install:${repo.fullName}"),
+    ) {
+        Text(
+            when {
+                isLoading -> stringResource(R.string.plugin_repo_action_processing)
+                installState is PluginRepoInstallState.Installed -> stringResource(R.string.plugin_repo_state_installed)
+                !hasRelease && isRefreshingReleases -> stringResource(R.string.plugin_catalog_loading_version)
+                !hasRelease -> stringResource(R.string.plugin_market_version_missing)
+                installState is PluginRepoInstallState.Updatable -> stringResource(
+                    R.string.plugin_repo_action_update, displayVersion(installState.latestTag),
+                )
+                else -> stringResource(R.string.plugin_repo_action_install, displayVersion(repo.latestRelease!!.tagName))
+            },
         )
     }
 }
 
 @Composable
-private fun MarketGrid(
-    repos: List<GitHubRepoSummary>,
-    installed: List<InstalledPluginRecord>,
-    onOpenDetail: (GitHubRepoSummary) -> Unit,
-) {
-    val rows = (repos.size + 1) / 2
-    val rowHeight = 168.dp
-    val totalHeight = rowHeight * rows + 12.dp * (rows - 1).coerceAtLeast(0)
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(totalHeight),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        userScrollEnabled = false,
-    ) {
-        items(repos, key = { it.fullName }) { repo ->
-            GitHubRepoCard(
-                repo = repo,
-                installState = resolveRepoInstallState(
-                    repoSlug = repo.fullName,
-                    latestTag = repo.latestRelease?.tagName,
-                    installed = installed,
-                ),
-                onClick = { onOpenDetail(repo) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun GitHubRepoCard(
-    repo: GitHubRepoSummary,
-    installState: PluginRepoInstallState,
-    onClick: () -> Unit,
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(168.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OwnerAvatar(owner = repo.owner, size = 32.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = repo.displayTitle,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = repo.owner,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Text(
-                text = repo.description.ifBlank { stringResource(R.string.plugin_market_repo_no_description) },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 3,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Rounded.Star,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = repo.stars.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                InstallStatePill(installState)
-                VersionPill(tag = repo.latestRelease?.tagName)
-            }
-        }
-    }
-}
-
-@Composable
 private fun VersionPill(tag: String?) {
-    val text = tag?.takeIf { it.isNotBlank() } ?: stringResource(R.string.plugin_market_version_missing)
+    val text = tag?.takeIf { it.isNotBlank() }?.let(::displayVersion) ?: stringResource(R.string.plugin_market_version_missing)
     val hasVersion = tag?.isNotBlank() == true
     val container = if (hasVersion) {
         MaterialTheme.colorScheme.primaryContainer
@@ -670,262 +667,82 @@ private fun OwnerAvatar(owner: String, size: Dp) {
     }
 }
 
+/** 已装包名和学校名优先；英文回退标题把分隔符整理为空格，仓库标识另行展示。 */
+private fun GitHubRepoSummary.detailDisplayTitle(): String =
+    (if (isExtension) displayTitle else schoolDisplayTitle()).replace('_', ' ').replace('-', ' ')
+
 @OptIn(ExperimentalLayoutApi::class)
-/**
- * 完整的市场浏览页。
- * 插件多到首页铺不下时从这里进，带搜索框，按名称、作者与描述筛。
- */
-@Composable
-private fun MarketBrowseScreen(
-    repos: List<GitHubRepoSummary>,
-    installed: List<InstalledPluginRecord>,
-    onBack: () -> Unit,
-    onOpenDetail: (GitHubRepoSummary) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var query by rememberSaveable { mutableStateOf("") }
-    val filtered = remember(repos, query) { filterMarketRepos(repos, query) }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-    ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        DetailBackButton(onBack)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = stringResource(R.string.plugin_market_browse_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                    OutlinedTextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Rounded.Search, contentDescription = null)
-                        },
-                        trailingIcon = {
-                            if (query.isNotEmpty()) {
-                                IconButton(onClick = { query = "" }) {
-                                    Icon(imageVector = Icons.Rounded.Close, contentDescription = null)
-                                }
-                            }
-                        },
-                        placeholder = { Text(stringResource(R.string.plugin_market_search_hint)) },
-                    )
-                    Text(
-                        text = pluralStringResource(R.plurals.plugin_market_search_count, filtered.size, filtered.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            if (filtered.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    EmptyStateCard(
-                        title = stringResource(R.string.plugin_market_search_empty, query.trim()),
-                        subtitle = stringResource(R.string.plugin_market_search_hint),
-                    )
-                }
-            } else {
-                items(filtered, key = { it.fullName }) { repo ->
-                    GitHubRepoCard(
-                        repo = repo,
-                        installState = resolveRepoInstallState(
-                            repoSlug = repo.fullName,
-                            latestTag = repo.latestRelease?.tagName,
-                            installed = installed,
-                        ),
-                        onClick = { onOpenDetail(repo) },
-                    )
-                }
-            }
-        }
-    }
-}
-
 @Composable
 private fun GitHubRepoDetailScreen(
     repo: GitHubRepoSummary,
     installState: PluginRepoInstallState,
     isLoading: Boolean,
+    registryRepo: String,
     onBack: () -> Unit,
     onOpenRepo: () -> Unit,
     onInstall: () -> Unit,
     onUninstall: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-    ) {
+    Column(modifier = modifier.fillMaxSize().testTag("market-detail")) {
+        MarketDetailTopBar(
+            title = stringResource(if (repo.isExtension) R.string.extension_detail_title else R.string.plugin_detail_title),
+            onBack = onBack,
+        )
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+            modifier = Modifier.weight(1f).testTag("detail-list"),
+            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    DetailBackButton(onBack)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.plugin_detail_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            OwnerAvatar(owner = repo.owner, size = 48.dp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = repo.displayTitle,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                Text(
-                                    text = repo.owner,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Rounded.Star,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "${repo.stars} stars",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            repo.language?.let {
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(modifier = Modifier.weight(1f))
-                            VersionPill(tag = repo.latestRelease?.tagName)
-                        }
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            val hasRelease = repo.latestRelease != null
-                            val installed = installState.installedRecord
-                            // 已装且版本一致时按钮只作状态展示，不再重复安装
-                            val actionEnabled = hasRelease && !isLoading &&
-                                installState !is PluginRepoInstallState.Installed
-                            Button(onClick = onInstall, enabled = actionEnabled) {
-                                Icon(
-                                    imageVector = if (installState is PluginRepoInstallState.Installed) {
-                                        Icons.Rounded.Check
-                                    } else {
-                                        Icons.Rounded.Download
-                                    },
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                val label = when {
-                                    isLoading -> stringResource(R.string.plugin_repo_action_processing)
-                                    !hasRelease -> stringResource(R.string.plugin_market_version_missing)
-                                    installState is PluginRepoInstallState.Installed -> stringResource(
-                                        R.string.plugin_repo_action_installed,
-                                        installState.record.version,
-                                    )
-                                    installState is PluginRepoInstallState.Updatable -> stringResource(
-                                        R.string.plugin_repo_action_update,
-                                        installState.latestTag,
-                                    )
-                                    else -> stringResource(
-                                        R.string.plugin_repo_action_install,
-                                        repo.latestRelease!!.tagName,
-                                    )
-                                }
-                                Text(label, maxLines = 2)
-                            }
-                            if (installed != null) {
-                                AppOutlinedButton(onClick = { onUninstall(installed.installKey) }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Delete,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(stringResource(R.string.plugin_repo_action_uninstall), maxLines = 2)
-                                }
-                            }
-                            AppOutlinedButton(onClick = onOpenRepo) {
-                                Icon(
-                                    imageVector = Icons.Rounded.OpenInBrowser,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.plugin_repo_action_open_github), maxLines = 2)
+            item(key = "identity") {
+                MarketItemSurface {
+                    MarketDetailHeading(installState.installedRecord?.name ?: repo.detailDisplayTitle(), Modifier.testTag("detail-name"))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        VersionPill(repo.latestRelease?.tagName)
+                        InstallStatePill(installState)
+                    }
+                    MarketSourceLabel(repo.marketSource(registryRepo))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RepoInstallButton(repo, installState, isLoading, false, onInstall)
+                        installState.installedRecord?.let { installed ->
+                            AppOutlinedButton(onClick = { onUninstall(installed.installKey) }, enabled = !isLoading) {
+                                Text(stringResource(R.string.plugin_repo_action_uninstall))
                             }
                         }
                     }
                 }
             }
-
-            item {
-                DetailSection(stringResource(R.string.plugin_repo_section_description)) {
+            item(key = "description") {
+                DetailSection(stringResource(R.string.plugin_detail_intro)) {
                     Text(
-                        text = repo.description.ifBlank {
-                            stringResource(R.string.plugin_market_repo_no_description)
-                        },
+                        text = repo.description.ifBlank { stringResource(R.string.plugin_detail_no_description) },
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-
-            item {
+            item(key = "repository") {
                 DetailSection(stringResource(R.string.plugin_repo_section_repository)) {
-                    DetailRow(stringResource(R.string.plugin_repo_field_full_name), repo.fullName)
-                    repo.homepageUrl?.let { DetailRow(stringResource(R.string.plugin_repo_field_homepage), it) }
+                    MarketInfoBlock(
+                        stringResource(R.string.plugin_repo_field_full_name), repo.fullName,
+                        singleLine = true, valueModifier = Modifier.testTag("detail-repository-name"),
+                    )
+                    MarketInfoBlock(stringResource(R.string.plugin_detail_field_publisher), repo.owner, singleLine = true)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        MarketStatusBadge(stringResource(R.string.plugin_catalog_stars, repo.stars))
+                        repo.language?.takeIf { it.isNotBlank() }?.let { MarketStatusBadge(it) }
+                    }
+                    repo.homepageUrl?.takeIf { it.isNotBlank() }?.let {
+                        MarketInfoBlock(stringResource(R.string.plugin_repo_field_homepage), it, singleLine = true)
+                    }
                     repo.updatedAt?.let { DetailRow(stringResource(R.string.plugin_repo_field_updated), it) }
                     if (!repo.isFresh) {
-                        DetailRow(
-                            stringResource(R.string.plugin_repo_field_notice),
-                            stringResource(R.string.plugin_repo_stale_notice),
-                        )
+                        Text(stringResource(R.string.plugin_repo_stale_notice), style = MaterialTheme.typography.bodySmall)
+                    }
+                    AppOutlinedButton(onClick = onOpenRepo) {
+                        Icon(Icons.Rounded.OpenInBrowser, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(stringResource(R.string.plugin_repo_action_open_github))
                     }
                 }
             }
@@ -943,7 +760,7 @@ private fun PluginPlatformTabs(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        PluginPlatformTab.entries.forEach { tab ->
+        PluginPlatformTab.visibleTabs.forEach { tab ->
             PlatformTabChip(
                 tab = tab,
                 selected = tab == selected,
@@ -961,159 +778,20 @@ private fun PlatformTabChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val containerColor = if (selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
+    val tabModifier = modifier.testTag("platform-${tab.name.lowercase()}")
+        .semantics { this.selected = selected }
+    val content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
+        Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(tab.labelRes))
     }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-    Surface(
-        modifier = modifier
-            .height(42.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                imageVector = tab.icon,
-                contentDescription = null,
-                tint = contentColor,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = stringResource(tab.labelRes),
-                style = MaterialTheme.typography.labelLarge,
-                color = contentColor,
-                fontWeight = FontWeight.SemiBold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun PluginCountHeader(
-    enabledCount: Int,
-    totalCount: Int,
-    isLoading: Boolean,
-    onPickLocalPlugin: () -> Unit,
-    onRefreshMarket: () -> Unit,
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 16.dp),
-        ) {
-            val compact = maxWidth < 360.dp
-
-            @Composable
-            fun CountColumn(modifier: Modifier = Modifier) {
-                Column(modifier = modifier) {
-                    Text(
-                        text = stringResource(R.string.plugin_market_count_label),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "$enabledCount / $totalCount",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = stringResource(R.string.plugin_market_count_caption),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-
-            @Composable
-            fun ActionButtons(modifier: Modifier = Modifier) {
-                Row(
-                    modifier = modifier,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    AppOutlinedButton(
-                        onClick = onPickLocalPlugin,
-                        modifier = if (compact) Modifier.weight(1f) else Modifier,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            stringResource(R.string.plugin_market_action_import_zip),
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    }
-                    Button(
-                        onClick = onRefreshMarket,
-                        enabled = !isLoading,
-                        modifier = if (compact) Modifier.weight(1f) else Modifier,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            if (isLoading) {
-                                stringResource(R.string.plugin_market_action_loading)
-                            } else {
-                                stringResource(R.string.plugin_market_action_refresh)
-                            },
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    }
-                }
-            }
-
-            if (compact) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    CountColumn(modifier = Modifier.fillMaxWidth())
-                    ActionButtons(modifier = Modifier.fillMaxWidth())
-                }
-            } else {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CountColumn(modifier = Modifier.weight(1f))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    ActionButtons()
-                }
-            }
-        }
-    }
+    if (selected) Button(onClick = onClick, modifier = tabModifier, content = content)
+    else AppOutlinedButton(onClick = onClick, modifier = tabModifier, content = content)
 }
 
 @Composable
 private fun MissingComponentsCard(
     components: List<PluginComponentRequirement>,
-    onOpenComponents: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -1135,68 +813,71 @@ private fun MissingComponentsCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
-            Button(onClick = onOpenComponents) {
-                Text(stringResource(R.string.plugin_market_missing_components_action))
-            }
+            Text(
+                text = stringResource(R.string.plugin_market_runtime_unavailable),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PluginCard(
     plugin: InstalledPluginRecord,
+    registrySource: String?,
     isEnabled: Boolean,
     isSyncing: Boolean,
+    isLoading: Boolean,
     upgrade: GitHubRepoSummary?,
     onSetEnabled: (Boolean) -> Unit,
     onSync: () -> Unit,
     onUpgrade: (GitHubRepoSummary) -> Unit,
+    onInstallUpgrade: (GitHubRepoSummary) -> Unit,
     onOpenDetail: () -> Unit,
 ) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onOpenDetail),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = plugin.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        text = "v${plugin.version} · ${plugin.source.name.lowercase()} · ${plugin.compatibilityStatus.name.lowercase()}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Switch(
-                    checked = isEnabled,
-                    onCheckedChange = onSetEnabled,
-                )
+    MarketItemSurface(Modifier.testTag("installed:${plugin.installKey}")) {
+        Text(
+            text = plugin.name,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            VersionPill(displayVersion(plugin.version))
+            MarketStatusBadge(stringResource(if (isEnabled) R.string.plugin_badge_enabled else R.string.plugin_catalog_disabled))
+            if (upgrade != null) MarketStatusBadge(stringResource(R.string.plugin_repo_state_update), attention = true)
+            if (plugin.compatibilityStatus == PluginCompatibilityStatus.Incompatible) {
+                MarketStatusBadge(stringResource(R.string.plugin_catalog_incompatible), attention = true)
             }
-            Text(
-                text = plugin.permissions.joinToString { it.id }.ifBlank {
-                    stringResource(R.string.plugin_card_no_permission)
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (isEnabled) {
-                PluginSyncOrUpgradeButton(plugin, isSyncing, upgrade, onSync, onUpgrade)
+        }
+        val source = registrySource ?: plugin.sourceRepo?.takeIf { it.isNotBlank() } ?: stringResource(
+            when (plugin.source) {
+                PluginInstallSource.Local -> R.string.plugin_install_origin_local
+                PluginInstallSource.Bundled -> R.string.plugin_install_origin_bundled
+                PluginInstallSource.Remote -> R.string.plugin_install_origin_remote
+            },
+        )
+        MarketSourceLabel(source)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (plugin.isExtension) {
+                Button(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_card_action_extension_settings)) }
+            } else if (isEnabled) {
+                PluginSyncOrUpgradeButton(plugin, isSyncing || isLoading, upgrade, onSync, onUpgrade)
+            } else {
+                AppOutlinedButton(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_catalog_details)) }
+            }
+            // 组件更新只走安装预览；不能走学校插件的升级后导课流程。
+            if (upgrade != null && (plugin.isExtension || !isEnabled)) {
+                Button(onClick = { onInstallUpgrade(upgrade) }, enabled = !isLoading && !isSyncing) {
+                    Text(stringResource(R.string.plugin_repo_action_update, displayVersion(upgrade.latestRelease!!.tagName)))
+                }
+            }
+            AppOutlinedButton(onClick = { onSetEnabled(!isEnabled) }, enabled = !isLoading && !isSyncing) {
+                Text(stringResource(if (isEnabled) R.string.plugin_catalog_disable else R.string.plugin_catalog_enable))
+            }
+            if (!plugin.isExtension && isEnabled) {
+                AppOutlinedButton(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_catalog_details)) }
             }
         }
     }
@@ -1261,9 +942,12 @@ private fun EnabledBadge() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PluginDetailScreen(
     plugin: InstalledPluginRecord,
+    repo: GitHubRepoSummary?,
+    registrySource: String?,
     isEnabled: Boolean,
     isSyncing: Boolean,
     upgrade: GitHubRepoSummary?,
@@ -1271,81 +955,57 @@ private fun PluginDetailScreen(
     onSetEnabled: (Boolean) -> Unit,
     onSync: () -> Unit,
     onUpgrade: (GitHubRepoSummary) -> Unit,
+    onOpenRepo: (String) -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var showRemoveConfirm by rememberSaveable { mutableStateOf(false) }
+    var technicalExpanded by rememberSaveable(plugin.installKey) { mutableStateOf(false) }
     val context = LocalContext.current
     val credentialStore = remember { WebLoginCredentialStore(context) }
     var hasSavedPasswords by remember(plugin.pluginId) { mutableStateOf(credentialStore.hasAny(plugin.pluginId)) }
-    // 旧记录里存过渲染好的原因，没有时按记录声明的接口版本现算
     val compatibilityMessage = plugin.compatibilityMessage?.takeIf { it.isNotBlank() }
         ?: context.pluginCompatibilityText(resolvePluginCompatibility(plugin.apiVersion))
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    DetailBackButton(onBack)
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = stringResource(R.string.plugin_detail_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = plugin.name,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                                Text(
-                                    text = "v${plugin.version}",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                                if (isEnabled) {
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    EnabledBadge()
+    val sourceLabel = registrySource ?: plugin.sourceRepo?.takeIf { it.isNotBlank() } ?: stringResource(
+        when (plugin.source) {
+            PluginInstallSource.Local -> R.string.plugin_install_origin_local
+            PluginInstallSource.Bundled -> R.string.plugin_install_origin_bundled
+            PluginInstallSource.Remote -> R.string.plugin_install_origin_remote
+        },
+    )
+    Box(modifier = modifier.fillMaxSize().testTag("installed-detail")) {
+        Column(Modifier.fillMaxSize()) {
+            MarketDetailTopBar(
+                title = stringResource(if (plugin.isExtension) R.string.extension_detail_title else R.string.plugin_detail_title),
+                onBack = onBack,
+            )
+            LazyColumn(
+                modifier = Modifier.weight(1f).testTag("detail-list"),
+                contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                item(key = "identity") {
+                    MarketItemSurface {
+                        MarketDetailHeading(plugin.name, Modifier.testTag("detail-name"))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            VersionPill(plugin.version)
+                            MarketStatusBadge(stringResource(if (isEnabled) R.string.plugin_badge_enabled else R.string.plugin_catalog_disabled))
+                            if (upgrade != null) MarketStatusBadge(stringResource(R.string.plugin_repo_state_update), attention = true)
+                        }
+                        MarketSourceLabel(sourceLabel)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (isEnabled && !plugin.isExtension) {
+                                PluginSyncOrUpgradeButton(plugin, isSyncing, upgrade, onSync, onUpgrade)
+                            } else if (upgrade != null) {
+                                Button(onClick = { onUpgrade(upgrade) }, enabled = !isSyncing) {
+                                    Text(stringResource(R.string.plugin_repo_action_update, displayVersion(upgrade.latestRelease!!.tagName)))
                                 }
                             }
-                            Switch(
-                                checked = isEnabled,
-                                onCheckedChange = onSetEnabled,
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (isEnabled) {
-                                PluginSyncOrUpgradeButton(plugin, isSyncing, upgrade, onSync, onUpgrade)
+                            AppOutlinedButton(onClick = { onSetEnabled(!isEnabled) }, enabled = !isSyncing) {
+                                Text(stringResource(if (isEnabled) R.string.plugin_catalog_disable else R.string.plugin_catalog_enable))
                             }
-                            AppOutlinedButton(onClick = { showRemoveConfirm = true }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Delete,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.plugin_detail_action_remove))
+                            AppOutlinedButton(onClick = { showRemoveConfirm = true }, enabled = !isSyncing) {
+                                Text(stringResource(if (plugin.isExtension) R.string.extension_action_remove else R.string.plugin_detail_action_remove))
                             }
                         }
                         if (hasSavedPasswords) {
@@ -1353,118 +1013,87 @@ private fun PluginDetailScreen(
                             AppOutlinedButton(onClick = {
                                 credentialStore.clear(plugin.pluginId)
                                 hasSavedPasswords = false
-                                Toast.makeText(
-                                    context,
-                                    clearedMessage,
-                                    Toast.LENGTH_SHORT,
-                                ).show()
-                            }) {
-                                Text(stringResource(R.string.plugin_detail_action_clear_passwords))
+                                Toast.makeText(context, clearedMessage, Toast.LENGTH_SHORT).show()
+                            }) { Text(stringResource(R.string.plugin_detail_action_clear_passwords)) }
+                        }
+                    }
+                }
+                item(key = "description") {
+                    DetailSection(stringResource(R.string.plugin_detail_intro)) {
+                        Text(
+                            repo?.description?.takeIf { it.isNotBlank() } ?: stringResource(R.string.plugin_detail_no_description),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                item(key = "repository") {
+                    DetailSection(stringResource(R.string.plugin_repo_section_repository)) {
+                        MarketInfoBlock(
+                            stringResource(R.string.plugin_repo_field_full_name),
+                            plugin.sourceRepo?.takeIf { it.isNotBlank() } ?: stringResource(R.string.plugin_detail_no_repository),
+                            singleLine = true, valueModifier = Modifier.testTag("detail-repository-name"),
+                        )
+                        if (plugin.publisher.isNotBlank()) {
+                            MarketInfoBlock(stringResource(R.string.plugin_detail_field_publisher), plugin.publisher)
+                        }
+                        plugin.sourceRepo?.takeIf { it.isNotBlank() }?.let { slug ->
+                            AppOutlinedButton(onClick = { onOpenRepo(repo?.htmlUrl?.takeIf { it.isNotBlank() } ?: "https://github.com/$slug") }) {
+                                Text(stringResource(R.string.plugin_repo_action_open_github))
                             }
                         }
                     }
                 }
-            }
-
-            item {
-                DetailSection(stringResource(R.string.plugin_detail_section_basic)) {
-                    val undeclared = stringResource(R.string.plugin_detail_value_undeclared)
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_publisher),
-                        plugin.publisher.ifBlank { undeclared },
-                    )
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_source),
-                        plugin.source.name.lowercase(),
-                    )
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_compatibility),
-                        plugin.compatibilityStatus.name.lowercase(),
-                    )
-                    compatibilityMessage?.let {
-                        DetailRow(stringResource(R.string.plugin_detail_field_compatibility_message), it)
-                    }
-                    DetailRow(stringResource(R.string.plugin_detail_field_plugin_id), plugin.pluginId)
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_api),
-                        plugin.apiVersion?.toString() ?: undeclared,
-                    )
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_entry),
-                        plugin.entry.ifBlank { undeclared },
-                    )
-                }
-            }
-
-            item {
-                DetailSection(stringResource(R.string.plugin_detail_section_permissions)) {
-                    Text(
-                        text = plugin.permissions.joinToString { it.id }.ifBlank {
-                            stringResource(R.string.plugin_detail_value_none)
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                }
-            }
-
-            item {
-                DetailSection(stringResource(R.string.plugin_detail_section_web_engine)) {
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_preferred),
-                        plugin.webEngine.preferred,
-                    )
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_allow_chromium),
-                        if (plugin.webEngine.allowChromium) {
-                            stringResource(R.string.plugin_detail_value_yes)
-                        } else {
-                            stringResource(R.string.plugin_detail_value_no)
-                        },
-                    )
-                    plugin.webEngine.chromiumComponent?.takeIf { it.isNotBlank() }?.let {
-                        DetailRow(stringResource(R.string.plugin_detail_field_chromium_component), it)
-                    }
-                }
-            }
-
-            item {
-                DetailSection(stringResource(R.string.plugin_detail_section_components)) {
-                    if (plugin.components.isEmpty()) {
-                        Text(
-                            stringResource(R.string.plugin_detail_value_none),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            plugin.components.forEach { component ->
-                                Text(
-                                    text = componentRequirementText(component),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
-                            }
+                if (plugin.compatibilityStatus == PluginCompatibilityStatus.Incompatible) {
+                    item(key = "compatibility") {
+                        DetailSection(stringResource(R.string.plugin_catalog_incompatible)) {
+                            Text(compatibilityMessage.orEmpty(), color = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
-            }
-
-            item {
-                DetailSection(stringResource(R.string.plugin_detail_section_allowed_hosts)) {
-                    if (plugin.allowedHosts.isEmpty()) {
-                        Text(
-                            stringResource(R.string.plugin_detail_value_none),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            plugin.allowedHosts.forEach { host ->
-                                Text(
-                                    text = host,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                )
+                item(key = "technical-toggle") {
+                    MarketDetailsToggle(technicalExpanded, { technicalExpanded = !technicalExpanded }, Modifier.testTag("detail-technical-toggle"))
+                }
+                if (technicalExpanded) {
+                    item(key = "technical-basic") {
+                        DetailSection(stringResource(R.string.plugin_detail_section_basic)) {
+                            val undeclared = stringResource(R.string.plugin_detail_value_undeclared)
+                            DetailRow(stringResource(R.string.plugin_detail_field_plugin_id), plugin.pluginId)
+                            DetailRow(stringResource(R.string.plugin_detail_field_api), plugin.apiVersion?.toString() ?: undeclared)
+                            DetailRow(stringResource(R.string.plugin_detail_field_entry), plugin.entry.ifBlank { undeclared })
+                            DetailRow(
+                                stringResource(R.string.plugin_detail_field_compatibility),
+                                stringResource(if (plugin.compatibilityStatus == PluginCompatibilityStatus.Compatible) R.string.plugin_catalog_compatible else R.string.plugin_catalog_incompatible),
+                            )
+                            compatibilityMessage?.let { DetailRow(stringResource(R.string.plugin_detail_field_compatibility_message), it) }
+                        }
+                    }
+                    item(key = "technical-permissions") {
+                        DetailSection(stringResource(R.string.plugin_detail_section_permissions)) {
+                            context.pluginPermissionListText(pluginPermissionList(plugin.permissions)).forEach { label ->
+                                Text(label, style = MaterialTheme.typography.bodyMedium)
                             }
+                        }
+                    }
+                    item(key = "technical-web-engine") {
+                        DetailSection(stringResource(R.string.plugin_detail_section_web_engine)) {
+                            DetailRow(stringResource(R.string.plugin_detail_field_preferred), plugin.webEngine.preferred)
+                            DetailRow(stringResource(R.string.plugin_detail_field_allow_chromium), stringResource(if (plugin.webEngine.allowChromium) R.string.plugin_detail_value_yes else R.string.plugin_detail_value_no))
+                            plugin.webEngine.chromiumComponent?.takeIf { it.isNotBlank() }?.let {
+                                DetailRow(stringResource(R.string.plugin_detail_field_chromium_component), it)
+                            }
+                        }
+                    }
+                    item(key = "technical-components") {
+                        DetailSection(stringResource(R.string.plugin_detail_section_components)) {
+                            if (plugin.components.isEmpty()) Text(stringResource(R.string.plugin_detail_value_none))
+                            else plugin.components.forEach { Text(componentRequirementText(it), style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
+                    item(key = "technical-hosts") {
+                        DetailSection(stringResource(R.string.plugin_detail_section_allowed_hosts)) {
+                            if (plugin.allowedHosts.isEmpty()) Text(stringResource(R.string.plugin_detail_value_none))
+                            else plugin.allowedHosts.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
                         }
                     }
                 }
@@ -1472,23 +1101,16 @@ private fun PluginDetailScreen(
         }
 
         if (showRemoveConfirm) {
-            AlertDialog(
-                onDismissRequest = { showRemoveConfirm = false },
-                title = { Text(stringResource(R.string.plugin_remove_dialog_title)) },
-                text = { Text(stringResource(R.string.plugin_remove_dialog_message)) },
-                confirmButton = {
-                    Button(onClick = {
-                        showRemoveConfirm = false
-                        onRemove()
-                    }) {
-                        Text(stringResource(R.string.plugin_remove_dialog_confirm))
-                    }
+            AppConfirmationDialog(
+                title = stringResource(R.string.plugin_remove_dialog_title),
+                message = stringResource(R.string.plugin_remove_dialog_message),
+                confirmLabel = stringResource(R.string.plugin_remove_dialog_confirm),
+                cancelLabel = stringResource(R.string.plugin_action_cancel),
+                onConfirm = {
+                    showRemoveConfirm = false
+                    onRemove()
                 },
-                dismissButton = {
-                    AppOutlinedButton(onClick = { showRemoveConfirm = false }) {
-                        Text(stringResource(R.string.plugin_action_cancel))
-                    }
-                },
+                onDismiss = { showRemoveConfirm = false },
             )
         }
     }
@@ -1501,133 +1123,115 @@ internal fun InstallPreviewDialog(
     isLoading: Boolean,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
+    packageSizeBytes: Long? = null,
 ) {
     val context = LocalContext.current
     val manifest = preview.manifest
     val canInstall = canConfirmPluginInstall(preview)
     val allowedHosts = manifest.allowedHosts.filter { it.isNotBlank() }
+    var technicalExpanded by rememberSaveable(manifest.id, manifest.version, origin?.repoSlug) { mutableStateOf(false) }
+    val source = origin?.registrySource?.takeIf { it.isNotBlank() }
+        ?: origin?.repoSlug?.takeIf { it.isNotBlank() }
+    val sourceLabel = source?.let {
+        if (isPublicMarketSource(it)) stringResource(R.string.plugin_catalog_public_source) else it
+    } ?: context.pluginInstallOriginText(pluginInstallOriginLabel(preview.source, origin))
+    val size = packageSizeBytes?.takeIf { it >= 0 } ?: origin?.sizeBytes?.takeIf { it >= 0 }
+    // 高度只跟可用屏幕大小有关，展开技术信息时只增加内部滚动内容。
+    val dialogHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.82f).coerceAtMost(680.dp)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.plugin_install_dialog_title)) },
+        modifier = Modifier.height(dialogHeight).testTag("install-preview"),
+        title = { Text(stringResource(if (manifest.isExtension) R.string.extension_install_dialog_title else R.string.plugin_install_dialog_title)) },
         text = {
             Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("preview-scroll"),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(
-                    text = manifest.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                MarketDetailHeading(
+                    manifest.name.ifBlank { origin?.displayName.orEmpty() },
+                    Modifier.testTag("preview-name"),
                 )
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val undeclared = stringResource(R.string.plugin_detail_value_undeclared)
-                    DetailRow(stringResource(R.string.plugin_detail_field_version), "v${manifest.version}")
-                    DetailRow(stringResource(R.string.plugin_detail_field_plugin_id), manifest.id)
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_publisher),
-                        manifest.publisher.ifBlank { undeclared },
-                    )
-                    DetailRow(
-                        stringResource(R.string.plugin_detail_field_api),
-                        manifest.apiVersion?.toString() ?: undeclared,
-                    )
-                    DetailRow(stringResource(R.string.plugin_detail_field_entry), manifest.entry)
-                }
-
-                SectionTitle(stringResource(R.string.plugin_install_section_source))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DetailRow(
-                        stringResource(R.string.plugin_install_field_channel),
-                        context.pluginInstallOriginText(
-                            pluginInstallOriginLabel(preview.source, origin),
-                        ),
-                    )
-                    origin?.let {
-                        DetailRow(stringResource(R.string.plugin_install_field_download_url), it.downloadUrl)
-                    }
-                }
-
-                SectionTitle(stringResource(R.string.plugin_install_section_allowed_hosts))
-                if (allowedHosts.isEmpty()) {
+                VersionPill(manifest.version)
+                DetailSection(stringResource(R.string.plugin_detail_intro)) {
                     Text(
-                        text = stringResource(R.string.plugin_install_allowed_hosts_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        origin?.description?.takeIf { it.isNotBlank() }
+                            ?: manifest.description.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.plugin_detail_no_description),
+                        modifier = Modifier.testTag("preview-description"),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
                     )
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        allowedHosts.forEach { host ->
-                            Text(
-                                text = host,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
                 }
-
-                SectionTitle(stringResource(R.string.plugin_install_section_permissions))
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    context.pluginPermissionListText(
-                        pluginPermissionList(manifest.permissions),
-                    ).forEach { label ->
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                }
-                Text(
-                    text = stringResource(R.string.plugin_install_permission_scope_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                MarketInfoBlock(
+                    stringResource(R.string.plugin_install_section_source), sourceLabel,
+                    singleLine = true, valueModifier = Modifier.testTag("preview-source"),
                 )
-
-                SectionTitle(stringResource(R.string.plugin_install_section_integrity))
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    DetailRow(
-                        stringResource(R.string.plugin_install_field_checksum),
-                        stringResource(pluginChecksumLabelRes(preview.checksumVerified)),
-                    )
-                    DetailRow(
-                        stringResource(R.string.plugin_install_field_signature),
-                        context.pluginSignatureText(
-                            pluginSignatureLabel(preview.signatureStatus, preview.signerFingerprint),
-                        ),
-                    )
-                }
-                Text(
-                    text = stringResource(R.string.plugin_install_integrity_trust_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                MarketInfoBlock(
+                    stringResource(R.string.plugin_install_field_size),
+                    size?.let { Formatter.formatShortFileSize(context, it) } ?: stringResource(R.string.plugin_install_size_unknown),
+                    valueModifier = Modifier.testTag("preview-size"),
                 )
-
+                // 阻止安装的原因始终展示，折叠权限与校验不会改变确认按钮的校验条件。
                 pluginInstallBlockReason(preview)?.let { reason ->
                     Text(
-                        text = context.pluginInstallBlockReasonText(reason),
-                        style = MaterialTheme.typography.bodySmall,
+                        context.pluginInstallBlockReasonText(reason),
+                        modifier = Modifier.testTag("preview-block-reason"),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
+                }
+                MarketDetailsToggle(
+                    technicalExpanded, { technicalExpanded = !technicalExpanded },
+                    Modifier.testTag("preview-technical-toggle"),
+                )
+                if (technicalExpanded) {
+                    Column(
+                        modifier = Modifier.testTag("preview-technical-content"),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        DetailSection(stringResource(R.string.plugin_install_section_permissions)) {
+                            context.pluginPermissionListText(pluginPermissionList(manifest.permissions)).forEach { label ->
+                                Text(label, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Text(stringResource(R.string.plugin_install_permission_scope_note), style = MaterialTheme.typography.bodySmall)
+                        }
+                        DetailSection(stringResource(R.string.plugin_install_section_allowed_hosts)) {
+                            if (allowedHosts.isEmpty()) Text(stringResource(R.string.plugin_install_allowed_hosts_empty))
+                            else allowedHosts.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                        }
+                        DetailSection(stringResource(R.string.plugin_install_section_integrity)) {
+                            DetailRow(stringResource(R.string.plugin_install_field_checksum), stringResource(pluginChecksumLabelRes(preview.checksumVerified)))
+                            DetailRow(
+                                stringResource(R.string.plugin_install_field_signature),
+                                context.pluginSignatureText(pluginSignatureLabel(preview.signatureStatus, preview.signerFingerprint)),
+                            )
+                            Text(stringResource(R.string.plugin_install_integrity_trust_note), style = MaterialTheme.typography.bodySmall)
+                        }
+                        DetailSection(stringResource(R.string.plugin_detail_section_basic)) {
+                            val undeclared = stringResource(R.string.plugin_detail_value_undeclared)
+                            DetailRow(stringResource(R.string.plugin_detail_field_plugin_id), manifest.id)
+                            DetailRow(stringResource(R.string.plugin_detail_field_publisher), manifest.publisher.ifBlank { undeclared })
+                            DetailRow(stringResource(R.string.plugin_detail_field_api), manifest.apiVersion?.toString() ?: undeclared)
+                            DetailRow(stringResource(R.string.plugin_detail_field_entry), manifest.entry)
+                        }
+                        origin?.let {
+                            DetailSection(stringResource(R.string.plugin_repo_section_repository)) {
+                                MarketInfoBlock(stringResource(R.string.plugin_repo_field_full_name), it.repoSlug, singleLine = true)
+                                MarketInfoBlock(stringResource(R.string.plugin_install_field_download_url), it.downloadUrl, singleLine = true)
+                            }
+                        }
+                    }
                 }
             }
         },
         confirmButton = {
-            Button(
-                onClick = onConfirm,
-                enabled = canInstall && !isLoading,
-            ) {
-                Text(
-                    if (isLoading) {
-                        stringResource(R.string.plugin_install_action_installing)
-                    } else {
-                        stringResource(R.string.plugin_install_action_install)
-                    },
-                )
+            Button(onClick = onConfirm, enabled = canInstall && !isLoading, modifier = Modifier.testTag("preview-confirm")) {
+                Text(stringResource(if (isLoading) R.string.plugin_install_action_installing else R.string.plugin_install_action_install))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) {
+            AppOutlinedButton(onClick = onDismiss, modifier = Modifier.testTag("preview-cancel")) {
                 Text(stringResource(R.string.plugin_action_cancel))
             }
         },
@@ -1663,42 +1267,15 @@ internal fun WebSessionOverlay(
 
 @Composable
 private fun DetailSection(title: String, content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            content()
-        }
+    MarketItemSurface {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        content()
     }
 }
 
 @Composable
 private fun DetailRow(label: String, value: String) {
-    Row(verticalAlignment = Alignment.Top) {
-        Text(
-            text = label,
-            modifier = Modifier.width(72.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = value,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
+    MarketInfoBlock(label, value)
 }
 
 @Composable
@@ -1747,12 +1324,19 @@ private fun EmptyStateCard(
     }
 }
 
-private enum class PluginPlatformTab(
+internal enum class PluginPlatformTab(
     @param:StringRes val labelRes: Int,
     val icon: ImageVector,
 ) {
     Plugins(R.string.plugin_market_tab_plugins, Icons.Rounded.Extension),
-    Components(R.string.plugin_market_tab_components, Icons.Rounded.Widgets),
+    /** 通知类的扩展组件 */
+    Extensions(R.string.plugin_market_tab_extensions, Icons.Rounded.Widgets),
+    /** 仅兼容旧版保存的页面状态；运行环境入口暂不开放。 */
+    Components(R.string.plugin_market_tab_components, Icons.Rounded.Memory);
+
+    companion object {
+        val visibleTabs = listOf(Plugins, Extensions)
+    }
 }
 
 internal fun installedPluginKey(plugin: InstalledPluginRecord): String =
@@ -1804,7 +1388,7 @@ private fun InstallStatePill(state: PluginRepoInstallState) {
     val labelRes = when (state) {
         is PluginRepoInstallState.Installed -> R.string.plugin_repo_state_installed
         is PluginRepoInstallState.Updatable -> R.string.plugin_repo_state_update
-        PluginRepoInstallState.NotInstalled -> return
+        PluginRepoInstallState.NotInstalled -> R.string.plugin_catalog_not_installed
     }
     val container = if (state is PluginRepoInstallState.Updatable) {
         MaterialTheme.colorScheme.tertiaryContainer
@@ -1819,7 +1403,6 @@ private fun InstallStatePill(state: PluginRepoInstallState) {
             maxLines = 1,
         )
     }
-    Spacer(modifier = Modifier.width(4.dp))
 }
 
 /** 详情页左上角的返回，带边框以便和旁边的标题区分开。 */
@@ -1838,3 +1421,16 @@ private fun DetailBackButton(onBack: () -> Unit) {
         Text(stringResource(R.string.plugin_action_back), maxLines = 1)
     }
 }
+
+
+/** 包里 manifest.json 带 entry / apiVersion 的是插件包（学校插件或扩展组件），不是运行环境包 */
+private fun looksLikePluginPackage(bytes: ByteArray): Boolean = runCatching {
+    java.util.zip.ZipInputStream(bytes.inputStream()).use { zip ->
+        generateSequence { zip.nextEntry }
+            .firstOrNull { it.name == "manifest.json" }
+            ?.let {
+                val text = zip.readBytes().toString(Charsets.UTF_8)
+                "\"apiVersion\"" in text || "\"entry\"" in text
+            } ?: false
+    }
+}.getOrDefault(false)

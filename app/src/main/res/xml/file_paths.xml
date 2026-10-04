@@ -6,4 +6,6 @@
     <cache-path name="exported-images" path="images/" />
     <cache-path name="update-apks" path="updates/" />
     <cache-path name="ai-import" path="ai-import/" />
+    <cache-path name="extension-media" path="extension-media/" />
+    <files-path name="extension-downloads" path="extension-downloads/" />
 </paths>

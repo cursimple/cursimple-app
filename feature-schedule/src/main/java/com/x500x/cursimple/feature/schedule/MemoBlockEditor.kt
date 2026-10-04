@@ -237,7 +237,7 @@ internal fun MemoBlockEditor(
                         } else {
                             null
                         },
-                        requester = requesters.getOrPut(line.id) { FocusRequester() },
+                        requester = remember(line.id) { requesters.getOrPut(line.id) { FocusRequester() } },
                         contentColor = contentColor,
                         inlineStyle = inlineStyle,
                         codeBackground = codeBackground,

@@ -67,7 +67,8 @@ import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 @Composable
 fun SchoolImportRoute(
     pluginMarketViewModel: PluginMarketViewModel,
-    pluginRegistryRepo: String,
+    pluginSources: List<String>,
+    componentSources: List<String>,
     syncingPluginId: String?,
     syncStatusMessage: String?,
     pendingWebSession: WebSessionRequest?,
@@ -78,15 +79,16 @@ fun SchoolImportRoute(
     onBrowseAllPlugins: () -> Unit,
     onAddCourseManually: () -> Unit,
     modifier: Modifier = Modifier,
+    accountKey: String? = null,
 ) {
     val context = LocalContext.current
     val uiState by pluginMarketViewModel.uiState.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
 
-    LaunchedEffect(pluginRegistryRepo) {
-        if (pluginRegistryRepo.isNotBlank()) {
-            pluginMarketViewModel.refreshIfStale(pluginRegistryRepo, MARKET_CACHE_TTL_MILLIS)
-        }
+    LaunchedEffect(pluginSources, componentSources, accountKey) {
+        pluginMarketViewModel.setSources(pluginSources, componentSources)
+        pluginMarketViewModel.onAccountChanged(accountKey)
+        pluginMarketViewModel.refreshIfStale(MARKET_CACHE_TTL_MILLIS)
         // 已装插件单独现查最新版，有新版在列表里直接标出来
         pluginMarketViewModel.refreshInstalledPluginVersions()
     }
@@ -95,17 +97,18 @@ fun SchoolImportRoute(
     // 而不是一路退回课表把整个导课流程丢掉。
     BackHandler(enabled = pendingWebSession != null) { onCancelWebSession() }
 
+    // 扩展组件不产出课表，导课页不列它们
     val matched = remember(uiState.marketRepos, query) {
-        filterMarketRepos(uiState.marketRepos, query)
+        filterMarketRepos(uiState.marketRepos.filterNot { it.isExtension }, query)
     }
     // 插件清单在本地缓存 24 小时，新收录的学校在缓存过期前一直搜不到，
     // 用户还以为是自己学校没人做。搜不到时先自动拉一次最新清单，每次进页面只补拉一次。
-    var refreshedForMiss by remember { mutableStateOf(false) }
+    var refreshedForMiss by remember(pluginSources, componentSources, accountKey) { mutableStateOf(false) }
     LaunchedEffect(query, uiState.marketRepos, uiState.isLoading) {
         if (query.isBlank() || matched.isNotEmpty() || uiState.isLoading || refreshedForMiss) return@LaunchedEffect
-        if (pluginRegistryRepo.isBlank()) return@LaunchedEffect
+        if (pluginSources.isEmpty()) return@LaunchedEffect
         refreshedForMiss = true
-        pluginMarketViewModel.loadRegistry(pluginRegistryRepo)
+        pluginMarketViewModel.loadRegistry()
     }
     // 装自哪个仓库记在安装记录里，据此判断这一条是不是已经装好了
     val installedByRepo = remember(uiState.installedPlugins) {
@@ -130,7 +133,7 @@ fun SchoolImportRoute(
                 },
                 actions = {
                     IconButton(
-                        onClick = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+                        onClick = { pluginMarketViewModel.loadRegistry() },
                         enabled = !uiState.isLoading,
                     ) {
                         Icon(
@@ -161,7 +164,6 @@ fun SchoolImportRoute(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text(stringResource(R.string.school_import_search_label)) },
-                placeholder = { Text(stringResource(R.string.school_import_search_hint)) },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             )
 
@@ -220,7 +222,7 @@ fun SchoolImportRoute(
                 uiState.marketRepos.isEmpty() -> SchoolImportEmpty(
                     text = stringResource(R.string.school_import_market_empty),
                     actionText = stringResource(R.string.school_import_retry),
-                    onAction = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+                    onAction = { pluginMarketViewModel.loadRegistry() },
                 )
 
                 else -> LazyColumn(
@@ -236,7 +238,7 @@ fun SchoolImportRoute(
                                 actionText = stringResource(R.string.school_import_add_manually),
                                 onAction = onAddCourseManually,
                                 secondaryActionText = stringResource(R.string.school_import_refresh_list),
-                                onSecondaryAction = { pluginMarketViewModel.loadRegistry(pluginRegistryRepo) },
+                                onSecondaryAction = { pluginMarketViewModel.loadRegistry() },
                             )
                         }
                         // 没搜中不等于没得装：清单里的插件照样列出来，

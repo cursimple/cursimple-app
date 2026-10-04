@@ -7,6 +7,13 @@ import java.time.LocalDate
 
 /** 假期前一天要不要提示，以及提示什么。 */
 sealed interface HolidayEveNotice {
+    /** 明天放假，按当前规则自动跳过；明确允许假日响铃的闹钟不受影响。 */
+    data class AutoSkip(
+        val date: LocalDate,
+        val holidayName: String?,
+        val holidayNameRes: Int?,
+        val reminderCount: Int,
+    ) : HolidayEveNotice
     /** 明天放假但仍排着提醒，建议关掉。 */
     data class SuggestMute(
         val date: LocalDate,
@@ -22,8 +29,7 @@ sealed interface HolidayEveNotice {
 /**
  * 判定假期前一天的提示。
  *
- * 只在明天确实放假、当天还排着提醒、且用户没有用其它方式关掉时才提示：
- * 已经打开假日跳过提醒，或已经把明天静音的，都不再打扰。
+ * 自动跳过模式给出说明；关闭自动跳过时仍保留旧的手动静音建议。
  */
 fun holidayEveNotice(
     today: LocalDate,
@@ -33,12 +39,14 @@ fun holidayEveNotice(
     mutedDates: Set<LocalDate>,
     reminderCountOn: (LocalDate) -> Int,
 ): HolidayEveNotice {
-    if (skipRemindersOnHoliday) return HolidayEveNotice.None
     val tomorrow = today.plusDays(1)
     if (tomorrow in mutedDates) return HolidayEveNotice.None
     val resolution = resolveScheduleDay(tomorrow, temporaryScheduleOverrides, holidayCalendar)
     if (!resolution.isHoliday) return HolidayEveNotice.None
     val count = reminderCountOn(tomorrow)
+    if (skipRemindersOnHoliday) return HolidayEveNotice.AutoSkip(
+        tomorrow, resolution.holidayName, resolution.holidayNameRes, count,
+    )
     if (count <= 0) return HolidayEveNotice.None
     return HolidayEveNotice.SuggestMute(
         date = tomorrow,

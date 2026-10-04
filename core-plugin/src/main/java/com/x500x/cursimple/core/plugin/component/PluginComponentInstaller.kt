@@ -39,9 +39,14 @@ class PluginComponentInstaller(
     ): PluginComponentInstallResult = withContext(Dispatchers.IO) {
         runCatching {
             val layout = readComponentPackage(bytes)
-            val manifest = json.decodeFromString<PluginComponentPackageManifest>(
-                layout.requireFile(MANIFEST_FILE).toString(Charsets.UTF_8),
-            )
+            val manifestText = layout.requireFile(MANIFEST_FILE).toString(Charsets.UTF_8)
+            // 插件包（导课插件、扩展组件）有 entry/apiVersion，导错入口时直接告诉用户去哪导
+            val looksLikePlugin = runCatching {
+                val obj = json.parseToJsonElement(manifestText) as? kotlinx.serialization.json.JsonObject
+                obj != null && ("apiVersion" in obj || "entry" in obj)
+            }.getOrDefault(false)
+            pluginRequire(!looksLikePlugin, R.string.plugin_error_component_is_plugin_package)
+            val manifest = json.decodeFromString<PluginComponentPackageManifest>(manifestText)
             validateManifest(manifest, layout)
             val target = installLayout(manifest, layout, source)
             val record = InstalledPluginComponentRecord(

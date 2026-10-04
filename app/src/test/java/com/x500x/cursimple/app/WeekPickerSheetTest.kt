@@ -120,7 +120,8 @@ class WeekPickerSheetTest {
             currentWeek = -2,
         )
 
-        assertEquals(25, totalWeeks)
+        // 没有课表时用默认学期周数（20），不受「正在看的周」影响
+        assertEquals(20, totalWeeks)
     }
 
     @Test

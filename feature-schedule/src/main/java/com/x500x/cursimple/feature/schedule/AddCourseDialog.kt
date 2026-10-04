@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,7 +42,7 @@ fun AddCourseDialog(
     onConfirm: (CourseItem) -> Unit,
     existingCourses: List<CourseItem> = emptyList(),
     maxNodeCount: Int = 12,
-    maxWeekCount: Int = 30,
+    maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     /** 不为 null 时是编辑已有课程，保存会保留它的 id 与提醒相关字段。 */
     initial: CourseItem? = null,
 ) {

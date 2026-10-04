@@ -199,7 +199,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme)
             views.applyAccentBackground(R.id.widget_empty, dayData.widgetTheme, WidgetSurfaceTone.RowVariant)
-            val emptyText = context.scheduleWidgetEmptyText(
+            val emptyText = dayData.moodLine ?: context.scheduleWidgetEmptyText(
                 scheduleWidgetEmptyLabel(
                     termStartMissing = dayData.termStartMissing,
                     beforeTermStart = dayData.beforeTermStart,

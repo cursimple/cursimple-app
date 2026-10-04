@@ -6,9 +6,14 @@ import android.text.Spanned
 import android.text.style.RelativeSizeSpan
 import androidx.annotation.StringRes
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.holidayNameResOfName
+import com.x500x.cursimple.core.kernel.mood.dayMood
+import com.x500x.cursimple.core.kernel.mood.dayMoodLine
 import com.x500x.cursimple.core.kernel.model.slotsCovering
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
 
 /** 假日称呼；日历没给名字时由界面层补通用称呼。 */
 internal sealed interface WidgetHolidayLabel {
@@ -24,6 +29,36 @@ internal fun widgetHolidayLabel(holidayName: String?, holidayNameRes: Int? = nul
     holidayNameRes != null -> WidgetHolidayLabel.BuiltIn(holidayNameRes)
     !holidayName.isNullOrBlank() -> WidgetHolidayLabel.Named(holidayName)
     else -> WidgetHolidayLabel.Unnamed
+}
+
+/**
+ * 今天没课、放假或已经下课时说的那句闲话，和 App 里今日卡片抽的是同一句。
+ * 小组件不会准点刷新，所以不按钟点说话（不劝睡、不道晚安）。放假时前面带上假日名称。
+ */
+internal fun Context.widgetTodayMood(
+    today: LocalDate,
+    now: LocalTime,
+    holidayLabel: WidgetHolidayLabel?,
+    tomorrowHoliday: Boolean,
+    totalCourses: Int,
+): String? {
+    val mood = dayMood(
+        now = LocalDateTime.of(today, now),
+        isHoliday = holidayLabel != null,
+        holidayNameRes = holidayLabel?.nameRes(),
+        tomorrowHoliday = tomorrowHoliday,
+        totalCourses = totalCourses,
+        hasMoreToday = false,
+        timeSensitive = false,
+    ) ?: return null
+    val line = dayMoodLine(today, mood) ?: return null
+    return holidayLabel?.let { getString(R.string.widget_empty_holiday_mood, widgetHolidayText(it), line) } ?: line
+}
+
+private fun WidgetHolidayLabel.nameRes(): Int? = when (this) {
+    WidgetHolidayLabel.Unnamed -> null
+    is WidgetHolidayLabel.Named -> holidayNameResOfName(name)
+    is WidgetHolidayLabel.BuiltIn -> nameRes
 }
 
 internal fun Context.widgetHolidayText(label: WidgetHolidayLabel): String = when (label) {

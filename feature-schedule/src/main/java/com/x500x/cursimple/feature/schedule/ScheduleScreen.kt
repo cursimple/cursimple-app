@@ -87,6 +87,7 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.booleanResource
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -128,6 +129,7 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.occurrencesOn
+import com.x500x.cursimple.core.kernel.model.coursesScheduledOn
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
@@ -182,6 +184,7 @@ enum class ScheduleViewMode { Week, Day }
 fun ScheduleRoute(
     viewModel: ScheduleViewModel,
     onOpenPluginMarket: () -> Unit,
+    onSetViewMode: (ScheduleViewMode) -> Unit = {},
     weekOffset: Int,
     minWeekOffset: Int,
     maxWeekOffset: Int,
@@ -208,6 +211,8 @@ fun ScheduleRoute(
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
     onUpsertHolidayEntry: (HolidayCalendarEntry) -> Unit = {},
     onRemoveHolidayEntry: (LocalDate) -> Unit = {},
+    /** 宿主可直接打开组件生成的事务；返回 true 时本页不再打开普通事务对话框。 */
+    onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     // 拖动是易误触的操作，改动先记在这里等用户确认，确认前不落库
@@ -258,6 +263,7 @@ fun ScheduleRoute(
         onNextDay = onNextDay,
         onResetDay = onResetDay,
         onOpenPluginMarket = onOpenPluginMarket,
+        onSetViewMode = onSetViewMode,
         scheduleTextStyle = scheduleTextStyle,
         scheduleCardStyle = scheduleCardStyle,
         scheduleBackground = scheduleBackground,
@@ -271,6 +277,7 @@ fun ScheduleRoute(
         onRemoveHolidayEntry = onRemoveHolidayEntry,
         onSaveEvent = viewModel::saveEvent,
         onRemoveEvent = viewModel::removeEvent,
+        onOpenLinkedEvent = onOpenLinkedEvent,
         modifier = modifier,
     )
 }
@@ -298,6 +305,7 @@ fun ScheduleScreen(
     onDayOffsetChange: (Int) -> Unit = {},
     onResetDay: () -> Unit,
     onOpenPluginMarket: () -> Unit,
+    onSetViewMode: (ScheduleViewMode) -> Unit = {},
     onWeekOffsetChange: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
     weekOffset: Int = 0,
@@ -321,6 +329,7 @@ fun ScheduleScreen(
     onRemoveHolidayEntry: (LocalDate) -> Unit = {},
     onSaveEvent: (ScheduleEvent) -> Unit = {},
     onRemoveEvent: (String) -> Unit = {},
+    onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     // 点开的事务与它在哪天；编辑中的事务
@@ -328,13 +337,19 @@ fun ScheduleScreen(
     var eventEditing by remember { mutableStateOf<ScheduleEvent?>(null) }
     // 点开「⋯」：这一段时间里叠在一起的几件事务
     var eventGroup by remember { mutableStateOf<Pair<List<ScheduleEvent>, LocalDate>?>(null) }
+    fun openEvent(event: ScheduleEvent, date: LocalDate) {
+        if (!onOpenLinkedEvent(event)) eventDetail = event to date
+    }
+    fun editEvent(event: ScheduleEvent) {
+        if (!onOpenLinkedEvent(event)) eventEditing = event
+    }
     eventGroup?.let { (events, date) ->
         ScheduleEventGroupDialog(
             events = events,
             date = date,
             onPick = { picked ->
                 eventGroup = null
-                eventDetail = picked to date
+                openEvent(picked, date)
             },
             onDismiss = { eventGroup = null },
         )
@@ -392,17 +407,63 @@ fun ScheduleScreen(
     val editableMaxWeek = remember(allVisibleCourses) {
         maxOf(DefaultEditableWeekCount, allVisibleCourses.flatMap { it.weeks }.maxOrNull() ?: 0)
     }
+    // 今日卡片只在日视图看今天时出现；点开是完整的今日安排
+    var todaySheetOpen by rememberSaveable { mutableStateOf(false) }
+    val todayCardVisible = state.initialized && scheduleDisplay.todayOverviewEnabled &&
+        viewMode == ScheduleViewMode.Day && dayOffset == 0
+    val sheetVisible = todaySheetOpen && scheduleDisplay.todayOverviewEnabled
+    val closeTodaySheet = { todaySheetOpen = false }
+    val overviewActive = todayCardVisible || sheetVisible
+    val now by remember(zone, overviewActive) {
+        kotlinx.coroutines.flow.flow {
+            do {
+                emit(BeijingTime.nowDateTimeIn(zone))
+                if (!overviewActive) break
+                kotlinx.coroutines.delay(30_000L)
+            } while (true)
+        }
+    }.collectAsStateWithLifecycle(initialValue = BeijingTime.nowDateTimeIn(zone))
+    val todayOverview = remember(
+        allVisibleCourses,
+        state.timingProfile,
+        overrideTermStart,
+        temporaryScheduleOverrides,
+        holidayCalendar,
+        now,
+        zone,
+    ) {
+        buildTodayOverview(
+            now = now,
+            courses = allVisibleCourses,
+            timingProfile = state.timingProfile,
+            termStartDate = overrideTermStart,
+            overrides = temporaryScheduleOverrides,
+            holidayCalendar = holidayCalendar,
+        )
+    }
+    if (sheetVisible) {
+        TodayOverviewSheet(
+            state = todayOverview, display = scheduleDisplay, onDismiss = closeTodaySheet,
+            onOpenCourse = { course ->
+                closeTodaySheet()
+                detailRequest = CourseDetailRequest(listOf(course), todayOverview.date)
+            },
+        )
+    }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-        ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .testTag("schedule-grid")
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+            ) {
             if (!state.initialized) {
                 ScheduleInitializingState(modifier = Modifier.fillMaxSize())
             } else {
@@ -487,13 +548,26 @@ fun ScheduleScreen(
                             holidayCalendar = holidayCalendar,
                             onDayHeaderDoubleTap = { date -> daySheetDate = date },
                             events = state.events,
-                            onEventClick = { event, date -> eventDetail = event to date },
-                            onEventLongClick = { event, _ -> eventEditing = event },
+                            onEventClick = ::openEvent,
+                            onEventLongClick = { event, _ -> editEvent(event) },
                             onEventGroupClick = { events, date -> eventGroup = events to date },
                         )
 
-                        ScheduleViewMode.Day -> DailyScheduleSection(
-                            modifier = Modifier.fillMaxSize(),
+                        ScheduleViewMode.Day -> Column(Modifier.fillMaxSize()) {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = todayCardVisible,
+                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+                        ) {
+                            TodayOverviewCard(
+                                state = todayOverview,
+                                display = scheduleDisplay,
+                                onClick = { todaySheetOpen = true },
+                                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 8.dp),
+                            )
+                        }
+                        DailyScheduleSection(
+                            modifier = Modifier.fillMaxWidth().weight(1f),
                             schedule = state.schedule,
                             manualCourses = state.manualCourses,
                             timingProfile = state.timingProfile,
@@ -518,11 +592,13 @@ fun ScheduleScreen(
                             customColorsAdaptToTheme = customColorsAdaptToTheme,
                             onDayHeaderDoubleTap = { date -> daySheetDate = date },
                             events = state.events,
-                            onEventClick = { event, date -> eventDetail = event to date },
-                            onEventLongClick = { event, _ -> eventEditing = event },
+                            onEventClick = ::openEvent,
+                            onEventLongClick = { event, _ -> editEvent(event) },
                         )
+                        }
                     }
                 }
+            }
             }
         }
 
@@ -4714,7 +4790,7 @@ private fun appearancePreviewCourses(): List<CourseItem> = listOf(
 )
 
 /** 详情里改周次时的周数下限，学期排得更长时按实际周次往上放。 */
-private const val DefaultEditableWeekCount = 30
+private const val DefaultEditableWeekCount = 20
 
 private fun displaySlots(
     context: Context,

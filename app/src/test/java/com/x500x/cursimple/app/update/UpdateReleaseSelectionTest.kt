@@ -2,9 +2,23 @@ package com.x500x.cursimple.app.update
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class UpdateReleaseSelectionTest {
+    @Test
+    fun `bare version can belong to the testing channel`() {
+        assertTrue(isPrereleaseBuild("0.7.5", "beta"))
+        assertFalse(isPrereleaseBuild("0.7.5", "stable"))
+        assertFalse(isPrereleaseBuild("0.7.5-beta.1", "stable"))
+    }
+
+    @Test
+    fun `legacy builds fall back to the version suffix`() {
+        assertTrue(isPrereleaseBuild("0.7.0-beta.1"))
+        assertFalse(isPrereleaseBuild("0.7.5"))
+    }
 
     private fun entry(
         index: Int,

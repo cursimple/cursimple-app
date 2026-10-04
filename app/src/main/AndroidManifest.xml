@@ -6,9 +6,8 @@
     <!-- Android 16 实时活动：上课通知在状态栏挂胶囊、锁屏置顶 -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!--
-        只给「上课通知 - 悬浮窗增强」这一档皮肤用：动效和毛玻璃在通知 API 里没有，
-        要这两样就只能自己加一个窗口来画。默认皮肤是系统原生样式，用不到这条权限，
-        所以不主动申请，用户选了那一档才去引导授权。
+        默认「系统增强」用自绘弹窗补充系统通知；需要用户在通知设置中授予悬浮窗权限。
+        未授权时继续发送普通系统通知。
     -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!--
@@ -104,6 +103,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- 扩展组件的截止前提醒 -->
+        <receiver
+            android:name=".app.extension.ExtensionDueReceiver"
+            android:exported="false" />
+
+        <!-- 锁屏上的上课横幅：透明、只有卡片大、不点亮屏幕；单独一个任务，别把课表主界面带到锁屏上 -->
+        <activity
+            android:name=".app.notice.ClassNoticeLockActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:noHistory="false"
+            android:showWhenLocked="true"
+            android:taskAffinity=""
+            android:theme="@style/ClassNoticeLockBanner" />
 
         <activity
             android:name=".app.reminder.AlarmRingingActivity"

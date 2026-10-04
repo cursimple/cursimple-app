@@ -7,6 +7,9 @@
         <exclude
             domain="sharedpref"
             path="plugin_web_credentials.xml" />
+        <exclude
+            domain="sharedpref"
+            path="github_account.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude
@@ -15,5 +18,8 @@
         <exclude
             domain="sharedpref"
             path="plugin_web_credentials.xml" />
+        <exclude
+            domain="sharedpref"
+            path="github_account.xml" />
     </device-transfer>
 </data-extraction-rules>

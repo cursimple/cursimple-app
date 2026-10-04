@@ -81,7 +81,7 @@ object InterruptionFilterValues {
 /**
  * 上课通知长什么样。
  *
- * [System] 是系统原生样式，也是默认值；另外两种能换的东西各有天花板：
+ * [System] 是系统原生样式；默认的 [Overlay] 用自绘弹窗补充系统通知：
  * - [Card] 用自绘的 RemoteViews，能换底色、排版和图；但 Android 12 起自定义通知一律
  *   被套上系统头部，动效和毛玻璃在通知里根本没有 API，所以这一档只是「换皮」。
  * - [Overlay] 是我们自己加的悬浮窗，动效和真毛玻璃只有它做得到；代价是要悬浮窗权限，
@@ -108,13 +108,15 @@ data class ClassNoticePreferences(
     val headsUpEnabled: Boolean = true,
     val lockScreenEnabled: Boolean = true,
     val focusNotificationEnabled: Boolean = true,
-    /** 默认保持系统原生样式，不换皮 */
-    val skin: ClassNoticeSkin = ClassNoticeSkin.System,
+    /** 默认自绘弹窗增强，通知栏里的系统通知照常保留 */
+    val skin: ClassNoticeSkin = ClassNoticeSkin.Overlay,
     val animation: ClassNoticeAnimation = ClassNoticeAnimation.Slide,
     /** 毛玻璃；机型不支持跨窗口模糊时会自动降级成半透明 */
     val blurEnabled: Boolean = true,
     /** 毛玻璃强度，百分比。存百分比而不是像素，换算时再按屏幕密度折成 dp，各机型观感一致 */
     val blurStrength: Int = DEFAULT_BLUR_STRENGTH,
+    /** 自绘横幅停留时长；按住暂停，松开后重新计时 */
+    val bannerDurationSeconds: Int = DEFAULT_BANNER_DURATION_SECONDS,
 ) {
     companion object {
         const val DEFAULT_ADVANCE_MINUTES = 20
@@ -126,6 +128,10 @@ data class ClassNoticePreferences(
         const val MIN_BLUR_STRENGTH = 10
         const val MAX_BLUR_STRENGTH = 100
 
+        const val DEFAULT_BANNER_DURATION_SECONDS = 15
+        const val MIN_BANNER_DURATION_SECONDS = 5
+        const val MAX_BANNER_DURATION_SECONDS = 60
+
         /** 100% 对应的模糊半径（dp）。80% 正好是之前写死的那档观感 */
         const val BLUR_RADIUS_DP_AT_FULL = 40f
 
@@ -134,7 +140,13 @@ data class ClassNoticePreferences(
 
         fun coerceBlurStrength(value: Int): Int =
             value.coerceIn(MIN_BLUR_STRENGTH, MAX_BLUR_STRENGTH)
+
+        fun coerceBannerDurationSeconds(value: Int): Int =
+            value.coerceIn(MIN_BANNER_DURATION_SECONDS, MAX_BANNER_DURATION_SECONDS)
     }
+
+    val bannerDurationMillis: Long
+        get() = coerceBannerDurationSeconds(bannerDurationSeconds) * 1_000L
 }
 
 /**
@@ -181,6 +193,9 @@ data class AutoSilenceSession(
 )
 
 const val DEFAULT_PLUGIN_REGISTRY_REPO = "cursimple/cursimple-plugins"
+
+/** 公有组件仓库，结构与插件仓库相同。 */
+const val DEFAULT_COMPONENT_REGISTRY_REPO = "cursimple/cursimple-components"
 
 const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
     "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
@@ -334,6 +349,8 @@ data class ScheduleDisplayPreferences(
      * 默认关闭，关着时课表和原来一样，单指手势不受影响。
      */
     val pinchZoomEnabled: Boolean = false,
+    /** 开启后在顶部左侧显示概览按钮，详情仅在点击按钮时打开。 */
+    val todayOverviewEnabled: Boolean = true,
 )
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
@@ -401,8 +418,8 @@ data class UserPreferences(
     val enabledPluginIds: Set<String> = emptySet(),
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     val holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
-    /** 放假当天是否跳过提醒。默认照常提醒，安静与否交给用户决定。 */
-    val skipRemindersOnHoliday: Boolean = false,
+    /** 默认在假日跳过闹钟；用户可关闭此项，或为单个闹钟明确允许假日响铃。 */
+    val skipRemindersOnHoliday: Boolean = true,
     /**
      * 静默守护：退出应用后靠巡检闹钟和巡检任务定时重挂上课提醒、体检闹钟，不挂任何通知。
      * 默认开：部分国产机划掉应用会一并清掉闹钟，不开的话要等下次打开应用才补回来，
@@ -471,6 +488,13 @@ data class UserPreferences(
     /** 已选择不再弹窗提醒的版本号，角标仍然保留。 */
     val mutedUpdateVersionCode: Int? = null,
     val pluginRegistryRepo: String = DEFAULT_PLUGIN_REGISTRY_REPO,
+    /**
+     * 插件来源仓库（`owner/repo`），按顺序读取、合并；同一个插件以排在前面的来源为准。
+     * 默认只有公有仓库，删掉它就只从自己加的仓库取。
+     */
+    val pluginSources: List<String> = listOf(DEFAULT_PLUGIN_REGISTRY_REPO),
+    /** 组件来源仓库，规则同 [pluginSources]。 */
+    val componentSources: List<String> = listOf(DEFAULT_COMPONENT_REGISTRY_REPO),
     val pluginMarketCacheJson: String = "",
     val pluginMarketCachedAtMillis: Long = 0L,
     val pluginMarketCachedRegistry: String = "",
@@ -537,6 +561,8 @@ interface UserPreferencesRepository {
 
     suspend fun setClassNoticeBlurStrength(strength: Int)
 
+    suspend fun setClassNoticeBannerDurationSeconds(seconds: Int)
+
     suspend fun setAlarmPreNoticeEnabled(enabled: Boolean)
 
     suspend fun setAlarmPreNoticeAdvanceMinutes(minutes: Int)
@@ -556,6 +582,7 @@ interface UserPreferencesRepository {
     suspend fun setScheduleBackgroundUseHeaderColor()
     suspend fun setScheduleCustomColorsAdaptToTheme(enabled: Boolean)
     suspend fun setScheduleNodeColumnTimeEnabled(enabled: Boolean)
+    suspend fun setTodayOverviewEnabled(enabled: Boolean)
     suspend fun setScheduleSaturdayVisible(visible: Boolean)
     suspend fun setScheduleWeekendVisible(visible: Boolean)
 
@@ -629,6 +656,8 @@ interface UserPreferencesRepository {
 
     suspend fun setMutedUpdateVersionCode(versionCode: Int?)
     suspend fun setPluginRegistryRepo(repo: String)
+    suspend fun setPluginSources(sources: List<String>)
+    suspend fun setComponentSources(sources: List<String>)
     suspend fun setPluginMarketCache(json: String, atMillis: Long, registry: String)
     suspend fun setComponentMarketIndexUrl(url: String)
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)

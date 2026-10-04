@@ -44,6 +44,7 @@ class PluginPackageReader(
         val layout = PluginPackageLayout(normalizePackageRoot(files))
         val manifest = layout.decodeValidatedManifest(json)
         pluginRequire(manifest.entry.isNotBlank(), R.string.plugin_error_manifest_missing_entry)
+        validateKind(manifest)
         return layout
     }
 
@@ -95,3 +96,24 @@ internal fun requireSafePluginId(id: String): String {
 
 private val WINDOWS_DRIVE_PATH = Regex("^[A-Za-z]:.*")
 private val SAFE_PLUGIN_ID = Regex("[A-Za-z0-9._-]+")
+
+/**
+ * 种类与声明对得上：扩展组件得带 extension 段、声明够新的接口版本；认不出的种类直接拒，
+ * 免得新种类的包被当成导课插件跑。
+ */
+internal fun validateKind(manifest: com.x500x.cursimple.core.plugin.manifest.PluginManifest) {
+    when (manifest.kind) {
+        com.x500x.cursimple.core.plugin.manifest.PluginManifest.KIND_SCHEDULE -> Unit
+        com.x500x.cursimple.core.plugin.manifest.PluginManifest.KIND_EXTENSION -> {
+            val spec = manifest.extension
+            pluginRequire(spec != null, R.string.plugin_error_extension_missing_spec)
+            pluginRequire(
+                (manifest.apiVersion ?: 0) >= com.x500x.cursimple.core.plugin.PluginApiVersion.EXTENSION_MIN,
+                R.string.plugin_error_extension_api_too_old,
+                com.x500x.cursimple.core.plugin.PluginApiVersion.EXTENSION_MIN,
+            )
+            pluginRequire(manifest.allowedHosts.isNotEmpty(), R.string.plugin_error_extension_missing_hosts)
+        }
+        else -> pluginRequire(false, R.string.plugin_error_unknown_kind, manifest.kind)
+    }
+}

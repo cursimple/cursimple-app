@@ -16,6 +16,7 @@ import com.x500x.cursimple.core.plugin.install.resolvePluginCompatibility
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
+import com.x500x.cursimple.core.plugin.manifest.PluginExtensionUiPage
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
 import com.x500x.cursimple.core.plugin.manifest.PluginWebEngineRequirement
@@ -53,10 +54,24 @@ class PluginManager(
         json = json,
     )
     private val pendingSessions = ConcurrentHashMap<String, PendingPluginSession>()
+    private val extensionUiCache = ConcurrentHashMap<String, String?>()
 
     val installedPluginsFlow: Flow<List<InstalledPluginRecord>> = registryRepository.installedPluginsFlow
 
     suspend fun getInstalledPlugins(): List<InstalledPluginRecord> = registryRepository.getInstalledPlugins()
+
+    /** 扩展组件的运行时要读 manifest 里的 extension 段和入口脚本，导课插件走 [startSync] 不用它 */
+    suspend fun loadExtensionPackage(record: InstalledPluginRecord): Pair<PluginManifest, String> =
+        withContext(Dispatchers.IO) { fileStore.loadManifest(record) to fileStore.loadEntryScript(record) }
+
+    /** 读取组件自带 UI；没有声明 UI 的旧组件返回 null，交给宿主兼容页面。 */
+    suspend fun loadExtensionUi(record: InstalledPluginRecord, page: PluginExtensionUiPage = PluginExtensionUiPage.Feed): String? = withContext(Dispatchers.IO) {
+        val key = "${record.packageRevision}:${page.name}"
+        extensionUiCache[key]?.let { return@withContext it }
+        val manifest = fileStore.loadManifest(record)
+        val entry = manifest.extension?.ui?.entryFor(page) ?: return@withContext null
+        fileStore.loadExtensionUi(record, entry).also { extensionUiCache[key] = it }
+    }
 
     // 解压、SHA-256 校验、签名验签、逐文件落盘都是重活，统一切到 IO 线程，避免卡住调用方（多为主线程的 viewModelScope）
     suspend fun previewPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallPreview =
@@ -72,12 +87,18 @@ class PluginManager(
         bytes: ByteArray,
         source: PluginInstallSource,
         sourceRepo: String? = null,
+        registrySource: String? = null,
     ): PluginInstallResult = withContext(Dispatchers.IO) {
         PluginLogger.info(
             "plugin.manager.install.start",
             mapOf("source" to source, "bytes" to bytes.size),
         )
-        installer.installPackage(bytes, source, sourceRepo)
+        installer.installPackage(bytes, source, sourceRepo, registrySource).also { result ->
+            if (result is PluginInstallResult.Success) {
+                val prefix = "${result.record.installKey}:"
+                extensionUiCache.keys.removeIf { it.startsWith(prefix) }
+            }
+        }
     }
 
     suspend fun removePlugin(pluginKey: String) {
@@ -103,7 +124,9 @@ class PluginManager(
                 File(record.storagePath).deleteRecursively()
             }
             val removedKeys = records.map { it.installKey }.toSet()
+            removedKeys.forEach(extensionUiCache::remove)
             pendingSessions.entries.removeIf { it.value.record.installKey in removedKeys }
+            extensionUiCache.keys.removeIf { key -> removedKeys.any { key.startsWith("$it:") } }
             if (isInstallKey) {
                 registryRepository.removeInstalledPluginByKey(normalizedKey)
             } else {
@@ -164,14 +187,17 @@ class PluginManager(
         }
     }
 
-    suspend fun downloadRemotePackage(url: String): ByteArray {
+    suspend fun downloadRemotePackage(
+        url: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
+    ): ByteArray {
         val startedAt = System.currentTimeMillis()
         PluginLogger.info(
             "plugin.market.download.start",
             mapOf("url" to PluginLogger.sanitizeUrl(url)),
         )
         return try {
-            val bytes = marketIndexRepository.downloadPackage(url)
+            val bytes = marketIndexRepository.downloadPackage(url, onProgress)
             PluginLogger.info(
                 "plugin.market.download.success",
                 mapOf(
@@ -257,6 +283,10 @@ class PluginManager(
             val record = requirePlugin(request.pluginId)
             if (record.compatibilityStatus == PluginCompatibilityStatus.Incompatible) {
                 return WorkflowExecutionResult.Failure(incompatibleMessage(record))
+            }
+            // 扩展组件不产出课表，走的是自己那套后台同步，不能被当成导课插件跑
+            if (record.isExtension) {
+                return WorkflowExecutionResult.Failure(appContext.getString(R.string.plugin_error_extension_not_schedule))
             }
 
             val manifest = fileStore.loadManifest(record)

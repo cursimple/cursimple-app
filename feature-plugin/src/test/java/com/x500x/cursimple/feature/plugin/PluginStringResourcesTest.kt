@@ -7,24 +7,21 @@ import org.junit.Test
 
 class PluginStringResourcesTest {
     @Test
-    fun `both languages declare the same string names`() {
+    fun `all three languages declare the same string names`() {
         val zh = readStrings("values")
-        val en = readStrings("values-en")
-
-        assertEquals(zh.keys.sorted(), en.keys.sorted())
+        listOf("values-en", "values-zh-rTW").forEach { qualifier ->
+            assertEquals(qualifier, zh.keys.sorted(), readStrings(qualifier).keys.sorted())
+        }
     }
 
     @Test
-    fun `both languages use the same format placeholders`() {
+    fun `all three languages use the same format placeholders`() {
         val zh = readStrings("values")
-        val en = readStrings("values-en")
-
-        zh.forEach { (name, text) ->
-            assertEquals(
-                "$name 的占位符不一致",
-                placeholders(text),
-                placeholders(en.getValue(name)),
-            )
+        listOf("values-en", "values-zh-rTW").forEach { qualifier ->
+            val translated = readStrings(qualifier)
+            zh.forEach { (name, text) ->
+                assertEquals("$qualifier/$name 的占位符不一致", placeholders(text), placeholders(translated.getValue(name)))
+            }
         }
     }
 

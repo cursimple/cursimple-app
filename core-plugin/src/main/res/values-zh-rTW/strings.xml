@@ -41,6 +41,7 @@
     <string name="plugin_error_file_path_escape">外掛檔案路徑越界: %1$s</string>
 
     <string name="plugin_error_component_install_failed">元件安裝失敗</string>
+    <string name="plugin_error_component_is_plugin_package">這是元件或外掛包，不是執行環境。請到「元件」或「外掛」分頁匯入</string>
     <string name="plugin_error_component_manifest_missing_id">元件 manifest 缺少 id</string>
     <string name="plugin_error_component_manifest_missing_version">元件 manifest 缺少 version</string>
     <string name="plugin_error_component_sha256_format_invalid">元件 SHA-256 格式無效</string>
@@ -104,4 +105,10 @@
     <string name="plugin_error_market_index_signature_invalid">市場索引簽名無效</string>
     <string name="plugin_error_market_index_load_failed">載入市場索引失敗: %1$d</string>
     <string name="plugin_error_package_download_failed">下載外掛包失敗: %1$d</string>
+    <string name="plugin_error_extension_missing_spec">擴充元件的 manifest 缺少 extension 段</string>
+    <string name="plugin_error_extension_api_too_old">擴充元件至少要宣告介面版本 %1$d</string>
+    <string name="plugin_error_extension_missing_hosts">擴充元件必須在 allowedHosts 裡寫明能存取的站點</string>
+    <string name="plugin_error_unknown_kind">不認識的外掛種類：%1$s，可能需要更新應用</string>
+    <string name="plugin_error_extension_not_schedule">這是擴充元件，不能用來匯入課表</string>
+    <string name="plugin_error_package_missing_ui_file">外掛包缺少元件介面檔案: %1$s</string>
 </resources>

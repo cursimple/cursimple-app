@@ -16,6 +16,9 @@ internal enum class AlarmRingOutcome {
 
     /** 到得太晚，只补了一条错过通知。 */
     Missed,
+
+    /** 依据假日或手动静音规则跳过，没有播放声音或震动。 */
+    Skipped,
 }
 
 /**

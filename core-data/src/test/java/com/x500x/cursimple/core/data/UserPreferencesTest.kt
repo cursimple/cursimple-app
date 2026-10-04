@@ -8,6 +8,36 @@ import org.junit.Test
 
 class UserPreferencesTest {
     @Test
+    fun `today overview card is on by default and only lives in day view without changing grid display`() {
+        val display = ScheduleDisplayPreferences()
+        assertEquals(true, display.todayOverviewEnabled)
+        val disabled = display.copy(todayOverviewEnabled = false)
+        assertEquals(false, disabled.todayOverviewEnabled)
+        assertEquals(display.rowFitMode, disabled.rowFitMode)
+        assertEquals(display.locationVisible, disabled.locationVisible)
+    }
+    @Test
+    fun `holiday alarms are skipped by default and user opt out is preserved`() {
+        assertTrue(UserPreferences().skipRemindersOnHoliday)
+        assertTrue(UserPreferences().reminderDayPolicy().skipOnHoliday)
+        assertEquals(false, UserPreferences(skipRemindersOnHoliday = false).reminderDayPolicy().skipOnHoliday)
+    }
+    @Test
+    fun `notification defaults to enhanced banner for fifteen seconds`() {
+        val preferences = UserPreferences().classNotice
+        assertEquals(ClassNoticeSkin.Overlay, preferences.skin)
+        assertEquals(15_000L, preferences.bannerDurationMillis)
+        assertTrue(preferences.headsUpEnabled)
+    }
+
+    @Test
+    fun `banner duration is bounded even when preferences are constructed directly`() {
+        assertEquals(5_000L, ClassNoticePreferences(bannerDurationSeconds = -10).bannerDurationMillis)
+        assertEquals(60_000L, ClassNoticePreferences(bannerDurationSeconds = Int.MAX_VALUE).bannerDurationMillis)
+        assertEquals(23_000L, ClassNoticePreferences(bannerDurationSeconds = 23).bannerDurationMillis)
+    }
+
+    @Test
     fun `total schedule display is enabled by default`() {
         assertTrue(UserPreferences().scheduleDisplay.totalScheduleDisplayEnabled)
     }

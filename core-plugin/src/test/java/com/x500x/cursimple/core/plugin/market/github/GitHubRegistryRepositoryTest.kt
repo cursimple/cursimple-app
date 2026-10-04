@@ -9,6 +9,7 @@ class GitHubRegistryRepositoryTest {
     @Test
     fun `fetch all loads plugins stars registry and latest release manifest`() = runBlocking {
         val repository = GitHubRegistryRepository(
+            apiClient = publicRepoApi(),
             fetchText = { url ->
                 when {
                     url.startsWith(
@@ -60,6 +61,7 @@ class GitHubRegistryRepositoryTest {
     @Test
     fun `latest release manifest can use name as package filename`() = runBlocking {
         val repository = GitHubRegistryRepository(
+            apiClient = publicRepoApi(),
             fetchText = { url ->
                 assertEquals("https://github.com/owner/repo/releases/latest/download/manifest.json", url)
                 """{"name":"demo plugin.zip","version":"1.2.3"}"""
@@ -81,6 +83,7 @@ class GitHubRegistryRepositoryTest {
     fun `fetchAll uses embedded release info and skips per-repo fetch`() = runBlocking {
         var fetchCount = 0
         val repository = GitHubRegistryRepository(
+            apiClient = publicRepoApi(),
             fetchText = { url ->
                 fetchCount++
                 when {

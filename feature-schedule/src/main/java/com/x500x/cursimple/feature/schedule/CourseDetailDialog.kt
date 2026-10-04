@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
 import androidx.compose.foundation.background
@@ -215,7 +216,7 @@ fun CourseDetailDialog(
     /** 编辑时用来提示时间冲突，正在编辑的那门课会自动排除。 */
     existingCourses: List<CourseItem> = emptyList(),
     maxNodeCount: Int = 12,
-    maxWeekCount: Int = 30,
+    maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     onSaveNote: (CourseItem, String) -> Unit = { _, _ -> },
     onSaveCourse: (CourseItem) -> Unit = {},
     onRestorePluginCourse: (CourseItem) -> Unit = {},

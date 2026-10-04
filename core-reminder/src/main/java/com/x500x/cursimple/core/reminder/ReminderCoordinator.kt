@@ -57,7 +57,7 @@ class ReminderCoordinator(
     private val planner: ReminderPlanner = ReminderPlanner(),
     private val temporaryScheduleOverridesProvider: suspend () -> List<TemporaryScheduleOverride> = { emptyList() },
     private val holidayCalendarProvider: suspend () -> HolidayCalendarSettings = { HolidayCalendarSettings.NONE },
-    private val dayPolicyProvider: suspend () -> ReminderDayPolicy = { ReminderDayPolicy.ALWAYS },
+    private val dayPolicyProvider: suspend () -> ReminderDayPolicy = { ReminderDayPolicy() },
     private val alarmSettingsProvider: suspend () -> ReminderAlarmSettings = { ReminderAlarmSettings() },
     private val appDispatcher: AlarmDispatcher = AppAlarmClockDispatcher(context),
     private val appDismisser: AlarmDismisser = AppAlarmClockDismisser(context),
@@ -427,6 +427,7 @@ class ReminderCoordinator(
             ringDurationSeconds = settings.ringDurationSeconds?.coerceIn(5, 600),
             repeatIntervalSeconds = settings.repeatIntervalSeconds?.coerceIn(5, 3600),
             repeatCount = settings.repeatCount?.coerceIn(1, 10),
+            allowOnHoliday = settings.allowOnHoliday,
         )
         val plan = next.toReminderPlan()
         appDismisser.dismiss(record)
@@ -462,6 +463,7 @@ class ReminderCoordinator(
             ringtoneUri = settings.ringtoneUriOverride?.takeIf { it.isNotBlank() },
             alertMode = settings.alertModeOverride,
             courseId = null,
+            allowOnHoliday = settings.allowOnHoliday,
             ringDurationSeconds = settings.ringDurationSeconds?.coerceIn(5, 600),
             repeatIntervalSeconds = settings.repeatIntervalSeconds?.coerceIn(5, 3600),
             repeatCount = settings.repeatCount?.coerceIn(1, 10),
@@ -930,6 +932,9 @@ class ReminderCoordinator(
         backend: ReminderAlarmBackend,
         ruleId: String? = null,
     ): DismissStats {
+        val calendar = holidayCalendarProvider()
+        val overrides = temporaryScheduleOverridesProvider()
+        val policy = dayPolicyProvider()
         val records = runCatching {
             repository.getSystemAlarmRecords()
                 .filter { record ->
@@ -937,6 +942,9 @@ class ReminderCoordinator(
                         (ruleId == null || record.ruleId == ruleId) &&
                         record.backend == backend &&
                         !record.manualAlarm &&
+                        !(record.allowOnHoliday && alarmDaySuppression(
+                            record.triggerAtMillis, allowOnHoliday = false, BeijingTime.zone, policy, calendar, overrides,
+                        ) == AlarmDaySuppression.Holiday) &&
                         record.triggerAtMillis in window.startMillis..window.endMillis &&
                         (backend != ReminderAlarmBackend.AppAlarmClock ||
                             record.operationMode != AppAlarmOperationMode.SnoozeForegroundService) &&
@@ -1148,6 +1156,7 @@ private fun SystemAlarmRecord.toReminderPlan(): ReminderPlan =
         ringDurationSeconds = ringDurationSeconds,
         repeatIntervalSeconds = repeatIntervalSeconds,
         repeatCount = repeatCount,
+        allowOnHoliday = allowOnHoliday,
     )
 
 private fun ReminderPlan.withAlarmSettings(settings: ReminderAlarmSettings): ReminderPlan =

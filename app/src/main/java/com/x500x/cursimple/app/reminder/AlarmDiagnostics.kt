@@ -216,6 +216,7 @@ object AlarmDiagnostics {
                 when (event.outcome) {
                     AlarmRingOutcome.Rang -> R.string.alarm_diag_ring_outcome_rang
                     AlarmRingOutcome.Missed -> R.string.alarm_diag_ring_outcome_missed
+                    AlarmRingOutcome.Skipped -> R.string.alarm_diag_ring_outcome_skipped
                 },
             )
             getString(

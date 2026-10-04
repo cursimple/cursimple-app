@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 待完成数量、快到期与已截止的标记：和组件页里「待完成」的红色一致 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="#FBE3E3" />
+    <corners android:radius="999dp" />
+</shape>

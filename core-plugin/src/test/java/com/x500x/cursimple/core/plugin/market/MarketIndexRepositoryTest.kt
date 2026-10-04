@@ -8,6 +8,28 @@ import org.junit.Test
 
 class MarketIndexRepositoryTest {
     @Test
+    fun `progress downloader receives callback and legacy single url injection still works`() = runBlocking {
+        val expected = byteArrayOf(1, 2, 3)
+        val progress = mutableListOf<Pair<Long, Long>>()
+        val repository = MarketIndexRepository(
+            downloadBytes = { error("progress injection must take priority") },
+            downloadBytesWithProgress = { url, onProgress ->
+                assertEquals("https://example.test/plugin.zip", url)
+                onProgress(0L, -1L)
+                onProgress(2L, -1L)
+                onProgress(3L, -1L)
+                expected
+            },
+        )
+        assertArrayEquals(expected, repository.downloadPackage("https://example.test/plugin.zip") { downloaded, total ->
+            progress += downloaded to total
+        })
+        assertEquals(listOf(0L to -1L, 2L to -1L, 3L to -1L), progress)
+        val legacy = MarketIndexRepository(downloadBytes = { expected })
+        assertArrayEquals(expected, legacy.downloadPackage("https://example.test/plugin.zip"))
+    }
+
+    @Test
     fun `unknown market manifest becomes empty unsupported payload`() = runBlocking {
         val repository = MarketIndexRepository(
             fetchText = { """{"schema":"future"}""" },

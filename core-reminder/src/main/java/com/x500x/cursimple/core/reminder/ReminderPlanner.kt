@@ -38,7 +38,7 @@ class ReminderPlanner {
         temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
         customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<ReminderPlan> {
         val enabledRules = rules.filter { it.enabled }
         val legacyRules = enabledRules.filter { it.scopeType.isLegacy() }
@@ -94,7 +94,7 @@ class ReminderPlanner {
         temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
         customOccupancies: List<ReminderCustomOccupancy> = emptyList(),
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<ReminderPlan> {
         if (rule.scopeType == ReminderScopeType.LabelRule) {
             return labelEvaluator.expand(

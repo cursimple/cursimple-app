@@ -5,19 +5,12 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
-import com.x500x.cursimple.core.kernel.model.coursesMovedTo
-import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
-import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
-import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.locationForWeek
-import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
-import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.slotsCovering
-import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
+import com.x500x.cursimple.core.kernel.model.scheduledCourseOccurrencesOn
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.time.LocalTime
 
 /** 下一节要上的课，以及它的开始时刻。 */
 data class UpcomingClass(
@@ -56,16 +49,16 @@ object ClassNoticePlanner {
 
         for (offset in 0..lookaheadDays) {
             val date = now.toLocalDate().plusDays(offset.toLong())
-            val week = termStartDate?.let { resolveTermWeekNumber(it, date) }
-            coursesOn(date, visible, overrides, holidayCalendar, termStartDate)
-                .mapNotNull { course ->
-                    val start = timingProfile.startTimeOf(course) ?: return@mapNotNull null
-                    val end = timingProfile.endTimeOf(course) ?: return@mapNotNull null
+            scheduledCourseOccurrencesOn(date, visible, timingProfile, termStartDate, overrides, holidayCalendar)
+                .mapNotNull { occurrence ->
+                    val course = occurrence.course
+                    val start = occurrence.start ?: return@mapNotNull null
+                    val end = occurrence.end ?: return@mapNotNull null
                     UpcomingClass(
                         course = course,
                         startAt = LocalDateTime.of(date, start),
                         endAt = LocalDateTime.of(date, end),
-                        weekNumber = week,
+                        weekNumber = occurrence.sourceWeek,
                         slots = timingProfile.slotsCovering(course.time.startNode, course.time.endNode),
                     )
                 }
@@ -78,56 +71,7 @@ object ClassNoticePlanner {
         }
         return null
     }
-
-    /** 某一天实际要上的课，和课表主界面同一套判定（含调课、停课、放假）。 */
-    private fun coursesOn(
-        date: LocalDate,
-        allCourses: List<CourseItem>,
-        overrides: List<TemporaryScheduleOverride>,
-        holidayCalendar: HolidayCalendarSettings,
-        termStartDate: LocalDate?,
-    ): List<CourseItem> {
-        val resolution = resolveScheduleDay(date, overrides, holidayCalendar)
-        val weekOf: (LocalDate) -> Int? = { d -> termStartDate?.let { resolveTermWeekNumber(it, d) } }
-        val movedIn = coursesMovedTo(
-            date = date,
-            overrides = overrides,
-            courseById = { id -> allCourses.firstOrNull { it.id == id } },
-            isOriginallyActive = { course, from ->
-                val week = weekOf(from)
-                week == null || course.isActiveInTermWeekNumber(week)
-            },
-        )
-        // 放假日不出常规课，但调过去的课照上
-        val staying = if (resolution.isHoliday) {
-            emptyList()
-        } else {
-            allCourses
-                .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
-                .mapNotNull { course ->
-                    val source =
-                        temporaryScheduleCourseSourceDate(date, course, resolution.sourceDate, overrides)
-                            ?: return@mapNotNull null
-                    val week = weekOf(source)
-                    course.takeIf { week == null || it.isActiveInTermWeekNumber(week) }
-                }
-        }
-        return (staying + movedIn).filterNot { isCourseTemporarilyCancelled(date, it, overrides) }
-    }
 }
 
 /** 这节课在当前作息下的实际显示地点。 */
 fun UpcomingClass.displayLocation(): String = course.locationForWeek(weekNumber)
-
-private fun TermTimingProfile.startTimeOf(course: CourseItem): LocalTime? =
-    slotContaining(course.time.startNode)?.let { parseTime(it.startTime) }
-        ?: course.reminderStartTime?.let(::parseTime)
-
-private fun TermTimingProfile.endTimeOf(course: CourseItem): LocalTime? =
-    slotContaining(course.time.endNode)?.let { parseTime(it.endTime) }
-        ?: course.reminderEndTime?.let(::parseTime)
-
-private fun TermTimingProfile.slotContaining(node: Int): ClassSlotTime? =
-    slotTimes.firstOrNull { node in it.startNode..it.endNode }
-
-private fun parseTime(raw: String): LocalTime? = runCatching { LocalTime.parse(raw.trim()) }.getOrNull()

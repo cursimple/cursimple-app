@@ -139,6 +139,7 @@ internal fun pluginPermissionNameRes(permission: PluginPermission): Int = when (
     PluginPermission.ScheduleWrite -> R.string.plugin_permission_schedule_write
     PluginPermission.StoragePlugin -> R.string.plugin_permission_storage_plugin
     PluginPermission.ComponentUse -> R.string.plugin_permission_component_use
+    PluginPermission.FeedWrite -> R.string.plugin_permission_feed_write
 }
 
 /** 每条权限渲染成说明加原始权限 id。 */

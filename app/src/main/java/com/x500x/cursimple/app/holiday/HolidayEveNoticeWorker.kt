@@ -28,6 +28,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -35,45 +37,53 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.concurrent.TimeUnit
 
-/** 假期前一晚检查一次，明天放假却还排着提醒时给出关掉的建议。 */
+/** 假期前一晚说明闹钟将自动跳过；用户关闭自动跳过时保留手动静音建议。 */
 class HolidayEveNoticeWorker(
     context: Context,
     params: WorkerParameters,
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val context = applicationContext
-        val repository = DataStoreUserPreferencesRepository(context)
-        val prefs = repository.preferencesFlow.first()
-        val scheduledDates = scheduledReminderDates(context)
-        val notice = holidayEveNotice(
-            today = BeijingTime.today(),
-            holidayCalendar = prefs.holidayCalendar,
-            temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
-            skipRemindersOnHoliday = prefs.skipRemindersOnHoliday,
-            mutedDates = prefs.reminderMutedDates.mapNotNull {
-                runCatching { LocalDate.parse(it) }.getOrNull()
-            }.toSet(),
-            reminderCountOn = { date -> scheduledDates.count { it == date } },
-        )
-        if (notice is HolidayEveNotice.SuggestMute) {
-            context.postHolidayEveNotice(notice)
-        }
+        checkTonight(applicationContext)
         return Result.success()
     }
-
-    /** 数的是已经排上的闹钟，与用户当天真正会被叫醒的次数一致。 */
-    private suspend fun scheduledReminderDates(context: Context): List<LocalDate> = runCatching {
-        val container = (context as? ClassScheduleApplication)?.appContainer
-            ?: return emptyList()
-        container.reminderRepository.getSystemAlarmRecords().map { record ->
-            Instant.ofEpochMilli(record.triggerAtMillis).atZone(BeijingTime.zone).toLocalDate()
-        }
-    }.getOrDefault(emptyList())
 
     companion object {
         private const val WORK_NAME = "holiday_eve_notice"
         private val NOTICE_TIME: LocalTime = LocalTime.of(20, 0)
+        private val noticeLock = Mutex()
+
+        /** Worker 与应用回前台共用，晚间补发；同一日期只说明一次。 */
+        suspend fun checkTonight(context: Context) = noticeLock.withLock {
+            val now = BeijingTime.nowDateTime()
+            if (now.toLocalTime().isBefore(NOTICE_TIME)) return@withLock
+            val app = context.applicationContext
+            val tomorrow = now.toLocalDate().plusDays(1).toString()
+            val state = app.getSharedPreferences("holiday_eve_messages", Context.MODE_PRIVATE)
+            if (state.getString("last_date", null) == tomorrow) return@withLock
+            val prefs = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
+            val records = com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository(app).getSystemAlarmRecords()
+            val notice = holidayEveNotice(
+                today = now.toLocalDate(),
+                holidayCalendar = prefs.holidayCalendar,
+                temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
+                skipRemindersOnHoliday = prefs.skipRemindersOnHoliday,
+                mutedDates = prefs.reminderMutedDates.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.toSet(),
+                reminderCountOn = { date -> records.count {
+                    it.enabled && !it.allowOnHoliday && Instant.ofEpochMilli(it.triggerAtMillis).atZone(BeijingTime.zone).toLocalDate() == date
+                } },
+            )
+            val posted = when (notice) {
+                is HolidayEveNotice.AutoSkip -> {
+                    val name = notice.holidayNameRes?.let(app::getString)
+                        ?: notice.holidayName?.takeIf(String::isNotBlank) ?: app.getString(R.string.holiday_eve_generic_name)
+                    HolidayAlarmNotifier.postTomorrow(app, name)
+                }
+                is HolidayEveNotice.SuggestMute -> app.postHolidayEveNotice(notice)
+                HolidayEveNotice.None -> false
+            }
+            if (posted) state.edit().putString("last_date", tomorrow).apply()
+        }
 
         fun schedule(context: Context) {
             val now = BeijingTime.nowDateTime()
@@ -83,7 +93,7 @@ class HolidayEveNoticeWorker(
                 LocalDateTime.of(now.toLocalDate().plusDays(1), NOTICE_TIME)
             }
             val request = PeriodicWorkRequestBuilder<HolidayEveNoticeWorker>(24, TimeUnit.HOURS)
-                .setInitialDelay(Duration.between(now, target).toMinutes(), TimeUnit.MINUTES)
+                .setInitialDelay(Duration.between(now, target).toMillis().coerceAtLeast(0L), TimeUnit.MILLISECONDS)
                 .build()
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
@@ -98,14 +108,14 @@ private const val CHANNEL_ID = "holiday_eve_notice"
 private const val NOTIFICATION_ID = 0x48454E
 internal const val EXTRA_MUTE_DATE = "mute_date"
 
-private fun Context.postHolidayEveNotice(notice: HolidayEveNotice.SuggestMute) {
+private fun Context.postHolidayEveNotice(notice: HolidayEveNotice.SuggestMute): Boolean {
     // 用户没给通知权限时不必构造通知
-    if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return
+    if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return false
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
         PackageManager.PERMISSION_GRANTED
     ) {
-        return
+        return false
     }
     createHolidayEveChannel()
     val holidayName = notice.holidayNameRes?.let(::getString)
@@ -138,9 +148,9 @@ private fun Context.postHolidayEveNotice(notice: HolidayEveNotice.SuggestMute) {
         .setContentIntent(openIntent)
         .addAction(0, getString(R.string.holiday_eve_notice_action_mute), muteIntent)
         .build()
-    runCatching {
+    return runCatching {
         NotificationManagerCompat.from(this).notify(NOTIFICATION_ID, notification)
-    }
+    }.isSuccess
 }
 
 private fun Context.createHolidayEveChannel() {

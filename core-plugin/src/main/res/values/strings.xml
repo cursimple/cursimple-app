@@ -41,6 +41,7 @@
     <string name="plugin_error_file_path_escape">插件文件路径越界: %1$s</string>
 
     <string name="plugin_error_component_install_failed">组件安装失败</string>
+    <string name="plugin_error_component_is_plugin_package">这是组件或插件包，不是运行环境。请到「组件」或「插件」标签页导入</string>
     <string name="plugin_error_component_manifest_missing_id">组件 manifest 缺少 id</string>
     <string name="plugin_error_component_manifest_missing_version">组件 manifest 缺少 version</string>
     <string name="plugin_error_component_sha256_format_invalid">组件 SHA-256 格式无效</string>
@@ -104,4 +105,10 @@
     <string name="plugin_error_market_index_signature_invalid">市场索引签名无效</string>
     <string name="plugin_error_market_index_load_failed">加载市场索引失败: %1$d</string>
     <string name="plugin_error_package_download_failed">下载插件包失败: %1$d</string>
+    <string name="plugin_error_extension_missing_spec">扩展组件的 manifest 缺少 extension 段</string>
+    <string name="plugin_error_extension_api_too_old">扩展组件至少要声明接口版本 %1$d</string>
+    <string name="plugin_error_extension_missing_hosts">扩展组件必须在 allowedHosts 里写明能访问的站点</string>
+    <string name="plugin_error_unknown_kind">不认识的插件种类：%1$s，可能需要更新应用</string>
+    <string name="plugin_error_extension_not_schedule">这是扩展组件，不能用来导入课表</string>
+    <string name="plugin_error_package_missing_ui_file">插件包缺少组件界面文件: %1$s</string>
 </resources>
