@@ -12,15 +12,27 @@ from pathlib import Path
 OFFICIAL_CERTIFICATE = "630163f497cbb26d8d3a99dabacfc023c23c869cb55008d39a9763bd2da063bb"
 
 
+def signing_certificates(output):
+    # Build Tools 37 uses "V2 Signer:"; older releases use "Signer #1".
+    # Source Stamp certificates identify a distributor and are not app signers.
+    return set(value.lower() for value in re.findall(
+        r"^(?:Signer #\d+(?: in lineage)?|Signer \([^\n]*\)|V\d+(?:\.\d+)? Signer:)"
+        r"\s+certificate SHA-256 digest:\s*([a-fA-F0-9]{64})\s*$",
+        output, re.MULTILINE,
+    ))
+
+
 def verify(apks, signer):
     for apk in apks:
         result = subprocess.run(
             [str(signer), "verify", "--print-certs", str(apk)],
             capture_output=True, text=True, check=True,
         )
-        certificates = re.findall(r"Signer #\d+ certificate SHA-256 digest: ([a-fA-F0-9]+)", result.stdout)
-        if not certificates or set(value.lower() for value in certificates) != {OFFICIAL_CERTIFICATE}:
-            raise ValueError(f"{apk.name} does not use the official signing certificate; publication stopped")
+        certificates = signing_certificates(result.stdout)
+        if not certificates:
+            raise ValueError(f"Cannot read {apk.name} signing certificate from apksigner output")
+        if certificates != {OFFICIAL_CERTIFICATE}:
+            raise ValueError(f"{apk.name} certificate mismatch: {sorted(certificates)}; publication stopped")
         print(f"Verified official signing certificate: {apk.name}")
 
 
