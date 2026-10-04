@@ -180,7 +180,11 @@ h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.2; font-weight: 800; le
 .duo .card-img:first-child { left: 0; top: 40px; transform: rotate(-4deg); z-index: 2; }
 .duo .card-img:last-child { right: 0; top: 0; transform: rotate(3deg); }
 .alarm-shots { height: 560px; }
-.alarm-shots .card-img { width: 47%; }
+.alarm-shots .phone { position: absolute; width: 47%; padding: 7px; border-radius: 36px; }
+.alarm-shots .phone img { border-radius: 29px; }
+.alarm-shots .phone::after { top: 16px; width: 8px; height: 8px; margin-left: -4px; }
+.alarm-shots .phone:first-child { left: 0; top: 40px; transform: rotate(-4deg); z-index: 2; }
+.alarm-shots .phone:last-child { right: 0; top: 0; transform: rotate(3deg); }
 .shot-note { margin-top: 20px; color: var(--mute); font-size: 13.5px; }
 
 .stack { position: relative; padding-bottom: 20px; }
@@ -361,6 +365,9 @@ h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.2; font-weight: 800; le
 
   .tabs button { padding: 7px 11px; font-size: 13.5px; }
   .duo { height: 400px; }
+  .alarm-shots { height: 430px; }
+  .alarm-shots .phone { padding: 6px; border-radius: 30px; }
+  .alarm-shots .phone img { border-radius: 24px; }
   .stack-top { width: 300px; }
   .schools { grid-template-columns: 1fr; }
   .bento { grid-template-columns: 1fr; }
