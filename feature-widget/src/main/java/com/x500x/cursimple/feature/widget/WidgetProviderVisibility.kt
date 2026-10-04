@@ -31,14 +31,23 @@ internal object WidgetProviderVisibility {
         }
         val manager = AppWidgetManager.getInstance(appContext)
         val packageManager = appContext.packageManager
-        WidgetCatalog.entries(appContext)
-            .flatMap { it.vendorProviders }
-            .forEach { component ->
+        val componentsReady = ComponentWidgetAvailability.isAvailable(appContext)
+        WidgetCatalog.entries(appContext).forEach { entry ->
+            // 组件小组件：没有组件时通用版和副本一起下架，桌面上已放的也随之移除
+            if (entry.fromComponents) {
+                setEnabled(packageManager, entry.provider, componentsReady)
+                if (!componentsReady) {
+                    entry.vendorProviders.forEach { setEnabled(packageManager, it, false) }
+                    return@forEach
+                }
+            }
+            entry.vendorProviders.forEach { component ->
                 val inUse = runCatching { manager.getAppWidgetIds(component).isNotEmpty() }
                     .getOrDefault(true)
                 val enabled = keepVendorCopies || inUse
                 setEnabled(packageManager, component, enabled)
             }
+        }
     }
 
     private fun setEnabled(packageManager: PackageManager, component: ComponentName, enabled: Boolean) {

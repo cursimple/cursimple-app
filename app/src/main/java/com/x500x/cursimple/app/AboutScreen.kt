@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,10 +25,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Layers
@@ -41,6 +44,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,6 +53,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -64,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.BuildConfig
 import com.x500x.cursimple.R
+import com.x500x.cursimple.app.update.UpdateNoticeState
 
 private const val GITHUB_URL = "https://github.com/cursimple/cursimple-app"
 private const val ISSUES_URL = "$GITHUB_URL/issues"
@@ -76,10 +82,31 @@ private const val DEV_MODE_TAP_RESET_MS = 3000L
 fun AboutScreen(
     advancedToolsEnabled: Boolean,
     onSetAdvancedTools: (Boolean) -> Unit,
+    autoUpdateEnabled: Boolean,
+    betaUpdatesEnabled: Boolean,
+    ignoredUpdateVersionCode: Int?,
+    updateNotice: UpdateNoticeState,
+    onAutoUpdateEnabledChange: (Boolean) -> Unit,
+    onBetaUpdatesEnabledChange: (Boolean) -> Unit,
+    onIgnoreUpdateVersion: (Int?) -> Unit,
+    onMuteUpdateVersion: (Int?) -> Unit,
+    onUpdateFound: (Int, String) -> Unit,
+    onUpdateNoticeCleared: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val versionName = remember(context) { resolveVersionName(context) }
+    // 更新历史是「关于」底下的二级页，返回键先退回关于页
+    var showUpdateHistory by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled = showUpdateHistory) { showUpdateHistory = false }
+    if (showUpdateHistory) {
+        UpdateHistoryPage(
+            betaUpdatesEnabled = betaUpdatesEnabled,
+            onBack = { showUpdateHistory = false },
+            modifier = modifier,
+        )
+        return
+    }
 
     var tapCount by rememberSaveable { mutableIntStateOf(0) }
     var lastTapMs by rememberSaveable { mutableLongStateOf(0L) }
@@ -122,6 +149,33 @@ fun AboutScreen(
                 },
             )
 
+            // 软件更新紧挨着版本信息：看完版本号顺手就能查新版
+            SettingsCardGroup(stringResource(R.string.update_section_title)) {
+                UpdateCheckSection(
+                    autoCheckEnabled = autoUpdateEnabled,
+                    betaUpdatesEnabled = betaUpdatesEnabled,
+                    ignoredUpdateVersionCode = ignoredUpdateVersionCode,
+                    updateNotice = updateNotice,
+                    onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
+                    onIgnoreUpdateVersion = onIgnoreUpdateVersion,
+                    onMuteUpdateVersion = onMuteUpdateVersion,
+                    onUpdateFound = onUpdateFound,
+                    onUpdateNoticeCleared = onUpdateNoticeCleared,
+                )
+                BetaUpdatesRow(
+                    enabled = betaUpdatesEnabled,
+                    onEnabledChange = onBetaUpdatesEnabledChange,
+                )
+                // 列哪些版本跟着上面那个开关走：关着的人装不到 beta，
+                // 把 beta 列出来只会让人以为漏了更新
+                SettingsActionRow(
+                    icon = Icons.Rounded.EventRepeat,
+                    title = stringResource(R.string.update_history_title),
+                    subtitle = stringResource(R.string.update_history_subtitle),
+                    onClick = { showUpdateHistory = true },
+                )
+            }
+
             FeatureCard()
 
             LinkCard(
@@ -143,6 +197,45 @@ fun AboutScreen(
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun UpdateHistoryPage(
+    betaUpdatesEnabled: Boolean,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack, modifier = Modifier.size(36.dp)) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                    contentDescription = stringResource(R.string.settings_back),
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.update_history_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 24.dp),
+        ) {
+            UpdateHistorySection(betaUpdatesEnabled = betaUpdatesEnabled)
         }
     }
 }

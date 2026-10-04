@@ -6,4 +6,7 @@
     <exclude
         domain="sharedpref"
         path="plugin_web_credentials.xml" />
+    <exclude
+        domain="sharedpref"
+        path="github_account.xml" />
 </full-backup-content>

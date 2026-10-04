@@ -154,6 +154,13 @@ internal object WidgetAlarmGuardRunner {
             )
         }
 
+        // 组件内容按各自的同步间隔顺带检查一次；实现方只发起、不等它跑完
+        runCatching {
+            WidgetGuardHooks.onGuardTick?.invoke(app)
+        }.onFailure { error ->
+            ReminderLogger.warn("widget.alarm_guard.hook.failure", mapOf("reason" to reason), error)
+        }
+
         // 渲染数据没有变化时 RemoteViews 更新是静默的，不产生通知或界面。
         runCatching {
             ScheduleWidgetUpdater.refreshAll(app)

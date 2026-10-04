@@ -49,8 +49,11 @@ class HolidayEveNoticeTest {
     }
 
     @Test
-    fun `nothing is suggested when reminders already skip holidays`() {
-        assertEquals(HolidayEveNotice.None, notice(skipRemindersOnHoliday = true))
+    fun `automatic holiday skip is explained even when the scheduler has removed the alarms`() {
+        val auto = notice(skipRemindersOnHoliday = true, reminderCount = 0) as HolidayEveNotice.AutoSkip
+        assertEquals(nationalDay, auto.date)
+        assertEquals(0, auto.reminderCount)
+        assertTrue(auto.holidayNameRes != null || auto.holidayName != null)
     }
 
     @Test

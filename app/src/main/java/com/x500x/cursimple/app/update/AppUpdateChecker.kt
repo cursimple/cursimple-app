@@ -152,7 +152,7 @@ class AppUpdateChecker(
             }
             // 关掉测试版后本地还留着预发布版，此时线上正式版版本号更低，作为回退目标返回
             val rollback = !includePrerelease &&
-                isPrereleaseVersionName(BuildConfig.VERSION_NAME) &&
+                isPrereleaseBuild(BuildConfig.VERSION_NAME, BuildConfig.RELEASE_CHANNEL) &&
                 remoteVersionCode < BuildConfig.VERSION_CODE
             if (remoteVersionCode <= BuildConfig.VERSION_CODE && !rollback) {
                 return AppUpdateCheckResult.UpToDate

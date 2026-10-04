@@ -81,6 +81,7 @@ object AppAlarmClockIntents {
     const val EXTRA_RING_DURATION_SECONDS = "com.x500x.cursimple.extra.RING_DURATION_SECONDS"
     const val EXTRA_REPEAT_INTERVAL_SECONDS = "com.x500x.cursimple.extra.REPEAT_INTERVAL_SECONDS"
     const val EXTRA_REPEAT_COUNT = "com.x500x.cursimple.extra.REPEAT_COUNT"
+    const val EXTRA_ALLOW_ON_HOLIDAY = "com.x500x.cursimple.extra.ALLOW_ON_HOLIDAY"
 }
 
 class AppAlarmClockDispatcher(
@@ -420,6 +421,7 @@ private fun appAlarmServiceIntent(
         putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, plan.planId)
         putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, plan.courseId)
         putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, plan.triggerAtMillis)
+        putExtra(AppAlarmClockIntents.EXTRA_ALLOW_ON_HOLIDAY, plan.allowOnHoliday)
         putExtra(AppAlarmClockIntents.EXTRA_TITLE, context.reminderPlanTitleText(plan))
         putExtra(AppAlarmClockIntents.EXTRA_MESSAGE, context.reminderPlanMessageText(plan))
         putExtra(AppAlarmClockIntents.EXTRA_RINGTONE_URI, plan.ringtoneUri)
@@ -441,6 +443,7 @@ private fun appAlarmServiceIntent(
         putExtra(AppAlarmClockIntents.EXTRA_PLAN_ID, record.planId)
         putExtra(AppAlarmClockIntents.EXTRA_COURSE_ID, record.courseId)
         putExtra(AppAlarmClockIntents.EXTRA_TRIGGER_AT_MILLIS, record.triggerAtMillis)
+        putExtra(AppAlarmClockIntents.EXTRA_ALLOW_ON_HOLIDAY, record.allowOnHoliday)
         putExtra(
             AppAlarmClockIntents.EXTRA_TITLE,
             record.titleContent?.let { context.reminderNotificationTitleText(it) } ?: record.displayTitle.orEmpty(),

@@ -163,7 +163,6 @@ import com.x500x.cursimple.app.permission.PermissionRequestOutcome
 import com.x500x.cursimple.app.term.isTermStartFromPlugin
 import com.x500x.cursimple.app.permission.findActivity
 import com.x500x.cursimple.app.permission.permissionRequestOutcome
-import com.x500x.cursimple.app.update.UpdateNoticeState
 import com.x500x.cursimple.core.data.AutoSilenceMode
 import com.x500x.cursimple.core.data.AutoSilencePreferences
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
@@ -184,6 +183,7 @@ import com.x500x.cursimple.core.data.coerceAiImportTimeoutSeconds
 import com.x500x.cursimple.app.reminder.AlarmDiagnostics
 import com.x500x.cursimple.app.reminder.AlarmDiagnosticsReport
 import com.x500x.cursimple.app.reminder.AlarmPermissionIntents
+import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
 import com.x500x.cursimple.core.reminder.permission.canScheduleExactAlarms
 import com.x500x.cursimple.core.reminder.permission.canUseFullScreenIntent
@@ -191,8 +191,11 @@ import com.x500x.cursimple.core.reminder.permission.hasNotificationPermission
 import com.x500x.cursimple.core.reminder.permission.isIgnoringBatteryOptimizations
 import com.x500x.cursimple.core.reminder.permission.launchFirstAvailableSetting
 import com.x500x.cursimple.app.reminder.AutoSilenceController
+import com.x500x.cursimple.app.util.LogCategories
+import com.x500x.cursimple.app.util.LogCategory
 import com.x500x.cursimple.app.util.LogExporter
 import com.x500x.cursimple.app.webdav.WebDavConfig
+import com.x500x.cursimple.app.notice.ClassNoticeDiagnostics
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.app.notice.ClassNoticeOverlay
 import com.x500x.cursimple.core.data.ClassNoticeAnimation
@@ -283,7 +286,6 @@ private enum class SettingsDestination {
     WebDav,
     AiImport,
     Permissions,
-    UpdateHistory,
     /** 高级设置的几个二级页。 */
     DevTime,
     DevNotice,
@@ -444,6 +446,7 @@ private fun settingsSearchEntries(
         stringResource(R.string.settings_display),
         schedule,
         listOf(
+            stringResource(R.string.settings_today_overview_title),
             stringResource(R.string.settings_display_week_start_title),
             stringResource(R.string.settings_display_days_title),
             stringResource(R.string.settings_display_row_fit_title),
@@ -586,7 +589,14 @@ private fun settingsSearchEntries(
         ),
         words(stringResource(R.string.settings_search_kw_permissions)),
     )
-    page(SettingsDestination.Plugins, Icons.Rounded.Extension, stringResource(R.string.settings_dest_plugins), data, emptyList())
+    page(
+        SettingsDestination.Plugins,
+        Icons.Rounded.Extension,
+        stringResource(R.string.settings_dest_plugins),
+        data,
+        listOf(stringResource(R.string.market_sources_plugin_title), stringResource(R.string.market_sources_component_title), stringResource(R.string.github_account_title)),
+        words("GitHub repo token 仓库 私有 來源 来源 登入 登录 令牌 插件 组件"),
+    )
     page(SettingsDestination.WebDav, Icons.Rounded.Storage, "WebDAV", data, emptyList())
     page(SettingsDestination.AiImport, Icons.Rounded.ImageSearch, stringResource(R.string.settings_dest_ai_import), data, emptyList())
     entries += SettingsSearchEntry(Icons.Rounded.Language, stringResource(R.string.settings_language), general, onClick = onPickAppLanguage)
@@ -597,13 +607,6 @@ private fun settingsSearchEntries(
         onClick = onReplayFirstRunGuide,
     )
     entries += SettingsSearchEntry(Icons.Rounded.Restore, stringResource(R.string.settings_reset_all_title), general, onClick = onResetAll)
-    page(
-        SettingsDestination.UpdateHistory,
-        Icons.Rounded.EventRepeat,
-        stringResource(R.string.update_history_title),
-        stringResource(R.string.update_section_title),
-        emptyList(),
-    )
     return entries
 }
 
@@ -626,7 +629,6 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.WebDav -> "WebDAV"
     SettingsDestination.AiImport -> stringResource(R.string.settings_dest_ai_import)
     SettingsDestination.Permissions -> stringResource(R.string.settings_dest_permissions)
-    SettingsDestination.UpdateHistory -> stringResource(R.string.update_history_title)
     SettingsDestination.DevTime -> stringResource(R.string.settings_dest_dev_time)
     SettingsDestination.DevNotice -> stringResource(R.string.settings_dest_dev_notice)
     SettingsDestination.DevLogs -> stringResource(R.string.settings_dest_dev_logs)
@@ -652,13 +654,10 @@ fun AppSettingsRoute(
     alarmRepeatCount: Int,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
-    autoUpdateEnabled: Boolean,
-    betaUpdatesEnabled: Boolean,
     appTimeZoneId: String?,
-    ignoredUpdateVersionCode: Int?,
-    updateNotice: UpdateNoticeState,
-    pluginRegistryRepo: String,
-    componentMarketIndexUrl: String,
+    pluginSources: List<String>,
+    componentSources: List<String>,
+    marketSourceServices: MarketSourceServices,
     privateFilesProviderEnabled: Boolean,
     webDavUrl: String,
     webDavUsername: String,
@@ -697,6 +696,7 @@ fun AppSettingsRoute(
     onClassNoticeAnimationChange: (ClassNoticeAnimation) -> Unit = {},
     onClassNoticeBlurChange: (Boolean) -> Unit = {},
     onClassNoticeBlurStrengthChange: (Int) -> Unit = {},
+    onClassNoticeBannerDurationChange: (Int) -> Unit = {},
     onScheduleCourseCornerRadiusDpChange: (Int) -> Unit,
     onScheduleCourseCardHeightDpChange: (Int) -> Unit,
     onScheduleOpacityPercentChange: (Int) -> Unit,
@@ -718,6 +718,7 @@ fun AppSettingsRoute(
     onScheduleWeekStartDayChange: (WeekStartDay) -> Unit,
     onCourseDragEnabledChange: (Boolean) -> Unit,
     onSchedulePinchZoomEnabledChange: (Boolean) -> Unit = {},
+    onTodayOverviewEnabledChange: (Boolean) -> Unit = {},
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
@@ -731,7 +732,7 @@ fun AppSettingsRoute(
     onRemoveHolidayCalendarEntry: (String) -> Unit = {},
     onClearHolidayCalendarEntries: () -> Unit = {},
     onHolidayCalendarBuiltInEnabledChange: (Boolean) -> Unit = {},
-    skipRemindersOnHoliday: Boolean = false,
+    skipRemindersOnHoliday: Boolean = true,
     onSkipRemindersOnHolidayChange: (Boolean) -> Unit = {},
     alarmKeepAliveEnabled: Boolean = false,
     onAlarmKeepAliveEnabledChange: (Boolean) -> Unit = {},
@@ -743,15 +744,9 @@ fun AppSettingsRoute(
     vendorPermissionAcks: Set<String> = emptySet(),
     onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
-    onAutoUpdateEnabledChange: (Boolean) -> Unit,
-    onBetaUpdatesEnabledChange: (Boolean) -> Unit,
     onAppTimeZoneChange: (String?) -> Unit,
-    onIgnoreUpdateVersion: (Int?) -> Unit,
-    onMuteUpdateVersion: (Int?) -> Unit,
-    onUpdateFound: (Int, String) -> Unit,
-    onUpdateNoticeCleared: () -> Unit,
-    onPluginRegistryRepoChange: (String) -> Unit,
-    onComponentMarketIndexUrlChange: (String) -> Unit,
+    onPluginSourcesChange: (List<String>) -> Unit,
+    onComponentSourcesChange: (List<String>) -> Unit,
     onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
     onWebDavSettingsChange: (String, String, String) -> Unit,
     onTestWebDavSettings: suspend (WebDavConfig) -> Result<Unit>,
@@ -1089,12 +1084,6 @@ fun AppSettingsRoute(
                 value = stringResource(R.string.settings_replay_guide_subtitle),
                 onClick = onReplayFirstRunGuide,
             )),
-            SettingsQuickItem("update_history", stringResource(R.string.update_section_title), SettingsQuickTileSpec(
-                icon = Icons.Rounded.EventRepeat,
-                title = stringResource(R.string.update_history_title),
-                value = stringResource(R.string.update_history_subtitle),
-                onClick = { navigate(SettingsDestination.UpdateHistory) },
-            )),
         )
     } else {
         emptyList()
@@ -1302,33 +1291,6 @@ fun AppSettingsRoute(
                                         title = stringResource(R.string.settings_reset_all_title),
                                         subtitle = stringResource(R.string.settings_reset_all_subtitle),
                                         onClick = { showResetAllSettingsConfirm = true },
-                                    )
-                                }
-
-                                SettingsCardGroup(stringResource(R.string.update_section_title)) {
-                                    UpdateCheckSection(
-                                        autoCheckEnabled = autoUpdateEnabled,
-                                        betaUpdatesEnabled = betaUpdatesEnabled,
-                                        ignoredUpdateVersionCode = ignoredUpdateVersionCode,
-                                        updateNotice = updateNotice,
-                                        onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
-                                        onIgnoreUpdateVersion = onIgnoreUpdateVersion,
-                                        onMuteUpdateVersion = onMuteUpdateVersion,
-                                        onUpdateFound = onUpdateFound,
-                                        onUpdateNoticeCleared = onUpdateNoticeCleared,
-                                    )
-                                    BetaUpdatesRow(
-                                        enabled = betaUpdatesEnabled,
-                                        onEnabledChange = onBetaUpdatesEnabledChange,
-                                    )
-                                    // 列哪些版本跟着上面那个开关走：关着的人装不到 beta，
-                                    // 把 beta 列出来只会让人以为漏了更新
-                                    SettingsActionRow(
-                                        icon = Icons.Rounded.EventRepeat,
-                                        title = stringResource(R.string.update_history_title),
-                                        subtitle = stringResource(R.string.update_history_subtitle),
-                                        onClick = { navigate(SettingsDestination.UpdateHistory) },
-                                        quickId = "update_history",
                                     )
                                 }
                             }
@@ -1711,6 +1673,13 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.ScheduleDisplay -> {
+                            SettingsSwitchRow(
+                                icon = Icons.Rounded.Schedule,
+                                title = stringResource(R.string.settings_today_overview_title),
+                                subtitle = stringResource(R.string.settings_today_overview_desc),
+                                checked = scheduleDisplay.todayOverviewEnabled,
+                                onCheckedChange = onTodayOverviewEnabledChange,
+                            )
                             SettingsGroup(stringResource(R.string.settings_subgroup_visible_range)) {
                                 WeekStartDayRow(
                                     selected = scheduleDisplay.weekStartDay,
@@ -1842,15 +1811,17 @@ fun AppSettingsRoute(
                                 onAnimationChange = onClassNoticeAnimationChange,
                                 onBlurChange = onClassNoticeBlurChange,
                                 onBlurStrengthChange = onClassNoticeBlurStrengthChange,
+                                onBannerDurationChange = onClassNoticeBannerDurationChange,
                             )
                         }
 
                         SettingsDestination.Plugins -> {
-                            PluginSettingsSection(
-                                pluginRegistryRepo = pluginRegistryRepo,
-                                componentMarketIndexUrl = componentMarketIndexUrl,
-                                onPluginRegistryRepoChange = onPluginRegistryRepoChange,
-                                onComponentMarketIndexUrlChange = onComponentMarketIndexUrlChange,
+                            MarketSourceSettings(
+                                pluginSources = pluginSources,
+                                componentSources = componentSources,
+                                onPluginSourcesChange = onPluginSourcesChange,
+                                onComponentSourcesChange = onComponentSourcesChange,
+                                services = marketSourceServices,
                             )
                         }
 
@@ -1874,10 +1845,6 @@ fun AppSettingsRoute(
                                 onSave = onAiImportSettingsChange,
                                 onSaved = { complete -> settingsReturnReady = complete },
                             )
-                        }
-
-                        SettingsDestination.UpdateHistory -> {
-                            UpdateHistorySection(betaUpdatesEnabled = betaUpdatesEnabled)
                         }
 
                         SettingsDestination.Permissions -> {
@@ -3094,7 +3061,7 @@ private fun launchSettingsIntent(context: Context, intent: Intent) {
  * 厂商系统上单条 Intent 经常不存在或被拦，逐个回退到应用详情页，
  * 保证权限页上的每一项点下去都有反应。
  */
-private fun launchSettingsIntents(context: Context, intents: List<Intent>) {
+internal fun launchSettingsIntents(context: Context, intents: List<Intent>) {
     val opened = launchFirstAvailableSetting(context, intents + AlarmPermissionIntents.appDetailsIntent(context))
     if (!opened) {
         Toast.makeText(
@@ -3126,92 +3093,6 @@ private fun aiImportSettingsSubtitle(apiUrl: String, model: String): String {
         apiUrl.isBlank() -> stringResource(R.string.settings_ai_import_subtitle_none)
         model.isNotBlank() -> stringResource(R.string.settings_ai_import_subtitle_model, model)
         else -> stringResource(R.string.settings_ai_import_subtitle_configured)
-    }
-}
-
-@Composable
-private fun PluginSettingsSection(
-    pluginRegistryRepo: String,
-    componentMarketIndexUrl: String,
-    onPluginRegistryRepoChange: (String) -> Unit,
-    onComponentMarketIndexUrlChange: (String) -> Unit,
-) {
-    val context = LocalContext.current
-    var registryDraft by rememberSaveable(pluginRegistryRepo) {
-        mutableStateOf(pluginRegistryRepo)
-    }
-    var componentUrlDraft by rememberSaveable(componentMarketIndexUrl) {
-        mutableStateOf(componentMarketIndexUrl)
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        MarketIndexUrlEditor(
-            title = stringResource(R.string.settings_plugin_registry_title),
-            placeholder = "owner/repo",
-            value = registryDraft,
-            onValueChange = { registryDraft = it },
-            onSave = {
-                onPluginRegistryRepoChange(registryDraft)
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_plugin_registry_saved),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            },
-        )
-        MarketIndexUrlEditor(
-            title = stringResource(R.string.settings_component_market_title),
-            placeholder = "manifest.json",
-            value = componentUrlDraft,
-            onValueChange = { componentUrlDraft = it },
-            onSave = {
-                onComponentMarketIndexUrlChange(componentUrlDraft)
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.settings_toast_component_market_saved),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            },
-        )
-    }
-}
-
-@Composable
-private fun MarketIndexUrlEditor(
-    title: String,
-    placeholder: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    onSave: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text(placeholder) },
-            )
-            Button(
-                onClick = onSave,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(R.string.settings_save))
-            }
-        }
     }
 }
 
@@ -3574,6 +3455,30 @@ private fun AdvancedTimeSection(
 private fun AdvancedLogsSection() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var enabledCategories by remember(context) {
+        mutableStateOf(LogCategory.entries.filter { LogCategories.isEnabled(context, it) }.toSet())
+    }
+    var showLogCategories by rememberSaveable { mutableStateOf(false) }
+    AdvancedActionRow(
+        icon = Icons.Rounded.Tune,
+        title = stringResource(R.string.settings_dev_log_categories_title),
+        subtitle = stringResource(
+            R.string.settings_dev_log_categories_subtitle,
+            enabledCategories.size,
+            LogCategory.entries.size,
+        ),
+        onClick = { showLogCategories = true },
+    )
+    if (showLogCategories) {
+        LogCategoriesDialog(
+            enabled = enabledCategories,
+            onToggle = { category, enabled ->
+                LogCategories.setEnabled(context, category, enabled)
+                enabledCategories = if (enabled) enabledCategories + category else enabledCategories - category
+            },
+            onDismiss = { showLogCategories = false },
+        )
+    }
     AdvancedActionRow(
         icon = Icons.Rounded.Download,
         title = stringResource(R.string.settings_dev_export_logs_title),
@@ -3655,6 +3560,51 @@ private fun AdvancedLogsSection() {
     }
 }
 
+/** 勾选即生效，不用确认。 */
+@Composable
+private fun LogCategoriesDialog(
+    enabled: Set<LogCategory>,
+    onToggle: (LogCategory, Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_dev_log_categories_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(R.string.settings_dev_log_categories_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LogCategory.entries.forEach { category ->
+                    val checked = category in enabled
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = checked,
+                                role = Role.Checkbox,
+                                onValueChange = { onToggle(category, it) },
+                            ),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        // 整行可点，Checkbox 自己不再接点击，免得读屏报两次
+                        Checkbox(checked = checked, onCheckedChange = null)
+                        Text(
+                            text = stringResource(category.labelRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+        },
+    )
+}
+
 /** 高级 · 数据与文件：私有目录的文件管理器入口，导出课表元数据。 */
 @Composable
 private fun AdvancedDataSection(
@@ -3683,40 +3633,43 @@ private fun AdvancedDataSection(
 }
 
 /**
- * 发版前在真机上看更新公告的样子：把公告的 .md 和图片放进私有目录的 release-preview 里，
- * 这里读出来按更新公告弹窗原样显示。图按文件名从这个目录取，公告里的 GitHub 地址不用改。
+ * 沿用正式更新公告的展示方式：优先读取私有目录的自定义稿，否则读取测试包附带的本地稿。
+ * 图片跟随所选稿件从本地目录或 assets 加载，不需要访问远端。
  */
 @Composable
 private fun ReleaseAnnouncementPreviewRow() {
     val context = LocalContext.current
-    val previewDir = remember(context) { java.io.File(context.filesDir, RELEASE_PREVIEW_DIR) }
-    var preview by remember { mutableStateOf<Pair<String, String>?>(null) }
-    val missingMessage = stringResource(R.string.settings_dev_release_preview_missing, RELEASE_PREVIEW_DIR)
+    val scope = rememberCoroutineScope()
+    var preview by remember { mutableStateOf<com.x500x.cursimple.app.update.LocalReleasePreview?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    val previewDirName = com.x500x.cursimple.app.update.RELEASE_PREVIEW_DIR
+    val missingMessage = stringResource(R.string.settings_dev_release_preview_missing, previewDirName)
     AdvancedActionRow(
         icon = Icons.Rounded.NewReleases,
         title = stringResource(R.string.settings_dev_release_preview_title),
-        subtitle = stringResource(R.string.settings_dev_release_preview_subtitle, RELEASE_PREVIEW_DIR),
+        subtitle = if (loading) stringResource(R.string.update_announcement_loading)
+            else stringResource(R.string.settings_dev_release_preview_subtitle, previewDirName),
         onClick = {
-            val notes = previewDir.listFiles { file -> file.extension.equals("md", ignoreCase = true) }
-                ?.maxByOrNull { it.lastModified() }
-            if (notes == null) {
-                Toast.makeText(context, missingMessage, Toast.LENGTH_LONG).show()
-            } else {
-                preview = notes.nameWithoutExtension.removePrefix("v") to notes.readText()
+            if (!loading) {
+                loading = true
+                scope.launch {
+                    val notes = com.x500x.cursimple.app.update.loadLocalReleasePreview(context)
+                    loading = false
+                    if (notes == null) Toast.makeText(context, missingMessage, Toast.LENGTH_LONG).show()
+                    else preview = notes
+                }
             }
         },
     )
-    preview?.let { (version, markdown) ->
+    preview?.let { notes ->
         com.x500x.cursimple.app.ReleaseAnnouncementDialog(
-            versionName = version,
-            markdown = markdown,
-            imageLoader = com.x500x.cursimple.app.update.rememberReleaseImageLoader(previewDir),
+            versionName = notes.versionName,
+            markdown = notes.markdown,
+            imageLoader = com.x500x.cursimple.app.update.rememberReleaseImageLoader(notes.localDir, notes.localAssetDir),
             onDismiss = { preview = null },
         )
     }
 }
-
-private const val RELEASE_PREVIEW_DIR = "release-preview"
 
 @Composable
 private fun AdvancedActionRow(
@@ -4446,6 +4399,41 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
             ).show()
         }
     }
+    // 国产 ROM 上「不弹 / 没胶囊 / 锁屏不置顶」光看设置页判断不出卡在哪一层，
+    // 诊断报告把系统那头的状态摊开，两个跳转直达最常被关掉的那两处开关
+    var showDiagnostics by remember { mutableStateOf(false) }
+    AdvancedActionRow(
+        icon = Icons.Rounded.BugReport,
+        title = stringResource(R.string.settings_dev_notice_diagnostics_title),
+        subtitle = stringResource(R.string.settings_dev_notice_diagnostics_subtitle),
+        onClick = { showDiagnostics = true },
+    )
+    if (showDiagnostics) {
+        ClassNoticeDiagnosticsDialog(classNotice, onDismiss = { showDiagnostics = false })
+    }
+    val channelId = ClassNoticeNotifier.channelIdFor(classNotice)
+    AdvancedActionRow(
+        icon = Icons.Rounded.Tune,
+        title = stringResource(R.string.settings_dev_notice_channel_settings_title),
+        subtitle = stringResource(R.string.settings_dev_notice_channel_settings_subtitle, channelId),
+        onClick = {
+            // 渠道要发第一条才建，没建时渠道设置页会是空的
+            ClassNoticeNotifier.ensureChannel(context)
+            context.openClassNoticeSettings(channelId)
+        },
+    )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        AdvancedActionRow(
+            icon = Icons.Rounded.CenterFocusStrong,
+            title = stringResource(R.string.settings_dev_notice_promotion_settings_title),
+            subtitle = stringResource(R.string.settings_dev_notice_promotion_settings_subtitle),
+            onClick = {
+                ClassNoticeNotifier.ensureChannel(context)
+                // 没有这一页的系统退回通知设置，小米的焦点通知开关也在那里
+                context.openIslandSettings(channelId)
+            },
+        )
+    }
     AdvancedActionRow(
         icon = Icons.Rounded.NotificationsActive,
         title = stringResource(R.string.settings_dev_notice_test_title),
@@ -4484,6 +4472,26 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
         },
     )
     AdvancedActionRow(
+        icon = Icons.Rounded.Notifications,
+        title = stringResource(R.string.settings_dev_notice_plain_title),
+        subtitle = stringResource(R.string.settings_dev_notice_plain_subtitle),
+        onClick = {
+            val forced = classNotice.copy(skin = ClassNoticeSkin.System)
+            warnIfBlocked(forced)
+            ClassNoticeNotifier.notifyPlainTest(context, forced, noticeTheme)
+        },
+    )
+    AdvancedActionRow(
+        icon = Icons.Rounded.NotificationsActive,
+        title = stringResource(R.string.settings_dev_notice_sound_title),
+        subtitle = stringResource(R.string.settings_dev_notice_sound_subtitle),
+        onClick = {
+            val forced = classNotice.copy(skin = ClassNoticeSkin.System)
+            warnIfBlocked(forced)
+            ClassNoticeNotifier.notifySoundTest(context, forced, noticeTheme)
+        },
+    )
+    AdvancedActionRow(
         icon = Icons.Rounded.Schedule,
         title = stringResource(R.string.settings_dev_notice_delayed_title),
         subtitle = stringResource(R.string.settings_dev_notice_delayed_subtitle),
@@ -4500,6 +4508,76 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
                 context.getString(R.string.settings_toast_dev_notice_delayed),
                 Toast.LENGTH_SHORT,
             ).show()
+        },
+    )
+}
+
+/**
+ * 上课通知诊断弹窗。
+ *
+ * 报告要挨个问 NotificationManager、读系统属性，都是跨进程调用，放到 IO 上读，免得点开那一下卡住。
+ * 打开时顺手整份写进日志：用户往往只会导出日志、不会想到先复制弹窗内容。
+ */
+@Composable
+internal fun ClassNoticeDiagnosticsDialog(preferences: ClassNoticePreferences, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val lines by produceState<List<Pair<String, String>>?>(initialValue = null, context, preferences) {
+        value = withContext(Dispatchers.IO) {
+            ClassNoticeDiagnostics.report(context, preferences).also { report ->
+                ReminderLogger.info("class_notice.diagnostics.report", report.toMap())
+            }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_dev_notice_diagnostics_title)) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.settings_dev_notice_diagnostics_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val current = lines
+                if (current == null) {
+                    Text(
+                        stringResource(R.string.settings_alarm_diagnostics_loading),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    current.forEach { (key, value) ->
+                        Text(text = "$key: $value", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.settings_close)) }
+        },
+        dismissButton = {
+            val current = lines
+            AppOutlinedButton(
+                enabled = current != null,
+                onClick = {
+                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                    clipboard?.setPrimaryClip(
+                        android.content.ClipData.newPlainText(
+                            "cursimple-class-notice-diagnostics",
+                            current?.let(ClassNoticeDiagnostics::asText).orEmpty(),
+                        ),
+                    )
+                    Toast.makeText(
+                        context,
+                        context.getString(R.string.settings_dev_notice_diagnostics_copied),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                },
+            ) { Text(stringResource(R.string.settings_dev_notice_diagnostics_copy)) }
         },
     )
 }

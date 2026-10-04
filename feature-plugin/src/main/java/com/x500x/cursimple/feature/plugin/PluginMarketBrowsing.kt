@@ -1,5 +1,7 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.core.plugin.market.github.DefaultMarketSources
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 
 /** 插件页里市场区块最多直接铺开几个，多出来的收进浏览全部。 */
@@ -43,8 +45,42 @@ internal fun GitHubRepoSummary.matchesMarketQuery(keyword: String): Boolean =
         name.contains(keyword, ignoreCase = true) ||
         owner.contains(keyword, ignoreCase = true) ||
         description.contains(keyword, ignoreCase = true) ||
+        registrySource.contains(keyword, ignoreCase = true) ||
+        latestRelease?.tagName?.contains(keyword, ignoreCase = true) == true ||
         // 别名是给「搜学校名」用的：仓库叫 bit-schedule，学生搜的是「北京理工」
         schoolAliases.any { it.contains(keyword, ignoreCase = true) }
+
+/** 两个页面共用目录切换和搜索，不截断市场结果。 */
+internal enum class MarketCatalogTab { Installed, Market }
+
+/** 空来源元数据兼容旧缓存；新缓存始终优先使用条目自身的来源。 */
+internal fun GitHubRepoSummary.marketSource(fallback: String): String =
+    registrySource.trim().ifBlank { fallback.trim() }
+
+internal fun isPublicMarketSource(source: String): Boolean =
+    DefaultMarketSources.isDefault(source.trim().trim('/'))
+
+internal fun InstalledPluginRecord.registrySourceFor(repos: List<GitHubRepoSummary>, fallback: String): String? =
+    registrySource?.trim()?.takeIf { it.isNotBlank() }
+        ?: repos.firstOrNull { it.fullName.equals(sourceRepo?.trim(), ignoreCase = true) }?.marketSource(fallback)
+
+/** 已安装条目也支持学校别名和来源搜索，沿用导课页面的匹配规则。 */
+internal fun filterInstalledPlugins(
+    installed: List<InstalledPluginRecord>,
+    repos: List<GitHubRepoSummary>,
+    query: String,
+): List<InstalledPluginRecord> {
+    val keyword = query.trim()
+    if (keyword.isEmpty()) return installed
+    return installed.filter { plugin ->
+        listOf(plugin.name, plugin.pluginId, plugin.publisher, plugin.version, plugin.sourceRepo.orEmpty(), plugin.registrySource.orEmpty())
+            .any { it.contains(keyword, ignoreCase = true) } ||
+            repos.any { repo ->
+                repo.fullName.equals(plugin.sourceRepo?.trim(), ignoreCase = true) &&
+                    repo.matchesMarketQuery(keyword)
+            }
+    }
+}
 
 /**
  * 「从教务系统导课」页上这条插件该显示的标题。

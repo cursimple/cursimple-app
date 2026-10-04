@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>课简 CurSimple · 开源 Android 课表</title>
-<meta name="description" content="课简是一款开源免费、无广告的 Android 课表应用：插件一键导入教务课表，上课前准时提醒，桌面小组件随时看下一节课。">
+<meta name="description" content="课简是一款开源免费、无广告的 Android 课表应用。0.7.5 测试版新增今日概览、备忘录全文检索、课程日历与待完成小组件，插件和组件支持多来源市场。">
 <meta name="theme-color" content="#3FA277">
 <meta property="og:title" content="课简 CurSimple · 开源 Android 课表">
 <meta property="og:description" content="课表、提醒与桌面小组件，一个应用装下整个学期。">
@@ -65,7 +65,7 @@
     </div>
   </div>
   <nav class="m-menu" id="mMenu" hidden>
-    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span>更新公告<small data-ver>v0.7.4</small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
+    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span>更新公告<small><span data-ver>v0.7.5</span> · <span data-channel-label>最新测试版</span></small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
     <div class="m-grid">
       <a href="#schedule">课表</a>
       <a href="#memo">备忘录</a>
@@ -85,17 +85,18 @@
   <div class="wrap hero-in">
     <div class="hero-text">
       <a class="pill" href="#changelog" data-changelog>
-        <b><i class="dot" hidden></i><span data-ver>v0.7.4</span></b><span class="pill-text" data-highlights>课表事务 · 课程备忘录 · 状态栏上课胶囊</span><svg><use href="#i-arrow"/></svg>
+        <b><i class="dot" hidden></i><span data-ver>v0.7.5</span></b><span class="pill-text" data-highlights>今日概览 · 备忘录全文检索 · 新桌面小组件</span><svg><use href="#i-arrow"/></svg>
       </a>
       <h1>课表、提醒与小组件<br><span class="grad">一个应用装下整个学期</span></h1>
       <p class="lead">课简是一款开源免费、没有广告的 Android 课表。登录教务一键导课，快上课时准时提醒，桌面小组件随手看下一节。</p>
       <div class="hero-cta">
-        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/latest/download/CurSimple-arm64-v8a.apk">
+        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-arm64-v8a.apk">
           <svg><use href="#i-download"/></svg><span>下载安装包<small data-dl-meta>arm64 · 适合绝大多数手机</small></span>
         </a>
         <a class="btn btn-lg btn-ghost" href="#download">其他版本与扫码下载</a>
       </div>
       <ul class="hero-meta">
+        <li><svg><use href="#i-spark"/></svg><span data-channel-label>最新测试版</span></li>
         <li><svg><use href="#i-check"/></svg>Android 7.0 及以上</li>
         <li><svg><use href="#i-check"/></svg>MIT 开源</li>
         <li><svg><use href="#i-check"/></svg>简 / 繁 / English</li>
@@ -118,7 +119,7 @@
 <section class="wrap stats reveal">
   <div><b>1 键</b><span>登录教务导入课表</span></div>
   <div><b>3 种</b><span>上课提醒样式</span></div>
-  <div><b>3 款</b><span>桌面小组件</span></div>
+  <div><b>5 款</b><span>桌面小组件</span></div>
   <div><b>300%</b><span>双指缩放课表</span></div>
 </section>
 
@@ -131,6 +132,7 @@
         <button data-shot="assets/shots/day.webp">日视图</button>
         <button data-shot="assets/shots/zoom.webp">双指缩放</button>
         <button data-shot="assets/shots/library.webp">管理列表</button>
+        <button data-shot="assets/shots/agenda.png">今日概览</button>
       </div>
       <div class="phone"><img id="scheduleShot" src="assets/shots/week.webp" alt="课表截图" width="540" height="1200" loading="lazy"></div>
     </div>
@@ -140,6 +142,7 @@
       <p class="sub">节次平铺进一屏，不用上下滑；想看细节就双指放大。</p>
       <ul class="points">
         <li><b>周视图 / 日视图</b>周视图一屏看全，日视图左右滑切换日期</li>
+        <li><b>今日概览与时间线</b>今天的日视图显示当前 / 下一节课与上下课倒计时，点开查看全天安排和冲突</li>
         <li><b>把自己的事排进去</b>组会、社团、约球按真实时间排进课表，撞课时并排显示</li>
         <li><b>双指缩放</b>放大到 300% 任意拖动，表头与节次栏冻结在边上</li>
         <li><b>调课停课随手改</b>长按卡片拖到别的日子；也能整天调休、单停一门课</li>
@@ -176,13 +179,14 @@
 <section class="feature" id="memo">
   <div class="wrap feature-in">
     <div class="feature-media reveal">
-      <div class="phone"><img src="assets/shots/memo.webp" alt="备忘录" width="540" height="1200" loading="lazy"></div>
+      <div class="phone"><img src="assets/shots/memo-search.png" alt="备忘录全文检索 · 演示数据" width="1080" height="2400" loading="lazy"></div>
     </div>
     <div class="feature-text reveal">
       <span class="kicker k-yellow"><svg><use href="#i-note"/></svg>备忘录</span>
       <h2>每门课，<br>一个笔记本</h2>
       <p class="sub">作业、实验报告、考试范围，记在对应的课下面。</p>
       <ul class="points">
+        <li><b>笔记内容一搜就到</b>跨笔记本检索标题、完整正文和课程信息，已完成笔记也能找到；清空后恢复原筛选</li>
         <li><b>清单与进度</b>复选框清单在卡片上直接勾，进度一目了然</li>
         <li><b>优先级与截止时间</b>要紧的置顶，总览里看到待办、今天到期与已逾期</li>
         <li><b>所见即所得</b>列表、标题、引用、粗体编辑时直接渲染</li>
@@ -210,8 +214,31 @@
         <li><b>不漏一节</b>提醒点错过但还没上课，打开 App 立即补发</li>
         <li><b>静默守护</b>不常驻通知，被系统清掉的提醒与闹钟自动重新挂上</li>
         <li><b>按节次定闹钟</b>「节次 + 条件 + 动作」规则生成闹钟，早八不再睡过</li>
+        <li><b>假日闹钟按规则跳过</b>单个闹钟可选择「节假日也响」，手动静音日期仍优先</li>
         <li><b>上课自动静音</b>按作息进出静音，下课恢复原来的铃声模式</li>
         <li><b>机型放行引导</b>按这台手机列出要打开的权限，点一下直达系统设置</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 闹钟 ================= -->
+<section class="feature" id="alarm">
+  <div class="wrap feature-in">
+    <div class="feature-media reveal">
+      <div class="duo alarm-shots">
+        <div class="card-img"><img src="assets/shots/alarm-ringing.png" alt="新闹钟响铃界面 · 演示数据" width="1080" height="2400" loading="lazy"></div>
+        <div class="card-img"><img src="assets/shots/system-clock.png" alt="写入系统时钟确认与静音选项" width="1080" height="2400" loading="lazy"></div>
+      </div>
+    </div>
+    <div class="feature-text reveal">
+      <span class="kicker k-blue"><svg><use href="#i-bell"/></svg>闹钟</span>
+      <h2>明天的闹钟，<br>也能交给系统时钟</h2>
+      <p class="sub">在闹钟页手动写入明天的安排，再到手机时钟里核对。</p>
+      <ul class="points">
+        <li><b>同一分钟合并</b>将明天可写入的闹钟逐一送到系统时钟；全部送出后，可选择静音课简明天的闹钟</li>
+        <li><b>新响铃界面</b>时间、日期和课程信息更清楚，配色跟随主题；底部滑动关闭，也可延后</li>
+        <li><b>写入后独立管理</b>之后的调课或假日变化不会自动修改系统时钟里的闹钟，静音也能在课简列表里取消</li>
       </ul>
     </div>
   </div>
@@ -222,7 +249,8 @@
   <div class="wrap feature-in">
     <div class="feature-media reveal">
       <div class="desktop">
-        <img class="w w-today" src="assets/shots/widget-today.webp" alt="今日课表小组件" width="660" height="444" loading="lazy">
+        <img class="w" src="assets/shots/calendar-widget.png" alt="课程日历小组件 · 周课表演示数据" width="928" height="1007" loading="lazy">
+        <img class="w" src="assets/shots/pending-widget.png" alt="待完成小组件 · 演示数据" width="928" height="665" loading="lazy">
         <div class="row">
           <img class="w w-next" src="assets/shots/widget-next.webp" alt="下一节课小组件" width="660" height="192" loading="lazy">
           <img class="w w-rem" src="assets/shots/widget-reminder.webp" alt="提醒小组件" width="660" height="354" loading="lazy">
@@ -232,12 +260,35 @@
     <div class="feature-text reveal">
       <span class="kicker k-green"><svg><use href="#i-widget"/></svg>桌面小组件</span>
       <h2>不用打开，<br>桌面就能看</h2>
-      <p class="sub">今日课表、下一节课、提醒，三款小组件任你摆。</p>
+      <p class="sub">课程日历、待完成，加上今日课表、下一节课和提醒，五款小组件任你摆。</p>
       <ul class="points">
+        <li><b>课程日历</b>周课表与月历随时切换，查看课程、考试、事务和休息日；点日期打开对应课表</li>
+        <li><b>待完成</b>把启用组件里的作业、考试等未完成内容放到桌面，显示开始 / 截止时间，点开回到来源组件</li>
         <li><b>准点刷新</b>课前 5 分钟、上课、下课这些节点精确刷新，不会显示过期的课</li>
         <li><b>四层保障</b>系统周期、WorkManager、闹钟守护链与节次对齐刷新</li>
         <li><b>点哪都能进</b>点卡片空白处也能直接打开 App</li>
       </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 插件与组件市场 ================= -->
+<section class="feature alt" id="market">
+  <div class="wrap feature-in rev">
+    <div class="feature-media reveal">
+      <div class="phone"><img src="assets/shots/plugin-market.png" alt="插件与组件双市场、已安装入口和搜索" width="1080" height="2400" loading="lazy"></div>
+    </div>
+    <div class="feature-text reveal">
+      <span class="kicker k-green"><svg><use href="#i-plug"/></svg>插件与组件</span>
+      <h2>导课与扩展，<br>都有自己的市场</h2>
+      <p class="sub">插件和组件分别提供「已安装 / 市场」入口，搜名称、简介、学校别名或来源都能找到。</p>
+      <ul class="points">
+        <li><b>多个来源一起用</b>保留默认公有仓库，也能分别添加插件与组件来源；一个来源暂不可用不影响其他来源</li>
+        <li><b>私有 GitHub 仓库</b>在来源设置中登录 GitHub 令牌，读取有权限的仓库；令牌加密保存在当前手机，不随备份迁移</li>
+        <li><b>详情与安装先看重点</b>简介、版本、来源和实际包大小更清楚，权限与技术信息按需展开，大包显示真实下载进度</li>
+        <li><b>版本重新核对</b>卡片直接显示更新状态，手动刷新与安装前重新检查版本</li>
+      </ul>
+      <p class="shot-note">雨课堂 v1.2.0 仍是未公开发布的本地 ZIP，需另行导入；公有市场尚未提供该版本。</p>
     </div>
   </div>
 </section>
@@ -355,15 +406,17 @@
       <div class="dl-main">
         <img class="dl-icon" src="assets/icon.png" alt="" width="84" height="84">
         <h2>下载课简</h2>
-        <p class="dl-ver"><b data-ver>v0.7.4</b><span data-date></span><a href="#changelog" class="dl-notes" data-changelog>更新内容<svg><use href="#i-right"/></svg></a></p>
-        <p class="beta-line" id="betaLine" hidden></p>
+        <p class="dl-ver"><b data-ver>v0.7.5</b><span data-channel-label>最新测试版</span><span data-date></span><a href="#changelog" class="dl-notes" data-changelog>更新内容<svg><use href="#i-right"/></svg></a></p>
+        <p class="beta-line" data-channel="stable">最新正式版：暂无正式版</p>
+        <p class="beta-line" id="betaLine" data-channel="beta">最新测试版：<a href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5" target="_blank" rel="noopener">v0.7.5</a></p>
+        <p class="beta-line">0.7.4 与 0.7.5 均为测试版。</p>
 
         <div class="route" role="radiogroup" aria-label="下载线路">
           <button class="on" data-route="github">GitHub 直连</button>
           <button data-route="mirror">国内加速</button>
         </div>
 
-        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/latest/download/CurSimple-arm64-v8a.apk">
+        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-arm64-v8a.apk">
           <svg><use href="#i-download"/></svg><span>下载 arm64 版<small data-dl-meta>推荐 · 绝大多数手机选这个</small></span>
         </a>
 
@@ -372,16 +425,16 @@
         <details class="abis">
           <summary>其他架构安装包</summary>
           <ul id="abiList">
-            <li><a data-dl="universal" href="https://github.com/cursimple/cursimple-app/releases/latest/download/CurSimple-universal.apk"><b>通用版 universal</b><span>不确定手机架构时选这个</span><em data-size="universal">6.7 MB</em></a></li>
-            <li><a data-dl="armeabi-v7a" href="https://github.com/cursimple/cursimple-app/releases/latest/download/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span>较旧的 32 位手机</span><em data-size="armeabi-v7a">6.4 MB</em></a></li>
-            <li><a data-dl="x86_64" href="https://github.com/cursimple/cursimple-app/releases/latest/download/CurSimple-x86_64.apk"><b>x86_64</b><span>Intel 设备与模拟器</span><em data-size="x86_64">6.4 MB</em></a></li>
-            <li><a data-dl="x86" href="https://github.com/cursimple/cursimple-app/releases/latest/download/CurSimple-x86.apk"><b>x86</b><span>32 位 Intel 设备</span><em data-size="x86">6.4 MB</em></a></li>
+            <li><a data-dl="universal" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-universal.apk"><b>通用版 universal</b><span>不确定手机架构时选这个</span><em data-size="universal">大小待获取</em></a></li>
+            <li><a data-dl="armeabi-v7a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span>较旧的 32 位手机</span><em data-size="armeabi-v7a">大小待获取</em></a></li>
+            <li><a data-dl="x86_64" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-x86_64.apk"><b>x86_64</b><span>Intel 设备与模拟器</span><em data-size="x86_64">大小待获取</em></a></li>
+            <li><a data-dl="x86" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-x86.apk"><b>x86</b><span>32 位 Intel 设备</span><em data-size="x86">大小待获取</em></a></li>
           </ul>
         </details>
 
         <p class="dl-links">
           <a href="https://github.com/cursimple/cursimple-app/releases" target="_blank" rel="noopener">历史版本与测试版</a>
-          <a href="https://github.com/cursimple/cursimple-app/releases/latest" target="_blank" rel="noopener">更新日志</a>
+          <a data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5" target="_blank" rel="noopener">更新日志</a>
           <a href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener">源代码</a>
         </p>
       </div>
@@ -433,8 +486,8 @@
     <header class="sheet-head">
       <img src="assets/icon.png" alt="" width="46" height="46">
       <div>
-        <h3 id="clTitle"><span data-ver>v0.7.4</span> 更新公告</h3>
-        <p id="clMeta">正在获取最新版本…</p>
+        <h3 id="clTitle"><span data-ver>v0.7.5</span> 更新公告</h3>
+        <p id="clMeta">最新测试版</p>
       </div>
       <button class="icon-btn sheet-x" data-close aria-label="关闭"><svg><use href="#i-close"/></svg></button>
     </header>
@@ -450,8 +503,8 @@
         <button class="nav-arrow" id="clNext" aria-label="下一页"><svg><use href="#i-right"/></svg></button>
       </div>
       <div class="sheet-act">
-        <a class="btn btn-ghost btn-md" id="clGithub" href="https://github.com/cursimple/cursimple-app/releases/latest" target="_blank" rel="noopener">完整说明<svg><use href="#i-ext"/></svg></a>
-        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/latest/download/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg>立即下载</a>
+        <a class="btn btn-ghost btn-md" id="clGithub" data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5" target="_blank" rel="noopener">完整说明<svg><use href="#i-ext"/></svg></a>
+        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg>立即下载</a>
       </div>
     </footer>
   </div>
@@ -462,6 +515,7 @@
   <button class="icon-btn sheet-x" data-close aria-label="关闭"><svg><use href="#i-close"/></svg></button>
 </div>
 
+<script src="releases.js" defer></script>
 <script src="main.js" defer></script>
 </body>
 </html>

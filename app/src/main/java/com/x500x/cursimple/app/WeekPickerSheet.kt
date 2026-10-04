@@ -51,7 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
-private const val DefaultWeekPickerTotalWeeks = 25
+private const val DefaultWeekPickerTotalWeeks = 20
 
 @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable

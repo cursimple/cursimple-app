@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.greeting
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -98,6 +99,9 @@ internal object FestivalGreeting {
             PackageManager.PERMISSION_GRANTED
     }
 
+    // 调用方先过了 canPostNotifications()（通知开关 + POST_NOTIFICATIONS），lint 跨函数看不出来；
+    // 用户在这之间撤销权限时 notify 抛的 SecurityException 由下面的 runCatching 兜住
+    @SuppressLint("MissingPermission")
     private fun Context.post(greeting: GreetingRes) {
         createChannel()
         val lines = resources.getStringArray(greeting.lines)

@@ -1,5 +1,6 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.widget.CalendarWidgetReceiver
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
@@ -19,6 +20,8 @@ import com.x500x.cursimple.app.reminder.AlarmSyncScheduler
 import com.x500x.cursimple.app.reminder.ReminderGuardJobService
 import com.x500x.cursimple.app.util.AppDiagnosticsFileSink
 import com.x500x.cursimple.app.util.AppDiagnosticsLogger
+import com.x500x.cursimple.app.util.CategoryFilteredPluginSink
+import com.x500x.cursimple.app.util.CategoryFilteredSink
 import com.x500x.cursimple.app.util.LogCleanupScheduler
 import com.x500x.cursimple.app.util.PluginFileLogSink
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -63,6 +66,8 @@ class ClassScheduleApplication : Application() {
                         }.onFailure { ReminderLogger.warn("class_notice.catch_up.failure", emptyMap(), it) }
                         // 放假安排、节日节气这些和日期有关的数据，打开 App 时静默刷新一次
                         syncDateDataIfDue()
+                        runCatching { HolidayEveNoticeWorker.checkTonight(activity.applicationContext) }
+                            .onFailure { ReminderLogger.warn("holiday.eve_notice.check_failed", emptyMap(), it) }
                         // 节日问候白天没发出去（省电、进程被收走），打开 App 时补上
                         runCatching {
                             com.x500x.cursimple.app.greeting.FestivalGreeting.postIfDue(activity.applicationContext, catchUp = true)
@@ -90,10 +95,11 @@ class ClassScheduleApplication : Application() {
             override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) = Unit
             override fun onActivityDestroyed(activity: android.app.Activity) = Unit
         })
-        val diagnosticsSink = AppDiagnosticsFileSink(this)
+        // 高级设置里关掉的日志类别在这里拦下，不写进文件
+        val diagnosticsSink = CategoryFilteredSink(this, AppDiagnosticsFileSink(this))
         AppDiagnosticsLogger.setSink(diagnosticsSink)
         ReminderLogger.setSink(diagnosticsSink)
-        PluginLogger.setSink(PluginFileLogSink(this))
+        PluginLogger.setSink(CategoryFilteredPluginSink(this, PluginFileLogSink(this)))
         AppDiagnosticsLogger.info(
             "app.lifecycle.on_create",
             mapOf(
@@ -103,6 +109,12 @@ class ClassScheduleApplication : Application() {
             ),
         )
         appContainer = AppContainer(this)
+        // 组件界面使用的 WebView 提前启动渲染进程，第一次打开组件时直接复用热实例。
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            runCatching {
+                com.x500x.cursimple.feature.plugin.extension.ExtensionWebViewPool.prewarm(this)
+            }
+        }
         // 要赶在别的启动任务之前：系统记的退出原因只保留最近几条
         com.x500x.cursimple.app.reminder.ForceStopMonitor.onProcessStart(this)
         ScheduleWidgetWorkScheduler.schedule(this)
@@ -115,6 +127,12 @@ class ClassScheduleApplication : Application() {
         AlarmSyncScheduler.scheduleDailyGuard(this)
         HolidayEveNoticeWorker.schedule(this)
         com.x500x.cursimple.app.greeting.FestivalGreetingWorker.schedule(this)
+        // 扩展组件的后台同步；没装组件时醒来看一眼就走
+        com.x500x.cursimple.app.extension.ExtensionSyncWorker.schedule(this)
+        // 组件内容的定时同步也挂到课表小组件的守护闹钟上：WorkManager 在一些系统上会被推迟很久
+        com.x500x.cursimple.feature.widget.WidgetGuardHooks.onGuardTick = {
+            appContainer.extensionCoordinator.syncDueInBackground("widget_guard")
+        }
 
         appScope.launch {
             // 非厂商机型上把 MIUI/vivo 副本 receiver 收起来，选择器里每个小组件才只出现一次。
@@ -211,6 +229,18 @@ class ClassScheduleApplication : Application() {
                 .drop(1)
                 .collect {
                     appContainer.refreshWidgets()
+                }
+        }
+
+        appScope.launch {
+            appContainer.bootstrapJob.join()
+            // 课表事务（含组件写进来的）出现在课程日历的月视图圆点里，变了就重画那一个小组件
+            appContainer.scheduleEventRepository.eventsFlow
+                .distinctUntilChanged()
+                .drop(1)
+                .collect {
+                    runCatching { CalendarWidgetReceiver.updateWidgets(this@ClassScheduleApplication) }
+                        .onFailure { error -> AppDiagnosticsLogger.warn("widget.calendar.events_refresh.failure", emptyMap(), error) }
                 }
         }
 

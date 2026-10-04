@@ -29,6 +29,8 @@ data class ScheduleEvent(
     @SerialName("repeatUntil") val repeatUntil: String? = null,
     /** 自选颜色；为空时按标题从课表配色里取，和课程块一个路数 */
     @SerialName("colorArgb") val colorArgb: Long? = null,
+    /** 组件自动生成的事务关联原始内容，点击时由宿主打开该内容。手动事务为空。 */
+    @SerialName("source") val source: ScheduleEventSource? = null,
 ) {
     val localDate: LocalDate? get() = runCatching { LocalDate.parse(date) }.getOrNull()
     val startLocalTime: LocalTime? get() = parseClock(startTime)
@@ -61,6 +63,12 @@ data class ScheduleEvent(
         LocalTime.of(h, m)
     }.getOrNull()
 }
+
+@Serializable
+data class ScheduleEventSource(
+    val componentId: String,
+    val itemId: String,
+)
 
 /** [day] 当天所有的事务，按开始时间排好。 */
 fun List<ScheduleEvent>.occurrencesOn(day: LocalDate): List<ScheduleEvent> =

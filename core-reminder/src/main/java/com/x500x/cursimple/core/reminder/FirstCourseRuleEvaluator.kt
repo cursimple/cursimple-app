@@ -37,7 +37,7 @@ internal class FirstCourseRuleEvaluator {
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         customOccupancies: List<ReminderCustomOccupancy>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<ReminderPlanTarget> {
         // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()

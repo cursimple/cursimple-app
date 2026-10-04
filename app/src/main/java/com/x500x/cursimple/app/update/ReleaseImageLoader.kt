@@ -25,24 +25,30 @@ import java.security.MessageDigest
  *
  * 图放在仓库里、按 raw.githubusercontent 地址引用，GitHub 网页上能直接看；
  * App 里走和检查更新同一套镜像池，国内直连 GitHub 取不到时换镜像。下过的存进缓存目录，
- * 同一份公告再打开不重下。[localDir] 非空时是本地预览：图按文件名先从这个目录里找。
+ * 同一份公告再打开不重下。[localDir] 或 [localAssetBytes] 非空时只读取对应的本地图片。
  */
 class ReleaseImageLoader(
     private val cacheDir: File,
     private val downloader: MirrorDownloader,
     private val localDir: File? = null,
+    private val localAssetBytes: ((String) -> ByteArray?)? = null,
 ) {
     private val memory = LruCache<String, ImageBitmap>(MEMORY_CACHE_SIZE)
 
     suspend fun load(url: String): ImageBitmap? = withContext(Dispatchers.IO) {
         memory.get(url)?.let { return@withContext it }
-        val bytes = localBytes(url) ?: cachedBytes(url) ?: downloadBytes(url) ?: return@withContext null
+        val bytes = if (localDir != null || localAssetBytes != null) {
+            // 本地公告只读本地图片，缺图时也不会到镜像或远端下载。
+            localBytes(url) ?: localAssetBytes?.invoke(imageFileName(url))
+        } else {
+            cachedBytes(url) ?: downloadBytes(url)
+        } ?: return@withContext null
         decode(bytes)?.also { memory.put(url, it) }
     }
 
     private fun localBytes(url: String): ByteArray? {
         val dir = localDir ?: return null
-        val name = url.substringAfterLast('/').substringBefore('?')
+        val name = imageFileName(url)
         return File(dir, name).takeIf { it.isFile }?.readBytes()
     }
 
@@ -114,14 +120,14 @@ internal fun releaseImageRequest(url: String): DownloadRequest {
 
 private val RAW_GITHUB_FILE = Regex("^https://raw\\.githubusercontent\\.com/([^/]+)/([^/]+)/([^/]+)/(.+)$")
 
-/** 界面里用的加载器；[localDir] 见 [ReleaseImageLoader]。 */
+/** 共用公告图片加载器，可选择私有目录或安装包内的本地预览素材。 */
 @Composable
-fun rememberReleaseImageLoader(localDir: File? = null): ReleaseImageLoader {
+fun rememberReleaseImageLoader(localDir: File? = null, localAssetDir: String? = null): ReleaseImageLoader {
     val context = LocalContext.current.applicationContext
-    return remember(localDir) { releaseImageLoader(context, localDir) }
+    return remember(localDir, localAssetDir) { releaseImageLoader(context, localDir, localAssetDir) }
 }
 
-private fun releaseImageLoader(context: Context, localDir: File?) = ReleaseImageLoader(
+internal fun releaseImageLoader(context: Context, localDir: File? = null, localAssetDir: String? = null) = ReleaseImageLoader(
     cacheDir = File(context.cacheDir, "release-images"),
     downloader = MirrorDownloader(
         labels = context.mirrorDownloaderLabels(),
@@ -129,4 +135,16 @@ private fun releaseImageLoader(context: Context, localDir: File?) = ReleaseImage
         preferenceStore = SharedPrefsMirrorPreferenceStore(context),
     ),
     localDir = localDir,
+    localAssetBytes = localAssetDir?.let { dir ->
+        { name ->
+            try {
+                context.assets.open("$dir/$name").use { it.readBytes() }
+            } catch (_: java.io.IOException) {
+                null
+            }
+        }
+    },
 )
+
+private fun imageFileName(url: String): String =
+    url.substringAfterLast('/').substringBefore('?').substringBefore('#')

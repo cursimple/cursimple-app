@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.download
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -9,6 +10,9 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
@@ -46,16 +50,23 @@ class MirrorDownloader(
     suspend fun downloadBytes(
         request: DownloadRequest,
         validate: (ByteArray) -> Unit = {},
+        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): MirrorDownloadResult<ByteArray> = withContext(Dispatchers.IO) {
         if (request.purpose == DownloadPurpose.LocalFile) {
-            return@withContext loadLocalFile(request, validate)
+            return@withContext runInterruptible { loadLocalFile(request, onProgress, validate) }
         }
         downloadMeasured(request) { candidate ->
-            val bytes = requestBytes(candidate.url)
+            val bytes = runInterruptible { requestBytes(candidate.url, onProgress) }
             validate(bytes)
             bytes
         }
     }
+
+    /** 保留原来的末尾 lambda 校验调用。 */
+    suspend fun downloadBytes(
+        request: DownloadRequest,
+        validate: (ByteArray) -> Unit,
+    ): MirrorDownloadResult<ByteArray> = downloadBytes(request, validate, onProgress = { _, _ -> })
 
     /**
      * 下载到文件。
@@ -193,7 +204,7 @@ class MirrorDownloader(
 
     private suspend fun <T> downloadMeasured(
         request: DownloadRequest,
-        fetch: (DownloadCandidate) -> T,
+        fetch: suspend (DownloadCandidate) -> T,
     ): MirrorDownloadResult<T> = coroutineScope {
         val allCandidates = mirrorPool.candidates(request)
         val failures = mutableListOf<DownloadFailure>()
@@ -202,6 +213,7 @@ class MirrorDownloader(
         // 记住的镜像直接下载，省掉探测那一轮往返；失败才落回逐批探测
         preferredCandidate(request, allCandidates)?.let { preferred ->
             val direct = runCatching { fetch(preferred) }.getOrElse { error ->
+                if (error is CancellationException) throw error
                 firstError = error
                 failures += DownloadFailure(preferred.sourceName, error.message ?: labels.downloadFailed)
                 recordFailure(request, preferred)
@@ -226,6 +238,7 @@ class MirrorDownloader(
                             preferenceStore?.recordProbe(MirrorPreferenceStore.hostOf(candidate.url), latency)
                             MeasuredDownloadCandidate(candidate, latency)
                         }.getOrElse { error ->
+                            if (error is CancellationException) throw error
                             firstError = firstError ?: error
                             preferenceStore?.recordProbe(MirrorPreferenceStore.hostOf(candidate.url), null)
                             failures += DownloadFailure(candidate.sourceName, error.message ?: labels.probeFailed)
@@ -239,6 +252,7 @@ class MirrorDownloader(
             for (item in measured) {
                 val result = runCatching { fetch(item.candidate) }
                     .getOrElse { error ->
+                        if (error is CancellationException) throw error
                         firstError = firstError ?: error
                         failures += DownloadFailure(item.candidate.sourceName, error.message ?: labels.downloadFailed)
                         null
@@ -262,6 +276,7 @@ class MirrorDownloader(
 
     private fun loadLocalFile(
         request: DownloadRequest,
+        onProgress: (Long, Long) -> Unit = { _, _ -> },
         validate: (ByteArray) -> Unit,
     ): MirrorDownloadResult<ByteArray> {
         return runCatching {
@@ -270,10 +285,11 @@ class MirrorDownloader(
             } else {
                 File(request.url)
             }
-            val bytes = file.readBytes()
+            val bytes = file.inputStream().use { readBytes(it, file.length(), onProgress) }
             validate(bytes)
             MirrorDownloadResult.Success(bytes, DownloadCandidate(labels.localFileSource, file.absolutePath))
         }.getOrElse { error ->
+            if (error is CancellationException) throw error
             MirrorDownloadResult.Failure(
                 message = error.message ?: labels.localFileReadFailed,
                 reason = DownloadFailureReason.Thrown(error),
@@ -309,12 +325,39 @@ class MirrorDownloader(
         }
     }
 
-    private fun requestBytes(url: String): ByteArray {
+    private fun requestBytes(url: String, onProgress: (Long, Long) -> Unit): ByteArray {
         val connection = openConnection(url, "GET")
         return connection.use { conn ->
             check(conn.responseCode in 200..299) { "HTTP ${conn.responseCode}" }
-            conn.inputStream.use { it.readBytes() }
+            conn.inputStream.use { readBytes(it, conn.contentLengthLong, onProgress) }
         }
+    }
+
+    private fun readBytes(input: InputStream, contentLength: Long, onProgress: (Long, Long) -> Unit): ByteArray {
+        val total = contentLength.takeIf { it >= 0L } ?: -1L
+        if (Thread.currentThread().isInterrupted) throw CancellationException("Download cancelled")
+        onProgress(0L, total)
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
+        var downloaded = 0L
+        var lastReportedAt = System.nanoTime() / 1_000_000L - PROGRESS_REPORT_INTERVAL_MILLIS
+        while (true) {
+            if (Thread.currentThread().isInterrupted) throw CancellationException("Download cancelled")
+            val read = input.read(buffer)
+            if (Thread.currentThread().isInterrupted) throw CancellationException("Download cancelled")
+            if (read < 0) break
+            output.write(buffer, 0, read)
+            downloaded += read
+            val now = System.nanoTime() / 1_000_000L
+            if (now - lastReportedAt >= PROGRESS_REPORT_INTERVAL_MILLIS) {
+                lastReportedAt = now
+                onProgress(downloaded, total)
+            }
+        }
+        if (total >= 0L && downloaded != total) throw IOException("Incomplete download: $downloaded / $total bytes")
+        if (Thread.currentThread().isInterrupted) throw CancellationException("Download cancelled")
+        onProgress(downloaded, total)
+        return output.toByteArray()
     }
 
     private fun requestText(url: String, accept: String): String {

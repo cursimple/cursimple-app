@@ -49,9 +49,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,6 +68,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
+import com.x500x.cursimple.core.data.UserPreferences
+import com.x500x.cursimple.core.data.reminderDayPolicy
+import com.x500x.cursimple.core.reminder.alarmDaySuppression
+import com.x500x.cursimple.core.reminder.AlarmDaySuppression
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_COUNT
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS
 import com.x500x.cursimple.core.reminder.model.DEFAULT_APP_ALARM_RING_DURATION_SECONDS
@@ -75,7 +82,6 @@ import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.core.reminder.model.ReminderLabelAction
 import com.x500x.cursimple.core.reminder.model.ReminderLabelActionType
 import com.x500x.cursimple.core.reminder.model.reminderNotificationMessageText
-import com.x500x.cursimple.core.reminder.model.reminderNotificationTitleText
 import com.x500x.cursimple.core.reminder.model.ReminderLabelCondition
 import com.x500x.cursimple.core.reminder.model.ReminderLabelPresence
 import com.x500x.cursimple.core.reminder.model.ReminderRule
@@ -83,6 +89,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import com.x500x.cursimple.core.reminder.dispatch.AppAlarmClockRegistrationVerifier
 import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import com.x500x.cursimple.core.reminder.model.isLegacy
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -180,6 +187,7 @@ fun ScheduleSettingsScreen(
     var editingPlaceholder by remember { mutableStateOf<PlaceholderCourseGroup?>(null) }
     var editingAlarm by remember { mutableStateOf<SystemAlarmRecord?>(null) }
     var showManualAlarmDialog by rememberSaveable { mutableStateOf(false) }
+    var showSystemClockExport by rememberSaveable { mutableStateOf(false) }
     val slotLabels = remember(state.timingProfile, state.manualCourses) {
         (state.timingProfile?.slotTimes.orEmpty().map { it.label } +
             state.manualCourses.mapNotNull { it.slotLabelOverride })
@@ -222,6 +230,7 @@ fun ScheduleSettingsScreen(
                 onCreate = {
                     alarmPermissionGate.require(gateContext) { showManualAlarmDialog = true }
                 },
+                onExportToSystemClock = { showSystemClockExport = true },
                 onEdit = { editingAlarm = it },
                 onDelete = { onDeleteAlarm(it.alarmKey, it.backend) },
                 onSetAppAlarmEnabled = onSetAppAlarmEnabled,
@@ -347,6 +356,13 @@ fun ScheduleSettingsScreen(
         )
     }
 
+    if (showSystemClockExport) {
+        SystemClockExportDialog(
+            records = state.systemAlarmRecords,
+            onDismiss = { showSystemClockExport = false },
+        )
+    }
+
     if (showManualAlarmDialog) {
         ManualAppAlarmDialog(
             onPickSystemRingtone = onPickSystemRingtone,
@@ -440,6 +456,7 @@ private fun AlarmManagementCard(
     alarmRecords: List<SystemAlarmRecord>,
     onRefresh: () -> Unit,
     onCreate: () -> Unit,
+    onExportToSystemClock: () -> Unit,
     onEdit: (SystemAlarmRecord) -> Unit,
     onDelete: (SystemAlarmRecord) -> Unit,
     onSetAppAlarmEnabled: (String, Boolean) -> Unit,
@@ -469,6 +486,9 @@ private fun AlarmManagementCard(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Button(onClick = onCreate) { Text(stringResource(R.string.schedule_new_alarm)) }
+            AppOutlinedButton(onClick = onExportToSystemClock) {
+                Text(stringResource(R.string.schedule_system_clock_action))
+            }
         }
         // 记录还在但系统里已经没有对应闹钟时，界面要说出来，不然它就是个不会响的摆设
         val unregisteredKeys = remember(appRecords) {
@@ -503,8 +523,13 @@ private fun AlarmRecordRow(
     val zone = LocalAppZone.current
     val context = LocalContext.current
     // 有类型内容就按当前语言渲染，旧数据只有语言无关的展示文本时回退到它
-    val title = record.titleContent?.let { context.reminderNotificationTitleText(it) }
-        ?: record.displayTitle ?: record.alarmLabel ?: record.message
+    val repository = remember(context) { DataStoreUserPreferencesRepository(context.applicationContext) }
+    val preferences by repository.preferencesFlow.collectAsState(initial = UserPreferences())
+    val suppressed = alarmDaySuppression(
+        record.triggerAtMillis, record.allowOnHoliday, zone, preferences.reminderDayPolicy(),
+        preferences.holidayCalendar, preferences.temporaryScheduleOverrides,
+    )
+    val title = context.systemAlarmRecordTitle(record)
     val message = record.messageContent?.let { context.reminderNotificationMessageText(it) }
         ?: record.displayMessage ?: record.message
     val detail = listOf(
@@ -551,6 +576,28 @@ private fun AlarmRecordRow(
                 }
             }
             Text(title, fontWeight = FontWeight.SemiBold)
+            if (record.enabled && suppressed == AlarmDaySuppression.MutedDate) {
+                // 静音日期只有通知和「写入系统时钟」能设，撤销的入口放在受影响的闹钟上
+                val scope = rememberCoroutineScope()
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        stringResource(R.string.schedule_alarm_date_muted),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppOutlinedButton(onClick = {
+                        val date = Instant.ofEpochMilli(record.triggerAtMillis).atZone(zone).toLocalDate()
+                        scope.launch { repository.setReminderMuted(date.toString(), muted = false) }
+                    }) { Text(stringResource(R.string.schedule_alarm_unmute_date)) }
+                }
+            } else if (record.enabled && suppressed != null) {
+                Text(
+                    stringResource(R.string.schedule_alarm_holiday_skipped),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                )
+            } else if (record.allowOnHoliday) {
+                Text(stringResource(R.string.schedule_alarm_allow_holiday), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Text(
                 text = detail,
                 style = MaterialTheme.typography.bodySmall,

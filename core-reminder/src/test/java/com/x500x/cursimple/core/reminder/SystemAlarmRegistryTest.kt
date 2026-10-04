@@ -50,6 +50,20 @@ import java.time.ZoneId
 
 class SystemAlarmRegistryTest {
     @Test
+    fun `manual alarms only allow holiday ringing when the user opts in`() = runBlocking {
+        val repository = FakeReminderRepository(rules = emptyList())
+        val dispatcher = FakeAlarmDispatcher(succeeded = true, channel = AlarmDispatchChannel.AppAlarmClock)
+        val coordinator = ReminderCoordinator(context = ContextWrapper(null), repository = repository, appDispatcher = dispatcher)
+        val whenToRing = futureMillis()
+        coordinator.createManualAppAlarm("manual", whenToRing, "default", "", EditableAppAlarmSettings())
+        assertEquals(false, dispatcher.lastPlan?.allowOnHoliday)
+        assertFalse(repository.records.value.single().allowOnHoliday)
+        coordinator.createManualAppAlarm("manual", whenToRing + 60_000L, "explicit", "", EditableAppAlarmSettings(allowOnHoliday = true))
+        assertEquals(true, dispatcher.lastPlan?.allowOnHoliday)
+        assertTrue(repository.records.value.first { it.displayTitle == "explicit" }.allowOnHoliday)
+    }
+
+    @Test
     fun `system clock alarm label does not include hash token`() {
         val plan = ReminderPlan(
             planId = "plan",
@@ -193,6 +207,7 @@ class SystemAlarmRegistryTest {
             backend = ReminderAlarmBackend.AppAlarmClock,
             requestCode = 1001,
             operationMode = AppAlarmOperationMode.ForegroundService,
+            allowOnHoliday = true,
         )
         val expiredAppRecord = sampleRecord(triggerAtMillis = sampleNowMillis(hour = 6, minute = 45)).copy(
             backend = ReminderAlarmBackend.AppAlarmClock,
@@ -226,6 +241,7 @@ class SystemAlarmRegistryTest {
         assertEquals(1, dispatcher.dispatchCount)
         assertEquals(appRecord.ruleId, dispatcher.lastPlan?.ruleId)
         assertEquals(appRecord.triggerAtMillis, dispatcher.lastPlan?.triggerAtMillis)
+        assertEquals(true, dispatcher.lastPlan?.allowOnHoliday)
         assertEquals(3, repository.records.value.size)
         assertTrue(repository.records.value.any {
             it.alarmKey == appRecord.alarmKey &&
@@ -530,6 +546,7 @@ class SystemAlarmRegistryTest {
                 ringDurationSeconds = 60,
                 repeatIntervalSeconds = 180,
                 repeatCount = 2,
+                allowOnHoliday = true,
             ),
         )
 
@@ -540,6 +557,8 @@ class SystemAlarmRegistryTest {
         assertEquals(60, updated.ringDurationSeconds)
         assertEquals(180, updated.repeatIntervalSeconds)
         assertEquals(2, updated.repeatCount)
+        assertTrue(updated.allowOnHoliday)
+        assertEquals(true, dispatcher.lastPlan?.allowOnHoliday)
         assertEquals(AlarmAlertMode.RingOnly, dispatcher.lastPlan?.alertMode)
     }
 
@@ -1054,7 +1073,7 @@ class SystemAlarmRegistryTest {
             appDispatcher = appDispatcher,
             appDismisser = appDismisser,
         )
-        val snoozePlan = sampleSnoozePlan()
+        val snoozePlan = sampleSnoozePlan().copy(allowOnHoliday = true)
 
         val result = coordinator.finishTriggeredAppAlarm(
             alarmKey = "fired",
@@ -1070,6 +1089,7 @@ class SystemAlarmRegistryTest {
         assertEquals(listOf("future", snoozePlan.systemAlarmKey()).sorted(), repository.records.value.map { it.alarmKey }.sorted())
         assertEquals(snoozePlan.systemAlarmKey(), record.alarmKey)
         assertEquals(AppAlarmOperationMode.SnoozeForegroundService, record.operationMode)
+        assertTrue(record.allowOnHoliday)
         assertEquals("高等数学", record.displayTitle)
         assertEquals("已延后 5 分钟", record.displayMessage)
         assertEquals(1, appDispatcher.dispatchCount)

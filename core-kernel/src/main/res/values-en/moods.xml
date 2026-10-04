@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 没课、放假、下课后的随机一句；挑选逻辑见 DayMood.kt -->
+<resources>
+    <string-array name="mood_tomorrow_free">
+        <item>No classes tomorrow. Stay up a little</item>
+        <item>Free day tomorrow. Make a plan</item>
+        <item>Tomorrow: lie-in reserved</item>
+        <item>Tomorrow\'s timetable is empty</item>
+    </string-array>
+    <string-array name="mood_week_free">
+        <item>No classes this week. Enjoy</item>
+        <item>A blank week, like a holiday</item>
+        <item>Your timetable took the week off</item>
+    </string-array>
+    <string-array name="mood_no_alarms">
+        <item>No alarms coming up. Sleep easy</item>
+        <item>The alarms are resting. You should too</item>
+        <item>All quiet. Nothing will ring for a while</item>
+    </string-array>
+    <string-array name="mood_tasks_clear">
+        <item>All clear. Rest without guilt</item>
+        <item>Nothing due. Treat yourself</item>
+        <item>Empty list, light mind</item>
+    </string-array>
+    <string-array name="mood_late_night">
+        <item>It\'s late. Even the timetable is asleep</item>
+        <item>Still up? Tomorrow-you says go to bed</item>
+        <item>Staying up earns zero credits</item>
+        <item>The stars clocked out. You can too</item>
+        <item>Night owl, save some battery for tomorrow</item>
+    </string-array>
+    <string-array name="mood_holiday_new_year">
+        <item>Happy New Year! Fewer 8 a.m. classes, hopefully</item>
+        <item>New year, empty timetable</item>
+        <item>Fresh calendar, fresh start</item>
+        <item>Start the year with a lie-in</item>
+    </string-array>
+    <string-array name="mood_holiday_spring_eve">
+        <item>Happy New Year\'s Eve. Have seconds at dinner</item>
+        <item>Timetable\'s closed. Go home for the reunion dinner</item>
+        <item>Stay up, see the new year in</item>
+    </string-array>
+    <string-array name="mood_holiday_spring">
+        <item>Happy Spring Festival!</item>
+        <item>Relatives asking about grades? You\'re working on it</item>
+        <item>Eat well, rest well, see you next term</item>
+        <item>The timetable is celebrating too</item>
+    </string-array>
+    <string-array name="mood_holiday_qingming">
+        <item>Go out and find some spring</item>
+        <item>Soft breeze, green grass, take a break</item>
+        <item>Books can wait. Go for a walk</item>
+    </string-array>
+    <string-array name="mood_holiday_labour">
+        <item>Happy Labour Day. Today\'s job: resting</item>
+        <item>Hard work is great. So is a day off</item>
+        <item>Brave the crowds, or skip them entirely</item>
+    </string-array>
+    <string-array name="mood_holiday_dragon_boat">
+        <item>Happy Dragon Boat Festival! Sweet or savoury zongzi?</item>
+        <item>Grab a zongzi, watch the boats</item>
+        <item>The timetable went boat racing</item>
+    </string-array>
+    <string-array name="mood_holiday_mid_autumn">
+        <item>Happy Mid-Autumn! Look up at the moon tonight</item>
+        <item>Had a mooncake yet?</item>
+        <item>Full moon, day off. Call home</item>
+    </string-array>
+    <string-array name="mood_holiday_national">
+        <item>Happy National Day! Enjoy the break</item>
+        <item>Golden Week: everywhere is crowded</item>
+        <item>Seven days off. Don\'t leave homework for day seven</item>
+    </string-array>
+    <string-array name="mood_holiday_other">
+        <item>Day off! The timetable is empty</item>
+        <item>Rest up. Holidays are meant to be wasted</item>
+        <item>No classes today. Do something you like</item>
+    </string-array>
+    <string-array name="mood_holiday_last_day">
+        <item>Holiday balance low. Classes resume tomorrow</item>
+        <item>Last day off. Have fun, then check your homework</item>
+        <item>Classes tomorrow. Early night tonight?</item>
+        <item>Remember to set tomorrow\'s alarm</item>
+    </string-array>
+    <string-array name="mood_weekend_free">
+        <item>No classes this weekend. Sleep in</item>
+        <item>Empty timetable. Go get some sun</item>
+        <item>Happy weekend. Do something that isn\'t studying</item>
+        <item>Rest is part of the curriculum too</item>
+    </string-array>
+    <string-array name="mood_sunday_night">
+        <item>Weekend balance low. See you tomorrow</item>
+        <item>Sunday night: pack your bag</item>
+        <item>New week tomorrow. Get some rest</item>
+    </string-array>
+    <string-array name="mood_weekday_free">
+        <item>No classes today. Enjoy the slack</item>
+        <item>A free weekday, courtesy of your timetable</item>
+        <item>Library or nap? Your call</item>
+        <item>Today is all yours</item>
+    </string-array>
+    <string-array name="mood_done_tomorrow_holiday">
+        <item>Classes done. Day off tomorrow!</item>
+        <item>That\'s a wrap. The holiday starts tomorrow</item>
+        <item>Last bell rang. Holiday countdown on</item>
+    </string-array>
+    <string-array name="mood_done_friday">
+        <item>Week cleared. Happy weekend</item>
+        <item>Friday\'s done. Weekend mode on</item>
+        <item>Long week. Treat yourself</item>
+    </string-array>
+    <string-array name="mood_done_evening">
+        <item>All classes done. Relax tonight</item>
+        <item>Long day. Have a good dinner</item>
+        <item>The evening is yours</item>
+    </string-array>
+    <string-array name="mood_done">
+        <item>All classes done. Nice work</item>
+        <item>Today: cleared</item>
+        <item>Class dismissed. The rest of the day is yours</item>
+        <item>Done for the day. Go do something fun</item>
+    </string-array>
+</resources>

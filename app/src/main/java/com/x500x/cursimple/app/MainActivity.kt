@@ -1,5 +1,7 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppToolbarIconButton
+import com.x500x.cursimple.feature.widget.WidgetDeepLinks
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.app.Activity
 import android.content.Intent
@@ -14,6 +16,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,10 +56,12 @@ import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.automirrored.rounded.EventNote
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Notifications
@@ -86,22 +97,29 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 import com.x500x.cursimple.R
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.luminance
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -135,8 +153,6 @@ import com.x500x.cursimple.core.kernel.model.termWeekLabel
 import com.x500x.cursimple.core.kernel.model.termWeekText
 import com.x500x.cursimple.core.kernel.model.planCourseMove
 import com.x500x.cursimple.core.data.ThemeMode
-import com.x500x.cursimple.feature.plugin.ComponentMarketViewModel
-import com.x500x.cursimple.feature.plugin.ComponentMarketViewModelFactory
 import com.x500x.cursimple.feature.plugin.PluginMarketRoute
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModel
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
@@ -166,8 +182,21 @@ import androidx.compose.foundation.gestures.detectTapGestures
 
 class MainActivity : ComponentActivity() {
 
+    /** 点了扩展组件的通知：要打开哪个组件的日历页；界面消费后清空 */
+    private val extensionFeedRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    /** 点了桌面课程日历上的某一天：要在日视图里打开的日期（ISO）；界面消费后清空 */
+    private val scheduleDateRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
+        intent.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
+        intent.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -175,6 +204,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = (application as ClassScheduleApplication).appContainer
+        if (savedInstanceState == null) {
+            intent?.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
+            intent?.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
+            intent?.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
+        }
         setContent {
             val prefsViewModel: AppPreferencesViewModel = viewModel(
                 factory = AppPreferencesViewModelFactory(
@@ -196,6 +230,12 @@ class MainActivity : ComponentActivity() {
                 themeAccent = prefs.themeAccent,
                 customAccentArgb = prefs.themeCustomColorArgb,
             ) {
+                val lightSystemBars = MaterialTheme.colorScheme.background.luminance() > 0.5f
+                SideEffect {
+                    val controller = WindowCompat.getInsetsController(window, window.decorView)
+                    controller.isAppearanceLightStatusBars = lightSystemBars
+                    controller.isAppearanceLightNavigationBars = lightSystemBars
+                }
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -219,12 +259,101 @@ class MainActivity : ComponentActivity() {
                     }
                     if (prefs.loaded && prefs.disclaimerAccepted) {
                     val appZone = remember { BeijingTime.zone }
+                    val embeddedPageGestures = remember { com.x500x.cursimple.feature.plugin.ui.EmbeddedPageGestures() }
                     val guideAnchors = rememberGuideAnchorBounds()
                     androidx.compose.runtime.CompositionLocalProvider(
                         LocalAppZone provides appZone,
                         LocalGuideAnchors provides guideAnchors,
+                        com.x500x.cursimple.feature.plugin.ui.LocalEmbeddedPageGestures provides embeddedPageGestures,
                     ) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
+                    var memoSearchOpen by rememberSaveable { mutableStateOf(false) }
+                    // 扩展组件的侧边栏日历页：不在 AppScreen 这个固定枚举里，装了几个组件就有几个
+                    var currentExtension by rememberSaveable { mutableStateOf<String?>(null) }
+                    var linkedExtensionContent by remember {
+                        mutableStateOf<Triple<com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem, com.x500x.cursimple.core.kernel.model.ScheduleEvent>?>(null)
+                    }
+                    var openExtensionSettings by remember { mutableStateOf<String?>(null) }
+                    // 组件的横幅/通知上点了「重新登录」：进「组件」页并直接打开那个组件的设置面板
+                    val pendingOpenSettings by openExtensionSettingsRequest
+                    LaunchedEffect(pendingOpenSettings) {
+                        pendingOpenSettings?.let {
+                            currentScreen = AppScreen.Plugins
+                            openExtensionSettings = it
+                            openExtensionSettingsRequest.value = null
+                        }
+                    }
+                    val installedPlugins by container.pluginManager.installedPluginsFlow
+                        .collectAsStateWithLifecycle(initialValue = emptyList())
+                    val extensionData by container.extensionCoordinator.store.all.collectAsStateWithLifecycle()
+                    val extensionTitles = remember { androidx.compose.runtime.mutableStateMapOf<String, String>() }
+                    LaunchedEffect(installedPlugins) {
+                        container.extensionCoordinator.store.ensureLoaded()
+                        installedPlugins.filter { it.isExtension }.forEach { record ->
+                            val manifest = runCatching { container.pluginManager.loadExtensionPackage(record).first }.getOrNull()
+                            extensionTitles[record.pluginId] =
+                                com.x500x.cursimple.app.extension.ExtensionCoordinator.titleOf(manifest, record)
+                            extensionTitles[record.installKey] =
+                                com.x500x.cursimple.app.extension.ExtensionCoordinator.titleOf(manifest, record)
+                        }
+                    }
+                    // 侧边栏里列哪些组件：启用着、没在组件设置里关掉「侧边栏专属页面」的
+                    val sidebarExtensions = com.x500x.cursimple.app.extension.activeExtensionRecords(installedPlugins, prefs.enabledPluginIds)
+                        .filter { extensionData[it.pluginId]?.host?.showInSidebar != false }
+                        .map { it.installKey to (extensionTitles[it.installKey] ?: it.name) }
+                    // 切到别的页面就离开组件日历页（很多地方直接改 currentScreen）
+                    var lastScreen by remember { mutableStateOf(currentScreen) }
+                    LaunchedEffect(currentScreen) {
+                        if (currentScreen != lastScreen) currentExtension = null
+                        lastScreen = currentScreen
+                    }
+                    val pendingExtensionFeed by extensionFeedRequest
+                    LaunchedEffect(pendingExtensionFeed) {
+                        pendingExtensionFeed?.let {
+                            currentExtension = it
+                            extensionFeedRequest.value = null
+                        }
+                    }
+                    val extensionActions = remember {
+                        object : com.x500x.cursimple.feature.plugin.extension.ExtensionHostActions {
+                            override suspend fun loadPackage(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) =
+                                container.pluginManager.loadExtensionPackage(record)
+
+                            override suspend fun loadUi(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) =
+                                container.pluginManager.loadExtensionUi(record)
+
+                            override suspend fun loadUi(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, page: com.x500x.cursimple.core.plugin.manifest.PluginExtensionUiPage) =
+                                container.pluginManager.loadExtensionUi(record, page)
+
+                            override suspend fun isCurrent(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) =
+                                container.pluginManager.getInstalledPlugins().any { it.packageRevision == record.packageRevision }
+
+                            override suspend fun syncNow(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) =
+                                container.extensionCoordinator.syncNow(record)
+
+                            override fun onDataChanged(pluginId: String) =
+                                container.extensionCoordinator.onDataChanged(pluginId)
+
+                            override fun openFeed(pluginId: String) {
+                                currentExtension = pluginId
+                            }
+
+                            override fun openFeed(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) {
+                                currentExtension = record.installKey
+                            }
+                        }
+                    }
+                    linkedExtensionContent?.let { (record, opened, event) ->
+                        val item = extensionData[record.pluginId]?.items?.firstOrNull { it.id == opened.id } ?: opened
+                        com.x500x.cursimple.feature.plugin.extension.ExtensionContentDetailSheet(
+                            record = record,
+                            item = item,
+                            actions = extensionActions,
+                            onDismiss = { linkedExtensionContent = null },
+                            scheduleEvent = event,
+                        )
+                    }
+                    val onScheduleScreen = currentScreen == AppScreen.Schedule && currentExtension == null
                     var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
                     // 拖动调课页要摆开的两天，由临时调课表单选好后带过来
                     var swapTargetDate by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
@@ -271,29 +400,24 @@ class MainActivity : ComponentActivity() {
                         ),
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
+                    val gitHubSessionKey by container.gitHubSessionKeys.collectAsStateWithLifecycle()
                     val pluginMarketViewModel: PluginMarketViewModel = viewModel(
                         factory = PluginMarketViewModelFactory(
                             pluginManager = container.pluginManager,
                             gitHubRegistryRepository = container.gitHubRegistryRepository,
                             userPreferencesRepository = container.userPreferencesRepository,
+                            accountKeyFlow = container.gitHubSessionKeys,
                         ),
                     )
                     // 启动后在后台先把插件清单和已装插件的最新版拉好：等点进导课页再现拉，
                     // 第一次就得对着转圈等；拉过之后镜像也挑好了，后面的请求都快
-                    androidx.compose.runtime.LaunchedEffect(prefs.pluginRegistryRepo) {
-                        if (prefs.pluginRegistryRepo.isBlank()) return@LaunchedEffect
+                    androidx.compose.runtime.LaunchedEffect(prefs.loaded, prefs.pluginSources, prefs.componentSources) {
+                        if (!prefs.loaded) return@LaunchedEffect
+                        pluginMarketViewModel.setSources(prefs.pluginSources, prefs.componentSources)
                         kotlinx.coroutines.delay(PLUGIN_PREFETCH_DELAY_MILLIS)
-                        pluginMarketViewModel.refreshIfStale(prefs.pluginRegistryRepo, PLUGIN_PREFETCH_MAX_AGE_MILLIS)
+                        pluginMarketViewModel.refreshIfStale(PLUGIN_PREFETCH_MAX_AGE_MILLIS)
                         pluginMarketViewModel.refreshInstalledPluginVersions()
                     }
-                    val componentMarketViewModel: ComponentMarketViewModel = viewModel(
-                        factory = ComponentMarketViewModelFactory(
-                            repository = container.pluginComponentRepository,
-                            installer = container.pluginComponentInstaller,
-                            downloadPackage = container::downloadPluginComponentPackage,
-                            fetchComponentIndex = container::fetchPluginComponentMarket,
-                        ),
-                    )
                     fun setActiveTermStartDate(date: LocalDate?) {
                         prefsViewModel.markTermStartUserDecided()
                         val activeTermId = termProfileState.activeTermId
@@ -314,7 +438,9 @@ class MainActivity : ComponentActivity() {
 
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
-                    val drawerGesturesEnabled = !scheduleState.isSyncing && scheduleState.pendingWebSession == null
+                    // 组件内容区的横滑、斜滑交给组件；仍可点菜单打开，并滑动收起已打开的抽屉。
+                    val drawerGesturesEnabled = !scheduleState.isSyncing && scheduleState.pendingWebSession == null &&
+                        (drawerState.isOpen || (currentExtension == null && !embeddedPageGestures.ownsContentGestures))
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
                     var showCurrentWeekDialog by rememberSaveable { mutableStateOf(false) }
                     var pendingCurrentWeek by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -558,6 +684,18 @@ class MainActivity : ComponentActivity() {
                     val today = remember(prefs.debugForcedDateTime, appZone) {
                         prefs.debugForcedDateTime?.toLocalDate() ?: LocalDate.now(appZone)
                     }
+                    val pendingScheduleDate by scheduleDateRequest
+                    LaunchedEffect(pendingScheduleDate, today) {
+                        val target = pendingScheduleDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                        scheduleDateRequest.value = null
+                        if (target != null) {
+                            currentScreen = AppScreen.Schedule
+                            currentExtension = null
+                            subScreen = null
+                            scheduleViewMode = ScheduleViewMode.Day
+                            dayOffset = ChronoUnit.DAYS.between(today, target).toInt()
+                        }
+                    }
                     // 周次小于 1 表示尚未开学；未设置开学日期时回退到第 1 周。
                     val currentWeekIndex = resolveWeekIndexForDate(effectiveTermStart, today)
                     val dayWeekIndex = resolveWeekIndexForDate(
@@ -605,12 +743,19 @@ class MainActivity : ComponentActivity() {
                         drawerContent = {
                             AppDrawer(
                                 currentScreen = currentScreen,
+                                extensionEntries = sidebarExtensions,
+                                currentExtension = currentExtension,
+                                onSelectExtension = {
+                                    currentExtension = it
+                                    scope.launch { drawerState.close() }
+                                },
                                 termStartDate = prefs.termStartDate,
                                 currentWeekIndex = currentWeekIndex,
                                 appVersionName = BuildConfig.VERSION_NAME,
                                 updateBadgeVisible = updateBadgeVisible,
                                 onSelectScreen = {
                                     currentScreen = it
+                                    currentExtension = null
                                     scope.launch { drawerState.close() }
                                 },
                                 onPickThemeAccent = {
@@ -645,16 +790,15 @@ class MainActivity : ComponentActivity() {
                             topBar = {
                                 CenterAlignedTopAppBar(
                                     title = {
-                                        if (currentScreen == AppScreen.Schedule) {
+                                        if (onScheduleScreen) {
                                             // detectTapGestures 不像 clickable 那样自带水波纹，
                                             // 点下去毫无反应会让人以为没点中。这里自己接一个
                                             // interactionSource，在按下/抬起时发 PressInteraction，
                                             // 单击开面板、双击回本周的手势都保持不变。
                                             val weekTitleInteraction = remember { MutableInteractionSource() }
                                             Column(
-                                                modifier = Modifier
-                                                    .guideAnchor(GuideAnchor.WeekTitle)
-                                                    .clip(RoundedCornerShape(50))
+                                                    modifier = Modifier
+                                                        .guideAnchor(GuideAnchor.WeekTitle)
                                                     .indication(weekTitleInteraction, ripple())
                                                     // 单击开周次面板，双击直接回本周——翻远了要回来不用再点两下
                                                     .pointerInput(Unit) {
@@ -680,7 +824,10 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                     // 内边距放在水波纹里面：整块（周次 + 学期那行）一起亮。
                                                     // 左右要留够半个高度，胶囊两头的圆弧才不会切到学期文字
-                                                    .padding(horizontal = 20.dp, vertical = 4.dp),
+                                                    .padding(
+                                                        horizontal = 20.dp,
+                                                        vertical = 4.dp,
+                                                    ),
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
                                                 // 未设置开学日期或尚未开学时都不存在“当前周”，底色与徽章都不应出现
@@ -692,7 +839,9 @@ class MainActivity : ComponentActivity() {
                                                 Surface(
                                                     color = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
                                                     else androidx.compose.ui.graphics.Color.Transparent,
-                                                    shape = RoundedCornerShape(50),
+                                                    // 只有真正显示“当前周”胶囊时才使用圆角形状，透明 Surface 也会裁剪内容
+                                                    shape = if (isCurrentWeek) RoundedCornerShape(50)
+                                                    else androidx.compose.ui.graphics.RectangleShape,
                                                 ) {
                                                     Row(
                                                         verticalAlignment = Alignment.CenterVertically,
@@ -702,8 +851,11 @@ class MainActivity : ComponentActivity() {
                                                         ),
                                                     ) {
                                                         Text(
+                                                            // 没设开学日期时照常显示周次（回退到第 1 周起算），
+                                                            // 不再写「未设置开学日期」，右边的感叹号已经在提醒
                                                             text = LocalContext.current.termWeekText(
-                                                                termWeekLabel(effectiveTermStart, displayedWeekIndex),
+                                                                if (effectiveTermStart == null) termWeekLabel(displayedWeekIndex)
+                                                                else termWeekLabel(effectiveTermStart, displayedWeekIndex),
                                                             ),
                                                             style = MaterialTheme.typography.titleMedium,
                                                             fontWeight = FontWeight.SemiBold,
@@ -743,25 +895,37 @@ class MainActivity : ComponentActivity() {
                                             }
                                         } else {
                                             Text(
-                                                text = stringResource(currentScreen.labelRes),
+                                                text = currentExtension?.let { extensionTitles[it] }
+                                                    ?: stringResource(currentScreen.labelRes),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold,
                                             )
                                         }
                                     },
                                     navigationIcon = {
-                                        IconButton(
-                                            onClick = { scope.launch { drawerState.open() } },
-                                            modifier = Modifier.guideAnchor(GuideAnchor.Drawer),
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Rounded.Menu,
-                                                contentDescription = stringResource(R.string.main_open_drawer),
-                                            )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = { scope.launch { drawerState.open() } },
+                                                modifier = Modifier.guideAnchor(GuideAnchor.Drawer),
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Menu,
+                                                    contentDescription = stringResource(R.string.main_open_drawer),
+                                                )
+                                            }
                                         }
                                     },
                                     actions = {
-                                        if (prefs.loaded && prefs.termStartDate == null && currentScreen == AppScreen.Schedule) {
+                                        if (currentExtension == null && currentScreen == AppScreen.Memos) {
+                                            AppToolbarIconButton(
+                                                icon = Icons.Rounded.Search,
+                                                contentDescription = stringResource(R.string.main_memo_search),
+                                                onClick = { memoSearchOpen = !memoSearchOpen },
+                                                selected = memoSearchOpen,
+                                                modifier = Modifier.padding(end = 12.dp).testTag("memo-search-action"),
+                                            )
+                                        }
+                                        if (prefs.loaded && prefs.termStartDate == null && onScheduleScreen) {
                                             IconButton(onClick = { showTermStartReminder = true }) {
                                                 Surface(
                                                     shape = CircleShape,
@@ -779,9 +943,13 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
-                                        if (currentScreen == AppScreen.Schedule) {
-                                            // 标签宽度随语言变化，按内容伸展，中文时仍是 32dp 方块
-                                            Surface(
+                                        if (onScheduleScreen) {
+                                            ScheduleToolbarButton(
+                                                label = stringResource(
+                                                    if (scheduleViewMode == ScheduleViewMode.Week) R.string.schedule_view_mode_week
+                                                    else R.string.schedule_view_mode_day,
+                                                ),
+                                                selected = scheduleViewMode == ScheduleViewMode.Week,
                                                 onClick = {
                                                     scheduleViewMode = if (scheduleViewMode == ScheduleViewMode.Week) {
                                                         dayOffset = 0
@@ -790,71 +958,14 @@ class MainActivity : ComponentActivity() {
                                                         ScheduleViewMode.Week
                                                     }
                                                 },
-                                                shape = RoundedCornerShape(8.dp),
-                                                // 周/日 是个切换钮：给它描边并按当前模式换底色，
-                                                // 一眼看出能点、也看出现在停在哪个模式
-                                                color = if (scheduleViewMode == ScheduleViewMode.Week) {
-                                                    MaterialTheme.colorScheme.primaryContainer
-                                                } else {
-                                                    MaterialTheme.colorScheme.surfaceVariant
-                                                },
-                                                border = androidx.compose.foundation.BorderStroke(
-                                                    1.dp,
-                                                    MaterialTheme.colorScheme.outline,
-                                                ),
-                                                modifier = Modifier
-                                                    .padding(horizontal = 4.dp)
-                                                    .height(32.dp)
-                                                    .defaultMinSize(minWidth = 32.dp),
-                                            ) {
-                                                Box(
-                                                    contentAlignment = Alignment.Center,
-                                                    modifier = Modifier.padding(horizontal = 8.dp),
-                                                ) {
-                                                    Text(
-                                                        text = stringResource(
-                                                            if (scheduleViewMode == ScheduleViewMode.Week) {
-                                                                R.string.schedule_view_mode_week
-                                                            } else {
-                                                                R.string.schedule_view_mode_day
-                                                            },
-                                                        ),
-                                                        style = MaterialTheme.typography.titleSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (scheduleViewMode == ScheduleViewMode.Week) {
-                                                            MaterialTheme.colorScheme.onPrimaryContainer
-                                                        } else {
-                                                            MaterialTheme.colorScheme.onSurfaceVariant
-                                                        },
-                                                        maxLines = 1,
-                                                        softWrap = false,
-                                                    )
-                                                }
-                                            }
+                                            )
                                             Box {
-                                                IconButton(
+                                                AppToolbarIconButton(
+                                                    icon = Icons.Rounded.Add,
+                                                    contentDescription = stringResource(R.string.main_add_to_schedule),
                                                     onClick = { showAddMenu = true },
                                                     modifier = Modifier.guideAnchor(GuideAnchor.Add),
-                                                ) {
-                                                    Surface(
-                                                        shape = CircleShape,
-                                                        color = MaterialTheme.colorScheme.surfaceVariant,
-                                                        border = androidx.compose.foundation.BorderStroke(
-                                                            1.dp,
-                                                            MaterialTheme.colorScheme.outline,
-                                                        ),
-                                                        modifier = Modifier.size(32.dp),
-                                                    ) {
-                                                        Box(contentAlignment = Alignment.Center) {
-                                                            Icon(
-                                                                imageVector = Icons.Rounded.Add,
-                                                                contentDescription = stringResource(R.string.main_add_to_schedule),
-                                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                                modifier = Modifier.size(20.dp),
-                                                            )
-                                                        }
-                                                    }
-                                                }
+                                                )
                                                 DropdownMenu(
                                                     expanded = showAddMenu,
                                                     onDismissRequest = { showAddMenu = false },
@@ -939,7 +1050,32 @@ class MainActivity : ComponentActivity() {
                                     .fillMaxSize()
                                     .padding(innerPadding),
                             ) {
-                                when (currentScreen) {
+                                val routeTarget = currentScreen to currentExtension
+                                AnimatedContent(
+                                    targetState = routeTarget,
+                                    transitionSpec = {
+                                        (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { it / 8 }) togetherWith
+                                            (fadeOut(tween(140)) + slideOutHorizontally(tween(180)) { -it / 8 })
+                                    },
+                                    label = "main_route_transition",
+                                    modifier = Modifier.fillMaxSize(),
+                                ) { (targetScreen, targetExtension) ->
+                                val extensionRecord = targetExtension?.let { id ->
+                                    installedPlugins.firstOrNull { it.installKey == id && it.isExtension }
+                                        ?: com.x500x.cursimple.app.extension.activeExtensionRecords(installedPlugins, prefs.enabledPluginIds).firstOrNull { it.pluginId == id }
+                                }
+                                if (extensionRecord != null) {
+                                    com.x500x.cursimple.feature.plugin.extension.ExtensionFeedScreen(
+                                        record = extensionRecord,
+                                        actions = extensionActions,
+                                        onOpenSettings = {
+                                            openExtensionSettings = extensionRecord.installKey
+                                            currentScreen = AppScreen.Plugins
+                                            currentExtension = null
+                                        },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+                                } else when (targetScreen) {
                                     AppScreen.Schedule -> ScheduleRoute(
                                         viewModel = scheduleViewModel,
                                         overrideTermStart = prefs.termStartDate,
@@ -958,6 +1094,15 @@ class MainActivity : ComponentActivity() {
                                         onDayOffsetChange = { dayOffset = it },
                                         onResetDay = { dayOffset = 0 },
                                         onOpenPluginMarket = { currentScreen = AppScreen.Plugins },
+                                        onSetViewMode = { scheduleViewMode = it },
+                                        onOpenLinkedEvent = { event ->
+                                            val found = installedPlugins.asSequence().filter { it.isExtension }.mapNotNull { record ->
+                                                val data = extensionData[record.pluginId] ?: return@mapNotNull null
+                                                com.x500x.cursimple.app.extension.ExtensionScheduleBridge.findSource(event, data)?.let { record to it }
+                                            }.firstOrNull()
+                                            if (found != null) linkedExtensionContent = Triple(found.first, found.second, event)
+                                            found != null
+                                        },
                                         scheduleTextStyle = prefs.scheduleTextStyle,
                                         scheduleCardStyle = prefs.scheduleCardStyle,
                                         scheduleBackground = prefs.scheduleBackground,
@@ -976,9 +1121,9 @@ class MainActivity : ComponentActivity() {
 
                                     AppScreen.Plugins -> PluginMarketRoute(
                                         pluginMarketViewModel = pluginMarketViewModel,
-                                        componentMarketViewModel = componentMarketViewModel,
-                                        pluginRegistryRepo = prefs.pluginRegistryRepo,
-                                        componentMarketIndexUrl = prefs.componentMarketIndexUrl,
+                                        pluginSources = prefs.pluginSources,
+                                        componentSources = prefs.componentSources,
+                                        accountKey = gitHubSessionKey,
                                         enabledPluginIds = prefs.enabledPluginIds,
                                         syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
                                         missingComponents = scheduleState.missingComponents,
@@ -989,6 +1134,9 @@ class MainActivity : ComponentActivity() {
                                         onCancelWebSession = scheduleViewModel::cancelWebSession,
                                         modifier = Modifier.fillMaxSize(),
                                         syncStatusMessage = scheduleState.statusMessage,
+                                        extensionActions = extensionActions,
+                                        openExtensionPluginId = openExtensionSettings,
+                                        onExtensionOpenConsumed = { openExtensionSettings = null },
                                     )
 
                                     AppScreen.Courses -> CourseLibraryRoute(
@@ -1006,6 +1154,8 @@ class MainActivity : ComponentActivity() {
                                     AppScreen.Memos -> MemoRoute(
                                         viewModel = scheduleViewModel,
                                         modifier = Modifier.fillMaxSize(),
+                                        searchOpen = memoSearchOpen,
+                                        onCloseSearch = { memoSearchOpen = false },
                                     )
 
                                     AppScreen.Reminders -> RemindersScreen(
@@ -1024,6 +1174,8 @@ class MainActivity : ComponentActivity() {
                                         onClassNoticeBlurChange = prefsViewModel::setClassNoticeBlurEnabled,
                                         onClassNoticeBlurStrengthChange =
                                             prefsViewModel::setClassNoticeBlurStrength,
+                                        onClassNoticeBannerDurationChange =
+                                            prefsViewModel::setClassNoticeBannerDurationSeconds,
                                         alarmsContent = { alarmsModifier ->
                                             SettingsRoute(
                                                 viewModel = scheduleViewModel,
@@ -1062,13 +1214,10 @@ class MainActivity : ComponentActivity() {
                                         alarmRepeatIntervalSeconds = prefs.alarmRepeatIntervalSeconds,
                                         alarmRepeatCount = prefs.alarmRepeatCount,
                                         temporaryScheduleOverrides = prefs.temporaryScheduleOverrides,
-                                        autoUpdateEnabled = prefs.autoUpdateEnabled,
-                                        betaUpdatesEnabled = prefs.betaUpdatesEnabled,
                                         appTimeZoneId = prefs.appTimeZoneId,
-                                        ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
-                                        updateNotice = updateNotice,
-                                        pluginRegistryRepo = prefs.pluginRegistryRepo,
-                                        componentMarketIndexUrl = prefs.componentMarketIndexUrl,
+                                        pluginSources = prefs.pluginSources,
+                                        componentSources = prefs.componentSources,
+                                        marketSourceServices = container.marketSourceServices,
                                         privateFilesProviderEnabled = prefs.privateFilesProviderEnabled,
                                         webDavUrl = prefs.webDavUrl,
                                         webDavUsername = prefs.webDavUsername,
@@ -1116,6 +1265,8 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setClassNoticeBlurEnabled,
                                         onClassNoticeBlurStrengthChange =
                                             prefsViewModel::setClassNoticeBlurStrength,
+                                        onClassNoticeBannerDurationChange =
+                                            prefsViewModel::setClassNoticeBannerDurationSeconds,
                                         onScheduleCourseCornerRadiusDpChange = prefsViewModel::setScheduleCourseCornerRadiusDp,
                                         onScheduleCourseCardHeightDpChange = prefsViewModel::setScheduleCourseCardHeightDp,
                                         onScheduleOpacityPercentChange = prefsViewModel::setScheduleOpacityPercent,
@@ -1141,6 +1292,7 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setCourseDragEnabled,
                                         onSchedulePinchZoomEnabledChange =
                                             prefsViewModel::setSchedulePinchZoomEnabled,
+                                        onTodayOverviewEnabledChange = prefsViewModel::setTodayOverviewEnabled,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
@@ -1174,15 +1326,9 @@ class MainActivity : ComponentActivity() {
                                         onVendorPermissionAckChange = prefsViewModel::setVendorPermissionAck,
                                         onWidgetOpenAppOnDoubleClickChange =
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
-                                        onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
-                                        onBetaUpdatesEnabledChange = prefsViewModel::setBetaUpdatesEnabled,
                                         onAppTimeZoneChange = prefsViewModel::setAppTimeZoneId,
-                                        onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
-                                        onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
-                                        onUpdateFound = prefsViewModel::setUpdateNotice,
-                                        onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
-                                        onPluginRegistryRepoChange = prefsViewModel::setPluginRegistryRepo,
-                                        onComponentMarketIndexUrlChange = prefsViewModel::setComponentMarketIndexUrl,
+                                        onPluginSourcesChange = prefsViewModel::setPluginSources,
+                                        onComponentSourcesChange = prefsViewModel::setComponentSources,
                                         onPrivateFilesProviderEnabledChange =
                                             prefsViewModel::setPrivateFilesProviderEnabled,
                                         onWebDavSettingsChange = prefsViewModel::setWebDavSettings,
@@ -1277,8 +1423,19 @@ class MainActivity : ComponentActivity() {
                                     AppScreen.About -> AboutScreen(
                                         advancedToolsEnabled = prefs.advancedToolsEnabled,
                                         onSetAdvancedTools = prefsViewModel::setAdvancedToolsEnabled,
+                                        autoUpdateEnabled = prefs.autoUpdateEnabled,
+                                        betaUpdatesEnabled = prefs.betaUpdatesEnabled,
+                                        ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
+                                        updateNotice = updateNotice,
+                                        onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
+                                        onBetaUpdatesEnabledChange = prefsViewModel::setBetaUpdatesEnabled,
+                                        onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
+                                        onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
+                                        onUpdateFound = prefsViewModel::setUpdateNotice,
+                                        onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
                                         modifier = Modifier.fillMaxSize(),
                                     )
+                                }
                                 }
                             }
                         }
@@ -1426,7 +1583,9 @@ class MainActivity : ComponentActivity() {
                         MainActivity.SubScreen.SchoolImport -> {
                             SchoolImportRoute(
                                 pluginMarketViewModel = pluginMarketViewModel,
-                                pluginRegistryRepo = prefs.pluginRegistryRepo,
+                                pluginSources = prefs.pluginSources,
+                                componentSources = prefs.componentSources,
+                                accountKey = gitHubSessionKey,
                                 syncingPluginId = if (scheduleState.isSyncing) scheduleState.pluginId else null,
                                 syncStatusMessage = scheduleState.statusMessage,
                                 pendingWebSession = scheduleState.pendingWebSession,
@@ -1456,10 +1615,10 @@ class MainActivity : ComponentActivity() {
                     // 抽屉打开时禁用本处理器，让抽屉自带的「返回即关闭」优先，否则会先跳回课表、抽屉还开着
                     androidx.activity.compose.BackHandler(
                         enabled = subScreen == null &&
-                            currentScreen != AppScreen.Schedule &&
+                            (currentScreen != AppScreen.Schedule || currentExtension != null) &&
                             !drawerState.isOpen,
                     ) {
-                        currentScreen = AppScreen.Schedule
+                        if (currentExtension != null) currentExtension = null else currentScreen = AppScreen.Schedule
                     }
 
                     if (showDatePicker) {
@@ -1741,6 +1900,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    companion object {
+        /** 通知里带这个 extra（组件 id）就直接打开那个扩展组件的日历页 */
+        const val EXTRA_OPEN_EXTENSION_FEED = WidgetDeepLinks.EXTRA_OPEN_COMPONENT_PAGE
+
+        /** 桌面课程日历点了某一天：带 ISO 日期，切到日视图停在那天 */
+        const val EXTRA_OPEN_SCHEDULE_DATE = WidgetDeepLinks.EXTRA_OPEN_SCHEDULE_DATE
+
+        /** 点组件通知上的「重新登录」：进「组件」页并直接打开那个组件的设置面板 */
+        const val EXTRA_OPEN_EXTENSION_SETTINGS = "com.x500x.cursimple.extra.OPEN_EXTENSION_SETTINGS"
+
+        /**
+         * 组件通知/横幅上的按钮点了之后，「组件」页要直接打开的那个设置面板。
+         * 由 [EXTRA_OPEN_EXTENSION_SETTINGS] 这条 Intent 带进来，界面消费后清空。
+         */
+        internal val openExtensionSettingsRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
+    }
+
     enum class AppScreen(
         val labelRes: Int,
         val icon: ImageVector,
@@ -1768,6 +1944,9 @@ private fun Intent.pickedRingtoneUri(): Uri? =
 @Composable
 private fun AppDrawer(
     currentScreen: MainActivity.AppScreen,
+    extensionEntries: List<Pair<String, String>>,
+    currentExtension: String?,
+    onSelectExtension: (String) -> Unit,
     termStartDate: LocalDate?,
     currentWeekIndex: Int,
     appVersionName: String,
@@ -1779,7 +1958,7 @@ private fun AppDrawer(
     onOpenUpdateCheck: () -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.fillMaxWidth(0.68f),
+        modifier = Modifier.fillMaxWidth(0.72f),
         drawerContainerColor = MaterialTheme.colorScheme.surface,
     ) {
         val scrollState = rememberScrollState()
@@ -1788,7 +1967,8 @@ private fun AppDrawer(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                // 抽屉右侧是大圆角，右边距要留够，不然长文字（手写字体、大字号）会被圆角裁掉
+                .padding(start = 14.dp, end = 24.dp, top = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
@@ -1826,10 +2006,10 @@ private fun AppDrawer(
                             modifier = Modifier.size(20.dp),
                         )
                     },
-                    badge = if (updateBadgeVisible && screen == MainActivity.AppScreen.Settings) {
+                    badge = if (updateBadgeVisible && screen == MainActivity.AppScreen.About) {
                         { UpdateBadgeDot() }
                     } else null,
-                    selected = screen == currentScreen,
+                    selected = screen == currentScreen && currentExtension == null,
                     onClick = { onSelectScreen(screen) },
                     modifier = Modifier.height(44.dp),
                     colors = NavigationDrawerItemDefaults.colors(
@@ -1837,6 +2017,34 @@ private fun AppDrawer(
                         unselectedContainerColor = MaterialTheme.colorScheme.surface,
                     ),
                 )
+            }
+
+            // 扩展组件各自的专属页，在组件设置里可以关掉
+            if (extensionEntries.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                Spacer(modifier = Modifier.height(4.dp))
+                extensionEntries.forEach { (pluginId, title) ->
+                    NavigationDrawerItem(
+                        label = {
+                            Text(text = title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.EventNote,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        },
+                        selected = pluginId == currentExtension,
+                        onClick = { onSelectExtension(pluginId) },
+                        modifier = Modifier.height(44.dp),
+                        colors = NavigationDrawerItemDefaults.colors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            unselectedContainerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))

@@ -30,5 +30,6 @@ internal fun pickUpdateRelease(
     )
     .firstOrNull()
 
-/** 版本名带连字符后缀（alpha、beta、rc 之类）的即预发布版。 */
-internal fun isPrereleaseVersionName(versionName: String): Boolean = versionName.contains('-')
+/** 明确的发布通道优先；旧版本没有通道时才按版本名后缀判断。 */
+internal fun isPrereleaseBuild(versionName: String, releaseChannel: String? = null): Boolean =
+    releaseChannel?.let { it == "beta" } ?: versionName.contains('-')

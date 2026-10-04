@@ -1,5 +1,8 @@
 package com.x500x.cursimple.feature.widget
 
+import com.x500x.cursimple.core.kernel.mood.dayMoodLine
+import com.x500x.cursimple.core.kernel.mood.DayMood
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import android.content.Context
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
@@ -11,7 +14,7 @@ import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.courseSlotLabelText
 import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.CourseCategory
-import com.x500x.cursimple.core.kernel.model.coursesOfDay
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.coroutines.flow.first
 import java.time.Duration
@@ -85,15 +88,14 @@ internal object NextCourseDataSource {
             preferenceTermStartDate = userPrefs.termStartDate,
         )
 
+        // 改过的插件课以同 id 手动课落库，删掉的留墓碑：合并后才不会显示两遍或复活
+        val allCourses = schedule.allCoursesWith(manualCourses)
         fun coursesForDate(targetDate: LocalDate): WidgetScheduleDay = resolveWidgetScheduleDay(
             targetDate = targetDate,
             termStart = termStart,
             temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
             holidayCalendar = userPrefs.holidayCalendar,
-        ) { dayOfWeek ->
-            schedule?.coursesOfDay(dayOfWeek).orEmpty() +
-                manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
-        }
+        ) { dayOfWeek -> allCourses.filter { it.time.dayOfWeek == dayOfWeek } }
 
         val todayDay = coursesForDate(today)
         val displayDay = if (shouldShowNextDayAtNight(now, todayDay.courses, timingProfile)) {
@@ -157,7 +159,25 @@ internal object NextCourseDataSource {
 
             else -> if (plainToday) nextCourseLabel else dayHeaderText
         }
-        val emptyTitle = appContext.nextCourseEmptyText(
+        val weekKnown = displayDay.weekIndex != null && !isBeforeTermStart(displayDay.weekIndex)
+        val todayMood = if (targetDate == today && weekKnown && live == null && firstUpcoming == null) {
+            appContext.widgetTodayMood(
+                today = today,
+                now = now,
+                holidayLabel = displayDay.holidayLabel,
+                tomorrowHoliday = resolveScheduleDay(
+                    today.plusDays(1),
+                    userPrefs.temporaryScheduleOverrides,
+                    userPrefs.holidayCalendar,
+                ).isHoliday,
+                totalCourses = displayCourses.size,
+            )
+        } else if (targetDate == today.plusDays(1) && weekKnown && displayCourses.isEmpty() && displayDay.holidayLabel == null) {
+            appContext.dayMoodLine(today, DayMood.TomorrowFree)
+        } else {
+            null
+        }
+        val emptyTitle = todayMood ?: appContext.nextCourseEmptyText(
             nextCourseEmptyLabel(
                 weekIndex = displayDay.weekIndex,
                 termStartDate = termStart,

@@ -49,7 +49,7 @@ internal class LabelReminderRuleEvaluator {
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<ReminderPlan> = expandAll(
         rules = listOf(rule),
         schedule = schedule,
@@ -67,7 +67,7 @@ internal class LabelReminderRuleEvaluator {
         fromDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<ReminderPlan> {
         val zone = BeijingTime.zone
         return candidateDates(
@@ -110,7 +110,7 @@ internal class LabelReminderRuleEvaluator {
         targetDate: LocalDate,
         temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-        dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
+        dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<DailyReminderObject> {
         // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
@@ -123,12 +123,9 @@ internal class LabelReminderRuleEvaluator {
             courseById = { id -> allCourses.firstOrNull { it.id == id } },
             isOriginallyActive = { course, from -> course.isActiveInTermWeek(resolveTermWeek(termStart, from)) },
         )
-        // 放假日不上常规课，但调课可以推翻放假：只留被挪过来的那几门
+        // 明确的补课日由 resolveScheduleDay 判为上课日；假日/静音规则不再被移入课程绕过。
         if (dayPolicy.suppresses(targetDate, day)) {
-            return movedIn
-                .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
-                .mapNotNull { course -> course.toDailyObject(timingProfile, targetDate) }
-                .sortedWith(compareBy<DailyReminderObject> { it.slot.startTime }.thenBy { it.course.title })
+            return emptyList()
         }
         return allCourses
             .asSequence()
