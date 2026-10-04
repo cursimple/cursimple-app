@@ -9,12 +9,17 @@ import android.view.inspector.WindowInspector
 import androidx.activity.compose.setContent
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -60,6 +65,10 @@ import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.schedule.ScheduleScreen
 import com.x500x.cursimple.feature.schedule.ScheduleUiState
 import com.x500x.cursimple.feature.schedule.ScheduleViewMode
+import com.x500x.cursimple.feature.schedule.ScheduleSettingsScreen
+import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
+import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
+import com.x500x.cursimple.core.reminder.model.SystemAlarmRecord
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -72,6 +81,8 @@ import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import java.io.File
 import java.time.LocalDateTime
+import java.time.Instant
+import java.time.LocalTime
 import java.time.ZoneId
 import java.util.Locale
 import java.util.UUID
@@ -141,6 +152,66 @@ class ReleasePreviewCaptureTest {
         }
     }
     @get:Rule val rules: RuleChain = RuleChain.outerRule(captureSession).around(compose)
+
+    /** Demo records are passed to the real screen; no alarms or Clock requests are created. */
+    @Test fun captureSystemClock() {
+        val activity = compose.activity
+        val fixtureContext = AppLocale.wrap(activity, AppLanguage.Chinese)
+        val now = System.currentTimeMillis()
+        val tomorrow = Instant.ofEpochMilli(now).atZone(fixtureZone).toLocalDate().plusDays(1)
+        val records = listOf("07:45" to "高等数学 · 08:00 上课", "09:45" to "大学英语 · 10:00 上课").mapIndexed { index, (time, title) ->
+            SystemAlarmRecord(
+                alarmKey = "$fixturePrefix-clock-$index", ruleId = "$fixturePrefix-rule-$index",
+                pluginId = "manual", planId = "$fixturePrefix-plan-$index",
+                triggerAtMillis = tomorrow.atTime(LocalTime.parse(time)).atZone(fixtureZone).toInstant().toEpochMilli(),
+                message = title, displayTitle = title, backend = ReminderAlarmBackend.AppAlarmClock,
+                enabled = true, manualAlarm = true, createdAtMillis = now,
+            )
+        }
+        compose.runOnUiThread {
+            activity.setContent {
+                CompositionLocalProvider(
+                    LocalActivityResultRegistryOwner provides activity,
+                    LocalContext provides fixtureContext,
+                    LocalConfiguration provides fixtureContext.resources.configuration,
+                    LocalAppZone provides fixtureZone,
+                ) {
+                    ClassScheduleTheme(ThemeMode.Light) {
+                        SideEffect {
+                            WindowCompat.getInsetsController(activity.window, activity.window.decorView).apply {
+                                isAppearanceLightStatusBars = true
+                                isAppearanceLightNavigationBars = true
+                            }
+                        }
+                        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                                Text("提醒", modifier = Modifier.fillMaxWidth().padding(18.dp), style = MaterialTheme.typography.titleMedium)
+                                ScheduleSettingsScreen(
+                                    state = ScheduleUiState(initialized = true, systemAlarmRecords = records),
+                                    alarmRingtoneUri = null, alarmAlertMode = AlarmAlertMode.RingAndVibrate,
+                                    alarmRingDurationSeconds = 120, alarmRepeatIntervalSeconds = 300, alarmRepeatCount = 5,
+                                    onAlarmRingtoneUriChange = {}, onAlarmAlertModeChange = {},
+                                    onAlarmRingDurationSecondsChange = {}, onAlarmRepeatIntervalSecondsChange = {}, onAlarmRepeatCountChange = {},
+                                    onPickSystemRingtone = {}, onPickLocalAudio = {},
+                                    onSaveRule = { _, _, _, _, _, _, _ -> }, onSetRuleEnabled = { _, _ -> }, onRemoveRule = {},
+                                    onSavePlaceholder = { _, _, _, _, _, _, _ -> }, onDeletePlaceholder = {},
+                                    onSaveExamReminder = { _, _, _ -> }, onRefreshAlarms = {}, onDeleteAlarm = { _, _ -> },
+                                    onSetAppAlarmEnabled = { _, _ -> }, onUpdateAppAlarm = { _, _ -> },
+                                    onCreateManualAlarm = { _, _, _, _ -> },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("写入系统时钟").performClick()
+        compose.onAllNodes(hasText("07:45", substring = true) and hasAnyAncestor(isDialog())).fetchSemanticsNodes().also { check(it.isNotEmpty()) }
+        compose.onAllNodes(hasText("09:45", substring = true) and hasAnyAncestor(isDialog())).fetchSemanticsNodes().also { check(it.isNotEmpty()) }
+        // Keep the screenshot focused on the real pre-export summary, without sending any request.
+        saveScreenshot("system-clock.png")
+    }
 
     @Test fun captureAgenda() {
         val activity = compose.activity
