@@ -43,7 +43,7 @@ class WidgetProviderMetadataTest {
     fun `previews are bitmaps so vendor pickers can render them`() {
         // EMUI / 鸿蒙 的小组件选择器按位图处理 previewImage，遇到矢量图会把整项过滤掉，
         // 表现就是「应用装了，桌面却找不到这个小组件」
-        listOf("today", "next", "reminder").forEach { id ->
+        listOf("today", "next", "reminder", "calendar", "tasks").forEach { id ->
             assertTrue(
                 "widget_preview_$id 必须是位图",
                 resCandidates("drawable-nodpi/widget_preview_$id.png").any(Files::isRegularFile),
@@ -53,6 +53,25 @@ class WidgetProviderMetadataTest {
                 resCandidates("drawable/widget_preview_$id.xml").any(Files::isRegularFile),
             )
         }
+    }
+
+    @Test
+    fun `component widgets ship disabled and system widgets ship enabled`() {
+        val path = sequenceOf(
+            Paths.get(System.getProperty("user.dir")).resolve("src/main/AndroidManifest.xml"),
+            Paths.get(System.getProperty("user.dir")).resolve("feature-widget/src/main/AndroidManifest.xml"),
+        ).first(Files::isRegularFile)
+        val doc = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+            .newDocumentBuilder().parse(path.toFile())
+        val receivers = doc.getElementsByTagName("receiver")
+        val enabled = (0 until receivers.length).map { receivers.item(it) as Element }
+            .associate { it.androidAttribute("name") to (it.androidAttribute("enabled") != "false") }
+        // 待完成的内容来自组件：没装组件时不能出现在桌面的小组件列表里
+        assertFalse(enabled.getValue(".PendingTaskWidgetReceiver"))
+        assertFalse(enabled.getValue(".PendingTaskWidgetReceiverMIUI"))
+        // 课程日历只用课简自己的课表与事务，是系统小组件
+        assertTrue(enabled.getValue(".CalendarWidgetReceiver"))
+        assertTrue(enabled.getValue(".ScheduleGlanceWidgetReceiver"))
     }
 
     private fun resCandidates(relative: String): Sequence<Path> {

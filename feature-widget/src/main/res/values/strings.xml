@@ -23,6 +23,7 @@
 
     <string name="widget_holiday_default">放假</string>
     <string name="widget_empty_holiday">%1$s · 全天无课</string>
+    <string name="widget_empty_holiday_mood" translatable="false">%1$s · %2$s</string>
     <string name="widget_empty_term_start_missing">未设开学日期 · 点按设置</string>
     <string name="widget_empty_before_term_start">未开学</string>
     <string name="widget_empty_before_term_start_date">未开学 · %1$d月%2$d日开学</string>
@@ -116,4 +117,57 @@
     <string name="widget_preview_reminder_sub_1">课前 10 分钟 · 东 13-C-315</string>
     <string name="widget_preview_reminder_sub_2">课前 10 分钟 · 东 11-A-207</string>
     <string name="widget_diag_pin_ignored">系统声明支持，但这家桌面不响应（已改为手动添加）</string>
+
+    <!-- 课程日历与待完成 -->
+    <string name="calendar_widget_description">课简 · 课程日历</string>
+    <string name="tasks_widget_description">课简 · 待完成</string>
+    <string name="widget_label_calendar">课程日历</string>
+    <string name="widget_label_tasks">待完成</string>
+    <string name="widget_catalog_calendar_description">周课表与月历两种视图，点某一天直接打开那天的课程</string>
+    <string name="widget_catalog_tasks_description">组件交来的未完成任务，按截止时间排好，点一下直达</string>
+    <string name="widget_background_image_error">背景图片无法读取</string>
+    <string name="widget_calendar_mode_week">周</string>
+    <string name="widget_calendar_mode_month">月</string>
+    <string name="widget_calendar_mode_switch">切换周视图与月视图</string>
+    <string name="widget_calendar_reset_week">回本周</string>
+    <string name="widget_calendar_reset_month">回本月</string>
+    <string name="widget_calendar_week_title">第%1$d周</string>
+    <string name="widget_calendar_before_term_title">未开学</string>
+    <string name="widget_calendar_range">%1$s – %2$s</string>
+    <string name="widget_calendar_month_title">%1$d年%3$d月</string>
+    <string name="widget_calendar_today_subtitle">今天 %1$s</string>
+    <string name="widget_calendar_no_term_start">未设置开学日期</string>
+    <string name="widget_calendar_tag_holiday">休</string>
+    <string name="widget_calendar_tag_makeup">班</string>
+    <string name="widget_calendar_legend_class">有课</string>
+    <string name="widget_calendar_legend_exam">考试</string>
+    <string name="widget_calendar_legend_event">事务</string>
+    <string name="widget_calendar_empty_week">这周没有课</string>
+    <string name="widget_calendar_empty_no_term">设置开学日期后显示课程</string>
+    <string name="widget_tasks_badge">%1$d 项</string>
+    <string name="widget_tasks_empty">没有待完成的任务\n组件同步到的任务会按截止时间列在这里</string>
+    <string name="widget_tasks_empty_hint">组件同步到的任务会按截止时间列在这里</string>
+    <string name="widget_tasks_due_at">%1$s 截止</string>
+    <string name="widget_tasks_start_at">%1$s 开始</string>
+    <string name="widget_tasks_no_time">无截止时间</string>
+    <string name="widget_tasks_overdue">已截止</string>
+    <string name="widget_tasks_started">已开始</string>
+    <string name="widget_tasks_left_minutes">剩 %1$d 分钟</string>
+    <string name="widget_tasks_left_hours">剩 %1$d 小时</string>
+    <string name="widget_tasks_left_days">%1$d 天后</string>
+    <string name="widget_tasks_today_time">今天 %1$s</string>
+    <string name="widget_tasks_tomorrow_time">明天 %1$s</string>
+    <string-array name="widget_calendar_weekdays">
+        <item>一</item>
+        <item>二</item>
+        <item>三</item>
+        <item>四</item>
+        <item>五</item>
+        <item>六</item>
+        <item>日</item>
+    </string-array>
+    <string name="widget_calendar_legend_holiday">放假</string>
+    <string name="widget_calendar_legend_makeup">补班</string>
+    <string name="widget_page_prev">往前翻</string>
+    <string name="widget_page_next">往后翻</string>
 </resources>

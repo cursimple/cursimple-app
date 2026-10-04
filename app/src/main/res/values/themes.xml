@@ -25,6 +25,16 @@
       窗口背景交给代码设成那张圆角半透明 drawable（有界模糊要裁进这个形状），
       所以这里只负责把系统自带的窗口装饰、变暗和默认进出场动画全部关掉。
     -->
+    <!-- 锁屏横幅那一页：透明底透出壁纸，窗口本身只有卡片大，由 ClassNoticeLockActivity 摆到顶上 -->
+    <style name="ClassNoticeLockBanner" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowElevation">0dp</item>
+    </style>
+
     <style name="ClassNoticeOverlayDialog" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>

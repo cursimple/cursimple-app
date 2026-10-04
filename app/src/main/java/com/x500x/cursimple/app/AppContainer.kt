@@ -100,9 +100,20 @@ class AppContainer(
     private val marketIndexRepository = MarketIndexRepository(
         fetchText = { url -> downloadTextViaMirrors(url) },
         downloadBytes = { url -> downloadBytesViaMirrors(url) },
+        downloadBytesWithProgress = { url, onProgress -> downloadBytesViaMirrors(url, onProgress) },
     )
+    val gitHubAccountStore = com.x500x.cursimple.app.github.GitHubAccountStore(app)
+    val gitHubSessionKeys = gitHubAccountStore.revision.map { revision ->
+        gitHubAccountStore.account.value?.let { "${it.login}:$revision" }
+    }.stateIn(containerScope, SharingStarted.Eagerly, gitHubAccountStore.account.value?.let { "${it.login}:0" })
     val gitHubRegistryRepository = GitHubRegistryRepository(
         fetchText = { url -> downloadTextViaMirrors(url) },
+        tokenProvider = { gitHubAccountStore.token() },
+    )
+    val marketSourceServices = MarketSourceServices(
+        registry = gitHubRegistryRepository,
+        account = gitHubAccountStore,
+        oauthClientId = BuildConfig.GITHUB_OAUTH_CLIENT_ID,
     )
     val pluginComponentRepository = DataStorePluginComponentRepository(app)
     val pluginComponentInstaller = PluginComponentInstaller(
@@ -124,7 +135,7 @@ class AppContainer(
         .stateIn(containerScope, SharingStarted.Eagerly, HolidayCalendarSettings())
     private val reminderDayPolicyState = userPreferencesRepository.preferencesFlow
         .map { it.reminderDayPolicy() }
-        .stateIn(containerScope, SharingStarted.Eagerly, ReminderDayPolicy.ALWAYS)
+        .stateIn(containerScope, SharingStarted.Eagerly, ReminderDayPolicy())
     private val alarmSettingsState = userPreferencesRepository.preferencesFlow
         .map { it.toReminderAlarmSettings() }
         .stateIn(
@@ -132,6 +143,17 @@ class AppContainer(
             SharingStarted.Eagerly,
             UserPreferences().toReminderAlarmSettings(),
         )
+
+    /** 扩展组件的同步与产出：通知、截止提醒、课表事务 */
+    val extensionCoordinator by lazy {
+        com.x500x.cursimple.app.extension.ExtensionCoordinator(
+            context = app,
+            pluginManager = pluginManager,
+            preferences = userPreferencesRepository,
+            events = scheduleEventRepository,
+            scope = containerScope,
+        )
+    }
 
     val reminderCoordinator = ReminderCoordinator(
         context = app,
@@ -229,9 +251,17 @@ class AppContainer(
         }
     }
 
-    private suspend fun downloadBytesViaMirrors(url: String): ByteArray {
+    private suspend fun downloadBytesViaMirrors(
+        url: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
+    ): ByteArray {
+        // 私有仓库的安装包是 API 附件地址：直连 GitHub 带令牌下载，绝不交给镜像
+        if (com.x500x.cursimple.core.plugin.market.github.GitHubApiClient.isAssetApiUrl(url)) {
+            return gitHubRegistryRepository.downloadAccountAsset(url, onProgress)
+        }
         return when (val result = sharedDownloader.downloadBytes(
             request = downloadRequestFor(url),
+            onProgress = onProgress,
         )) {
             is MirrorDownloadResult.Success -> result.value
             is MirrorDownloadResult.Failure -> throw IllegalStateException(result.message)
@@ -610,4 +640,3 @@ private fun emptySystemAlarmSyncSummary(): SystemAlarmSyncSummary = SystemAlarmS
     skippedUnrepresentableCount = 0,
     results = emptyList(),
 )
-

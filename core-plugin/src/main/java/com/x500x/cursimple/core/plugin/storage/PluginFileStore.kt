@@ -58,6 +58,9 @@ class PluginFileStore(
         return readText(record, record.entry)
     }
 
+    fun loadExtensionUi(record: InstalledPluginRecord, path: String): String =
+        readText(record, normalizePluginPackagePath(path))
+
     fun loadUiSchema(record: InstalledPluginRecord, path: String = "ui/schedule.json"): PluginUiSchema {
         val file = File(record.storagePath, path)
         if (!file.exists()) {
@@ -75,7 +78,14 @@ class PluginFileStore(
     }
 
     fun readText(record: InstalledPluginRecord, relativePath: String): String {
-        return File(record.storagePath, relativePath).readText()
+        return readFile(record, relativePath).readText()
+    }
+
+    fun readFile(record: InstalledPluginRecord, relativePath: String): File {
+        val root = File(record.storagePath).canonicalFile
+        val file = File(root, normalizePluginPackagePath(relativePath)).canonicalFile
+        requireContained(root, file)
+        return file
     }
 
     private fun requireContained(root: File, target: File) {

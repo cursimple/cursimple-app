@@ -16,6 +16,19 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 class ClassNoticePlannerTest {
+    @Test
+    fun `moved course retains location for the source teaching week`() {
+        val moved = course("实验课", 1, 1, 2, weeks = listOf(1)).copy(weekLocations = mapOf(1 to "原周实验室", 2 to "目标周实验室"))
+        val move = TemporaryScheduleOverride(
+            id = "move", type = TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = "2026-09-07", targetDate = "2026-09-14", moveCourseId = "实验课",
+            moveToStartNode = 3, moveToEndNode = 4,
+        )
+        val result = nextClass(LocalDateTime.of(2026, 9, 14, 7, 0), listOf(moved), overrides = listOf(move))
+        assertEquals("原周实验室", result?.displayLocation())
+        assertEquals(1, result?.weekNumber)
+    }
+
 
     // 2026-09-07 是周一，第 1 教学周周一
     private val termStart = LocalDate.of(2026, 9, 7)

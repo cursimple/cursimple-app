@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +51,7 @@ fun QuickAddCourseDialog(
     startNode: Int,
     endNode: Int,
     existingCourses: List<CourseItem> = emptyList(),
-    maxWeekCount: Int = 30,
+    maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     /** 这一格在作息表里的名字（「第二节」「午间课」）；为空时按节号写。 */
     slotLabel: String? = null,
     onDismiss: () -> Unit,

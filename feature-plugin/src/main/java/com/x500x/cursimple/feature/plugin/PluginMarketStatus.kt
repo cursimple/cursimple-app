@@ -2,8 +2,22 @@ package com.x500x.cursimple.feature.plugin
 
 import android.content.Context
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
+import com.x500x.cursimple.core.plugin.market.github.MarketSourceCheck
+import com.x500x.cursimple.core.plugin.market.github.MarketSourceKind
 import com.x500x.cursimple.core.plugin.pluginErrorText
 import com.x500x.cursimple.core.plugin.security.PluginSignatureStatus
+import kotlinx.coroutines.CancellationException
+
+/** 只记录实际收到的字节；服务端未报告总大小时 [totalBytes] 为 null。 */
+data class PluginDownloadProgress(val downloadedBytes: Long, val totalBytes: Long?)
+
+/** 来源错误独立于安装／下载状态；一个来源失败不会盖掉其他来源的列表。 */
+data class PluginMarketSourceError(
+    val source: String,
+    val kind: MarketSourceKind,
+    val error: Throwable,
+    val check: MarketSourceCheck? = null,
+)
 
 /**
  * 插件市场页顶部状态条要展示的内容。
@@ -147,6 +161,7 @@ internal fun Context.pluginErrorDetail(error: Throwable?): String? {
 /** 本地选包失败时对应的状态，包体超限单独成一类，其余带上异常原文。 */
 internal fun pluginPackageReadFailure(error: Throwable): PluginMarketStatus =
     when (error) {
+        is CancellationException -> throw error
         is PluginPackageTooLargeException -> PluginMarketStatus.PackageTooLarge(error.limitBytes)
         else -> PluginMarketStatus.ReadPackageFailed(error.message)
     }

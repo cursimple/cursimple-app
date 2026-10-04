@@ -37,9 +37,15 @@ class StatusBarChipSupportTest {
 
     @Test
     fun untestedSkins_useThePlatformAnswer() {
-        listOf(VendorRom.Xiaomi, VendorRom.Honor, VendorRom.Vivo, VendorRom.Other).forEach {
+        listOf(VendorRom.Xiaomi, VendorRom.Honor, VendorRom.Other).forEach {
             assertEquals(Level.PlatformDecides, decide(36, it))
         }
+    }
+
+    @Test
+    fun vivo_neverGetsTheStandardChip() {
+        assertEquals(Level.Unsupported, decide(36, VendorRom.Vivo))
+        assertEquals(Level.Unsupported, decide(37, VendorRom.Vivo))
     }
 
     @Test

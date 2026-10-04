@@ -28,9 +28,13 @@ object ClassNoticeScheduler {
     private const val ACTION_NOTICE = "com.x500x.cursimple.action.CLASS_NOTICE"
     internal const val ACTION_STARTED = "com.x500x.cursimple.action.CLASS_NOTICE_STARTED"
     internal const val ACTION_DISMISS = "com.x500x.cursimple.action.CLASS_NOTICE_DISMISS"
+    internal const val ACTION_SNOOZE = "com.x500x.cursimple.action.CLASS_NOTICE_SNOOZE"
+    internal const val ACTION_SKIP = "com.x500x.cursimple.action.CLASS_NOTICE_SKIP"
     private const val REQUEST_CODE = 0x0C1B
     private const val REQUEST_CODE_STARTED = 0x0C1C
     private const val REQUEST_CODE_DISMISS = 0x0C1D
+    private const val REQUEST_CODE_SNOOZE = 0x0C1E
+    private const val REQUEST_CODE_SKIP = 0x0C1F
     private const val EXTRA_TITLE = "title"
     private const val EXTRA_LOCATION = "location"
     private const val EXTRA_TIME_RANGE = "timeRange"
@@ -39,6 +43,8 @@ object ClassNoticeScheduler {
     private const val EXTRA_START_AT = "startAt"
     private const val EXTRA_END_AT = "endAt"
     internal const val EXTRA_NOTIFICATION_ID = "notificationId"
+    internal const val EXTRA_SNOOZE_FIRE = "snoozeFire"
+    private const val SNOOZE_MINUTES = 10L
 
     /** 上课提醒自己的一点状态，目前只有下面这条「最近弹过哪条」。 */
     private const val STATE_PREFS = "class_notice_schedule"
@@ -137,6 +143,58 @@ object ClassNoticeScheduler {
         )
     }
 
+    /** 通知上的「延后 10 分钟」：先收掉当前一条，再把同一节课重新排一次。 */
+    fun snoozeIntent(context: Context, content: ClassNoticeNotifier.Content): PendingIntent = PendingIntent.getBroadcast(
+        context.applicationContext,
+        REQUEST_CODE_SNOOZE,
+        Intent(context.applicationContext, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_SNOOZE
+            setPackage(context.packageName)
+            putContentExtras(content)
+            putExtra(EXTRA_SNOOZE_FIRE, false)
+        },
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    /** 通知上的「跳过这节」：收掉当前一条，接着排下一节。 */
+    fun skipIntent(context: Context, notificationId: Int): PendingIntent = PendingIntent.getBroadcast(
+        context.applicationContext,
+        REQUEST_CODE_SKIP xor notificationId,
+        Intent(context.applicationContext, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_SKIP
+            setPackage(context.packageName)
+            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+        },
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    internal fun scheduleSnoozeForReceiver(context: Context, content: ClassNoticeNotifier.Content) {
+        val app = context.applicationContext
+        val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_SNOOZE
+            setPackage(app.packageName)
+            putContentExtras(content)
+            putExtra(EXTRA_SNOOZE_FIRE, true)
+        }
+        val pending = PendingIntent.getBroadcast(
+            app,
+            REQUEST_CODE_SNOOZE,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        setAlarm(app, System.currentTimeMillis() + SNOOZE_MINUTES * 60_000L, pending)
+    }
+
+    private fun Intent.putContentExtras(content: ClassNoticeNotifier.Content) {
+        putExtra(EXTRA_TITLE, content.courseTitle)
+        putExtra(EXTRA_LOCATION, content.location)
+        putExtra(EXTRA_TIME_RANGE, content.timeRange)
+        putExtra(EXTRA_SLOT_LABEL, content.slotLabel)
+        putExtra(EXTRA_MINUTES, content.minutesUntilStart)
+        putExtra(EXTRA_START_AT, content.startAtMillis)
+        putExtra(EXTRA_END_AT, content.endAtMillis)
+    }
+
     private fun setAlarm(app: Context, triggerAt: Long, pendingIntent: PendingIntent): Boolean {
         val alarmManager = app.getSystemService(AlarmManager::class.java) ?: return false
         return runCatching {
@@ -197,6 +255,22 @@ class ClassNoticeReceiver : BroadcastReceiver() {
             if (id != 0) ClassNoticeNotifier.cancel(context, id) else ClassNoticeNotifier.cancel(context)
             return
         }
+        if (intent.action == ClassNoticeScheduler.ACTION_SKIP) {
+            val id = intent.getIntExtra(ClassNoticeScheduler.EXTRA_NOTIFICATION_ID, 0)
+            if (id != 0) ClassNoticeNotifier.cancel(context, id) else ClassNoticeNotifier.cancel(context)
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                runCatching { ClassNoticeGateway.reschedule(context.applicationContext) }
+            }
+            return
+        }
+        if (intent.action == ClassNoticeScheduler.ACTION_SNOOZE &&
+            !intent.getBooleanExtra(ClassNoticeScheduler.EXTRA_SNOOZE_FIRE, false)
+        ) {
+            val content = ClassNoticeScheduler.contentFrom(intent) ?: return
+            ClassNoticeNotifier.cancel(context, content.notificationId)
+            ClassNoticeScheduler.scheduleSnoozeForReceiver(context, content)
+            return
+        }
         val scheduled = ClassNoticeScheduler.contentFrom(intent) ?: return
         val app = context.applicationContext
         val now = System.currentTimeMillis()
@@ -230,8 +304,8 @@ class ClassNoticeReceiver : BroadcastReceiver() {
                 ClassNoticeScheduler.scheduleStartedUpdate(app, intent)
                 // 发完立刻算下一节：闹钟一次只挂一个，不续上就断了
                 ClassNoticeGateway.reschedule(app)
-                // 悬浮窗皮肤要等窗口收起才放手，否则应用退出后进程一冻，悬浮窗就弹不出来
-                ClassNoticeOverlay.awaitGone()
+                // 等自绘窗口挂好就结束广播，展示时长由窗口自己管理，避免长时间等待导致 ANR
+                ClassNoticeOverlay.awaitShown()
             } catch (error: Throwable) {
                 ReminderLogger.warn("class_notice.deliver.failure", emptyMap(), error)
             } finally {

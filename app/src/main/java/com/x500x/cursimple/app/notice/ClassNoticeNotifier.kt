@@ -15,7 +15,9 @@ import android.net.Uri
 import android.provider.Settings
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.widget.RemoteViews
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -23,6 +25,7 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.MainActivity
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
+import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import org.json.JSONObject
 
 /**
@@ -45,10 +48,13 @@ object ClassNoticeNotifier {
     /** 不悬浮那一档的渠道（IMPORTANCE_DEFAULT）：通知照进通知栏和锁屏，只是不弹横幅。 */
     const val CHANNEL_ID_QUIET = "class_notice_quiet"
 
-    private const val NOTIFICATION_ID = 0x0C1A
+    /** 高级测试用的有声渠道，见 [notifySoundTest] */
+    private const val CHANNEL_ID_TEST_SOUND = "class_notice_test_sound"
+
+    internal const val NOTIFICATION_ID = 0x0C1A
 
     /** 闹钟预告单独一个 id：和上课通知同时挂着时互不覆盖。 */
-    private const val ALARM_NOTIFICATION_ID = 0x0C20
+    internal const val ALARM_NOTIFICATION_ID = 0x0C20
 
     private const val SAMSUNG_AUTOMATION_EXTRA = "android.ongoingActivityNoti.automation"
 
@@ -77,6 +83,13 @@ object ClassNoticeNotifier {
         val endAtMillis: Long = 0L,
         /** 已经上课了：把「还有多久」换成「上课中」，只更新不再提醒 */
         val inProgress: Boolean = false,
+        /**
+         * 头部那句小字换掉，默认空 = 按 [kind] 和 [inProgress] 自己算。
+         *
+         * 扩展组件的通知借这条横幅显示时（见 `ExtensionNotifier`）用不到「还有多久」，
+         * 这个位置放组件名更合适。
+         */
+        val headline: String = "",
         val kind: Kind = Kind.Class,
     ) {
         val notificationId: Int
@@ -84,6 +97,7 @@ object ClassNoticeNotifier {
 
         /** 头部那句「还有多久」；悬浮窗和通知共用 */
         fun subText(context: Context): String = when {
+            headline.isNotBlank() -> headline
             kind == Kind.AlarmPreview -> context.getString(R.string.alarm_pre_notice_subtext, minutesUntilStart)
             inProgress -> context.getString(R.string.class_notice_subtext_in_progress)
             else -> context.getString(R.string.class_notice_subtext, minutesUntilStart)
@@ -98,13 +112,58 @@ object ClassNoticeNotifier {
             get() = listOf(slotLabel, timeRange).filter { it.isNotBlank() }.joinToString(" ")
     }
 
-    fun notify(context: Context, content: Content, preferences: ClassNoticePreferences, theme: NoticeTheme) {
+    /**
+     * @param plain 高级测试用：不常驻、不申请胶囊，发成一条最普通的通知。
+     *   用来确认某台机器不弹横幅，是不是因为它不给常驻 / 实时活动类的通知弹横幅
+     * @param channelOverride 高级测试用：换一个渠道发，比如有声的那个测试渠道
+     */
+    fun notify(
+        context: Context,
+        content: Content,
+        preferences: ClassNoticePreferences,
+        theme: NoticeTheme,
+        plain: Boolean = false,
+        channelOverride: String? = null,
+    ) {
         ensureChannel(context)
         val manager = NotificationManagerCompat.from(context)
-        if (!manager.areNotificationsEnabled()) return
+        // 悬浮窗皮肤是「系统通知照发 + 解锁时额外画一层」：悬浮窗盖不住锁屏，
+        // 通知栏和锁屏还得靠这条通知。此时把系统横幅压下去，免得两个横幅一起弹。
+        // 系统横幅指望不上的手机（见 SelfDrawnNotice），要横幅就只剩自己画这一条路：
+        // 不管选的哪套皮肤，开着悬浮通知就由悬浮窗顶上。高级那两条测试是专门看系统横幅的，不顶。
+        // 放在通知那几道关前面：自己画的不靠通知权限，通知被关了照样弹
+        val overlayFallback = preferences.headsUpEnabled && SelfDrawnNotice.only() &&
+            !plain && channelOverride == null
+        // 熄屏时悬浮窗会在无人看到的情况下超时；只在亮屏时让它接管
+        val screenOn = context.getSystemService(PowerManager::class.java)?.isInteractive != false
+        val overlayTakesOver = !content.inProgress &&
+            preferences.headsUpEnabled && !plain && channelOverride == null &&
+            (preferences.skin == ClassNoticeSkin.Overlay || overlayFallback) &&
+            screenOn &&
+            ClassNoticeOverlay.canShowNow(context)
+        if (overlayTakesOver) {
+            ClassNoticeOverlay.show(context, content, preferences, theme)
+        } else if (overlayFallback && !content.inProgress && ClassNoticeOverlay.canDraw(context)) {
+            // 锁着屏或熄着屏时悬浮窗画不出来，这类手机的锁屏通知又指望不上：换成压在锁屏上的那一版，
+            // 熄屏时它静静挂着，下次亮屏一眼看到
+            ClassNoticeLockActivity.show(context, content, preferences, theme)
+        }
+
+        // 下面几处不发都是静悄悄的，用户那头只看到「没弹」，不留一笔就分不清是哪一关没过
+        fun skip(reason: String) = ReminderLogger.info(
+            "class_notice.post.skip",
+            mapOf("reason" to reason, "kind" to content.kind, "inProgress" to content.inProgress),
+        )
+        if (!manager.areNotificationsEnabled()) {
+            skip("notifications_disabled")
+            return
+        }
         // 上课那一刻的更新只改还挂着的那条：用户已经划掉的就别再冒出来
         val activeChannel = if (content.inProgress) {
-            activeNoticeChannel(context) ?: return
+            activeNoticeChannel(context) ?: run {
+                skip("in_progress_dismissed")
+                return
+            }
         } else {
             null
         }
@@ -113,6 +172,7 @@ object ClassNoticeNotifier {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
         ) {
+            skip("no_post_permission")
             return
         }
 
@@ -142,20 +202,9 @@ object ClassNoticeNotifier {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
-        // 悬浮窗皮肤是「系统通知照发 + 解锁时额外画一层」：悬浮窗盖不住锁屏，
-        // 通知栏和锁屏还得靠这条通知。此时把系统横幅压下去，免得两个横幅一起弹。
-        val overlayTakesOver = !content.inProgress &&
-            preferences.skin == ClassNoticeSkin.Overlay &&
-            ClassNoticeOverlay.canShowNow(context)
-        if (overlayTakesOver) {
-            ClassNoticeOverlay.show(context, content, preferences, theme)
-        }
-
-        val builder = NotificationCompat.Builder(
-            context,
-            // 更新时沿用原来那条的渠道，换渠道等于另发一条
-            activeChannel ?: channelIdFor(preferences, overlayTakesOver),
-        )
+        // 更新时沿用原来那条的渠道，换渠道等于另发一条
+        val channelId = channelOverride ?: activeChannel ?: channelIdFor(preferences, overlayTakesOver)
+        val builder = NotificationCompat.Builder(context, channelId)
             // 专画的白色剪影 logo：Android 12+ 会把它放进一个用 setColor 上色的圆里，
             // 圆用主题色，和 App 里看到的是同一个颜色
             .setSmallIcon(R.drawable.ic_notification)
@@ -166,6 +215,8 @@ object ClassNoticeNotifier {
                 if (preferences.skin == ClassNoticeSkin.Card) null else brandLogo(context),
             )
             .setSubText(subText)
+            // 老 vivo / OPPO 上横幅要有 ticker 才弹；新系统拿它给无障碍读，带着没坏处
+            .setTicker(title)
             .setContentTitle(content.courseTitle)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
@@ -180,6 +231,20 @@ object ClassNoticeNotifier {
                 context.getString(R.string.class_notice_action_dismiss),
                 ClassNoticeScheduler.dismissIntent(context, content.notificationId),
             )
+            .apply {
+                if (content.kind == Kind.Class) {
+                    addAction(
+                        R.drawable.ic_notification,
+                        context.getString(R.string.class_notice_action_snooze),
+                        ClassNoticeScheduler.snoozeIntent(context, content),
+                    )
+                    addAction(
+                        R.drawable.ic_notification,
+                        context.getString(R.string.class_notice_action_skip),
+                        ClassNoticeScheduler.skipIntent(context, content.notificationId),
+                    )
+                }
+            }
             // 点开看课表不算「知道了」：通知得一直挂到下课，除非自己划掉或点「知道了」
             .setAutoCancel(false)
             // 上课那一刻会原地更新成「上课中」，更新不再响、不再弹横幅
@@ -210,8 +275,9 @@ object ClassNoticeNotifier {
         // 「19:00-20:35」这种真实时间段，「19:59」会被当成一个钟点读；而且走到一半
         // 还会和「20 分钟后上课」这句静态文案对不上。静态文案更准也更好懂。
         builder.setShowWhen(false)
-        // 状态栏胶囊：系统拿 when 做倒计时，when 在过去时胶囊里就不写字。
-        // 默认是发通知那一刻，早就过去了，改成上课时刻；通知里照旧不显示时间戳
+        // when 改成上课时刻。AOSP 的胶囊文字先用 shortCriticalText，没有才拿 when 倒计时，
+        // 而 setShowWhen(false) 时 when 根本不进胶囊——眼下胶囊显示的是下面那句钟点。
+        // 留着它给不读 shortCriticalText、只认 when 的厂商胶囊兜底
         if (!content.inProgress && content.startAtMillis > System.currentTimeMillis()) {
             builder.setWhen(content.startAtMillis)
         }
@@ -224,8 +290,10 @@ object ClassNoticeNotifier {
             if (remaining > 0L) builder.setTimeoutAfter(remaining)
         }
         // 常驻：「清除全部」清不掉，只有自己划掉或点「知道了」才走。
-        // Android 14 起常驻通知照样能划掉；更早的系统上常驻就划不掉了，那边只保留不自动消失
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        // Android 14 起常驻通知照样能划掉；更早的系统上常驻就划不掉了，那边只保留不自动消失。
+        // 只用自己画的手机上不要常驻：vivo 上 ongoing 通知一律不悬浮、不做锁屏提醒（OriginOS 通知规范 6.1）
+        val selfDrawn = SelfDrawnNotice.only()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !plain && !selfDrawn) {
             builder.setOngoing(true)
         }
 
@@ -253,15 +321,9 @@ object ClassNoticeNotifier {
                 )
         }
 
-        if (preferences.focusNotificationEnabled) {
-            // 胶囊最宽 96dp，文字不到 7 个字符才保证整段显示，塞不下就只剩图标：
-            // 「08:00上课」正好 7 个、中文又宽，好几台机器上只看到图标。只放钟点，前面的课表图标已经说明是上课
-            val chipText = when {
-                content.kind == Kind.AlarmPreview ->
-                    context.getString(R.string.alarm_pre_notice_chip, content.startClock)
-                content.inProgress -> context.getString(R.string.class_notice_chip_in_progress)
-                else -> context.getString(R.string.class_notice_chip_upcoming, content.startClock)
-            }
+        // 只用自己画的手机上胶囊出不来，这些字段带了也白带
+        if (preferences.focusNotificationEnabled && !plain && !selfDrawn) {
+            val chipText = chipText(context, content)
             // Android 16 的实时活动：通知栏、锁屏置顶，状态栏挂一个小胶囊。
             // 用户在系统里关着也照样申请：之后打开时下一次更新就能上岛，不用等重新排
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -284,7 +346,70 @@ object ClassNoticeNotifier {
             )
         }
 
-        runCatching { manager.notify(content.notificationId, builder.build()) }
+        // 记下这次想怎么发，和发完系统实际收下的那条（post.result）对照，才看得出是哪一步走样
+        val request = mapOf(
+            "kind" to content.kind,
+            "inProgress" to content.inProgress,
+            "channel" to channelId,
+            "overlayTakesOver" to overlayTakesOver,
+            "overlayFallback" to overlayFallback,
+            "promoted" to promoted,
+            "skin" to preferences.skin,
+            "headsUp" to preferences.headsUpEnabled,
+        )
+        ReminderLogger.info("class_notice.post.request", request)
+        val notification = builder.build()
+        runCatching { manager.notify(content.notificationId, notification) }
+            .onSuccess { ClassNoticeDiagnostics.logPosted(context, content.notificationId, request) }
+            .onFailure { ReminderLogger.warn("class_notice.post.failure", request, it) }
+    }
+
+    /**
+     * 胶囊里那几个字：Android 16 实时活动的 shortCriticalText 和小米焦点通知的 ticker 共用。
+     *
+     * 胶囊最宽 96dp，文字不到 7 个字符才保证整段显示，塞不下就只剩图标：
+     * 「08:00上课」正好 7 个、中文又宽，好几台机器上只看到图标。只放钟点，前面的课表图标已经说明是上课
+     */
+    fun chipText(context: Context, content: Content): String = when {
+        content.kind == Kind.AlarmPreview -> context.getString(R.string.alarm_pre_notice_chip, content.startClock)
+        content.inProgress -> context.getString(R.string.class_notice_chip_in_progress)
+        else -> context.getString(R.string.class_notice_chip_upcoming, content.startClock)
+    }
+
+    /** 高级测试：发一条不常驻、不申请胶囊的普通通知，和正常那条对照着看横幅弹不弹。 */
+    fun notifyPlainTest(context: Context, preferences: ClassNoticePreferences, theme: NoticeTheme) {
+        cancel(context)
+        notify(context, previewContent(context, preferences), preferences, theme, plain = true)
+    }
+
+    /**
+     * 高级测试：走一个带默认铃声和振动的 HIGH 渠道，其余和普通测试一样。
+     *
+     * 上课通知的渠道是静音的。有的 ROM 把没声没振动的通知当成「静默」，横幅就不弹了；
+     * 这一条能弹、静音那条不能，就是这个原因。渠道只给测试用，不影响正式提醒
+     */
+    fun notifySoundTest(context: Context, preferences: ClassNoticePreferences, theme: NoticeTheme) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(NotificationManager::class.java)
+            if (manager != null && manager.getNotificationChannel(CHANNEL_ID_TEST_SOUND) == null) {
+                manager.createNotificationChannel(
+                    NotificationChannel(
+                        CHANNEL_ID_TEST_SOUND,
+                        context.getString(R.string.class_notice_channel_test_sound_name),
+                        NotificationManager.IMPORTANCE_HIGH,
+                    ).apply { enableVibration(true) },
+                )
+            }
+        }
+        cancel(context)
+        notify(
+            context,
+            previewContent(context, preferences),
+            preferences,
+            theme,
+            plain = true,
+            channelOverride = CHANNEL_ID_TEST_SOUND,
+        )
     }
 
     /** 示例通知的内容；设置页预览与高级设置里的测试共用这一份。 */
@@ -311,6 +436,7 @@ object ClassNoticeNotifier {
             preferences = preferences,
             theme = theme,
         )
+        hintChipHiddenInForeground(context, preferences)
     }
 
     /** 指定内容的预览：设置页拿到「下一节课」的真实内容时用这个。 */
@@ -322,6 +448,24 @@ object ClassNoticeNotifier {
     ) {
         cancel(context)
         notify(context = context, content = content, preferences = preferences, theme = theme)
+        hintChipHiddenInForeground(context, preferences)
+    }
+
+    /**
+     * 在应用里点预览时提醒一句「回桌面看胶囊」。
+     *
+     * AOSP 在发通知的应用正显示着时会把它的胶囊藏起来（NotifChipsViewModel 的 isAppVisible），
+     * 锁屏时也不画胶囊。不说一声，人在设置页点完预览只会觉得胶囊坏了。
+     */
+    private fun hintChipHiddenInForeground(context: Context, preferences: ClassNoticePreferences) {
+        if (!preferences.focusNotificationEnabled) return
+        if (StatusBarChipSupport.level() == StatusBarChipSupport.Level.Unsupported) return
+        if (!ClassNoticeDiagnostics.isForeground()) return
+        Toast.makeText(
+            context,
+            context.getString(R.string.class_notice_preview_chip_hint),
+            Toast.LENGTH_LONG,
+        ).show()
     }
 
     fun cancel(context: Context, notificationId: Int = NOTIFICATION_ID) {
@@ -540,7 +684,7 @@ object ClassNoticeNotifier {
         miuiFocusProtocol(context) > 0 ||
             StatusBarChipSupport.level() != StatusBarChipSupport.Level.Unsupported
 
-    private fun miuiFocusProtocol(context: Context): Int = runCatching {
+    internal fun miuiFocusProtocol(context: Context): Int = runCatching {
         Settings.System.getInt(context.contentResolver, "notification_focus_protocol", 0)
     }.getOrDefault(0)
 

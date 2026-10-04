@@ -16,6 +16,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Test release tooling
+        run: python3 -B -m unittest discover -s scripts/tests -v
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -53,9 +56,16 @@ jobs:
       - name: Build CI debug package
         run: ./gradlew assembleDebug
 
+      # 只编译本次 opt-in QA 测试；独立模拟器运行时再显式传入各测试的 Qa=true 参数。
+      - name: Build gated QA test packages
+        run: ./gradlew :app:assembleDebugAndroidTest :feature-plugin:assembleDebugAndroidTest
+
       - name: Upload CI APK artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ci-apk-${{ github.sha }}
-          path: app/build/outputs/apk/debug/*.apk
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/androidTest/debug/*.apk
+            feature-plugin/build/outputs/apk/androidTest/debug/*.apk
           if-no-files-found: error

@@ -61,6 +61,7 @@ class PluginInstaller(
         bytes: ByteArray,
         source: PluginInstallSource,
         sourceRepo: String? = null,
+        registrySource: String? = null,
     ): PluginInstallResult {
         val startedAt = System.currentTimeMillis()
         PluginLogger.info(
@@ -75,7 +76,10 @@ class PluginInstaller(
                 source = source,
                 storagePath = targetDir.absolutePath,
                 bundled = false,
-            ).copy(sourceRepo = sourceRepo?.trim()?.takeIf { it.isNotBlank() })
+            ).copy(
+                sourceRepo = sourceRepo?.trim()?.takeIf { it.isNotBlank() },
+                registrySource = registrySource?.trim()?.takeIf { it.isNotBlank() },
+            )
             val previous = registryRepository.findByInstallKey(record.installKey)
             registryRepository.saveInstalledPlugin(record)
             removeReplacedVersion(previous, targetDir)
@@ -181,6 +185,7 @@ class PluginInstaller(
             components = components,
             compatibilityStatus = compatibility.status,
             isBundled = bundled,
+            kind = kind,
         )
     }
 

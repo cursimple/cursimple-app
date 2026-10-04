@@ -1,6 +1,10 @@
 package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
+import com.x500x.cursimple.core.plugin.market.github.DefaultMarketSources
+import com.x500x.cursimple.core.plugin.market.github.GitHubReleaseAsset
+import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,6 +67,57 @@ class MarketPreviewTest {
 
         assertTrue(preview.visible.isEmpty())
         assertEquals(0, preview.hiddenCount)
+    }
+}
+
+class MarketCatalogSearchTest {
+    private val privateRepo = repo("vendor/school", schoolAliases = listOf("北京理工大学", "北理工"))
+        .copy(registrySource = "team/private-catalog", latestRelease = GitHubReleaseAsset("v2.4", "plugin.zip", "https://example.com/plugin.zip", 1))
+    private val installed = InstalledPluginRecord(
+        pluginId = "school.plugin", name = "School importer", publisher = "Example author",
+        version = "2.0", versionCode = 2, storagePath = "/tmp/plugin", installedAt = "2026-10-04",
+        source = PluginInstallSource.Remote, sourceRepo = "VENDOR/SCHOOL",
+    )
+
+    @Test
+    fun `market search includes registry source and version`() {
+        assertEquals(listOf(privateRepo), filterMarketRepos(listOf(privateRepo), " PRIVATE-CATALOG "))
+        assertEquals(listOf(privateRepo), filterMarketRepos(listOf(privateRepo), "v2.4"))
+    }
+
+    @Test
+    fun `installed search resolves school aliases and source from its market entry`() {
+        listOf("北理工", "private-catalog", "Example AUTHOR", "school.plugin", "2.0").forEach { query ->
+            assertEquals(query, listOf(installed), filterInstalledPlugins(listOf(installed), listOf(privateRepo), query))
+        }
+        assertTrue(filterInstalledPlugins(listOf(installed), listOf(privateRepo), "清华").isEmpty())
+    }
+
+    @Test
+    fun `installed source persists and remains searchable after logout or removal of a source`() {
+        val stored = installed.copy(registrySource = "saved/private-catalog")
+        assertEquals("saved/private-catalog", stored.registrySourceFor(emptyList(), DefaultMarketSources.PLUGIN_REGISTRY))
+        assertEquals(listOf(stored), filterInstalledPlugins(listOf(stored), emptyList(), "saved/private"))
+        assertEquals("saved/private-catalog", stored.registrySourceFor(listOf(privateRepo), DefaultMarketSources.PLUGIN_REGISTRY))
+    }
+
+    @Test
+    fun `legacy installed entries recover the source from a case insensitive repo match`() {
+        assertEquals("team/private-catalog", installed.registrySourceFor(listOf(privateRepo), DefaultMarketSources.PLUGIN_REGISTRY))
+    }
+
+    @Test
+    fun `only the two default registries receive the public label`() {
+        assertTrue(isPublicMarketSource(" CURSIMPLE/CURSIMPLE-PLUGINS/ "))
+        assertTrue(isPublicMarketSource(DefaultMarketSources.COMPONENT_REGISTRY))
+        assertEquals(false, isPublicMarketSource("cursimple/private-components"))
+        assertEquals(false, isPublicMarketSource(""))
+    }
+
+    @Test
+    fun `entry source takes precedence over route fallback`() {
+        assertEquals("team/private-catalog", privateRepo.marketSource(DefaultMarketSources.PLUGIN_REGISTRY))
+        assertEquals(DefaultMarketSources.COMPONENT_REGISTRY, privateRepo.copy(registrySource = " ").marketSource(DefaultMarketSources.COMPONENT_REGISTRY))
     }
 }
 

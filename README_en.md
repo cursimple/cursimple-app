@@ -10,15 +10,18 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
 [![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![Latest release](https://img.shields.io/github/v/release/cursimple/cursimple-app?include_prereleases&sort=semver)](https://github.com/cursimple/cursimple-app/releases)
+[![Latest beta 0.7.5](https://img.shields.io/badge/Latest%20beta-0.7.5-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
+[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.2.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![API](https://img.shields.io/badge/Android-7.0%2B%20(API%2024--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
 [Website](https://cursimple.github.io/cursimple-app/) · [Download](#download) · [Features](#features) · [Plugins](#plugin-system) · [Build from source](#build-from-source) · [中文](README.md)
+
+Latest beta: [0.7.5](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5) (`beta` / Pre-release).
 
 </div>
 
@@ -40,10 +43,22 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 | Reminder settings | Manage list | Plugin marketplace |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/reminder.png" width="230"> | <img src="docs/screenshots/library.png" width="230"> | <img src="docs/screenshots/plugin.png" width="230"> |
-| Class notices and alarms managed separately, with a per-device setup guide | Courses and events in one searchable list | Browse and install school plugins from a GitHub registry |
+| <img src="docs/screenshots/reminder.png" width="230"> | <img src="docs/screenshots/library.png" width="230"> | <img src="docs/release-notes/images/v0.7.5/plugin-market.png" width="230" alt="Plugin marketplace"> |
+| Class notices and alarms managed separately, with a per-device setup guide | Courses and events in one searchable list | Search plugins and components; see sources, versions and installation status |
+
+| Today's overview | Full-text note search | Alarm screen |
+|:--:|:--:|:--:|
+| <img src="docs/release-notes/images/v0.7.5/agenda.png" width="230" alt="Today's course timeline"> | <img src="docs/release-notes/images/v0.7.5/memo-search.png" width="230" alt="Full-text note search"> | <img src="docs/release-notes/images/v0.7.5/alarm-ringing.png" width="230" alt="Alarm screen"> |
+| Current and next class, countdowns, a full-day timeline and conflict details | Search titles, full text and courses across notebooks, including completed notes | Large clock, date and theme colours; slide to dismiss or tap to snooze |
+
+| Course calendar widget | Pending tasks widget | Export to system Clock |
+|:--:|:--:|:--:|
+| <img src="docs/release-notes/images/v0.7.5/calendar-widget.png" width="230" alt="Course calendar widget"> | <img src="docs/release-notes/images/v0.7.5/pending-widget.png" width="230" alt="Pending tasks widget"> | <img src="docs/release-notes/images/v0.7.5/system-clock.png" width="230" alt="System Clock export confirmation"> |
+| Switch between a week timetable and month calendar; tap a date to open it | Unfinished items and due status from enabled components | Send tomorrow's alarms manually and verify them in Clock |
 
 </div>
+
+The new 0.7.5 screenshots use demo data.
 
 ## Features
 
@@ -52,6 +67,7 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 | Feature | Details |
 |---|---|
 | Week / day view | The week view fits every period on one screen by default; the day view pages sideways and peeks at neighbouring days |
+| Today's overview and timeline | Today's day view shows an overview by default: current / next class, class progress and countdowns to class start or end. Tap it for the full-day course timeline, conflict details and course details; turn it off under **Settings → Display → Show today overview** |
 | Events | Meetings, clubs or a game of badminton go straight onto the timetable at their real start and end times. When they overlap a class they sit beside it, several overlapping events fold into a "⋯" you can open, and events outside class hours get their own band that disappears when the event is deleted |
 | Pinch to zoom | Once enabled in settings, zoom up to 300% and drag in any direction; the day header and period column stay pinned |
 | Multi-period and alternating weeks | Back-to-back periods render as one block; odd, even and arbitrary week patterns are supported |
@@ -65,6 +81,8 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 The **Notes** page in the drawer gives every course its own notebook, plus one for anything else. Notes support checklists you can tick right on the card (with progress), priorities, pinning and due dates; the overview shows what's open, due today and overdue at a glance. Editing is what-you-see-is-what-you-get: lists, headings, quotes and bold render as you type.
 
+Search at the top right covers titles, the full body and course information across notebooks, including completed notes. Clearing or closing search restores your previous filters. The statistics at the top now fit in a compact row.
+
 ### Reminders
 
 | Feature | Details |
@@ -75,11 +93,24 @@ The **Notes** page in the drawer gives every course its own notebook, plus one f
 | Silent guard | No persistent "guarding" notification: after you leave the app, periodic checks re-register any notices or alarms the system cleared |
 | Setup guide | Lists exactly what this phone needs allowed (notifications, heads-up, overlay, chip, background pop-ups) and opens each system page directly |
 | Alarms | Exact alarms generated from "period + condition + action" rules; system ringtones or local audio, ring, vibrate or both, with an optional heads-up before the alarm rings |
+| Alarm screen | Large clock, date and course information in the app's theme colours; slide to dismiss or tap the snooze button |
+| Holiday skipping and exceptions | Holiday alarms are skipped by default. Each alarm can allow ringing on holidays, while manually muted dates take priority; make-up class days still receive reminders. Skipped alarms send no pre-alarm notice, and date muting can be cancelled from the list |
+| Manual system Clock export | Send tomorrow's eligible in-app alarms from the alarms page, merging items in the same minute. Items that cannot be written yet prompt you to return later; once all requests are sent and no items remain waiting, you can choose to mute CurSimple's alarms for tomorrow |
 | Silence during class | Enters silent mode on schedule and restores the previous ringer mode after class |
+
+The system Clock receives creation requests; open your phone's Clock app to verify that they succeeded. Exported alarms do not automatically follow rescheduling, cancellations or holiday changes and must be adjusted in Clock.
 
 ### Home screen widgets
 
-Three widgets: today's timetable, next class and reminders. Tapping empty space opens the app too. Refresh is layered four ways: the system period, a WorkManager period, the alarm guard chain, and exact refreshes aligned to period boundaries (5 minutes before class, class start, class end).
+| Widget | Details |
+|---|---|
+| Today's timetable | Courses for the selected date; switch dates or return to today |
+| Next class | Current and next class information |
+| Reminders | Upcoming course alarms |
+| Course calendar | Switch between a week timetable and month calendar with courses, exams, events and holiday / workday markers. Page forwards or backwards, return to the current date, or tap a date to open its timetable |
+| Pending tasks | Unfinished assignments, exams and other items from enabled extension components, with start / due times and urgency. Tap to open the source component; available only while at least one extension component is enabled |
+
+Tapping empty space opens the app too. Refresh is layered four ways: the system period, a WorkManager period, the alarm guard chain, and exact refreshes aligned to period boundaries (5 minutes before class, class start, class end). Contextual messages for no classes, holidays, finished classes or empty task lists stay consistent throughout the day.
 
 ### Settings
 
@@ -101,11 +132,12 @@ The search box at the top finds any setting by name, page or keyword. **Quick se
 - **Time zone**: Can be set independently of the device, so online classes across time zones don't need a system change
 - **Updates**: Once a new version is found, tap **Update** to download and install it; only stable releases by default, prereleases after opting in to beta updates
 - **Release notes**: The first launch after an update pages through the highlights of that version
+- **Interface details**: Search fields, toolbar buttons, information cards and confirmation dialogs share a consistent style across the marketplace and Notes; long event text can be scrolled
 - **Per-ABI builds**: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64` and a `universal` APK
 
 ## Download
 
-Grab the APK for your device from the [website](https://cursimple.github.io/cursimple-app/#download) or [Releases](https://github.com/cursimple/cursimple-app/releases):
+The latest beta is [0.7.5](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5). Download the APK for your device from that version's page; the [website](https://cursimple.github.io/cursimple-app/#download) also offers download mirrors and QR codes.
 
 | File | Device |
 |---|---|
@@ -115,7 +147,7 @@ Grab the APK for your device from the [website](https://cursimple.github.io/curs
 | `CurSimple-x86.apk` | 32-bit Intel devices |
 | `CurSimple-universal.apk` | Works everywhere, at a larger size |
 
-Versions with a `-beta` or `-alpha` suffix are prereleases and are marked as such on GitHub.
+The release channel is set by `app.releaseChannel` in `gradle.properties`. Version 0.7.5 uses `beta`, keeps the tag `v0.7.5`, and sets `prerelease=true` on its GitHub Release; the older `v0.7.4` is also marked Pre-release. A version without a `-beta` suffix can still be a beta, so check the channel and Pre-release label. Enable beta updates in the app to receive this channel.
 
 After installing:
 
@@ -132,12 +164,20 @@ School portals differ wildly, so CurSimple keeps the scraping logic in plugins. 
 
 ### Installing a plugin
 
-1. Open **Plugins** and browse the marketplace
-2. Each card shows the name, author, star count, description and latest version
-3. Open one for details, then choose Install or View on GitHub
+1. Open **Plugins** or **Components**, switch between **Installed / Marketplace**, and search names, descriptions, school aliases and sources
+2. Each card shows the name, author, star count, description, source, version and installation / update status
+3. Open the description and repository details, then choose Install or View on GitHub. The version is checked again before installation; the dialog keeps a fixed size and scrolls internally, showing the description, source and actual package size first, with expandable permissions and verification details. Packages of **5 MiB** or more show actual downloaded bytes and a percentage when the total size is known
 4. Local bundles can be installed with Import ZIP
 
-The marketplace index comes from [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins).
+Plugins and components have separate source lists, defaulting to [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) and [cursimple/cursimple-components](https://github.com/cursimple/cursimple-components). Under **Settings → Plugins**, add or remove sources using `owner/repo`, a GitHub repository link, or an individual plugin / component's Release repository. Sources load independently, so results from other sources remain visible if one fails.
+
+Public sources need no login. For private repositories, paste a fine-grained GitHub personal access token (PAT) on the same settings page, select the required repositories and grant `Contents: Read-only`. Android Keystore encrypts the token on the current phone and it is excluded from backups. Private content and assets are fetched directly through the GitHub API; signing out or switching accounts clears account marketplace caches. Web device-code login is available only in builds configured with an OAuth Client ID.
+
+### Extension components
+
+The host supports extension **API 4**, including components' own login, settings and content pages, plus background sync, new-content notifications, deadline reminders and optional timetable event integration. Components install and update independently; background sync depends on system scheduling and connectivity.
+
+The YuKeTang component requires a separate installation. Its local v1.2.0 bundle can be imported as a ZIP; check the component repository for public release availability.
 
 ### Bundle requirements
 
@@ -146,7 +186,7 @@ Every plugin repository needs at least one Release carrying:
 - `manifest.json`, declaring the plugin metadata, whose `filename` points at the bundle
 - the bundle file that `filename` names
 
-The app reads `releases/latest/download/manifest.json` first, then downloads the bundle named by `filename`. GitHub's generated Source code archives are never treated as bundles.
+The app reads the `manifest.json` asset from the plugin / component repository's latest Release, then downloads the bundle named by `filename`. Private repository assets are read through the signed-in account's GitHub API access. GitHub's generated Source code archives are never treated as bundles.
 
 To write your own, see the [plugin guide](docs/plugin-system.md).
 
@@ -179,11 +219,12 @@ CLASS_VIEWER_KEY_ALIAS=replace with the key alias
 CLASS_VIEWER_KEY_PASSWORD=replace with the key password
 ```
 
-The version lives in exactly one place, `gradle.properties`:
+The version and release channel are maintained in `gradle.properties`:
 
 ```properties
-app.versionCode=30
-app.versionName=0.7.4
+app.versionCode=31
+app.versionName=0.7.5
+app.releaseChannel=beta
 ```
 
 ### Modules
@@ -195,7 +236,7 @@ core-plugin      Plugin manifest, installation, components, web session model an
 core-data        DataStore repositories
 core-reminder    Reminder rules, planning and dispatch backends
 feature-schedule Timetable screens and sync logic
-feature-plugin   Marketplace UI and WebView sessions
+feature-plugin   Plugin and component marketplaces, shared UI controls and WebView sessions
 feature-widget   Home screen widgets and scheduled refresh
 ```
 
@@ -204,7 +245,7 @@ feature-widget   Home screen widgets and scheduled refresh
 | Workflow | Trigger | What it does |
 |---|---|---|
 | `android-ci.yml` | Pull requests and pushes to `main` | Compile, unit tests, Lint |
-| `android-release.yml` | Pushing a `v*` tag | Verifies the tag matches `app.versionName`, builds every ABI, generates `update.json`, and marks the release as a prerelease based on the version suffix |
+| `android-release.yml` | Pushing a `v*` tag | Verifies the tag matches `app.versionName`, builds every ABI, generates `update.json`, and derives release and update channel status from `app.releaseChannel`; `beta` is marked Pre-release |
 
 Deeper development notes live in the [developer documentation](README_dev.md).
 
@@ -220,7 +261,7 @@ Start with **Settings → Class notice → Notification setup guide** and allow 
 <details>
 <summary><b>A plugin fails to install</b></summary>
 
-Check connectivity first, then confirm the plugin repository has a valid Release with both `manifest.json` and the bundle it names. On restricted networks the app races several mirrors in parallel; if all of them fail, try switching between Wi-Fi and mobile data.
+Check connectivity first, then confirm the plugin repository has a valid Release with both `manifest.json` and the bundle it names. For private sources, also check that the signed-in GitHub token has read access to the repository. Public downloads race several mirrors in parallel; if all of them fail, try switching between Wi-Fi and mobile data.
 
 </details>
 

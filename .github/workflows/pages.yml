@@ -29,6 +29,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Verify static site
+        run: |
+          node --check site/releases.js
+          node --check site/main.js
+          node --test site/tests/*.test.cjs
+          node site/check-links.cjs
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

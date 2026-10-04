@@ -17,6 +17,11 @@ data class WidgetCatalogEntry(
     val provider: ComponentName,
     /** Vendor-aware twin receivers (MIUI/vivo/HONOR). Empty when not applicable. */
     val vendorProviders: List<ComponentName> = emptyList(),
+    /**
+     * 内容来自扩展组件的「组件小组件」：没装组件时不出现在任何选择器里，
+     * 组件全部移除后随之下架。课表、事务这类课简自己的数据是系统小组件，一直可用。
+     */
+    val fromComponents: Boolean = false,
 )
 
 object WidgetCatalog {
@@ -50,7 +55,32 @@ object WidgetCatalog {
                     ComponentName(pkg, "com.x500x.cursimple.feature.widget.ReminderGlanceWidgetReceiverMIUI"),
                 ),
             ),
+            WidgetCatalogEntry(
+                id = CalendarWidgetReceiver.CATALOG_ID,
+                title = context.getString(R.string.widget_label_calendar),
+                description = context.getString(R.string.widget_catalog_calendar_description),
+                provider = ComponentName(pkg, CalendarWidgetReceiver::class.java.name),
+                vendorProviders = listOf(
+                    ComponentName(pkg, "com.x500x.cursimple.feature.widget.CalendarWidgetReceiverMIUI"),
+                ),
+            ),
+            WidgetCatalogEntry(
+                id = PendingTaskWidgetReceiver.CATALOG_ID,
+                title = context.getString(R.string.widget_label_tasks),
+                description = context.getString(R.string.widget_catalog_tasks_description),
+                provider = ComponentName(pkg, PendingTaskWidgetReceiver::class.java.name),
+                vendorProviders = listOf(
+                    ComponentName(pkg, "com.x500x.cursimple.feature.widget.PendingTaskWidgetReceiverMIUI"),
+                ),
+                fromComponents = true,
+            ),
         )
+    }
+
+    /** 应用内选择器里列出的：系统小组件全部，组件小组件只在装了组件时 */
+    fun pickerEntries(context: Context): List<WidgetCatalogEntry> {
+        val componentsReady = ComponentWidgetAvailability.isAvailable(context)
+        return entries(context).filter { !it.fromComponents || componentsReady }
     }
 
     fun installedCount(context: Context, entry: WidgetCatalogEntry): Int {

@@ -6,18 +6,17 @@ import java.time.LocalDate
 /**
  * 某一天要不要下发提醒。
  *
- * 放假当天默认照常提醒：课表把课程灰显，是否真去上课由用户自己决定，
- * 应用不替他判断。需要安静时可以打开 [skipOnHoliday]，或把单独某天放进 [mutedDates]。
+ * 默认跳过假日；单个闹钟明确允许假日响铃时可例外，手动静音的日期始终优先。
  */
 data class ReminderDayPolicy(
-    val skipOnHoliday: Boolean = false,
+    val skipOnHoliday: Boolean = true,
     val mutedDates: Set<LocalDate> = emptySet(),
 ) {
-    fun suppresses(date: LocalDate, day: ScheduleDayResolution): Boolean =
-        date in mutedDates || (skipOnHoliday && day.isHoliday)
+    fun suppresses(date: LocalDate, day: ScheduleDayResolution, allowOnHoliday: Boolean = false): Boolean =
+        date in mutedDates || (skipOnHoliday && day.isHoliday && !allowOnHoliday)
 
     companion object {
         /** 照常提醒，不因假日或静音跳过。 */
-        val ALWAYS = ReminderDayPolicy()
+        val ALWAYS = ReminderDayPolicy(skipOnHoliday = false)
     }
 }

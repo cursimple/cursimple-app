@@ -10,15 +10,18 @@
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
 [![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![Latest release](https://img.shields.io/github/v/release/cursimple/cursimple-app?include_prereleases&sort=semver)](https://github.com/cursimple/cursimple-app/releases)
+[![最新测试版 0.7.5](https://img.shields.io/badge/Latest%20beta-0.7.5-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
+[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.2.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![API](https://img.shields.io/badge/Android-7.0%2B%20(API%2024--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
 [官网](https://cursimple.github.io/cursimple-app/) · [下载安装](#下载安装) · [功能特性](#功能特性) · [插件系统](#插件系统) · [从源码构建](#从源码构建) · [English](README_en.md)
+
+最新测试版：[0.7.5](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)（`beta` / Pre-release）。
 
 </div>
 
@@ -40,10 +43,22 @@
 
 | 提醒设置 | 管理列表 | 插件市场 |
 |:--:|:--:|:--:|
-| <img src="docs/screenshots/reminder.png" width="230"> | <img src="docs/screenshots/library.png" width="230"> | <img src="docs/screenshots/plugin.png" width="230"> |
-| 上课提醒与闹钟分开管理，按机型引导放行 | 课程与事务集中管理，可搜索 | 从 GitHub 注册表浏览并安装学校插件 |
+| <img src="docs/screenshots/reminder.png" width="230"> | <img src="docs/screenshots/library.png" width="230"> | <img src="docs/release-notes/images/v0.7.5/plugin-market.png" width="230" alt="插件市场"> |
+| 上课提醒与闹钟分开管理，按机型引导放行 | 课程与事务集中管理，可搜索 | 搜索插件与组件，查看来源、版本与安装状态 |
+
+| 今日课程概览 | 备忘录全文搜索 | 闹钟响铃 |
+|:--:|:--:|:--:|
+| <img src="docs/release-notes/images/v0.7.5/agenda.png" width="230" alt="今日课程时间线"> | <img src="docs/release-notes/images/v0.7.5/memo-search.png" width="230" alt="备忘录全文搜索"> | <img src="docs/release-notes/images/v0.7.5/alarm-ringing.png" width="230" alt="闹钟响铃界面"> |
+| 当前与下一节课、倒计时、全天时间线和冲突明细 | 跨笔记本搜索标题、全文与课程，包括已完成笔记 | 大时钟、日期与主题配色，滑动关闭或延后 |
+
+| 课程日历小组件 | 待完成小组件 | 写入系统时钟 |
+|:--:|:--:|:--:|
+| <img src="docs/release-notes/images/v0.7.5/calendar-widget.png" width="230" alt="课程日历小组件"> | <img src="docs/release-notes/images/v0.7.5/pending-widget.png" width="230" alt="待完成小组件"> | <img src="docs/release-notes/images/v0.7.5/system-clock.png" width="230" alt="写入系统时钟确认"> |
+| 周课表与月历切换，点日期打开课表 | 显示启用组件的未完成内容与截止状态 | 手动发送明天闹钟，需到系统时钟核对 |
 
 </div>
+
+0.7.5 新截图使用演示数据。
 
 ## 功能特性
 
@@ -52,6 +67,7 @@
 | 能力 | 说明 |
 |---|---|
 | 周视图 / 日视图 | 周视图默认把全部节次平铺进一屏；日视图分页滑动，可见相邻日 |
+| 今日概览与时间线 | 今天的日视图默认显示概览：当前 / 下一节课、课程进度与上下课倒计时；点开查看全天课程时间线、冲突明细和课程详情，可在「设置 → 显示 → 显示今日概览」关闭 |
 | 事务 | 组会、社团、约球这类事按真实起止时间排进课表；和课撞上时并排显示，几件叠在一起合成「⋯」点开看；落在课间或早晚时自动插出一段，删掉后恢复原排版 |
 | 双指缩放 | 在设置里打开后可放大到 300%，放大后任意方向拖动，表头与节次栏冻结在边上 |
 | 跨节与单双周 | 连堂课渲染成整块，支持单周 / 双周 / 任意周次组合 |
@@ -65,6 +81,8 @@
 
 侧边栏的「备忘录」为每门课准备一个笔记本，也能记不属于任何课的事。支持复选框清单（卡片上直接勾选、显示进度）、优先级、置顶和截止时间；总览里一眼看到待办、今天到期与已逾期。编辑时所见即所得，列表、标题、引用、粗体直接渲染。
 
+右上角搜索可跨笔记本检索标题、完整正文与课程信息，包括已完成笔记；清空或关闭搜索后恢复原筛选。顶部统计改为紧凑横排。
+
 ### 提醒
 
 | 能力 | 说明 |
@@ -75,11 +93,24 @@
 | 静默守护 | 不常驻「正在守护」通知，退出 App 后定时巡检，被系统清掉的提醒与闹钟自动重新挂上 |
 | 通知弹出引导 | 按这台手机列出需要放行的几项（通知、悬浮横幅、悬浮窗、胶囊、后台弹出），点一项直达系统设置 |
 | 闹钟 | 精确闹钟，按「节次 + 条件 + 动作」规则生成；可选系统铃声或本地音频，响铃、震动或两者；闹钟响前可先弹一条预告 |
+| 响铃界面 | 大时钟、日期与课程信息，配色跟随应用主题；滑动关闭，或点按钮延后 |
+| 假日跳过与例外 | 默认跳过节假日闹钟；单个闹钟可开启「节假日也响」，手动静音日期仍优先，调休上课日照常提醒；被跳过的闹钟不发响铃预告，可在列表中取消日期静音 |
+| 手动写入系统时钟 | 从闹钟页发送明天可写入的应用内闹钟，同一分钟合并；尚不能写入的项目提示稍后再来，全部请求送出且无待写项目时可选择静音课简明天的闹钟 |
 | 上课自动静音 | 按作息时间进出静音，下课自动恢复原有铃声模式 |
+
+系统时钟只接收创建请求，请打开手机时钟核对是否成功。写入后，调课、停课或假日变化不会自动修改已写入的闹钟，需要在系统时钟中自行调整。
 
 ### 桌面小组件
 
-三类小组件：今日课表、下一节课、提醒。点卡片空白处也能打开 App。刷新有四层保障：系统周期、WorkManager 周期、闹钟守护链，以及按节次边界（课前 5 分钟 / 上课 / 下课）对齐的精确刷新。
+| 小组件 | 说明 |
+|---|---|
+| 今日课表 | 查看所选日期的课程，可切换日期并回到今天 |
+| 下一节课 | 当前与下一节课程信息 |
+| 提醒 | 即将触发的课程闹钟清单 |
+| 课程日历 | 切换周课表 / 月历，查看课程、考试、事务与休 / 班标记；支持翻页、回到当前日期，点日期打开对应课表 |
+| 待完成 | 显示启用扩展组件的作业、考试等未完成内容、开始 / 截止时间与紧急状态，点开回到来源组件；仅在有启用中的扩展组件时提供 |
+
+点卡片空白处也能打开 App。刷新有四层保障：系统周期、WorkManager 周期、闹钟守护链，以及按节次边界（课前 5 分钟 / 上课 / 下课）对齐的精确刷新。无课、假日、下课或空任务时显示当天保持稳定的情境提示。
 
 ### 设置
 
@@ -101,11 +132,12 @@
 - **时区**：可脱离设备时区独立设置，跨时区上网课不用改系统设置
 - **检查更新**：查到新版后直接点「更新」下载安装；默认只检查正式版，打开测试版更新后可收到预发布版
 - **更新公告**：装完新版本首次进入时翻页展示本版亮点
+- **界面细节**：市场与备忘录的搜索框、顶部按钮、信息卡片和确认弹窗风格统一，长事务正文可滚动查看
 - **架构分包**：`armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64` 单架构包与 `universal` 通用包
 
 ## 下载安装
 
-到 [官网](https://cursimple.github.io/cursimple-app/#download)（可选国内加速、扫码下载）或 [Releases](https://github.com/cursimple/cursimple-app/releases) 下载对应架构的 APK：
+最新测试版为 [0.7.5（beta）](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)，请在该版本页下载对应架构的 APK；[官网](https://cursimple.github.io/cursimple-app/#download)也提供国内加速和扫码下载入口。
 
 | 文件 | 适用设备 |
 |---|---|
@@ -115,7 +147,7 @@
 | `CurSimple-x86.apk` | 32 位 Intel 设备 |
 | `CurSimple-universal.apk` | 不确定架构时选这个，体积较大 |
 
-版本号带 `-beta`、`-alpha` 等后缀的是预发布版，会标记为 Pre-release。
+发布渠道由 `gradle.properties` 的 `app.releaseChannel` 指定。0.7.5 使用 `beta`，标签保持 `v0.7.5`，GitHub Release 标记为 `prerelease=true`；旧版 `v0.7.4` 同样标记为 Pre-release。版本号没有 `-beta` 后缀仍可能是测试版，请以发布渠道与 Pre-release 标记为准。应用内需开启测试版更新才能接收此渠道。
 
 安装后首次启动：
 
@@ -132,12 +164,20 @@
 
 ### 安装插件
 
-1. 进入**插件**页，浏览「插件市场」
-2. 卡片显示插件名、作者、星标数、描述与最新版本
-3. 点开查看详情，选择「安装」或「在 GitHub 查看」
+1. 进入**插件**或**组件**页，在「已安装 / 市场」间切换；直接搜索名称、描述、学校别名与来源
+2. 卡片显示名称、作者、星标数、描述、来源、版本和安装 / 更新状态
+3. 点开详情，查看简介和仓库信息，选择「安装」或「在 GitHub 查看」；安装前重新检查版本，弹窗固定大小、内容内部滚动，优先显示简介、来源与实际包大小，权限及校验信息可展开；包大小达到 **5 MiB** 时显示实际下载字节数，总大小已知时显示百分比
 4. 也可以用「导入 ZIP」从本地安装
 
-插件市场的索引来自 [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins)。
+插件和组件各有独立来源列表，默认分别为 [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 与 [cursimple/cursimple-components](https://github.com/cursimple/cursimple-components)。在**设置 → 插件**中可添加 / 移除来源，支持 `owner/repo`、GitHub 仓库链接和单个插件 / 组件的 Release 仓库。各来源独立加载，单个来源失败仍可查看其他结果。
+
+公有来源无需登录；读取私有仓库时，可在同页粘贴细粒度 GitHub 令牌（PAT），选择所需仓库并授予 `Contents: Read-only`。令牌使用 Android Keystore 加密，仅保存在当前手机并排除备份；私有内容和附件直接经 GitHub API 获取，退出或更换账号会清理账号市场缓存。网页设备码登录仅在构建时配置 OAuth Client ID 后提供。
+
+### 扩展组件
+
+宿主支持扩展接口 **API 4**，可加载组件自带的登录、设置和内容页面，也提供后台同步、新内容通知、截止前提醒，以及可选的课表事务联动。组件独立安装和更新，后台同步受系统调度与网络影响。
+
+雨课堂组件需单独安装；本地 v1.2.0 包可另行导入 ZIP，其公有发布进度以组件仓库为准。
 
 ### 插件包要求
 
@@ -146,7 +186,7 @@
 - `manifest.json`：声明插件元信息，其中 `filename` 指向插件包
 - `manifest.json` 里 `filename` 所指的插件包文件
 
-应用会依次读取 `releases/latest/download/manifest.json`，再按 `filename` 下载插件包。GitHub 自动生成的 Source code 压缩包不会被当作插件包。
+应用先读取插件 / 组件仓库最新 Release 的 `manifest.json` 附件，再按 `filename` 下载包；私有仓库通过已登录账号的 GitHub API 读取附件。GitHub 自动生成的 Source code 压缩包不会被当作插件包。
 
 开发自己的插件请看 [插件开发指南](docs/plugin-system.md)。
 
@@ -179,11 +219,12 @@ CLASS_VIEWER_KEY_ALIAS=替换为密钥别名
 CLASS_VIEWER_KEY_PASSWORD=替换为密钥密码
 ```
 
-版本号只在 `gradle.properties` 里维护一处：
+版本号与发布渠道在 `gradle.properties` 里维护：
 
 ```properties
-app.versionCode=30
-app.versionName=0.7.4
+app.versionCode=31
+app.versionName=0.7.5
+app.releaseChannel=beta
 ```
 
 ### 模块结构
@@ -195,7 +236,7 @@ core-plugin      插件 manifest、安装、组件、Web 会话模型与 GitHub 
 core-data        DataStore 仓储
 core-reminder    提醒规则、计划与派发后端
 feature-schedule 课表页面与同步逻辑
-feature-plugin   插件市场界面与 WebView 会话
+feature-plugin   插件与组件市场、共享界面控件与 WebView 会话
 feature-widget   桌面小组件与定时刷新
 ```
 
@@ -204,7 +245,7 @@ feature-widget   桌面小组件与定时刷新
 | 工作流 | 触发 | 内容 |
 |---|---|---|
 | `android-ci.yml` | PR 与推送到 `main` | 编译、单元测试、Lint |
-| `android-release.yml` | 推送 `v*` 标签 | 校验标签与 `app.versionName` 一致，构建全部 ABI，生成 `update.json`，按版本后缀决定是否标记 Pre-release |
+| `android-release.yml` | 推送 `v*` 标签 | 校验标签与 `app.versionName` 一致，构建全部 ABI，生成 `update.json`，根据 `app.releaseChannel` 生成发布与更新渠道状态；`beta` 标记为 Pre-release |
 
 更详细的开发说明见 [高级文档](README_dev.md)。
 
@@ -220,7 +261,7 @@ feature-widget   桌面小组件与定时刷新
 <details>
 <summary><b>插件安装失败</b></summary>
 
-先确认网络可用，再检查插件仓库是否有有效 Release 以及 `manifest.json` 与其指向的插件包。国内网络下应用会并发竞速多个镜像，若全部失败可尝试切换 Wi-Fi 与移动数据。
+先确认网络可用，再检查插件仓库是否有有效 Release 以及 `manifest.json` 与其指向的插件包。私有来源还需确认已登录的 GitHub 令牌有目标仓库的只读权限。公有下载会并发竞速多个镜像，若全部失败可尝试切换 Wi-Fi 与移动数据。
 
 </details>
 

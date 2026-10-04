@@ -71,6 +71,9 @@ val appVersionName = providers.gradleProperty("app.versionName")
     .orNull
     ?.takeIf { it.isNotBlank() }
     ?: throw GradleException("缺少或无效的 app.versionName，请在根目录 gradle.properties 配置。")
+val appReleaseChannel = providers.gradleProperty("app.releaseChannel").orNull
+    ?: if ('-' in appVersionName) "beta" else "stable"
+require(appReleaseChannel in setOf("beta", "stable")) { "app.releaseChannel 必须是 beta 或 stable" }
 
 android {
     namespace = "com.x500x.cursimple"
@@ -82,7 +85,14 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersionName
+        buildConfigField("String", "RELEASE_CHANNEL", "\"$appReleaseChannel\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // GitHub OAuth App 的 Client ID（不是密钥）；为空时设置页只提供「粘贴令牌」登录
+        val githubClientId = providers.gradleProperty("github.oauthClientId")
+            .orElse(providers.environmentVariable("CURSIMPLE_GITHUB_OAUTH_CLIENT_ID"))
+            .getOrElse("")
+        require(githubClientId.matches(Regex("[A-Za-z0-9_]*"))) { "无效的 GitHub OAuth Client ID" }
+        buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", "\"$githubClientId\"")
     }
 
     signingConfigs {
@@ -201,6 +211,7 @@ dependencies {
     testImplementation(libs.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.espresso.core)
+    androidTestImplementation(libs.androidx.webkit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }

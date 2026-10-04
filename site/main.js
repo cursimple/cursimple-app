@@ -1,5 +1,5 @@
 (() => {
-  const REPO = 'cursimple/cursimple-app';
+  const { REPO, CHANNEL_METADATA, selectChannels, releaseUrl, downloadUrl } = SiteReleases;
   const CDN = `https://cdn.jsdelivr.net/gh/${REPO}`;
   // App 检查更新也读这两份清单：走 jsDelivr，国内一般零点几秒就能拿到
   const FEED_STABLE = `${CDN}@update-feed/stable.json`;
@@ -103,25 +103,26 @@
   }
 
   /* ================= 下载 ================= */
-  const assets = {};   // abi -> { url, size, sha256 }
-  const release = { tag: null, date: null, prerelease: false };
+  let channels = selectChannels();
+  let release = channels.recommended;
+  let assets = release.assets;   // 同一 tag 的 abi -> { url, size, sha256 }
   let route = 'github';
   let mirror = MIRRORS[0];
 
   const fmtSize = (n) => `${(n / 1048576).toFixed(1)} MB`;
   const fmtDate = (d) => `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
-  const fallbackUrl = (abi) => `https://github.com/${REPO}/releases/latest/download/CurSimple-${abi}.apk`;
+  const fallbackUrl = (abi) => downloadUrl(release.tag, abi);
   const withRoute = (url) => (route === 'mirror' ? mirror + url : url);
 
   function applyLinks() {
     $$('[data-dl]').forEach((a) => {
       const abi = a.dataset.dl;
       a.href = withRoute(assets[abi]?.url || fallbackUrl(abi));
-      if (assets[abi]?.sha256) a.title = `SHA-256: ${assets[abi].sha256}`;
+      a.title = assets[abi]?.sha256 ? `SHA-256: ${assets[abi].sha256}` : '';
     });
     $$('[data-size]').forEach((el) => {
       const size = assets[el.dataset.size]?.size;
-      if (size) el.textContent = fmtSize(size);
+      el.textContent = size ? fmtSize(size) : '大小待获取';
     });
     const arm = assets['arm64-v8a'];
     $$('[data-dl-meta]').forEach((el, i) => {
@@ -131,10 +132,18 @@
   }
 
   function applyVersion() {
-    if (release.tag) $$('[data-ver]').forEach((el) => { el.textContent = release.tag; });
-    if (release.date) $('[data-date]').textContent = `${fmtDate(release.date)}发布`;
-    $('#clGithub').href = release.tag ? `https://github.com/${REPO}/releases/tag/${release.tag}` : `https://github.com/${REPO}/releases/latest`;
-    $('#clMeta').textContent = [release.date && `${fmtDate(release.date)}发布`, '最新正式版'].filter(Boolean).join(' · ');
+    const label = release.prerelease ? '最新测试版' : '最新正式版';
+    $$('[data-ver]').forEach((el) => { el.textContent = release.tag; });
+    $$('[data-channel-label]').forEach((el) => { el.textContent = label; });
+    $('[data-date]').textContent = release.date ? `${fmtDate(release.date)}发布` : '';
+    $$('[data-release-link]').forEach((el) => { el.href = releaseUrl(release.tag); });
+    $('#clMeta').textContent = [label, release.date && `${fmtDate(release.date)}发布`].filter(Boolean).join(' · ');
+    for (const key of ['stable', 'beta']) {
+      const item = channels[key];
+      const name = key === 'stable' ? '最新正式版' : '最新测试版';
+      const line = $(`[data-channel="${key}"]`);
+      line.innerHTML = item ? `${name}：<a href="${esc(releaseUrl(item.tag))}" target="_blank" rel="noopener">${esc(item.tag)}</a>` : `${name}：暂无${key === 'stable' ? '正式' : '测试'}版`;
+    }
     // 没看过这一版的更新公告就挂个小红点；弹窗开着时版本号才到，也算看过
     if (!modal.hidden && release.tag) store.set('seen-ver', release.tag);
     const unseen = release.tag && store.get('seen-ver') !== release.tag;
@@ -161,55 +170,39 @@
     } finally { clearTimeout(t); }
   }
 
-  const feedReady = (async () => {
-    try {
-      const feed = await getJson(FEED_STABLE);
-      if (feed.noRelease) return;
-      for (const a of feed.assets || []) {
-        assets[a.abi] = { ...assets[a.abi], url: a.downloadUrl, sha256: a.sha256 };
-      }
-      release.tag = feed.tagName;
-      release.code = feed.versionCode;
-      applyVersion();
-      applyLinks();
-    } catch { /* 静态兜底链接照样能用 */ }
-  })();
+  const feeds = {};
+  let apiReleases = [];
+  function applyChannels() {
+    channels = selectChannels(feeds, apiReleases);
+    release = channels.recommended;
+    assets = release.assets;
+    applyVersion();
+    applyLinks();
+  }
+  applyChannels();
 
-  // 文件大小与发布日期只有 GitHub API 有；国内常常超时，拿不到就算了
+  // 并行读取两个渠道；beta.json 含测试版在内，prerelease 字段决定归属。
+  const feedReady = Promise.allSettled([
+    ['stable', FEED_STABLE], ['beta', FEED_BETA],
+  ].map(async ([key, url]) => {
+    try { feeds[key] = await getJson(url); applyChannels(); } catch { /* 使用其他渠道或固定 tag 兜底 */ }
+  }));
+
+  // /releases 列表包含测试版；只合并相同 tag 的大小、日期和公告。
   const apiReady = (async () => {
     try {
-      const rel = await getJson(`${API}/latest`, 10000);
-      for (const a of rel.assets || []) {
-        const m = /^CurSimple-(.+)\.apk$/.exec(a.name);
-        if (m) assets[m[1]] = { ...assets[m[1]], url: assets[m[1]]?.url || a.browser_download_url, size: a.size };
-      }
-      release.tag = release.tag || rel.tag_name;
-      release.date = new Date(rel.published_at);
-      release.body = rel.body;
-      applyVersion();
-      applyLinks();
-    } catch { /* ignore */ }
-  })();
-
-  // 有比正式版新的测试版就在下载区提一句
-  (async () => {
-    try {
-      const beta = await getJson(FEED_BETA);
-      await feedReady;
-      if (!beta.tagName || !(beta.versionCode > (release.code || 0))) return;
-      const line = $('#betaLine');
-      line.innerHTML = `抢先体验：测试版 <a href="https://github.com/${REPO}/releases/tag/${esc(beta.tagName)}" target="_blank" rel="noopener">${esc(beta.tagName)}</a> 已发布`;
-      line.hidden = false;
+      apiReleases = await getJson(`${API}?per_page=100`, 10000);
+      applyChannels();
     } catch { /* ignore */ }
   })();
 
   // 同时探测几个镜像，谁先有响应就用谁
   async function pickMirror() {
-    const probe = `https://github.com/${REPO}/releases/latest/download/update.json`;
+    const probe = `https://github.com/${REPO}/releases/download/${encodeURIComponent(release.tag)}/update.json`;
     const race = MIRRORS.map((m) => new Promise((resolve, reject) => {
       const ctl = new AbortController();
-      setTimeout(() => { ctl.abort(); reject(); }, 5000);
-      fetch(m + probe, { mode: 'no-cors', cache: 'no-store', signal: ctl.signal }).then(() => resolve(m), reject);
+      const timer = setTimeout(() => { ctl.abort(); reject(); }, 5000);
+      fetch(m + probe, { mode: 'no-cors', cache: 'no-store', signal: ctl.signal }).then(() => resolve(m), reject).finally(() => clearTimeout(timer));
     }));
     try { mirror = await Promise.any(race); } catch { mirror = MIRRORS[0]; }
     applyLinks();
@@ -230,11 +223,12 @@
   setRoute(store.get('dl-route') || (inMainland ? 'mirror' : 'github'), false);
 
   /* ================= 更新公告：Markdown ================= */
+  let notesBase = document.baseURI;
   // 发版说明里的图都挂在 raw.githubusercontent.com，国内经常打不开，换成 jsDelivr
   function assetUrl(url) {
     const raw = /^https:\/\/raw\.githubusercontent\.com\/([^/]+\/[^/]+)\/([^/]+)\/(.+)$/.exec(url);
     if (raw) return `https://cdn.jsdelivr.net/gh/${raw[1]}@${raw[2]}/${raw[3]}`;
-    if (!/^[a-z]+:/i.test(url) && release.tag) return `${CDN}@${release.tag}/docs/release-notes/${url.replace(/^\.\//, '')}`;
+    if (!/^[a-z]+:/i.test(url)) return new URL(url, notesBase).href;
     return url;
   }
 
@@ -300,16 +294,22 @@
   }
 
   let notes = null;
+  // 本次图文公告随官网发布，预取可避免依赖尚未缓存的 tag 文档。
+  const bundledNotes = getText(`release-notes/${CHANNEL_METADATA.beta.tagName}.md`).catch(() => null);
   const notesReady = (async () => {
-    await feedReady;
+    await Promise.all([feedReady, apiReady]);
     let md = null;
-    if (release.tag) {
+    if (release.tag === CHANNEL_METADATA.beta.tagName) {
+      md = await bundledNotes;
+      if (md) notesBase = new URL(`release-notes/${release.tag}.md`, document.baseURI).href;
+    }
+    if (!md) {
       const path = `docs/release-notes/${release.tag}.md`;
       for (const url of [`${CDN}@${release.tag}/${path}`, `https://raw.githubusercontent.com/${REPO}/${release.tag}/${path}`]) {
-        try { md = await getText(url); break; } catch { /* 换下一个 */ }
+        try { md = await getText(url); notesBase = url; break; } catch { /* 换下一个 */ }
       }
     }
-    if (!md) { await apiReady; md = release.body || null; }
+    if (!md) { md = release.body || null; notesBase = `${CDN}@${release.tag}/docs/release-notes/`; }
     if (!md) throw new Error('no notes');
     notes = parseNotes(md);
     // 首屏胶囊换成这一版前三个亮点
@@ -351,7 +351,7 @@
 
   function renderError() {
     slides.innerHTML = `<div class="slide cl-loading"><p>更新内容暂时没加载出来</p>
-      <a class="btn btn-ghost btn-md" href="https://github.com/${REPO}/releases/latest" target="_blank" rel="noopener">去 GitHub 查看<svg><use href="#i-ext"/></svg></a></div>`;
+      <a class="btn btn-ghost btn-md" href="${esc(releaseUrl(release.tag))}" target="_blank" rel="noopener">去 GitHub 查看<svg><use href="#i-ext"/></svg></a></div>`;
     dots.innerHTML = '';
     updateArrows();
   }

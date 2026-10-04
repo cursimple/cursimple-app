@@ -735,4 +735,63 @@
     <string name="memo_notebook_search">搜索课程、老师或地点</string>
     <string name="memo_notebook_search_clear">清空搜索</string>
     <string name="memo_notebook_search_empty">没有匹配的课程</string>
+    <string name="memo_search_hint">搜索标题、正文或课程</string>
+    <string name="memo_search_clear">清空搜索</string>
+    <string name="memo_search_close">关闭搜索</string>
+    <string name="memo_search_empty">没有匹配的笔记</string>
+    <string name="schedule_today_rest">今天休息</string>
+    <string name="schedule_today_current">正在上课</string>
+    <string name="schedule_today_next">下一节课</string>
+    <string name="schedule_today_empty">今天没有课程</string>
+    <string name="schedule_today_finished">今天的课程已结束</string>
+    <string name="schedule_today_count">今日 %1$d 门课 · 待上 %2$d 门</string>
+    <string name="schedule_today_open">点击查看今天的课表</string>
+    <string name="schedule_alarm_allow_holiday">节假日也响</string>
+    <string name="schedule_alarm_allow_holiday_desc">仅对这个闹钟生效。默认跟随节假日跳过设置；手动静音日期优先。</string>
+    <string name="schedule_alarm_holiday_skipped">这一天是假日：此闹钟将自动跳过，不响铃不震动</string>
+    <string name="schedule_alarm_date_muted">这一天已静音：此闹钟将自动跳过</string>
+    <string name="schedule_today_details">今日安排</string>
+    <string name="schedule_today_overview_title">今日概览</string>
+    <string name="schedule_today_need_timing">课程时间待设置</string>
+    <string name="schedule_today_time_missing">未设置上课时间</string>
+    <string name="schedule_today_unknown_count">%1$d 门课未配置作息，暂不计算倒计时</string>
+    <string name="schedule_today_minutes_to_start">还有 %1$d 分钟上课</string>
+    <string name="schedule_today_minutes_to_end">还有 %1$d 分钟下课</string>
+    <string name="schedule_today_next_brief">下一节：%1$s · %2$s</string>
+    <string name="schedule_today_conflicts">今天有 %1$d 处课程时间冲突，点开查看</string>
+    <string name="schedule_today_week_unknown">开学日期未设置，暂按星期显示，请核对周次</string>
+    <string name="schedule_today_pending">待上课</string>
+    <string name="schedule_today_done">已结束</string>
+    <string name="schedule_today_open_course_hint">点击课程查看详情，修改时间、地点或提醒。</string>
+    <string name="schedule_today_done_count">已上 %1$d / %2$d</string>
+    <string name="schedule_today_hours_to_start">还有 %1$d 小时 %2$d 分钟上课</string>
+    <string name="schedule_today_conflict_short">%1$d 处冲突</string>
+    <string name="schedule_today_see_all">今日安排</string>
+    <string name="schedule_today_date_header">%1$d月%2$d日 %3$s</string>
+    <string name="schedule_today_progress_desc">今天已上 %1$d 门，共 %2$d 门</string>
+    <string name="schedule_system_clock_action">写入系统时钟</string>
+    <string name="schedule_system_clock_title">写入系统时钟</string>
+    <plurals name="schedule_system_clock_intro">
+        <item quantity="other">把明天（%1$d月%2$d日）的 %3$d 个闹钟写进系统时钟：</item>
+    </plurals>
+    <plurals name="schedule_system_clock_not_yet">
+        <item quantity="other">另有 %1$d 个（%2$s 起）现在还写不进去：系统时钟只认几点几分，现在写会在今天就响。今天 %3$s 以后再来，就能全部写入。</item>
+    </plurals>
+    <string name="schedule_system_clock_mute">明天课简自己的闹钟不响</string>
+    <string name="schedule_system_clock_mute_desc">免得两边一起响。想恢复可以在闹钟列表里取消静音。</string>
+    <string name="schedule_system_clock_mute_unavailable">还有闹钟没写进去，这次不静音，否则它们两边都不会响。</string>
+    <string name="schedule_system_clock_caveat">系统时钟里的闹钟要你自己去时钟应用里关掉或删除，调课、节假日也不会跟着变。</string>
+    <string name="schedule_system_clock_empty">明天没有课简闹钟，不用写入。</string>
+    <string name="schedule_system_clock_muted">明天已经静音，课简不会响，没有要写入的闹钟。</string>
+    <string name="schedule_system_clock_confirm">写入</string>
+    <string name="schedule_system_clock_label">课简：%1$s</string>
+    <plurals name="schedule_system_clock_done">
+        <item quantity="other">已把 %1$d 个闹钟交给系统时钟，请到时钟应用里核对</item>
+    </plurals>
+    <plurals name="schedule_system_clock_done_muted">
+        <item quantity="other">已把 %1$d 个闹钟交给系统时钟，明天课简自己的闹钟已静音。请到时钟应用里核对</item>
+    </plurals>
+    <string name="schedule_system_clock_partial">只送出了 %1$d / %2$d 个闹钟，明天未静音，请到时钟应用里核对</string>
+    <string name="schedule_system_clock_no_app">没有找到能接收闹钟的时钟应用</string>
+    <string name="schedule_alarm_unmute_date">取消静音</string>
 </resources>

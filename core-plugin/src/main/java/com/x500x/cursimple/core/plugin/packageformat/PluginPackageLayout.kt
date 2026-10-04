@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.plugin.packageformat
 import com.x500x.cursimple.core.plugin.PluginArgumentException
 import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
+import com.x500x.cursimple.core.plugin.manifest.PluginExtensionUiPage
 import com.x500x.cursimple.core.plugin.pluginRequire
 import com.x500x.cursimple.core.plugin.security.PluginChecksums
 import kotlinx.serialization.json.Json
@@ -32,6 +33,14 @@ data class PluginPackageLayout(
             R.string.plugin_error_package_missing_entry_file,
             manifest.entry,
         )
+        manifest.extension?.ui?.let { ui ->
+            PluginExtensionUiPage.entries.forEach { page ->
+                ui.entryFor(page)?.let { path ->
+                    val normalizedUi = normalizePluginPackagePath(path)
+                    pluginRequire(normalizedUi in files, R.string.plugin_error_package_missing_ui_file, path)
+                }
+            }
+        }
         return manifest.copy(entry = normalizedEntry)
     }
 

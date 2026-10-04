@@ -1,7 +1,7 @@
 package com.x500x.cursimple.core.kernel.model
 
 /** 缺省学期周数，用来给"每周都上"的课程一个有限的周次区间。 */
-const val DEFAULT_TERM_WEEK_COUNT: Int = 30
+const val DEFAULT_TERM_WEEK_COUNT: Int = 20
 
 /** 冲突两侧的课程类别组合。 */
 enum class CourseConflictKind {

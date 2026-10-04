@@ -26,7 +26,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * 「悬浮窗增强」皮肤。
+ * 「系统增强」皮肤。
  *
  * 系统通知的长相是系统画的，动效和毛玻璃在通知 API 里根本不存在；要这两样就只能
  * 自己加一个窗口来画。代价写在这里，免得以后有人以为它能取代系统通知：
@@ -48,11 +48,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  */
 object ClassNoticeOverlay {
 
-    /** 自动收起的时间，和系统悬浮横幅的观感对齐 */
-    private const val VISIBLE_MILLIS = 6_000L
-
-    /** 接收器最多陪悬浮窗等这么久：展示时长加上冷启动建窗口、退场动画的余量 */
-    private const val HOLD_MILLIS = VISIBLE_MILLIS + 3_000L
+    /** 只等窗口挂好，不占用广播接收器的生命周期等待整个展示时长。 */
+    private const val ATTACH_TIMEOUT_MILLIS = 1_500L
 
     /** 滑出去这么远就收起，不够就弹回原位 */
     private const val SWIPE_DISMISS_DP = 48f
@@ -65,11 +62,12 @@ object ClassNoticeOverlay {
 
     /** 同一时刻只挂一个，来了新的就把旧的顶掉 */
     private var current: Dialog? = null
+    private var currentGesture: SwipeToDismiss? = null
     private val dismissRunnable = Runnable { dismiss() }
 
-    /** 最近一次 [show] 的窗口什么时候没了（收起、被顶掉或压根没挂上） */
+    /** 最近一次 [show] 是否已经完成窗口挂载（成功或失败均放行）。 */
     @Volatile
-    private var gone: CompletableDeferred<Unit>? = null
+    private var attached: CompletableDeferred<Boolean>? = null
 
     /** 有没有权限画悬浮窗。 */
     fun canDraw(context: Context): Boolean = Settings.canDrawOverlays(context)
@@ -86,6 +84,9 @@ object ClassNoticeOverlay {
         return !keyguard.isKeyguardLocked
     }
 
+    /** 扩展组件的通知也借这条横幅显示时，卡片上多出来的那一下点击。 */
+    data class NoticeAction(val label: String, val onClick: () -> Unit)
+
     /** 弹一条。可以从广播接收器那种非主线程的地方调，内部自己切回主线程。 */
     fun show(
         context: Context,
@@ -93,28 +94,46 @@ object ClassNoticeOverlay {
         preferences: ClassNoticePreferences,
         theme: NoticeTheme,
     ) {
+        show(context, content, preferences, theme, onTap = null, action = null)
+    }
+
+    /**
+     * 弹一条自定义横幅，给扩展组件的通知用（见 `ExtensionNotifier`）。
+     *
+     * 内容复用上课通知那一套（[ClassNoticeNotifier.Content]）：组件通知的标题、正文、
+     * 头部小字分别填进去，长相和上课横幅完全一致。点横幅走 [onTap]，卡片上的按钮走 [action]。
+     */
+    fun show(
+        context: Context,
+        content: ClassNoticeNotifier.Content,
+        preferences: ClassNoticePreferences,
+        theme: NoticeTheme,
+        onTap: (() -> Unit)?,
+        action: NoticeAction?,
+    ) {
         val app = context.applicationContext
-        // 在投递前就建好，调用方紧接着 awaitGone 时不会错过
-        val done = CompletableDeferred<Unit>()
-        gone = done
+        val done = CompletableDeferred<Boolean>()
+        attached = done
         mainHandler.post {
-            runCatching { showOnMain(app, content, preferences, theme, done) }
-                .onFailure { ReminderLogger.warn("class_notice.overlay.show_failed", emptyMap(), it) }
-            // 没挂上就立刻放行；挂上了由窗口的收起回调放行
-            if (current == null) done.complete(Unit)
+            try {
+                runCatching { showOnMain(app, content, preferences, theme, onTap, action) }
+                    .onFailure {
+                        dismissNow()
+                        ReminderLogger.warn("class_notice.overlay.show_failed", emptyMap(), it)
+                    }
+            } finally {
+                done.complete(current != null)
+            }
         }
     }
 
     /**
-     * 等到 [show] 挂的悬浮窗收起。
-     *
-     * 应用退出后提醒是在一个临时唤起的进程里弹的：广播接收器一结束，进程就会被系统
-     * 冻结或回收，而悬浮窗是在主线程上异步建的——接收器先报完成的话，窗口不是还没挂上
-     * 就被冻住，就是挂上了收不起来。所以接收器得陪它等到收起再走。
+     * 广播接收器只等窗口建立，再及时 finish，避免 15～60 秒展示导致广播超时。
+     * TYPE_APPLICATION_OVERLAY 显示期间系统会提高进程优先级，计时由主线程负责。
      */
-    suspend fun awaitGone() {
-        val done = gone ?: return
-        withTimeoutOrNull(HOLD_MILLIS) { done.await() }
+    suspend fun awaitShown(): Boolean {
+        val done = attached ?: return false
+        return withTimeoutOrNull(ATTACH_TIMEOUT_MILLIS) { done.await() } ?: false
     }
 
     private fun showOnMain(
@@ -122,35 +141,15 @@ object ClassNoticeOverlay {
         content: ClassNoticeNotifier.Content,
         preferences: ClassNoticePreferences,
         theme: NoticeTheme,
-        done: CompletableDeferred<Unit>,
+        onTap: (() -> Unit)?,
+        action: NoticeAction?,
     ) {
-        dismissNow()
+        dismiss()
+        val visibleMillis = preferences.bannerDurationMillis
         val themed = android.view.ContextThemeWrapper(context, R.style.ClassNoticeOverlayDialog)
         val view = LayoutInflater.from(themed).inflate(R.layout.overlay_class_notice, null)
-
+        bindCard(context, view, content, theme, action)
         val density = context.resources.displayMetrics.density
-        view.findViewById<ImageView>(R.id.overlay_logo).apply {
-            setImageResource(R.mipmap.ic_launcher_foreground)
-            // logo 垫一块主题色的浅底，一眼看出是哪个 App、用的哪个主题色
-            background = GradientDrawable().apply {
-                cornerRadius = 14f * density
-                setColor(theme.primaryContainer)
-            }
-        }
-        view.findViewById<TextView>(R.id.overlay_subtext).apply {
-            text = content.subText(context)
-            setTextColor(theme.primary)
-        }
-        view.findViewById<TextView>(R.id.overlay_title).apply {
-            text = content.courseTitle
-            setTextColor(theme.onSurface)
-        }
-        view.findViewById<TextView>(R.id.overlay_body).apply {
-            text = listOf(content.whenText, content.location)
-                .filter { it.isNotBlank() }
-                .joinToString(" · ")
-            setTextColor(theme.onSurfaceVariant)
-        }
 
         val dialog = Dialog(themed, R.style.ClassNoticeOverlayDialog)
         // inflate(res, null) 会把根布局上的 layout_height 丢掉，setContentView(View)
@@ -164,12 +163,12 @@ object ClassNoticeOverlay {
             ),
         )
         dialog.setCancelable(false)
-        dialog.setOnDismissListener { done.complete(Unit) }
         val window = dialog.window ?: return
         window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
         window.addFlags(
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         )
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         // DecorView 默认会给系统栏留内边距，留了窗口就又比卡片大了
@@ -201,34 +200,97 @@ object ClassNoticeOverlay {
             window.setBackgroundBlurRadius(blurRadiusPx(context, preferences))
         }
 
-        // 点一下打开 App；往上或往两边滑就收起，挡着东西时不用干等六秒
-        view.setOnTouchListener(
-            SwipeToDismiss(
-                window = window,
-                touchSlop = android.view.ViewConfiguration.get(context).scaledTouchSlop,
-                dismissDistance = SWIPE_DISMISS_DP * density,
-                onHold = { mainHandler.removeCallbacks(dismissRunnable) },
-                onRelease = { mainHandler.postDelayed(dismissRunnable, VISIBLE_MILLIS) },
-                onTap = {
-                    runCatching {
+        val configuration = android.view.ViewConfiguration.get(context)
+        val gesture = SwipeToDismiss(
+            mover = SwipeToDismiss.WindowMover(window),
+            touchSlop = configuration.scaledTouchSlop,
+            dismissDistance = SWIPE_DISMISS_DP * density,
+            flingVelocity = maxOf(configuration.scaledMinimumFlingVelocity * 6f, 650f * density),
+            onHold = { mainHandler.removeCallbacks(dismissRunnable) },
+            onRelease = { mainHandler.postDelayed(dismissRunnable, visibleMillis) },
+            onTap = {
+                runCatching {
+                    if (onTap != null) {
+                        onTap()
+                    } else {
                         context.startActivity(
                             Intent(context, MainActivity::class.java)
                                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
                         )
                     }
-                    dismiss()
-                },
-                onDismiss = { dismiss() },
-            ),
+                }
+                dismiss()
+            },
+            onDismiss = { if (current === dialog) dismiss() },
         )
+        view.setOnTouchListener(gesture)
+        dialog.setOnDismissListener {
+            gesture.dispose()
+            if (current === dialog) {
+                current = null
+                currentGesture = null
+                mainHandler.removeCallbacks(dismissRunnable)
+            }
+        }
 
         val shown = runCatching { dialog.show() }.isSuccess
         if (!shown) {
+            gesture.dispose()
             ReminderLogger.warn("class_notice.overlay.show_failed", emptyMap(), null)
             return
         }
         current = dialog
-        mainHandler.postDelayed(dismissRunnable, VISIBLE_MILLIS)
+        currentGesture = gesture
+        mainHandler.postDelayed(dismissRunnable, visibleMillis)
+    }
+
+    /** 横幅里的 logo 和三行字；悬浮窗和锁屏上那一版（[ClassNoticeLockActivity]）共用。 */
+    internal fun bindCard(
+        context: Context,
+        view: android.view.View,
+        content: ClassNoticeNotifier.Content,
+        theme: NoticeTheme,
+        action: NoticeAction? = null,
+    ) {
+        val density = context.resources.displayMetrics.density
+        view.findViewById<ImageView>(R.id.overlay_logo).apply {
+            setImageResource(R.mipmap.ic_launcher_foreground)
+            // logo 垫一块主题色的浅底，一眼看出是哪个 App、用的哪个主题色
+            background = GradientDrawable().apply {
+                cornerRadius = 14f * density
+                setColor(theme.primaryContainer)
+            }
+        }
+        view.findViewById<TextView>(R.id.overlay_subtext).apply {
+            text = content.subText(context)
+            setTextColor(theme.primary)
+        }
+        view.findViewById<TextView>(R.id.overlay_title).apply {
+            text = content.courseTitle
+            setTextColor(theme.onSurface)
+        }
+        view.findViewById<TextView>(R.id.overlay_body).apply {
+            text = listOf(content.whenText, content.location)
+                .filter { it.isNotBlank() }
+                .joinToString(" · ")
+            setTextColor(theme.onSurfaceVariant)
+        }
+        view.findViewById<TextView>(R.id.overlay_action).apply {
+            if (action == null) {
+                visibility = android.view.View.GONE
+                setOnClickListener(null)
+                return@apply
+            }
+            visibility = android.view.View.VISIBLE
+            text = action.label
+            setTextColor(theme.onPrimaryContainer)
+            background = GradientDrawable().apply {
+                cornerRadius = 999f * density
+                setColor(theme.primaryContainer)
+            }
+            // 按钮自己吃掉点击，别再落到卡片上（那会顺手把横幅点掉、只打开课表）
+            setOnClickListener { action.onClick() }
+        }
     }
 
     /**
@@ -238,7 +300,7 @@ object ClassNoticeOverlay {
      * 玻璃和背景几乎分不开。现在底色带主题色、浓度按有没有模糊分两档，
      * 再用一圈主题色描边把边界勾出来——窗口不能投影（会露出方角阴影），只能靠描边。
      */
-    private fun glassBackground(theme: NoticeTheme, blurred: Boolean, density: Float): GradientDrawable {
+    internal fun glassBackground(theme: NoticeTheme, blurred: Boolean, density: Float): GradientDrawable {
         val alpha = if (blurred) SURFACE_ALPHA_BLURRED else SURFACE_ALPHA_SOLID
         val tint = ColorUtils.blendARGB(theme.surface, theme.primaryContainer, if (theme.dark) 0.55f else 0.65f)
         val stroke = if (theme.dark) {
@@ -292,63 +354,8 @@ object ClassNoticeOverlay {
     private fun dismissNow() {
         val dialog = current ?: return
         current = null
+        currentGesture?.dispose()
+        currentGesture = null
         runCatching { dialog.dismiss() }
-    }
-}
-
-/**
- * 悬浮窗的手势：拖动时整个窗口跟着手指走（往下拖不动，免得挡住更多内容），
- * 松手时往上或往两边滑够了就收起，不够就弹回；几乎没动就当是点了一下。
- * 手指按着的时候不自动收起，松开后重新计时。
- */
-private class SwipeToDismiss(
-    private val window: android.view.Window,
-    private val touchSlop: Int,
-    private val dismissDistance: Float,
-    private val onHold: () -> Unit,
-    private val onRelease: () -> Unit,
-    private val onTap: () -> Unit,
-    private val onDismiss: () -> Unit,
-) : android.view.View.OnTouchListener {
-    private var downX = 0f
-    private var downY = 0f
-    private var baseX = 0
-    private var baseY = 0
-    private var dragging = false
-
-    override fun onTouch(view: android.view.View, event: android.view.MotionEvent): Boolean {
-        val dx = event.rawX - downX
-        val dy = (event.rawY - downY).coerceAtMost(0f)
-        when (event.actionMasked) {
-            android.view.MotionEvent.ACTION_DOWN -> {
-                downX = event.rawX
-                downY = event.rawY
-                baseX = window.attributes.x
-                baseY = window.attributes.y
-                dragging = false
-                onHold()
-            }
-            android.view.MotionEvent.ACTION_MOVE -> {
-                if (!dragging && kotlin.math.hypot(dx, event.rawY - downY) > touchSlop) dragging = true
-                if (dragging) moveTo(baseX + dx.toInt(), baseY + dy.toInt())
-            }
-            android.view.MotionEvent.ACTION_UP -> when {
-                !dragging -> onTap()
-                -dy > dismissDistance || kotlin.math.abs(dx) > dismissDistance -> onDismiss()
-                else -> {
-                    moveTo(baseX, baseY)
-                    onRelease()
-                }
-            }
-            android.view.MotionEvent.ACTION_CANCEL -> {
-                moveTo(baseX, baseY)
-                onRelease()
-            }
-        }
-        return true
-    }
-
-    private fun moveTo(x: Int, y: Int) {
-        runCatching { window.attributes = window.attributes.apply { this.x = x; this.y = y } }
     }
 }

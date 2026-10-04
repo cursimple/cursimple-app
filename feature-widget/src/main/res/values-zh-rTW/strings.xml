@@ -116,4 +116,57 @@
     <string name="widget_preview_reminder_sub_1">課前 10 分鐘 · 東 13-C-315</string>
     <string name="widget_preview_reminder_sub_2">課前 10 分鐘 · 東 11-A-207</string>
     <string name="widget_diag_pin_ignored">系統宣告支援，但這家桌面不回應（已改為手動新增）</string>
+
+    <!-- 课程日历与待完成 -->
+    <string name="calendar_widget_description">課簡 · 課程日曆</string>
+    <string name="tasks_widget_description">課簡 · 待完成</string>
+    <string name="widget_label_calendar">課程日曆</string>
+    <string name="widget_label_tasks">待完成</string>
+    <string name="widget_catalog_calendar_description">週課表與月曆兩種檢視，點某一天直接打開那天的課程</string>
+    <string name="widget_catalog_tasks_description">組件交來的未完成任務，依截止時間排好，點一下直達</string>
+    <string name="widget_background_image_error">背景圖片無法讀取</string>
+    <string name="widget_calendar_mode_week">週</string>
+    <string name="widget_calendar_mode_month">月</string>
+    <string name="widget_calendar_mode_switch">切換週檢視與月檢視</string>
+    <string name="widget_calendar_reset_week">回本週</string>
+    <string name="widget_calendar_reset_month">回本月</string>
+    <string name="widget_calendar_week_title">第%1$d週</string>
+    <string name="widget_calendar_before_term_title">未開學</string>
+    <string name="widget_calendar_range">%1$s – %2$s</string>
+    <string name="widget_calendar_month_title">%1$d年%3$d月</string>
+    <string name="widget_calendar_today_subtitle">今天 %1$s</string>
+    <string name="widget_calendar_no_term_start">未設定開學日期</string>
+    <string name="widget_calendar_tag_holiday">休</string>
+    <string name="widget_calendar_tag_makeup">班</string>
+    <string name="widget_calendar_legend_class">有課</string>
+    <string name="widget_calendar_legend_exam">考試</string>
+    <string name="widget_calendar_legend_event">事務</string>
+    <string name="widget_calendar_empty_week">這週沒有課</string>
+    <string name="widget_calendar_empty_no_term">設定開學日期後顯示課程</string>
+    <string name="widget_tasks_badge">%1$d 項</string>
+    <string name="widget_tasks_empty">沒有待完成的任務\n組件同步到的任務會依截止時間列在這裡</string>
+    <string name="widget_tasks_empty_hint">組件同步到的任務會依截止時間列在這裡</string>
+    <string name="widget_tasks_due_at">%1$s 截止</string>
+    <string name="widget_tasks_start_at">%1$s 開始</string>
+    <string name="widget_tasks_no_time">無截止時間</string>
+    <string name="widget_tasks_overdue">已截止</string>
+    <string name="widget_tasks_started">已開始</string>
+    <string name="widget_tasks_left_minutes">剩 %1$d 分鐘</string>
+    <string name="widget_tasks_left_hours">剩 %1$d 小時</string>
+    <string name="widget_tasks_left_days">%1$d 天後</string>
+    <string name="widget_tasks_today_time">今天 %1$s</string>
+    <string name="widget_tasks_tomorrow_time">明天 %1$s</string>
+    <string-array name="widget_calendar_weekdays">
+        <item>一</item>
+        <item>二</item>
+        <item>三</item>
+        <item>四</item>
+        <item>五</item>
+        <item>六</item>
+        <item>日</item>
+    </string-array>
+    <string name="widget_calendar_legend_holiday">放假</string>
+    <string name="widget_calendar_legend_makeup">補班</string>
+    <string name="widget_page_prev">往前翻</string>
+    <string name="widget_page_next">往後翻</string>
 </resources>

@@ -45,7 +45,7 @@ internal fun courseOccurrenceDates(
     fromDate: LocalDate,
     temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
-    dayPolicy: ReminderDayPolicy = ReminderDayPolicy.ALWAYS,
+    dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
 ): List<LocalDate> {
     val regularDates = course.termWeekNumbers().map { week ->
         termWeekDate(termStart, week, course.time.dayOfWeek)
@@ -56,11 +56,12 @@ internal fun courseOccurrenceDates(
         .filterNot { it.isBefore(fromDate) }
         .filter { date ->
             val day = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
+            if (dayPolicy.suppresses(date, day)) return@filter false
             if (isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)) return@filter false
             // 被单独挪走的课，这天不再提醒
             if (isCourseMovedAwayFrom(date, course, temporaryScheduleOverrides)) return@filter false
             // 被挪到这天的课要提醒；该不该上按它原本那天判。
-            // 这一步排在放假判断之前：调课可以推翻放假，挪到休息日的课照样提醒。
+            // 明确设为补课/上课日会由 resolveScheduleDay 解除假日状态；手动假日或静音仍优先。
             val movedHere = coursesMovedToWithOrigin(
                 date = date,
                 overrides = temporaryScheduleOverrides,
@@ -69,7 +70,6 @@ internal fun courseOccurrenceDates(
             if (movedHere != null) {
                 return@filter course.isActiveOnSourceDate(termStart, movedHere.second)
             }
-            if (dayPolicy.suppresses(date, day)) return@filter false
             // 只调某几节时，这门课当天到底算哪一天的安排由节次决定，不是整天一刀切
             val courseSource = temporaryScheduleCourseSourceDate(
                 date = date,

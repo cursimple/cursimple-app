@@ -1,5 +1,8 @@
 package com.x500x.cursimple.feature.widget
 
+import com.x500x.cursimple.core.kernel.mood.dayMoodLine
+import com.x500x.cursimple.core.kernel.mood.DayMood
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import android.content.Context
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
@@ -16,7 +19,7 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
-import com.x500x.cursimple.core.kernel.model.coursesOfDay
+import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import kotlinx.coroutines.flow.first
@@ -55,6 +58,8 @@ internal data class ScheduleWidgetDayData(
     val termStartMissing: Boolean = false,
     val termStartDate: LocalDate? = null,
     val holidayLabel: WidgetHolidayLabel? = null,
+    /** 今天整天没课时代替「今日没有课程」的那句话；看别的日子时为空。 */
+    val moodLine: String? = null,
 ) {
     val themeAccent: ThemeAccent = widgetTheme.themeAccent
 }
@@ -158,7 +163,10 @@ internal object ScheduleWidgetDataSource {
         val reminderRules: List<ReminderRule>,
         val temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         val holidayCalendar: HolidayCalendarSettings,
-    )
+    ) {
+        // 改过的插件课以同 id 手动课落库，删掉的留墓碑：合并后才不会显示两遍或复活
+        val allCourses: List<CourseItem> = schedule.allCoursesWith(manualCourses)
+    }
 
     /** 往后找有课的一天最多看这么多天，都没有就按明天显示。 */
     private const val AUTO_ADVANCE_MAX_DAYS = 7
@@ -180,10 +188,7 @@ internal object ScheduleWidgetDataSource {
             termStart = termStart,
             temporaryScheduleOverrides = sources.temporaryScheduleOverrides,
             holidayCalendar = sources.holidayCalendar,
-        ) { dayOfWeek ->
-            sources.schedule?.coursesOfDay(dayOfWeek).orEmpty() +
-                sources.manualCourses.filter { it.time.dayOfWeek == dayOfWeek }
-        }
+        ) { dayOfWeek -> sources.allCourses.filter { it.time.dayOfWeek == dayOfWeek } }
         val rows = day.courses.map {
             it.toRow(
                 context = context,
@@ -201,6 +206,24 @@ internal object ScheduleWidgetDataSource {
             )
         }
 
+        val weekKnown = day.weekIndex != null && !isBeforeTermStart(day.weekIndex)
+        val moodLine = if (rows.isEmpty() && weekKnown && targetDate == today.plusDays(1) && day.holidayLabel == null) {
+            context.dayMoodLine(today, DayMood.TomorrowFree)
+        } else if (targetDate == today && rows.isEmpty() && weekKnown) {
+            context.widgetTodayMood(
+                today = today,
+                now = now,
+                holidayLabel = day.holidayLabel,
+                tomorrowHoliday = resolveScheduleDay(
+                    today.plusDays(1),
+                    sources.temporaryScheduleOverrides,
+                    sources.holidayCalendar,
+                ).isHoliday,
+                totalCourses = 0,
+            )
+        } else {
+            null
+        }
         return LoadedDay(
             data = ScheduleWidgetDayData(
                 offset = offset,
@@ -213,6 +236,7 @@ internal object ScheduleWidgetDataSource {
                 termStartMissing = day.weekIndex == null,
                 termStartDate = termStart,
                 holidayLabel = day.holidayLabel,
+                moodLine = moodLine,
             ),
             courses = day.courses,
             onHoliday = day.onHoliday,
