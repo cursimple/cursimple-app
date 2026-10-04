@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
@@ -42,6 +43,7 @@ class ClassNoticeLockActivity : Activity() {
     private var content: ClassNoticeNotifier.Content? = null
     private var visibleMillis = ClassNoticePreferences().bannerDurationMillis
     private var gesture: SwipeToDismiss? = null
+    private var afterUnlock: (() -> Unit)? = null
 
     /** 解锁了：锁屏那一版的使命完成，再当几秒普通横幅就收 */
     private val unlockReceiver = object : BroadcastReceiver() {
@@ -57,8 +59,13 @@ class ClassNoticeLockActivity : Activity() {
         }
         content = pending.content
         visibleMillis = pending.visibleMillis
-        setShowWhenLocked(true)
-        setTurnScreenOn(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(false)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED)
+        }
 
         val card = LayoutInflater.from(this).inflate(R.layout.overlay_class_notice, null)
         // 锁屏上不放行动按钮：反正要先解锁，点卡片本身就是「解锁并去那个页面」，
@@ -167,12 +174,34 @@ class ClassNoticeLockActivity : Activity() {
             open()
             return
         }
-        keyguard.requestDismissKeyguard(
-            this,
-            object : KeyguardManager.KeyguardDismissCallback() {
-                override fun onDismissSucceeded() = open()
-            },
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            keyguard.requestDismissKeyguard(
+                this,
+                object : KeyguardManager.KeyguardDismissCallback() {
+                    override fun onDismissSucceeded() = open()
+                },
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            val confirmation = keyguard.createConfirmDeviceCredentialIntent(null, null)
+            if (confirmation == null) {
+                open()
+            } else {
+                handler.removeCallbacks(finishRunnable)
+                afterUnlock = open
+                @Suppress("DEPRECATION")
+                startActivityForResult(confirmation, REQUEST_UNLOCK)
+            }
+        }
+    }
+
+    @Deprecated("Legacy credential confirmation on Android 7")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_UNLOCK) return
+        val open = afterUnlock
+        afterUnlock = null
+        if (resultCode == RESULT_OK) open?.invoke()
     }
 
     private class Pending(
@@ -185,6 +214,7 @@ class ClassNoticeLockActivity : Activity() {
     )
 
     companion object {
+        private const val REQUEST_UNLOCK = 7401
         /** 滑出去这么远就收起，和悬浮窗一致 */
         private const val SWIPE_DISMISS_DP = 48f
 

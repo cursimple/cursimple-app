@@ -83,6 +83,8 @@ Debug/CI 包的 `applicationId` 是 `com.x500x.cursimple.ci`，可与 Release �
 
 `app/build/outputs/apk/release/`
 
+发布工作流会用 `scripts/verify_release_signing.py` 校验五个 APK 的签名证书与已发布版本一致。使用本地临时密钥构建的包不能直接覆盖官网安装包，也不能通过这项发布校验；官方签名由 GitHub Actions 的签名 Secrets 提供。
+
 ### 5) 版本与发布渠道
 
 版本号与渠道统一在 `gradle.properties` 维护，0.7.5 的发布配置为：

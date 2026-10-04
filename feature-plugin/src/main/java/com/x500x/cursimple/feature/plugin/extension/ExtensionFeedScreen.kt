@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -77,6 +78,7 @@ fun ExtensionFeedScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val store = remember { ExtensionStore.get(context) }
     val scope = rememberCoroutineScope()
     val data by store.flow(record.pluginId).collectAsState(initial = ExtensionData(record.pluginId))
@@ -150,8 +152,8 @@ fun ExtensionFeedScreen(
             val outcome = runCatching { actions.syncNow(record) }.getOrNull()
             syncing = false
             syncMessage = when (outcome) {
-                is ExtensionSyncOutcome.LoginRequired -> context.getString(R.string.extension_sync_login_required)
-                is ExtensionSyncOutcome.Failed -> context.getString(R.string.extension_sync_failed, outcome.message)
+                is ExtensionSyncOutcome.LoginRequired -> resources.getString(R.string.extension_sync_login_required)
+                is ExtensionSyncOutcome.Failed -> resources.getString(R.string.extension_sync_failed, outcome.message)
                 else -> null
             }
         }

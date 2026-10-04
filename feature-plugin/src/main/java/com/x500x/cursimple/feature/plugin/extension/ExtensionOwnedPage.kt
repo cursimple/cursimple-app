@@ -112,7 +112,7 @@ internal fun ExtensionOwnedPage(
     // 之前按页面 token 取实例，换页会换成新的，而 AndroidView 只显示第一次创建的那个，
     // 旧实例又被回收清空，于是点「登录」之后整页变白。
     val webView = remember(record.packageRevision) { ExtensionWebViewPool.acquire(context) }
-    val bridge = remember(webView) {
+    val bridge: ComponentPageBridge = remember(webView) {
         ComponentPageBridge(webView) { callToken, id, command, payload ->
             scope.launch(Dispatchers.Main.immediate) {
                 val response = try {
@@ -269,7 +269,7 @@ internal fun ExtensionOwnedPage(
     DisposableEffect(webView, bridge) {
         webView.settings.apply { javaScriptEnabled = true; domStorageEnabled = true; textZoom = 100; manifest.userAgent?.let { userAgentString = it } }
         CookieManager.getInstance().setAcceptCookie(true)
-        webView.addJavascriptInterface(bridge, "CurSimpleExtensionUi")
+        bridge.attachToView()
         webView.webChromeClient = WebChromeClient()
         onDispose {
             bridge.close()
@@ -332,6 +332,7 @@ internal fun ExtensionOwnedPage(
 private fun bridgeActive(view: WebView): Boolean = view.tag != null
 
 private class ComponentPageBridge(private val view: WebView, private val request: (String, String, String, JsonObject) -> Unit) {
+    fun attachToView() = view.addJavascriptInterface(this, "CurSimpleExtensionUi")
     @Volatile private var active = true
     @JavascriptInterface fun request(callToken: String, id: String, command: String, payload: String) {
         // 页面换掉后旧页面可能还留着回调，token 对不上就丢，免得上一页的请求打到新页

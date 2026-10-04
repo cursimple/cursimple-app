@@ -223,7 +223,6 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
                 R.string.widget_calendar_month_title,
                 data.anchor.year,
                 data.anchor.month.getDisplayName(TextStyle.FULL, context.resources.configuration.locales[0]),
-                data.anchor.monthValue,
             )
         }
 

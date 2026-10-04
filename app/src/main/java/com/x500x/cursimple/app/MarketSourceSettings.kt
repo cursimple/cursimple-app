@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -402,6 +403,7 @@ private fun AddSourceDialog(
 @Composable
 private fun GitHubAccountCard(account: GitHubAccount?, services: MarketSourceServices) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     var pastingToken by rememberSaveable { mutableStateOf(false) }
     var deviceLogin by rememberSaveable { mutableStateOf(false) }
     SettingsCardSurface {
@@ -434,7 +436,7 @@ private fun GitHubAccountCard(account: GitHubAccount?, services: MarketSourceSer
                 }
                 AppOutlinedButton(onClick = {
                     services.account.clear()
-                    Toast.makeText(context, context.getString(R.string.github_account_logged_out_toast), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, resources.getString(R.string.github_account_logged_out_toast), Toast.LENGTH_SHORT).show()
                 }) { Text(stringResource(R.string.github_account_logout)) }
             }
         }
@@ -460,6 +462,7 @@ private fun AccountInitial(login: String) {
 @Composable
 private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     var token by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -500,11 +503,11 @@ private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Un
                         }
                         busy = false
                         viewer.onSuccess {
-                            Toast.makeText(context, context.getString(R.string.github_account_logged_in_toast, it.login), Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, resources.getString(R.string.github_account_logged_in_toast, it.login), Toast.LENGTH_SHORT).show()
                             onDismiss()
                         }.onFailure { failure ->
                             if (failure is CancellationException) throw failure
-                            error = context.getString(
+                            error = resources.getString(
                                 if ((failure as? GitHubApiClient.HttpError)?.code == 401) R.string.github_token_invalid else R.string.github_login_network_error,
                             )
                         }
@@ -523,13 +526,14 @@ private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Un
 @Composable
 private fun DeviceLoginDialog(services: MarketSourceServices, onDismiss: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     var userCode by remember { mutableStateOf<String?>(null) }
     var verifyUrl by remember { mutableStateOf("https://github.com/login/device") }
     var error by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         val code = runCatching { services.api.requestDeviceCode(services.oauthClientId, DEVICE_SCOPE) }.getOrElse {
             if (it is CancellationException) throw it
-            error = context.getString(R.string.github_login_network_error)
+            error = resources.getString(R.string.github_login_network_error)
             return@LaunchedEffect
         }
         userCode = code.userCode
@@ -545,28 +549,28 @@ private fun DeviceLoginDialog(services: MarketSourceServices, onDismiss: () -> U
                 val viewer = runCatching { services.registry.viewer(token) }
                     .onFailure { if (it is CancellationException) throw it }.getOrNull()
                 if (viewer == null) {
-                    error = context.getString(R.string.github_login_network_error)
+                    error = resources.getString(R.string.github_login_network_error)
                     return@LaunchedEffect
                 }
                 val saved = runCatching {
                     withContext(Dispatchers.IO) { services.account.save(token, GitHubAccount(viewer.login, viewer.avatarUrl)) }
                 }.onFailure { if (it is CancellationException) throw it }.isSuccess
                 if (!saved) {
-                    error = context.getString(R.string.github_login_network_error)
+                    error = resources.getString(R.string.github_login_network_error)
                     return@LaunchedEffect
                 }
-                Toast.makeText(context, context.getString(R.string.github_account_logged_in_toast, viewer.login), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, resources.getString(R.string.github_account_logged_in_toast, viewer.login), Toast.LENGTH_SHORT).show()
                 onDismiss()
                 return@LaunchedEffect
             }
             when (response.error) {
                 "slow_down" -> interval = (response.interval ?: (interval + 5))
                 "authorization_pending", null -> Unit
-                "access_denied" -> { error = context.getString(R.string.github_device_denied); return@LaunchedEffect }
-                else -> { error = context.getString(R.string.github_device_expired); return@LaunchedEffect }
+                "access_denied" -> { error = resources.getString(R.string.github_device_denied); return@LaunchedEffect }
+                else -> { error = resources.getString(R.string.github_device_expired); return@LaunchedEffect }
             }
         }
-        error = context.getString(R.string.github_device_expired)
+        error = resources.getString(R.string.github_device_expired)
     }
     AlertDialog(
         onDismissRequest = onDismiss,

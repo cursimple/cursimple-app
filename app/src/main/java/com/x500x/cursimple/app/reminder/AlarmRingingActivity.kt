@@ -61,6 +61,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -141,19 +142,24 @@ class AlarmRingingActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        val action = when (event.keyCode) {
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        val action = when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP -> AlarmRingingService.ACTION_STOP
             KeyEvent.KEYCODE_VOLUME_DOWN -> AlarmRingingService.ACTION_SNOOZE
             else -> null
         }
         if (action != null) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+            if (event.repeatCount == 0) {
                 sendServiceAction(action)
             }
             return true
         }
-        return super.dispatchKeyEvent(event)
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) return true
+        return super.onKeyUp(keyCode, event)
     }
 
     private fun sendServiceAction(actionName: String) {
@@ -252,11 +258,11 @@ private fun LiveClock() {
             delay(1000L - now % 1000L)
         }
     }
-    val locale = context.resources.configuration.locales[0]
+    val locale = LocalConfiguration.current.locales[0]
     val clockPattern = if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm"
     val datePattern = DateFormat.getBestDateTimePattern(locale, "MMMdEEEE")
-    val clock = remember(now, clockPattern) { SimpleDateFormat(clockPattern, locale).format(Date(now)) }
-    val date = remember(now / 60_000L, datePattern) { SimpleDateFormat(datePattern, locale).format(Date(now)) }
+    val clock = remember(now, clockPattern, locale) { SimpleDateFormat(clockPattern, locale).format(Date(now)) }
+    val date = remember(now / 60_000L, datePattern, locale) { SimpleDateFormat(datePattern, locale).format(Date(now)) }
     Text(
         text = clock,
         color = Color.White,
