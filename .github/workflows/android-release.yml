@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to rebuild
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -15,18 +21,22 @@ concurrency:
 
 jobs:
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
 
       - name: Resolve release metadata
         id: release_metadata
         shell: bash
         run: >-
           python3 scripts/release_metadata.py resolve
-          --tag "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
+          --tag "$RELEASE_TAG" --github-output "$GITHUB_OUTPUT"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -46,6 +56,24 @@ jobs:
           CLASS_VIEWER_KEY_ALIAS: ${{ secrets.CLASS_VIEWER_KEY_ALIAS }}
           CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
         run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
+
+      - name: Verify configured signing certificate
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, os, subprocess
+          from scripts.verify_release_signing import OFFICIAL_CERTIFICATE
+          result = subprocess.run([
+              'keytool', '-exportcert', '-keystore', os.environ['CLASS_VIEWER_KEYSTORE_FILE'],
+              '-storepass:env', 'CLASS_VIEWER_KEYSTORE_PASSWORD', '-alias', os.environ['CLASS_VIEWER_KEY_ALIAS'],
+          ], capture_output=True)
+          if result.returncode:
+              raise SystemExit('Unable to read configured signing certificate')
+          fingerprint = hashlib.sha256(result.stdout).hexdigest()
+          print('Configured public certificate SHA-256:', fingerprint)
+          if fingerprint != OFFICIAL_CERTIFICATE:
+              raise SystemExit('Configured signing certificate differs from v0.7.4; publication stopped')
+          PY
 
       - name: Configure release ABI splits
         shell: pwsh
@@ -91,7 +119,7 @@ jobs:
         shell: bash
         run: >-
           python3 scripts/release_metadata.py manifest
-          --tag "$GITHUB_REF_NAME" --repository "$GITHUB_REPOSITORY"
+          --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
           --release-dir app/build/outputs/apk/release
 
       - name: Upload APK artifacts
@@ -106,7 +134,7 @@ jobs:
       - name: Resolve release notes
         shell: pwsh
         run: |
-          $notes = "docs/release-notes/$env:GITHUB_REF_NAME.md"
+          $notes = "docs/release-notes/$env:RELEASE_TAG.md"
           if (-not (Test-Path -LiteralPath $notes)) {
             throw "Release notes were not found at $notes."
           }
@@ -115,6 +143,7 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           files: |
             app/build/outputs/apk/release/CurSimple-*.apk
             app/build/outputs/apk/release/update.json
@@ -154,7 +183,7 @@ jobs:
           # 重跑同一个标签时内容不变，没东西可提交；git commit 会以失败退出，在 set -e 下把这一步判挂
           if git -C "$feed_dir" diff --cached --quiet; then exit 0; fi
           git -C "$feed_dir" -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit --quiet -m "update feed: ${GITHUB_REF_NAME}"
+            commit --quiet -m "update feed: ${RELEASE_TAG}"
           git -C "$feed_dir" push --quiet origin update-feed
           for file in "${changed[@]}"; do
             curl -fsS "https://purge.jsdelivr.net/gh/${GITHUB_REPOSITORY}@update-feed/${file}" >/dev/null || true
