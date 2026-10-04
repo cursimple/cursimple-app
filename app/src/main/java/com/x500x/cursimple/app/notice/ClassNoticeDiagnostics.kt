@@ -112,7 +112,7 @@ object ClassNoticeDiagnostics {
 
             add("overlay.can_draw" to Settings.canDrawOverlays(app).toString())
             add("self_drawn.reason" to (SelfDrawnNotice.reason()?.name ?: "none"))
-            if (VendorRom.current() == VendorRom.Vivo) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && VendorRom.current() == VendorRom.Vivo) {
                 // vivo 把渠道判成「运营消息」后，公开 API 读到的 importance 照样是 HIGH；
                 // 原样把渠道对象打出来，看它有没有在 AOSP 之外多塞字段，将来好据此判断
                 listOf(ClassNoticeNotifier.CHANNEL_ID, ClassNoticeNotifier.CHANNEL_ID_QUIET).forEach { id ->

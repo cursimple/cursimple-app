@@ -57,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.pluralStringResource
@@ -123,6 +124,7 @@ fun ExtensionSettingsScreen(
 ) {
     com.x500x.cursimple.feature.plugin.ui.OwnEmbeddedPageGestures()
     val context = LocalContext.current
+    val resources = LocalResources.current
     val store = remember { ExtensionStore.get(context) }
     val scope = rememberCoroutineScope()
     val data by store.flow(record.pluginId).collectAsState(initial = ExtensionData(record.pluginId))
@@ -159,13 +161,13 @@ fun ExtensionSettingsScreen(
             }
             syncing = false
             syncFeedback = when (outcome) {
-                is ExtensionSyncOutcome.Synced -> context.resources.getQuantityString(
+                is ExtensionSyncOutcome.Synced -> resources.getQuantityString(
                     R.plurals.extension_sync_done,
                     outcome.data.items.size,
                     outcome.data.items.size,
                 )
-                is ExtensionSyncOutcome.LoginRequired -> context.getString(R.string.extension_sync_login_required)
-                is ExtensionSyncOutcome.Failed -> context.getString(R.string.extension_sync_failed, outcome.message)
+                is ExtensionSyncOutcome.LoginRequired -> resources.getString(R.string.extension_sync_login_required)
+                is ExtensionSyncOutcome.Failed -> resources.getString(R.string.extension_sync_failed, outcome.message)
                 is ExtensionSyncOutcome.Skipped -> null
             }
         }

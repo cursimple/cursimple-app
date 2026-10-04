@@ -64,7 +64,7 @@ internal fun ExtensionOwnedFeedScreen(
             }
         }
     }
-    val bridge = remember(record.installKey) {
+    val bridge: ExtensionUiBridge = remember(record.installKey) {
         ExtensionUiBridge(
             onSync = {
                 if (!syncing) {
@@ -79,7 +79,7 @@ internal fun ExtensionOwnedFeedScreen(
         )
     }
     DisposableEffect(webView, bridge) {
-        webView.addJavascriptInterface(bridge, "CurSimpleExtensionUi")
+        bridge.attachTo(webView)
         webView.loadDataWithBaseURL("https://cursimple-extension.invalid/", uiSource, "text/html", "UTF-8", null)
         onDispose {
             webView.removeJavascriptInterface("CurSimpleExtensionUi")
@@ -102,6 +102,7 @@ private class ExtensionUiBridge(
     private val onSync: () -> Unit,
     private val onOpenSettings: () -> Unit,
 ) {
+    fun attachTo(view: WebView) = view.addJavascriptInterface(this, "CurSimpleExtensionUi")
     @JavascriptInterface fun sync() = onSync()
     @JavascriptInterface fun openSettings() = onOpenSettings()
 }

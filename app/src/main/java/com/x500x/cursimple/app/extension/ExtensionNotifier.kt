@@ -2,6 +2,7 @@ package com.x500x.cursimple.app.extension
 
 import android.Manifest
 import android.app.NotificationChannel
+import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -63,7 +64,7 @@ object ExtensionNotifier {
                     .setStyle(NotificationCompat.BigTextStyle().bigText(listOf(detailLine(context, item), item.summary)
                         .filter(String::isNotBlank).joinToString("\n")))
                     .setGroup(groupOf(pluginId))
-                runCatching { manager.notify(notificationId(pluginId, item.id), builder.build()) }
+                postNotification(manager, notificationId(pluginId, item.id), builder.build())
             }
             return
         }
@@ -76,7 +77,7 @@ object ExtensionNotifier {
             .setContentText(items.take(3).joinToString("、") { it.title })
             .setStyle(inbox)
             .setGroup(groupOf(pluginId))
-        runCatching { manager.notify(notificationId(pluginId, "batch"), builder.build()) }
+        postNotification(manager, notificationId(pluginId, "batch"), builder.build())
     }
 
     suspend fun notifyDue(context: Context, pluginId: String, title: String, item: ExtensionFeedItem, now: Long) {
@@ -105,7 +106,7 @@ object ExtensionNotifier {
             .setContentText(context.getString(R.string.extension_notify_due_text, listOf(item.course, clock).filter(String::isNotBlank).joinToString(" · "), left))
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-        runCatching { NotificationManagerCompat.from(context).notify(notificationId(pluginId, "due:${item.id}"), builder.build()) }
+        postNotification(NotificationManagerCompat.from(context), notificationId(pluginId, "due:${item.id}"), builder.build())
     }
 
     /**
@@ -136,7 +137,7 @@ object ExtensionNotifier {
                 context.getString(R.string.extension_notify_relogin_action),
                 openSettingsPending(context, pluginId),
             )
-        runCatching { NotificationManagerCompat.from(context).notify(notificationId(pluginId, "expired"), builder.build()) }
+        postNotification(NotificationManagerCompat.from(context), notificationId(pluginId, "expired"), builder.build())
     }
 
     /** 头部小字放组件名，加粗标题、正文；尺寸和上课横幅一致，见 [ClassNoticeNotifier.Content.headline] */
@@ -238,7 +239,7 @@ object ExtensionNotifier {
             .addExtras(android.os.Bundle().apply { putString(EXTRA_PLUGIN, pluginId) })
 
     private fun notificationChannel(context: Context, channel: String, bannerShown: Boolean): String {
-        if (!bannerShown) return channel
+        if (!bannerShown || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return channel
         val manager = context.getSystemService(NotificationManager::class.java) ?: return channel
         // 用户关闭了原来的渠道时仍用原渠道，不借新渠道绕过系统中的开关。
         if (manager.getNotificationChannel(channel)?.importance == NotificationManager.IMPORTANCE_NONE) return channel
@@ -274,6 +275,14 @@ object ExtensionNotifier {
         if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return false
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun postNotification(manager: NotificationManagerCompat, id: Int, notification: Notification) {
+        try {
+            manager.notify(id, notification)
+        } catch (_: SecurityException) {
+            // Permission can be revoked between canPost and the notification call.
+        }
     }
 
     private fun ensureChannels(context: Context) {
