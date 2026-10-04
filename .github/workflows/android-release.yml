@@ -31,6 +31,18 @@ jobs:
         with:
           ref: ${{ inputs.tag || github.ref }}
 
+      # Keep the app at its immutable tag; retryable verification fixes use the workflow revision.
+      - name: Checkout release tooling
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-tools
+          sparse-checkout: /scripts/
+          sparse-checkout-cone-mode: false
+
+      - name: Test release tooling
+        run: python3 -B -m unittest discover -s .release-tools/scripts/tests -v
+
       - name: Resolve release metadata
         id: release_metadata
         shell: bash
@@ -92,7 +104,7 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Verify official release signing certificate
-        run: python3 scripts/verify_release_signing.py --apk-dir app/build/outputs/apk/release
+        run: python3 .release-tools/scripts/verify_release_signing.py --apk-dir app/build/outputs/apk/release
 
       - name: Rename release APKs
         shell: pwsh
