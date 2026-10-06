@@ -105,6 +105,13 @@ interface ExtensionHostActions {
     suspend fun notificationCommand(record: InstalledPluginRecord, command: String, payload: JsonObject): JsonElement =
         error("请更新应用以支持通知出口组件")
 
+    suspend fun debugLogs(record: InstalledPluginRecord): JsonElement =
+        error("请更新应用以支持组件调试")
+
+    fun refreshWidget(record: InstalledPluginRecord) {}
+
+    fun setAdvancedToolsEnabled(enabled: Boolean) {}
+
     /** Reconcile reminders and events after host or login changes without fetching again. */
     fun onDataChanged(pluginId: String)
 

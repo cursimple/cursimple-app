@@ -30,6 +30,11 @@ internal data class CalendarRenderLabels(
  * cells share its dimensions.
  */
 internal object CalendarWidgetRenderer {
+    /** Month cell vertical anchors: holiday tag, date number, and event dots stack top to bottom. */
+    internal const val MONTH_TAG_CENTER = 0.16f
+    internal const val MONTH_DATE_CENTER = 0.46f
+    internal const val MONTH_DOT_CENTER = 0.8f
+
     /** Week header height in dp; gutter width follows [weekGutterDp]. */
     const val WEEK_HEADER_DP = 32f
     private const val GUTTER_MIN_DP = 16f
@@ -278,9 +283,9 @@ internal object CalendarWidgetRenderer {
             canvas.drawText(labels.weekdays.getOrElse(i) { "" }, colW * i + colW / 2f, centerBaseline(0f, top, weekdayPaint), weekdayPaint)
         }
 
-        val datePaint = textPaint(min(12.5f * px, rowH * 0.42f), TEXT_PRIMARY, bold = true).apply { textAlign = Paint.Align.CENTER }
-        val tagPaint = textPaint(7.5f * px, EXAM_RED, bold = true).apply { textAlign = Paint.Align.CENTER }
-        val dotR = 2.1f * px
+        val datePaint = textPaint(min(12.5f * px, rowH * 0.4f), TEXT_PRIMARY, bold = true).apply { textAlign = Paint.Align.CENTER }
+        val tagPaint = textPaint(min(7.5f * px, rowH * 0.2f), EXAM_RED, bold = true).apply { textAlign = Paint.Align.CENTER }
+        val dotR = min(2.1f * px, rowH * 0.07f)
         month.days.forEachIndexed { index, day ->
             val row = index / 7
             val col = index % 7
@@ -288,7 +293,7 @@ internal object CalendarWidgetRenderer {
             val cellTop = top + row * rowH
             val cx = left + colW / 2f
             val inMonth = month.inMonth(day)
-            val numberCenterY = cellTop + rowH * 0.42f
+            val numberCenterY = cellTop + rowH * MONTH_DATE_CENTER
             if (day.isToday) {
                 fill.color = accent
                 val r = min(min(colW, rowH) * 0.34f, 13f * px)
@@ -310,7 +315,8 @@ internal object CalendarWidgetRenderer {
             }
             if (tag != null && inMonth) {
                 tagPaint.color = if (day.onHoliday) EXAM_RED else accentText
-                canvas.drawText(tag, left + colW - 7 * px, cellTop + 9 * px, tagPaint)
+                val tagBaseline = cellTop + rowH * MONTH_TAG_CENTER - (tagPaint.descent() + tagPaint.ascent()) / 2f
+                canvas.drawText(tag, cx, tagBaseline, tagPaint)
             }
 
             val dots = buildList {
@@ -321,7 +327,7 @@ internal object CalendarWidgetRenderer {
             if (dots.isNotEmpty()) {
                 val spacing = dotR * 2.8f
                 val startX = cx - spacing * (dots.size - 1) / 2f
-                val dotY = min(cellTop + rowH - 4.5f * px, numberCenterY + rowH * 0.36f)
+                val dotY = cellTop + rowH * MONTH_DOT_CENTER
                 dots.forEachIndexed { i, color ->
                     fill.color = if (inMonth) color else withAlpha(color, 0x59)
                     canvas.drawCircle(startX + i * spacing, dotY, dotR, fill)

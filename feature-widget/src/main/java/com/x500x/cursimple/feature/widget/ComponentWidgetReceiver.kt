@@ -80,7 +80,11 @@ open class ComponentWidgetReceiver : AppWidgetProvider() {
                             ((height - hit.y - hit.height).coerceAtLeast(0f) * scale).toInt())
                         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
                             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            putExtra(if (hit.action == "settings") "com.x500x.cursimple.extra.OPEN_EXTENSION_SETTINGS" else WidgetDeepLinks.EXTRA_OPEN_COMPONENT_PAGE, definition.componentId)
+                            when (hit.action) {
+                                "settings" -> putExtra("com.x500x.cursimple.extra.OPEN_EXTENSION_SETTINGS", definition.componentId)
+                                "about" -> putExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_ABOUT, definition.componentId)
+                                else -> putExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_PAGE, definition.componentId)
+                            }
                             data = Uri.parse("cursimple-widget://open/$id/$index")
                         }
                         if (launch != null) region.setOnClickPendingIntent(R.id.component_widget_hit_target,

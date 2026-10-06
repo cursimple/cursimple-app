@@ -39,6 +39,8 @@ object ClassNoticeNotifier {
 
     /** Default-importance notices remain in the shade without a heads-up banner. */
     const val CHANNEL_ID_QUIET = "class_notice_quiet"
+    private const val CHANNEL_ID_VIBRATE = "class_notice_vibrate"
+    private const val CHANNEL_ID_QUIET_VIBRATE = "class_notice_quiet_vibrate"
 
     private const val CHANNEL_ID_TEST_SOUND = "class_notice_test_sound"
 
@@ -114,7 +116,7 @@ object ClassNoticeNotifier {
         }
         ensureChannel(context)
         val manager = NotificationManagerCompat.from(context)
-        // Custom overlays supplement system delivery; suppress duplicate system banners. Overlay-only fallback is independent of notification permission; system-path diagnostics bypass it.
+        // Enhanced overlays supplement the ordinary system notification.
         val overlayFallback = preferences.headsUpEnabled && SelfDrawnNotice.only() &&
             !plain && channelOverride == null
         // Only use overlays while the screen is on to avoid expiring unseen banners.
@@ -241,6 +243,7 @@ object ClassNoticeNotifier {
                     NotificationCompat.VISIBILITY_PRIVATE
                 },
             )
+            .setVibrate(if (preferences.vibrationEnabled) longArrayOf(0L, 220L) else longArrayOf(0L))
         // Mute via channel settings, not setSilent grouping, which can suppress heads-up alerts. Omit chronometers whose countdown could be confused with class times.
         builder.setShowWhen(false)
         // Keep when as a fallback for vendor chips that do not read shortCriticalText.
@@ -632,12 +635,19 @@ object ClassNoticeNotifier {
             R.string.class_notice_channel_quiet_name,
             NotificationManager.IMPORTANCE_DEFAULT,
         )
+        createChannel(context, manager, CHANNEL_ID_VIBRATE, R.string.class_notice_channel_name, NotificationManager.IMPORTANCE_HIGH, vibration = true)
+        createChannel(context, manager, CHANNEL_ID_QUIET_VIBRATE, R.string.class_notice_channel_quiet_name, NotificationManager.IMPORTANCE_DEFAULT, vibration = true)
     }
 
     fun channelIdFor(
         preferences: ClassNoticePreferences,
         overlayTakesOver: Boolean = false,
-    ): String = if (preferences.headsUpEnabled && !overlayTakesOver) CHANNEL_ID else CHANNEL_ID_QUIET
+    ): String = when {
+        preferences.headsUpEnabled && preferences.vibrationEnabled -> CHANNEL_ID_VIBRATE
+        preferences.headsUpEnabled -> CHANNEL_ID
+        preferences.vibrationEnabled -> CHANNEL_ID_QUIET_VIBRATE
+        else -> CHANNEL_ID_QUIET
+    }
 
     private fun createChannel(
         context: Context,
@@ -645,6 +655,7 @@ object ClassNoticeNotifier {
         id: String,
         nameRes: Int,
         importance: Int,
+        vibration: Boolean = false,
     ) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (manager.getNotificationChannel(id) != null) return
@@ -655,9 +666,10 @@ object ClassNoticeNotifier {
         ).apply {
             description = context.getString(R.string.class_notice_channel_desc)
             setShowBadge(false)
-            // Class notices use no sound or vibration.
+            // Class notices are silent; vibration is user-controlled.
             setSound(null, null)
-            enableVibration(false)
+            enableVibration(vibration)
+            if (vibration) vibrationPattern = longArrayOf(0L, 220L)
             // Leave channel visibility unspecified so per-notification privacy changes remain effective.
         }
         manager.createNotificationChannel(channel)

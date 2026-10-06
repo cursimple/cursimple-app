@@ -274,6 +274,10 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_CLASS_NOTICE_HEADS_UP] = enabled }
     }
 
+    override suspend fun setClassNoticeVibrationEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_VIBRATION] = enabled }
+    }
+
     override suspend fun setClassNoticeLockScreenEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_CLASS_NOTICE_LOCK_SCREEN] = enabled }
     }
@@ -1046,6 +1050,7 @@ class DataStoreUserPreferencesRepository(
                 this[KEY_CLASS_NOTICE_ADVANCE_MINUTES] ?: ClassNoticePreferences.DEFAULT_ADVANCE_MINUTES,
             ),
             headsUpEnabled = this[KEY_CLASS_NOTICE_HEADS_UP] ?: true,
+            vibrationEnabled = this[KEY_CLASS_NOTICE_VIBRATION] ?: false,
             lockScreenEnabled = this[KEY_CLASS_NOTICE_LOCK_SCREEN] ?: true,
             focusNotificationEnabled = this[KEY_CLASS_NOTICE_FOCUS] ?: true,
             skin = this[KEY_CLASS_NOTICE_SKIN]
@@ -1178,6 +1183,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_CLASS_NOTICE_ENABLED = booleanPreferencesKey("class_notice_enabled")
         val KEY_CLASS_NOTICE_ADVANCE_MINUTES = intPreferencesKey("class_notice_advance_minutes")
         val KEY_CLASS_NOTICE_HEADS_UP = booleanPreferencesKey("class_notice_heads_up")
+        val KEY_CLASS_NOTICE_VIBRATION = booleanPreferencesKey("class_notice_vibration")
         val KEY_CLASS_NOTICE_LOCK_SCREEN = booleanPreferencesKey("class_notice_lock_screen")
         val KEY_CLASS_NOTICE_FOCUS = booleanPreferencesKey("class_notice_focus_v2")
         val KEY_CLASS_NOTICE_SKIN = stringPreferencesKey("class_notice_skin")

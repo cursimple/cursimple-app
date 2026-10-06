@@ -1307,6 +1307,8 @@
     <string name="settings_class_notice_minute_unit">分钟</string>
     <string name="settings_class_notice_heads_up_title">悬浮通知</string>
     <string name="settings_class_notice_heads_up_subtitle">从屏幕顶部滑出横幅；关掉后通知照发，只是不再弹出来</string>
+    <string name="settings_class_notice_vibration_title">震动通知</string>
+    <string name="settings_class_notice_vibration_subtitle">系统通知和增强提醒都使用震动；关闭后只保留视觉提醒</string>
     <string name="settings_class_notice_lock_title">锁屏显示内容</string>
     <string name="settings_class_notice_lock_subtitle">锁屏上直接显示课名与地点；关掉则只显示收到一条通知</string>
     <string name="settings_class_notice_focus_title">原子岛/超级岛/实时活动</string>
