@@ -7,7 +7,7 @@
   const messages = {
   "zh-CN": {
     "meta.title": "课简 CurSimple · 开源 Android 课表",
-    "meta.description": "课简是一款开源免费、无广告的 Android 课表应用。0.7.8 测试版新增今日概览、备忘录全文检索、课程日历与待完成小组件，插件和组件支持多来源市场。",
+    "meta.description": "课简是一款开源免费、无广告的 Android 课表应用。0.7.9 测试版新增今日概览、备忘录全文检索、课程日历与待完成小组件，插件和组件支持多来源市场。",
     "meta.socialDescription": "课表、提醒与桌面小组件，一个应用装下整个学期。",
     "brand.name": "课简",
     "nav.schedule": "课表",
@@ -199,7 +199,7 @@
     "download.notes": "更新内容",
     "channel.stableEmptyLine": "最新正式版：暂无正式版",
     "channel.betaPrefix": "最新测试版：",
-    "download.betaNotice": "0.7.4、0.7.5 和 0.7.8 均为测试版。",
+    "download.betaNotice": "0.7.4、0.7.5 和 0.7.9 均为测试版。",
     "download.route": "下载线路",
     "download.github": "GitHub 直连",
     "download.mirror": "国内加速",
@@ -254,7 +254,7 @@
   },
   "zh-TW": {
     "meta.title": "課簡 CurSimple · 開源 Android 課表",
-    "meta.description": "課簡是一款開源免費、無廣告的 Android 課表應用。0.7.8 測試版新增今日概覽、備忘錄全文檢索、課程日曆與待完成小工具，外掛和元件支援多來源市場。",
+    "meta.description": "課簡是一款開源免費、無廣告的 Android 課表應用。0.7.9 測試版新增今日概覽、備忘錄全文檢索、課程日曆與待完成小工具，外掛和元件支援多來源市場。",
     "meta.socialDescription": "課表、提醒與桌面小工具，一個應用裝下整個學期。",
     "brand.name": "課簡",
     "nav.schedule": "課表",
@@ -446,7 +446,7 @@
     "download.notes": "更新內容",
     "channel.stableEmptyLine": "最新正式版：暫無正式版",
     "channel.betaPrefix": "最新測試版：",
-    "download.betaNotice": "0.7.4、0.7.5 和 0.7.8 均為測試版。",
+    "download.betaNotice": "0.7.4、0.7.5 和 0.7.9 均為測試版。",
     "download.route": "下載線路",
     "download.github": "GitHub 直連",
     "download.mirror": "國內加速",
@@ -501,7 +501,7 @@
   },
   "en": {
     "meta.title": "CurSimple · Open-source Android timetable",
-    "meta.description": "CurSimple is a free, open-source Android timetable with no ads. Beta 0.7.8 adds a daily overview, full-text note search, calendar and pending-task widgets, and multiple plugin and component sources.",
+    "meta.description": "CurSimple is a free, open-source Android timetable with no ads. Beta 0.7.9 adds a daily overview, full-text note search, calendar and pending-task widgets, and multiple plugin and component sources.",
     "meta.socialDescription": "Your timetable, reminders and home-screen widgets. One app for the whole semester.",
     "brand.name": "CurSimple",
     "nav.schedule": "Timetable",
@@ -693,7 +693,7 @@
     "download.notes": "What's new",
     "channel.stableEmptyLine": "Latest stable: No stable release yet",
     "channel.betaPrefix": "Latest beta: ",
-    "download.betaNotice": "Versions 0.7.4, 0.7.5 and 0.7.8 are beta releases.",
+    "download.betaNotice": "Versions 0.7.4, 0.7.5 and 0.7.9 are beta releases.",
     "download.route": "Download source",
     "download.github": "GitHub direct",
     "download.mirror": "China mirror",
