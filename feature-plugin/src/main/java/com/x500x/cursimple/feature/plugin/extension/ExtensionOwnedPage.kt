@@ -245,7 +245,9 @@ internal fun ExtensionOwnedPage(
                         "ui.close" -> { if (activePage != page) activePage = page else onBack(); JsonPrimitive(true) }
                         "ui.openExternal" -> {
                             val url = (payload["url"] as? JsonPrimitive)?.contentOrNull.orEmpty()
-                            require(ExtensionUrls.isAllowed(url, manifest.allowedHosts) && java.net.URI(url).rawUserInfo == null) { "外部链接不在组件声明的站点里" }
+                            val declaredExternal = setOfNotNull(manifest.homepage, manifest.supportUrl).contains(url)
+                            require((declaredExternal || ExtensionUrls.isAllowed(url, manifest.allowedHosts)) &&
+                                java.net.URI(url).rawUserInfo == null && url.length <= 2048) { "外部链接不在组件声明的站点里" }
                             context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
                             JsonPrimitive(true)
                         }

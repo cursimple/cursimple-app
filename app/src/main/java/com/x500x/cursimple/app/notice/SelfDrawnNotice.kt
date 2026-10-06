@@ -3,8 +3,7 @@ package com.x500x.cursimple.app.notice
 import com.x500x.cursimple.core.reminder.permission.VendorRom
 
 /**
- * Use overlay-only fallback for explicitly documented vendor restrictions. Preserve system
- * notifications in the shade without unsupported ongoing or chip flags.
+ * Add a vendor-specific enhanced layer while preserving the ordinary system notification.
  */
 object SelfDrawnNotice {
 

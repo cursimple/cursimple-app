@@ -10,8 +10,8 @@
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
 [![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![最新测试版 0.7.7](https://img.shields.io/badge/Latest%20beta-0.7.7-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.7)
-[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.7)
+[![最新测试版 0.7.8](https://img.shields.io/badge/Latest%20beta-0.7.8-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8)
+[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
@@ -21,7 +21,7 @@
 
 [官网](https://cursimple.github.io/cursimple-app/) · [下载安装](#下载安装) · [功能特性](#功能特性) · [插件系统](#插件系统) · [从源码构建](#从源码构建) · [English](README_en.md)
 
-最新测试版：[0.7.7](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.7)（`beta` / Pre-release）。
+最新测试版：[0.7.8](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8)（`beta` / Pre-release）。
 
 </div>
 
@@ -138,7 +138,7 @@
 
 ## 下载安装
 
-最新测试版为 [0.7.7（beta）](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.7)，请在该版本页下载对应架构的 APK；[官网](https://cursimple.github.io/cursimple-app/#download)也提供国内加速和扫码下载入口。
+最新测试版为 [0.7.8（beta）](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8)，请在该版本页下载对应架构的 APK；[官网](https://cursimple.github.io/cursimple-app/#download)也提供国内加速和扫码下载入口。
 
 | 文件 | 适用设备 |
 |---|---|
@@ -148,7 +148,7 @@
 | `CurSimple-x86.apk` | 32 位 Intel 设备 |
 | `CurSimple-universal.apk` | 不确定架构时选这个，体积较大 |
 
-发布渠道由 `gradle.properties` 的 `app.releaseChannel` 指定。0.7.7 使用 `beta`，标签保持 `v0.7.7`，GitHub Release 标记为 `prerelease=true`；旧版 `v0.7.4` 同样标记为 Pre-release。版本号没有 `-beta` 后缀仍可能是测试版，请以发布渠道与 Pre-release 标记为准。应用内需开启测试版更新才能接收此渠道。
+发布渠道由 `gradle.properties` 的 `app.releaseChannel` 指定。0.7.8 使用 `beta`，标签保持 `v0.7.8`，GitHub Release 标记为 `prerelease=true`；旧版 `v0.7.4` 同样标记为 Pre-release。版本号没有 `-beta` 后缀仍可能是测试版，请以发布渠道与 Pre-release 标记为准。应用内需开启测试版更新才能接收此渠道。
 
 安装后首次启动：
 
@@ -224,7 +224,7 @@ CLASS_VIEWER_KEY_PASSWORD=替换为密钥密码
 
 ```properties
 app.versionCode=31
-app.versionName=0.7.7
+app.versionName=0.7.8
 app.releaseChannel=beta
 ```
 
