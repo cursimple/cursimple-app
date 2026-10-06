@@ -292,8 +292,7 @@ internal fun ClassNoticeSettingsSection(
             checked = preferences.lockScreenEnabled,
             onCheckedChange = onLockScreenChange,
         )
-        // Hide unsupported chip controls on overlay-only devices.
-        if (!SelfDrawnNotice.only()) SettingsSwitchRow(
+        SettingsSwitchRow(
             icon = Icons.Rounded.Star,
             title = stringResource(R.string.settings_class_notice_focus_title),
             subtitle = stringResource(R.string.settings_class_notice_focus_subtitle),
@@ -301,7 +300,7 @@ internal fun ClassNoticeSettingsSection(
             onCheckedChange = onFocusChange,
         )
         // System approval is required independently of the in-app chip switch.
-        if (preferences.focusNotificationEnabled && islandBlocked && !SelfDrawnNotice.only()) {
+        if (preferences.focusNotificationEnabled && islandBlocked) {
             SettingsActionRow(
                 icon = Icons.Rounded.OpenInNew,
                 title = stringResource(R.string.settings_class_notice_open_system),
@@ -407,9 +406,9 @@ private fun ClassNoticeSkinSettings(
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
     SettingsSectionHeader(stringResource(R.string.settings_class_notice_skin_header))
 
-    // Limit overlay-only devices to supported banner skins.
+    // Vendor enhancements supplement the system notification.
     val selfDrawnOnly = SelfDrawnNotice.only()
-    if (!selfDrawnOnly) ClassNoticeSkinOptions(preferences, onSkinChange)
+    ClassNoticeSkinOptions(preferences, onSkinChange)
 
     if (preferences.skin == ClassNoticeSkin.Overlay || selfDrawnOnly) {
         if (!selfDrawnOnly) OverlayPermissionRow()
