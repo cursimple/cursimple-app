@@ -4,19 +4,14 @@ import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.market.github.DefaultMarketSources
 import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 
-/** 插件页里市场区块最多直接铺开几个，多出来的收进浏览全部。 */
 const val MARKET_PREVIEW_COUNT: Int = 6
 
-/**
- * 市场区块要展示的内容。
- * [hiddenCount] 大于 0 时界面给出浏览全部的入口，否则该入口没有意义。
- */
+/** Positive [hiddenCount] enables the full-list destination. */
 data class MarketPreview(
     val visible: List<GitHubRepoSummary>,
     val hiddenCount: Int,
 )
 
-/** 截断到 [limit] 个，并数清还剩多少个没露出来。 */
 fun marketPreview(
     repos: List<GitHubRepoSummary>,
     limit: Int = MARKET_PREVIEW_COUNT,
@@ -27,9 +22,8 @@ fun marketPreview(
 }
 
 /**
- * 按关键词过滤插件。
- * 仓库名、所属账号、描述与注册表声明的学校别名任一命中即算匹配，忽略大小写与首尾空白；
- * 空关键词返回原列表，避免搜索框还没输入就把列表清空。
+ * Case-insensitive search across repository, owner, description and school aliases; empty
+ * queries preserve the list.
  */
 fun filterMarketRepos(
     repos: List<GitHubRepoSummary>,
@@ -47,13 +41,11 @@ internal fun GitHubRepoSummary.matchesMarketQuery(keyword: String): Boolean =
         description.contains(keyword, ignoreCase = true) ||
         registrySource.contains(keyword, ignoreCase = true) ||
         latestRelease?.tagName?.contains(keyword, ignoreCase = true) == true ||
-        // 别名是给「搜学校名」用的：仓库叫 bit-schedule，学生搜的是「北京理工」
         schoolAliases.any { it.contains(keyword, ignoreCase = true) }
 
-/** 两个页面共用目录切换和搜索，不截断市场结果。 */
 internal enum class MarketCatalogTab { Installed, Market }
 
-/** 空来源元数据兼容旧缓存；新缓存始终优先使用条目自身的来源。 */
+/** Legacy cache entries may lack source metadata; prefer the entry's source when present. */
 internal fun GitHubRepoSummary.marketSource(fallback: String): String =
     registrySource.trim().ifBlank { fallback.trim() }
 
@@ -64,7 +56,6 @@ internal fun InstalledPluginRecord.registrySourceFor(repos: List<GitHubRepoSumma
     registrySource?.trim()?.takeIf { it.isNotBlank() }
         ?: repos.firstOrNull { it.fullName.equals(sourceRepo?.trim(), ignoreCase = true) }?.marketSource(fallback)
 
-/** 已安装条目也支持学校别名和来源搜索，沿用导课页面的匹配规则。 */
 internal fun filterInstalledPlugins(
     installed: List<InstalledPluginRecord>,
     repos: List<GitHubRepoSummary>,
@@ -83,11 +74,7 @@ internal fun filterInstalledPlugins(
 }
 
 /**
- * 「从教务系统导课」页上这条插件该显示的标题。
- *
- * 仓库名多半是 `YangtzU_course_plugin` 这种英文缩写，而这一页的用户是在找自己的学校，
- * 所以优先拿注册表里声明的学校名当标题——约定 `schools` 的第一条是全称。
- * 没声明学校的插件回落到仓库名，总比标题空着强。
+ * Use the first declared school alias as the import-page title; fall back to repository name.
  */
 fun GitHubRepoSummary.schoolDisplayTitle(): String =
     schoolAliases.firstOrNull { it.isNotBlank() }?.trim() ?: displayTitle

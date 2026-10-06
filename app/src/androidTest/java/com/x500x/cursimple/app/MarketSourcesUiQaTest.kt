@@ -42,7 +42,6 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** 显式启用的模拟器布局验证，来源和账号均使用独立测试数据。 */
 class MarketSourcesUiQaTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
@@ -81,7 +80,6 @@ class MarketSourcesUiQaTest {
         compose.onNodeWithText(context.getString(R.string.market_sources_empty)).assertIsDisplayed()
         compose.onNodeWithText(context.getString(R.string.market_sources_restore_default)).performClick()
         compose.onAllNodesWithContentDescription(context.getString(R.string.market_sources_remove))[0].assertIsDisplayed()
-        // 两类来源都有添加按钮，按序选中插件来源的入口。
         compose.onAllNodesWithText(context.getString(R.string.market_sources_add))[0].performClick()
         compose.onNodeWithText(context.getString(R.string.market_sources_add_label)).performTextInput("https://github.com/cursimple/cursimple-plugins.git/tree/main")
         compose.onNodeWithText(context.getString(R.string.market_sources_add_duplicate)).assertIsDisplayed()

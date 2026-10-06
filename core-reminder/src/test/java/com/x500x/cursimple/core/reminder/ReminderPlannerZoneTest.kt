@@ -21,12 +21,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/**
- * 提醒时刻要跟随设置里的应用时区。
- *
- * 人在别的时区、课表按学校时区走时，8 点的课必须在学校时区的 8 点响，
- * 而不是设备时区的 8 点。
- */
+/** Course alarms follow the selected app time zone, independent of the device zone. */
 class ReminderPlannerZoneTest {
     private val planner = ReminderPlanner()
 
@@ -51,7 +46,6 @@ class ReminderPlannerZoneTest {
         val shanghai = triggerMillisUnderZone(ZoneId.of("Asia/Shanghai"))
         val london = triggerMillisUnderZone(ZoneId.of("Europe/London"))
 
-        // 2026-02-23 提前 15 分钟，即当地 07:45
         val expectedShanghai = LocalDateTime.of(2026, 2, 23, 7, 45)
             .atZone(ZoneId.of("Asia/Shanghai")).toInstant().toEpochMilli()
         val expectedLondon = LocalDateTime.of(2026, 2, 23, 7, 45)

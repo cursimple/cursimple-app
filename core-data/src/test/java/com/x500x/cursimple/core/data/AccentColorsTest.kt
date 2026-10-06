@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
 
-/** 自选主题色的取色计算：HSL 来回换算、推出的各档颜色、旧系统上找最接近的内置色。 */
 class AccentColorsTest {
 
     private fun channelsClose(a: Int, b: Int): Boolean =
@@ -47,7 +46,6 @@ class AccentColorsTest {
         assertEquals(ThemeAccent.Blue, AccentColors.nearestPreset(0xFF1E88E5.toInt()))
         assertEquals(ThemeAccent.Orange, AccentColors.nearestPreset(0xFFE67E22.toInt()))
         assertEquals(ThemeAccent.Pink, AccentColors.nearestPreset(0xFFD81B60.toInt()))
-        // 几乎没有色相的灰，退回蓝色
         assertEquals(ThemeAccent.Blue, AccentColors.nearestPreset(0xFF808080.toInt()))
     }
 

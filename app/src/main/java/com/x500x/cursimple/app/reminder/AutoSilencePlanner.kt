@@ -21,44 +21,32 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 
-/** 一段连续的上课时间，连堂课已经合并成一段。 */
 data class ClassBlock(
     val start: LocalDateTime,
     val end: LocalDateTime,
 )
 
-/** 当前时刻相对上课时段该做什么。 */
 sealed interface AutoSilenceDecision {
-    /** 进入上课时段，需要切换手机状态，[block] 的结束时刻即本次静音的兜底截止。 */
     data class Enter(val block: ClassBlock) : AutoSilenceDecision
 
-    /** 仍在上课时段内，保持现状。 */
     object Keep : AutoSilenceDecision
 
-    /** 已经离开上课时段或功能被关闭，需要恢复用户原来的状态。 */
     object Restore : AutoSilenceDecision
 
-    /** 无事可做。 */
     object Idle : AutoSilenceDecision
 }
 
-/** 课间不超过这个分钟数就并成一段，避免连堂课之间反复切换。 */
+/** Merge short gaps to avoid repeatedly switching between adjacent classes. */
 const val DEFAULT_CLASS_BLOCK_MERGE_GAP_MINUTES = 20L
 
-/** 超过计划结束时刻这么久还没恢复，一律强制恢复。 */
 const val AUTO_SILENCE_EXPIRY_GRACE_MILLIS = 2 * 60 * 1000L
 
-/** 单次静音的绝对上限，任何情况下超过它都强制恢复。 */
+/** Absolute silence duration cap; restore regardless of schedule state. */
 const val AUTO_SILENCE_MAX_SESSION_MILLIS = 6 * 60 * 60 * 1000L
 
-/** 系统时间被往回调超过这个幅度，视为现场记录已经不可信。 */
 const val AUTO_SILENCE_CLOCK_REWIND_TOLERANCE_MILLIS = 60 * 1000L
 
-/**
- * 解析 [date] 当天真正会上课的时间段。
- *
- * 假日、未开学、临时取消的课都不产生时间段；临时调课按 [resolveScheduleDay] 给出的来源日取课。
- */
+/** Resolve real class intervals after holiday, cancellation and swap rules. */
 fun resolveClassBlocks(
     date: LocalDate,
     courses: List<CourseItem>,
@@ -71,7 +59,6 @@ fun resolveClassBlocks(
     val day = resolveScheduleDay(date, overrides, holidayCalendar)
     val termWeek = resolveTermWeekNumber(termStart, day.sourceDate)
     if (!isTermWeekNumberStarted(termWeek)) return emptyList()
-    // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
     val movedIn = coursesMovedTo(
         date = date,
         overrides = overrides,
@@ -80,7 +67,6 @@ fun resolveClassBlocks(
             course.isActiveInTermWeekNumber(resolveTermWeekNumber(termStart, from))
         },
     )
-    // 放假日不上常规课，但调课可以推翻放假：被挪过来的那几门照样要静音
     if (day.isHoliday) {
         return mergeClassBlocks(
             movedIn
@@ -91,9 +77,8 @@ fun resolveClassBlocks(
     }
     val intervals = courses
         .asSequence()
-        // 被单独挪到别天的课，这天不再静音
         .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
-        // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+        // Per-course source-day resolution handles mixed schedules after partial swaps.
         .mapNotNull { course ->
             temporaryScheduleCourseSourceDate(date, course, day.sourceDate, overrides)
                 ?.let { course to it }
@@ -109,7 +94,6 @@ fun resolveClassBlocks(
     return mergeClassBlocks(intervals, mergeGapMinutes)
 }
 
-/** 把重叠或课间不超过 [mergeGapMinutes] 的时间段并成一段。 */
 fun mergeClassBlocks(
     blocks: List<ClassBlock>,
     mergeGapMinutes: Long = DEFAULT_CLASS_BLOCK_MERGE_GAP_MINUTES,
@@ -132,11 +116,9 @@ fun mergeClassBlocks(
     return merged
 }
 
-/** [now] 落在哪一段上课时间里，开始时刻算在内，结束时刻算在外。 */
 fun activeClassBlockAt(now: LocalDateTime, blocks: List<ClassBlock>): ClassBlock? =
     blocks.firstOrNull { !now.isBefore(it.start) && now.isBefore(it.end) }
 
-/** [now] 之后最近一次需要切换状态的时刻，也就是最近的上课开始或下课结束时刻。 */
 fun nextClassBoundaryAfter(now: LocalDateTime, blocks: List<ClassBlock>): LocalDateTime? =
     blocks
         .asSequence()
@@ -144,11 +126,7 @@ fun nextClassBoundaryAfter(now: LocalDateTime, blocks: List<ClassBlock>): LocalD
         .filter { it.isAfter(now) }
         .minOrNull()
 
-/**
- * 决定当前该进入静音、保持、恢复还是什么都不做。
- *
- * 关掉开关或不在上课时段时，只要现场记录还在就必须恢复。
- */
+/** Restore whenever disabled or outside class while a saved state exists. */
 fun decideAutoSilence(
     now: LocalDateTime,
     nowMillis: Long,
@@ -170,11 +148,7 @@ fun decideAutoSilence(
     return AutoSilenceDecision.Enter(block)
 }
 
-/**
- * 现场记录是否已经过期。
- *
- * 只看时间戳，不依赖课表数据，因此课表被清空、学期切换或数据读不出来时仍能兜底恢复。
- */
+/** Expire saved state by timestamps alone, even if schedule data is unavailable. */
 fun isAutoSilenceSessionExpired(session: AutoSilenceSession, nowMillis: Long): Boolean {
     if (!session.active) return false
     if (session.plannedEndAtMillis > 0L &&
@@ -189,9 +163,6 @@ fun isAutoSilenceSessionExpired(session: AutoSilenceSession, nowMillis: Long): B
     return false
 }
 
-/**
- * 目标模式下需要写入的铃声模式，已经足够安静时返回 null 表示不动手。
- */
 fun resolveRingerModeToApply(mode: AutoSilenceMode, currentRingerMode: Int): Int? = when (mode) {
     AutoSilenceMode.Silent -> RingerModeValues.SILENT.takeIf {
         currentRingerMode == RingerModeValues.NORMAL || currentRingerMode == RingerModeValues.VIBRATE
@@ -203,9 +174,7 @@ fun resolveRingerModeToApply(mode: AutoSilenceMode, currentRingerMode: Int): Int
     AutoSilenceMode.DoNotDisturb -> null
 }
 
-/**
- * 目标模式下需要写入的勿扰级别，只用仅优先级，永远不会写入完全静音。
- */
+/** Use priority-only DND, never total silence. */
 fun resolveInterruptionFilterToApply(mode: AutoSilenceMode, currentFilter: Int): Int? = when (mode) {
     AutoSilenceMode.DoNotDisturb ->
         InterruptionFilterValues.PRIORITY.takeIf { currentFilter == InterruptionFilterValues.ALL }
@@ -214,9 +183,7 @@ fun resolveInterruptionFilterToApply(mode: AutoSilenceMode, currentFilter: Int):
 }
 
 /**
- * 恢复时要写回的铃声模式。
- *
- * 只有当前值仍等于当初写下去的值才恢复，用户上课途中自己改过就不动，返回 null。
+ * Restore only if the current mode still matches the app's applied mode; preserve user changes.
  */
 fun resolveRingerModeToRestore(session: AutoSilenceSession, currentRingerMode: Int): Int? {
     if (session.appliedRingerMode == RingerModeValues.UNKNOWN) return null
@@ -226,7 +193,6 @@ fun resolveRingerModeToRestore(session: AutoSilenceSession, currentRingerMode: I
     return session.previousRingerMode
 }
 
-/** 恢复时要写回的勿扰级别，判断方式与铃声模式一致。 */
 fun resolveInterruptionFilterToRestore(session: AutoSilenceSession, currentFilter: Int): Int? {
     if (session.appliedInterruptionFilter == InterruptionFilterValues.UNKNOWN) return null
     if (session.previousInterruptionFilter == InterruptionFilterValues.UNKNOWN) return null
@@ -240,11 +206,7 @@ private data class ClassInterval(val start: LocalTime, val end: LocalTime)
 private fun ClassInterval.toBlockOn(date: LocalDate): ClassBlock =
     ClassBlock(start = LocalDateTime.of(date, start), end = LocalDateTime.of(date, end))
 
-/**
- * 课程的实际起止时刻。
- *
- * 先按节次在 [TermTimingProfile.slotTimes] 里取真实时刻，取不到时退回课程自带的提醒起止时间。
- */
+/** Prefer timing-profile slots, falling back to course reminder times. */
 private fun CourseItem.classInterval(timingProfile: TermTimingProfile): ClassInterval? {
     val start = timingProfile.slotContaining(time.startNode)?.let { parseLocalTime(it.startTime) }
         ?: reminderStartTime?.let(::parseLocalTime)

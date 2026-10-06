@@ -160,7 +160,6 @@ class ReminderPlanner {
         dayPolicy: ReminderDayPolicy,
     ): List<ReminderPlan> {
         val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: return emptyList()
-        // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val zone = BeijingTime.zone
         return courseOccurrenceDates(
@@ -183,7 +182,6 @@ class ReminderPlanner {
         zone: ZoneId,
         titlePeriod: ReminderDayPeriod? = rule.period,
     ): ReminderPlan? {
-        // 时间串非法（坏插件/恢复数据）时跳过这一节，不让异常掀翻整轮同步
         val startTime = slot.startLocalTimeOrNull() ?: return null
         val classStart = LocalDateTime.of(courseDate, startTime)
         val trigger = classStart

@@ -5,7 +5,6 @@ import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +26,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -41,8 +39,7 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
 
 /**
- * 点击课表空白格时使用的精简版添加课程对话框。
- * 星期与起止节次固定为点击的位置，对话框只询问会变化的部分：课程名、地点、周次范围。
+ * Quick-add fixes the tapped day and period span while asking for course metadata and weeks.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +49,6 @@ fun QuickAddCourseDialog(
     endNode: Int,
     existingCourses: List<CourseItem> = emptyList(),
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
-    /** 这一格在作息表里的名字（「第二节」「午间课」）；为空时按节号写。 */
     slotLabel: String? = null,
     onDismiss: () -> Unit,
     onConfirm: (CourseItem) -> Unit,
@@ -62,8 +58,7 @@ fun QuickAddCourseDialog(
     var weekLocationsRaw by rememberSaveable { mutableStateOf("") }
     var pickingWeekLocations by rememberSaveable { mutableStateOf(false) }
     var teacher by rememberSaveable { mutableStateOf("") }
-    // 周次留空由用户自己填，和右上角新建课程一样：预填的「当前周到学期末」多半不是这门课的
-    // 真实周次，填好了反而容易被当成已经设好直接保存
+    // Leave new-course weeks unset rather than assuming current-to-term-end coverage.
     var startWeekText by rememberSaveable { mutableStateOf("") }
     var endWeekText by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
@@ -112,7 +107,7 @@ fun QuickAddCourseDialog(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                // 星期与节次范围以只读 chip 固定展示，标明新课程会落在哪个位置。
+                // Show fixed day and periods as read-only destination chips.
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppAssistChip(
                         onClick = {},
@@ -150,7 +145,6 @@ fun QuickAddCourseDialog(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    // 和新建、编辑课程同一个地点框：点课表空格快速加课时也能逐周设地点
                     CourseLocationField(
                         location = location,
                         onLocationChange = { location = it },
@@ -239,7 +233,7 @@ fun QuickAddCourseDialog(
                                 title = titleTrimmed,
                                 teacher = teacher.trim(),
                                 location = location.trim(),
-                                // 只留选中周里、真填了内容的那几周
+                                // Retain nonblank locations for selected weeks only.
                                 weekLocations = weekLocationsMap
                                     .filterKeys { it in weeks }
                                     .mapValues { it.value.trim() }

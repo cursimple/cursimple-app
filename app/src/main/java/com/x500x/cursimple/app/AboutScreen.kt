@@ -89,14 +89,12 @@ fun AboutScreen(
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
     onBetaUpdatesEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
-    onMuteUpdateVersion: (Int?) -> Unit,
     onUpdateFound: (Int, String) -> Unit,
     onUpdateNoticeCleared: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     val versionName = remember(context) { resolveVersionName(context) }
-    // 更新历史是「关于」底下的二级页，返回键先退回关于页
     var showUpdateHistory by rememberSaveable { mutableStateOf(false) }
     BackHandler(enabled = showUpdateHistory) { showUpdateHistory = false }
     if (showUpdateHistory) {
@@ -149,7 +147,6 @@ fun AboutScreen(
                 },
             )
 
-            // 软件更新紧挨着版本信息：看完版本号顺手就能查新版
             SettingsCardGroup(stringResource(R.string.update_section_title)) {
                 UpdateCheckSection(
                     autoCheckEnabled = autoUpdateEnabled,
@@ -158,7 +155,6 @@ fun AboutScreen(
                     updateNotice = updateNotice,
                     onAutoCheckEnabledChange = onAutoUpdateEnabledChange,
                     onIgnoreUpdateVersion = onIgnoreUpdateVersion,
-                    onMuteUpdateVersion = onMuteUpdateVersion,
                     onUpdateFound = onUpdateFound,
                     onUpdateNoticeCleared = onUpdateNoticeCleared,
                 )
@@ -166,8 +162,7 @@ fun AboutScreen(
                     enabled = betaUpdatesEnabled,
                     onEnabledChange = onBetaUpdatesEnabledChange,
                 )
-                // 列哪些版本跟着上面那个开关走：关着的人装不到 beta，
-                // 把 beta 列出来只会让人以为漏了更新
+                // Release history follows the selected stable or beta channel.
                 SettingsActionRow(
                     icon = Icons.Rounded.EventRepeat,
                     title = stringResource(R.string.update_history_title),
@@ -290,7 +285,6 @@ private fun HeroCard(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // 自适应图标本身是 XML，取其前景位图铺在同色底上
                 Box(
                     modifier = Modifier
                         .size(56.dp)
@@ -592,7 +586,6 @@ private fun LinkRow(
     }
 }
 
-/** 版本名带连字符后缀的是测试通道构建。 */
 private fun releaseChannelLabel(): Int = if (BuildConfig.VERSION_NAME.contains('-')) {
     R.string.about_channel_beta
 } else {

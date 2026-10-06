@@ -19,15 +19,10 @@ data class TemporaryScheduleOverride(
     @SerialName("cancelStartNode") val cancelStartNode: Int? = null,
     @SerialName("cancelEndNode") val cancelEndNode: Int? = null,
     @SerialName("cancelCourseId") val cancelCourseId: String? = null,
-    /** 只调这个区间的课，区间外仍按本日自己的安排；两个都为空表示整天调课。 */
+    /** Null interval bounds indicate a whole-day swap. */
     @SerialName("makeUpStartNode") val makeUpStartNode: Int? = null,
     @SerialName("makeUpEndNode") val makeUpEndNode: Int? = null,
-    /**
-     * [TemporaryScheduleOverrideType.MoveCourse] 专用：把哪一门课挪走。
-     *
-     * 原本那天由 [sourceDate] 指定，挪到哪天由 [targetDate] 指定，
-     * 落到的节次由 [moveToStartNode]、[moveToEndNode] 指定。
-     */
+    /** MoveCourse source and destination dates with target period bounds. */
     @SerialName("moveCourseId") val moveCourseId: String? = null,
     @SerialName("moveToStartNode") val moveToStartNode: Int? = null,
     @SerialName("moveToEndNode") val moveToEndNode: Int? = null,
@@ -41,12 +36,7 @@ enum class TemporaryScheduleOverrideType {
     @SerialName("cancel_course")
     CancelCourse,
 
-    /**
-     * 把单独一门课从某天某节挪到另一天的某节。
-     *
-     * 和 [MakeUp] 的区别：[MakeUp] 换的是「这一天按哪天的课表上」，整天或整段节次一起换；
-     * 这个只动一门课，其余课程原地不动。
-     */
+    /** Move one course without replacing other courses on either day. */
     @SerialName("move_course")
     MoveCourse,
 }
@@ -70,7 +60,7 @@ fun TemporaryScheduleOverride.sourceDateFor(date: LocalDate): LocalDate? {
     val normalizedStart = minOf(start, end)
     val normalizedEnd = maxOf(start, end)
     if (date.isBefore(normalizedStart) || date.isAfter(normalizedEnd)) return null
-    // 旧记录只存了来源星期几，当初是按周一起算写下的，这个基准属于已落盘数据的语义，不跟随显示起始日
+    // Legacy weekday records use a persisted Monday anchor, independent of display week start.
     return date
         .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
         .plusDays((legacySourceDayOfWeek - 1).toLong())
@@ -100,7 +90,7 @@ fun TemporaryScheduleOverride.cancelsCourseOn(date: LocalDate, course: CourseIte
     return course.time.startNode <= normalizedEnd && course.time.endNode >= normalizedStart
 }
 
-/** 只调部分节次时的节次区间；整天调课返回 null。 */
+/** Null for whole-day swaps, otherwise the affected period interval. */
 fun TemporaryScheduleOverride.makeUpNodeRange(): IntRange? {
     if (type != TemporaryScheduleOverrideType.MakeUp) return null
     val start = makeUpStartNode ?: makeUpEndNode ?: return null
@@ -109,10 +99,7 @@ fun TemporaryScheduleOverride.makeUpNodeRange(): IntRange? {
 }
 
 /**
- * [course] 在 [date] 当天按哪一天的安排上；当天根本不上这门课时返回 null。
- *
- * [sourceDate] 是 [ScheduleDayResolution] 给出的整天来源日。整天调课时全天的课都来自来源日；
- * 只调部分节次时，区间内的课来自来源日，区间外的课仍是本日自己的，调一节课不会把整天都搬走。
+ * Resolve the course's source day under whole-day or partial swaps; null means no occurrence.
  */
 fun temporaryScheduleCourseSourceDate(
     date: LocalDate,
@@ -133,7 +120,6 @@ fun temporaryScheduleCourseSourceDate(
     }
 }
 
-/** 这条规则挪课的目标节次；字段不全时返回 null。 */
 fun TemporaryScheduleOverride.moveToNodeRange(): IntRange? {
     if (type != TemporaryScheduleOverrideType.MoveCourse) return null
     val start = moveToStartNode ?: return null
@@ -141,11 +127,7 @@ fun TemporaryScheduleOverride.moveToNodeRange(): IntRange? {
     return minOf(start, end)..maxOf(start, end)
 }
 
-/**
- * [course] 在 [date] 当天是不是被挪到别处去了。
- *
- * 被挪走的课在原来那天不该再出现，否则一门课会在两天同时露面。
- */
+/** Suppress courses moved away from their original date to avoid duplicate appearances. */
 fun isCourseMovedAwayFrom(
     date: LocalDate,
     course: CourseItem,
@@ -156,7 +138,7 @@ fun isCourseMovedAwayFrom(
         parseOverrideDate(rule.sourceDate) == date
 }
 
-/** [course] 是不是被单独挪到了 [date] 这一天——卡片上要标「调」的就是这种。 */
+/** Whether [course] was individually moved into [date]. */
 fun isCourseMovedTo(
     date: LocalDate,
     course: CourseItem,
@@ -168,11 +150,8 @@ fun isCourseMovedTo(
 }
 
 /**
- * 被挪到 [date] 当天的课，时间已改写到目标节次与当天的星期。
- *
- * [courseById] 由调用方提供，按 id 找出那门课的原件；找不到（课被删了）就跳过。
- * [isOriginallyActive] 判断这门课在它**原本那天**是不是真的上——原本那周就不上的课，
- * 挪过来也不该凭空多出一节。
+ * Use [courseById] and original-day activity to materialize moved courses; skip missing or
+ * inactive originals.
  */
 fun coursesMovedTo(
     date: LocalDate,
@@ -182,7 +161,7 @@ fun coursesMovedTo(
 ): List<CourseItem> =
     coursesMovedToWithOrigin(date, overrides, courseById, isOriginallyActive).map { it.first }
 
-/** 同 [coursesMovedTo]，额外给出这门课原本是哪一天的，供需要标注「调课落位」的地方使用。 */
+/** [coursesMovedTo] with source-date metadata for moved-course presentation. */
 fun coursesMovedToWithOrigin(
     date: LocalDate,
     overrides: List<TemporaryScheduleOverride>,
@@ -205,22 +184,14 @@ fun coursesMovedToWithOrigin(
     ) to from
 }
 
-/** 拖动调课要对调课列表做的改动：先删 [removeIds]，再写入 [upsert]。 */
 data class CourseMovePlan(
     val removeIds: List<String> = emptyList(),
     val upsert: TemporaryScheduleOverride? = null,
 )
 
 /**
- * 拖动调课：把 [courseId] 在 [from] 这天显示的那一份挪到 [to] 的第 [toStartNode]..[toEndNode] 节。
- *
- * [from] 上的这门课可能本来就是从别天挪过来的（有一条目标日是 [from] 的挪课记录）。
- * 这时不能再叠一条「from → to」：隐藏原课只对当天原本排着的课生效，挪进来的那份不会被隐藏，
- * 拖一次就多出一份。要改写原来那条记录，让它从课程原本那天直接挪到新位置；
- * 挪回原本那天的原本节次就等于撤销，直接删掉记录。
- *
- * @param naturalStartNode 这门课在课表里原本的起始节，用来判断是不是挪回了原位
- * @param naturalEndNode 这门课在课表里原本的结束节
+ * Rewrite an existing move rather than chaining copies. Returning to natural date and periods
+ * removes the override; naturalStartNode and naturalEndNode identify that original position.
  */
 fun planCourseMove(
     overrides: List<TemporaryScheduleOverride>,
@@ -266,24 +237,19 @@ fun planCourseMove(
     )
 }
 
-/** 逐门停课/恢复要对调课列表做的改动：先删 [removeIds]，再依次写入 [upserts]。 */
+/** Apply [removeIds] before [upserts]. */
 data class CancelCoursePlan(
     val removeIds: List<String> = emptyList(),
     val upserts: List<TemporaryScheduleOverride> = emptyList(),
 )
 
-/** 只停 [date] 这天的 [course] 这一门：规则记下课程 id，同一时段的别的课不受牵连。 */
+/** Cancel only [course] on [date]; simultaneous courses are unaffected. */
 fun planCancelCourse(date: LocalDate, course: CourseItem, newId: () -> String): CancelCoursePlan =
     CancelCoursePlan(upserts = listOf(courseCancelRule(date, course, newId())))
 
 /**
- * 恢复 [date] 这天被停掉的 [course]。
- *
- * 停掉它的可能是只针对它的规则，也可能是旧版按节次写的规则——那种会把同一时段的
- * 好几门一起停掉。恢复一门时删掉这些规则，同一天被顺带停掉的其他课（在 [dayCourses] 里）
- * 各补一条只针对自己的规则，保持停课状态。
- *
- * 规则跨了好几天（旧版的起止日期写法）时拆不开，返回 null，只能在规则列表里整条删除。
+ * Restore one course while preserving others cancelled by legacy period rules. Multi-day legacy
+ * rules cannot be split and return null.
  */
 fun planRestoreCourse(
     date: LocalDate,

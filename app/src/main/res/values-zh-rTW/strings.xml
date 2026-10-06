@@ -135,7 +135,7 @@
     <string name="update_status_ignored_manual">已忽略 v%1$s。手動檢查仍可更新。</string>
     <string name="update_section_title">應用更新</string>
     <string name="update_auto_check_title">自動檢查更新</string>
-    <string name="update_auto_check_on">啟動時自動檢查，發現新版本彈窗提醒並保留紅點</string>
+    <string name="update_auto_check_on">啟動和使用時靜默檢查，發現新版本只在側邊欄和選單上亮紅點，不彈窗</string>
     <string name="update_auto_check_off">僅手動檢查，查到新版本後同樣會保留紅點</string>
     <string name="update_check_title">檢查更新</string>
     <string name="update_check_checking">檢查中…</string>
@@ -166,10 +166,7 @@
     <string name="update_dialog_update">更新</string>
     <string name="update_dialog_ignore">忽略此版本</string>
     <string name="update_dialog_later">下次再說</string>
-    <string name="update_dialog_mute">不再提醒此版本</string>
-    <string name="update_dialog_mute_hint">只在「關於」裡保留紅點</string>
     <string name="update_dialog_ignore_hint">紅點一併消失，需自行到「關於」裡檢查</string>
-    <string name="update_status_muted">已對 v%1$s 關閉彈窗提醒，「關於」裡仍保留紅點。</string>
     <string name="update_badge_desc">有新版本</string>
     <string name="update_no_release_notes">暫無變更說明。</string>
 
@@ -1466,4 +1463,5 @@
     <string name="github_device_open">複製並開啟 GitHub</string>
     <string name="github_device_denied">你在 GitHub 上拒絕了授權</string>
     <string name="github_device_expired">登入碼過期了，關掉重新來一次</string>
+    <string name="widget_manual_component_step4">4. 加入「%1$s」，再選擇「%2$s」；只有一個可用組件小組件時會自動選擇。</string>
 </resources>

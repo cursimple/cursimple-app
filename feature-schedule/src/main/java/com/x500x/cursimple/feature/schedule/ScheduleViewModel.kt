@@ -101,33 +101,24 @@ data class ScheduleUiState(
     val missingComponents: List<PluginComponentRequirement> = emptyList(),
     val manualCourses: List<CourseItem> = emptyList(),
     val courseNotes: CourseNoteIndex = CourseNoteIndex(),
-    /** 用户排进课表的事务，按真实日期与钟点画在网格上 */
     val events: List<ScheduleEvent> = emptyList(),
-    /** 备忘录：按课名归到各门课的笔记本里 */
     val memos: List<MemoNote> = emptyList(),
-    /** 每完成一次插件同步递增，界面据此跳转，不再比较提示文字。 */
     val syncCompletedCount: Int = 0,
-    /** 等用户决定「覆盖还是另存」的那一份导入结果；为空表示没有待确认的导入。 */
     val pendingImport: PendingScheduleImport? = null,
 )
 
 /**
- * 导入进来、但还没写下去的一份课表。
- *
- * 课表一旦盖掉就找不回来了，而教务系统每学期的表都可能大改。
- * 所以先把差异摆给用户看，再由他决定是盖掉当前这份还是另存成新课表。
+ * Pending import awaits difference review before destructive replacement or separate-term
+ * saving.
  */
 data class PendingScheduleImport(
     val schedule: TermSchedule?,
-    /** 为空表示这次导入不涉及手动添加的课，保留原样。 */
     val manualCourses: List<CourseItem>?,
     val timingProfile: TermTimingProfile? = null,
     val diff: ScheduleImportDiff,
-    /** 选「新建课表」时预填的名字。 */
     val suggestedTermName: String = "",
 )
 
-/** 备注关联时参与匹配的课程集合：插件下发的课表加上手动添加的课。 */
 internal fun ScheduleUiState.noteMatchCourses(): List<CourseItem> =
     schedule.allCoursesWith(manualCourses)
 
@@ -143,13 +134,12 @@ class ScheduleViewModel(
     private val onAlarmSyncChecked: suspend () -> Unit = {},
     private val resolveTimingProfile: suspend () -> TermTimingProfile? = { null },
     private val timingProfileFlow: Flow<TermTimingProfile?> = flowOf(null),
-    /** 新建一个学期并切过去；课表与手动课都按学期分区，切完再写就落在新表里。 */
     private val createTermAndActivate: suspend (String) -> Unit = {},
     private val scheduleEventRepository: ScheduleEventRepository? = null,
     private val memoRepository: MemoRepository? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-    /** 状态提示要按当前语言渲染，这里只取应用级 Context，不持有 Activity。 */
+    /** Use application Context for locale resolution without retaining an Activity. */
     private val resources: Context = appContext.applicationContext
 
     private fun text(resId: Int): String = resources.getString(resId)
@@ -157,16 +147,15 @@ class ScheduleViewModel(
     private fun text(resId: Int, vararg formatArgs: Any): String =
         resources.getString(resId, *formatArgs)
 
-    /** 数量相关的文案走复数表：英文里 1 条和 2 条的说法不一样。 */
     private fun quantityText(resId: Int, count: Int, vararg formatArgs: Any): String =
-        // 这里的 resources 其实是 Context（沿用既有命名），取复数表要再往里拿一层
+        // The resources variable holds Context; access its resources for plurals.
         resources.resources.getQuantityString(
             resId,
             count,
             *(if (formatArgs.isEmpty()) arrayOf<Any>(count) else formatArgs),
         )
 
-    /** 闹钟下发结果的提示按当前语言渲染，逻辑层给的类型化结果优先于已渲染文本。 */
+    /** Prefer typed reminder outcomes over previously rendered messages. */
     private fun AlarmDispatchResult.displayText(): String =
         localizedMessage?.let { resources.reminderMessageText(it) } ?: message
 
@@ -204,7 +193,6 @@ class ScheduleViewModel(
                 }
             }
         }
-        // 节次时间表以存储为准：插件同步与手动编辑都汇入同一份，手动录课的用户才能拿到上课时间
         viewModelScope.launch {
             timingProfileFlow.collect { profile ->
                 _uiState.update { it.copy(timingProfile = profile) }
@@ -424,7 +412,6 @@ class ScheduleViewModel(
         }
     }
 
-    /** 写入或清空一门课的备注，[text] 去掉首尾空白后为空表示删除。 */
     fun setCourseNote(course: CourseItem, text: String) {
         val repository = courseNoteRepository ?: return
         val accepted = when (val result = validateCourseNote(text)) {
@@ -454,7 +441,6 @@ class ScheduleViewModel(
         }
     }
 
-    /** 课表整体替换后把备注锚点刷新到新的课程 id 上。 */
     private fun reconcileCourseNotes() {
         val repository = courseNoteRepository ?: return
         if (storedCourseNotes.isEmpty()) return
@@ -463,13 +449,11 @@ class ScheduleViewModel(
         viewModelScope.launch { runCatching { repository.reconcile(courses) } }
     }
 
-    /** 新建或修改一件事务；id 已存在就是修改。 */
     fun saveEvent(event: ScheduleEvent) {
         val repository = scheduleEventRepository ?: return
         viewModelScope.launch(ioDispatcher) { repository.upsert(event) }
     }
 
-    /** 新建或修改一条备忘；id 已存在就是修改。 */
     fun saveMemo(note: MemoNote) {
         val repository = memoRepository ?: return
         viewModelScope.launch(ioDispatcher) { repository.upsert(note) }
@@ -513,12 +497,8 @@ class ScheduleViewModel(
     }
 
     /**
-     * 改写课程的全部字段，手动课与插件课都走这里。
-     *
-     * 插件课改不进插件下发的那份课表，所以按原 id 另存一条手动课：
-     * 读课的地方都走 [allCoursesWith]，同 id 时手动那份盖住插件原件，
-     * 这门课从此算手动课程，下次同步也不会把改动冲掉。
-     * 节次可能一并改动，所以同样要按新节次重建单课与考试提醒规则。
+     * Save edited plugin courses as same-ID manual overrides and rebuild period-bound reminder
+     * rules.
      */
     fun updateManualCourse(course: CourseItem) {
         viewModelScope.launch {
@@ -549,7 +529,6 @@ class ScheduleViewModel(
         viewModelScope.launch {
             applyManualCourseTime(courseId, time) {
                 val changed = text(R.string.schedule_status_course_span_changed, time.startNode, time.endNode)
-                // 改后的节次区间可能不再精确对应任何一条节次时间，提醒展开会取不到时间
                 if (_uiState.value.timingProfile?.findSlot(time.startNode, time.endNode) == null) {
                     "$changed ${text(R.string.schedule_status_course_time_unresolved)}"
                 } else {
@@ -560,12 +539,8 @@ class ScheduleViewModel(
     }
 
     /**
-     * 改写课程的上课时间并落库，手动课与插件课都走这里。
-     *
-     * 插件课改不进插件下发的那份课表，所以按原 id 另存一条手动课盖住原件，
-     * 移动后它就算手动课程，下次同步不会把位置冲回去。
-     * 单课与考试提醒规则把课程当时的节次范围写进了匹配条件，节次一变就匹配不上，
-     * 提醒会静默失效，所以时间改动后要按新节次重建这两类规则。
+     * Persist moved courses as same-ID overrides; rebuild single-course and exam rules using
+     * the new periods.
      */
     private suspend fun applyManualCourseTime(
         courseId: String,
@@ -599,7 +574,6 @@ class ScheduleViewModel(
         }
     }
 
-    /** 按课程当前的节次范围重建它名下的单课与考试提醒规则。 */
     private suspend fun rebuildCourseScopedRules(course: CourseItem) {
         val affected = _uiState.value.reminderRules.filter {
             it.courseId == course.id && (it.isCourseReminderRule() || it.isExamReminderRule())
@@ -615,11 +589,8 @@ class ScheduleViewModel(
     }
 
     /**
-     * 删课，手动课与插件课都走这里。
-     *
-     * 手动课直接删记录；插件课删不掉原件——下次同步还会回来，所以按原 id 存一条
-     * 标了 hidden 的手动课把它盖住，[mergeCourseSources] 会把这条连同原件一起滤掉。
-     * 墓碑留在手动课程里，用户还能在「全部课程」里恢复。
+     * Delete manual records directly; plugin removal persists a hidden tombstone for reversible
+     * masking.
      */
     fun removeManualCourse(courseId: String) {
         viewModelScope.launch {
@@ -645,7 +616,6 @@ class ScheduleViewModel(
         }
     }
 
-    /** 撤销删除：把墓碑记录去掉，插件原件随之重新露出来。 */
     fun restoreHiddenCourse(courseId: String) {
         viewModelScope.launch {
             manualCourseRepository.removeCourse(courseId)
@@ -714,7 +684,6 @@ class ScheduleViewModel(
         }
     }
 
-
     fun clearManualCourses() {
         viewModelScope.launch {
             manualCourseRepository.replaceAll(emptyList())
@@ -763,11 +732,7 @@ class ScheduleViewModel(
         }
     }
 
-    /**
-     * 写入一份扫码 / 文件导入的课表。
-     *
-     * [asNewTermNamed] 不为空时先建一个学期再写，原来那份课表留在旧学期里不动。
-     */
+    /** Non-null [asNewTermNamed] creates a separate term before saving imported data. */
     fun applyImportedSchedule(
         schedule: TermSchedule?,
         manualCourses: List<CourseItem>,
@@ -784,12 +749,7 @@ class ScheduleViewModel(
         }
     }
 
-    /**
-     * 把一份导入结果摆到台面上等用户决定。
-     *
-     * 当前没有课表、或者新旧一模一样时不打扰，直接写下去；
-     * 只有确实有增减才弹出来问「覆盖还是新建」。
-     */
+    /** Save identical or initial imports directly; ask only when replacing changed content. */
     private suspend fun stageImportedSchedule(
         schedule: TermSchedule?,
         manualCourses: List<CourseItem>?,
@@ -818,7 +778,6 @@ class ScheduleViewModel(
         return true
     }
 
-    /** 用户选了覆盖当前课表。 */
     fun confirmPendingImportOverwrite() {
         val pending = _uiState.value.pendingImport ?: return
         viewModelScope.launch {
@@ -840,7 +799,6 @@ class ScheduleViewModel(
         }
     }
 
-    /** 用户选了另存成新课表：先建学期再写，原来那份原封不动留在旧学期里。 */
     fun confirmPendingImportAsNewTerm(termName: String) {
         val pending = _uiState.value.pendingImport ?: return
         viewModelScope.launch {
@@ -906,7 +864,6 @@ class ScheduleViewModel(
             val schedule = currentReminderSchedule()
             val timingProfile = _uiState.value.timingProfile ?: resolveTimingProfile()
             val pluginRules = reminderCoordinator.getRules().filter { it.pluginId == pluginId }
-            // 早期版本把考试提醒写成按节次名匹配的规则，会连带命中同节次的普通课，这里一并清除
             pluginRules.filter { it.isLegacyExamLabelRule() }
                 .forEach { reminderCoordinator.deleteRule(it.ruleId) }
             val exams = schedule?.dailySchedules.orEmpty()
@@ -1086,8 +1043,7 @@ class ScheduleViewModel(
 
     fun refreshReminderAlarmsNow() {
         viewModelScope.launch {
-            // 课表推导出的闹钟之外，注册表里的手动闹钟也要重建，
-            // 应用被强制停止后系统会把两者一起清掉
+            // Restore manual alarm registrations alongside schedule-derived ones after force-stop.
             runCatching { reminderCoordinator.recreateAppManagedAlarmsFromRegistry() }
             val summary = reconcileTodaySystemClockAlarms(ReminderSyncReason.ScheduleChanged)
             _uiState.update {
@@ -1361,8 +1317,7 @@ class ScheduleViewModel(
             }
         }
         return if (details.isEmpty()) {
-            // 一条提醒都没建过的人看到「暂无可立即添加的闹钟」只会莫名其妙，
-            // 只有本来就有闹钟记录时这句才有信息量
+            // Show the empty-export message only when alarm records already exist.
             if (_uiState.value.systemAlarmRecords.isEmpty()) {
                 successMessage
             } else {
@@ -1387,11 +1342,9 @@ class ScheduleViewModel(
         runCatching {
             val schema = pluginManager.loadUiSchema(pluginId)
             val timingProfile = normalizeTimingProfile(pluginManager.loadTimingProfile(pluginId))
-            // 节次时间表只认存储里那一份（见 timingProfileFlow 的收集），这里不直接写进界面状态：
-            // 用户手动改过时间表时插件的这份不会落盘，界面若先用上它，课表页显示插件的时间，
-            // 小组件、闹钟、上课通知、导出却按手动那份走，两边对不上还看不出来。
+            // Display only persisted timing-profile data so rejected plugin defaults cannot diverge from widgets and reminders.
             _uiState.update { it.copy(uiSchema = schema) }
-            // 交给存储去决定要不要采用：没手动改过就写进去，界面随存储一起更新
+            // Storage decides whether plugin timing can replace the user-managed profile.
             if (timingProfile != null) {
                 onSyncCompleted(timingProfile)
             }
@@ -1438,8 +1391,7 @@ class ScheduleViewModel(
                 var awaitingImportDecision = false
                 try {
                     syncedTimingProfile = normalizeTimingProfile(result.timingProfile)
-                    // 教务系统改过课时先把增减摆出来，让用户决定盖掉还是另存；
-                    // 没有旧表或者内容没变就照旧直接写，不多一步打扰
+                    // Review changed imports before replacement; identical and initial imports save directly.
                     awaitingImportDecision = withContext(ioDispatcher) {
                         stageImportedSchedule(
                             schedule = schedule,
@@ -1493,7 +1445,6 @@ class ScheduleViewModel(
                     it.copy(
                         isSyncing = false,
                         pendingWebSession = null,
-                        // 还在等用户选覆盖还是新建时，界面上仍应是原来那份课表
                         schedule = if (awaitingImportDecision) it.schedule else schedule,
                         uiSchema = result.uiSchema,
                         timingProfile = syncedTimingProfile ?: it.timingProfile,
@@ -1585,7 +1536,6 @@ class ScheduleViewModel(
         }
     }
 
-    /** 单课提醒：候选范围锁死到这门课，同节次的其他课不会被带上。 */
     private suspend fun createCourseReminderRule(
         state: ScheduleUiState,
         courseId: String,
@@ -1613,7 +1563,6 @@ class ScheduleViewModel(
         return rule
     }
 
-    /** 把旧版按节次名匹配的单课规则就地升级成锁定课程的规则。 */
     private suspend fun migrateLegacyCourseReminderRules() {
         val state = _uiState.value
         val timingProfile = state.timingProfile ?: return
@@ -1731,7 +1680,6 @@ internal const val COURSE_RULE_PREFIX = "课程提醒："
 
 private const val LEGACY_COURSE_RULE_PREFIX = "提醒 "
 
-/** 每门课独占一条规则，候选范围锁死到这门课自身的节次、类别和名称。 */
 internal fun courseReminderCandidateScope(course: CourseItem): FirstCourseCandidateScope =
     FirstCourseCandidateScope(
         nodeRange = ReminderNodeRange(course.time.startNode, course.time.endNode).normalized(),
@@ -1748,14 +1696,12 @@ internal fun ReminderRule.isExamReminderRule(): Boolean =
         firstCourseCandidate?.categories == listOf(CourseCategory.Exam) &&
         displayName?.startsWith(EXAM_RULE_PREFIX) == true
 
-/** 用户给某一门课单独设的提醒。 */
 internal fun ReminderRule.isCourseReminderRule(): Boolean =
     scopeType == ReminderScopeType.FirstCourseOfPeriod &&
         !courseId.isNullOrBlank() &&
         firstCourseCandidate != null &&
         displayName?.startsWith(COURSE_RULE_PREFIX) == true
 
-/** 旧版按节次名匹配的考试规则，会波及同节次的普通课。 */
 internal fun ReminderRule.isLegacyExamLabelRule(): Boolean =
     scopeType == ReminderScopeType.LabelRule && displayName?.startsWith(EXAM_RULE_PREFIX) == true
 
@@ -1845,8 +1791,7 @@ internal fun buildCourseReminderRule(
 )
 
 /**
- * 旧版单课提醒写成了按节次名匹配的规则，形状是「某节次存在 → 提醒某节次」，
- * 名称里带的却是课程名。能唯一对上一门课时返回那门课，对不上就返回 null。
+ * Infer a legacy single-course rule only when its title and timing uniquely identify a course.
  */
 internal fun ReminderRule.legacyCourseReminderTarget(
     courses: List<CourseItem>,
@@ -1863,7 +1808,6 @@ internal fun ReminderRule.legacyCourseReminderTarget(
         ?.trim()
         ?.takeIf { it.isNotBlank() }
         ?: return null
-    // 名称与节次名一致的是按节次创建的规则，本来就该按节次匹配
     if (title == action.slotLabel) return null
     val matches = courses.filter { course ->
         course.title == title &&
@@ -1893,10 +1837,10 @@ internal fun planLegacyCourseReminderMigration(
     ).copy(enabled = rule.enabled)
 }
 
-/** 提醒创建失败时最多列出几个课程标题。 */
+/** Maximum titles in failed-reminder summaries. */
 private const val REMINDER_TITLE_PREVIEW_LIMIT = 3
 
-/** 没能建成提醒的课程，[titles] 最多保留 3 个，[totalCount] 是全部数量。 */
+/** [titles] contains at most three failures; [totalCount] includes all failures. */
 internal data class ReminderTitlePreview(
     val titles: List<String>,
     val totalCount: Int,
@@ -1916,19 +1860,15 @@ private fun Context.reminderTitlePreviewText(preview: ReminderTitlePreview, over
     }
 }
 
-/** 批量创建课程提醒的结果。 */
 internal sealed interface BulkReminderStatus {
-    /** 选中的课程全部建好了提醒。 */
     data class AllCreated(val successCount: Int) : BulkReminderStatus
 
-    /** 一部分建好了，另一部分因为节次问题没建成。 */
     data class PartiallyCreated(
         val successCount: Int,
         val failed: ReminderTitlePreview,
         val hasTimingProfile: Boolean,
     ) : BulkReminderStatus
 
-    /** 一门都没建成。 */
     data class NoneCreated(
         val failed: ReminderTitlePreview,
         val hasTimingProfile: Boolean,
@@ -1983,24 +1923,18 @@ internal fun Context.bulkReminderStatusText(status: BulkReminderStatus): String 
     )
 }
 
-/** 开关考试提醒后的结果。 */
 internal sealed interface ExamReminderStatus {
-    /** 提醒被关掉了。 */
     data object Disabled : ExamReminderStatus
 
-    /** 提醒已开启，但课表里没有考试。 */
     data object NoExams : ExamReminderStatus
 
-    /** 所有考试都建好了提醒。 */
     data class AllCovered(val coveredCount: Int) : ExamReminderStatus
 
-    /** 一部分考试建好了提醒，另一部分节次不在时间表内。 */
     data class PartiallyCovered(
         val coveredCount: Int,
         val skipped: ReminderTitlePreview,
     ) : ExamReminderStatus
 
-    /** 一场都没建成。 */
     data class NoneCovered(val skipped: ReminderTitlePreview) : ExamReminderStatus
 }
 

@@ -37,7 +37,6 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.util.concurrent.TimeUnit
 
-/** 假期前一晚说明闹钟将自动跳过；用户关闭自动跳过时保留手动静音建议。 */
 class HolidayEveNoticeWorker(
     context: Context,
     params: WorkerParameters,
@@ -53,7 +52,7 @@ class HolidayEveNoticeWorker(
         private val NOTICE_TIME: LocalTime = LocalTime.of(20, 0)
         private val noticeLock = Mutex()
 
-        /** Worker 与应用回前台共用，晚间补发；同一日期只说明一次。 */
+        /** Worker and foreground catch-up share per-date deduplication. */
         suspend fun checkTonight(context: Context) = noticeLock.withLock {
             val now = BeijingTime.nowDateTime()
             if (now.toLocalTime().isBefore(NOTICE_TIME)) return@withLock
@@ -109,7 +108,7 @@ private const val NOTIFICATION_ID = 0x48454E
 internal const val EXTRA_MUTE_DATE = "mute_date"
 
 private fun Context.postHolidayEveNotice(notice: HolidayEveNotice.SuggestMute): Boolean {
-    // 用户没给通知权限时不必构造通知
+    // Skip construction when notification permission is unavailable.
     if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) return false
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -165,15 +164,13 @@ private fun Context.createHolidayEveChannel() {
     }
 }
 
-/** 通知上「关掉明天的提醒」的落点。 */
 class HolidayEveMuteReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val date = intent.getStringExtra(EXTRA_MUTE_DATE) ?: return
         val appContext = context.applicationContext
         NotificationManagerCompat.from(context).cancel(NOTIFICATION_ID)
         val pending = goAsync()
-        // 静音写入 + 重排闹钟涉及 bootstrap join、DataStore 与整轮闹钟同步，放到 IO 线程，
-        // 不在广播主线程 runBlocking 干等（否则 onReceive 直到重活跑完才返回，会 ANR）
+        // Use asynchronous IO for muting and rescheduling; blocking onReceive risks ANR.
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
                 DataStoreUserPreferencesRepository(appContext)

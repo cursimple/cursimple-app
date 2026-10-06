@@ -32,7 +32,6 @@ internal data class TodayOverviewState(
     val remaining: Int,
     val total: Int,
     val holiday: Boolean,
-    /** 认得出是哪个法定假日时的名称资源，用来挑那个节的问候。 */
     val holidayNameRes: Int? = null,
     val tomorrowHoliday: Boolean = false,
     val currentProgress: Float = 0f,
@@ -65,7 +64,6 @@ internal fun buildTodayOverview(
         (passedSeconds.toFloat() / totalSeconds).coerceIn(0f, 1f)
     } ?: 0f
     val conflicts = buildList {
-        // 已经应用当天的周次/调课规则，不再用原始星期与周次交集过滤移入课程。
         for (i in coursesToday.indices) for (j in i + 1 until coursesToday.size) {
             val a = coursesToday[i]
             val b = coursesToday[j]
@@ -113,9 +111,7 @@ internal fun occurrenceInfo(occurrence: ScheduledCourseOccurrence, display: Sche
     occurrence.course.teacher.takeIf { display.teacherVisible && it.isNotBlank() },
 ).joinToString(" · ")
 
-/**
- * 没课、放假或课都上完时卡片上的那句话；还有课、或者还不知道今天第几周（没导课）时不说。
- */
+/** Empty-state messages require known day state and no active or upcoming classes. */
 @Composable
 internal fun todayMoodLine(state: TodayOverviewState): String? {
     if (!state.weekKnown) return null

@@ -7,7 +7,6 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -163,7 +162,6 @@ fun ImportExportScreen(
             ?: 1
         mutableIntStateOf(current)
     }
-    // 默认给全部周：一张图涵盖整学期，用户不用先猜自己要发的是第几周
     var imageAllWeeks by rememberSaveable { mutableStateOf(true) }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
@@ -851,7 +849,6 @@ fun ImportExportScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    // 导入别人的课表多半不是要替掉自己这份，默认另存一份更稳妥
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Switch(
                             checked = asNewTerm,
@@ -1369,7 +1366,6 @@ private fun ScheduleImagePanel(
                     label = { Text(stringResource(R.string.ie_image_scope_single_week)) },
                 )
             }
-            // 单周才需要挑周次；全部周已经把整学期都画进去了
             if (!allWeeks) {
                 Spacer(Modifier.height(12.dp))
                 Row(
@@ -1478,7 +1474,6 @@ private fun Panel(
     }
 }
 
-// 分享负载里的开学日期为 ISO yyyy-MM-dd，缺失或格式非法时返回 null
 internal fun parseImportedTermStartDate(iso: String?): LocalDate? {
     val trimmed = iso?.trim().orEmpty()
     if (trimmed.isEmpty()) return null
@@ -1489,8 +1484,7 @@ private fun decodeQrFromUri(
     context: android.content.Context,
     uri: Uri,
 ): Result<ScheduleSharePayload> = runCatching {
-    // 相册里的二维码多是几千万像素的照片，整张解出来再配一份同尺寸 IntArray 会在低内存机上 OOM；
-    // 降采样到 2048 长边对二维码识别足够，用完立即回收
+    // Downsample gallery QR images to a 2048-pixel long edge to limit decoding memory.
     val bitmap = com.x500x.cursimple.app.util.decodeSampledBitmap(context, uri, QR_IMPORT_MAX_EDGE_PX)
         ?: error(context.getString(R.string.ie_image_format_unsupported))
     try {
@@ -1513,7 +1507,6 @@ private fun createAiCameraUri(context: android.content.Context): Uri {
     )
 }
 
-/** 分享码解不开时按当前语言给提示；不是已知原因就退回通用文案。 */
 private fun android.content.Context.shareDecodeMessage(error: Throwable): String = when {
     error is ScheduleShareDecodeException -> getString(
         when (error.reason) {

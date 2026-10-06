@@ -449,7 +449,7 @@ fun PluginWebSessionScreen(
     }
 
     val urlLowerForOverlay = currentUrl.value.lowercase()
-    // 「/eams」不带尾斜杠：新版教务是 /eams5-student/ 这类路径，带斜杠就匹配不上，整段抓取都没有转圈
+    // Match the /eams prefix without a trailing slash to include versioned portal paths.
     val onScrapeablePage = urlLowerForOverlay.contains("/eams") &&
         !urlLowerForOverlay.contains("login")
     val browsingForCapture = onScrapeablePage &&
@@ -458,8 +458,7 @@ fun PluginWebSessionScreen(
         blockedUrl.value == null &&
         consoleError.value == null &&
         (tickNow.value - pageReadyAtMs.value) >= 300L
-    // 登录之后到课表写完这一整段都要有转圈：打包、写入、等页面稳定这几步以前把遮罩撤了，
-    // 只剩一行小字，看上去像卡住了；交给插件解析时整个会话还开着，也一直转着
+    // Keep progress visible through capture, parsing and timetable persistence.
     val uploading = uploadStage.value != null || isFinishing.value
     val waitingStable = pendingCompletion.value?.requiresUserConfirmation == false
     val rawShowWorkingOverlay = uploading || waitingStable || browsingForCapture
@@ -1001,7 +1000,7 @@ private fun WebView.configurePluginWebView(
     onPageNavigation: () -> Unit,
 ) {
     applyPluginBrowserSettings(pluginUserAgent.value)
-    // 老站兼容：白名单域名上补回 document.domain 与被代理剥掉的 jQuery，详见 LegacySiteCompat
+    // Apply allowlisted legacy compatibility; see LegacySiteCompat.
     val legacySiteCompat = LegacySiteCompat(
         context = context.applicationContext,
         allowedHosts = request.allowedHosts,
@@ -1153,8 +1152,7 @@ private fun WebView.configurePluginWebView(
                 return legacySiteCompat.interceptDocument(webRequest)
                     ?: super.shouldInterceptRequest(view, webRequest)
             }
-            // 插件声明的抓包优先；没命中时 iframe 里的页面导航同样要补 Origin-Agent-Cluster，
-            // aTrust 的握手恰恰发生在壳页和网关 iframe 之间
+            // Declared capture rules take priority; iframe navigation still needs the cluster header fallback.
             return networkPacketStore.capture(webRequest)
                 ?: legacySiteCompat.interceptDocument(webRequest)
                 ?: super.shouldInterceptRequest(view, webRequest)
@@ -1227,7 +1225,6 @@ private fun WebView.configurePluginWebView(
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
-            // 记住密码对弹窗里的登录页同样生效，放在前台判断之前
             view?.let { loginAssist.onPageFinished(it, url) }
             if (!isForegroundWebView(view)) {
                 return
@@ -1288,10 +1285,7 @@ private fun WebView.applyPluginBrowserSettings(userAgent: String) {
 
 internal fun pluginMixedContentMode(): Int = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
-/**
- * 服务器没给出原因短语时按状态码补一个。
- * [WebResourceResponse] 要求该字段非空，但不能一律填 OK，那会让 5xx 看起来像成功。
- */
+/** Provide a nonempty reason phrase matching the status, never blanket OK. */
 internal fun httpReasonPhrase(statusCode: Int): String = when (statusCode) {
     200 -> "OK"
     201 -> "Created"
@@ -1553,7 +1547,7 @@ private fun emptyWebSessionPacket(
         cookies = emptyMap(),
         localStorageSnapshot = emptyMap(),
         sessionStorageSnapshot = emptyMap(),
-        // 抓取失败时留空摘要：sha256("") 是一个合法的哈希值，会被当成确实抓到了空页面
+        // Leave failed capture digests absent; hashing empty text falsely confirms an empty page.
         htmlDigest = "",
         capturedFields = captureSelectorsForRequest(request).associateWith { "" },
         capturedPackets = emptyMap(),
@@ -1599,7 +1593,7 @@ class WebNetworkPacketStore(
             val mimeType = response.contentType?.substringBefore(";")?.trim().orEmpty()
             val encoding = response.contentEncoding ?: "utf-8"
             val stream = if (statusCode >= 400) response.errorStream else response.inputStream
-            // 读流失败时返回 null 放弃这次拦截：记成空 body 会让插件把“没读到”当成“服务器返回了空”
+            // Return null after read failure rather than recording an empty response.
             val rawBody: ByteArray? = if (stream == null) {
                 ByteArray(0)
             } else {

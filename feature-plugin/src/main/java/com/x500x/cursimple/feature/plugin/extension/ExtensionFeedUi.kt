@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -46,7 +45,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 @Composable
 internal fun FeedOverview(items: List<ExtensionFeedItem>, today: LocalDate, zone: ZoneId) {
@@ -68,7 +66,6 @@ internal fun FeedOverview(items: List<ExtensionFeedItem>, today: LocalDate, zone
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                // 复用宿主的公告分类，不在 UI 内匹配业务 type id。
                 FeedStat(count = counts.third, label = stringResource(R.string.extension_feed_stat_notices), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
             }
         }
@@ -170,39 +167,6 @@ internal fun feedStatusRes(item: ExtensionFeedItem): Int = when {
     item.isNotice() -> R.string.extension_item_unread
     item.done -> R.string.extension_item_done
     else -> R.string.extension_item_pending
-}
-
-@Composable
-internal fun FeedWeekCard(item: ExtensionFeedItem, now: Long, palette: FeedPalette, onClick: () -> Unit, displayAt: Long? = item.anchorAt) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = feedCardBorder(item, now),
-    ) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            FeedTypeBadge(item, palette)
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = if (item.done) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.course.isNotBlank()) {
-                Text(item.course, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            displayAt?.let {
-                val locale = LocalConfiguration.current.locales[0]
-                val time = Instant.ofEpochMilli(it).atZone(BeijingTime.zone)
-                    .format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).withLocale(locale))
-                Text(time, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            FeedStatus(item, now)
-        }
-    }
 }
 
 @Composable

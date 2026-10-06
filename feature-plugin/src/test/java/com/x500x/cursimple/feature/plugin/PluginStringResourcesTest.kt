@@ -43,14 +43,12 @@ class PluginStringResourcesTest {
         }
     }
 
-    /** 单元测试的工作目录可能是模块目录，也可能是仓库根目录。 */
     private fun resourceFile(relativePath: String): File {
         val inModule = File(relativePath)
         if (inModule.isFile) return inModule
         return File("feature-plugin/$relativePath")
     }
 
-    /** 取出 %s、%1$d、%% 这类格式符，按出现顺序比较。 */
     private fun placeholders(text: String): List<String> =
         PLACEHOLDER.findAll(text).map { it.value }.toList()
 

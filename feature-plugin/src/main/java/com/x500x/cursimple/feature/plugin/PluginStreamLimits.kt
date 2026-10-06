@@ -8,19 +8,17 @@ internal const val STREAM_READ_BUFFER_BYTES = 8 * 1024
 
 internal const val BYTES_PER_MEGABYTE = 1024L * 1024L
 
-/** 本地导入的插件包/组件包上限。 */
+/** Maximum local plugin or component package size. */
 internal const val MAX_LOCAL_PACKAGE_BYTES = 64L * 1024L * 1024L
 
-/** 抓包拦截器允许转交给 WebView 的响应体上限。 */
+/** Maximum intercepted body forwarded to WebView. */
 internal const val MAX_INTERCEPTED_BODY_BYTES = 4 * 1024 * 1024
 
 internal const val NETWORK_CAPTURE_CONNECT_TIMEOUT_MS = 15_000
 
 internal const val NETWORK_CAPTURE_READ_TIMEOUT_MS = 20_000
 
-/**
- * 最多读取 [limit] 字节。流中数据超过上限时立即停止并返回 null。
- */
+/** Read at most [limit] bytes; null if exceeded. */
 internal fun InputStream.readAtMostBytes(limit: Long): ByteArray? {
     if (limit < 0L) {
         return null
@@ -46,12 +44,10 @@ internal fun InputStream.readAtMostBytes(limit: Long): ByteArray? {
     return output.toByteArray()
 }
 
-/** 安装包超过 [limitBytes] 字节的上限。 */
+/** Package exceeds [limitBytes]. */
 internal class PluginPackageTooLargeException(val limitBytes: Long) : IllegalArgumentException()
 
-/**
- * 读取本地选中的安装包，超过 [limit] 时中止并抛出，避免整包进内存。
- */
+/** Abort local package reading above [limit] before allocating the whole file. */
 internal fun InputStream.readLocalPackageBytes(limit: Long = MAX_LOCAL_PACKAGE_BYTES): ByteArray {
     return readAtMostBytes(limit) ?: throw PluginPackageTooLargeException(limit)
 }

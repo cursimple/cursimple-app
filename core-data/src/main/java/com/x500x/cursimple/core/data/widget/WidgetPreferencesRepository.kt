@@ -10,15 +10,12 @@ enum class WidgetBackgroundMode { Theme, Image }
 
 data class WidgetThemePreferences(
     val themeAccent: ThemeAccent = ThemeAccent.Green,
-    /** 主题色为 [ThemeAccent.Custom] 时的颜色；跟随应用时是应用那一份自选色。 */
+    /** Custom widget accent, inherited from the app when following its theme. */
     val customColorArgb: Int = com.x500x.cursimple.core.data.theme.AccentColors.DEFAULT_CUSTOM_ARGB,
     val backgroundMode: WidgetBackgroundMode = WidgetBackgroundMode.Theme,
     val backgroundImageUri: String? = null,
-    /** 点小组件进应用；默认开着，不然新加的小组件点上去没反应，会以为是坏的。 */
     val openAppOnDoubleClickEnabled: Boolean = true,
-    /** 没单独给小组件挑过主题色时跟着应用主题走，应用换色小组件底色一起换。 */
     val followsAppThemeAccent: Boolean = true,
-    /** 背景图透明度，0 为不透明；与课表背景那一套同义。 */
     val backgroundImageTransparencyPercent: Int = DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
 ) {
     companion object {
@@ -28,10 +25,7 @@ data class WidgetThemePreferences(
     }
 }
 
-/**
- * 小组件实际使用的主题色：跟随应用时用 [appThemeAccent]（自选色时连同 [appCustomColorArgb]），
- * 单独挑过就用挑定的那个。
- */
+/** Resolve independent widget accents or inherit [appThemeAccent] and [appCustomColorArgb]. */
 fun WidgetThemePreferences.resolveAccent(
     appThemeAccent: ThemeAccent,
     appCustomColorArgb: Int = customColorArgb,
@@ -41,7 +35,6 @@ fun WidgetThemePreferences.resolveAccent(
 interface WidgetPreferencesRepository {
     val widgetDayOffsetFlow: Flow<Int>
 
-    /** 选中那一套作息补上开学日期后的形态；一套都没有时为 null。 */
     val timingProfileFlow: Flow<TermTimingProfile?>
 
     val timingProfileLibraryFlow: Flow<TimingProfileLibrary>
@@ -57,11 +50,8 @@ interface WidgetPreferencesRepository {
     suspend fun widgetDayOffset(appWidgetId: Int): Int
 
     /**
-     * 手动翻页后的实际偏移。
-     *
-     * 偏移是「按下那天」往前往后数的天数，[todayIso] 与记下的锚点不同就说明已经跨过零点，
-     * 这时偏移作废按 0 返回，日期不会自己再往后顺延一天。
-     * [appWidgetId] 传 0 表示所有实例共用的那一份偏移。
+     * Day offsets are anchored to [todayIso] and expire after midnight; [appWidgetId] zero
+     * shares the offset across instances.
      */
     suspend fun effectiveWidgetDayOffset(appWidgetId: Int, todayIso: String): Int
 
@@ -77,25 +67,22 @@ interface WidgetPreferencesRepository {
 
     suspend fun clearManualTimingProfileFlag()
 
-    /** 新建一套作息并选中它，返回新建项的 id。 */
     suspend fun createTimingProfile(name: String, slotTimes: List<ClassSlotTime>): String
 
-    /** 复制一套作息，副本不自动选中；源不存在时返回 null。 */
     suspend fun duplicateTimingProfile(id: String, name: String): String?
 
     suspend fun renameTimingProfile(id: String, name: String)
 
-    /** 删除一套作息；只剩一套时不做任何事。 */
+    /** Keep at least one timing profile. */
     suspend fun deleteTimingProfile(id: String)
 
     suspend fun activateTimingProfile(id: String)
 
     suspend fun setWidgetThemeAccent(accent: ThemeAccent)
 
-    /** 小组件单独用一个自选色。 */
     suspend fun setWidgetThemeCustomColor(argb: Int)
 
-    /** 取消单独指定的小组件主题色，重新跟随应用主题。 */
+    /** Clear the independent widget accent to follow the app theme. */
     suspend fun followAppThemeAccent()
 
     suspend fun setWidgetBackgroundImageUri(uri: String)

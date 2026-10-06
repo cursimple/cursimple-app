@@ -248,7 +248,6 @@
     <string name="plugin_permission_storage_plugin">使用插件本地存储</string>
     <string name="plugin_permission_component_use">调用已安装组件</string>
     <string name="plugin_permission_feed_write">交出作业、公告等条目，由课简发通知、显示在日历里</string>
-    <!-- 从教务系统导课的引导页 -->
     <string name="school_import_title">从教务系统导课</string>
     <string name="school_import_busy_default">正在处理…</string>
     <string name="school_import_back">返回</string>
@@ -478,7 +477,6 @@
     <string name="extension_feed_media_title">图片与附件</string>
     <string name="extension_item_historical">往期公告</string>
 
-    <!-- 插件与组件共用目录 -->
     <string name="plugin_catalog_installed">已安装</string>
     <string name="plugin_catalog_market">市场</string>
     <string name="plugin_catalog_search_label">搜索插件</string>
@@ -512,7 +510,6 @@
     <string name="plugin_catalog_source_account_expired">GitHub 登录已失效，请重新登录后刷新。</string>
     <string name="plugin_catalog_source_no_release">仓库暂时没有可安装的发布版本。</string>
 
-    <!-- 详情与安装摘要 -->
     <string name="extension_detail_title">组件详情</string>
     <string name="plugin_detail_intro">简介</string>
     <string name="plugin_detail_no_description">暂无简介</string>
@@ -528,4 +525,44 @@
     <string name="plugin_download_bytes">已下载 %1$s</string>
     <string name="plugin_download_percent">%1$d%%</string>
     <string name="plugin_download_cancel">取消下载</string>
+    <string name="extension_mark_read">已读</string>
+    <string name="extension_read_confirm_title">标记为已读？</string>
+    <string name="extension_read_confirm_body">将向官方同步已读状态，成功后不再提醒此公告。</string>
+    <string name="extension_read_success">已读，已同步到官方</string>
+    <string name="extension_item_updated">状态已更新</string>
+    <string name="extension_ignore_item">忽略</string>
+    <string name="extension_restore_item">恢复</string>
+    <string name="extension_ignored_hint">已忽略，不会出现在待完成小组件和提醒中。可随时恢复。</string>
+    <string name="extension_show_active">返回内容</string>
+    <string name="extension_show_ignored">已忽略 %1$d</string>
+    <string name="extension_ignore_overdue">自动忽略逾期任务</string>
+    <string name="extension_ignore_overdue_desc">默认关闭。开启后收起逾期任务并停止提醒，可在已忽略列表恢复单条任务。</string>
+    <string name="plugin_permission_notification_receive">读取课简通知并推送到你绑定的目标</string>
+    <string name="plugin_permission_secure_storage">加密保存组件绑定和密钥，配置不进入备份</string>
+    <string name="plugin_permission_network_proxy">通过宿主向已绑定目标发送 HTTPS 请求或 TLS 邮件</string>
+    <string name="plugin_update_settings_title">插件与组件更新设置</string>
+    <string name="plugin_auto_check_title">自动检查更新</string>
+    <string name="plugin_auto_check_description">打开应用后在后台检查已安装插件与组件，按设定间隔复查。</string>
+    <string name="plugin_update_badge_title">新版红点提醒</string>
+    <string name="plugin_update_badge_description">发现新版后，在侧边栏和对应分类显示红点，更新后自动消失。</string>
+    <string name="plugin_update_interval_title">自动检查间隔</string>
+    <string name="plugin_update_interval_hours">%1$d 小时</string>
+    <string name="plugin_update_available_badge">有可用更新</string>
+    <string name="plugin_update_check_progress">正在检查 %1$d / %2$d</string>
+    <string name="plugin_update_check_unconfirmed">发现 %1$d 项更新，%2$d 项暂未取得版本信息</string>
+    <string name="plugin_update_check_result">发现 %1$d 项可用更新</string>
+    <string name="plugin_update_check_not_yet">尚未检查已安装项目</string>
+    <string name="plugin_update_check_last">上次完整检查：%1$s</string>
+    <string name="plugin_update_check_now">立即检查插件与组件</string>
+    <string name="plugin_update_check_busy">正在检查…</string>
+    <string name="plugin_update_check_local_hint">本地导入且没有来源仓库的项目，需要手动导入新版安装包。</string>
+    <string name="plugin_detail_section_install">安装信息</string>
+    <string name="plugin_detail_field_installed_at">安装时间</string>
+    <string name="plugin_detail_field_package_size">程序包大小</string>
+    <string name="plugin_detail_field_data_size">数据占用</string>
+    <string name="plugin_detail_field_total_size">总占用</string>
+    <string name="plugin_detail_size_measuring">计算中…</string>
+    <string name="plugin_detail_data_size_hint">数据是组件同步下来的内容和保留的附件，移除组件时会一并清除。</string>
+    <string name="plugin_market_status_checking_install">正在检查「%1$s」的最新版本…</string>
+    <string name="plugin_repo_action_checking">检查中…</string>
 </resources>

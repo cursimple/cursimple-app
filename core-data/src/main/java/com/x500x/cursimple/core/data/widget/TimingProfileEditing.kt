@@ -12,30 +12,25 @@ import com.x500x.cursimple.core.kernel.model.slotsCovering
 import java.time.LocalTime
 import java.util.Locale
 
-/** 节次编号允许的范围，与课程录入保持一致。 */
+/** Period-number bounds shared with course entry. */
 const val MIN_SLOT_NODE = 1
 const val MAX_SLOT_NODE = 32
 
-/** 编辑界面里一行的原始输入，节次和时间都以字符串保存，便于用户逐字修改。 */
 data class SlotDraftInput(
     val startNode: String,
     val endNode: String,
     val startTime: String,
     val endTime: String,
     val label: String,
-    /** 内置模板填的标签标识，用户改写标签后置空。 */
     val labelKey: String? = null,
-    /** 载入编辑器时按当前语言渲染出的标签，用于判断用户有没有改过它。 */
     val shownLabel: String = label,
     /**
-     * 保存时写回的标签原文。
-     * 标签是按标签匹配的提醒规则所用的键，用户没改写时必须原样保留，
-     * 否则换一种语言保存会让已存规则失配。
+     * Preserve unedited label text because reminder rules use it as a stable key across locale
+     * changes.
      */
     val storedLabel: String = label,
 )
 
-/** 校验不通过的原因，带上定位所需的行号与节次。 */
 sealed interface TimingDraftError {
     data object EmptyDraft : TimingDraftError
     data class NodeNotNumber(val row: Int) : TimingDraftError
@@ -72,7 +67,7 @@ fun Context.timingDraftErrorText(error: TimingDraftError): String = when (error)
     )
 }
 
-/** 校验并归一化后的结果。errors 非空时 slots 为空，表示不能保存。 */
+/** Validation errors leave slots empty and prohibit saving. */
 data class TimingDraftResult(
     val slots: List<ClassSlotTime>,
     val errors: List<TimingDraftError>,
@@ -80,7 +75,6 @@ data class TimingDraftResult(
     val isValid: Boolean get() = errors.isEmpty()
 }
 
-/** 模板里的一个节次。标签取自资源，labelArg 非空时作为占位符实参。 */
 data class TimingTemplateSlot(
     val startNode: Int,
     val endNode: Int,
@@ -91,7 +85,7 @@ data class TimingTemplateSlot(
     val labelKey: String? = null,
 )
 
-/** 常用作息模板。时间仅为示例，需用户按本校作息改动。 */
+/** Sample timing templates require local timetable adjustment. */
 data class TimingTemplate(
     val id: String,
     val nameRes: Int,
@@ -112,7 +106,6 @@ fun TimingTemplate.slotTimes(context: Context): List<ClassSlotTime> = slots.map 
     )
 }
 
-/** 模板标签标识对应的文案资源；不是内置模板填的标识时返回 null。 */
 fun classSlotLabelRes(labelKey: String?): Int? = when (labelKey) {
     SLOT_LABEL_KEY_BLOCK_1 -> R.string.data_timing_slot_label_block_1
     SLOT_LABEL_KEY_BLOCK_2 -> R.string.data_timing_slot_label_block_2
@@ -125,24 +118,18 @@ fun classSlotLabelRes(labelKey: String?): Int? = when (labelKey) {
     else -> null
 }
 
-/** 序号对应的大节标识；超出内置文案范围时返回 null。 */
 fun blockLabelKeyOfIndex(index: Int): String? =
     "block_$index".takeIf { classSlotLabelRes(it) != null }
 
-/** 节次是内置大节模板的第几大节；不是大节则返回 null。 */
 fun Context.slotBlockIndex(slot: ClassSlotTime): Int? {
     val key = slot.labelKey ?: inferSlotLabelKey(slot.label) ?: return null
     return key.removePrefix("block_").toIntOrNull()?.takeIf { blockLabelKeyOfIndex(it) == key }
 }
 
-/** 按序号生成的大节名；超出内置文案范围时返回 null。 */
 fun Context.classSlotLabelOfBlock(index: Int): String? =
     blockLabelKeyOfIndex(index)?.let { classSlotLabelRes(it) }?.let(::getString)
 
-/**
- * 内置模板标签在各语言下的原文到标识的映射。
- * 文本是内置常量，构建一次即可复用；这里不能改动进程默认区域，所以直接取各语言的资源。
- */
+/** Cache built-in label mappings from each locale without changing the process locale. */
 @Volatile
 private var blockLabelKeysByText: Map<String, String>? = null
 
@@ -163,22 +150,14 @@ private fun Context.localizedContext(locale: Locale): Context {
     return createConfigurationContext(configuration)
 }
 
-/**
- * 旧数据没有标识，按内置模板的原文反推。
- * 标签是在写入时的语言下存下的，与当前语言未必一致，所以要比对所有语言的原文；
- * 反推不到就当作用户自己写的名字。
- */
+/** Infer legacy label IDs against every translation; unmatched text remains user-defined. */
 private fun Context.inferSlotLabelKey(label: String): String? {
     val trimmed = label.trim()
     if (trimmed.isBlank()) return null
     return runCatching { blockLabelKeysByText()[trimmed] }.getOrNull()
 }
 
-/**
- * 节次在界面上显示的名字。
- * 内置模板填的标识按当前语言渲染，用户自己写的名字原样显示，
- * 都没有时按序号生成。
- */
+/** Localize built-in IDs, preserve custom labels and generate missing labels by index. */
 fun Context.classSlotLabelText(slot: ClassSlotTime, fallbackIndex: Int): String = when {
     slot.labelKey == SLOT_LABEL_KEY_PERIOD ->
         getString(R.string.data_timing_slot_label_period, slot.startNode)
@@ -189,22 +168,18 @@ fun Context.classSlotLabelText(slot: ClassSlotTime, fallbackIndex: Int): String 
 }
 
 /**
- * 一门课所在节次的名字，如「第一节」「午间课」。
- *
- * 小组件、通知里给人看的是这个名字，「1-1」这种节号只作补充。
- * 只在课程落在同一个时段里时才有名字：跨了几个时段的课（如 3-4 节横跨第二、三节）
- * 拼出「第二节–第三节」反而难读，直接看节号更清楚；作息表里找不到对应时段时同样返回 null。
+ * Return a label only when the course occupies one timing slot; multi-slot and missing matches
+ * return null.
  */
 fun Context.courseSlotLabelText(profile: TermTimingProfile?, startNode: Int, endNode: Int): String? =
     slotLabelText(profile?.slotsCovering(startNode, endNode).orEmpty())
 
-/** 同 [courseSlotLabelText]，直接给出已经算好的时段（带作息表里的序号）。 */
+/** [courseSlotLabelText] with already-resolved indexed slots. */
 fun Context.slotLabelText(covering: List<IndexedValue<ClassSlotTime>>): String? {
     val (index, slot) = covering.singleOrNull() ?: return null
     return classSlotLabelText(slot, index + 1).trim().takeIf { it.isNotBlank() }
 }
 
-/** 按序号生成的节次名，没有任何标签信息时使用。 */
 fun Context.classSlotLabelOfIndex(index: Int): String =
     getString(R.string.data_timing_slot_label_period, index)
 
@@ -229,12 +204,7 @@ private val BLOCK_LABEL_KEYS = listOf(
     SLOT_LABEL_KEY_BLOCK_8,
 )
 
-/**
- * 把用户输入的 "8:0" 之类补齐成 "08:00"，无法解析成合法时刻时返回 null。
- *
- * 中文输入法下打出来的多半是全角冒号「：」甚至全角数字，肉眼和半角几乎没区别，
- * 直接判格式错会让人对着看起来没问题的输入反复重填——所以先统一成半角再解析。
- */
+/** Normalize full-width input and pad valid times; return null when parsing fails. */
 fun normalizeTimeOrNull(raw: String): String? {
     val text = raw.trim().halfWidthDigitsAndColon()
     if (text.isEmpty()) return null
@@ -248,18 +218,15 @@ fun normalizeTimeOrNull(raw: String): String? {
     }.getOrNull()
 }
 
-/** 全角数字与全角/中文冒号统一成半角，其余字符原样保留。 */
 private fun String.halfWidthDigitsAndColon(): String = map { ch ->
     when (ch) {
-        // 全角冒号、中文冒号
         '\uFF1A', '\u2236' -> ':'
-        // 全角数字 ０-９
         in '\uFF10'..'\uFF19' -> ch - 0xFEE0
         else -> ch
     }
 }.joinToString("")
 
-/** 把编辑行解析并校验成节次时间表。校验失败时逐条返回问题。 */
+/** Parse and normalize timing rows, returning per-row validation errors. */
 fun buildTimingSlots(drafts: List<SlotDraftInput>): TimingDraftResult {
     if (drafts.isEmpty()) {
         return TimingDraftResult(emptyList(), listOf(TimingDraftError.EmptyDraft))
@@ -329,7 +296,6 @@ fun buildTimingSlots(drafts: List<SlotDraftInput>): TimingDraftResult {
     }
 }
 
-/** 内置作息模板。名称点明制式，摘要说明这是示例、需按本校作息调整。 */
 fun timingTemplates(): List<TimingTemplate> = listOf(
     TimingTemplate(
         id = "single_11",
@@ -389,7 +355,6 @@ private fun periodSlot(node: Int, startTime: String, endTime: String): TimingTem
         labelKey = SLOT_LABEL_KEY_PERIOD,
     )
 
-/** 编辑界面回填模板时，把模型转换成可继续修改的输入行。 */
 fun ClassSlotTime.toDraftInput(): SlotDraftInput = SlotDraftInput(
     startNode = startNode.toString(),
     endNode = endNode.toString(),
@@ -401,7 +366,6 @@ fun ClassSlotTime.toDraftInput(): SlotDraftInput = SlotDraftInput(
     storedLabel = label,
 )
 
-/** 载入编辑器时按当前语言显示标签，同时记住原文与标识。 */
 fun ClassSlotTime.toDraftInput(context: Context, fallbackIndex: Int): SlotDraftInput {
     val shown = context.classSlotLabelText(this, fallbackIndex)
     return SlotDraftInput(
@@ -416,7 +380,6 @@ fun ClassSlotTime.toDraftInput(context: Context, fallbackIndex: Int): SlotDraftI
     )
 }
 
-/** 用户没改动标签时沿用原文，改动过就用他写的。 */
 private fun SlotDraftInput.resolvedLabel(): String =
     if (label.trim() == shownLabel.trim()) storedLabel else label.trim()
 

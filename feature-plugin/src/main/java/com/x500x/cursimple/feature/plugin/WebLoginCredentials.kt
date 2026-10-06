@@ -20,14 +20,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 
 /**
- * 插件网页会话里的「记住密码」，替代 WebView 早已废弃的 `setSavePassword`。
- *
- * 用户在登录页提交时，注入脚本把账号密码交给 App，App 询问是否保存；下次打开同一域名的
- * 登录页时自动填好，由用户自己点登录（不代为提交，验证码、滑块之类照常由用户处理）。
- *
- * - 按「插件 + 域名」分开存，插件之间互相看不到；
- * - 密码用 Android Keystore 里不可导出的 AES-GCM 密钥加密，存储文件已排除在备份之外；
- *   换机或密钥丢失时解不开，就当作没存过。
+ * Remember credentials per plugin and host with Keystore encryption, excluded from backups.
+ * Autofill requires user submission and preserves interactive challenges.
  */
 internal data class WebLoginCredential(
     val host: String,
@@ -84,7 +78,6 @@ internal class WebLoginCredentialStore(context: Context) {
         return prefs.all.keys.any { it.startsWith(entryPrefix) || it.startsWith(neverPrefix) }
     }
 
-    /** 清掉这个插件存过的全部密码和「永不保存」标记。 */
     fun clear(pluginId: String) {
         val entryPrefix = "$ENTRY_PREFIX${pluginId}|"
         val neverPrefix = "$NEVER_PREFIX${pluginId}|"
@@ -137,7 +130,7 @@ internal class WebLoginCredentialStore(context: Context) {
     private data class StoredEntry(val username: String, val password: String)
 
     companion object {
-        /** 与 app 模块的 backup_rules / data_extraction_rules 里的排除项保持一致。 */
+        /** Keep storage names aligned with app backup exclusion rules. */
         const val PREFS_NAME = "plugin_web_credentials"
         private const val ENTRY_PREFIX = "cred|"
         private const val NEVER_PREFIX = "never|"
@@ -150,10 +143,7 @@ internal class WebLoginCredentialStore(context: Context) {
     }
 }
 
-/**
- * 把「记住密码」接到一个 WebView 上：装 JS 桥、每次页面加载完注入填充与监听脚本。
- * [onCaptured] 在主线程回调，交给界面决定要不要弹「保存密码」。
- */
+/** Install autofill and submit observation; [onCaptured] runs on the main thread. */
 internal class WebLoginAssist(
     private val pluginId: String,
     private val allowedHosts: List<String>,
@@ -173,10 +163,7 @@ internal class WebLoginAssist(
     }
 
     private inner class Bridge(private val webView: WebView) {
-        /**
-         * 登录表单提交时由注入脚本调用。桥对页面里所有脚本都可见，所以只信任
-         * 与 WebView 当前主文档同域、且在白名单里的上报。
-         */
+        /** Accept credential reports only from the current allowlisted top-level host. */
         @JavascriptInterface
         fun onLoginSubmit(host: String?, username: String?, password: String?) {
             val reportedHost = normalizeHost(host.orEmpty())
@@ -209,14 +196,8 @@ private fun hostOf(url: String?): String? =
 private fun normalizeHost(host: String): String = host.trim().trimEnd('.').lowercase(Locale.ROOT)
 
 /**
- * 登录页脚本：有存过的账号就填进空着的输入框；监听提交，把账号密码交给 [WebLoginAssist]。
- *
- * - 很多登录页（统一认证、aTrust 门户）是点按钮后由脚本调 `form.submit()` 或直接发请求，
- *   不会触发 submit 事件，所以同时监听点击「登录」类按钮、在密码框里按回车，并包一层
- *   `HTMLFormElement.prototype.submit`；
- * - 这些监听都在捕获阶段、页面自己的处理之前读值，页面随后把密码框换成加密值也不影响；
- * - 登录表单可能晚于 onPageFinished 才渲染（单页应用），用 MutationObserver 持续补填；
- * - 填值走原生 setter 再派发 input/change，Vue / React 的双向绑定才认。
+ * Observe clicks, Enter and form.submit before page encryption. MutationObserver handles
+ * delayed forms; native setters and input/change events update framework bindings.
  */
 internal fun webLoginAssistScript(host: String, saved: WebLoginCredential?): String {
     fun literal(value: String) = JsonPrimitive(value).toString().replace("<", "\\u003c")
@@ -250,7 +231,7 @@ internal fun webLoginAssistScript(host: String, saved: WebLoginCredential?): Str
               var type = (el.getAttribute("type") || "text").toLowerCase();
               return type === "text" || type === "email" || type === "tel" || type === "number";
             }
-            // 密码框之前、离它最近的可见文本框；名字像账号的优先
+            // Prefer an account-named visible field preceding the password.
             function usernameField(pwd) {
               var scope = pwd.form || document;
               var inputs = scope.querySelectorAll("input");
@@ -273,7 +254,7 @@ internal fun webLoginAssistScript(host: String, saved: WebLoginCredential?): Str
               el.dispatchEvent(new Event("input", { bubbles: true }));
               el.dispatchEvent(new Event("change", { bubbles: true }));
             }
-            // 每个密码框只填一次：用户清空了想换个账号，不要又给填回去
+            // Fill once per field; preserve user clearing or account changes.
             function fillNow() {
               if (!currentSaved) { return; }
               var pwd = passwordField();

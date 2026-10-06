@@ -3,7 +3,6 @@
 package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Autorenew
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -75,9 +75,10 @@ import com.x500x.cursimple.app.update.autoUpdateCheckDue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.repeatOnLifecycle
 import com.x500x.cursimple.app.update.UpdatePanelStatus
-import com.x500x.cursimple.app.update.shouldPromptUpdate
+import com.x500x.cursimple.app.update.releasePrefetcher
 import com.x500x.cursimple.app.update.shouldShowUpdateBadge
 import com.x500x.cursimple.app.update.updateStatusText
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
@@ -88,20 +89,9 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import com.x500x.cursimple.app.update.AppReleaseSummary
 import androidx.compose.foundation.layout.height
 
+/** Drawer update dialog shares the About page's check and download controls. */
 
-/**
- * 侧边栏「检查更新」弹的那个框。
- *
- * 只为看一眼有没有新版就被丢进设置页、还得自己退出来，太绕。
- * 这里把检查与下载整套直接摆在弹窗里，用的是「关于」页同一份实现。
- */
-
-/**
- * 版本历史。
- *
- * 列出线上发过的版本，点开看那一版的更新内容。列哪些版本跟着「接收测试版更新」走：
- * 关着的人装不到 beta，把它们列出来只会让人以为漏了更新。
- */
+/** Release history follows the user's stable or beta selection. */
 @Composable
 fun UpdateHistorySection(
     betaUpdatesEnabled: Boolean,
@@ -136,7 +126,6 @@ fun UpdateHistorySection(
             )
 
             releases.orEmpty().isEmpty() -> UpdateHistoryPlaceholder(
-                // 正式版还没发过时就是空的，说清楚而不是留一片白
                 text = stringResource(R.string.update_history_empty),
             )
 
@@ -153,13 +142,7 @@ fun UpdateHistorySection(
     }
 }
 
-/**
- * 没有内容可列时的那行字。
- *
- * 这一页除了它整屏都是空的，贴在左上角看着像渲染没完；
- * 外层是 verticalScroll 的 Column，子项拿不到视口高度，weight/fillMaxHeight 都用不上，
- * 所以给一块足够高的区域把它居中放进去。
- */
+/** Scrollable columns lack viewport height; reserve space to center the empty state. */
 @Composable
 private fun UpdateHistoryPlaceholder(
     text: String,
@@ -230,8 +213,7 @@ private fun UpdateHistoryRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 } else {
-                    // 发布说明是 Markdown，和检查更新弹窗走同一套渲染；
-                    // 这里原先直接塞进 Text，标题的 ## 和列表的 - 全裸着显示
+                    // Render release descriptions as Markdown.
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         ReleaseNotesBody(release.notes)
                     }
@@ -248,8 +230,8 @@ fun UpdateCheckDialog(
     ignoredUpdateVersionCode: Int?,
     updateNotice: UpdateNoticeState,
     onAutoCheckEnabledChange: (Boolean) -> Unit,
+    onBetaUpdatesEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
-    onMuteUpdateVersion: (Int?) -> Unit,
     onUpdateFound: (Int, String) -> Unit,
     onUpdateNoticeCleared: () -> Unit,
     onDismiss: () -> Unit,
@@ -269,11 +251,10 @@ fun UpdateCheckDialog(
                     ignoredUpdateVersionCode = ignoredUpdateVersionCode,
                     updateNotice = updateNotice,
                     onAutoCheckEnabledChange = onAutoCheckEnabledChange,
+                    onBetaUpdatesEnabledChange = onBetaUpdatesEnabledChange,
                     onIgnoreUpdateVersion = onIgnoreUpdateVersion,
-                    onMuteUpdateVersion = onMuteUpdateVersion,
                     onUpdateFound = onUpdateFound,
                     onUpdateNoticeCleared = onUpdateNoticeCleared,
-                    // 点「检查更新」打开这个框本身就是在要检查：查到了直接弹，不用再点一次「检查」
                     checkOnOpen = true,
                 )
             }
@@ -292,11 +273,11 @@ fun UpdateCheckSection(
     updateNotice: UpdateNoticeState,
     onAutoCheckEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
-    onMuteUpdateVersion: (Int?) -> Unit,
     onUpdateFound: (Int, String) -> Unit,
     onUpdateNoticeCleared: () -> Unit,
     modifier: Modifier = Modifier,
     checkOnOpen: Boolean = false,
+    onBetaUpdatesEnabledChange: ((Boolean) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -304,8 +285,9 @@ fun UpdateCheckSection(
                 downloaderLabels = context.mirrorDownloaderLabels(),
                 mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
             ) }
-    // 用 remember 而非 rememberSaveable：清除它们的协程绑定在组合上，旋转/切语言 recreate 时会被取消，
-    // 若这两个标志跨重建存活就会永远卡在「检查中/下载中」；随重建归零后按钮恢复可用，用户可重试
+    val prefetcher = remember(checker) { releasePrefetcher(context, checker) }
+    var checkJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // Keep operation flags composition-local because their coroutines are cancelled on recreation.
     var checking by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableStateOf<AppUpdateDownloadProgress?>(null) }
@@ -314,8 +296,7 @@ fun UpdateCheckSection(
     var pendingRollback by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var downloadedApk by remember { mutableStateOf<File?>(null) }
     var autoCheckedForCurrentEntry by rememberSaveable { mutableStateOf(false) }
-    // 查到过的新版本。自动检查查到时不弹窗，只在这一行上写出来；记下它，
-    // 这一行的按钮就能直接下载，点这一行就能看更新内容，不用再「检查」一遍才出弹窗
+    // Retain the discovered release for direct download and release-note access.
     var foundUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
 
     fun dismissPendingUpdate() {
@@ -354,13 +335,12 @@ fun UpdateCheckSection(
 
     fun checkUpdate(manual: Boolean) {
         if (checking) return
-        scope.launch {
+        checkJob = scope.launch {
             checking = true
             status = UpdatePanelStatus.Checking
             dismissPendingUpdate()
             val result = checker.check(includePrerelease = betaUpdatesEnabled)
             val found = (result as? AppUpdateCheckResult.Available)?.info
-            // 换了版本，之前下好的安装包就不是这一版了
             if (found?.versionCode != foundUpdate?.versionCode) downloadedApk = null
             foundUpdate = found
             when (result) {
@@ -376,14 +356,13 @@ fun UpdateCheckSection(
                 is AppUpdateCheckResult.Available -> {
                     onUpdateFound(result.info.versionCode, result.info.versionName)
                     val ignored = ignoredUpdateVersionCode == result.info.versionCode
-                    val muted = updateNotice.mutedVersionCode == result.info.versionCode
+                    if (!ignored) scope.launch { prefetcher.prefetch(result.info.tagName, result.info.releaseNotes) }
                     when {
                         manual -> {
                             pendingUpdate = result.info
                             status = UpdatePanelStatus.Available(result.info.versionName)
                         }
                         ignored -> status = UpdatePanelStatus.Ignored(result.info.versionName)
-                        muted -> status = UpdatePanelStatus.Muted(result.info.versionName)
                         else -> status = UpdatePanelStatus.Available(result.info.versionName)
                     }
                 }
@@ -395,6 +374,19 @@ fun UpdateCheckSection(
             }
             checking = false
         }
+    }
+
+    // Cancel stale checks and discard their results when switching release channels.
+    var seenBetaChannel by rememberSaveable { mutableStateOf(betaUpdatesEnabled) }
+    LaunchedEffect(betaUpdatesEnabled) {
+        if (seenBetaChannel == betaUpdatesEnabled) return@LaunchedEffect
+        seenBetaChannel = betaUpdatesEnabled
+        checkJob?.cancelAndJoin()
+        checking = false
+        foundUpdate = null
+        downloadedApk = null
+        dismissPendingUpdate()
+        checkUpdate(manual = checkOnOpen)
     }
 
     LaunchedEffect(autoCheckEnabled) {
@@ -426,6 +418,31 @@ fun UpdateCheckSection(
             checked = autoCheckEnabled,
             onCheckedChange = onAutoCheckEnabledChange,
         )
+        if (onBetaUpdatesEnabledChange != null) {
+            var confirmBeta by rememberSaveable { mutableStateOf(false) }
+            if (confirmBeta) {
+                BetaUpdatesConfirmDialog(
+                    onConfirm = {
+                        confirmBeta = false
+                        onBetaUpdatesEnabledChange(true)
+                    },
+                    onDismiss = { confirmBeta = false },
+                )
+            }
+            UpdateSwitchRow(
+                icon = Icons.Rounded.Science,
+                title = stringResource(R.string.settings_beta_updates_title),
+                subtitle = if (betaUpdatesEnabled) {
+                    stringResource(R.string.settings_beta_updates_on)
+                } else {
+                    stringResource(R.string.settings_beta_updates_off)
+                },
+                checked = betaUpdatesEnabled,
+                onCheckedChange = { next ->
+                    if (next) confirmBeta = true else onBetaUpdatesEnabledChange(false)
+                },
+            )
+        }
         val update = foundUpdate
         UpdateActionRow(
             icon = Icons.Rounded.SystemUpdate,
@@ -448,9 +465,7 @@ fun UpdateCheckSection(
             onClick = { if (update != null) downloadAndInstall(update) else checkUpdate(manual = true) },
             onRowClick = update?.let { { pendingUpdate = it } },
         )
-        // 在这一行上直接下载时，进度就画在这里；从弹窗里下的，弹窗自己有进度条
         if (downloading && pendingUpdate == null) {
-            // 和这一行的文字对齐，不贴着卡片边
             Box(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
                 UpdateDownloadProgressRow(downloadProgress)
             }
@@ -470,11 +485,6 @@ fun UpdateCheckSection(
                 dismissPendingUpdate()
                 foundUpdate = null
             },
-            onMute = {
-                onMuteUpdateVersion(info.versionCode)
-                status = UpdatePanelStatus.Muted(info.versionName)
-                dismissPendingUpdate()
-            },
             onDismiss = { dismissPendingUpdate() },
         )
     }
@@ -491,66 +501,25 @@ fun UpdateCheckSection(
     }
 }
 
+/**
+ * Check silently at startup and after the recheck interval; retry failures after five minutes.
+ * Channel changes recheck immediately. Prefetch available release notes in the background.
+ */
 @Composable
-fun AutomaticUpdateCheckPrompt(
+fun AutomaticUpdateCheck(
     autoCheckEnabled: Boolean,
     betaUpdatesEnabled: Boolean,
     updateNotice: UpdateNoticeState,
-    onIgnoreUpdateVersion: (Int?) -> Unit,
-    onMuteUpdateVersion: (Int?) -> Unit,
     onUpdateFound: (Int, String) -> Unit,
     onUpdateNoticeCleared: () -> Unit,
-    onDialogVisibleChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val checker = remember { AppUpdateChecker(
                 downloaderLabels = context.mirrorDownloaderLabels(),
                 mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
             ) }
-    var promptedThisSession by rememberSaveable { mutableStateOf(false) }
-    var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    // 见上：清除标志的协程随重建取消，saveable 会卡在「下载中」，用 remember 让其归零
-    var downloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf<AppUpdateDownloadProgress?>(null) }
-    var downloadedApk by remember { mutableStateOf<File?>(null) }
+    val prefetcher = remember(checker) { releasePrefetcher(context, checker) }
     val pollStore = remember(context) { UpdatePollStore(context) }
-
-    fun dismissPendingUpdate() {
-        pendingUpdate = null
-        downloadedApk = null
-    }
-
-    fun downloadAndInstall(info: AppUpdateInfo) {
-        if (downloading) return
-        val downloaded = downloadedApk
-        if (downloaded != null && downloaded.exists()) {
-            AppUpdateInstaller.openInstall(context, downloaded)
-            return
-        }
-        scope.launch {
-            downloading = true
-            downloadProgress = AppUpdateDownloadProgress(0L, null)
-            val result = checker.download(context, info) { downloaded, total ->
-                downloadProgress = AppUpdateDownloadProgress(downloaded, total.takeIf { it > 0L })
-            }
-            when (result) {
-                is AppUpdateDownloadResult.Success -> {
-                    downloadedApk = result.file
-                    AppUpdateInstaller.openInstall(context, result.file)
-                }
-                is AppUpdateDownloadResult.Failure -> {
-                    Toast.makeText(context, context.updateStatusText(result.reason), Toast.LENGTH_SHORT).show()
-                }
-            }
-            downloading = false
-            downloadProgress = null
-        }
-    }
-
-    // 自动检查：每次启动 App（进课表页）先查一次；之后开着或切回前台时，距上次查完满半小时再查，
-    // 没查成的五分钟后重试；切换了测试版开关马上重查。检查只读一份几百字节的版本清单，走国内 CDN，查一次零点几秒。
-    // 查到新版且没被静音、忽略，就弹窗；点「稍后」只管这一次启动，下次打开还会提醒
     val latestNotice by rememberUpdatedState(updateNotice)
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     LaunchedEffect(autoCheckEnabled, betaUpdatesEnabled, lifecycleOwner) {
@@ -570,7 +539,6 @@ fun AutomaticUpdateCheckPrompt(
                     val result = checker.check(includePrerelease = betaUpdatesEnabled)
                     UpdateAutoCheckSession.checkedThisLaunch = true
                     pollStore.setLastCheckIncludedPrerelease(betaUpdatesEnabled)
-                    // 查完才记时间：记早了，查到一半被打断（切后台、改了测试版开关）就会白等半小时
                     when (result) {
                         is AppUpdateCheckResult.Available -> {
                             pollStore.setLastCheckAtMillis(System.currentTimeMillis())
@@ -579,18 +547,16 @@ fun AutomaticUpdateCheckPrompt(
                                 versionCode = result.info.versionCode,
                                 versionName = result.info.versionName,
                             )
-                            if (pendingUpdate == null &&
-                                shouldPromptUpdate(found, BuildConfig.VERSION_CODE, promptedThisSession)
-                            ) {
-                                promptedThisSession = true
-                                pendingUpdate = result.info
+                            // Do not prefetch ignored versions.
+                            if (shouldShowUpdateBadge(found, BuildConfig.VERSION_CODE)) {
+                                launch { prefetcher.prefetch(result.info.tagName, result.info.releaseNotes) }
                             }
                         }
                         AppUpdateCheckResult.UpToDate, AppUpdateCheckResult.NoRelease -> {
                             pollStore.setLastCheckAtMillis(System.currentTimeMillis())
                             onUpdateNoticeCleared()
                         }
-                        // 回退版本只在手动检查时提示；没查成的记下时间，稍后重试
+                        // Offer downgrades only during manual checks; failed automatic checks retry later.
                         is AppUpdateCheckResult.Rollback -> pollStore.setLastCheckAtMillis(System.currentTimeMillis())
                         else -> pollStore.setLastFailureAtMillis(System.currentTimeMillis())
                     }
@@ -599,39 +565,9 @@ fun AutomaticUpdateCheckPrompt(
             }
         }
     }
-
-    // 向上报告弹窗是否可见，供首启引导互斥（引导不应压在更新弹窗上）
-    LaunchedEffect(pendingUpdate != null) {
-        onDialogVisibleChange(pendingUpdate != null)
-    }
-    DisposableEffect(Unit) {
-        onDispose { onDialogVisibleChange(false) }
-    }
-
-    pendingUpdate?.let { info ->
-        UpdateAvailableDialog(
-            info = info,
-            downloading = downloading,
-            downloadProgress = downloadProgress,
-            downloadedApk = downloadedApk,
-            onUpdate = { downloadAndInstall(info) },
-            onIgnore = {
-                onIgnoreUpdateVersion(info.versionCode)
-                dismissPendingUpdate()
-            },
-            onMute = {
-                onMuteUpdateVersion(info.versionCode)
-                dismissPendingUpdate()
-            },
-            onDismiss = { dismissPendingUpdate() },
-        )
-    }
 }
 
-/**
- * 安装完新版本后首次进入时展示本次更新内容。
- * [lastSeenVersionCode] 为 0 时视作全新安装，不弹公告。
- */
+/** Show notes after an upgrade; [lastSeenVersionCode] zero denotes a fresh install. */
 @Composable
 fun ReleaseAnnouncementGate(
     lastSeenVersionCode: Int,
@@ -644,6 +580,7 @@ fun ReleaseAnnouncementGate(
                 downloaderLabels = context.mirrorDownloaderLabels(),
                 mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
             ) }
+    val prefetcher = remember(checker) { releasePrefetcher(context, checker) }
     var notes by remember { mutableStateOf<ReleaseNotesState>(ReleaseNotesState.Loading) }
     var visible by rememberSaveable { mutableStateOf(false) }
     var attempt by remember { mutableIntStateOf(0) }
@@ -666,12 +603,13 @@ fun ReleaseAnnouncementGate(
     LaunchedEffect(visible, attempt) {
         if (!visible) return@LaunchedEffect
         notes = ReleaseNotesState.Loading
-        val text = checker.releaseNotes(releaseTagName())
+        val text = prefetcher.notes(releaseTagName())
         notes = if (text.isNullOrBlank()) ReleaseNotesState.Unavailable else ReleaseNotesState.Loaded(text)
+        // Prefetch remaining images after notes load when no prepared cache exists.
+        if (!text.isNullOrBlank()) prefetcher.prefetchImages(text)
     }
 
     if (!visible) return
-    // 说明拿到了就交给公告本身：带图的铺满全屏翻页，没图的仍是下面这种小弹窗
     (notes as? ReleaseNotesState.Loaded)?.let { loaded ->
         ReleaseAnnouncementDialog(
             versionName = releaseVersionName(),
@@ -721,7 +659,6 @@ fun ReleaseAnnouncementGate(
     )
 }
 
-/** 更新公告的正文状态。 */
 private sealed interface ReleaseNotesState {
     data object Loading : ReleaseNotesState
 
@@ -730,10 +667,8 @@ private sealed interface ReleaseNotesState {
     data class Loaded(val text: String) : ReleaseNotesState
 }
 
-/** 去掉构建类型给版本名加的后缀。 */
 private fun releaseVersionName(): String = BuildConfig.VERSION_NAME.substringBefore("-ci")
 
-/** 当前构建对应的 Release 标签。 */
 private fun releaseTagName(): String = "v" + releaseVersionName()
 
 private fun releaseUrl(): String = AppUpdateChecker.releasePageUrl(releaseTagName())
@@ -795,7 +730,6 @@ private fun UpdateAvailableDialog(
     downloadedApk: File?,
     onUpdate: () -> Unit,
     onIgnore: () -> Unit,
-    onMute: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
@@ -820,11 +754,6 @@ private fun UpdateAvailableDialog(
                 if (downloading) {
                     UpdateDownloadProgressRow(downloadProgress)
                 }
-                UpdateSecondaryChoice(
-                    title = stringResource(R.string.update_dialog_mute),
-                    hint = stringResource(R.string.update_dialog_mute_hint),
-                    onClick = onMute,
-                )
                 UpdateSecondaryChoice(
                     title = stringResource(R.string.update_dialog_ignore),
                     hint = stringResource(R.string.update_dialog_ignore_hint),
@@ -855,11 +784,7 @@ private fun UpdateAvailableDialog(
 }
 
 /**
- * 下载进度条。
- *
- * 安装包动辄几十兆，只显示「下载中…」的话用户既不知道还要等多久、
- * 也分不清是在下载还是卡死了。这里把百分比、已下载量和总大小都摆出来；
- * 服务端没给 Content-Length 时退回不确定进度条，至少能看出还在动。
+ * Report downloaded bytes and known totals; use indeterminate progress without Content-Length.
  */
 @Composable
 private fun UpdateDownloadProgressRow(progress: AppUpdateDownloadProgress?) {
@@ -897,14 +822,12 @@ private fun UpdateDownloadProgressRow(progress: AppUpdateDownloadProgress?) {
     }
 }
 
-/** 字节数按 MB / KB 显示，小数点后留一位，够看出进度在动又不会跳得眼花。 */
 private fun formatBytes(bytes: Long): String = when {
     bytes >= 1024L * 1024L -> String.format(Locale.US, "%.1f MB", bytes / 1024.0 / 1024.0)
     bytes >= 1024L -> String.format(Locale.US, "%.0f KB", bytes / 1024.0)
     else -> "$bytes B"
 }
 
-/** 更新弹窗里的次要选项：一行标题加一行说明，整行可点。 */
 @Composable
 private fun UpdateSecondaryChoice(
     title: String,
@@ -932,7 +855,6 @@ private fun UpdateSecondaryChoice(
     }
 }
 
-/** 状态种类到当前语言文字的渲染，随应用内语言切换重算。 */
 @Composable
 private fun updatePanelStatusText(status: UpdatePanelStatus): String = when (status) {
     UpdatePanelStatus.Idle -> stringResource(R.string.update_status_default)
@@ -945,7 +867,6 @@ private fun updatePanelStatusText(status: UpdatePanelStatus): String = when (sta
     is UpdatePanelStatus.Ignored -> stringResource(R.string.update_status_ignored, status.versionName)
     is UpdatePanelStatus.IgnoredManual ->
         stringResource(R.string.update_status_ignored_manual, status.versionName)
-    is UpdatePanelStatus.Muted -> stringResource(R.string.update_status_muted, status.versionName)
     is UpdatePanelStatus.Downloading -> stringResource(R.string.update_status_downloading, status.fileName)
     is UpdatePanelStatus.Downloaded -> stringResource(
         R.string.update_status_downloaded,
@@ -1052,7 +973,6 @@ private fun UpdateActionRow(
                 UpdateBadgeDot()
                 Spacer(modifier = Modifier.width(10.dp))
             }
-            // 查到新版时按钮换成实心的「更新」，比「检查」显眼，一看就知道点它能直接装
             if (highlighted) {
                 Button(
                     onClick = onClick,
@@ -1074,7 +994,6 @@ private fun UpdateActionRow(
     }
 }
 
-/** 有新版本时的红点角标。 */
 @Composable
 fun UpdateBadgeDot(modifier: Modifier = Modifier) {
     val description = stringResource(R.string.update_badge_desc)
@@ -1087,12 +1006,7 @@ fun UpdateBadgeDot(modifier: Modifier = Modifier) {
     )
 }
 
-/**
- * 下载源的显示名。
- *
- * 镜像候选大多直接用主机名，本身与语言无关；只有本地文件 / 源站 / GitHub 源站
- * 这三个是标识，显示时换成当前语言。
- */
+/** Localize symbolic source IDs at display time; mirror hostnames remain unchanged. */
 @Composable
 private fun downloadSourceLabel(sourceName: String): String = when (sourceName) {
     DownloadSourceIds.LOCAL_FILE -> stringResource(R.string.download_source_local_file)

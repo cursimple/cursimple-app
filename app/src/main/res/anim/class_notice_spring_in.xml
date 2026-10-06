@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 弹性：从顶部正中「弹」出来，先放大冲过头再回落，和滑入的直线下落一眼能分开 -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:shareInterpolator="false">
     <scale

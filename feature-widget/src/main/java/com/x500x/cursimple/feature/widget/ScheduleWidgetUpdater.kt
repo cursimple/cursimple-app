@@ -23,7 +23,6 @@ import java.util.concurrent.TimeUnit
 object ScheduleWidgetUpdater {
     suspend fun refreshAll(context: Context) = withContext(Dispatchers.Default) {
         val app = context.applicationContext
-        // 课表、提醒或偏好已经改过，先把短时缓存清掉，列表不会再画出上一份数据
         ScheduleWidgetDataSource.invalidate()
         NextCourseDataSource.invalidate()
         ReminderDataSource.invalidate()
@@ -32,9 +31,8 @@ object ScheduleWidgetUpdater {
         ReminderGlanceWidgetReceiver.updateWidgets(app)
         CalendarWidgetReceiver.updateWidgets(app)
         PendingTaskWidgetReceiver.updateWidgets(app)
-        // 作息或课表变化后边界随之改变，这里是所有变更路径的汇聚点
+        MemoTodoWidgetReceiver.updateWidgets(app)
         rescheduleBoundaryRefresh(app)
-        // 守护链被清掉后没有自身事件能拉起来，借每次刷新把它补回去
         runCatching {
             WidgetAlarmGuardScheduler.ensureScheduled(app)
         }.onFailure { error ->
@@ -42,11 +40,9 @@ object ScheduleWidgetUpdater {
         }
     }
 
-    /** 按当前作息重排节次边界刷新；取不到作息时保持已排的槽位不动。 */
     private suspend fun rescheduleBoundaryRefresh(context: Context) {
         runCatching {
-            // profile 为 null 表示这次没读到作息（迁移/首帧读空），保持已排槽位不动；
-            // 只有确实读到作息（哪怕它没有任何节次）才按它重排，避免误撤边界刷新闹钟
+            // Null timing means unavailable data; preserve scheduled boundaries until an actual profile is read.
             val profile = DataStoreWidgetPreferencesRepository(context)
                 .timingProfileFlow
                 .first()
@@ -147,4 +143,3 @@ class ScheduleWidgetRefreshWorker(
         }
     }
 }
-

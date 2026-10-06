@@ -29,9 +29,10 @@ internal data class NextCourseRow(
     val sub: String,
     val isFocus: Boolean,
     val isPast: Boolean,
-    /** 节次名字，如「第一节」；横跨几个时段或作息表里没有时为空。 */
     val slotLabel: String? = null,
-    /** 节号范围，如「1-1」「3-4」；作息表里没有对应时段时为空，只显示 [period]。 */
+    /**
+     * Optional numeric span when the timing profile supplies a slot; otherwise use [period].
+     */
     val nodeNumbers: String = "",
 ) {
     val stableId: Long = id.hashCode().toLong()
@@ -50,8 +51,7 @@ internal data class NextCourseWidgetData(
 internal object NextCourseDataSource {
     private val cache = WidgetDataCache<NextCourseWidgetData>()
 
-    /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
-    /** 数据刚被改过时清掉短时缓存，下一次读一定是新的。 */
+    /** [reuseRecent] shares one read between header and list. */
     fun invalidate() {
         cache.clear()
     }
@@ -75,7 +75,6 @@ internal object NextCourseDataSource {
         val manualCourses = manualCourseRepository.manualCoursesFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
-        // 没单独挑过小组件配色时跟着应用主题色走
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
         val zone = BeijingTime.zone
@@ -88,7 +87,6 @@ internal object NextCourseDataSource {
             preferenceTermStartDate = userPrefs.termStartDate,
         )
 
-        // 改过的插件课以同 id 手动课落库，删掉的留墓碑：合并后才不会显示两遍或复活
         val allCourses = schedule.allCoursesWith(manualCourses)
         fun coursesForDate(targetDate: LocalDate): WidgetScheduleDay = resolveWidgetScheduleDay(
             targetDate = targetDate,
@@ -107,7 +105,6 @@ internal object NextCourseDataSource {
         val sourceDate = displayDay.sourceDate
         val displayCourses = displayDay.courses
 
-        // 放假当天课程照常列出，但不判上课中、不给倒计时
         val visibleEntries = if (displayDay.onHoliday) {
             emptyList()
         } else {

@@ -45,10 +45,8 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         renderedDateIso: String? = null,
     ) {
         val repository = DataStoreWidgetPreferencesRepository(context)
-        // 偏移记的是「今天往后数几天」，把按下的那一天一并存下，跨过零点后它才会自己作废
         val todayIso = widgetTodayIso(context)
-        // 按钮上带的相对偏移是渲染那天算的。零点那次重画被系统吞掉时，屏幕上的「明天」
-        // 其实已经是今天，再拿旧偏移加减就会翻错一天——有渲染日期就按它和今天重新算
+        // Rebase button offsets using their rendered date when a midnight refresh was missed.
         val currentOffset = renderedDateIso
             ?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
             ?.let { rendered ->

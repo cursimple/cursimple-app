@@ -54,7 +54,7 @@ class FestivalCalendarTest {
     fun lunarFestivalsAndNewYearsEve() {
         val midAutumn = FestivalCalendar.festivalsOn(LocalDate.of(2026, 9, 25), LunarDay(8, 15), LunarDay(8, 16))
         assertEquals(listOf(Festival.MidAutumn), midAutumn)
-        // 腊月只有 29 天的年份，除夕是二十九：看的是明天是不是正月初一
+        // Detect lunar year end using tomorrow's first day, including 29-day final months.
         val eve = FestivalCalendar.festivalsOn(LocalDate.of(2027, 2, 5), LunarDay(12, 29), LunarDay(1, 1))
         assertEquals(listOf(Festival.NewYearsEve), eve)
     }

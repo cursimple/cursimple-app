@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** 顶部概览与周/日切换共用的按钮样式。 */
 @Composable
 internal fun ScheduleToolbarButton(
     label: String,

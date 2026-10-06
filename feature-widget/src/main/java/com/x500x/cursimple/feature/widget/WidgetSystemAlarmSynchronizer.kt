@@ -153,10 +153,8 @@ internal data class WidgetAlarmRegistrationReadiness(
 )
 
 /**
- * 汇总一次小组件侧的闹钟补注册结果。
- *
- * [WidgetAlarmRegistrationReadiness.message] 只进日志、不上界面，所以固定中文：
- * 日志是给维护者看的，跟着界面语言变反而对不上用户反馈里的原文。
+ * Aggregate registration results for diagnostics; readiness messages are log-only and remain
+ * locale-independent.
  */
 internal fun summarizeWidgetAlarmRegistration(
     summary: SystemAlarmSyncSummary,

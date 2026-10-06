@@ -464,7 +464,6 @@
     <string name="schedule_weekday_short_friday">五</string>
     <string name="schedule_weekday_short_saturday">六</string>
     <string name="schedule_weekday_short_sunday">日</string>
-    <!-- 表头月份角标与调课来源 -->
     <bool name="schedule_month_stacked">true</bool>
     <string-array name="schedule_month_of_year">
         <item>1月</item>
@@ -484,7 +483,6 @@
     <string name="schedule_source_date">%1$d/%2$d%3$s</string>
     <string name="schedule_override_source">按%1$s</string>
     <string name="schedule_override_source_short">按%1$d/%2$d</string>
-    <!-- 课程详情：上课时间与周次 -->
     <string name="schedule_class_time_range">%1$s - %2$s</string>
     <string name="schedule_major_period_single">第 %1$d 大节</string>
     <string name="schedule_major_period_range">第 %1$d-%2$d 大节</string>
@@ -497,7 +495,7 @@
     <plurals name="schedule_weeks_detail_count">
         <item quantity="other">%1$d 个周次</item>
     </plurals>
-    <!-- 插件课表校验失败提示 -->
+    <!-- Plugin schedule validation messages. -->
     <string name="schedule_validation_invalid_weekday">插件返回了无效星期: %1$d</string>
     <string name="schedule_validation_blank_course_id">插件返回了空课程 ID</string>
     <string name="schedule_validation_blank_course_title">插件返回了空课程名称</string>
@@ -507,52 +505,6 @@
     <string name="schedule_validation_invalid_end_node">插件返回了无效结束节次: %1$d</string>
     <string name="schedule_validation_invalid_weeks">插件返回了无效教学周</string>
     <string name="schedule_validation_too_many_courses">插件返回的课程数量过多</string>
-    <!-- 示例课表数据 -->
-    <string name="schedule_sample_monday_math_title">高等数学</string>
-    <string name="schedule_sample_monday_math_teacher">李教授</string>
-    <string name="schedule_sample_monday_math_location">教学楼A101</string>
-    <string name="schedule_sample_monday_c_title">C 程序设计</string>
-    <string name="schedule_sample_monday_c_teacher">王老师</string>
-    <string name="schedule_sample_monday_c_location">实验楼B202</string>
-    <string name="schedule_sample_monday_ds_title">数据结构</string>
-    <string name="schedule_sample_monday_ds_teacher">张老师</string>
-    <string name="schedule_sample_monday_ds_location">实验楼B202</string>
-    <string name="schedule_sample_monday_python_title">Python 入门</string>
-    <string name="schedule_sample_monday_python_teacher">赵老师</string>
-    <string name="schedule_sample_monday_python_location">机房C301</string>
-    <string name="schedule_sample_tuesday_physics_title">大学物理</string>
-    <string name="schedule_sample_tuesday_physics_teacher">陈教授</string>
-    <string name="schedule_sample_tuesday_physics_location">教学楼A203</string>
-    <string name="schedule_sample_tuesday_english_title">英语听说</string>
-    <string name="schedule_sample_tuesday_english_location">外语楼D102</string>
-    <string name="schedule_sample_wednesday_linear_title">线性代数</string>
-    <string name="schedule_sample_wednesday_linear_teacher">刘老师</string>
-    <string name="schedule_sample_wednesday_linear_location">教学楼A101</string>
-    <string name="schedule_sample_wednesday_prob_title">概率论</string>
-    <string name="schedule_sample_wednesday_prob_teacher">林老师</string>
-    <string name="schedule_sample_wednesday_prob_location">教学楼A101</string>
-    <string name="schedule_sample_wednesday_marx_title">马克思主义基本原理</string>
-    <string name="schedule_sample_wednesday_marx_teacher">周老师</string>
-    <string name="schedule_sample_wednesday_marx_location">教学楼A301</string>
-    <string name="schedule_sample_thursday_os_title">操作系统</string>
-    <string name="schedule_sample_thursday_os_teacher">孙教授</string>
-    <string name="schedule_sample_thursday_os_location">实验楼B305</string>
-    <string name="schedule_sample_thursday_advprog_title">高级编程技术</string>
-    <string name="schedule_sample_thursday_advprog_teacher">吴老师</string>
-    <string name="schedule_sample_thursday_advprog_location">实验楼B202</string>
-    <string name="schedule_sample_friday_network_title">计算机网络</string>
-    <string name="schedule_sample_friday_network_teacher">郑教授</string>
-    <string name="schedule_sample_friday_network_location">实验楼B203</string>
-    <string name="schedule_sample_friday_pe_title">体育（羽毛球）</string>
-    <string name="schedule_sample_friday_pe_teacher">周教练</string>
-    <string name="schedule_sample_friday_pe_location">体育馆</string>
-    <string name="schedule_sample_saturday_elab_title">电子技术实验</string>
-    <string name="schedule_sample_saturday_elab_teacher">李实验员</string>
-    <string name="schedule_sample_saturday_elab_location">实验楼E101</string>
-    <string name="schedule_sample_sunday_culture_title">中西文化对比（慕课）</string>
-    <string name="schedule_sample_sunday_culture_teacher">教务处</string>
-    <string name="schedule_sample_sunday_culture_location">线上</string>
-    <!-- 长按课程的操作面板 -->
     <string name="schedule_course_action_move">移动位置</string>
     <string name="schedule_course_action_move_desc">换到别的星期或节次，允许和别的课重叠</string>
     <string name="schedule_course_action_edit_desc">改课名、地点、周次等全部信息</string>
@@ -562,7 +514,6 @@
     <string name="schedule_course_action_multi_select_desc">选中多门课一起设闹钟</string>
     <string name="schedule_course_action_delete_desc">从课表中移除，同时删掉它的单课闹钟</string>
     <string name="schedule_course_action_restore_desc">丢掉手动修改，回到插件同步的那一份</string>
-    <!-- 移动课程 -->
     <string name="schedule_move_dialog_title">移动到哪</string>
     <string name="schedule_move_dialog_weekday">移到星期</string>
     <string name="schedule_move_dialog_start_node">起始节次</string>
@@ -570,7 +521,6 @@
     <string name="schedule_move_dialog_later">往后一节</string>
     <string name="schedule_move_dialog_overlap">这个位置已经有：%1$s。移过去两门课会并排显示。</string>
     <string name="schedule_move_dialog_confirm">移动到这里</string>
-    <!-- 双击日期栏设置这一天 -->
     <string name="schedule_day_sheet_title">%1$d 月 %2$d 日 · %3$s</string>
     <string name="schedule_day_sheet_current_holiday">当前按「%1$s」放假，这一天不出课也不响闹钟</string>
     <string name="schedule_day_sheet_current_normal">当前照常上课</string>

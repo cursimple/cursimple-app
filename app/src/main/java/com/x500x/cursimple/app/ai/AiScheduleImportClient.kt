@@ -49,8 +49,7 @@ class AiScheduleImportClient(
         val requestClient = client.withAiImportTimeout(config.timeoutSeconds)
         val bodyText = requestClient.newCall(request).execute().use { response ->
             aiImportRequire(response.isSuccessful, R.string.ai_error_request_failed, response.code)
-            // 接口地址由用户自配，坏/被劫持的服务器可能吐超大 body；超时只限时间不限体积，
-            // 这里把读入内存的量封顶，先缓冲到上限+1 判断，避免 .string() 无上限吃满内存
+            // Bound response bytes as well as time for user-configured endpoints.
             val source = response.body.source()
             source.request(MAX_AI_RESPONSE_BYTES + 1L)
             aiImportRequire(
@@ -138,7 +137,7 @@ class AiScheduleImportClient(
             if (stream == null) aiImportError(R.string.ai_error_open_image)
             BitmapFactory.decodeStream(stream, null, decodeOptions)
         } ?: aiImportError(R.string.ai_error_image_format)
-        // 相机竖拍常把图存成横向+旋转标记，不按 EXIF 校正会把侧躺的图发给 AI，识别率明显下降
+        // Apply EXIF orientation before sending camera images for recognition.
         val bitmap = applyExifOrientation(uri, decoded)
         val scaled = bitmap.scaleDown(MAX_IMAGE_SIDE)
         if (scaled != bitmap) bitmap.recycle()
@@ -151,7 +150,7 @@ class AiScheduleImportClient(
         return "data:image/jpeg;base64,$encoded"
     }
 
-    /** 按 EXIF 方向把解出来的位图转正；无旋转标记或读取失败时原样返回。 */
+    /** Correct EXIF rotation; preserve the bitmap if orientation is unavailable. */
     private fun Context.applyExifOrientation(uri: Uri, bitmap: Bitmap): Bitmap {
         val orientation = runCatching {
             contentResolver.openInputStream(uri).use { stream ->
@@ -198,7 +197,7 @@ class AiScheduleImportClient(
     private companion object {
         const val MAX_IMAGE_SIDE = 1800
         const val JPEG_QUALITY = 90
-        // 课表识别的 JSON 回包只有几十 KB，8MB 上限对正常响应绰绰有余，又能挡住失控的超大 body
+        // Limit schedule JSON responses to 8 MiB.
         const val MAX_AI_RESPONSE_BYTES = 8L * 1024 * 1024
         const val PROMPT = """
             请从这张课程表图片中识别课表，严格只返回 JSON，不要 Markdown。
@@ -678,7 +677,7 @@ private fun validateImportedSchedule(schedule: TermSchedule) {
     aiImportRequire(courses.size <= 1000, R.string.ai_error_too_many_courses)
 }
 
-/** 手动课也走同一套边界校验，避免 endNode<startNode 这类非法数据从这条路径漏进课表。 */
+/** Apply the same schedule validation to manually entered courses. */
 private fun validateImportedManualCourses(courses: List<CourseItem>) {
     courses.forEach(::validateImportedCourseBounds)
     aiImportRequire(courses.size <= 1000, R.string.ai_error_too_many_courses)
@@ -709,7 +708,7 @@ internal fun normalizeAiEndpoint(rawUrl: String): String {
     return "$trimmed/v1/chat/completions"
 }
 
-// 解码前按原图尺寸算出 BitmapFactory 的降采样倍率，长边超过 maxSide 两倍时逐级折半
+// Choose a power-of-two decode sample before loading oversized images.
 internal fun aiImageSampleSize(width: Int, height: Int, maxSide: Int): Int {
     if (width <= 0 || height <= 0 || maxSide <= 0) return 1
     var side = width.coerceAtLeast(height)

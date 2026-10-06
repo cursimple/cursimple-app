@@ -6,8 +6,8 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * 名单只放厂商文档写明了的系统：多认一家会把本来好好的系统横幅换成自绘的，
- * 少认一家则是一个都不弹。两条都比「猜」好不到哪去，所以逐条钉住。
+ * Pin the documented vendor fallback list so unsupported guesses cannot replace working system
+ * banners.
  */
 class SelfDrawnNoticeTest {
 

@@ -146,7 +146,6 @@ class TemporaryScheduleOverrideTest {
 
     @Test
     fun `整天调课时全天的课都来自来源日`() {
-        // 2026-05-06 周三，按 2026-05-11 周一的课上
         val date = LocalDate.of(2026, 5, 6)
         val source = LocalDate.of(2026, 5, 11)
         val overrides = listOf(
@@ -185,13 +184,9 @@ class TemporaryScheduleOverrideTest {
             time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode),
         )
 
-        // 区间内换成周一的课
         assertEquals(source, temporaryScheduleCourseSourceDate(date, course("mon34", 1, 3, 4), source, overrides))
-        // 区间外周三自己的课留在原地
         assertEquals(date, temporaryScheduleCourseSourceDate(date, course("wed12", 3, 1, 2), source, overrides))
-        // 周一区间外的课不该被搬过来
         assertNull(temporaryScheduleCourseSourceDate(date, course("mon12", 1, 1, 2), source, overrides))
-        // 周三区间内的课被让位
         assertNull(temporaryScheduleCourseSourceDate(date, course("wed34", 3, 3, 4), source, overrides))
     }
 
@@ -247,7 +242,7 @@ class TemporaryScheduleOverrideTest {
 
     @Test
     fun `旧版落盘的调课记录照旧按整天生效`() {
-        // 新增 makeUpStartNode/makeUpEndNode 之前写下的 JSON，字段里没有这两个键
+        // Legacy JSON omits partial-swap bounds.
         val legacyExplicit = """[{"id":"a","type":"make_up","targetDate":"2026-05-06","sourceDate":"2026-05-11"}]"""
         val legacyWeekday = """[{"id":"b","type":"make_up","startDate":"2026-05-06","endDate":"2026-05-06","sourceDayOfWeek":1}]"""
         val legacyCancel =
@@ -271,7 +266,6 @@ class TemporaryScheduleOverrideTest {
         )
         assertTrue(isCourseTemporarilyCancelled(date, course, cancel))
 
-        // 旧记录重新写回去也不会丢字段
         val reEncoded = json.decodeFromString<List<TemporaryScheduleOverride>>(
             json.encodeToString(explicit),
         )
@@ -298,7 +292,6 @@ class TemporaryScheduleOverrideTest {
         )
 
         assertTrue(isCourseMovedAwayFrom(from, course, listOf(move)))
-        // 别的日子、别的课都不受影响
         assertFalse(isCourseMovedAwayFrom(to, course, listOf(move)))
         assertFalse(isCourseMovedAwayFrom(from, course.copy(id = "other"), listOf(move)))
     }
@@ -328,10 +321,8 @@ class TemporaryScheduleOverrideTest {
         assertEquals("物理实验", item.title)
         assertEquals(5, item.time.startNode)
         assertEquals(6, item.time.endNode)
-        // 2026-05-08 是周五
         assertEquals(5, item.time.dayOfWeek)
 
-        // 原本那天不上的课（比如那周本来就没有），挪过去也不该凭空多一节
         val none = coursesMovedTo(
             to,
             listOf(move),
@@ -340,7 +331,6 @@ class TemporaryScheduleOverrideTest {
         )
         assertTrue(none.isEmpty())
 
-        // 课被删了就跳过
         assertTrue(coursesMovedTo(to, listOf(move), courseById = { null }).isEmpty())
     }
 
@@ -356,7 +346,6 @@ class TemporaryScheduleOverrideTest {
         )
         val date = LocalDate.of(2026, 5, 8)
 
-        // 整天来源日仍是它自己，不会被挪课规则带偏
         assertEquals(date, resolveTemporaryScheduleSourceDate(date, listOf(move)))
         assertNull(move.makeUpNodeRange())
         assertEquals(5..5, move.moveToNodeRange())

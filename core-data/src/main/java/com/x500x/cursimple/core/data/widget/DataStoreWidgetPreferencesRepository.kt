@@ -120,9 +120,7 @@ class DataStoreWidgetPreferencesRepository(
         val stored = (perWidgetOffset ?: preferences[KEY_WIDGET_DAY_OFFSET] ?: 0)
             .coerceIn(MIN_OFFSET, MAX_OFFSET)
         if (stored == 0) return 0
-        // 只有「今天按出来的偏移」才算数。锚点对不上（跨过零点）或干脆没有锚点
-        // （旧版本留下的偏移，已经不知道是哪天按的）都一律回到今天：
-        // 早上第一眼要看的是当天，不是昨天翻到哪儿就停在哪儿再往后顺延。
+        // Invalidate day offsets after midnight or without a matching anchor; return to today.
         if (preferences[anchorKey] != todayIso) {
             store.edit {
                 it[offsetKey] = 0
@@ -153,7 +151,6 @@ class DataStoreWidgetPreferencesRepository(
         return next
     }
 
-    /** 记下偏移是哪一天按出来的；回到今天就不需要锚点了。 */
     private fun MutablePreferences.writeOffsetAnchor(
         key: Preferences.Key<String>,
         offset: Int,
@@ -242,10 +239,7 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
-    /**
-     * 作息库缺失时按旧的单份数据推导，读到什么就是什么，不回写。
-     * 任何一次写入都会落到作息库键上，此后旧键不再参与。
-     */
+    /** Read legacy timing data without rewriting; subsequent writes use the library key. */
     private fun Preferences.timingProfileLibrary(): TimingProfileLibrary {
         this[KEY_TIMING_PROFILE_LIBRARY_JSON]
             ?.let { raw -> runCatching { json.decodeFromString<TimingProfileLibrary>(raw) }.getOrNull() }
@@ -266,7 +260,6 @@ class DataStoreWidgetPreferencesRepository(
         remove(KEY_TIMING_PROFILE_MANUAL)
     }
 
-    /** 把整份节次时间表写进选中项；一套都没有时先建一套。 */
     private fun MutablePreferences.writeActiveSlotTimes(profile: TermTimingProfile, manuallyEdited: Boolean?) {
         val library = timingProfileLibrary()
         val current = library.active ?: TimingProfileEntry(
@@ -402,7 +395,7 @@ class DataStoreWidgetPreferencesRepository(
         const val MIN_OFFSET = -3650
         const val MAX_OFFSET = 3650
 
-        /** 共用偏移的伪实例 id，与 AppWidgetManager.INVALID_APPWIDGET_ID 一致。 */
+        /** Shared-offset instance ID, matching INVALID_APPWIDGET_ID. */
         const val SHARED_WIDGET_ID = 0
 
         fun widgetDayOffsetKey(appWidgetId: Int) = intPreferencesKey("widget_day_offset__$appWidgetId")

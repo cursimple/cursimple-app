@@ -22,6 +22,7 @@
         android:visibility="gone" />
 
     <LinearLayout
+        android:id="@+id/reminder_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
@@ -47,7 +48,7 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
-                android:text="课程提醒"
+                android:text="@string/widget_label_reminder"
                 android:textColor="#20242A"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -67,13 +68,7 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!--
-          高度跟着内容走：课少的时候列表不撑满，底下空出来的地方归外层，点了照样打开应用。
-          ListView 占满时，行下面那片空白的触摸被它自己吃掉，只有正好点在课上才进得去。
-          课多时 wrap_content 在这里拿到的是剩余高度的上限，照样能滚。
-          listSelector 透明：它默认的按下高亮是直角矩形，还把行下面的间距也算进去，
-          会比圆角卡片大一圈；卡片自己的 ripple 已经按圆角裁好了，用那个就够。
-        -->
+        <!-- Wrap short lists so empty space remains app-clickable; use row-masked ripples rather than rectangular list selection. -->
         <ListView
             android:id="@+id/reminder_list"
             android:layout_width="match_parent"

@@ -20,11 +20,7 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 
 /**
- * 闹钟自检。
- *
- * 「闹钟没响」在用户那头是一个现象，在代码这头至少有六种原因：权限被收走、渠道被关掉、
- * 系统进了省电、排程根本没登记上、送到了但被去重吃掉、或者进程早就被厂商清理器杀干净了。
- * 隔着屏幕一个个问要来回好几轮，这里把判断依据一次性列出来，用户复制一段发过来就能定位。
+ * Collect permission, channel, power, registration and arrival evidence for alarm diagnostics.
  */
 data class AlarmDiagnosticsReport(
     val lines: List<Pair<String, String>>,
@@ -123,10 +119,8 @@ object AlarmDiagnostics {
     )
 
     /**
-     * 响铃渠道的状态。
-     *
-     * 渠道被用户单独关掉时，权限页上每一项都是绿的，闹钟却一声不出——这是最难猜到的一种，
-     * 所以单列一行。渠道是响第一次的时候才建的，没建过属于正常。
+     * Report disabled ringing channels independently of runtime permissions; an uncreated
+     * channel is normal.
      */
     private fun Context.ringingChannelState(): String {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
@@ -150,7 +144,7 @@ object AlarmDiagnostics {
             (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)?.isPowerSaveMode
         }.getOrNull() ?: false
 
-    /** 读勿扰状态要通知策略访问权，没有就是 UNKNOWN，不能把它说成「关」。 */
+    /** DND state is unknown without policy access. */
     private fun Context.interruptionFilterState(): String {
         val manager = getSystemService(NotificationManager::class.java)
             ?: return getString(R.string.alarm_diag_unreadable)
@@ -165,7 +159,6 @@ object AlarmDiagnostics {
         )
     }
 
-    /** 静默守护不起服务，看的是巡检任务挂没挂上。 */
     private fun Context.silentGuardState(enabled: Boolean): String = getString(
         when {
             !enabled -> R.string.alarm_diag_keep_alive_off
@@ -174,12 +167,7 @@ object AlarmDiagnostics {
         },
     )
 
-    /**
-     * 记录里有几条、系统里还剩几条。
-     *
-     * 两个数字对不上就是排程掉了——应用被强停过、或者精确闹钟权限中途被收走，
-     * 这时候用户看到的现象就是「本来好好的，某天开始不响了」。
-     */
+    /** Compare stored alarms with registrations to detect lost scheduling. */
     private fun Context.registeredSummary(records: List<SystemAlarmRecord>): String {
         val upcoming = records.filter {
             it.enabled && it.triggerAtMillis > BeijingTime.nowMillis(BeijingTime.zone)

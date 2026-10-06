@@ -5,7 +5,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import java.time.LocalDate
 
-/** 列表适配器的内容版本号：内容没变就别换，换了日期或课程就必须换。 */
+/** Adapter revisions change when date or content changes, otherwise remain stable. */
 class WidgetListRevisionTest {
 
     private fun row(id: String, onHoliday: Boolean = false) = ScheduleWidgetCourseRow(
@@ -35,7 +35,7 @@ class WidgetListRevisionTest {
 
         assertNotEquals(base, widgetListRevision(date.plusDays(1), 1, listOf(row("a"))))
         assertNotEquals(base, widgetListRevision(date, 0, listOf(row("b"))))
-        // 放假态只改了一行的灰字，也得换版本号，否则启动器会留着上一天的那一份
+        // Holiday color-only changes must also invalidate the launcher adapter cache.
         assertNotEquals(base, widgetListRevision(date, 0, listOf(row("a", onHoliday = true))))
     }
 }

@@ -34,21 +34,19 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** 自动静音能否生效的体检结果。 */
 data class AutoSilenceReadiness(
     val mode: AutoSilenceMode,
     val notificationPolicyGranted: Boolean,
     val doNotDisturbAllowsAlarms: Boolean,
     val alarmVolumeAudible: Boolean,
 ) {
-    /** 缺少必需授权时为 false，此时不允许开启，也不会尝试切换手机状态。 */
+    /** False when required access is missing; do not attempt device-state changes. */
     val permissionSatisfied: Boolean
         get() = when (mode) {
             AutoSilenceMode.Vibrate -> true
             AutoSilenceMode.Silent, AutoSilenceMode.DoNotDisturb -> notificationPolicyGranted
         }
 
-    /** 阻止开启的原因的文案资源，为 null 表示可以开启。 */
     val blockingReasonRes: Int?
         get() = when {
             !permissionSatisfied -> R.string.autosilence_block_no_dnd_permission
@@ -58,7 +56,6 @@ data class AutoSilenceReadiness(
             else -> null
         }
 
-    /** 不阻止开启，但需要提示用户的问题。 */
     val warningRes: Int?
         get() = if (blockingReasonRes == null && !alarmVolumeAudible) {
             R.string.autosilence_warn_alarm_volume_zero
@@ -67,22 +64,14 @@ data class AutoSilenceReadiness(
         }
 }
 
-/**
- * 上课时段自动静音的执行入口。
- *
- * 状态切换只走两条路：铃声模式（AudioManager）与勿扰级别（NotificationManager），
- * 两者都不影响闹钟音频流，勿扰也只会写入「仅优先级」，绝不会写入完全静音。
- */
+/** Change ringer mode or priority-only DND without affecting the alarm audio stream. */
 object AutoSilenceController {
 
     const val ACTION_BOUNDARY = "com.x500x.cursimple.action.AUTO_SILENCE_BOUNDARY"
     const val ACTION_RESTORE_NOW = "com.x500x.cursimple.action.AUTO_SILENCE_RESTORE_NOW"
 
     /**
-     * 重新判断当前该不该静音，并把状态推到应该在的位置。
-     *
-     * 所有触发点（开关、边界闹钟、开机、时间变更、巡检 Worker、闹钟响铃前后）都汇聚到这里，
-     * 保证任何一条路径单独失效时其它路径仍能纠正状态。
+     * Every trigger reconciles through this entry point so alternate paths can restore state.
      */
     suspend fun evaluate(context: Context, reason: String) {
         val appContext = context.applicationContext
@@ -149,9 +138,8 @@ object AutoSilenceController {
     }
 
     /**
-     * 立刻恢复用户原来的状态。
-     *
-     * [suppressUntilBlockEnd] 为真时，本节课结束之前不再自动静音，用于用户手动点「立即恢复」。
+     * Restore the prior state; [suppressUntilBlockEnd] prevents re-silencing after manual
+     * restoration.
      */
     suspend fun restoreNow(context: Context, reason: String, suppressUntilBlockEnd: Boolean) {
         val appContext = context.applicationContext
@@ -166,7 +154,7 @@ object AutoSilenceController {
         scheduleFollowUp(appContext, enabled = prefs.autoSilence.enabled, sessionActive = false, blocks = emptyList())
     }
 
-    /** 读取当前授权与系统设置，判断 [mode] 能否安全启用。 */
+    /** Check current access before enabling [mode]. */
     fun readiness(context: Context, mode: AutoSilenceMode): AutoSilenceReadiness {
         val appContext = context.applicationContext
         val notificationManager = appContext.getSystemService(NotificationManager::class.java)
@@ -181,7 +169,6 @@ object AutoSilenceController {
         )
     }
 
-    /** 跳转到系统的勿扰访问授权列表，需要用户在列表里找到本应用手动打开。 */
     fun notificationPolicySettingsIntent(): Intent =
         Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
 
@@ -192,18 +179,13 @@ object AutoSilenceController {
     private suspend fun readSessionActive(repository: UserPreferencesRepository): Boolean =
         runCatching { repository.preferencesFlow.first().autoSilenceSession.active }.getOrDefault(false)
 
-    /**
-     * 读取今天和明天的上课时间段。
-     *
-     * 返回 null 表示课表数据暂时读不出来，调用方按最保守的方式处理。
-     */
+    /** Load today's and tomorrow's class intervals; null denotes unavailable schedule data. */
     private suspend fun loadClassBlocks(appContext: Context, today: LocalDate): List<ClassBlock>? {
         val app = appContext as? ClassScheduleApplication ?: return null
         return runCatching {
             val container = app.appContainer
             container.bootstrapJob.join()
             val timingProfile = container.widgetPreferencesRepository.timingProfileFlow.first()
-            // 没有节次时间表或没有开学日期都排不出上课时段，视为今明两天没有课
             val termStart = timingProfile?.termStartLocalDate()
             if (timingProfile == null || termStart == null) {
                 emptyList()

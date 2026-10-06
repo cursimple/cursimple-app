@@ -45,17 +45,14 @@ import kotlinx.serialization.json.booleanOrNull
 import java.util.UUID
 
 /**
- * 扩展组件的登录页：直接打开站点自己的登录页面，用户怎么登（扫码、密码、短信、验证码）都由站点处理。
- *
- * 宿主只做一件事：每隔一会儿在当前页面上跑一次组件的 checkLogin，登上了就把账号交回去、关掉这一页。
- * 这一页不挂 JS 桥（用户可能点到别的网页），结果写在 window 上，由这里轮询读取。
+ * Legacy login polls checkLogin on the site's page without attaching a native bridge; the user
+ * controls authentication.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun ExtensionLoginScreen(
     title: String,
     buildRequest: () -> ExtensionRunRequest,
-    /** 见 PluginExtensionSpec.loginViewportWidth */
     viewportWidth: Int? = null,
     onLoggedIn: (ExtensionAccount?) -> Unit,
     onCancel: () -> Unit,
@@ -68,7 +65,6 @@ fun ExtensionLoginScreen(
     var pageTitle by remember { mutableStateOf("") }
     var hint by remember { mutableStateOf<String?>(null) }
     var finished by remember { mutableStateOf(false) }
-    // 当前这一轮 checkLogin 的 token 与开跑时间；换页时清掉，下一拍重新注入
     var attempt by remember { mutableStateOf<Pair<String, Long>?>(null) }
 
     BackHandler {
@@ -93,12 +89,10 @@ fun ExtensionLoginScreen(
                 val result = parseLoginPollResult(raw, request.maxOutputBytes)
                 when {
                     result == null -> {
-                        // 还在跑；太久没回音就作废，下一拍重来
                         if (System.currentTimeMillis() - current.second > LOGIN_ATTEMPT_TIMEOUT_MILLIS) attempt = null
                     }
                     result is ExtensionRunResult.Completed && result.result.boolean("loggedIn") == true -> {
                         finished = true
-                        // 登录态要落盘：进程被回收后后台同步还得用
                         CookieManager.getInstance().flush()
                         val account = (result.result["account"] as? JsonObject)?.let { obj ->
                             runCatching { extensionJson.decodeFromJsonElement(ExtensionAccount.serializer(), obj) }.getOrNull()
@@ -170,8 +164,7 @@ fun ExtensionLoginScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 factory = { context ->
                     WebView(context).apply {
-                        // 不给 MATCH_PARENT 的话 AndroidView 按 WRAP_CONTENT 算，WebView 进入「高度随内容」模式：
-                        // 页面里的 height:100% 全变成 0，登录框被居中挤到屏幕外面去
+                        // Use MATCH_PARENT to prevent content-sized WebView collapsing percentage-height login layouts.
                         layoutParams = android.view.ViewGroup.LayoutParams(
                             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
@@ -195,7 +188,6 @@ fun ExtensionLoginScreen(
                             }
                         }
                         val viewportScript = viewportWidth?.coerceIn(320, 2560)?.let(::desktopViewportScript)
-                        // 最好在页面脚本跑之前就把 viewport 改掉：站点的脚本按窗口宽高排版，晚了就排歪了
                         val injectedAtStart = viewportScript != null &&
                             WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT) &&
                             runCatching {
@@ -207,12 +199,11 @@ fun ExtensionLoginScreen(
                             }.isSuccess
                         webViewClient = object : WebViewClient() {
                             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                // 换页了，上一页里那一轮检查作废
                                 attempt = null
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {
-                                // 老 WebView 不支持提前注入：页面出来后再补一刀，横向至少能缩进屏幕
+                                // Older WebViews apply viewport fallback after loading.
                                 if (viewportScript != null && !injectedAtStart &&
                                     ExtensionUrls.isAllowed(url.orEmpty(), request.allowedHosts)
                                 ) {
@@ -231,7 +222,6 @@ fun ExtensionLoginScreen(
 
 private fun JsonObject.boolean(key: String): Boolean? = (this[key] as? JsonPrimitive)?.booleanOrNull
 
-/** 把页面的 viewport 改成固定宽度，站点后来再改回去也盯着改掉 */
 private fun desktopViewportScript(width: Int): String = """
 (function () {
   var content = "width=$width, user-scalable=yes";
@@ -254,10 +244,8 @@ private const val LOGIN_POLL_MILLIS = 1_500L
 private const val LOGIN_ATTEMPT_TIMEOUT_MILLIS = 20_000L
 
 /**
- * 退出登录：把组件声明的那几个站点上的 Cookie 全部作废。
- *
- * CookieManager 没有「按域名删」的接口，只能逐个名字写一条立即过期的；
- * 父域 Cookie（Domain=.example.com）还得带上 Domain 才删得掉，所以两种都写一遍。
+ * Expire each named cookie for host and parent-domain variants; CookieManager has no per-domain
+ * deletion API.
  */
 fun clearExtensionCookies(allowedHosts: List<String>) {
     val manager = CookieManager.getInstance()

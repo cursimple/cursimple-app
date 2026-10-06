@@ -21,7 +21,7 @@ internal data class ActiveAlarm(
     val allowOnHoliday: Boolean = false,
 )
 
-/** 闹钟在 intent 之间传递的全部 extra，响铃、通知按钮与锁屏界面共用这一份字段表。 */
+/** Shared alarm extras for receivers, notification actions and lock-screen UI. */
 internal fun ActiveAlarm.toAlarmExtras(): Map<String, Any> = buildMap {
     put(AppAlarmClockIntents.EXTRA_ALARM_KEY, alarmKey)
     put(AppAlarmClockIntents.EXTRA_RULE_ID, ruleId)

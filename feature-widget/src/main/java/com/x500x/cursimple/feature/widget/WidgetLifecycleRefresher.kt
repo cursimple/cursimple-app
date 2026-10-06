@@ -30,8 +30,7 @@ internal object WidgetLifecycleRefresher {
         refreshWidgets: Boolean,
     ) {
         val appContext = context.applicationContext
-        // 全部放到后台协程：WorkManager/AlarmManager 的入库与排程都线程安全，
-        // 而缩放小组件会高频触发 onAppWidgetOptionsChanged，放在广播主线程同步跑会卡顿
+        // Run scheduling and storage off broadcast main threads, including frequent resize callbacks.
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             runCatching {
                 WidgetCatalog.notifyInstalledChanged(appContext)

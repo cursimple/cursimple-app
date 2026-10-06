@@ -3,48 +3,38 @@ package com.x500x.cursimple.core.reminder.model
 import android.content.Context
 import com.x500x.cursimple.core.reminder.R
 
-/**
- * 提醒操作产生的用户可见提示。
- * 逻辑层只判定属于哪一种结果，文字由界面层按当前语言渲染，纯逻辑因此不依赖 Context。
- */
+/** Typed reminder feedback localized by the UI. */
 sealed interface ReminderMessage {
-    /** 重建 App 自管闹钟失败，cause 为底层异常原文，缺失时用本地化兜底。 */
+    /** Rebuild failure with optional underlying cause. */
     data class RebuildAppAlarmFailed(val cause: String? = null) : ReminderMessage
 
-    /** 取消闹钟失败，cause 为底层异常原文，缺失时用本地化兜底。 */
+    /** Cancellation failure with optional underlying cause. */
     data class CancelAlarmFailed(val cause: String? = null) : ReminderMessage
 
-    /** 关闭闹钟失败，cause 为底层异常原文，缺失时用本地化兜底。 */
+    /** Dismissal failure with optional underlying cause. */
     data class DisableAlarmFailed(val cause: String? = null) : ReminderMessage
 
-    /** 启用闹钟失败，cause 为底层异常原文，缺失时用本地化兜底。 */
+    /** Enablement failure with optional underlying cause. */
     data class EnableAlarmFailed(val cause: String? = null) : ReminderMessage
 
-    /** 删除闹钟失败，cause 为底层异常原文，缺失时用本地化兜底。 */
+    /** Deletion failure with optional underlying cause. */
     data class DeleteAlarmFailed(val cause: String? = null) : ReminderMessage
 
-    /** 延后闹钟设置失败，cause 为底层异常原文，缺失时用本地化兜底。 */
+    /** Snooze scheduling failure with optional underlying cause. */
     data class SnoozeSetupFailed(val cause: String? = null) : ReminderMessage
 
-    /** 闹钟登记已不存在。 */
     data object RegistrationMissing : ReminderMessage
 
-    /** 已移除过期闹钟登记。 */
     data object ExpiredRegistrationRemoved : ReminderMessage
 
-    /** 闹钟时间已过，无法重新启用。 */
     data object AlarmTimePassed : ReminderMessage
 
-    /** 闹钟已关闭。 */
     data object AlarmDismissed : ReminderMessage
 
-    /** 已延后 5 分钟。 */
     data object SnoozedFiveMinutes : ReminderMessage
 
-    /** 应用不在前台，系统时钟无法创建闹钟。 */
     data object SystemClockDispatchRequiresForeground : ReminderMessage
 
-    /** 应用不在前台，系统时钟无法删除闹钟。 */
     data object SystemClockDismissRequiresForeground : ReminderMessage
 }
 

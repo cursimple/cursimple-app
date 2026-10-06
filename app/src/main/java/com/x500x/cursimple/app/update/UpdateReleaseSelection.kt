@@ -1,6 +1,6 @@
 package com.x500x.cursimple.app.update
 
-/** GitHub Release 列表里的一条，只保留挑选所需的字段。 */
+/** Release fields required for selection. */
 internal data class ReleaseEntry(
     val index: Int,
     val tagName: String,
@@ -10,11 +10,8 @@ internal data class ReleaseEntry(
 )
 
 /**
- * 从 Release 列表里挑出该更新到哪一个。
- *
- * 草稿永远跳过；未开启测试版更新时预发布也跳过。
- * 发布时间是 ISO 8601，按字符串比较即可得到先后顺序；时间缺失的排在最后，
- * 再按列表原序兜底，保证结果稳定。
+ * Exclude drafts and optional prereleases; use publication time then input order for stable
+ * selection.
  */
 internal fun pickUpdateRelease(
     entries: List<ReleaseEntry>,
@@ -30,6 +27,6 @@ internal fun pickUpdateRelease(
     )
     .firstOrNull()
 
-/** 明确的发布通道优先；旧版本没有通道时才按版本名后缀判断。 */
+/** Explicit release channel takes priority over legacy version suffixes. */
 internal fun isPrereleaseBuild(versionName: String, releaseChannel: String? = null): Boolean =
     releaseChannel?.let { it == "beta" } ?: versionName.contains('-')

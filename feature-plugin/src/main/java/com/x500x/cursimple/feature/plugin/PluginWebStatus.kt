@@ -4,12 +4,7 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 
-/**
- * 网页会话的当前状态。
- *
- * 只描述状态本身不带文案，文案由界面按当前语言渲染，
- * 应用内切换语言时这一行才会跟着变。
- */
+/** Typed session state localized by the UI. */
 internal sealed interface PluginWebStatus {
     data class Uploading(@StringRes val stageLabel: Int, val step: Int) : PluginWebStatus
 

@@ -35,7 +35,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** 设置和笔记搜索共用：统一高度、字号、圆角及框内清空按钮。 */
 @Composable
 fun AppSearchField(
     query: String,

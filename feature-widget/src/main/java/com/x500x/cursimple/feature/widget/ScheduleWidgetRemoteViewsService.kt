@@ -26,7 +26,6 @@ private class ScheduleCourseListFactory(
     appContext: Context,
     private val appWidgetId: Int,
 ) : RemoteViewsService.RemoteViewsFactory {
-    // 工厂会被系统长期复用，改完语言进程又不重启，所以每次取数都重新按当前语言包一层
     private var context: Context = appContext.widgetLocaleContext()
     private var rows: List<ScheduleWidgetCourseRow> = emptyList()
     private var themeAccent: ThemeAccent = ThemeAccent.Green
@@ -69,11 +68,7 @@ private class ScheduleCourseListFactory(
     override fun hasStableIds(): Boolean = true
 }
 
-/**
- * 单节课那一行的 RemoteViews。
- *
- * 列表服务与 API 31 起的内联行共用这一份，两条路画出来的行始终一致。
- */
+/** Share row rendering between service adapters and API 31+ inline collections. */
 internal fun buildScheduleCourseRow(
     context: Context,
     rowData: ScheduleWidgetCourseRow,
@@ -81,7 +76,6 @@ internal fun buildScheduleCourseRow(
     widgetTheme: WidgetThemePreferences,
 ): RemoteViews {
     val row = RemoteViews(context.packageName, R.layout.widget_schedule_course_row)
-    // 正在上的那一节用更深的同色底，一眼能从一列课里挑出来
     row.applyAccentBackground(
         R.id.course_row_root,
         widgetTheme,
@@ -95,10 +89,8 @@ internal fun buildScheduleCourseRow(
     row.setTextViewText(R.id.course_time, rowData.timeRange)
     row.setTextViewText(R.id.course_title, rowData.title)
     row.setTextViewText(R.id.course_subtitle, rowData.subtitle)
-    // 两个分支都显式上色：只在放假时改颜色的话，启动器复用行视图后
-    // 上一天的灰字会留在翻过去的日子上
+    // Apply colors in every state because launchers reuse previously greyed rows.
     if (rowData.onHoliday) {
-        // 放假当天的行整体调灰，与课表里的不可用态保持一致
         val primary = ContextCompat.getColor(context, R.color.widget_row_holiday_primary)
         val secondary = ContextCompat.getColor(context, R.color.widget_row_holiday_secondary)
         row.setTextColor(R.id.course_title, primary)
@@ -111,7 +103,7 @@ internal fun buildScheduleCourseRow(
         row.setTextColor(R.id.course_time, ContextCompat.getColor(context, R.color.widget_row_time))
         row.setTextColor(R.id.course_subtitle, ContextCompat.getColor(context, R.color.widget_row_subtitle))
     }
-    // 上课中与即将开始比提醒标记更该被看到，同一个位置上让状态优先
+    // In-progress and starting-soon status takes priority over reminder markers.
     val badgeText = when (rowData.status) {
         CourseStatus.Live, CourseStatus.Soon ->
             context.getString(widgetCourseStatusRes(rowData.status, rowData.isExam))

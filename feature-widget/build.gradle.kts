@@ -20,7 +20,6 @@ android {
     }
 
     compileOptions {
-        // java.time 在 minSdk 24 上需要脱糖后才可用
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -38,6 +37,7 @@ dependencies {
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(project(":core-kernel"))
+    implementation(project(":core-plugin"))
     implementation(project(":core-data"))
     implementation(project(":core-reminder"))
 

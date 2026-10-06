@@ -39,12 +39,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.parseChecklistLine
 
-/**
- * 笔记正文的一块：一行对应一块，记下它在正文里是第几行，勾复选框时才改得回去。
- *
- * 只认几种最常用的写法，够记课堂笔记、待办就行，写不对也只是按普通文字显示：
- * `# 标题`、`- 列表`、`1. 编号`、`> 引用`、`- [ ] 复选框`，行内 `**粗体**`、`~~删除线~~`、`` `代码` ``。
- */
+/** Keep source line indices for checkbox edits; unsupported Markdown renders as plain text. */
 internal sealed interface MemoBlock {
     val line: Int
 
@@ -74,7 +69,7 @@ internal fun parseMemoBlocks(body: String): List<MemoBlock> =
         QUOTE.matchEntire(raw)?.let { return@mapIndexed MemoBlock.Quote(index, it.groupValues[1]) }
         if (raw.isBlank()) MemoBlock.Blank(index) else MemoBlock.Paragraph(index, raw)
     }
-        // 开头结尾的空行、连着的空行都没有意义，只留一个
+        // Collapse redundant blank blocks and trim outer blank lines.
         .let { blocks ->
             val out = mutableListOf<MemoBlock>()
             blocks.forEach { block ->
@@ -87,7 +82,6 @@ internal fun parseMemoBlocks(body: String): List<MemoBlock> =
 
 private val INLINE = Regex("""\*\*(.+?)\*\*|~~(.+?)~~|`([^`]+)`""")
 
-/** 行内的粗体、删除线、代码。 */
 internal fun memoInline(text: String, codeBackground: Color): AnnotatedString = buildAnnotatedString {
     var cursor = 0
     INLINE.findAll(text).forEach { match ->
@@ -105,12 +99,7 @@ internal fun memoInline(text: String, codeBackground: Color): AnnotatedString = 
     append(text.substring(cursor))
 }
 
-/**
- * 渲染笔记正文。
- *
- * [maxBlocks] 给卡片用：只露前几块，剩下的写一句「还有 N 行」，点进去再看全文。
- * [onToggle] 为空时复选框只看不能点（比如已经整条完成了）。
- */
+/** Cards limit [maxBlocks]; null [onToggle] makes checkboxes read-only. */
 @Composable
 internal fun MemoBody(
     body: String,
@@ -209,7 +198,6 @@ private fun MemoCheckRow(
     ) {
         MemoCheckBox(checked = checked, contentColor = contentColor, modifier = Modifier.padding(top = 1.dp))
         Spacer(Modifier.width(8.dp))
-        // 勾完的划掉变淡，一眼看出还剩哪些
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium.copy(
@@ -221,7 +209,6 @@ private fun MemoCheckRow(
     }
 }
 
-/** 笔记里的复选框：卡片上和编辑器里用同一个样子 */
 @Composable
 internal fun MemoCheckBox(checked: Boolean, contentColor: Color, modifier: Modifier = Modifier) {
     val primary = MaterialTheme.colorScheme.primary

@@ -36,7 +36,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 
-/** 一节课在「今天」这条时间线上的位置 */
 internal enum class TodayItemStatus { Done, Current, Pending, Unknown }
 
 internal fun TodayOverviewState.statusOf(item: TodayOverviewItem): TodayItemStatus = when {
@@ -48,7 +47,6 @@ internal fun TodayOverviewState.statusOf(item: TodayOverviewItem): TodayItemStat
 
 internal val TodayOverviewState.doneCount: Int get() = courses.count { statusOf(it) == TodayItemStatus.Done }
 
-/** 倒计时文案：一小时以内按分钟，再长就拆成小时和分钟 */
 @Composable
 internal fun countdownText(state: TodayOverviewState): String? = when {
     state.current != null -> stringResource(R.string.schedule_today_minutes_to_end, state.currentMinutesLeft ?: 0L)
@@ -72,10 +70,7 @@ internal fun todayStatusTitle(state: TodayOverviewState): String = stringResourc
     },
 )
 
-/**
- * 日视图看今天时，课程上方的那张卡片：左边今日进度环，右边正在上 / 下一节，
- * 底下是本节进度或上课倒计时。[onClick] 为空时作为面板里的头图，不带箭头。
- */
+/** Today's day-view overview; null [onClick] makes it a noninteractive sheet header. */
 @Composable
 internal fun TodayOverviewCard(
     state: TodayOverviewState,
@@ -101,7 +96,6 @@ internal fun TodayOverviewCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = content,
-                        // 课名一行就够；那句闲话可能稍长，给它两行别截断
                         maxLines = if (mood != null) 2 else 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -153,7 +147,6 @@ internal fun TodayChip(text: String, container: Color, content: Color) {
     }
 }
 
-/** 今日进度环：已上完几门 / 今天共几门 */
 @Composable
 private fun TodayProgressRing(done: Int, total: Int, color: Color, track: Color, textColor: Color) {
     val target = if (total == 0) 0f else done.toFloat() / total

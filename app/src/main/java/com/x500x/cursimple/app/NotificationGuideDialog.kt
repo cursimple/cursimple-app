@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -47,16 +46,8 @@ import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
 import com.x500x.cursimple.core.reminder.permission.MiuiPermissions
 import com.x500x.cursimple.core.reminder.permission.VendorRom
 
-/**
- * 「通知弹出引导」弹窗。
- *
- * 通知要能弹出来，每个品牌手机要放行的项不一样（小米要焦点通知、悬浮窗、后台弹出；
- * Android 16 要实时活动；老系统只有总开关和渠道）。这份清单按这台机型和当前皮肤现场
- * 组装，逐项带进度的状态点未完成项就跳到对应的系统设置页；从系统设置回来（ON_RESUME）
- * 自动重查。
- */
+/** Build a device-specific notification setup checklist and refresh it on resume. */
 
-/** 引导里的一项：标题、说明、现在放行了没有，以及点了跳到哪。 */
 internal data class NotificationGuideStep(
     val title: String,
     val subtitle: String,
@@ -74,7 +65,7 @@ internal fun NotificationGuideDialog(
 
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
-    ) { /* 结果以重查为准，别信返回的 Boolean——之前拒过再回来的状态而已 */ }
+    ) {   }
 
     fun refresh() {
         steps = buildNotificationGuideSteps(
@@ -129,7 +120,7 @@ internal fun NotificationGuideDialog(
     )
 }
 
-/** 一键放行项：未完成的可点，点完直接跳系统页；完成的只亮对勾。 */
+/** Incomplete steps open system settings; completed steps show their status. */
 @Composable
 private fun NotificationGuideStepRow(step: NotificationGuideStep) {
     Row(
@@ -168,10 +159,7 @@ private fun NotificationGuideStepRow(step: NotificationGuideStep) {
     }
 }
 
-/**
- * 按机型与当前皮肤组装这张清单。条件和跳转哪都写在代码里，别藏布局：
- * 查得到的状态才进清单（小米的几项不开 DevOps 查询接口时直接不出现，编造状态只会误事）。
- */
+/** List only permission states that can be queried on this device. */
 internal fun buildNotificationGuideSteps(
     context: Context,
     preferences: ClassNoticePreferences,
@@ -185,8 +173,7 @@ internal fun buildNotificationGuideSteps(
                 subtitle = context.getString(R.string.notice_guide_step_master_subtitle),
                 isDone = !ClassNoticeNotifier.masterNotificationsBlocked(context),
                 onJump = {
-                    // 运行时权限还没给就弹申请；权限给了但用户后来在系统里关了总开关的，
-                    // 再弹申请框什么都没用，只能去系统通知设置里手动开回来
+                    // A disabled notification master switch requires system settings after runtime permission is granted.
                     val needsRuntimeRequest = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                         androidx.core.content.ContextCompat.checkSelfPermission(
                             context,
@@ -216,7 +203,7 @@ internal fun buildNotificationGuideSteps(
                 },
             ),
         )
-        // 悬浮窗皮肤才需要悬浮窗权限；系统横幅指望不上的手机横幅全靠悬浮窗，也得要
+        // Overlay-only devices and overlay skins require draw-over-apps permission.
         if (preferences.skin == ClassNoticeSkin.Overlay ||
             (preferences.headsUpEnabled && SelfDrawnNotice.only())
         ) {
@@ -229,7 +216,7 @@ internal fun buildNotificationGuideSteps(
                 ),
             )
         }
-        // 状态栏胶囊：小米焦点通知或 Android 16 实时活动能出的机型才有这项（One UI 8.5 前没有）
+        // Show chip setup only on systems with supported focus or live-update notifications.
         if (ClassNoticeNotifier.islandAvailable(context)) {
             add(
                 NotificationGuideStep(
@@ -248,7 +235,7 @@ internal fun buildNotificationGuideSteps(
                 ),
             )
         }
-        // 小米的「后台弹出界面」能查到真实状态，只有小米才露这一项
+        // Background pop-up status is queryable on supported Xiaomi devices only.
         if (isXiaomi) {
             add(
                 NotificationGuideStep(
@@ -264,19 +251,17 @@ internal fun buildNotificationGuideSteps(
     }
 }
 
-/** 有没有还没放行的一步；总开关打开时用它在要不要自动弹之间取舍。 */
+/** Whether notification setup has any incomplete required steps. */
 internal fun hasPendingNoticeGuideStep(
     context: Context,
     preferences: ClassNoticePreferences,
 ): Boolean = buildNotificationGuideSteps(context, preferences, requestNotifications = {})
     .any { !it.isDone }
 
-/** 候选 Intent 逐个试，第一个打得开的就用；都不存在就提示用户自己动手。 */
 private fun Context.launchFirstSetting(intents: List<Intent>) {
     for (candidate in intents) {
         candidate.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        // 不做 resolveActivity 预检：部分厂商把设置页藏起来，包过滤会漏掉真存在的页面；
-        // 跟权限页一样直接试，起不来才换下一个
+        // Try vendor activities directly; package resolution can hide otherwise valid destinations.
         if (runCatching { startActivity(candidate) }.isSuccess) return
     }
     Toast.makeText(

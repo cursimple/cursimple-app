@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  「品牌卡片」皮肤的折叠态（通知栏收起时、以及悬浮横幅）。
-
-  系统只给自定义内容区约 48dp 高，用展开态那份带 40dp 图、12dp 内边距的布局会被
-  拦腰切掉第二行，所以这里单独排一份紧凑的：小一号的图、压到 4dp 的内边距、两行字。
-  别为了省一个文件把两种状态合成一份——合了就一定有一头难看。
--->
+<!-- Separate compact layout fits the approximately 48dp collapsed heads-up content budget. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:id="@+id/class_notice_card_root"

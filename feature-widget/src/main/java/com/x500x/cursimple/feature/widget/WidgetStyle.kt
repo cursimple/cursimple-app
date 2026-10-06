@@ -19,9 +19,7 @@ import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.theme.AccentColors
 
-/** 小组件里跟着主题色走的三种底：整张卡片、普通一行、突出的一行（正在上、已过）。 */
 internal enum class WidgetSurfaceTone(
-    /** 自选色时这一档的明度，照着内置五色那几张图的明度取。 */
     val customLightness: Float,
 ) {
     Card(0.90f),
@@ -30,11 +28,8 @@ internal enum class WidgetSurfaceTone(
 }
 
 /**
- * 给 [viewId] 铺上主题色的底。
- *
- * 内置主题各有一张现成的图；自选色没法事先备图，Android 12 起用白底图再着色，
- * 更早的系统 RemoteViews 不能着色，退回色相最接近的内置那张。
- * 换回内置色时要把之前着的色清掉：启动器刷新时会在原来那个 View 上重放，不清就残留着上次的颜色。
+ * Tint custom backgrounds on supported APIs; use closest resources otherwise. Clear old tint
+ * when switching back to a built-in theme.
  */
 internal fun RemoteViews.applyAccentBackground(
     viewId: Int,
@@ -68,10 +63,7 @@ internal fun RemoteViews.applyAccentBackground(
     if (canTint) setColorStateList(viewId, "setBackgroundTintList", null)
 }
 
-/**
- * 行里强调用的字色（节次名、提醒时间）：主题色压到浅底上看得清的明度。
- * 以前写死成薄荷绿，换了主题色、尤其是自选色后，绿字压在别的颜色上很突兀。
- */
+/** Derive emphasized row text from the resolved accent with readable lightness. */
 internal fun widgetAccentTextColor(theme: WidgetThemePreferences): Int {
     val base = if (theme.themeAccent == ThemeAccent.Custom) {
         theme.customColorArgb
@@ -101,7 +93,6 @@ internal fun RemoteViews.applyWidgetBackground(
     val bitmap = imageUri?.let { loadWidgetBackgroundBitmap(context, it) }
     if (bitmap != null) {
         setImageViewBitmap(R.id.widget_background_image, bitmap)
-        // 透明度和课表背景那套同义：0 为不透明，100 为完全透明
         val opaque = 100 - theme.backgroundImageTransparencyPercent.coerceIn(0, 100)
         setInt(R.id.widget_background_image, "setImageAlpha", (opaque * 255 / 100))
         setViewVisibility(R.id.widget_background_image, View.VISIBLE)
@@ -198,7 +189,6 @@ private fun Bitmap.scaleDownForWidgetBackground(): Bitmap {
 
 private const val WIDGET_BACKGROUND_MAX_EDGE = 384
 
-/** 读取小组件当前尺寸选项换算尺寸档案；读不到尺寸时按默认值。 */
 internal fun widgetSizeClass(manager: AppWidgetManager, appWidgetId: Int): WidgetSizeClass {
     val options = runCatching { manager.getAppWidgetOptions(appWidgetId) }.getOrNull()
     val widthDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0

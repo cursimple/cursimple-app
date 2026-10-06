@@ -72,12 +72,11 @@ class DataStoreScheduleRepository(
     }
 
     private fun decodeSchedule(preferences: Preferences, termId: String): TermSchedule? {
-        // 优先读按学期区分的键，回退到旧版单键数据，让迁移期内的旧安装仍能读到课表。
+        // Read term-specific storage first, then the legacy single schedule key.
         val raw = preferences[scheduleKey(termId)] ?: preferences[KEY_LEGACY_SCHEDULE_JSON]
         return raw?.let { runCatching { json.decodeFromString<TermSchedule>(it) }.getOrNull() }
     }
 
-    /** 一次性迁移：把全局 schedule_json 拷贝到活动学期，然后删除原键。 */
     suspend fun migrateLegacyScheduleIfNeeded(targetTermId: String) {
         if (targetTermId.isBlank()) return
         store.edit { preferences ->

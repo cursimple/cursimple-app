@@ -142,7 +142,7 @@
     <string name="update_status_ignored_manual">v%1$s ignored. You can still update from a manual check.</string>
     <string name="update_section_title">App updates</string>
     <string name="update_auto_check_title">Check for updates automatically</string>
-    <string name="update_auto_check_on">Checks at launch, prompts once and keeps a dot here</string>
+    <string name="update_auto_check_on">Checks quietly at launch and while in use; a new version only lights a red dot, no pop-up</string>
     <string name="update_auto_check_off">Manual checks only; a found update still keeps a dot here</string>
     <string name="update_check_title">Check for updates</string>
     <string name="update_check_checking">Checking…</string>
@@ -173,10 +173,7 @@
     <string name="update_dialog_update">Update</string>
     <string name="update_dialog_ignore">Ignore this version</string>
     <string name="update_dialog_later">Later</string>
-    <string name="update_dialog_mute">Stop reminding about this version</string>
-    <string name="update_dialog_mute_hint">Keeps the dot in About</string>
     <string name="update_dialog_ignore_hint">Clears the dot as well; check in About yourself</string>
-    <string name="update_status_muted">Reminders for v%1$s are off; the dot stays in About.</string>
     <string name="update_badge_desc">Update available</string>
     <string name="update_no_release_notes">No release notes.</string>
 
@@ -1489,4 +1486,5 @@
     <string name="github_device_open">Copy and open GitHub</string>
     <string name="github_device_denied">Authorization was denied on GitHub</string>
     <string name="github_device_expired">The code expired. Close and try again</string>
+    <string name="widget_manual_component_step4">4. Add “%1$s”, then choose “%2$s”. A single available component widget is selected automatically.</string>
 </resources>

@@ -22,7 +22,7 @@ class DatePickerDateTest {
         TimeZone.setDefault(systemZone)
     }
 
-    /** 独立于被测代码算出选择器给出的毫秒数：所选日期的 UTC 零点。 */
+    /** Compute expected UTC-midnight milliseconds independently of the implementation. */
     private fun pickerMillis(date: LocalDate): Long =
         date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
 

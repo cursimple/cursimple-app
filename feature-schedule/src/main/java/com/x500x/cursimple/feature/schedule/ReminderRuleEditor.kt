@@ -259,10 +259,7 @@ private fun ActionRow(
 }
 
 /**
- * 条件行与动作行共用的排布。
- *
- * 一行放得下两个下拉框才并排；窄屏或大字号下并排会把「存在」「提醒」这种两字标签挤成两列，
- * 这时改成上下两段：课程 label 独占一行，选项与删除按钮同一行。
+ * Stack selectors on narrow screens or large fonts when parallel layout would compress labels.
  */
 @Composable
 private fun RuleClauseLayout(
@@ -312,7 +309,6 @@ private fun ClauseDeleteButton(description: String, onDelete: () -> Unit) {
     }
 }
 
-/** 两个下拉框并排所需的最小宽度，低于它就改成上下两段。 */
 private val CLAUSE_SIDE_BY_SIDE_MIN_WIDTH = 300.dp
 
 @OptIn(ExperimentalMaterial3Api::class)

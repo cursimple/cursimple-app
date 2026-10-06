@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 哪些权限缺了必须拦住用户，哪些只是提示。 */
+/** Distinguish blocking access from advisory reliability settings. */
 class AlarmPermissionStateTest {
 
     @Test
@@ -38,7 +38,7 @@ class AlarmPermissionStateTest {
 
     @Test
     fun `vendor auto start is never counted as missing`() {
-        // 厂商自启动没有可查的接口，算进缺失项只会变成一个永远消不掉的红点
+        // Unqueryable vendor status must not create a permanent missing-permission badge.
         val state = AlarmPermissionState(
             granted = AlarmPermission.entries.toSet() - AlarmPermission.VendorAutoStart,
         )

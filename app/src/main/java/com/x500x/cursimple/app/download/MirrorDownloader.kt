@@ -16,6 +16,15 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.system.measureTimeMillis
 
 class MirrorDownloader(
@@ -24,9 +33,14 @@ class MirrorDownloader(
     private val probeRoundSize: Int = 4,
     private val userAgent: String = "CurSimple",
     private val preferenceStore: MirrorPreferenceStore? = null,
+    private val textTransport: Call.Factory = SharedHttp.text,
+    transferClient: OkHttpClient = SharedHttp.transfer,
 ) {
-    /** 进程内的上次成功镜像名；落盘的偏好在 [preferenceStore] 里，重启后仍生效。 */
+    private val transfer = FastTransfer(transferClient, userAgent, preferenceStore)
+
+    /** Process-local preferred mirror; [preferenceStore] persists it across restarts. */
     private val preferredSources = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val failedTextHosts = java.util.concurrent.ConcurrentHashMap<String, Long>()
 
     private fun preferredCandidate(request: DownloadRequest, candidates: List<DownloadCandidate>): DownloadCandidate? {
         val key = MirrorPreferenceStore.cacheKeyOf(request)
@@ -47,6 +61,21 @@ class MirrorDownloader(
         preferenceStore?.invalidate(MirrorPreferenceStore.hostOf(candidate.url))
     }
 
+    /** Rank by preferred source, measured throughput and recent failures. */
+    private fun rankedCandidates(request: DownloadRequest): List<DownloadCandidate> {
+        val key = MirrorPreferenceStore.cacheKeyOf(request)
+        return rankCandidates(
+            candidates = mirrorPool.candidates(request),
+            preferredName = preferredSources[key] ?: preferenceStore?.preferred(key),
+            speedKBps = { host -> preferenceStore?.speedKBps(host) },
+            coolingUntil = { host -> preferenceStore?.downloadFailureUntil(host) ?: 0L },
+            nowMillis = System.currentTimeMillis(),
+        )
+    }
+
+    private fun usesFastTransfer(request: DownloadRequest, candidates: Int): Boolean =
+        request.purpose != DownloadPurpose.LocalFile && request.purpose != DownloadPurpose.DirectUrl && candidates >= 2
+
     suspend fun downloadBytes(
         request: DownloadRequest,
         validate: (ByteArray) -> Unit = {},
@@ -55,6 +84,30 @@ class MirrorDownloader(
         if (request.purpose == DownloadPurpose.LocalFile) {
             return@withContext runInterruptible { loadLocalFile(request, onProgress, validate) }
         }
+        val ranked = rankedCandidates(request)
+        if (usesFastTransfer(request, ranked.size)) {
+            // Validate each hedged response before accepting its mirror.
+            val reported = AtomicLong(-1L)
+            val monotonic: (Long, Long) -> Unit = { done, total ->
+                // Report only the leading request's progress to keep it monotonic.
+                var current = reported.get()
+                while (done > current && !reported.compareAndSet(current, done)) current = reported.get()
+                if (done > current) onProgress(done, total)
+            }
+            return@withContext when (val outcome = transfer.hedged(ranked) { candidate ->
+                transfer.fetchBytes(candidate, monotonic).also(validate)
+            }) {
+                is HedgeOutcome.Won -> {
+                    recordSuccess(request, outcome.winner.sourceName)
+                    MirrorDownloadResult.Success(outcome.value, outcome.winner, outcome.failures)
+                }
+                is HedgeOutcome.Lost -> MirrorDownloadResult.Failure(
+                    message = outcome.failures.firstOrNull()?.message ?: labels.noSource,
+                    reason = outcome.firstError?.let { DownloadFailureReason.Thrown(it) } ?: DownloadFailureReason.NoSource,
+                    failures = outcome.failures,
+                )
+            }
+        }
         downloadMeasured(request) { candidate ->
             val bytes = runInterruptible { requestBytes(candidate.url, onProgress) }
             validate(bytes)
@@ -62,18 +115,12 @@ class MirrorDownloader(
         }
     }
 
-    /** 保留原来的末尾 lambda 校验调用。 */
     suspend fun downloadBytes(
         request: DownloadRequest,
         validate: (ByteArray) -> Unit,
     ): MirrorDownloadResult<ByteArray> = downloadBytes(request, validate, onProgress = { _, _ -> })
 
-    /**
-     * 下载到文件。
-     *
-     * [onProgress] 报告已下载字节数与总字节数，服务端没给 Content-Length 时总数为 -1。
-     * 换镜像重试会从头下载，所以每次进入都会先回一次 0，界面据此重置进度条。
-     */
+    /** Download into a file. Unknown totals use -1; mirror retries restart progress at zero. */
     suspend fun downloadFile(
         request: DownloadRequest,
         target: File,
@@ -83,12 +130,63 @@ class MirrorDownloader(
         if (request.purpose == DownloadPurpose.LocalFile) {
             return@withContext copyLocalFile(request, target, validate)
         }
+        val ranked = rankedCandidates(request)
+        val fastFailures = mutableListOf<DownloadFailure>()
+        if (usesFastTransfer(request, ranked.size)) {
+            val winner = try {
+                fastDownloadToFile(ranked, target, onProgress, validate)
+            } catch (cancel: CancellationException) {
+                throw cancel
+            } catch (error: Exception) {
+                // Fallback to full-file mirror downloads when probing, chunking or validation fails.
+                fastFailures += DownloadFailure("fast", error.message ?: labels.downloadFailed)
+                runCatching { target.delete() }
+                null
+            }
+            if (winner != null) {
+                recordSuccess(request, winner.sourceName)
+                return@withContext MirrorDownloadResult.Success(target, winner, emptyList())
+            }
+        }
         downloadMeasured(request) { candidate ->
             runCatching { target.delete() }
             requestFile(candidate.url, target, onProgress)
             validate(target)
             target
         }
+    }
+
+    /**
+     * Choose ranged parallel transfer or small-file hedging; return the source only after
+     * [validate] succeeds.
+     */
+    private suspend fun fastDownloadToFile(
+        ranked: List<DownloadCandidate>,
+        target: File,
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit,
+        validate: (File) -> Unit,
+    ): DownloadCandidate {
+        val probes = transfer.probe(ranked)
+        check(probes.isNotEmpty()) { labels.probeFailed }
+        val ranged = probes.filter { it.acceptsRange && it.total > 0L }.groupBy { it.total }
+            .maxByOrNull { (_, group) -> group.size }
+        runCatching { target.delete() }
+        if (ranged != null && ranged.key >= FastTransfer.SEGMENT_MIN_BYTES) {
+            val winner = transfer.segmentedToFile(ranged.value, ranged.key, target, onProgress)
+            validate(target)
+            return winner
+        }
+        // Large files without Range support use sequential fallback to avoid duplicate full downloads.
+        check(probes.all { it.total in 1 until FastTransfer.SEGMENT_MIN_BYTES }) { "No mirror supports ranged download" }
+        val order = probes.sortedBy { it.firstByteMillis }.map { it.candidate }
+        val outcome = transfer.hedged(order) { candidate ->
+            transfer.fetchBytes(candidate, onProgress)
+        }
+        check(outcome is HedgeOutcome.Won) { labels.downloadFailed }
+        target.parentFile?.mkdirs()
+        target.writeBytes(outcome.value)
+        validate(target)
+        return outcome.winner
     }
 
     suspend fun downloadText(
@@ -117,7 +215,6 @@ class MirrorDownloader(
                 is MirrorDownloadResult.Failure -> bytesResult
             }
         }
-        // 文本体积小，直接并发取最快返回的那个，省掉探测那一轮往返
         downloadRaced(request) { candidate ->
             val text = requestText(candidate.url, accept)
             validate(text)
@@ -126,17 +223,15 @@ class MirrorDownloader(
     }
 
     /**
-     * 并发向若干镜像发起同一次请求，取最先成功的那个。
-     *
-     * 探测再下载要走两次往返，而小文件的下载本身就等价于探测。
-     * 上次成功的镜像排在最前单独试一轮，命中时整次只有一个请求。
+     * Race small-file reads directly; include preferred mirrors and the origin in the first
+     * round.
      */
     private suspend fun <T> downloadRaced(
         request: DownloadRequest,
-        fetch: (DownloadCandidate) -> T,
+        fetch: suspend (DownloadCandidate) -> T,
     ): MirrorDownloadResult<T> = coroutineScope {
-        val candidates = mirrorPool.candidates(request)
-        val preferred = preferredCandidate(request, candidates)
+        val candidates = fastTextCandidates(mirrorPool.candidates(request).sortedBy { textHostCooling(it) })
+        val preferred = preferredCandidate(request, candidates)?.takeUnless { textHostCooling(it) }
         val rounds = raceRounds(
             candidates = candidates,
             preferredUrl = preferred?.url,
@@ -154,7 +249,6 @@ class MirrorDownloader(
                     failures = failures.toList(),
                 )
             }
-            // 记住的镜像失效时清除记录，让下次直接竞速全部镜像
             if (preferred != null && round.any { it.sourceName == preferred.sourceName }) {
                 recordFailure(request, preferred)
             }
@@ -166,19 +260,17 @@ class MirrorDownloader(
         )
     }
 
-    /** 同时发起一轮请求，任一成功即返回并取消其余；全部失败时返回 null。 */
+    /** Return the first success and cancel losers; return null when every candidate fails. */
     private suspend fun <T> raceRound(
         candidates: List<DownloadCandidate>,
-        fetch: (DownloadCandidate) -> T,
+        fetch: suspend (DownloadCandidate) -> T,
         failures: MutableList<DownloadFailure>,
         firstError: java.util.concurrent.atomic.AtomicReference<Throwable?>,
     ): Pair<DownloadCandidate, T>? = coroutineScope {
         val winner = kotlinx.coroutines.CompletableDeferred<Pair<DownloadCandidate, T>?>()
         val jobs = candidates.map { candidate ->
             launch {
-                // runInterruptible：赢家确定后取消落败协程时中断其线程，Android 的 HttpURLConnection
-                // 会立即中止阻塞的 socket 读，否则 coroutineScope 要等最慢镜像或 8s 超时才返回
-                runCatching { runInterruptible { fetch(candidate) } }
+                runCatching { fetch(candidate) }
                     .onSuccess { winner.complete(candidate to it) }
                     .onFailure { error ->
                         if (error is InterruptedException ||
@@ -189,6 +281,9 @@ class MirrorDownloader(
                         }
                         firstError.compareAndSet(null, error)
                         failures += DownloadFailure(candidate.sourceName, error.message ?: labels.downloadFailed)
+                        val host = MirrorPreferenceStore.hostOf(candidate.url)
+                        failedTextHosts[host] = System.currentTimeMillis() + 5 * 60_000L
+                        preferenceStore?.recordTextFailure(host)
                     }
             }
         }
@@ -210,7 +305,7 @@ class MirrorDownloader(
         val failures = mutableListOf<DownloadFailure>()
         var firstError: Throwable? = null
 
-        // 记住的镜像直接下载，省掉探测那一轮往返；失败才落回逐批探测
+        // Try the preferred mirror directly before probing alternatives.
         preferredCandidate(request, allCandidates)?.let { preferred ->
             val direct = runCatching { fetch(preferred) }.getOrElse { error ->
                 if (error is CancellationException) throw error
@@ -272,6 +367,12 @@ class MirrorDownloader(
             reason = firstError?.let { DownloadFailureReason.Thrown(it) } ?: DownloadFailureReason.NoSource,
             failures = failures.toList(),
         )
+    }
+
+    private fun textHostCooling(candidate: DownloadCandidate): Boolean {
+        val host = MirrorPreferenceStore.hostOf(candidate.url)
+        val until = maxOf(failedTextHosts[host] ?: 0L, preferenceStore?.textFailureUntil(host) ?: 0L)
+        return until > System.currentTimeMillis()
     }
 
     private fun loadLocalFile(
@@ -360,14 +461,27 @@ class MirrorDownloader(
         return output.toByteArray()
     }
 
-    private fun requestText(url: String, accept: String): String {
-        val connection = openConnection(url, "GET").apply {
-            setRequestProperty("Accept", accept)
-        }
-        return connection.use { conn ->
-            check(conn.responseCode in 200..299) { "HTTP ${conn.responseCode}" }
-            conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-        }
+    private suspend fun requestText(url: String, accept: String): String = suspendCancellableCoroutine { continuation ->
+        val call = textTransport.newCall(Request.Builder().url(url)
+            .header("User-Agent", userAgent).header("Accept", accept)
+            .header("Cache-Control", "no-cache").header("Pragma", "no-cache").build())
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, error: IOException) {
+                if (continuation.isActive) continuation.resumeWithException(error)
+            }
+            override fun onResponse(call: Call, response: Response) {
+                try {
+                    val text = response.use {
+                        check(it.isSuccessful) { "HTTP ${it.code}" }
+                        it.body.string()
+                    }
+                    if (continuation.isActive) continuation.resume(text)
+                } catch (error: Exception) {
+                    if (continuation.isActive) continuation.resumeWithException(error)
+                }
+            }
+        })
     }
 
     private fun requestFile(
@@ -385,8 +499,7 @@ class MirrorDownloader(
                 file.outputStream().use { output ->
                     val buffer = ByteArray(DOWNLOAD_BUFFER_BYTES)
                     var downloaded = 0L
-                    // 按时间间隔而不是按块数上报：块小的时候一秒能刷几百次，
-                    // 每块都回调会把重组压垮，进度条反而更卡。
+                    // Throttle progress by elapsed time to limit Compose recompositions.
                     var lastReportedAt = 0L
                     while (true) {
                         val read = input.read(buffer)
@@ -400,7 +513,7 @@ class MirrorDownloader(
                         }
                     }
                     output.flush()
-                    // 收尾补一次，保证界面停在 100% 而不是最后一次采样的数字
+                    // Publish final progress after the stream completes.
                     onProgress(downloaded, if (total > 0L) total else downloaded)
                 }
             }
@@ -408,7 +521,7 @@ class MirrorDownloader(
     }
 
     private fun probe(url: String) {
-        // 探测用更短的超时：一批候选并发探测后要 awaitAll 排序，死镜像若按 8s 连接超时会把整轮拖满
+        // Bound probe timeouts so one dead mirror cannot stall an entire round.
         val headStatus = runCatching {
             openConnection(url, "HEAD", PROBE_TIMEOUT_MILLIS).use { it.responseCode }
         }.getOrNull()
@@ -432,8 +545,7 @@ class MirrorDownloader(
             requestMethod = method
             instanceFollowRedirects = true
             setRequestProperty("User-Agent", userAgent)
-            // 中间代理各自按 URL 缓存，源站更新后用户那边的边缘节点可能还发旧文件。
-            // 肯听这两个头的代理会回源，不听的至少不会更糟。
+            // Ask intermediaries to revalidate cached content.
             setRequestProperty("Cache-Control", "no-cache")
             setRequestProperty("Pragma", "no-cache")
         }
@@ -456,13 +568,8 @@ class MirrorDownloader(
 }
 
 /**
- * 把镜像候选切成一轮轮并发请求。
- *
- * 上次成功的镜像排在第一轮最前，和其余几个一起竞速；其余按 [roundSize] 分批，
- * 免得一次把十几个镜像全打一遍。
- *
- * 以前记住的镜像单独占一轮，它要是卡住（国内代理说挂就挂），要等连接加读取两段超时
- * 十几秒才轮到别的镜像，导课页第一次检索插件就卡在这里。小文件多发三个请求不值什么。
+ * Batch concurrent candidates, including the preferred mirror in the first round rather than
+ * giving it an exclusive timeout window.
  */
 internal fun raceRounds(
     candidates: List<DownloadCandidate>,
@@ -476,4 +583,11 @@ internal fun raceRounds(
     val rest = candidates.filterNot { it.url == preferred.url }
     val firstRound = listOf(preferred) + rest.take(size - 1)
     return listOf(firstRound) + rest.drop(size - 1).chunked(size)
+}
+
+internal fun fastTextCandidates(candidates: List<DownloadCandidate>): List<DownloadCandidate> {
+    val origin = candidates.firstOrNull { it.sourceName in setOf(DownloadSourceIds.GITHUB_ORIGIN, DownloadSourceIds.ORIGIN) }
+        ?: return candidates
+    val mirrors = candidates.filterNot { it.url == origin.url }
+    return mirrors.take(2) + origin + mirrors.drop(2)
 }

@@ -78,7 +78,7 @@ fun WidgetPickerSheet(
 ) {
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    // 组件小组件只在装了组件时列出；装上 / 移除组件后重新打开面板即刷新
+    // Refresh component-widget availability when reopening the picker.
     val entries = WidgetCatalog.pickerEntries(context)
     val pinSupported = WidgetCatalog.isPinSupported(context)
 
@@ -89,8 +89,7 @@ fun WidgetPickerSheet(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 refreshTick++
-                // 系统的「添加到桌面」弹窗盖在应用上面时我们不算超时，
-                // 只有用户回到应用之后再确认不出来，才判定这次添加没成功
+                // Pause pinning timeout while the system confirmation overlays the app.
                 lastResumeAtMillis = android.os.SystemClock.elapsedRealtime()
             }
         }
@@ -114,7 +113,7 @@ fun WidgetPickerSheet(
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
-    // 每次进入组合都立即重新检查，用户可能没有离开应用就移除了小组件（例如在启动器浮层里操作）。
+    // Recheck on composition entry because a launcher overlay may remove widgets without backgrounding the app.
     LaunchedEffect(Unit) { refreshTick++ }
 
     val installedCounts = remember(refreshTick) {
@@ -122,19 +121,18 @@ fun WidgetPickerSheet(
     }
 
     var pendingConfirm by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
-    // 发出添加请求后盯着实际装上的数量，启动器悄悄丢掉请求时用户不会一直以为加上了
     var pinWatch by remember { mutableStateOf<PinWatch?>(null) }
     var pinUnconfirmed by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var manualGuideEntry by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
     var showWidgetHelp by remember { mutableStateOf(false) }
     var permissionNoticeEntry by remember { mutableStateOf<WidgetCatalogEntry?>(null) }
-    // 用户在手动步骤里点了「再试一次」：只放行这一次，不改动已记下的判定
+    // A manual retry bypasses remembered failure for one request only.
     var forcePinOnce by remember { mutableStateOf(false) }
-    // 已知不响应的桌面（vivo / OPPO），或这台机器实测失败过
+    // Known unresponsive launchers or previously failed pinning attempts.
     val preferManualAdd = remember(pinUnsupportedOnDevice, forcePinOnce) {
         !forcePinOnce && (pinUnsupportedOnDevice || WidgetCatalog.pinLikelyIgnored(context))
     }
-    // 只有识别到厂商桌面、且用户还没把「桌面快捷方式」勾成已开启时才提示
+    // Show shortcut-permission guidance only for detected vendor launchers lacking confirmation.
     val needsVendorPermissionNotice = remember(vendorPermissionAcks) {
         WidgetCatalog.detectLauncherVendor(context) != WidgetCatalog.LauncherVendor.Other &&
             VendorPermissionKey.SHORTCUT_PIN !in vendorPermissionAcks
@@ -179,7 +177,6 @@ fun WidgetPickerSheet(
             )
             Spacer(Modifier.height(4.dp))
             entries.forEachIndexed { index, entry ->
-                // 系统小组件在前；组件小组件另起一组，标明内容来自组件
                 if (entry.fromComponents && entries.getOrNull(index - 1)?.fromComponents != true) {
                     Spacer(Modifier.height(6.dp))
                     Text(
@@ -225,11 +222,10 @@ fun WidgetPickerSheet(
                 break
             }
             val now = android.os.SystemClock.elapsedRealtime()
-            // 用户已经从系统弹窗回到应用，且又等了一小会儿还是没出现，才算失败
+            // Count failure only after the user returns and the grace period elapses.
             val backInApp = lastResumeAtMillis > requestedAt &&
                 now - lastResumeAtMillis > PIN_SETTLE_MILLIS
             if (backInApp || now - requestedAt > PIN_GIVE_UP_MILLIS) break
-            // 前半分钟盯紧一点，之后放慢，用户一直停在系统弹窗上也不会空转几百次
             val elapsed = now - requestedAt
             kotlinx.coroutines.delay(if (elapsed < PIN_FAST_POLL_WINDOW_MILLIS) PIN_POLL_MILLIS else PIN_SLOW_POLL_MILLIS)
         }
@@ -237,8 +233,7 @@ fun WidgetPickerSheet(
         refreshTick++
         when {
             pinned -> onShowMessage(context.getString(R.string.widget_toast_added, entry.title))
-            // 厂商桌面受理了请求又悄悄丢掉时，换下一份 provider 再来一次，
-            // 别一次落空就让用户去走手动添加
+            // Try the next provider if a vendor launcher silently drops the pinning request.
             watch.hasMore -> {
                 when (val retry = WidgetCatalog.requestPin(context, entry, attempt = watch.attempt + 1)) {
                     is WidgetCatalog.PinRequestResult.Started -> {
@@ -257,14 +252,12 @@ fun WidgetPickerSheet(
                 }
             }
             else -> {
-                // 所有 provider 都试过还是没出现，记下这台手机不吃这一套
                 pinUnconfirmed = entry
                 forcePinOnce = false
                 onPinUnsupportedOnDeviceChange(true)
             }
         }
     }
-
 
     permissionNoticeEntry?.let { entry ->
         AlertDialog(
@@ -300,7 +293,7 @@ fun WidgetPickerSheet(
             title = { Text(stringResource(R.string.widget_pin_unconfirmed_title)) },
             text = { Text(stringResource(R.string.widget_pin_unconfirmed_body, unconfirmed.title)) },
             confirmButton = {
-                // 厂商机型上先给权限入口：这项没给的话再点几次一键添加也还是没反应
+                // Offer vendor permissions before issuing another pinning request.
                 AppOutlinedButton(onClick = {
                     pinUnconfirmed = null
                     WidgetCatalog.openShortcutPermission(context)
@@ -361,13 +354,11 @@ fun WidgetPickerSheet(
                 AppOutlinedButton(onClick = {
                     val entry = pending
                     pendingConfirm = null
-                    // 这家桌面不响应一键添加，别再让用户点一次等十几秒
                     if (preferManualAdd) {
                         manualGuideEntry = entry
                         return@AppOutlinedButton
                     }
-                    // 厂商机型上缺这两项时桌面会把添加请求静默丢掉，先问一次再发请求。
-                    // 用户选「先不管」就直接继续，下次点添加还会再问，直到勾了已开启
+                    // Ask about vendor requirements before pinning; skipping proceeds without recording permission approval.
                     if (needsVendorPermissionNotice) {
                         permissionNoticeEntry = entry
                         return@AppOutlinedButton
@@ -396,7 +387,6 @@ fun WidgetPickerSheet(
     }
 }
 
-/** 一次一键添加请求的跟踪状态：请求的是第几个 provider，落空后还有没有下一个可试。 */
 private data class PinWatch(
     val entry: WidgetCatalogEntry,
     val baseline: Int,
@@ -409,7 +399,6 @@ private fun WidgetHelpDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    // 隔着屏幕猜不出「为什么这台手机上找不到小组件」，把判断依据列出来让用户能直接反馈
     val report = remember { WidgetDiagnostics.collect(context) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -432,7 +421,6 @@ private fun WidgetHelpDialog(
                         stringResource(R.string.widget_help_generic_step1),
                         stringResource(R.string.widget_help_generic_step2),
                         stringResource(R.string.widget_help_generic_step3),
-                        // 桌面的小组件清单有缓存，这一条是各家课表应用的共同经验
                         stringResource(R.string.widget_help_generic_step4),
                     ),
                 )
@@ -477,7 +465,7 @@ private fun WidgetHelpDialog(
     )
 }
 
-/** 厂商指引的稳定标识，避免用会随语言变化的标题去匹配。 */
+/** Stable vendor-guide ID, independent of translated labels. */
 private enum class WidgetGuideKey { OnePlus, Huawei, Xiaomi, Oppo, Vivo }
 
 private data class WidgetGuide(
@@ -638,18 +626,18 @@ private fun ManualAddGuideDialog(
     vendor: WidgetCatalog.LauncherVendor,
     onOpenAppDetails: () -> Boolean,
     onDismiss: () -> Unit,
-    /** 非空表示当前已判定这台手机的一键添加没反应，留一条重试的退路。 */
     onRetryPin: (() -> Unit)? = null,
 ) {
     val genericSteps = listOf(
         stringResource(R.string.widget_manual_step1),
         stringResource(R.string.widget_manual_step2),
         stringResource(R.string.widget_manual_step3),
-        stringResource(R.string.widget_manual_step4, entry.title),
+        if (entry.fromComponents) stringResource(R.string.widget_manual_component_step4,
+            stringResource(com.x500x.cursimple.feature.widget.R.string.widget_label_tasks), entry.title)
+        else stringResource(R.string.widget_manual_step4, entry.title),
     )
     val vendorGuide = widgetVendorGuide(vendor)
-    // vivo 这类已知不响应一键添加的桌面，去应用设置里开什么都没用——
-    // 实测「桌面快捷方式」开着也照样不弹窗。别再给一个点了也解决不了问题的按钮
+    // Do not offer irrelevant app settings for launchers that ignore widget pinning.
     val permissionTipRes = when {
         onRetryPin != null -> null
         else -> when (vendor) {
@@ -699,7 +687,6 @@ private fun ManualAddGuideDialog(
         },
         dismissButton = {
             Row {
-                // 判定有可能是误判（换了桌面、系统升级），留一条回去的路
                 onRetryPin?.let { retry ->
                     AppOutlinedButton(onClick = {
                         onDismiss()
@@ -760,10 +747,9 @@ private fun TrailingStatus(installed: Boolean, installedCount: Int) {
     }
 }
 
-/** 回到应用后再观察这么久，仍没出现就认为添加没成功。 */
 private const val PIN_SETTLE_MILLIS = 2_500L
 
-/** 用户一直没回来时的兜底上限。 */
+/** Upper bound while waiting for the user to return. */
 private const val PIN_GIVE_UP_MILLIS = 180_000L
 private const val PIN_POLL_MILLIS = 400L
 private const val PIN_SLOW_POLL_MILLIS = 2_000L

@@ -6,7 +6,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.staticCompositionLocalOf
 
-/** 宿主导航只关心是否有嵌入页面，不关心组件的业务或页面结构。 */
+/** Navigation considers embedded-page presence only, independent of business structure. */
 @Stable
 class EmbeddedPageGestures {
     private val owners = mutableStateMapOf<Any, Unit>()
@@ -21,7 +21,6 @@ class EmbeddedPageGestures {
 
 val LocalEmbeddedPageGestures = staticCompositionLocalOf<EmbeddedPageGestures?> { null }
 
-/** 按页面存续期占用手势；转场时新旧页面重叠也不会提前恢复抽屉拖动。 */
 @Composable
 internal fun OwnEmbeddedPageGestures() {
     val gestures = LocalEmbeddedPageGestures.current

@@ -6,11 +6,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /**
- * 用户自己排进课表的一件事（事务）：组会、社团、考试以外的安排都算。
- *
- * 和课不同，它按真实日期与钟点存，不挂节次，也不属于哪个学期——
- * 换课表、重新导课都不会把它弄丢。网格按钟点把它画在该在的位置，
- * 和节次对不齐也照画，落在午休、晚上这类没有节次的时段时网格会临时插一段出来。
+ * Date-and-time events are independent of course periods and terms; insert temporary display
+ * bands outside configured class hours.
  */
 @Serializable
 data class ScheduleEvent(
@@ -23,24 +20,21 @@ data class ScheduleEvent(
     @SerialName("endTime") val endTime: String,
     @SerialName("location") val location: String = "",
     @SerialName("note") val note: String = "",
-    /** 从 [date] 起每周同一天重复 */
+    /** Repeat weekly from [date]. */
     @SerialName("repeatWeekly") val repeatWeekly: Boolean = false,
-    /** 重复到哪天为止（含当天）；为空表示一直重复 */
+    /** Inclusive repeat end; null means unbounded. */
     @SerialName("repeatUntil") val repeatUntil: String? = null,
-    /** 自选颜色；为空时按标题从课表配色里取，和课程块一个路数 */
     @SerialName("colorArgb") val colorArgb: Long? = null,
-    /** 组件自动生成的事务关联原始内容，点击时由宿主打开该内容。手动事务为空。 */
     @SerialName("source") val source: ScheduleEventSource? = null,
 ) {
     val localDate: LocalDate? get() = runCatching { LocalDate.parse(date) }.getOrNull()
     val startLocalTime: LocalTime? get() = parseClock(startTime)
     val endLocalTime: LocalTime? get() = parseClock(endTime)
 
-    /** 自零点起的分钟数，网格按它排位置 */
     val startMinute: Int? get() = startLocalTime?.let { it.hour * 60 + it.minute }
     val endMinute: Int? get() = endLocalTime?.let { it.hour * 60 + it.minute }
 
-    /** 时间填得通：结束晚于开始。跨零点的不收，网格一天只画一天 */
+    /** Require end after start on the same day; cross-midnight events are unsupported. */
     val isValid: Boolean
         get() {
             val start = startMinute ?: return false
@@ -48,7 +42,6 @@ data class ScheduleEvent(
             return localDate != null && end > start && title.isNotBlank()
         }
 
-    /** 这件事 [day] 当天有没有。 */
     fun occursOn(day: LocalDate): Boolean {
         val first = localDate ?: return false
         if (!isValid) return false
@@ -70,6 +63,5 @@ data class ScheduleEventSource(
     val itemId: String,
 )
 
-/** [day] 当天所有的事务，按开始时间排好。 */
 fun List<ScheduleEvent>.occurrencesOn(day: LocalDate): List<ScheduleEvent> =
     filter { it.occursOn(day) }.sortedWith(compareBy({ it.startMinute }, { it.endMinute }, { it.title }))

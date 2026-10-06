@@ -58,34 +58,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/** 放大的上限：再大一格就比整屏还高了，也没有更多可看的 */
+/** Maximum timetable zoom. */
 internal const val SCHEDULE_MAX_ZOOM = 3f
 
-/** 比这个大才算「放大了」：手指一抖的 1.003 倍不该锁住翻周 */
 internal const val SCHEDULE_ZOOM_EPSILON = 1.01f
 
-/** 松手后比例提示再停这么久才淡出，来得及看清停在多少 */
 private const val PERCENT_LINGER_MILLIS = 700L
 
 /**
- * 可以双指缩放的课表容器。
- *
- * 不是把画好的课表当图片拉大——那样字会糊——而是按放大后的密度重新排一遍：
- * 课表拿到的仍是原来那么多 dp，只是每个 dp 占的像素变多了，字和线都是清楚的。
- * 放大后的画布比屏幕大，单指往任意方向拖着看（松手有惯性），
- * 双指捏合以两指中点为中心缩放，同时双指也能拖。
- * 没放大时不拦任何单指手势，课表和外面的翻周照旧。
- *
- * 横竖两个方向是一次拖动一起挪的：两层各管一个方向的滚动容器会把斜着拖锁成一个方向，
- * 做不到「任意拖动」，所以偏移自己管。
- *
- * [content] 拿到的是一个读取当前偏移的函数，给表头、节次栏冻结用：
- * 在绘制阶段读，拖动时不会让整张课表每帧重组。第二个参数是现在算不算放大了（捏合中也算），
- * 冻结的表头按它垫不透明底色。
- *
- * 捏合的过程中不重新排版：换一次密度整张课表每格的字都要重新量，手指每动一下来一遍，
- * 手机稍差一点就一顿一顿的，模拟器上甚至报过无响应。捏合时先把排好的画面按比例放大（只动图层），
- * 松手那一刻再按最终倍数排一次，字照样是清楚的。
+ * During pinch, transform existing layers without remeasuring; relayout at final density on
+ * release. Manage two-axis panning directly, preserve ordinary gestures at unity, and expose
+ * draw-time offsets for pinned headers.
  */
 @Composable
 internal fun ZoomableScheduleBox(
@@ -103,13 +86,10 @@ internal fun ZoomableScheduleBox(
     val density = LocalDensity.current
     val currentZoom by rememberUpdatedState(zoom)
     val currentOnZoomChange by rememberUpdatedState(onZoomChange)
-    // 画布左上角相对屏幕往左、往上挪了多少像素
     var offsetX by remember { mutableFloatStateOf(0f) }
     var offsetY by remember { mutableFloatStateOf(0f) }
     var flingJob by remember { mutableStateOf<Job?>(null) }
-    // 双指捏合进行中：屏幕中间浮出当前比例，松手后再停一会儿才淡出
     var pinching by remember { mutableStateOf(false) }
-    // 捏合中手指跟着的倍数；松手才交给 [onZoomChange]，课表按它重新排版
     var liveZoom by remember { mutableFloatStateOf(zoom) }
     val shownZoom = if (pinching) liveZoom else zoom
     val zoomed = shownZoom > SCHEDULE_ZOOM_EPSILON
@@ -132,7 +112,7 @@ internal fun ZoomableScheduleBox(
             offsetX = x.coerceIn(0f, maxX(z))
             offsetY = y.coerceIn(0f, maxY(z))
         }
-        // 缩小之后原来的偏移可能越界了，收回来
+        // Clamp offsets after zoom reduction.
         if (offsetX > maxX(shownZoom) || offsetY > maxY(shownZoom)) moveTo(offsetX, offsetY, shownZoom)
 
         Box(
@@ -142,7 +122,6 @@ internal fun ZoomableScheduleBox(
                     awaitEachGesture {
                         awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                         do {
-                            // 在最先那一轮就截住双指：课程块、翻周都拿不到这次手势
                             val event = awaitPointerEvent(PointerEventPass.Initial)
                             if (event.changes.count { it.pressed } >= 2) {
                                 flingJob?.cancel()
@@ -155,7 +134,6 @@ internal fun ZoomableScheduleBox(
                                 val pan = event.calculatePan()
                                 val centroid = event.calculateCentroid(useCurrent = true)
                                 val ratio = next / old
-                                // 两指中点下面那一点缩放前后留在原处，再跟着双指挪
                                 moveTo(
                                     (offsetX + centroid.x) * ratio - centroid.x - pan.x,
                                     (offsetY + centroid.y) * ratio - centroid.y - pan.y,
@@ -166,7 +144,6 @@ internal fun ZoomableScheduleBox(
                             }
                         } while (event.changes.any { it.pressed })
                         if (pinching) {
-                            // 先交出最终倍数再收尾，同一帧里生效，不会闪一下旧倍数
                             if (liveZoom != currentZoom) currentOnZoomChange(liveZoom)
                             pinching = false
                         }
@@ -213,8 +190,7 @@ internal fun ZoomableScheduleBox(
             ) {
                 Box(
                     modifier = Modifier.layout { measurable, _ ->
-                        // 课表按放大前的 dp 尺寸排，像素上铺满放大后的画布；
-                        // 偏移和捏合中的倍数只在摆放时读，拖动、捏合只重新摆放、不重新排版
+                        // Read offsets and live pinch scale during placement only to avoid per-frame relayout.
                         val width = (viewportWidth * zoom).roundToInt()
                         val height = (viewportHeight * zoom).roundToInt()
                         val placeable = measurable.measure(Constraints.fixed(width, height))
@@ -228,7 +204,6 @@ internal fun ZoomableScheduleBox(
                         }
                     },
                 ) {
-                    // 捏合中画面被图层放大了，冻结的表头按放大前的尺寸挪，放大后正好贴边
                     content(
                         {
                             val scale = if (pinching) liveZoom / zoom else 1f
@@ -239,7 +214,6 @@ internal fun ZoomableScheduleBox(
                 }
             }
         }
-        // 右上角：放大了才出现，一点回到原比例
         AnimatedVisibility(
             visible = zoomed,
             enter = fadeIn() + scaleIn(initialScale = 0.85f),
@@ -277,7 +251,6 @@ internal fun ZoomableScheduleBox(
                 }
             }
         }
-        // 捏合时屏幕中间的比例：跟着手指实时变，到头了注明最大
         AnimatedVisibility(
             visible = showPercent,
             enter = fadeIn(),

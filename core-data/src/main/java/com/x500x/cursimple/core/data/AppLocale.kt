@@ -9,11 +9,8 @@ import kotlinx.coroutines.flow.first
 import java.util.Locale
 
 /**
- * 界面语言的读取与应用。
- *
- * 语言要在 Activity 附着基础上下文时就确定，那一刻还不能挂起等待 DataStore，
- * 所以这里另存一份同步可读的副本；小组件与通知运行在没有 Activity 的上下文里，
- * 同样从这份副本取值，保证三处显示同一种语言。
+ * Synchronously readable locale mirror serves context attachment, widgets and notifications
+ * before DataStore is available.
  */
 object AppLocale {
 
@@ -22,9 +19,9 @@ object AppLocale {
 
     val KEY_APP_LANGUAGE_PREFERENCE = stringPreferencesKey(KEY_LANGUAGE)
 
-    /** 同步读取当前语言设置，供 [wrap] 在主线程调用。 */
+    /** Synchronous locale read for [wrap] on the main thread. */
     fun current(context: Context): AppLanguage {
-        // Application.attachBaseContext 阶段 applicationContext 还是 null，只能用传进来的这个
+        // applicationContext may be null during attachBaseContext; use the supplied Context.
         val stored = context
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_LANGUAGE, null)
@@ -32,7 +29,6 @@ object AppLocale {
         return runCatching { AppLanguage.valueOf(stored) }.getOrDefault(AppLanguage.System)
     }
 
-    /** 把语言写入同步副本，DataStore 的写入由调用方另行完成。 */
     fun cache(context: Context, language: AppLanguage) {
         context
             .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -41,12 +37,7 @@ object AppLocale {
             .apply()
     }
 
-    /**
-     * 应用启动时把 DataStore 里的值同步到副本，覆盖备份恢复等绕过设置界面的写入。
-     *
-     * 挂起执行，不在主线程阻塞读盘；副本只在下次 Activity 附着上下文时才被读取，
-     * 稍晚一拍对齐没有影响。
-     */
+    /** Reconcile the locale mirror asynchronously after restore paths that bypass settings. */
     suspend fun syncCacheFrom(context: Context, repository: UserPreferencesRepository) {
         runCatching {
             val language = repository.preferencesFlow.first().appLanguage
@@ -54,7 +45,6 @@ object AppLocale {
         }
     }
 
-    /** 按当前语言设置包装上下文；跟随系统时原样返回。 */
     fun wrap(context: Context): Context =
         runCatching { wrap(context, current(context)) }.getOrDefault(context)
 
@@ -72,7 +62,6 @@ object AppLocale {
     }
 }
 
-/** 跟随系统时没有指定的区域，返回 null。 */
 fun AppLanguage.toLocale(): Locale? = when (this) {
     AppLanguage.System -> null
     AppLanguage.Chinese -> Locale.SIMPLIFIED_CHINESE

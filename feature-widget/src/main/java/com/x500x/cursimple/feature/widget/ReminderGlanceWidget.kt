@@ -24,7 +24,6 @@ internal data class ReminderWidgetEntry(
     val message: String,
 )
 
-/** 计划或记录没带文案时的兜底称呼，由界面层按当前语言给出。 */
 internal data class ReminderWidgetTextDefaults(
     val title: String,
     val planMessage: String,
@@ -83,14 +82,12 @@ private fun firstNotBlank(vararg values: String?): String? =
 
 open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
-        // 厂商启动器的刷新广播不会变成 onUpdate，这里单独接一次
         if (handleVendorWidgetUpdate(context, intent) { updateWidgets(it) }) return
         super.onReceive(context, intent)
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // 有的启动器加完小组件不发 onUpdate，会一直停在「加载中」
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
@@ -164,34 +161,22 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
         }
 
         @Suppress("DEPRECATION")
-        private fun buildViews(
+        private suspend fun buildViews(
             context: Context,
             appWidgetId: Int,
             data: ReminderWidgetData,
         ): RemoteViews {
-            val views = RemoteViews(context.packageName, R.layout.widget_reminder)
+            val layout = reminderWidgetLayout(context, appWidgetId, data)
+            val views = reminderWidgetHeader(context, data, layout.compact)
             views.applyWidgetBackground(context, R.id.reminder_root, data.widgetTheme)
             views.applyOpenAppClick(context, R.id.reminder_root, appWidgetId, data.widgetTheme)
-            if (data.totalCount > 0) {
-                views.setViewVisibility(R.id.reminder_badge, View.VISIBLE)
-                views.setTextViewText(
-                    R.id.reminder_badge,
-                    context.getString(R.string.widget_reminder_badge_count, data.totalCount),
-                )
-            } else {
-                views.setViewVisibility(R.id.reminder_badge, View.GONE)
-            }
-            // 行数按当前尺寸裁剪，与列表服务那条路取同一份
-            val visibleRows = visibleReminderRows(
-                data.rows,
-                widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId),
-            )
+            val visibleRows = layout.rows
             val hasRows = visibleRows.isNotEmpty()
             views.setWidgetRows(
                 listId = R.id.reminder_list,
                 rows = visibleRows,
                 stableId = { it.stableId },
-                buildRow = { buildReminderRow(context, it, data.themeAccent, data.widgetTheme) },
+                buildRow = { buildReminderRow(context, it, data.widgetTheme, layout.compact) },
                 fallbackAdapter = {
                     views.setRemoteAdapter(
                         R.id.reminder_list,
@@ -209,7 +194,11 @@ open class ReminderGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.reminder_empty, if (hasRows) View.GONE else View.VISIBLE)
             views.applyOpenAppClick(context, R.id.reminder_empty, appWidgetId, data.widgetTheme)
             views.applyAccentBackground(R.id.reminder_empty, data.widgetTheme, WidgetSurfaceTone.RowVariant)
-            val emptyText = data.emptySubtitle?.let { "${data.emptyTitle}\n$it" } ?: data.emptyTitle
+            val compact = layout.compact
+            val emptyText = if (compact) data.emptyTitle else data.emptySubtitle?.let { "${data.emptyTitle}\n$it" } ?: data.emptyTitle
+            views.setInt(R.id.reminder_empty, "setMaxLines", if (compact) 1 else 3)
+            views.setViewPadding(R.id.reminder_empty, 8, if (compact) 0 else 12, 8, if (compact) 0 else 12)
+            views.setTextViewTextSize(R.id.reminder_empty, android.util.TypedValue.COMPLEX_UNIT_SP, if (compact) 11f else 13f)
             views.setTextViewText(R.id.reminder_empty, emptyText)
             return views
         }

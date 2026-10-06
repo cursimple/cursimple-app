@@ -86,12 +86,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import kotlin.math.roundToInt
 
-/**
- * 课简自己的响铃界面（锁屏上也会亮起）。
- *
- * 关闭用滑动，避免口袋里或迷糊中误触；延后是一个明确的按钮。音量上键关闭、下键延后保留不变。
- * 颜色跟着应用主题色走，文字跟着应用语言走。
- */
+/** Theme-aware ringing screen with slide dismissal, explicit snooze and volume-key actions. */
 class AlarmRingingActivity : ComponentActivity() {
     private var actionSent = false
     private val alarmIntent = mutableStateOf<Intent?>(null)
@@ -193,7 +188,6 @@ private fun AlarmRingingScreen(
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(lerpColor(Ink, accent, 0.28f), Ink, Ink)))
             .drawBehind {
-                // 头顶一团主题色的柔光，界面不至于一片死黑
                 drawCircle(
                     brush = Brush.radialGradient(listOf(glow, Color.Transparent), center = center.copy(y = size.height * 0.30f), radius = size.width * 0.75f),
                     radius = size.width * 0.75f,
@@ -247,7 +241,6 @@ private fun AlarmRingingScreen(
     }
 }
 
-/** 大号时钟 + 日期，每秒走一次 */
 @Composable
 private fun LiveClock() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -273,7 +266,6 @@ private fun LiveClock() {
     Text(text = date, color = TextSoft, fontSize = 16.sp)
 }
 
-/** 闹钟图标外面一圈圈往外扩的波纹，表示正在响 */
 @Composable
 private fun PulsingAlarmIcon(accent: Color) {
     val transition = rememberInfiniteTransition(label = "alarm_pulse")
@@ -338,12 +330,9 @@ private fun SnoozeButton(onSnooze: () -> Unit) {
     }
 }
 
-/**
- * 滑动关闭：拖过 80% 才算数，松手不够就弹回去。比一个按钮更不容易误触。
- */
 @Composable
 private fun SlideToStop(accent: Color, onStop: () -> Unit) {
-    // 拖动时同步改位置，松手那一刻读到的就是手指真实停下的地方；只有弹回用动画
+    // Update drag position synchronously; animate only the return motion.
     var offset by remember { mutableFloatStateOf(0f) }
     var done by remember { mutableStateOf(false) }
     val label = stringResource(R.string.alarm_slide_to_stop)
@@ -364,7 +353,6 @@ private fun SlideToStop(accent: Color, onStop: () -> Unit) {
         val thumbSpanPx = with(density) { (thumb + inset * 2).toPx() }
         val maxPx = (trackPx - thumbSpanPx).coerceAtLeast(1f)
         val fraction = (offset / maxPx).coerceIn(0f, 1f)
-        // 已经滑过的那段铺上主题色，越往右越实
         Box(
             Modifier
                 .fillMaxWidth(fraction = ((offset + thumbSpanPx) / trackPx).coerceIn(0f, 1f))
@@ -400,7 +388,7 @@ private fun SlideToStop(accent: Color, onStop: () -> Unit) {
                     onDragStopped = {
                         if (done) return@draggable
                         if (offset >= maxPx * 0.8f) {
-                            // 先关闹钟再补完动画：界面马上就要退出，动画被取消也不能把关闭吞掉
+                            // Dismiss the alarm before animation so cancellation cannot lose the action.
                             done = true
                             onStop()
                             offset = maxPx

@@ -12,7 +12,7 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.MainActivity
 import com.x500x.cursimple.core.reminder.AlarmDaySuppression
 
-/** 跳过闹钟的说明只放通知栏，不响铃、不震动、不额外弹窗。 */
+/** Holiday explanations are silent notification-only messages. */
 object HolidayAlarmNotifier {
     private const val CHANNEL = "holiday_alarm_status"
     private const val ID = 0x48414C

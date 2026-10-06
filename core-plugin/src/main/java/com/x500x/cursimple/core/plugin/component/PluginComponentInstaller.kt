@@ -3,6 +3,8 @@ package com.x500x.cursimple.core.plugin.component
 import android.os.Build
 import com.x500x.cursimple.core.plugin.PluginArgumentException
 import com.x500x.cursimple.core.plugin.R
+import com.x500x.cursimple.core.plugin.install.requirePluginCompatibility
+import com.x500x.cursimple.core.plugin.install.resolveHostVersionCompatibility
 import com.x500x.cursimple.core.plugin.packageformat.readAtMostBytes
 import com.x500x.cursimple.core.plugin.pluginReasonOr
 import com.x500x.cursimple.core.plugin.pluginRequire
@@ -19,6 +21,7 @@ import java.util.zip.ZipInputStream
 class PluginComponentInstaller(
     private val componentRoot: File,
     private val repository: PluginComponentRepository,
+    private val hostVersion: String,
     private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
     private val maxFileCount: Int = DEFAULT_MAX_FILE_COUNT,
@@ -32,7 +35,7 @@ class PluginComponentInstaller(
         return installPackage(bytes, PluginComponentSource.Remote)
     }
 
-    // 组件包上限 200MB，解压+SHA-256+落盘全放 IO 线程，避免安装浏览器内核这类大组件时卡主线程 ANR
+    // Large component extraction and verification run on IO.
     private suspend fun installPackage(
         bytes: ByteArray,
         source: PluginComponentSource,
@@ -40,7 +43,7 @@ class PluginComponentInstaller(
         runCatching {
             val layout = readComponentPackage(bytes)
             val manifestText = layout.requireFile(MANIFEST_FILE).toString(Charsets.UTF_8)
-            // 插件包（导课插件、扩展组件）有 entry/apiVersion，导错入口时直接告诉用户去哪导
+            // Recognize plugin bundles imported through the component-asset entry point and explain the correct route.
             val looksLikePlugin = runCatching {
                 val obj = json.parseToJsonElement(manifestText) as? kotlinx.serialization.json.JsonObject
                 obj != null && ("apiVersion" in obj || "entry" in obj)
@@ -48,6 +51,7 @@ class PluginComponentInstaller(
             pluginRequire(!looksLikePlugin, R.string.plugin_error_component_is_plugin_package)
             val manifest = json.decodeFromString<PluginComponentPackageManifest>(manifestText)
             validateManifest(manifest, layout)
+            requirePluginCompatibility(resolveHostVersionCompatibility(manifest.minHostVersion, hostVersion))
             val target = installLayout(manifest, layout, source)
             val record = InstalledPluginComponentRecord(
                 id = manifest.id,

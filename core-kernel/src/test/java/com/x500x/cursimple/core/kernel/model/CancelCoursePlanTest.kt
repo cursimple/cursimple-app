@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
-/** 临时取消改成选一天、逐门点停课后，停课与恢复对调课列表的改动。 */
+/** Per-course cancellation and restoration plans. */
 class CancelCoursePlanTest {
 
     private val tue = LocalDate.of(2026, 9, 22)

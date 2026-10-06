@@ -4,35 +4,29 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import java.util.Locale
 
-/** 课程从哪来。改过的插件课会存成同 id 的手动课，来源随之变成 [Manual]。 */
 internal enum class CourseSource { Plugin, Manual }
 
-/** 课程库里的一条。 */
 internal data class CourseLibraryEntry(
     val course: CourseItem,
     val source: CourseSource,
-    /** 原件来自插件，眼下显示的是用户改过的那一份。 */
     val overridesPlugin: Boolean = false,
 ) {
-    /** 插件课也能改，改完会转成手动课，所以这里一律可编辑。 */
     val editable: Boolean get() = true
 
-    /** 插件原件删不掉，下次同步还会回来；改过的那份只能还原成插件数据。 */
+    /**
+     * Restore plugin data by removing its manual override; plugin originals persist across
+     * sync.
+     */
     val removable: Boolean get() = source == CourseSource.Manual && !overridesPlugin
 
-    /** 丢掉手动改动、退回插件下发的原样。 */
     val restorable: Boolean get() = overridesPlugin
 }
 
-/** 课程库的排序方式。文案由界面层渲染。 */
 internal enum class CourseSortMode { ByWeekday, ByTitle, BySource }
 
 /**
- * 合并插件课表与手动课程。
- *
- * 只用于展示，因此排除仅供提醒占位的条目；两边出现同一个 id 时以手动课程为准，
- * 手动课程是用户自己改过的那一份，同时记下它盖掉了一份插件原件，
- * 界面据此提供"还原插件数据"而不是"删除"。
+ * Merge sources for display, excluding reminder placeholders and tracking overridden originals
+ * for restoration.
  */
 internal fun buildCourseLibrary(
     pluginCourses: List<CourseItem>,
@@ -46,7 +40,6 @@ internal fun buildCourseLibrary(
         manual.map { CourseLibraryEntry(it, CourseSource.Manual, overridesPlugin = it.id in pluginIds) }
 }
 
-/** 课名、教师、地点任一命中即算命中；查询为空时全部命中。 */
 internal fun matchesCourseQuery(course: CourseItem, query: String): Boolean {
     val needle = query.trim().lowercase(Locale.ROOT)
     if (needle.isEmpty()) return true
@@ -54,7 +47,7 @@ internal fun matchesCourseQuery(course: CourseItem, query: String): Boolean {
         .any { it.lowercase(Locale.ROOT).contains(needle) }
 }
 
-/** 按指定方式排序，同序时按星期、节次、课名兜底，保证顺序稳定。 */
+/** Apply day, period and title tie-breakers for stable sorting. */
 internal fun sortCourseLibrary(
     entries: List<CourseLibraryEntry>,
     mode: CourseSortMode,
@@ -72,10 +65,7 @@ internal fun sortCourseLibrary(
     }
 }
 
-/**
- * 按显示列序把课程分到每个星期下。
- * [columnDayOfWeeks] 与课表网格用同一份列序，避免两处显示的星期顺序不一致。
- */
+/** Group by the timetable's [columnDayOfWeeks] display order. */
 internal fun groupCourseLibraryByWeekday(
     entries: List<CourseLibraryEntry>,
     columnDayOfWeeks: List<Int>,

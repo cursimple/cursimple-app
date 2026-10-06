@@ -111,4 +111,7 @@
     <string name="plugin_error_unknown_kind">不認識的外掛種類：%1$s，可能需要更新應用</string>
     <string name="plugin_error_extension_not_schedule">這是擴充元件，不能用來匯入課表</string>
     <string name="plugin_error_package_missing_ui_file">外掛包缺少元件介面檔案: %1$s</string>
+    <string name="plugin_error_compatibility_host_invalid">此包宣告的最低軟體版本無效，無法安裝</string>
+    <string name="plugin_error_compatibility_host_unknown">無法確認目前軟體版本，已阻止安裝</string>
+    <string name="plugin_error_compatibility_host_too_old">此包需要課簡 %1$s 或更高版本，目前版本為 %2$s，請先更新軟體</string>
 </resources>

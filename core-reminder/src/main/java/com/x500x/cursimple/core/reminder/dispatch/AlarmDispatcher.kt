@@ -38,14 +38,12 @@ fun interface AlarmRegistrationVerifier {
     fun isRegistered(record: SystemAlarmRecord): Boolean
 }
 
-/** 判断当前进程是否处于可以直接拉起 Activity 的状态。 */
 fun interface ForegroundActivityStartGate {
     fun canStartActivity(): Boolean
 }
 
 /**
- * 用进程重要度判断前台 Activity 启动条件。
- * Android 10 起后台进程的 Activity 启动会被静默丢弃，只有进程持有可见 Activity 时才放行。
+ * Background Activity launches require foreground visibility on supported platform versions.
  */
 class ProcessImportanceActivityStartGate : ForegroundActivityStartGate {
     override fun canStartActivity(): Boolean {
@@ -111,7 +109,7 @@ class AppAlarmClockDispatcher(
                     AlarmManager.AlarmClockInfo(plan.triggerAtMillis, showIntent),
                     operation,
                 )
-                // 精确排程被系统拒绝后仍要有下文，落在窗口里总好过完全不响
+                // Use windowed fallback when exact scheduling is rejected.
                 AlarmPrimaryChannel.Window -> alarmManager.setWindow(
                     AlarmManager.RTC_WAKEUP,
                     plan.triggerAtMillis,
@@ -292,13 +290,9 @@ class SystemAlarmClockDispatcher(
     }
 }
 
-/** 主通道被拒时兜底用的窗口跨度。 */
 private const val FALLBACK_WINDOW_MILLIS = 10 * 60 * 1000L
 
-/**
- * 备通道：同一时刻再挂一条允许在休眠中触发的精确闹钟。
- * 主通道被厂商清理掉时它还在，两条都到达时由到达去重挡住第二条。
- */
+/** Independent idle-allowed backup alarm; the arrival ledger suppresses duplicate delivery. */
 private fun scheduleBackupChannel(
     context: Context,
     alarmManager: AlarmManager,

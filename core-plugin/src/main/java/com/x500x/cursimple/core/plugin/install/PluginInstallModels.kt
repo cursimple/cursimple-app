@@ -28,16 +28,13 @@ data class InstalledPluginRecord(
     @SerialName("compatibilityStatus") val compatibilityStatus: PluginCompatibilityStatus = PluginCompatibilityStatus.Compatible,
     @SerialName("compatibilityMessage") val compatibilityMessage: String? = null,
     @SerialName("isBundled") val isBundled: Boolean = false,
-    /** 装自插件市场时记下来源仓库，市场据此判断已装与可更新；本地包安装为 null。 */
     @SerialName("sourceRepo") val sourceRepo: String? = null,
-    /** 见 PluginManifest.kind；老记录没有这个字段，按导课插件算 */
     @SerialName("kind") val kind: String = PluginManifest.KIND_SCHEDULE,
-    /** 收录它的来源仓库；与用于检查新版的插件仓库 [sourceRepo] 分开保存。 */
     @SerialName("registrySource") val registrySource: String? = null,
 ) {
     val installKey: String get() = pluginInstallKey(pluginId, source)
 
-    /** 同版本重装也必须使运行中的页面和脚本缓存失效。 */
+    /** Same-version reinstalls must invalidate active pages and script caches. */
     val packageRevision: String get() = "$installKey:$versionCode:$installedAt:$storagePath"
 
     val isExtension: Boolean get() = kind == PluginManifest.KIND_EXTENSION
@@ -99,16 +96,16 @@ data class PluginInstallPreview(
     val signatureStatus: PluginSignatureStatus = PluginSignatureStatus.Absent,
     val signerFingerprint: String? = null,
     val signatureError: Throwable? = null,
+    val compatibility: PluginCompatibility = resolvePluginCompatibility(manifest.apiVersion),
 ) {
-    /** 摘要通过且包内签名（若存在）有效时才允许安装。 */
+    /** Require APK compatibility, matching digests and a valid optional signature. */
     val installable: Boolean
-        get() = checksumVerified && signatureStatus != PluginSignatureStatus.Invalid
+        get() = compatibility.status == PluginCompatibilityStatus.Compatible && checksumVerified && signatureStatus != PluginSignatureStatus.Invalid
 }
 
 sealed interface PluginInstallResult {
     data class Success(val record: InstalledPluginRecord) : PluginInstallResult
 
-    /** [error] 由界面层渲染成当前语言的文案。 */
     data class Failure(val error: Throwable) : PluginInstallResult
 }
 

@@ -60,7 +60,6 @@ import com.x500x.cursimple.core.data.ClassNoticeAnimation
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
 
-/** 设置首页那行的副标题：关着就说关着，开着就报提前多少分钟。 */
 @Composable
 internal fun classNoticeSubtitle(preferences: ClassNoticePreferences): String =
     if (!preferences.enabled) {
@@ -69,11 +68,7 @@ internal fun classNoticeSubtitle(preferences: ClassNoticePreferences): String =
         stringResource(R.string.settings_class_notice_on, preferences.advanceMinutes)
     }
 
-/**
- * 「上课通知」设置块。
- *
- * 这套只发通知，不响铃——响铃那套在提醒规则里，两边互不影响，所以单开一块。
- */
+/** Class notices and ringing alarms have independent settings. */
 @Composable
 internal fun ClassNoticeSettingsSection(
     preferences: ClassNoticePreferences,
@@ -89,10 +84,8 @@ internal fun ClassNoticeSettingsSection(
     onBannerDurationChange: (Int) -> Unit,
 ) {
     val context = LocalContext.current
-    // 渠道只在第一次发通知时才会建，但「去系统设置」要跳到渠道页——
-    // 渠道不存在时系统会直接忽略这个跳转，所以进这一页就先把渠道建出来
+    // Create the notification channel before opening its system settings page.
     LaunchedEffect(Unit) { ClassNoticeNotifier.ensureChannel(context) }
-    // 用户可能刚跳去系统设置改完就回来，回到前台时重新查一次拦没拦
     var blocked by remember { mutableStateOf(ClassNoticeNotifier.systemBlocked(context, preferences)) }
     var islandBlocked by remember { mutableStateOf(ClassNoticeNotifier.islandBlocked(context)) }
     var canDrawOverlay by remember { mutableStateOf(ClassNoticeOverlay.canDraw(context)) }
@@ -109,7 +102,6 @@ internal fun ClassNoticeSettingsSection(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // 「通知弹出引导」弹窗：总开关打开时有未放行的项就自动弹一次；常驻入口行随时能自查
     var showGuide by remember { mutableStateOf(false) }
     var guideAutoShown by rememberSaveable { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
@@ -143,7 +135,6 @@ internal fun ClassNoticeSettingsSection(
     }
 
     if (preferences.enabled) {
-        // 系统那一层被关掉时，应用里怎么开都不会弹——先把话说清楚并给个直达入口
         if (blocked) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -164,7 +155,7 @@ internal fun ClassNoticeSettingsSection(
                 }
             }
         }
-        // vivo 没备案时系统那头全绿、现象照旧，不说清楚用户只会一遍遍去系统里找开关
+        // Explain vendor registration requirements even when system permissions appear granted.
         val selfDrawnReason = SelfDrawnNotice.reason()
         if (!blocked && selfDrawnReason != null) {
             Surface(
@@ -220,7 +211,7 @@ internal fun ClassNoticeSettingsSection(
                     )
                 },
             )
-            // 厂商的「锁屏显示」「后台弹出界面」查不到开没开，只能给个直达入口：没开时锁屏那一版会被系统悄悄拦掉
+            // Offer direct settings links for vendor permissions whose state cannot be queried.
             SettingsActionRow(
                 icon = Icons.Rounded.Lock,
                 title = stringResource(R.string.settings_class_notice_self_drawn_lock_title),
@@ -233,7 +224,7 @@ internal fun ClassNoticeSettingsSection(
                 },
             )
         }
-        // 通知权限是这一整块的前提，状态得一眼看见，不用点进系统里才知道
+        // Show notification permission status before the dependent controls.
         SettingsActionRow(
             icon = Icons.Rounded.OpenInNew,
             title = stringResource(R.string.settings_class_notice_open_system),
@@ -259,7 +250,7 @@ internal fun ClassNoticeSettingsSection(
                 )
             },
         )
-        // 动作从来不只是「去系统设置」——每个品牌要放行的项不一样，这里一次性列清楚
+        // Open the device-specific setup checklist.
         SettingsActionRow(
             icon = Icons.Rounded.Route,
             title = stringResource(R.string.settings_class_notice_guide_row_title),
@@ -275,7 +266,7 @@ internal fun ClassNoticeSettingsSection(
             max = ClassNoticePreferences.MAX_ADVANCE_MINUTES,
             step = 1,
             onValueChange = onAdvanceMinutesChange,
-            // 1–60 分钟跨度不小，只靠 ±5 的步进要点很多下
+            // Allow direct minute entry alongside step controls.
             editable = true,
         )
 
@@ -293,7 +284,7 @@ internal fun ClassNoticeSettingsSection(
             checked = preferences.lockScreenEnabled,
             onCheckedChange = onLockScreenChange,
         )
-        // 只用自己画的手机上胶囊出不来，开关留着只会让人以为坏了
+        // Hide unsupported chip controls on overlay-only devices.
         if (!SelfDrawnNotice.only()) SettingsSwitchRow(
             icon = Icons.Rounded.Star,
             title = stringResource(R.string.settings_class_notice_focus_title),
@@ -301,7 +292,7 @@ internal fun ClassNoticeSettingsSection(
             checked = preferences.focusNotificationEnabled,
             onCheckedChange = onFocusChange,
         )
-        // 小米的焦点通知、Android 16 的实时活动都得用户在系统里另外放行，应用里开了也不算数
+        // System approval is required independently of the in-app chip switch.
         if (preferences.focusNotificationEnabled && islandBlocked && !SelfDrawnNotice.only()) {
             SettingsActionRow(
                 icon = Icons.Rounded.OpenInNew,
@@ -321,16 +312,11 @@ internal fun ClassNoticeSettingsSection(
         )
     }
 
-    // 守护和闹钟预告不跟着上课通知的总开关走：只用闹钟、不要上课通知的人也用得上
+    // Guard and pre-alarm settings are independent of class-notice enablement.
     ReminderGuardAndAlarmPreNoticeSettings(noticePreferences = preferences)
 }
 
-/**
- * 静默守护与闹钟响前提醒。
- *
- * 自己读写偏好：这一页在设置和「提醒」页两处都有，两处的上层各传一遍开关太容易漏
- * （以前「提醒」页那份就没传，守护开关一直显示关、点了也没反应）。
- */
+/** Read preferences directly because this section is shared by Settings and Reminders. */
 @Composable
 private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
     val context = LocalContext.current
@@ -344,8 +330,7 @@ private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNotic
     val preNotice = current.alarmPreNotice
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
 
-    // 部分手机划掉应用会连带清掉挂着的闹钟和提醒，开关放在这里才找得到。
-    // 静默守护不起常驻服务、不挂「正在守护」，靠巡检闹钟和巡检任务在后台守着
+    // Silent guard alarms and jobs recover registrations without a persistent service notification.
     SettingsSwitchRow(
         icon = Icons.Rounded.Restore,
         title = stringResource(R.string.settings_alarm_keep_alive_title),
@@ -399,13 +384,7 @@ private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNotic
     }
 }
 
-/**
- * 换肤那一段。
- *
- * 三档能换的东西差别很大，所以每一档都把天花板写在副标题里，别让人选完才发现动效没有：
- * 系统原生完全交给系统；品牌卡片只能换内容区的底色排版（Android 12 起自定义通知
- * 一律被套上系统头部）；动效和毛玻璃只有自绘悬浮窗做得到。
- */
+/** System skins control different layers; animation and blur require custom overlays. */
 @Composable
 private fun ClassNoticeSkinSettings(
     preferences: ClassNoticePreferences,
@@ -420,8 +399,7 @@ private fun ClassNoticeSkinSettings(
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
     SettingsSectionHeader(stringResource(R.string.settings_class_notice_skin_header))
 
-    // 只用自己画的手机上，系统原生和品牌卡片两档都弹不出来，选了也白选：只留自绘横幅的那几项，
-    // 悬浮窗权限在上面的说明卡片下已经有一行了
+    // Limit overlay-only devices to supported banner skins.
     val selfDrawnOnly = SelfDrawnNotice.only()
     if (!selfDrawnOnly) ClassNoticeSkinOptions(preferences, onSkinChange)
 
@@ -487,7 +465,6 @@ private fun ClassNoticeSkinSettings(
         },
     )
 
-    // 厂商胶囊这块我们插不上手，说清楚比让人反复试要好
     Text(
         text = stringResource(R.string.settings_class_notice_island_note),
         style = MaterialTheme.typography.bodySmall,
@@ -496,7 +473,6 @@ private fun ClassNoticeSkinSettings(
     )
 }
 
-/** 一档皮肤。整行可点，选中的描边加重。 */
 @Composable
 private fun ClassNoticeSkinOption(
     title: String,
@@ -544,7 +520,6 @@ private fun ClassNoticeSkinOption(
     }
 }
 
-/** 入场动效三选一。 */
 @Composable
 private fun ClassNoticeAnimationPicker(
     selected: ClassNoticeAnimation,
@@ -589,12 +564,10 @@ private fun ClassNoticeAnimationPicker(
     }
 }
 
-/** 跳系统的「显示在其他应用上层」授权页。 */
 internal fun android.content.Context.openOverlayPermissionSettings() {
     val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
         .setData(android.net.Uri.fromParts("package", packageName, null))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    // 有些机型没有这个页面，退回应用详情页
     val fallback = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         .setData(android.net.Uri.fromParts("package", packageName, null))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -605,7 +578,7 @@ internal fun android.content.Context.openOverlayPermissionSettings() {
     toastSettingsGoneSilently()
 }
 
-/** 实时活动有单独的放行页（Android 16 QPR1 起）；没有这页就去通知设置，小米的焦点通知开关也在那里。 */
+/** Open live-update settings when available, otherwise notification settings. */
 internal fun android.content.Context.openIslandSettings(channelId: String) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
         val promotion = Intent("android.settings.APP_NOTIFICATION_PROMOTION_SETTINGS")
@@ -620,7 +593,6 @@ internal fun android.content.Context.openIslandSettings(channelId: String) {
     openClassNoticeSettings(channelId)
 }
 
-/** 直达本应用的通知设置；跳不过去就退回应用详情页，真打不开再出声。 */
 internal fun android.content.Context.openClassNoticeSettings(channelId: String) {
     val intents = buildList {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -641,8 +613,7 @@ internal fun android.content.Context.openClassNoticeSettings(channelId: String) 
     }
     for (intent in intents) {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        // startActivity 对「能打开但页面空白」的跳转不会抛异常，
-        // 所以先问 PackageManager 有没有人接，接不住就换下一个
+        // Check resolvable activities to avoid vendor destinations that open blank pages.
         if (packageManager.resolveActivity(intent, 0) == null) continue
         val launched = runCatching {
             startActivity(intent)
@@ -653,7 +624,6 @@ internal fun android.content.Context.openClassNoticeSettings(channelId: String) 
     toastSettingsGoneSilently()
 }
 
-/** 跳转链试到底都没动静（部分厂商把设置页藏起来），起码留个声、不让人以为点了没反应。 */
 private fun android.content.Context.toastSettingsGoneSilently() {
     Toast.makeText(
         this,
@@ -662,10 +632,7 @@ private fun android.content.Context.toastSettingsGoneSilently() {
     ).show()
 }
 
-/**
- * 点「预览」前先把拦路的说清楚：被拦时弹什么都不会出现，给个提示并直达系统设置。
- * 返回 true 表示已经接管这次点击，不该再真的去投递预览。
- */
+/** Return true when missing permission intercepts the preview action. */
 private fun warnIfPreviewBlocked(
     context: android.content.Context,
     preferences: ClassNoticePreferences,
@@ -679,7 +646,7 @@ private fun warnIfPreviewBlocked(
         context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(preferences))
         return true
     }
-    // 悬浮窗皮肤没权限会悄悄退回系统横幅，和「预览弹的是悬浮窗」的预期对不上
+    // Check overlay permission before a preview can silently fall back to system banners.
     if (preferences.skin == ClassNoticeSkin.Overlay && !ClassNoticeOverlay.canDraw(context)) {
         Toast.makeText(
             context,
@@ -689,7 +656,7 @@ private fun warnIfPreviewBlocked(
         context.openOverlayPermissionSettings()
         return true
     }
-    // 只用自己画的手机上没悬浮窗权限时预览照发，但系统横幅不会弹，先说一声免得以为坏了
+    // Explain unavailable system banners on overlay-only devices before previewing.
     if (preferences.headsUpEnabled && SelfDrawnNotice.only() && !ClassNoticeOverlay.canDraw(context)) {
         Toast.makeText(
             context,
@@ -700,7 +667,6 @@ private fun warnIfPreviewBlocked(
     return false
 }
 
-/** 三档皮肤的单选。 */
 @Composable
 private fun ClassNoticeSkinOptions(
     preferences: ClassNoticePreferences,
@@ -726,7 +692,7 @@ private fun ClassNoticeSkinOptions(
     )
 }
 
-/** 悬浮窗皮肤那一档的权限行；用户可能刚去系统里授完权回来，回到前台重新查一次。 */
+/** Refresh overlay permission when returning from system settings. */
 @Composable
 private fun OverlayPermissionRow() {
     val context = LocalContext.current
@@ -758,13 +724,11 @@ private fun OverlayPermissionRow() {
     }
 }
 
-/** 说明卡片的正文：各家管得不一样，按原因挑。 */
 private fun SelfDrawnNotice.Reason.bodyRes(): Int = when (this) {
     SelfDrawnNotice.Reason.Vivo -> R.string.settings_class_notice_self_drawn_body_vivo
     SelfDrawnNotice.Reason.Huawei -> R.string.settings_class_notice_self_drawn_body_huawei
 }
 
-/** 锁屏那一版要放行的两项，各家在设置里的叫法不一样。 */
 private fun SelfDrawnNotice.Reason.lockSubtitleRes(): Int = when (this) {
     SelfDrawnNotice.Reason.Vivo -> R.string.settings_class_notice_self_drawn_lock_subtitle_vivo
     SelfDrawnNotice.Reason.Huawei -> R.string.settings_class_notice_self_drawn_lock_subtitle_other

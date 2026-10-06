@@ -71,7 +71,7 @@ class MarketPreviewTest {
 }
 
 class MarketCatalogSearchTest {
-    private val privateRepo = repo("vendor/school", schoolAliases = listOf("北京理工大学", "北理工"))
+    private val privateRepo = repo("vendor/school", schoolAliases = listOf("示例理工大学", "北理工"))
         .copy(registrySource = "team/private-catalog", latestRelease = GitHubReleaseAsset("v2.4", "plugin.zip", "https://example.com/plugin.zip", 1))
     private val installed = InstalledPluginRecord(
         pluginId = "school.plugin", name = "School importer", publisher = "Example author",
@@ -90,7 +90,7 @@ class MarketCatalogSearchTest {
         listOf("北理工", "private-catalog", "Example AUTHOR", "school.plugin", "2.0").forEach { query ->
             assertEquals(query, listOf(installed), filterInstalledPlugins(listOf(installed), listOf(privateRepo), query))
         }
-        assertTrue(filterInstalledPlugins(listOf(installed), listOf(privateRepo), "清华").isEmpty())
+        assertTrue(filterInstalledPlugins(listOf(installed), listOf(privateRepo), "示范").isEmpty())
     }
 
     @Test
@@ -123,9 +123,9 @@ class MarketCatalogSearchTest {
 
 class FilterMarketReposTest {
     private val repos = listOf(
-        repo("cursimple/YangtzU_course_plugin", description = "长江大学教务系统"),
-        repo("someone/tsinghua-timetable", description = "Tsinghua University schedule"),
-        repo("other/zju-plugin", description = "浙江大学"),
+        repo("cursimple/example_school_plugin", description = "示例大学教务系统"),
+        repo("someone/demo-timetable", description = "Demo University schedule"),
+        repo("other/zju-plugin", description = "测试大学"),
     )
 
     @Test
@@ -136,10 +136,10 @@ class FilterMarketReposTest {
 
     @Test
     fun `matching is case insensitive on the repository name`() {
-        val result = filterMarketRepos(repos, "yangtzu")
+        val result = filterMarketRepos(repos, "EXAMPLE_SCHOOL")
 
         assertEquals(1, result.size)
-        assertEquals("cursimple/YangtzU_course_plugin", result.single().fullName)
+        assertEquals("cursimple/example_school_plugin", result.single().fullName)
     }
 
     @Test
@@ -147,12 +147,12 @@ class FilterMarketReposTest {
         val result = filterMarketRepos(repos, "someone")
 
         assertEquals(1, result.size)
-        assertEquals("someone/tsinghua-timetable", result.single().fullName)
+        assertEquals("someone/demo-timetable", result.single().fullName)
     }
 
     @Test
     fun `the description is searchable, including Chinese`() {
-        val result = filterMarketRepos(repos, "浙江")
+        val result = filterMarketRepos(repos, "测试")
 
         assertEquals(1, result.size)
         assertEquals("other/zju-plugin", result.single().fullName)
@@ -174,7 +174,7 @@ class SchoolAliasSearchTest {
     private val bit = repo(
         fullName = "someone/bit-schedule",
         description = "Undergraduate timetable plugin",
-        schoolAliases = listOf("北京理工大学", "北理工", "beijingligong", "BIT"),
+        schoolAliases = listOf("示例理工大学", "北理工", "beijingligong", "BIT"),
     )
     private val zf = repo(
         fullName = "vendor/zf-plugin",
@@ -184,7 +184,7 @@ class SchoolAliasSearchTest {
 
     @Test
     fun `the full chinese school name finds a repo named in english`() {
-        assertEquals(listOf(bit), filterMarketRepos(repos, "北京理工大学"))
+        assertEquals(listOf(bit), filterMarketRepos(repos, "示例理工大学"))
     }
 
     @Test
@@ -194,8 +194,7 @@ class SchoolAliasSearchTest {
 
     @Test
     fun `an alias matches on a prefix so typing partway is enough`() {
-        // 学生边打边看结果，打到「北京理工」时就该出来，不必打完「大学」
-        assertEquals(listOf(bit), filterMarketRepos(repos, "北京理工"))
+        assertEquals(listOf(bit), filterMarketRepos(repos, "示例理工"))
     }
 
     @Test
@@ -215,16 +214,16 @@ class SchoolAliasSearchTest {
 
     @Test
     fun `an unrelated school matches nothing`() {
-        assertTrue(filterMarketRepos(repos, "清华").isEmpty())
+        assertTrue(filterMarketRepos(repos, "示范").isEmpty())
     }
 
     @Test
     fun `a registry holding a single school matches only that school`() {
-        // 目前注册表里就一个学校，搜别家不能把这一个顶上来充数
+        // Unmatched schools must not receive an unrelated plugin fallback.
         val onlyOne = listOf(bit)
 
         assertEquals(listOf(bit), filterMarketRepos(onlyOne, "北理工"))
-        assertTrue(filterMarketRepos(onlyOne, "清华大学").isEmpty())
+        assertTrue(filterMarketRepos(onlyOne, "示范大学").isEmpty())
         assertTrue(filterMarketRepos(onlyOne, "复旦").isEmpty())
         assertTrue(filterMarketRepos(onlyOne, "不存在的学校").isEmpty())
     }
@@ -234,13 +233,13 @@ class SchoolDisplayTitleTest {
 
     @Test
     fun `the declared school name is used instead of the repo name`() {
-        // 这一页的用户在找自己的学校，不是在找 YangtzU_course_plugin 这种仓库名
+        // School search uses declared aliases rather than repository-name familiarity.
         val summary = repo(
-            fullName = "cursimple/YangtzU_course_plugin",
-            schoolAliases = listOf("长江大学", "长大", "cjdx"),
+            fullName = "cursimple/example_school_plugin",
+            schoolAliases = listOf("示例大学", "示大", "exampleu"),
         )
 
-        assertEquals("长江大学", summary.schoolDisplayTitle())
+        assertEquals("示例大学", summary.schoolDisplayTitle())
     }
 
     @Test
@@ -252,8 +251,8 @@ class SchoolDisplayTitleTest {
 
     @Test
     fun `blank alias entries are skipped`() {
-        val summary = repo(fullName = "a/b", schoolAliases = listOf("  ", "长江大学"))
+        val summary = repo(fullName = "a/b", schoolAliases = listOf("  ", "示例大学"))
 
-        assertEquals("长江大学", summary.schoolDisplayTitle())
+        assertEquals("示例大学", summary.schoolDisplayTitle())
     }
 }

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -90,12 +89,7 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 
 @OptIn(ExperimentalLayoutApi::class)
 
-/**
- * 同一格里叠着的几门课，左右翻页挑一门。
- *
- * 原先是一排筹码并列，课名长的时候（「高级可编程逻辑程序设计与应用」这种）挤成两行、
- * 还被省略号切掉，反而看不出是哪门。改成一次只显示一门、整条替换，配圆点指示当前是第几门。
- */
+/** Page through overlapping courses individually with position indicators. */
 @Composable
 private fun SameSlotPager(
     courses: List<CourseItem>,
@@ -119,7 +113,6 @@ private fun SameSlotPager(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            // 页码用圆点：几门课一眼看出来，也知道现在停在第几门
             Row(
                 horizontalArrangement = Arrangement.spacedBy(5.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -200,20 +193,17 @@ fun CourseDetailDialog(
     courses: List<CourseItem>,
     timingProfile: TermTimingProfile?,
     visibleWeekNumber: Int?,
-    /** 真实的当前教学周；只有正在看的就是它时，标记才写「本周」。 */
+    /** Use the current-week label only when the viewed week is actually current. */
     currentWeekNumber: Int? = null,
     isManual: (CourseItem) -> Boolean,
     examReminderEnabled: Boolean = false,
     mutedExamCourseIds: Set<String> = emptySet(),
     targetDate: LocalDate? = null,
-    /** [targetDate] 当天是否放假；放假日整天不出课，右上角状态要如实标「放假」。 */
     dayIsHoliday: Boolean = false,
     isTemporarilyCancelled: (CourseItem) -> Boolean = { false },
     noteTextOf: (CourseItem) -> String = { "" },
     noteMaxLength: Int = COURSE_NOTE_MAX_LENGTH,
-    /** 这门课原件来自插件，眼下显示的是用户改过的那一份。 */
     isPluginOverride: (CourseItem) -> Boolean = { false },
-    /** 编辑时用来提示时间冲突，正在编辑的那门课会自动排除。 */
     existingCourses: List<CourseItem> = emptyList(),
     maxNodeCount: Int = 12,
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
@@ -224,7 +214,6 @@ fun CourseDetailDialog(
     onTemporaryCancel: (CourseItem) -> Unit = {},
     onRestoreTemporaryCancel: (CourseItem) -> Unit = {},
     onSetReminder: (CourseItem) -> Unit,
-    /** 这门课眼下有没有能在这里直接撤掉的提醒。 */
     hasCancellableReminder: (CourseItem) -> Boolean = { false },
     onCancelReminder: (CourseItem) -> Unit = {},
     onMuteExamReminder: (CourseItem) -> Unit = {},
@@ -232,12 +221,10 @@ fun CourseDetailDialog(
     onDelete: (CourseItem) -> Unit,
 ) {
     if (courses.isEmpty()) return
-    // 以这一格的课程 id 列表为 key：换格子或删掉其中一门后，chip 选中项回到第一门，
-    // 不会沿用上一格的下标而串到别的课上。
+    // Reset selection when course IDs change so an old index cannot select another cell's course.
     val courseIdsKey = remember(courses) { courses.joinToString("|") { it.id } }
     var selectedIndex by rememberSaveable(courseIdsKey) { mutableIntStateOf(0) }
     val course = courses[selectedIndex.coerceIn(0, courses.size - 1)]
-    // 切到同格的另一门课时退出编辑，免得把这门课的输入按到那门课上
     var editing by remember(course.id) { mutableStateOf(false) }
     var confirmRestore by remember(course.id) { mutableStateOf(false) }
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
@@ -252,7 +239,6 @@ fun CourseDetailDialog(
     } else {
         palette.onContainer
     }
-    // 周次未知时不判断本周与否，徽章另行标注
     val isThisWeek = visibleWeekNumber?.let { course.isActiveInWeek(it) }
     val manual = isManual(course)
     val pluginOverride = manual && isPluginOverride(course)
@@ -262,7 +248,7 @@ fun CourseDetailDialog(
         "?"
     }
     val context = LocalContext.current
-    // 和课表左侧的节次栏一个叫法（「第一节」「午间课」）；跨了几个时段、或作息表里找不到时才写节号
+    // Prefer the timetable's timing-slot name, otherwise use period numbers.
     val slotName = remember(course.time, timingProfile, context) {
         context.courseSlotLabelText(timingProfile, course.time.startNode, course.time.endNode)
     }
@@ -273,14 +259,12 @@ fun CourseDetailDialog(
     }
     val classTime = remember(course, timingProfile) { resolveClassTime(course, timingProfile) }
     val classTimeText = remember(classTime, context) { context.classTimeText(classTime) }
-    // 没有节次时间表时，上课时间只能按节次描述，跟副标题里的节次是同一句话，
-    // 这时不重复挂到副标题上，免得出现"第 5-6 节 · 第 5-6 大节"
+    // Avoid repeating period-only time text in both subtitle and body.
     val headerTimeText = (classTime as? ClassTimeInfo.Range)?.let { classTimeText }
     val weeksText = remember(course.weeks, context) {
         context.weeksDetailText(describeWeeksDetail(course.weeks))
     }
     val today = LocalAppZone.current.today()
-    // targetDate 是点开这一格时对应的日期，对考试来说就是这场考试的日期。
     val examCountdown = remember(course, targetDate, today) {
         if (course.category == CourseCategory.Exam && targetDate != null) {
             examCountdownOrNull(course, targetDate, today)
@@ -326,7 +310,6 @@ fun CourseDetailDialog(
                     .heightIn(max = 640.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
-                // 顶部彩色头条：标题、状态、关闭挤在一行，副标题把星期节次时间合并成一句
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -351,7 +334,7 @@ fun CourseDetailDialog(
                                 viewingCurrentWeek = visibleWeekNumber != null &&
                                     visibleWeekNumber == currentWeekNumber,
                                 manual = manual,
-                                // 放假优先于停课：放假是整天的，停课只针对某几节
+                                // Whole-day holiday state takes priority over per-course cancellation.
                                 notOccurringLabel = when {
                                     dayIsHoliday -> stringResource(R.string.schedule_status_on_holiday)
                                     targetDate != null && isTemporarilyCancelled(course) ->
@@ -404,7 +387,6 @@ fun CourseDetailDialog(
                     if (editing) {
                         CourseEditSection(
                             course = course,
-                            // 自己跟自己不算冲突
                             existingCourses = remember(existingCourses, course.id) {
                                 existingCourses.filterNot { it.id == course.id }
                             },
@@ -422,7 +404,6 @@ fun CourseDetailDialog(
                             classTimeText = classTimeText,
                             weeksText = weeksText,
                             examCountdown = examCountdown,
-                            // 详情按你正在看的这一周显示地点；这周设过单独地点就显示那一个
                             location = course.locationForWeek(visibleWeekNumber),
                             teacher = course.teacher,
                             details = course.details,
@@ -467,7 +448,6 @@ fun CourseDetailDialog(
     }
 }
 
-/** 详情页里的就地编辑：字段与加课表单同源，保存后插件课会转成手动课。 */
 @Composable
 private fun CourseEditSection(
     course: CourseItem,
@@ -526,11 +506,7 @@ private fun CourseEditSection(
     }
 }
 
-/**
- * 关键信息卡。
- * 名称与取值同行、图标轻量内联：一门课四五条信息各占一行就够，
- * 不必每条都堆成"图标 + 标题 + 大字取值"三段，同格两门课时也才放得下。
- */
+/** Compact label/value rows keep multiple-course details readable. */
 @Composable
 private fun CourseFactsCard(
     classTimeText: String,
@@ -587,7 +563,6 @@ private fun CourseFactsCard(
                     body = teacher,
                 )
             }
-            // 教务带来的课程序号、学分这类，插件给什么列什么
             details.forEach { field ->
                 DetailRow(
                     icon = Icons.Rounded.Info,
@@ -595,7 +570,6 @@ private fun CourseFactsCard(
                     body = field.value,
                 )
             }
-            // 数据来源信息量低，降为浅色脚注一行
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -623,11 +597,7 @@ private fun CourseFactsCard(
     }
 }
 
-/**
- * 底部操作条。
- * 每个动作等宽平分一行，图标在上、短标签在下：按钮个数随课程来源变化，
- * 用等宽格子就不会像并排的文字按钮那样一溢出就每行只剩一个。
- */
+/** Equal-width actions adapt to the course's available operations. */
 @Composable
 private fun CourseActionBar(
     temporarilyCancelled: Boolean,
@@ -657,7 +627,7 @@ private fun CourseActionBar(
                 label = stringResource(R.string.schedule_action_edit),
                 onClick = onEdit,
             )
-            // 已经有提醒时这里变成撤掉它，免得详情页永远只给「提醒」一个方向
+            // Existing reminders expose removal rather than another creation action.
             DetailAction(
                 icon = if (hasReminder) Icons.Rounded.NotificationsOff else Icons.Rounded.NotificationsActive,
                 label = stringResource(
@@ -737,7 +707,6 @@ private fun CourseNoteSection(
     maxLength: Int,
     onSave: (String) -> Unit,
 ) {
-    // 切换到同格的另一门课时，草稿与编辑态一起重置，不会把上一门课的输入带过来。
     var editing by remember(courseKey) { mutableStateOf(false) }
     var draft by remember(courseKey, savedNote) { mutableStateOf(savedNote) }
     val draftLength = courseNoteLength(draft)
@@ -896,21 +865,14 @@ private fun ExamReminderMuteRow(
     }
 }
 
-/**
- * 右上角那枚状态标记。
- *
- * 它说的是「这门课在你正在看的这一周上不上」，而不是「在真实的本周上不上」。
- * 两者混为一谈就会出现：翻到第 12 周点开一门课，标记却写着「本周」。
- * 所以只有正在看的恰好就是当前教学周时才写「本周」，否则把周次写出来。
- */
+/** The status badge describes the viewed week, not always the current real week. */
 @Composable
 private fun StatusChip(
     activeInVisibleWeek: Boolean?,
     visibleWeekNumber: Int?,
     viewingCurrentWeek: Boolean,
     manual: Boolean,
-    // 这一天这门课实际不上（放假/已停课）时的说法；非空时压过周次判断——
-    // 周次算「本周该上」，但这天放假就是不上，标「本周」会误导
+    // Resolved holiday or cancellation status takes priority over active-week labeling.
     notOccurringLabel: String? = null,
 ) {
     val (label, container, content) = when {
@@ -981,7 +943,7 @@ private fun DetailRow(
                 .padding(top = 2.dp)
                 .size(16.dp),
         )
-        // 名称给个下限宽度让各行取值大致对齐，超出时照常撑开，不裁字
+        // Minimum label width aligns values without truncating longer labels.
         Text(
             text = title,
             style = MaterialTheme.typography.labelMedium,
@@ -1011,7 +973,7 @@ private fun examCountdownText(countdown: ExamCountdown): String = when (countdow
     )
 }
 
-/** 上课时间的呈现形态：命中节次时间表给区间，否则按大节或节次编号。 */
+/** Resolved timing ranges fall back to slot or period labels. */
 internal sealed interface ClassTimeInfo {
     data class Range(val startTime: String, val endTime: String) : ClassTimeInfo
     data class MajorPeriod(val index: Int) : ClassTimeInfo
@@ -1026,7 +988,6 @@ private fun resolveClassTime(course: CourseItem, timingProfile: TermTimingProfil
     if (matchStart != null && matchEnd != null) {
         return ClassTimeInfo.Range(matchStart.startTime, matchEnd.endTime)
     }
-    // 超出 timing 配置的节次：按 profile 行数 + 顺次给"第 N 大节"
     val baseCount = slots.size
     val extraStart = course.time.startNode - (slots.lastOrNull()?.endNode ?: 0)
     val extraEnd = course.time.endNode - (slots.lastOrNull()?.endNode ?: 0)
@@ -1045,7 +1006,6 @@ internal fun Context.classTimeText(info: ClassTimeInfo): String = when (info) {
     is ClassTimeInfo.NodeRange -> getString(R.string.schedule_node_range, info.start, info.end)
 }
 
-/** 上课周次的呈现形态。[weeksList] 为空表示未指定周次，其余附上逐个周次列表。 */
 internal sealed interface WeeksDetail {
     object Unspecified : WeeksDetail
     data class Consecutive(val first: Int, val last: Int, val count: Int, val weeksList: String) : WeeksDetail
@@ -1073,7 +1033,6 @@ private fun describeWeeksDetail(weeks: List<Int>): WeeksDetail {
 
 internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail) {
     WeeksDetail.Unspecified -> getString(R.string.schedule_weeks_detail_unspecified)
-    // 连续 / 单双周本身已说清是哪些周，不再把每一周都罗列一遍
     is WeeksDetail.Consecutive ->
         resources.getQuantityString(
             R.plurals.schedule_weeks_detail_consecutive,
@@ -1086,7 +1045,6 @@ internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail
         getString(R.string.schedule_weeks_detail_odd, detail.first, detail.last, detail.count)
     is WeeksDetail.Even ->
         getString(R.string.schedule_weeks_detail_even, detail.first, detail.last, detail.count)
-    // 不规则周次没有简洁概括，仍把具体周次列出来
     is WeeksDetail.Count ->
         resources.getQuantityString(R.plurals.schedule_weeks_detail_count, detail.count, detail.count) +
             "\n" + detail.weeksList

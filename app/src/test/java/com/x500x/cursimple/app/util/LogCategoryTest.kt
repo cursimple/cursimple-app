@@ -3,7 +3,7 @@ package com.x500x.cursimple.app.util
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** shouldWrite 要 Context，单测里没有，这里只测按事件名前缀分类。 */
+/** Test prefix classification without Context-dependent write filtering. */
 class LogCategoryTest {
     @Test
     fun `class notice events are notice`() {

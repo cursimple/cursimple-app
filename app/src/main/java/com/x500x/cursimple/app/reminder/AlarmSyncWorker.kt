@@ -11,15 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 闹钟同步 Worker - WorkManager 定期任务
- *
- * 每 2 小时执行一次，主要职责：
- * 1. 验证现有闹钟注册状态
- * 2. 重建失效的闹钟
- * 3. 同步未来 7 天的课程提醒
- *
- * 这是闹钟可靠性的兜底机制，确保即使某些同步事件被跳过，
- * 闹钟也能在定期巡检中得到修复。
+ * Periodic inspection rebuilds missing registrations and refreshes the upcoming reminder
+ * window.
  */
 class AlarmSyncWorker(
     appContext: Context,
@@ -35,10 +28,8 @@ class AlarmSyncWorker(
                 mapOf("worker" to WORKER_NAME),
             )
 
-            // 获取 AppContainer（手动依赖注入）
             val appContainer = getAppContainer()
 
-            // 执行共享闹钟完整性检查
             val summaries = appContainer.runSharedAlarmIntegrityCheck(
                 reason = ReminderSyncReason.WorkerBackgroundSync,
                 includeTomorrow = true,
@@ -47,7 +38,6 @@ class AlarmSyncWorker(
             val endTime = System.currentTimeMillis()
             val duration = endTime - startTime
 
-            // 记录同步结果
             val totalCreated = summaries.sumOf { it.createdCount }
             val totalSubmitted = summaries.sumOf { it.submittedCount }
             val totalFailed = summaries.sumOf { it.failedCount }
@@ -66,11 +56,11 @@ class AlarmSyncWorker(
 
             AutoSilenceController.evaluate(applicationContext, reason = WORKER_NAME)
 
-            // 上课提醒一次只挂一个闹钟，被系统清掉就断了；定期巡检时顺手重挂，最多断一个周期
+            // Reschedule class notices during maintenance so a missing wake-up does not break the chain indefinitely.
             runCatching { ClassNoticeGateway.reschedule(applicationContext) }
                 .onFailure { ReminderLogger.warn("class_notice.worker.reschedule.failure", emptyMap(), it) }
 
-            // 如果有失败的重试一次
+            // Retry failures once.
             if (totalFailed > 0) {
                 Result.retry()
             } else {

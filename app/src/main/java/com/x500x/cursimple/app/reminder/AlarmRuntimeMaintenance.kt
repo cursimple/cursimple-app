@@ -9,7 +9,6 @@ import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
 object AlarmRuntimeMaintenance {
     suspend fun onAlarmStarted(context: Context) {
         runCatching { AutoSilenceController.evaluate(context, reason = "alarm_started") }
-        // 打开应用、静默守护开起来时也走这里：上课提醒不在共享闹钟的巡检范围内，得单独重挂
         runCatching { ClassNoticeGateway.reschedule(context) }
             .onFailure { ReminderLogger.warn("class_notice.runtime_maintenance.failure", emptyMap(), it) }
         val app = context.applicationContext as? ClassScheduleApplication

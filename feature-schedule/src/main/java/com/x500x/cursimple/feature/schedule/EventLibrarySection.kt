@@ -43,14 +43,9 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
-/** 课程管理页顶部的两栏：课程、事务。 */
 internal enum class LibraryTab { Courses, Events }
 
-/**
- * 这件事下一次是哪天；已经全部过去了返回 null。
- *
- * 列表按它排：马上要到的在最前，过去了的沉到底下。
- */
+/** Next occurrence for sorting; null after every occurrence has passed. */
 internal fun ScheduleEvent.nextOccurrence(today: LocalDate): LocalDate? {
     val first = localDate ?: return null
     if (!repeatWeekly) return first.takeIf { !it.isBefore(today) }

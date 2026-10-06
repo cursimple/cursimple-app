@@ -29,8 +29,6 @@ class ClassNoticePlannerTest {
         assertEquals(1, result?.weekNumber)
     }
 
-
-    // 2026-09-07 是周一，第 1 教学周周一
     private val termStart = LocalDate.of(2026, 9, 7)
 
     private val profile = TermTimingProfile(
@@ -122,13 +120,11 @@ class ClassNoticePlannerTest {
         )
         val courses = listOf(course("周一课", dayOfWeek = 1, startNode = 1, endNode = 2))
 
-        // 放假当天不出课，顺延到下周一
         assertEquals(
             LocalDateTime.of(2026, 9, 14, 8, 0),
             nextClass(LocalDateTime.of(2026, 9, 7, 6, 0), courses, holidayCalendar = holiday)?.startAt,
         )
 
-        // 把周三的课挪到这个放假日，就该在这天提示
         val moved = TemporaryScheduleOverride(
             id = "mv",
             type = TemporaryScheduleOverrideType.MoveCourse,
@@ -203,7 +199,6 @@ class ClassNoticePlannerTest {
             course("上午课", dayOfWeek = 1, startNode = 1, endNode = 2),
             course("下午课", dayOfWeek = 1, startNode = 5, endNode = 6),
         )
-        // 8:00 的课提前 10 分钟提醒，7:50 提醒到点时再排：这节已提醒过，得排下午那节
         val result = nextClass(
             now = LocalDateTime.of(2026, 9, 7, 7, 50),
             courses = courses,

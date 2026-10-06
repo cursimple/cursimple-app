@@ -43,13 +43,7 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.feature.schedule.ScheduleImportDiff
 
-/**
- * 导入前的变更确认。
- *
- * 课表盖掉就没了，而教务系统每学期的表都可能大改。这里把增减摆出来，
- * 再让用户选是覆盖当前这份，还是另存成一个新课表（原来那份留在旧学期里，
- * 从右上角加号能切回去）。折叠样式沿用清空课表那个确认框，两处观感一致。
- */
+/** Preview import differences before replacing a timetable or creating a separate term. */
 @Composable
 fun ImportDiffDialog(
     diff: ScheduleImportDiff,
@@ -151,7 +145,6 @@ fun ImportDiffDialog(
     )
 }
 
-/** 一组变动的课，超过 5 门折起来。 */
 @Composable
 private fun CourseChangeSection(
     header: String,

@@ -30,6 +30,87 @@ import java.io.IOException
 import java.lang.reflect.Proxy
 
 class PluginMarketViewModelTest {
+    @Test fun `one install marks only its repository and existing plugin as processing`() {
+        Harness(plugins = emptyList(), components = emptyList()).use { h ->
+            val a = record().copy(pluginId = "a", sourceRepo = "qa/a")
+            val b = record().copy(pluginId = "b", sourceRepo = "qa/b")
+            h.ops.installedPluginsFlow.value = listOf(a, b)
+            val lookup = CompletableDeferred<GitHubReleaseAsset?>()
+            val download = CompletableDeferred<ByteArray>()
+            h.ops.release = { _, _, _ -> lookup.await() }
+            h.ops.download = { _, _, _ -> download.await() }
+            h.vm.installFromGitHub(repo("qa/a", release = asset()))
+            assertEquals("qa/a", h.state.installingRepo)
+            assertTrue(h.state.status is PluginMarketStatus.CheckingInstallRelease)
+            assertTrue(h.state.processingRepo("QA/A"))
+            assertTrue(h.state.processingPlugin(a))
+            assertFalse(h.state.processingRepo("qa/b"))
+            assertFalse(h.state.processingPlugin(b))
+            lookup.complete(asset())
+            assertTrue(h.state.status is PluginMarketStatus.DownloadingAsset)
+            assertTrue(h.state.processingRepo("qa/a"))
+            assertFalse(h.state.processingPlugin(b))
+            download.complete(byteArrayOf(1))
+            assertFalse(h.state.isLoading)
+            assertFalse(h.state.processingRepo("qa/a"))
+            h.vm.dismissInstallPreview()
+            assertNull(h.state.installingRepo)
+        }
+    }
+
+    @Test fun `replacing an install keeps late results from restoring the previous owner`() {
+        Harness(plugins = emptyList(), components = emptyList()).use { h ->
+            val old = CompletableDeferred<Unit>()
+            val next = CompletableDeferred<Unit>()
+            h.ops.release = { slug, _, _ ->
+                if (slug == "qa/a") withContext(NonCancellable) { old.await(); asset() }
+                else { next.await(); asset() }
+            }
+            h.vm.installFromGitHub(repo("qa/a", release = asset()))
+            h.vm.installFromGitHub(repo("qa/b", release = asset()))
+            old.complete(Unit)
+            assertEquals("qa/b", h.state.installingRepo)
+            assertFalse(h.state.processingRepo("qa/a"))
+            assertTrue(h.state.processingRepo("qa/b"))
+            assertNull(h.ops.downloaded)
+            next.complete(Unit)
+            assertEquals("qa/b", h.state.installPreviewOrigin!!.repoSlug)
+            h.vm.confirmInstall()
+            assertNull(h.state.installingRepo)
+        }
+    }
+
+    @Test fun `failed and cancelled installs remove their processing owner`() {
+        Harness(plugins = emptyList(), components = emptyList()).use { h ->
+            h.ops.release = { _, _, _ -> asset() }
+            h.ops.download = { _, _, _ -> throw IOException("download failed") }
+            h.vm.installFromGitHub(repo("qa/a", release = asset()))
+            assertTrue(h.state.status is PluginMarketStatus.DownloadFailed)
+            assertNull(h.state.installingRepo)
+            val lookup = CompletableDeferred<GitHubReleaseAsset?>()
+            h.ops.release = { _, _, _ -> lookup.await() }
+            h.vm.installFromGitHub(repo("qa/b", release = asset()))
+            h.vm.dismissInstallPreview()
+            assertNull(h.state.installingRepo)
+            assertFalse(h.state.processingRepo("qa/b"))
+        }
+    }
+    @Test fun `direct confirmation of an incompatible preview cannot invoke installation`() {
+        Harness(plugins = emptyList(), components = emptyList()).use { h ->
+            val api = com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT + 1
+            h.ops.preview = { _, source ->
+                PluginInstallPreview(PluginManifest("one", "one", version = "2", versionCode = 2, apiVersion = api, entry = "main.js"), true, source)
+            }
+            h.vm.previewLocalPackage(byteArrayOf(1))
+            assertFalse(h.state.installPreview!!.installable)
+            h.vm.confirmInstall()
+            assertNull(h.ops.installedOrigin)
+            assertTrue(h.state.status is PluginMarketStatus.PreviewIncompatible)
+            assertFalse(h.state.isLoading)
+            h.vm.dismissInstallPreview()
+            assertNull(h.state.status)
+        }
+    }
     @Test
     fun `merges ordered sources and keeps components out of school catalog`() {
         Harness(plugins = listOf("https://github.com/One/Registry", "one/REGISTRY", "two/registry"), components = listOf("parts/registry")).use { h ->
@@ -97,10 +178,13 @@ class PluginMarketViewModelTest {
             Harness(initialPrefs = prefs, accounts = MutableStateFlow(null)).use { restored ->
                 assertEquals(listOf("school/one"), restored.state.marketRepos.map { it.fullName })
                 restored.vm.refreshIfStale(100_000)
-                assertTrue(restored.ops.sourceCalls.isEmpty())
-                restored.now += 100_001
+                assertEquals(2, restored.ops.sourceCalls.size)
+                // Avoid reloading fresh results within the debounce interval.
                 restored.vm.refreshIfStale(100_000)
                 assertEquals(2, restored.ops.sourceCalls.size)
+                restored.now += 100_001
+                restored.vm.refreshIfStale(100_000)
+                assertEquals(4, restored.ops.sourceCalls.size)
             }
         }
     }
@@ -116,16 +200,77 @@ class PluginMarketViewModelTest {
             h.vm.refreshIfStale(100_000)
             assertEquals(old, h.state.marketRepos.single().latestRelease)
             h.vm.refreshIfStale(100_000)
-            assertEquals(1, h.ops.releaseCalls.size)
+            assertEquals(0, h.ops.releaseCalls.size)
             h.now += 100_001
             h.vm.refreshIfStale(100_000)
-            assertEquals(listOf(false, false), h.ops.releaseCalls.map { it.second })
+            assertEquals(emptyList<Boolean>(), h.ops.releaseCalls.map { it.second })
 
             h.vm.loadRegistry()
             assertEquals(latest, h.state.marketRepos.single().latestRelease)
             h.vm.loadRegistry("ignored/legacy")
-            assertEquals(listOf(false, false, true, true), h.ops.releaseCalls.map { it.second })
+            assertEquals(listOf(true, true), h.ops.releaseCalls.map { it.second })
             assertEquals(latest, h.state.marketRepos.single().latestRelease)
+        }
+    }
+
+    @Test
+    fun `entering the page forces a fresh lookup and cached versions are never shown meanwhile`() {
+        val gate = CompletableDeferred<Unit>()
+        Harness().use { first ->
+            first.ops.source = { _, _ -> listOf(repo("school/one", release = asset("1.0.0"))) }
+            first.vm.loadRegistry()
+            Harness(initialPrefs = first.prefs.value).use { h ->
+                assertTrue(h.state.versionsChecking)
+                assertNull("恢复出来的缓存版本不能显示", h.state.marketRepos.single().latestRelease)
+
+                val latest = asset("1.3.0")
+                h.ops.source = { _, _ -> listOf(repo("school/one")) }
+                h.ops.release = { _, _, _ -> gate.await(); latest }
+                h.vm.refreshOnEnter()
+
+                assertNull("刷新期间不显示任何版本", h.state.marketRepos.single().latestRelease)
+                assertTrue(h.state.isRefreshingReleases || h.state.versionsChecking)
+                gate.complete(Unit)
+                assertEquals(latest, h.state.marketRepos.single().latestRelease)
+                assertFalse(h.state.versionsChecking)
+                assertEquals("必须是强制现查，不是走缓存", listOf(true), h.ops.releaseCalls.map { it.second })
+            }
+        }
+    }
+
+    @Test
+    fun `entering again inside the debounce window does not refetch but a later entry does`() {
+        Harness().use { h ->
+            h.ops.source = { _, _ -> listOf(repo("school/one")) }
+            h.ops.release = { _, _, _ -> asset("1.3.0") }
+            h.vm.refreshOnEnter()
+            val sourceCalls = h.ops.sourceCalls.size
+            val releaseCalls = h.ops.releaseCalls.size
+            assertTrue(sourceCalls > 0 && releaseCalls > 0)
+
+            h.now += 5_000
+            h.vm.refreshOnEnter()
+            assertEquals(sourceCalls, h.ops.sourceCalls.size)
+            assertEquals(releaseCalls, h.ops.releaseCalls.size)
+
+            h.now += 20_000
+            h.vm.refreshOnEnter()
+            assertTrue(h.ops.sourceCalls.size > sourceCalls)
+            assertTrue(h.ops.releaseCalls.size > releaseCalls)
+        }
+    }
+
+    @Test
+    fun `a failed refresh is not remembered as verified so the next entry retries at once`() {
+        Harness().use { h ->
+            h.ops.source = { _, _ -> throw IOException("offline") }
+            h.vm.refreshOnEnter()
+            val calls = h.ops.sourceCalls.size
+            assertTrue(calls > 0)
+            assertFalse("失败后不能一直显示获取中", h.state.versionsChecking)
+
+            h.vm.refreshOnEnter()
+            assertTrue("刚失败过，再进页面应立即重试，不受去抖限制", h.ops.sourceCalls.size > calls)
         }
     }
 
@@ -142,12 +287,13 @@ class PluginMarketViewModelTest {
             h.ops.release = { _, _, _ -> gate.await(); old }
             h.vm.loadRegistry()
             assertTrue(h.state.isRefreshingReleases)
-            assertEquals(latest, h.state.marketRepos.single().latestRelease)
+            assertNull(h.state.marketRepos.single().latestRelease)
             gate.complete(Unit)
+            // Older mirror responses cannot replace a known newer release.
             assertEquals(latest, h.state.marketRepos.single().latestRelease)
             assertTrue(h.prefs.value.pluginMarketCacheJson.contains("\"tagName\":\"v1.2.0\""))
 
-            // 同一语义版本允许采用刚查到的附件地址，v 前缀不应阻止更新。
+            // Equivalent versions may adopt fresh asset URLs despite differing v prefixes.
             val sameVersion = asset("1.2.0").copy(assetName = "latest.zip", downloadUrl = "https://github.com/school/one/releases/latest/download/latest.zip")
             h.ops.release = { _, _, _ -> sameVersion }
             h.vm.loadRegistry()
@@ -162,6 +308,7 @@ class PluginMarketViewModelTest {
             first.vm.loadRegistry()
             Harness(initialPrefs = first.prefs.value).use { h ->
                 val cached = h.state.marketRepos.single()
+                assertNull(cached.latestRelease)
                 val latest = asset("1.2.0").copy(assetName = "latest.zip", sizeBytes = 12)
                 h.ops.release = { _, fresh, _ -> if (fresh) latest else asset("1.0.0") }
                 h.vm.installFromGitHub(cached)
@@ -171,8 +318,9 @@ class PluginMarketViewModelTest {
                 assertEquals(latest.downloadUrl, h.state.installPreviewOrigin?.downloadUrl)
                 assertEquals(latest, h.state.marketRepos.single().latestRelease)
                 assertTrue(h.ops.sourceCalls.isEmpty())
+                assertTrue(h.prefs.value.pluginMarketCacheJson.contains("\"tagName\":\"1.2.0\""))
                 Harness(initialPrefs = h.prefs.value).use { restored ->
-                    assertEquals(latest, restored.state.marketRepos.single().latestRelease)
+                    assertNull(restored.state.marketRepos.single().latestRelease)
                 }
             }
         }
@@ -580,6 +728,64 @@ class PluginMarketViewModelTest {
         }
     }
 
+    @Test fun `automatic checks can be disabled while manual checks still discover updates`() {
+        Harness().use { h ->
+            val installed = record()
+            h.ops.installedPluginsFlow.value = listOf(installed)
+            h.vm.setUpdateOptions(autoCheck = false, badge = true, intervalHours = 12)
+            assertFalse(h.state.autoCheckUpdates)
+            assertEquals(12, h.state.updateIntervalHours)
+            h.ops.release = { _, _, _ -> asset("3.0.0") }
+            h.vm.refreshInstalledPluginVersions(automatic = true)
+            assertTrue(h.ops.releaseCalls.isEmpty())
+            h.vm.refreshInstalledPluginVersions(force = true)
+            assertEquals(setOf(installed.installKey), h.state.availableUpdateKeys())
+            h.ops.installedPluginsFlow.value = listOf(installed.copy(version = "3.0.0", versionCode = 3))
+            assertTrue(h.state.availableUpdateKeys().isEmpty())
+        }
+    }
+
+    @Test fun `newer catalog release is not masked by a cached installed check`() {
+        val installed = record().copy(version = "2.0.0")
+        val state = PluginMarketUiState(installedPlugins = listOf(installed),
+            latestReleases = mapOf("school/one" to asset("2.0.0")),
+            allMarketRepos = listOf(repo("school/one", release = asset("3.0.0"))))
+        assertEquals(setOf(installed.installKey), state.availableUpdateKeys())
+        assertTrue(state.copy(installedPlugins = listOf(installed.copy(version = "3.0.0"))).availableUpdateKeys().isEmpty())
+    }
+
+    @Test fun `one slow installed repository does not hide a completed update result`() {
+        val gate = CompletableDeferred<Unit>()
+        Harness().use { h ->
+            val fast = record().copy(pluginId = "fast", sourceRepo = "school/fast")
+            val slow = record().copy(pluginId = "slow", sourceRepo = "school/slow", kind = "extension")
+            h.ops.installedPluginsFlow.value = listOf(fast, slow)
+            h.ops.release = { slug, _, _ -> if (slug.endsWith("slow")) { gate.await(); null } else asset("3.0.0") }
+            h.vm.refreshInstalledPluginVersions(force = true)
+            assertTrue(h.state.checkingInstalledUpdates)
+            assertEquals(1, h.state.updateCheckCompleted)
+            assertEquals(setOf(fast.installKey), h.state.availableUpdateKeys())
+            gate.complete(Unit)
+            assertFalse(h.state.checkingInstalledUpdates)
+            assertEquals(1, h.state.updateCheckUnconfirmed)
+        }
+    }
+
+    @Test fun `cached public update dots survive restart without a repeated network check`() {
+        Harness().use { h ->
+            val installed = record()
+            h.ops.installedPluginsFlow.value = listOf(installed)
+            h.ops.release = { _, _, _ -> asset("3.0.0") }
+            h.vm.refreshInstalledPluginVersions(force = true)
+            Harness(initialPrefs = h.prefs.value, accounts = MutableStateFlow(null)).use { restored ->
+                restored.ops.installedPluginsFlow.value = listOf(installed)
+                assertEquals(setOf(installed.installKey), restored.state.availableUpdateKeys())
+                restored.vm.refreshInstalledPluginVersions(automatic = true)
+                assertTrue(restored.ops.releaseCalls.isEmpty())
+            }
+        }
+    }
+
     private class Harness(
         plugins: List<String> = listOf("one/registry"),
         components: List<String> = emptyList(),
@@ -594,6 +800,11 @@ class PluginMarketViewModelTest {
         private val preferences = Proxy.newProxyInstance(UserPreferencesRepository::class.java.classLoader, arrayOf(UserPreferencesRepository::class.java)) { _, method, args ->
             when (method.name) {
                 "getPreferencesFlow" -> prefs
+                "setPluginUpdateOptions" -> {
+                    prefs.value = prefs.value.copy(pluginAutoUpdateCheckEnabled = args!![0] as Boolean,
+                        pluginUpdateBadgeEnabled = args[1] as Boolean, pluginUpdateCheckIntervalHours = args[2] as Int)
+                    Unit
+                }
                 "setPluginMarketCache" -> {
                     prefs.value = prefs.value.copy(pluginMarketCacheJson = args[0] as String, pluginMarketCachedAtMillis = args[1] as Long, pluginMarketCachedRegistry = args[2] as String)
                     Unit
@@ -623,7 +834,7 @@ class PluginMarketViewModelTest {
         var release: suspend (String, Boolean, Boolean) -> GitHubReleaseAsset? = { _, _, _ -> null }
         var download: suspend (GitHubRepoSummary, GitHubReleaseAsset, (Long, Long) -> Unit) -> ByteArray = { _, _, _ -> byteArrayOf(1) }
         var preview: suspend (ByteArray, PluginInstallSource) -> PluginInstallPreview = { _, source ->
-            PluginInstallPreview(PluginManifest("one", "one", version = "2", versionCode = 2, entry = "main.js"), true, source)
+            PluginInstallPreview(PluginManifest("one", "one", version = "2", versionCode = 2, apiVersion = 2, entry = "main.js"), true, source)
         }
         var remove: suspend (String) -> Unit = {}
         override suspend fun fetchSource(source: PluginMarketSource, preferAccount: Boolean): List<GitHubRepoSummary> {

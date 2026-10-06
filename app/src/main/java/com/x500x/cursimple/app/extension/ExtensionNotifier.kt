@@ -26,22 +26,36 @@ import java.time.Instant
 import java.time.format.DateTimeFormatter
 
 /**
- * 扩展组件的通知：新内容、截止前提醒、登录失效。点开都进那个组件的侧边栏日历页。
- *
- * 三类各一个渠道，用户可以只关掉其中一种（比如公告太多只想留截止提醒）。
+ * Separate channels for new content, deadlines and login expiry; each opens the source
+ * component.
  */
 object ExtensionNotifier {
+
+    fun cancelItem(context: Context, pluginId: String, itemId: String) {
+        val manager = NotificationManagerCompat.from(context)
+        manager.cancel(notificationId(pluginId, itemId))
+        manager.cancel(notificationId(pluginId, "due:$itemId"))
+        manager.cancel(notificationId(pluginId, "batch"))
+    }
 
     const val CHANNEL_NEW = "extension_feed_new"
     const val CHANNEL_DUE = "extension_feed_due"
     const val CHANNEL_STATUS = "extension_feed_status"
 
-    /** 一次新冒出来这么多条以内逐条发，再多就并成一条，免得通知栏被刷屏 */
     private const val MAX_SEPARATE = 3
 
     suspend fun notifyNewItems(context: Context, pluginId: String, title: String, items: List<ExtensionFeedItem>) {
         if (items.isEmpty()) return
-        // 新内容：系统横幅弹不出来时顶上（见 bannerFallback）。内容取第一条代表性的，其余并入正文
+        items.forEach { item ->
+            com.x500x.cursimple.core.data.notification.OutboundNotificationHooks.emit(
+                com.x500x.cursimple.core.data.notification.OutboundNotification(
+                    id = "component/$pluginId/new/${item.id}", kind = "component.new", title = item.title,
+                    body = listOf(item.course, item.summary).filter(String::isNotBlank).joinToString("\n"),
+                    sourceId = pluginId, sourceName = title, itemId = item.id,
+                ),
+            )
+        }
+        // Use a representative item for fallback banners and combine the remaining content.
         val bannerShown = bannerFallback(
             context = context,
             content = contentOf(
@@ -51,7 +65,7 @@ object ExtensionNotifier {
             ),
             onTap = openFeed(context, pluginId),
         )
-        // 下面几处不发都是静悄悄的，用户那头只看到「没弹」，不留一笔就分不清是哪一关没过
+        // Log suppressed delivery to distinguish permission and channel failures.
         if (!canPost(context)) return
         ensureChannels(context)
         val manager = NotificationManagerCompat.from(context)
@@ -82,6 +96,13 @@ object ExtensionNotifier {
 
     suspend fun notifyDue(context: Context, pluginId: String, title: String, item: ExtensionFeedItem, now: Long) {
         val due = item.dueAt ?: return
+        com.x500x.cursimple.core.data.notification.OutboundNotificationHooks.emit(
+            com.x500x.cursimple.core.data.notification.OutboundNotification(
+                id = "component/$pluginId/due/${item.id}@$due", kind = "component.due", title = item.title,
+                body = listOf(item.course, "截止：${Instant.ofEpochMilli(due).atZone(BeijingTime.zone).format(DateTimeFormatter.ofPattern("M/d HH:mm"))}", item.summary).filter(String::isNotBlank).joinToString("\n"),
+                sourceId = pluginId, sourceName = title, itemId = item.id, createdAt = now, expiresAt = due,
+            ),
+        )
         val clock = Instant.ofEpochMilli(due).atZone(BeijingTime.zone).format(DateTimeFormatter.ofPattern("M月d日 HH:mm"))
         val hoursLeft = ((due - now) / 3_600_000L).toInt()
         val left = if (hoursLeft < 1) {
@@ -109,10 +130,7 @@ object ExtensionNotifier {
         postNotification(NotificationManagerCompat.from(context), notificationId(pluginId, "due:${item.id}"), builder.build())
     }
 
-    /**
-     * 登录失效：这条带一个「重新登录」的动作，点按钮或点横幅都直接进组件的登录页。
-     * 横幅上也给同一个按钮，用户不用先进通知栏。
-     */
+    /** Login-expiry actions open the component's login destination directly. */
     suspend fun notifyLoginExpired(context: Context, pluginId: String, title: String) {
         val openSettings = openSettings(context, pluginId)
         val bannerShown = bannerFallback(
@@ -140,7 +158,7 @@ object ExtensionNotifier {
         postNotification(NotificationManagerCompat.from(context), notificationId(pluginId, "expired"), builder.build())
     }
 
-    /** 头部小字放组件名，加粗标题、正文；尺寸和上课横幅一致，见 [ClassNoticeNotifier.Content.headline] */
+    /** Component name, title and body reuse class-banner sizing. */
     private fun contentOf(head: String, title: String, body: String) =
         ClassNoticeNotifier.Content(
             courseTitle = title,
@@ -160,10 +178,8 @@ object ExtensionNotifier {
         }
 
     /**
-     * 选择系统增强，或系统横幅不受支持（见 [SelfDrawnNotice]）时，组件的通知也自己画：
-     * 亮屏解锁时用悬浮横幅，锁屏或熄屏时压在锁屏上。
-     *
-     * 系统通知照发；自绘成功时选用普通重要性的渠道，避免系统和自绘同时弹出两条横幅。
+     * Use custom banners when required; lower system-channel importance after successful
+     * overlay delivery to avoid duplicate heads-up alerts.
      */
     private suspend fun bannerFallback(
         context: Context,
@@ -181,7 +197,6 @@ object ExtensionNotifier {
             ClassNoticeOverlay.show(context, content, preferences, theme, onTap = onTap, action = action)
             return ClassNoticeOverlay.awaitShown()
         } else {
-            // 锁屏卡片不放按钮，点卡片本身就是「解锁并去组件那儿」
             return ClassNoticeLockActivity.show(context, content, preferences, theme, onTap = onTap, action = action)
         }
     }
@@ -208,7 +223,7 @@ object ExtensionNotifier {
         Unit
     }
 
-    /** 系统通知上那个「重新登录」按钮：PendingIntent 需要显式 Intent，和上一条走同一个 extra */
+    /** Notification actions require an explicit PendingIntent destination. */
     private fun openSettingsPending(context: Context, pluginId: String): PendingIntent = PendingIntent.getActivity(
         context,
         "settings:$pluginId".hashCode(),
@@ -218,7 +233,6 @@ object ExtensionNotifier {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    /** 组件被移除时把它发过的通知都收掉 */
     fun cancelAll(context: Context, pluginId: String) {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return
         val group = groupOf(pluginId)
@@ -241,7 +255,6 @@ object ExtensionNotifier {
     private fun notificationChannel(context: Context, channel: String, bannerShown: Boolean): String {
         if (!bannerShown || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return channel
         val manager = context.getSystemService(NotificationManager::class.java) ?: return channel
-        // 用户关闭了原来的渠道时仍用原渠道，不借新渠道绕过系统中的开关。
         if (manager.getNotificationChannel(channel)?.importance == NotificationManager.IMPORTANCE_NONE) return channel
         return "$channel.enhanced"
     }

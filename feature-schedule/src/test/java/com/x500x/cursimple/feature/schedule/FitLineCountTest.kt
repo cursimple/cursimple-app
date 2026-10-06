@@ -3,12 +3,7 @@ package com.x500x.cursimple.feature.schedule
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/**
- * 课名只显示放得下的整行。
- *
- * 之前不限行数、超出部分直接裁切，最后一行会被从字中间切开：露出小半个字既认不出来，
- * 又白占一行高度。
- */
+/** Only complete title lines should be visible. */
 class FitLineCountTest {
 
     @Test
@@ -18,13 +13,13 @@ class FitLineCountTest {
 
     @Test
     fun `放不下的那半行不算`() {
-        // 42 / 12 = 3.5：第四行只露一半，不如不显示
+        // Do not display the partial fourth line.
         assertEquals(3, fitLineCount(availableHeightDp = 42f, lineHeightDp = 12f))
     }
 
     @Test
     fun `再挤也要留一行`() {
-        // 一行都放不下时仍给一行，否则这一格什么都看不到
+        // Retain one title line even when height is insufficient.
         assertEquals(1, fitLineCount(availableHeightDp = 5f, lineHeightDp = 12f))
         assertEquals(1, fitLineCount(availableHeightDp = 0f, lineHeightDp = 12f))
     }

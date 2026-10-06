@@ -3,7 +3,7 @@ package com.x500x.cursimple.app.download
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 缓存击穿参数必须一路带到各家镜像，否则按路径改写的候选又会读回旧文件。 */
+/** Preserve cache-busting query parameters across every mirror rewrite. */
 class DownloadMirrorPoolQueryTest {
 
     private fun candidatesFor(url: String): List<String> =

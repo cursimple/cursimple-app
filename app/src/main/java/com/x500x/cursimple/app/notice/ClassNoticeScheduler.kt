@@ -17,12 +17,7 @@ import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDateTime
 
-/**
- * 上课通知的定时投递。
- *
- * 一次只挂一个闹钟——下一节课的那一个；发完再算下一节重新挂。
- * 这里用 AlarmManager 只是为了「到点醒一下」，发出去的是普通通知，不响铃。
- */
+/** Schedule one wake-up for the next class notice, then continue the chain. */
 object ClassNoticeScheduler {
 
     private const val ACTION_NOTICE = "com.x500x.cursimple.action.CLASS_NOTICE"
@@ -46,26 +41,25 @@ object ClassNoticeScheduler {
     internal const val EXTRA_SNOOZE_FIRE = "snoozeFire"
     private const val SNOOZE_MINUTES = 10L
 
-    /** 上课提醒自己的一点状态，目前只有下面这条「最近弹过哪条」。 */
+    /** Persistent class-notice delivery state. */
     private const val STATE_PREFS = "class_notice_schedule"
 
-    /** 最近一次已经弹过的上课通知的身份，打开应用补发时用它挡重复弹。 */
+    /** Last delivered notice identity for foreground catch-up deduplication. */
     private const val KEY_LAST_POSTED = "last_posted"
 
-    /** 最近弹过的那条是「哪个课几点开始」，应用活着重开一次的重复弹就靠这句挡下。 */
+    /** Stable course and start-time identity for duplicate suppression. */
     fun recordLastPosted(context: Context, key: String) {
         context.applicationContext.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE)
             .edit().putString(KEY_LAST_POSTED, key).apply()
     }
 
-    /** 一条上课通知的身份：哪门课、几点开始。正常弹出和打开应用补发都用它，两边才对得上。 */
     fun postedKey(courseTitle: String, startAtMillis: Long): String = "$courseTitle|$startAtMillis"
 
     fun lastPostedKey(context: Context): String? =
         context.applicationContext.getSharedPreferences(STATE_PREFS, Context.MODE_PRIVATE)
             .getString(KEY_LAST_POSTED, null)
 
-    /** 按当前课表与偏好重挂闹钟；关掉或算不出下一节课时只取消。 */
+    /** Cancel when disabled or empty; otherwise reschedule from current data. */
     fun reschedule(
         context: Context,
         preferences: ClassNoticePreferences,
@@ -78,7 +72,6 @@ object ClassNoticeScheduler {
         val next = upcoming ?: return
 
         val fireAt = next.startAt.minusMinutes(preferences.advanceMinutes.toLong())
-        // 已经过了提醒点（比如课马上就开始）就不再补发，免得一打开应用就弹一条过期通知
         if (!fireAt.isAfter(now)) return
 
         val minutesUntil = Duration.between(fireAt, next.startAt).toMinutes().toInt()
@@ -100,16 +93,12 @@ object ClassNoticeScheduler {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val triggerAt = fireAt.atZone(BeijingTime.zone).toInstant().toEpochMilli()
-        // 上面比的「现在」可能是调试固定住的时间，闹钟却按真实时钟走。挂一个已经过去的时刻，
-        // 闹钟会立刻响、响完再排出同一节课，一直循环往外弹。真错过的由打开应用时的补发兜底
+        // Reject triggers in the real past even with a frozen debug clock to avoid immediate alarm loops.
         if (triggerAt <= System.currentTimeMillis()) return
         setAlarm(app, triggerAt, pendingIntent)
     }
 
-    /**
-     * 提醒发出去之后，在上课那一刻把通知原地改成「上课中」。
-     * 沿用提醒那条广播带的内容，只换个动作；用户已经划掉的话到时候什么也不做。
-     */
+    /** Update the existing notice at class start; do nothing if it was dismissed. */
     fun scheduleStartedUpdate(context: Context, noticeIntent: Intent) {
         val app = context.applicationContext
         val startAt = noticeIntent.getLongExtra(EXTRA_START_AT, 0L)
@@ -128,7 +117,6 @@ object ClassNoticeScheduler {
         setAlarm(app, startAt, pendingIntent)
     }
 
-    /** 通知上的「知道了」：收掉这条。上课通知和闹钟预告各用各的，互不收错。 */
     fun dismissIntent(context: Context, notificationId: Int): PendingIntent {
         val app = context.applicationContext
         return PendingIntent.getBroadcast(
@@ -143,7 +131,6 @@ object ClassNoticeScheduler {
         )
     }
 
-    /** 通知上的「延后 10 分钟」：先收掉当前一条，再把同一节课重新排一次。 */
     fun snoozeIntent(context: Context, content: ClassNoticeNotifier.Content): PendingIntent = PendingIntent.getBroadcast(
         context.applicationContext,
         REQUEST_CODE_SNOOZE,
@@ -156,7 +143,6 @@ object ClassNoticeScheduler {
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
-    /** 通知上的「跳过这节」：收掉当前一条，接着排下一节。 */
     fun skipIntent(context: Context, notificationId: Int): PendingIntent = PendingIntent.getBroadcast(
         context.applicationContext,
         REQUEST_CODE_SKIP xor notificationId,
@@ -198,7 +184,7 @@ object ClassNoticeScheduler {
     private fun setAlarm(app: Context, triggerAt: Long, pendingIntent: PendingIntent): Boolean {
         val alarmManager = app.getSystemService(AlarmManager::class.java) ?: return false
         return runCatching {
-            // 拿不到精确闹钟权限时退回不精确的那一档：晚几分钟也比完全不提示强
+            // Fall back to inexact scheduling without exact-alarm permission.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pendingIntent)
             } else {
@@ -247,7 +233,6 @@ internal fun UpcomingClass.timeRangeText(): String {
     return "${two(startAt.hour)}:${two(startAt.minute)}-${two(endAt.hour)}:${two(endAt.minute)}"
 }
 
-/** 到点了：发通知，然后把下一节课的闹钟接上；上课那一刻再把通知改成「上课中」。 */
 class ClassNoticeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == ClassNoticeScheduler.ACTION_DISMISS) {
@@ -274,14 +259,14 @@ class ClassNoticeReceiver : BroadcastReceiver() {
         val scheduled = ClassNoticeScheduler.contentFrom(intent) ?: return
         val app = context.applicationContext
         val now = System.currentTimeMillis()
-        // 分钟数按真实时钟现算（不足一分钟按一分钟）：排闹钟时写进去的是「提前多久」，闹钟晚到、系统时间改过时就不对了
+        // Recalculate remaining minutes from the actual delivery clock, rounding up.
         val content = if (scheduled.inProgress || scheduled.startAtMillis <= 0L) {
             scheduled
         } else {
             scheduled.copy(minutesUntilStart = ((scheduled.startAtMillis - now + 59_999L) / 60_000L).toInt().coerceAtLeast(0))
         }
         val key = ClassNoticeScheduler.postedKey(content.courseTitle, content.startAtMillis)
-        // 课已经开始了，或者这一节已经弹过：不再弹，只把后面的课接上
+        // Skip started or already-delivered classes and schedule the next one.
         val stale = !content.inProgress && (
             (content.startAtMillis in 1..now) || ClassNoticeScheduler.lastPostedKey(app) == key
         )
@@ -295,16 +280,15 @@ class ClassNoticeReceiver : BroadcastReceiver() {
                     ClassNoticeGateway.reschedule(app)
                     return@launch
                 }
-                ClassNoticeNotifier.notify(app, content, preferences, ClassNoticeGateway.theme(app))
-                // 记一条已弹身份：提醒点错过了、打开应用再补发时就不再弹一次同样的
+                ClassNoticeNotifier.notify(app, content, preferences, ClassNoticeGateway.theme(app), forward = true)
                 if (!content.inProgress) {
                     ClassNoticeScheduler.recordLastPosted(app, key)
                 }
                 if (content.inProgress) return@launch
                 ClassNoticeScheduler.scheduleStartedUpdate(app, intent)
-                // 发完立刻算下一节：闹钟一次只挂一个，不续上就断了
+                // Continue the one-alarm chain immediately after delivery.
                 ClassNoticeGateway.reschedule(app)
-                // 等自绘窗口挂好就结束广播，展示时长由窗口自己管理，避免长时间等待导致 ANR
+                // Release the broadcast after overlay attachment; window timing is independent.
                 ClassNoticeOverlay.awaitShown()
             } catch (error: Throwable) {
                 ReminderLogger.warn("class_notice.deliver.failure", emptyMap(), error)

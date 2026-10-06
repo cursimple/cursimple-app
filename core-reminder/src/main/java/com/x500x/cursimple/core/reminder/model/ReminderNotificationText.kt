@@ -7,10 +7,7 @@ import com.x500x.cursimple.core.reminder.R
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/**
- * 提醒通知标题的组成部分。
- * 逻辑层只给出字段，文字由界面层按当前语言渲染，纯逻辑因此不依赖 Context。
- */
+/** Pure title fields for UI-localized reminder notifications. */
 @Serializable
 data class ReminderNotificationTitle(
     @SerialName("dayOfWeek") val dayOfWeek: Int,
@@ -21,7 +18,6 @@ data class ReminderNotificationTitle(
     @SerialName("advanceMinutes") val advanceMinutes: Int = 0,
 )
 
-/** 提醒通知正文的组成部分，location 为空表示教室待定。 */
 @Serializable
 data class ReminderNotificationMessage(
     @SerialName("month") val month: Int,
@@ -32,10 +28,7 @@ data class ReminderNotificationMessage(
     @SerialName("startNode") val startNode: Int,
     @SerialName("endNode") val endNode: Int,
     @SerialName("location") val location: String,
-    /**
-     * 节次名字，如「第一节」「午间课」，通知里以它为主、节号作补充。
-     * 课程横跨几个时段时没有单一的名字，留空只写节号；旧版本存下的计划没有这一项，同样只写节号。
-     */
+    /** Optional single-slot name; multi-slot and legacy plans use period numbers. */
     @SerialName("slotLabel") val slotLabel: String = "",
 )
 
@@ -77,7 +70,7 @@ fun Context.reminderNotificationMessageText(message: ReminderNotificationMessage
     message.location.ifBlank { getString(R.string.reminder_notification_location_tbd) },
 )
 
-/** 节次那一段：有名字时「第一节（1-1节）」，名字在前、节号一律写成范围；没有名字时只写节号。 */
+/** Prefer the slot label, followed by its period range. */
 private fun Context.reminderNotificationNodesText(message: ReminderNotificationMessage): String {
     val label = message.slotLabel.trim()
     if (label.isEmpty()) {
@@ -90,17 +83,14 @@ private fun Context.reminderNotificationNodesText(message: ReminderNotificationM
     )
 }
 
-/** 计划带类型文案时按当前语言渲染，否则用计划里已有的文本。 */
+/** Localize typed plan text; otherwise preserve stored text. */
 fun Context.reminderPlanTitleText(plan: ReminderPlan): String =
     plan.titleContent?.let { reminderNotificationTitleText(it) } ?: plan.title
 
 fun Context.reminderPlanMessageText(plan: ReminderPlan): String =
     plan.messageContent?.let { reminderNotificationMessageText(it) } ?: plan.message
 
-/**
- * 与界面语言无关的标题文本。
- * 闹钟登记按标题与正文去重，登记表与已下发的闹钟里保存的是这一份取值，切换语言不会改变它。
- */
+/** Stable title for alarm registration and deduplication, independent of display locale. */
 fun ReminderNotificationTitle.stableText(): String {
     val course = if (exam) "考试：$courseTitle" else courseTitle
     val prefix = when (firstCoursePeriod) {
@@ -113,7 +103,6 @@ fun ReminderNotificationTitle.stableText(): String {
     return "${stableWeekdayName(dayOfWeek)} $startTime $prefix$course$advance"
 }
 
-/** 与界面语言无关的正文文本，用途同 [stableText]。 */
 fun ReminderNotificationMessage.stableText(): String {
     val date = "${month}月${dayOfMonth}日"
     val weekday = stableWeekdayName(dayOfWeek)
@@ -140,8 +129,6 @@ private fun stableWeekdayName(dayOfWeek: Int): String = when (dayOfWeek) {
     else -> "周$dayOfWeek"
 }
 
-/**
- * 通知里用的节次名字：时段完整包住这门课时才用它的名字，横跨几个时段的课返回空串只写节号。
- */
+/** Use a slot name only when it fully contains the course. */
 fun ClassSlotTime.notificationLabelFor(startNode: Int, endNode: Int): String =
     label.trim().takeIf { this.startNode <= startNode && this.endNode >= endNode }.orEmpty()

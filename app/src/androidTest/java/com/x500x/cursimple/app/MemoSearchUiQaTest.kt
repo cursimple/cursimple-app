@@ -26,7 +26,6 @@ import org.junit.rules.RuleChain
 import java.util.UUID
 import com.x500x.cursimple.feature.schedule.R as ScheduleR
 
-/** 在独立模拟器验证实际右上角入口，测试笔记会清理，不改原有笔记。 */
 class MemoSearchUiQaTest {
     private val compose = createAndroidComposeRule<MainActivity>()
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext

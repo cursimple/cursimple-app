@@ -75,23 +75,19 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** 设置页「插件」里用到的服务：检测来源、登录 GitHub。 */
 class MarketSourceServices(
     val registry: GitHubRegistryRepository,
     val account: GitHubAccountStore,
-    /** GitHub OAuth App 的 Client ID；为空时只能粘贴令牌登录。 */
+    /** Empty OAuth Client ID enables token login only. */
     val oauthClientId: String,
     val api: GitHubApiClient = GitHubApiClient(),
 )
 
-/** 一个来源在界面上的检测状态；null 表示检测中。 */
 private typealias SourceStatus = MarketSourceCheck?
 
 /**
- * 插件来源、组件来源两个列表，加上 GitHub 账号。
- *
- * 默认各有一条公有仓库；可以再加自己的仓库（`owner/repo` 或完整的 GitHub 链接），
- * 私有仓库要先登录。每条都显示连通性：能读到几个、要不要登录、找不到还是网络不通。
+ * Manage separate registry sources and GitHub account access. Each source reports its own
+ * connectivity and authentication state.
  */
 @Composable
 internal fun MarketSourceSettings(
@@ -102,7 +98,6 @@ internal fun MarketSourceSettings(
     services: MarketSourceServices,
 ) {
     val account by services.account.account.collectAsState()
-    // 登录状态一变，私有仓库的连通性跟着变，重新检测一遍
     val checkKey by services.account.revision.collectAsState()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SourceListCard(
@@ -143,7 +138,7 @@ private fun SourceListCard(
     }
     var lastCheckKey by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(sources, checkKey) {
-        // 换了账号全部重测；只是列表变了就只测新加进来的
+        // Account changes invalidate every check; source changes invalidate only added entries.
         val accountChanged = lastCheckKey != checkKey
         lastCheckKey = checkKey
         checks.keys.toList().filter { it !in sources || accountChanged }.forEach { checks.remove(it)?.cancel() }
@@ -325,7 +320,6 @@ private fun AddSourceDialog(
 ) {
     val scope = rememberCoroutineScope()
     var input by rememberSaveable { mutableStateOf("") }
-    // 检测过的那个地址和结果；改了地址就作废
     var checkedSlug by remember { mutableStateOf<String?>(null) }
     var result by remember { mutableStateOf<MarketSourceCheck?>(null) }
     var checking by remember { mutableStateOf(false) }
@@ -377,7 +371,7 @@ private fun AddSourceDialog(
                 onClick = {
                     val target = slug ?: return@Button
                     if (failed) {
-                        // 检测没过也允许加：比如先加上私有仓库、回头再登录
+                        // Allow adding a private source before signing in.
                         onAdd(target, result ?: MarketSourceCheck.NotFound)
                         return@Button
                     }
@@ -520,8 +514,7 @@ private fun TokenLoginDialog(services: MarketSourceServices, onDismiss: () -> Un
 }
 
 /**
- * GitHub 设备码登录：App 显示一串码，用户在浏览器里打开 github.com/login/device 输进去、点授权，
- * App 这边按 GitHub 给的间隔轮询，拿到令牌就算登录成功。
+ * Device authorization polls at GitHub's interval after the user confirms the displayed code.
  */
 @Composable
 private fun DeviceLoginDialog(services: MarketSourceServices, onDismiss: () -> Unit) {
@@ -635,8 +628,8 @@ private fun Context.copyText(text: String) {
     getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("GitHub", text))
 }
 
-/** 细粒度令牌的新建页；只读私有仓库只要 Contents: Read-only。 */
+/** Fine-grained tokens need Contents: Read-only for selected repositories. */
 private const val NEW_TOKEN_URL = "https://github.com/settings/personal-access-tokens/new"
 
-/** OAuth App 没法只给只读：读私有仓库的 Release 至少要 repo 权限。 */
+/** OAuth access to private release assets requires the repo scope. */
 private const val DEVICE_SCOPE = "repo"

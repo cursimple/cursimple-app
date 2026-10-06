@@ -255,14 +255,40 @@
                 android:resource="@string/tasks_widget_description" />
         </receiver>
 
+        <receiver android:name=".MemoTodoWidgetReceiver" android:exported="true"
+            android:icon="@drawable/widget_preview_memo" android:label="@string/widget_label_memo">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/memo_widget_info" />
+        </receiver>
+        <receiver android:name=".MemoTodoWidgetReceiverMIUI" android:exported="true"
+            android:icon="@drawable/widget_preview_memo" android:label="@string/widget_label_memo">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/memo_widget_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data android:name="vivo.widget.description" android:resource="@string/widget_catalog_memo_description" />
+        </receiver>
+        <service android:name=".MemoTodoRemoteViewsService" android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
         <receiver
             android:name=".CalendarWidgetActionReceiver"
             android:exported="false" />
 
-        <service
-            android:name=".PendingTaskRemoteViewsService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <activity android:name=".ComponentWidgetConfigureActivity" android:exported="true">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
+        </activity>
     </application>
 
 </manifest>

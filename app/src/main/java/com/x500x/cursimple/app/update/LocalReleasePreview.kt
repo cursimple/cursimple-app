@@ -16,7 +16,7 @@ internal data class LocalReleasePreview(
     val localAssetDir: String? = null,
 )
 
-/** 私有目录里的自定义稿优先；没有自定义稿时读取测试包附带的本地公告。 */
+/** Private preview drafts take precedence over bundled debug announcements. */
 internal suspend fun loadLocalReleasePreview(context: Context): LocalReleasePreview? = withContext(Dispatchers.IO) {
     val dir = File(context.filesDir, RELEASE_PREVIEW_DIR)
     val custom = dir.listFiles { file -> file.isFile && file.extension.equals("md", ignoreCase = true) }

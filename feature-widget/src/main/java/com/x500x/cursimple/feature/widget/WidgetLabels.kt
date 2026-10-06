@@ -15,13 +15,11 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 
-/** 假日称呼；日历没给名字时由界面层补通用称呼。 */
 internal sealed interface WidgetHolidayLabel {
     data object Unnamed : WidgetHolidayLabel
 
     data class Named(val name: String) : WidgetHolidayLabel
 
-    /** 内置假日，名字随语言变化。 */
     data class BuiltIn(val nameRes: Int) : WidgetHolidayLabel
 }
 
@@ -32,8 +30,8 @@ internal fun widgetHolidayLabel(holidayName: String?, holidayNameRes: Int? = nul
 }
 
 /**
- * 今天没课、放假或已经下课时说的那句闲话，和 App 里今日卡片抽的是同一句。
- * 小组件不会准点刷新，所以不按钟点说话（不劝睡、不道晚安）。放假时前面带上假日名称。
+ * Date-seeded text matches the app, excluding clock-sensitive greetings that widgets cannot
+ * refresh reliably.
  */
 internal fun Context.widgetTodayMood(
     today: LocalDate,
@@ -67,7 +65,6 @@ internal fun Context.widgetHolidayText(label: WidgetHolidayLabel): String = when
     is WidgetHolidayLabel.BuiltIn -> getString(label.nameRes)
 }
 
-/** 今日课表小组件标题里的日期偏移标签。 */
 internal sealed interface WidgetDayTag {
     data object Yesterday : WidgetDayTag
 
@@ -75,10 +72,8 @@ internal sealed interface WidgetDayTag {
 
     data object Tomorrow : WidgetDayTag
 
-    /** 今天之后第 [days] 天。 */
     data class Ahead(val days: Int) : WidgetDayTag
 
-    /** 今天之前第 [days] 天。 */
     data class Behind(val days: Int) : WidgetDayTag
 }
 
@@ -101,26 +96,21 @@ internal fun Context.widgetDayTagText(tag: WidgetDayTag): String = when (tag) {
 internal fun Context.widgetMonthDayText(date: LocalDate): String =
     getString(R.string.widget_month_day, date.monthValue, date.dayOfMonth)
 
-/** 日期加星期几，用于临时调课的来源日期。 */
 internal fun Context.widgetDateWithWeekdayText(date: LocalDate): String = getString(
     R.string.widget_date_weekday,
     widgetMonthDayText(date),
     getString(weekdayNameRes(date.dayOfWeek.value)),
 )
 
-/**
- * 今日课表小组件的空态。
- * 放假优先于学期状态：课表是否同步、是否已开学，都不如“这天不上课”贴近实际。
- */
+/** Holiday empty-state explanation takes priority over term configuration. */
 internal sealed interface ScheduleWidgetEmptyLabel {
     data class Holiday(val label: WidgetHolidayLabel) : ScheduleWidgetEmptyLabel
 
     data object TermStartMissing : ScheduleWidgetEmptyLabel
 
-    /** 已知开学日期但还没开学；[termStartDate] 为空时只说未开学。 */
+    /** Pre-term state with optional [termStartDate]. */
     data class BeforeTermStart(val termStartDate: LocalDate?) : ScheduleWidgetEmptyLabel
 
-    /** 正常上课日但当天没课，按日期偏移 [offset] 区分说法。 */
     data class NoCourses(val offset: Int) : ScheduleWidgetEmptyLabel
 }
 
@@ -160,7 +150,6 @@ private fun Context.beforeTermStartText(termStartDate: LocalDate?): String = ter
     }
     ?: getString(R.string.widget_empty_before_term_start)
 
-/** 今日课表小组件副标题：星期几，再补上假日、学期状态或临时调课来源。 */
 internal sealed interface ScheduleWidgetSubtitle {
     val dayOfWeek: Int
 
@@ -173,7 +162,6 @@ internal sealed interface ScheduleWidgetSubtitle {
 
     data class BeforeTermStart(override val dayOfWeek: Int) : ScheduleWidgetSubtitle
 
-    /** 课程取自 [sourceDate] 的安排。 */
     data class TemporarySource(
         override val dayOfWeek: Int,
         val sourceDate: LocalDate,
@@ -218,7 +206,6 @@ internal fun Context.scheduleWidgetSubtitleText(subtitle: ScheduleWidgetSubtitle
     }
 }
 
-/** 下一节课小组件的空态。 */
 internal sealed interface NextCourseEmptyLabel {
     data class Holiday(val label: WidgetHolidayLabel) : NextCourseEmptyLabel
 
@@ -226,7 +213,6 @@ internal sealed interface NextCourseEmptyLabel {
 
     data class BeforeTermStart(val termStartDate: LocalDate?) : NextCourseEmptyLabel
 
-    /** 今天还上过课，但后面没有了。 */
     data object NoMoreToday : NextCourseEmptyLabel
 
     data object NoneToday : NextCourseEmptyLabel
@@ -265,7 +251,6 @@ internal fun Context.nextCourseEmptyText(label: NextCourseEmptyLabel): String = 
     NextCourseEmptyLabel.NoneOnDay -> getString(R.string.widget_next_empty_other_day)
 }
 
-/** 下一节课小组件表头前缀；[tomorrow] 为 true 表示展示的是次日安排。 */
 internal sealed interface NextCourseDayHeader {
     val tomorrow: Boolean
 
@@ -276,7 +261,6 @@ internal sealed interface NextCourseDayHeader {
         val label: WidgetHolidayLabel,
     ) : NextCourseDayHeader
 
-    /** 课程取自 [sourceDate] 的安排。 */
     data class TemporarySource(
         override val tomorrow: Boolean,
         val sourceDate: LocalDate,
@@ -314,7 +298,6 @@ internal fun Context.nextCourseDayHeaderText(header: NextCourseDayHeader): Strin
     }
 }
 
-/** 课程行的状态称呼；[exam] 为 true 时正在进行的是考试。 */
 @StringRes
 internal fun widgetCourseStatusRes(status: CourseStatus, exam: Boolean): Int = when (status) {
     CourseStatus.Live -> if (exam) R.string.widget_status_exam_live else R.string.widget_status_live
@@ -326,21 +309,13 @@ internal fun widgetCourseStatusRes(status: CourseStatus, exam: Boolean): Int = w
 internal fun Context.widgetNodeRangeText(startNode: Int, endNode: Int): String =
     getString(R.string.widget_node_range, startNode, endNode)
 
-/**
- * 跟在节次名字后面的节号，一律写成范围：「1-1」「3-4」。
- * 作息表里找不到这门课的时段时返回空串，界面退回「1-2节」的旧写法。
- */
+/** Numeric period range after a slot name; empty without a matching timing slot. */
 internal fun widgetNodeNumbersText(profile: TermTimingProfile?, startNode: Int, endNode: Int): String =
     if (profile?.slotsCovering(startNode, endNode).isNullOrEmpty()) "" else "$startNode-$endNode"
 
 /**
- * 节次那一格的文字：
- * - 落在一个时段里：「第一节」这类名字为主，节号缩小放在括号里跟在后面，如「第一节 (1-1)」；
- * - 横跨几个时段：没有单一的名字可叫，只写节号「3-4」；
- * - 作息表里没有对应时段：退回原来的「1-2节」。
- *
- * 数据类里只存纯文本，样式在绑定视图时才拼：带样式的文字做不了可靠的相等比较，
- * 会让列表版本号每次都变。
+ * Prefer single-slot labels, otherwise ranges. Store plain text and apply styling during
+ * binding for reliable equality and revisions.
  */
 internal fun widgetSlotCellText(slotLabel: String?, nodeNumbers: String, fallback: String): CharSequence {
     if (nodeNumbers.isBlank()) return fallback
@@ -352,9 +327,7 @@ internal fun widgetSlotCellText(slotLabel: String?, nodeNumbers: String, fallbac
     return text
 }
 
-/** 节号相对节次名字的字号比例。 */
 private const val WIDGET_NODE_NUMBERS_SCALE = 0.78f
 
-/** 考试课程在标题上带前缀，其余课程直接用标题。 */
 internal fun Context.widgetCourseTitleText(title: String, exam: Boolean): String =
     if (exam) getString(R.string.widget_exam_title, title) else title

@@ -68,7 +68,6 @@ class AlarmRingingService : Service() {
     private var volumeRampJob: Job? = null
     private var audioFocusRequest: AudioFocusRequest? = null
 
-    /** 通话期间的音量折扣，1 表示不压低。 */
     @Volatile
     private var duckFactor: Float = 1f
     private var currentAlarm: ActiveAlarm? = null
@@ -82,8 +81,7 @@ class AlarmRingingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // 服务只会被以前台方式拉起。除正在响铃时的重复到达（此时已 startForeground、真通知不能被占位覆盖）
-        // 外，先占位进入前台满足系统的启动窗口，随后响铃路径会用真通知替换，其余分支收尾时一并移除
+        // Meet the foreground-start deadline with a placeholder unless a real ringing notification already exists.
         if (currentAlarm == null && ringJob?.isActive != true) {
             startPlaceholderForeground()
         }
@@ -97,7 +95,6 @@ class AlarmRingingService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_RING -> {
-                // 响起来了就有响铃界面，「x 分钟后闹钟响」那条预告收掉
                 com.x500x.cursimple.app.notice.ClassNoticeNotifier.cancelAlarmPreview(this)
                 startRinging(intent, startId)
             }
@@ -116,7 +113,7 @@ class AlarmRingingService : Service() {
     }
 
     private fun startRinging(intent: Intent, startId: Int) {
-        // 假日校验先读取本地数据，期间也持有唤醒锁，避免后台冷启动在读完前休眠。
+        // Hold the wake lock while loading holiday policy during cold startup.
         if (currentAlarm == null && ringJob?.isActive != true) acquireWakeLock(STARTUP_WAKE_LOCK_MILLIS)
         serviceScope.launch {
             try {
@@ -150,7 +147,7 @@ class AlarmRingingService : Service() {
                                 AppAlarmClockDismisser(applicationContext).dismiss(record)
                                 repository.removeSystemAlarmRecord(record.alarmKey, record.backend)
                             }
-                            // 仅消费本次闹钟，保留课程规则，下一个上课日照常排程。
+                            // Consume this occurrence without deleting its recurring course rule.
                             runPostFinishMaintenance()
                         }
                         withContext(Dispatchers.Main) { retireStart(startId) }
@@ -168,9 +165,7 @@ class AlarmRingingService : Service() {
     }
 
     private fun startAllowedAlarm(intent: Intent, startId: Int) {
-        // 系统在派发闹钟时只给极短的唤醒时间，先抢锁再干活，否则中途 CPU 睡下就响一半。
-        // 但正在响铃时（备通道紧随主通道到达）已持有更长的响铃锁，这里若再抢 60s 启动锁会把它顶短，
-        // 全屏响铃页被抑制、屏幕没亮时首响就会被截断到 60s，所以响铃中不重复抢。
+        // Acquire a startup wake lock only before ringing; a duplicate arrival must not shorten the active ringing lock.
         if (currentAlarm == null && ringJob?.isActive != true) {
             acquireWakeLock(STARTUP_WAKE_LOCK_MILLIS)
         }
@@ -190,7 +185,7 @@ class AlarmRingingService : Service() {
                     "reminder.app_alarm_clock.ringing.skipped",
                     mapOf("alarmKey" to alarm.alarmKey, "outcome" to outcome::class.simpleName.orEmpty()),
                 )
-                // 备通道紧随主通道到达，只能退掉自己这次启动，不能把正在响的服务一起停掉
+                // A duplicate channel arrival must not stop an already-ringing service.
                 retireStart(startId)
                 return
             }
@@ -232,14 +227,12 @@ class AlarmRingingService : Service() {
                 mapOf("alarmKey" to alarm.alarmKey),
                 error,
             )
-            // 没能进前台就把名册放回去，另一条通道到达时还有机会接手
             if (alarm.alarmKey.isNotBlank()) {
                 AlarmArrivalLedger.release(applicationContext, alarm.alarmKey, alarm.triggerAtMillis)
             }
             retireStart(startId)
             return
         }
-        // 进了前台才算真的响起来，这条记录是自检页判断「到底响没响」的依据
         AlarmRingHistory.record(
             context = applicationContext,
             outcome = AlarmRingOutcome.Rang,
@@ -266,7 +259,7 @@ class AlarmRingingService : Service() {
             val alertMode = alarm.alertMode ?: prefs.alarmAlertMode
             val ringtoneUri = alarm.ringtoneUri ?: prefs.alarmRingtoneUri
             repeat(repeatCount) { index ->
-                // 重复响铃跨过零点，或用户刚把当天静音，也要在下一轮声音开始前重新判定。
+                // Recheck date muting and holiday policy before every repeated ring.
                 val livePrefs = DataStoreUserPreferencesRepository(applicationContext).preferencesFlow.first()
                 val suppressed = alarmDaySuppression(
                     System.currentTimeMillis(), alarm.allowOnHoliday, BeijingTime.zone,
@@ -304,11 +297,7 @@ class AlarmRingingService : Service() {
         }
     }
 
-    /**
-     * 退掉一次不需要响铃的启动。
-     * 已经在响铃时什么都不做，响铃结束时的收尾会把服务一并停掉；
-     * 此时若按这次启动去停服务，正在响的那一条就会被一起掐断。
-     */
+    /** Discard unnecessary starts without stopping an active ringing instance. */
     private fun retireStart(startId: Int) {
         if (currentAlarm != null || ringJob?.isActive == true) return
         stopSelf(startId)
@@ -375,7 +364,7 @@ class AlarmRingingService : Service() {
                         "message" to resultMessage,
                     ),
                 )
-                // 延后没排上时界面表现与成功完全一致，必须告诉用户闹钟不会再响
+                // Report failed snooze scheduling so the user knows it will not ring again.
                 if (snooze && !result.snoozeCreated) {
                     withContext(Dispatchers.Main) {
                         Toast.makeText(
@@ -424,9 +413,8 @@ class AlarmRingingService : Service() {
     }
 
     /**
-     * 排程是易失的，记录才是唯一事实源。
-     * 规则被删除或禁用后遗留的排程若仍到达，这里挡住，避免响一个已经不存在的闹钟。
-     * 手动创建的闹钟和取不到记录的情况一律放行，宁可多响也不能漏响。
+     * Reject stale schedules for deleted or disabled rules. Preserve manual alarms and
+     * uncertain lookups to avoid missing a valid ring.
      */
     private suspend fun isRecordStillValid(alarm: ActiveAlarm): Boolean {
         if (alarm.alarmKey.isBlank()) return true
@@ -461,7 +449,7 @@ class AlarmRingingService : Service() {
         }
     }
 
-    /** 不响铃的分支先用一个静音低优先通知占位进入前台，满足系统的 startForeground 时限。 */
+    /** Silent placeholder satisfies the foreground deadline for non-ringing branches. */
     private fun startPlaceholderForeground() {
         runCatching {
             val notification = NotificationCompat.Builder(this, PLACEHOLDER_CHANNEL_ID)
@@ -508,7 +496,6 @@ class AlarmRingingService : Service() {
             alarmActivityOptions(),
         )
 
-        // Android 16+ 实时通知状态文本
         val liveStatusText = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             "🔔 " + getString(R.string.alarm_ringing_notification)
         } else {
@@ -535,7 +522,6 @@ class AlarmRingingService : Service() {
             .addAction(0, getString(R.string.alarm_stop), stopIntent)
             .addAction(0, getString(R.string.alarm_snooze), snoozeIntent)
 
-        // Android 16+ 实时通知更新支持
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             notificationBuilder.setRequestPromotedOngoing(true)
             liveStatusText?.let { notificationBuilder.setShortCriticalText(it) }
@@ -605,7 +591,6 @@ class AlarmRingingService : Service() {
         }
     }
 
-    /** 音量从起点线性爬到满，同时持有音频焦点，通话打进来时自动压低。 */
     private fun startVolumeRamp() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return
         volumeRampJob?.cancel()
@@ -629,7 +614,6 @@ class AlarmRingingService : Service() {
                 .setAudioAttributes(attributes)
                 .setWillPauseWhenDucked(false)
                 .setOnAudioFocusChangeListener { change ->
-                    // 来电会短暂拿走焦点，压低而不是停掉，通话结束后自动恢复
                     duckFactor = when (change) {
                         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
                         AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK,
@@ -682,7 +666,6 @@ class AlarmRingingService : Service() {
             }
             if (!vibrator.hasVibrator()) return
             activeVibrator = vibrator
-            // 声明闹钟用途，静音与勿扰模式都不会把它当成普通提示音抑制掉
             val pattern = longArrayOf(0L, 800L, 800L)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 vibrator.vibrate(
@@ -720,7 +703,7 @@ class AlarmRingingService : Service() {
         }
     }
 
-    /** API 34 起全屏通知权限默认只授予闹钟与通话类应用，被收回时全屏响铃页弹不出来。 */
+    /** Full-screen alarm display requires permitted full-screen intent access on API 34+. */
     private fun canUseFullScreenIntentCompat(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return true
         return runCatching {
@@ -769,7 +752,7 @@ class AlarmRingingService : Service() {
         }
     }
 
-    /** 彻底错过的闹钟不能静默吞掉，用户需要知道自己睡过头了。 */
+    /** Report completely missed alarms rather than silently dropping them. */
     private fun notifyMissedAlarm(alarm: ActiveAlarm) {
         runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -818,9 +801,9 @@ class AlarmRingingService : Service() {
             ).apply {
                 description = getString(R.string.alarm_channel_description)
                 enableVibration(true)
-                // 声音由服务自己按闹钟音轨播放，渠道不再出声，避免响两遍
+                // The service owns audio playback; keep the channel silent to avoid duplicate sound.
                 setSound(null, null)
-                // 勿扰模式下仍要出通知，否则全屏响铃页不会弹出
+                // Allow the alarm notification through DND so full-screen presentation remains available.
                 setBypassDnd(true)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 setShowBadge(false)
@@ -836,10 +819,8 @@ class AlarmRingingService : Service() {
         const val ACTION_RING = AppAlarmClockIntents.ACTION_RING
         const val ACTION_STOP = "com.x500x.cursimple.action.ALARM_STOP"
         const val ACTION_SNOOZE = "com.x500x.cursimple.action.ALARM_SNOOZE"
-        /** 自检页要看这个渠道有没有被用户关掉，所以不是私有的。 */
         internal const val CHANNEL_ID = "course_alarm_ringing"
-        // 服务被以前台方式拉起后必须尽快 startForeground，否则 Android 12+ 抛
-        // ForegroundServiceDidNotStartInTimeException；不响铃的分支用这个静音低优先占位渠道先满足契约
+        // Start foreground promptly on every branch; use the silent placeholder when no ring starts.
         private const val PLACEHOLDER_CHANNEL_ID = "course_alarm_service"
         private const val NOTIFICATION_ID = 7401
         private const val STOP_REQUEST_CODE = 7402
@@ -847,7 +828,6 @@ class AlarmRingingService : Service() {
         private const val FULL_SCREEN_REQUEST_CODE = 7404
         private const val WAKE_LOCK_EXTRA_MILLIS = 10_000L
 
-        /** 从服务启动到首轮响铃之间的保护窗口。 */
         private const val STARTUP_WAKE_LOCK_MILLIS = 60_000L
         private const val VOLUME_RAMP_STEP_MILLIS = 500L
         private const val DUCKED_VOLUME_FACTOR = 0.2f

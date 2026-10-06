@@ -3,6 +3,7 @@ package com.x500x.cursimple.core.plugin.market.github
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class GitHubRegistryRepositoryTest {
@@ -19,21 +20,21 @@ class GitHubRegistryRepositoryTest {
                         {
                           "repositories": [
                             {
-                              "name": "cursimple/YangtzU_course_plugin",
-                              "repo": "YangtzU_course_plugin",
+                              "name": "cursimple/example_school_plugin",
+                              "repo": "example_school_plugin",
                               "owner": "cursimple",
                               "avatar": "https://avatars.githubusercontent.com/u/283925439?s=80&v=4",
-                              "description": "YangtzU course plugin for cursimple.",
+                              "description": "ExampleU course plugin for cursimple.",
                               "star": 7,
                               "language": "JavaScript",
-                              "url": "https://github.com/cursimple/YangtzU_course_plugin"
+                              "url": "https://github.com/cursimple/example_school_plugin"
                             }
                           ]
                         }
                         """.trimIndent()
 
-                    url == "https://github.com/cursimple/YangtzU_course_plugin/releases/latest/download/manifest.json" ->
-                        """{"filename":"yangtzeu-eams-v1.0.32.zip","version":"v1.0.32"}"""
+                    url.startsWith("https://github.com/cursimple/example_school_plugin/releases/latest/download/manifest.json?ts=") ->
+                        """{"filename":"exampleu-eams-v1.0.32.zip","version":"v1.0.32"}"""
 
                     else -> error("unexpected url: $url")
                 }
@@ -44,18 +45,38 @@ class GitHubRegistryRepositoryTest {
 
         assertEquals(1, repos.size)
         val summary = repos.single()
-        assertEquals("cursimple/YangtzU_course_plugin", summary.fullName)
+        assertEquals("cursimple/example_school_plugin", summary.fullName)
         assertEquals("cursimple", summary.owner)
-        assertEquals("YangtzU_course_plugin", summary.name)
+        assertEquals("example_school_plugin", summary.name)
         assertEquals(7, summary.stars)
         assertEquals("JavaScript", summary.language)
         assertNotNull(summary.latestRelease)
         assertEquals("v1.0.32", summary.latestRelease?.tagName)
-        assertEquals("yangtzeu-eams-v1.0.32.zip", summary.latestRelease?.assetName)
+        assertEquals("exampleu-eams-v1.0.32.zip", summary.latestRelease?.assetName)
         assertEquals(
-            "https://github.com/cursimple/YangtzU_course_plugin/releases/latest/download/yangtzeu-eams-v1.0.32.zip",
+            "https://github.com/cursimple/example_school_plugin/releases/latest/download/exampleu-eams-v1.0.32.zip",
             summary.latestRelease?.downloadUrl,
         )
+    }
+
+    @Test
+    fun `release manifest request always carries a cache buster so stale mirror copies cannot win`() = runBlocking {
+        val requested = mutableListOf<String>()
+        val repository = GitHubRegistryRepository(
+            apiClient = publicRepoApi(),
+            fetchText = { url ->
+                requested += url
+                """{"filename":"demo.zip","version":"v1.3.0"}"""
+            },
+        )
+
+        repository.fetchLatestReleaseAsset("owner/repo", fresh = false)
+        repository.fetchLatestReleaseAsset("owner/other", fresh = true)
+
+        assertEquals(2, requested.size)
+        requested.forEach { url ->
+            assertTrue(url, Regex("^https://github\\.com/owner/(repo|other)/releases/latest/download/manifest\\.json\\?ts=\\d+$").matches(url))
+        }
     }
 
     @Test
@@ -63,7 +84,7 @@ class GitHubRegistryRepositoryTest {
         val repository = GitHubRegistryRepository(
             apiClient = publicRepoApi(),
             fetchText = { url ->
-                assertEquals("https://github.com/owner/repo/releases/latest/download/manifest.json", url)
+                assertTrue(url, url.startsWith("https://github.com/owner/repo/releases/latest/download/manifest.json?ts="))
                 """{"name":"demo plugin.zip","version":"1.2.3"}"""
             },
         )

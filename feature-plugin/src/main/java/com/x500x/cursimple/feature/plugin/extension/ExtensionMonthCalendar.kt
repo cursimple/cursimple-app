@@ -5,7 +5,6 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
-/** 星期一为第一列，末行补齐；跨月格子留空，不将别的月份事务混进当月。 */
 internal fun extensionMonthCells(month: YearMonth): List<LocalDate?> {
     val prefix = month.atDay(1).dayOfWeek.value - 1
     val total = ((prefix + month.lengthOfMonth() + 6) / 7) * 7

@@ -7,17 +7,16 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** 导课前「有没有新版」：现查到的和市场缓存里的取较新的那个。 */
 class PluginUpgradeGateTest {
 
-    private val slug = "cursimple/YangtzU_course_plugin"
+    private val slug = "cursimple/example_school_plugin"
 
     private val record = InstalledPluginRecord(
-        pluginId = "yangtzeu",
-        name = "长江大学教务插件",
+        pluginId = "exampleu",
+        name = "示例大学教务插件",
         version = "1.0.33",
         versionCode = 1033,
-        storagePath = "/tmp/yangtzeu",
+        storagePath = "/tmp/exampleu",
         installedAt = "2026-09-03T00:00:00Z",
         source = PluginInstallSource.Remote,
         sourceRepo = slug,
@@ -25,8 +24,8 @@ class PluginUpgradeGateTest {
 
     private fun asset(tag: String) = GitHubReleaseAsset(
         tagName = tag,
-        assetName = "yangtzeu-eams-$tag.zip",
-        downloadUrl = "https://github.com/$slug/releases/latest/download/yangtzeu-eams-$tag.zip",
+        assetName = "exampleu-eams-$tag.zip",
+        downloadUrl = "https://github.com/$slug/releases/latest/download/exampleu-eams-$tag.zip",
         sizeBytes = 0,
     )
 

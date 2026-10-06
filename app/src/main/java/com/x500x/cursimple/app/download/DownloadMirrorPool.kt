@@ -2,22 +2,15 @@ package com.x500x.cursimple.app.download
 
 import java.net.URI
 
-
-/**
- * 三个非主机名的下载源标识。
- *
- * sourceName 同时是界面上显示的名字和镜像偏好里持久化的键，直接把它翻译掉会让
- * 换了语言之后对不上以前记下的偏好。所以这里固定用与语言无关的标识，
- * 显示时再由界面层换成当前语言（见 downloadSourceLabel）。
- */
+/** Persist language-independent source IDs; localize labels only when rendering. */
 object DownloadSourceIds {
     const val LOCAL_FILE = "local-file"
     const val ORIGIN = "origin"
     const val GITHUB_ORIGIN = "github-origin"
 }
 
-class DownloadMirrorPool {
-    fun candidates(request: DownloadRequest): List<DownloadCandidate> {
+open class DownloadMirrorPool {
+    open fun candidates(request: DownloadRequest): List<DownloadCandidate> {
         return when (request.purpose) {
             DownloadPurpose.LocalFile -> listOf(DownloadCandidate(DownloadSourceIds.LOCAL_FILE, request.url))
             DownloadPurpose.DirectUrl -> directCandidates(request.url)
@@ -32,8 +25,7 @@ class DownloadMirrorPool {
     }
 
     private fun githubReleaseCandidates(url: String): List<DownloadCandidate> {
-        // api.github.com 与文件下载分开：多数镜像不代理 API，或把上游错误改写成自己的 200/404 页面，
-        // 混进 API 候选会污染“没有发布版本”的判定
+        // Keep GitHub API candidates separate because asset proxies may rewrite error responses.
         val host = runCatching { URI(url).host }.getOrNull()
         return if (host.equals("api.github.com", ignoreCase = true)) {
             apiCapableProxyCandidates(url)
@@ -43,10 +35,8 @@ class DownloadMirrorPool {
     }
 
     /**
-     * 实测能透传 api.github.com 真实状态码的镜像，按 2026-09 实测的成功率和速度排。
-     *
-     * 那一轮 github.yuansi.xyz、down.npee.cn、cors.isteed.cc、ghfast.top 代理 API 三次全挂，已移出；
-     * 检查更新现在先读仓库里的版本清单（见 AppUpdateChecker.checkFromFeed），这里只是兜底。
+     * Fallback API proxies must preserve GitHub status codes; repository update feeds are
+     * preferred.
      */
     private fun apiCapableProxyCandidates(url: String): List<DownloadCandidate> {
         return listOf(
@@ -83,36 +73,37 @@ class DownloadMirrorPool {
     }
 
     private fun commonGithubProxyCandidates(url: String): List<DownloadCandidate> {
-        // 注意：monlor / imciel / fastgit / llkk 等对 API 会返回自家的 404 页面，
-        // 只能用于文件下载，加进 API 候选会污染“没有发布版本”的判定
-        // 按 2026-09 实测排：同一个 release 文件每家请求三次，三次都成功的按中位耗时从快到慢。
-        // 那一轮一并试过的 ghproxy.cc、github.moeyy.xyz、gh.ddlc.top、ghproxy.cn、ghps.cc 等十几家
-        // 三次全挂，没有收进来
+        // Initial order comes from integrity and throughput checks; runtime measurements reorder candidates and downgrade failures. Include the origin early for networks where it is faster.
         return listOf(
-            DownloadCandidate("ghproxy.monkeyray.net", "https://ghproxy.monkeyray.net/$url"),
-            DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
-            DownloadCandidate("gh.llkk.cc", "https://gh.llkk.cc/$url"),
-            DownloadCandidate("gh-proxy.org", "https://gh-proxy.org/$url"),
-            DownloadCandidate("ghproxy.imciel.com", "https://ghproxy.imciel.com/$url"),
-            DownloadCandidate("gh.halonice.com", "https://gh.halonice.com/$url"),
-            DownloadCandidate("fastgit.cc", "https://fastgit.cc/$url"),
             DownloadCandidate("gh.monlor.com", "https://gh.monlor.com/$url"),
-            DownloadCandidate("gh.jasonzeng.dev", "https://gh.jasonzeng.dev/$url"),
-            DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
-            DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
-            DownloadCandidate("gh.nxnow.top", "https://gh.nxnow.top/$url"),
+            DownloadCandidate("ghproxy.imciel.com", "https://ghproxy.imciel.com/$url"),
+            DownloadCandidate("gh.llkk.cc", "https://gh.llkk.cc/$url"),
+            DownloadCandidate("gh.wglee.org", "https://gh.wglee.org/$url"),
             DownloadCandidate("ghfast.top", "https://ghfast.top/$url"),
-            DownloadCandidate("ghproxy.net", "https://ghproxy.net/$url"),
-            DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
-            DownloadCandidate("ghp.keleyaa.com", "https://ghp.keleyaa.com/$url"),
-            DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
             DownloadCandidate(DownloadSourceIds.GITHUB_ORIGIN, url),
+            DownloadCandidate("gh.noki.icu", "https://gh.noki.icu/$url"),
+            DownloadCandidate("gh-proxy.org", "https://gh-proxy.org/$url"),
+            DownloadCandidate("gh.halonice.com", "https://gh.halonice.com/$url"),
+            DownloadCandidate("cors.isteed.cc", "https://cors.isteed.cc/${stripScheme(url)}"),
+            DownloadCandidate("fastgit.cc", "https://fastgit.cc/$url"),
+            DownloadCandidate("ghproxy.vip", "https://ghproxy.vip/$url"),
+            DownloadCandidate("gh.dpik.top", "https://gh.dpik.top/$url"),
+            DownloadCandidate("gh-proxy.com", "https://gh-proxy.com/$url"),
+            DownloadCandidate("gh.sixyin.com", "https://gh.sixyin.com/$url"),
+            DownloadCandidate("ghp.keleyaa.com", "https://ghp.keleyaa.com/$url"),
+            DownloadCandidate("gh.qninq.cn", "https://gh.qninq.cn/$url"),
+            DownloadCandidate("ghfile.geekertao.top", "https://ghfile.geekertao.top/$url"),
+            DownloadCandidate("cdn.gh-proxy.com", "https://cdn.gh-proxy.com/$url"),
+            DownloadCandidate("edgeone.gh-proxy.com", "https://edgeone.gh-proxy.com/$url"),
+            DownloadCandidate("hk.gh-proxy.com", "https://hk.gh-proxy.com/$url"),
+            DownloadCandidate("gh.nxnow.top", "https://gh.nxnow.top/$url"),
+            DownloadCandidate("ghproxy.net", "https://ghproxy.net/$url"),
+            DownloadCandidate("down.npee.cn", "https://down.npee.cn/?$url"),
         )
     }
 
     private fun RepoFile?.orEmptyRepoFileCandidates(): List<DownloadCandidate> {
         val repoFile = this ?: return emptyList()
-        // 国内的 jsDelivr 镜像实测都在 0.2 秒内，排在最前
         return listOf(
             DownloadCandidate("jsdmirror CDN", "https://cdn.jsdmirror.com/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
             DownloadCandidate("jsd.onmicrosoft.cn", "https://jsd.onmicrosoft.cn/gh/${repoFile.repository}@${repoFile.ref}/${repoFile.path}"),
@@ -135,8 +126,7 @@ class DownloadMirrorPool {
         if (segments.size < 4) {
             return null
         }
-        // 查询串一并带进 path：调用方用它击穿 CDN 缓存，
-        // 丢掉的话 jsDelivr 这类按路径改写的候选就又读回缓存里的旧文件了
+        // Preserve query strings when rewriting paths so cache-busting survives CDN URLs.
         val query = uri.query?.takeIf { it.isNotBlank() }?.let { "?$it" }.orEmpty()
         return RepoFile(
             repository = "${segments[0]}/${segments[1]}",

@@ -18,8 +18,8 @@ import java.time.temporal.TemporalAdjusters
 
 private const val MAX_TERM_WEEK = 60
 
-/** 第 [termWeek] 教学周里星期 [dayOfWeek] 对应的日期，第 1 周从开学日所在周的周一算起。 */
-/** 教学周编号的逆运算，锚点必须与 resolveTermWeekNumber 一致，同样固定为周一。 */
+/** Resolve a weekday within the teaching week anchored to the term's first Monday. */
+/** Use the same fixed Monday anchor as resolveTermWeekNumber. */
 internal fun termWeekDate(termStart: LocalDate, termWeek: Int, dayOfWeek: Int): LocalDate =
     termStart
         .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
@@ -58,10 +58,8 @@ internal fun courseOccurrenceDates(
             val day = resolveScheduleDay(date, temporaryScheduleOverrides, holidayCalendar)
             if (dayPolicy.suppresses(date, day)) return@filter false
             if (isCourseTemporarilyCancelled(date, course, temporaryScheduleOverrides)) return@filter false
-            // 被单独挪走的课，这天不再提醒
             if (isCourseMovedAwayFrom(date, course, temporaryScheduleOverrides)) return@filter false
-            // 被挪到这天的课要提醒；该不该上按它原本那天判。
-            // 明确设为补课/上课日会由 resolveScheduleDay 解除假日状态；手动假日或静音仍优先。
+            // Moved courses retain original-day coverage; explicit workdays override holidays, manual muting does not.
             val movedHere = coursesMovedToWithOrigin(
                 date = date,
                 overrides = temporaryScheduleOverrides,
@@ -70,7 +68,7 @@ internal fun courseOccurrenceDates(
             if (movedHere != null) {
                 return@filter course.isActiveOnSourceDate(termStart, movedHere.second)
             }
-            // 只调某几节时，这门课当天到底算哪一天的安排由节次决定，不是整天一刀切
+            // Partial swaps resolve source dates by each course's periods.
             val courseSource = temporaryScheduleCourseSourceDate(
                 date = date,
                 course = course,

@@ -85,7 +85,7 @@ class ScheduleModelsTest {
 
         val merged = schedule.allCoursesWith(listOf(courseOf("shared", "改过的"), courseOf("m1", "自己加的")))
 
-        // 改过的那门只能算一次，否则网格里会并排显示新旧两份，提醒也会重复响
+        // An edited course appears once, including reminder consumers.
         assertEquals(listOf("plugin-only", "shared", "m1"), merged.map { it.id })
         assertEquals("改过的", merged.first { it.id == "shared" }.title)
     }
@@ -112,11 +112,10 @@ class ScheduleModelsTest {
             updatedAt = "now",
             dailySchedules = listOf(DailySchedule(1, listOf(courseOf("plugin-a"), courseOf("plugin-b")))),
         )
-        // 删掉插件课 = 按原 id 存一条标了 hidden 的手动课，原件与墓碑一起从结果里消失
+        // A manual hidden record masks its plugin course by ID.
         val manual = listOf(courseOf("plugin-a").copy(hidden = true))
 
         assertEquals(listOf("plugin-b"), schedule.allCoursesWith(manual).map { it.id })
-        // 墓碑本身仍留在手动课程里，用户才能恢复
         assertEquals(listOf("plugin-a"), manual.hiddenCourses().map { it.id })
     }
 
@@ -142,7 +141,6 @@ class ScheduleModelsTest {
 
         assertEquals("东13-A-101", course.locationForWeek(3))
         assertEquals("东13-A-203", course.locationForWeek(5))
-        // 没设单独地点的周、以及不知道当前周时，都回退到默认
         assertEquals("默认实验楼", course.locationForWeek(4))
         assertEquals("默认实验楼", course.locationForWeek(null))
     }
@@ -155,7 +153,7 @@ class ScheduleModelsTest {
         val decoded = json.decodeFromString(CourseItem.serializer(), json.encodeToString(CourseItem.serializer(), course))
         assertEquals(mapOf(3 to "A101", 10 to "B202"), decoded.weekLocations)
 
-        // 旧数据没有 weekLocations 字段，解码后为空 map，locationForWeek 全部回退默认
+        // Legacy payloads default weekLocations empty and retain the default location.
         val legacy = """{"id":"c","title":"高数","location":"东1","time":{"dayOfWeek":1,"startNode":1,"endNode":2}}"""
         val old = json.decodeFromString(CourseItem.serializer(), legacy)
         assertEquals(emptyMap<Int, String>(), old.weekLocations)

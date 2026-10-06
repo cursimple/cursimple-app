@@ -13,7 +13,6 @@ import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.hiddenCourses
 
-/** 课程管理页与 ScheduleViewModel 的接线。 */
 @Composable
 fun CourseLibraryRoute(
     viewModel: ScheduleViewModel,
@@ -49,7 +48,7 @@ fun CourseLibraryRoute(
     ) {
         visibleColumnDayOfWeeks(scheduleDisplay)
     }
-    // 节次上限跟随当前作息，作息未设置时退回表单默认值
+    // Use active timing bounds, or the form default without a profile.
     val maxNodeCount = state.timingProfile?.slotTimes?.maxOfOrNull { it.endNode } ?: 12
 
     CourseLibraryScreen(

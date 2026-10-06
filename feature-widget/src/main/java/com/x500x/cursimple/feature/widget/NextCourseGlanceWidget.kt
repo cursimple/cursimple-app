@@ -15,14 +15,12 @@ import kotlinx.coroutines.launch
 
 open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
-        // 厂商启动器的刷新广播不会变成 onUpdate，这里单独接一次
         if (handleVendorWidgetUpdate(context, intent) { updateWidgets(it) }) return
         super.onReceive(context, intent)
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // 有的启动器加完小组件不发 onUpdate，会一直停在「加载中」
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
@@ -111,7 +109,6 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             } else {
                 views.setViewVisibility(R.id.next_course_badge, View.GONE)
             }
-            // 行数按当前尺寸裁剪，与列表服务那条路取同一份
             val visibleRows = visibleNextCourseRows(
                 data.rows,
                 widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId),

@@ -55,11 +55,13 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.net.URI
 import java.util.UUID
 
-/** 所有业务页面由组件提供，宿主只实现配置、会话校验、同步和导航等通用能力。 */
+/**
+ * Business pages belong to components; the host provides generic configuration, session, sync
+ * and navigation.
+ */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 internal fun ExtensionOwnedPage(
@@ -108,9 +110,7 @@ internal fun ExtensionOwnedPage(
     val entry = spec.ui?.entryFor(activePage) ?: "ui/index.html"
     val baseUrl = "$origin$ASSET_PREFIX$entry"
     val token = remember(record.packageRevision, activePage, source, origin) { UUID.randomUUID().toString() }
-    // WebView 在整块组件页的存续期内只取一次：换页复用同一个实例，只把新 HTML 装进去。
-    // 之前按页面 token 取实例，换页会换成新的，而 AndroidView 只显示第一次创建的那个，
-    // 旧实例又被回收清空，于是点「登录」之后整页变白。
+    // Reuse one WebView through page changes so AndroidView never points at a discarded instance.
     val webView = remember(record.packageRevision) { ExtensionWebViewPool.acquire(context) }
     val bridge: ComponentPageBridge = remember(webView) {
         ComponentPageBridge(webView) { callToken, id, command, payload ->
@@ -119,6 +119,11 @@ internal fun ExtensionOwnedPage(
                     check(!removing) { "组件正在移除" }
                     check(bridgeActive(webView) && currentActions.isCurrent(record)) { "组件已更新或移除" }
                     val value: JsonElement = when (command) {
+                        "notification.config.get", "notification.config.save", "notification.history",
+                        "notification.test", "notification.retry", "notification.fetch" -> {
+                            require(spec.notificationReceiver && PluginPermission.NotificationReceive in manifest.permissions) { "组件未声明通知出口能力" }
+                            currentActions.notificationCommand(record, command, payload)
+                        }
                         "settings.update" -> {
                             val next = store.update(record.pluginId) { updateComponentSettings(it, manifest, payload) }
                             currentActions.onDataChanged(record.pluginId)
@@ -138,6 +143,11 @@ internal fun ExtensionOwnedPage(
                                 is ExtensionSyncOutcome.Skipped -> error("组件尚未登录或未启用")
                             }
                         }
+                        "item.markRead" -> extensionJson.encodeToJsonElement(ExtensionData.serializer(),
+                            currentActions.markRead(record, (payload["itemId"] as? JsonPrimitive)?.contentOrNull.orEmpty()))
+                        "item.ignore" -> extensionJson.encodeToJsonElement(ExtensionData.serializer(),
+                            currentActions.setItemIgnored(record, (payload["itemId"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                                (payload["ignored"] as? JsonPrimitive)?.booleanOrNull ?: error("忽略状态无效")))
                         "login.check" -> {
                             CookieManager.getInstance().flush()
                             val before = store.get(record.pluginId)
@@ -180,7 +190,6 @@ internal fun ExtensionOwnedPage(
                             require(text.isNotBlank() && text.length <= 4096) { "二维码内容无效" }
                             JsonPrimitive(componentQrImage(text))
                         }
-                        // 预览：下载过的直接开保留的那份，没下载过就取到缓存里临时打开
                         "media.open" -> {
                             val url = (payload["url"] as? JsonPrimitive)?.contentOrNull.orEmpty()
                             val attachment = currentData.items.asSequence().flatMap { it.attachments.asSequence() }.firstOrNull { it.url == url }
@@ -195,7 +204,6 @@ internal fun ExtensionOwnedPage(
                             }
                             JsonPrimitive(true)
                         }
-                        // 下载：保留在组件自己的下载区，之后可以在组件页面里管理
                         "media.download" -> {
                             val url = (payload["url"] as? JsonPrimitive)?.contentOrNull.orEmpty()
                             val attachment = currentData.items.asSequence().flatMap { it.attachments.asSequence() }.firstOrNull { it.url == url }
@@ -212,7 +220,7 @@ internal fun ExtensionOwnedPage(
                             JsonPrimitive(true)
                         }
                         "media.delete" -> JsonPrimitive(downloads.delete((payload["id"] as? JsonPrimitive)?.contentOrNull.orEmpty()))
-                        // 存图：只认当前内容里的图片，存进系统相册
+                        // Save only images belonging to the current content.
                         "media.saveImage" -> {
                             val url = (payload["url"] as? JsonPrimitive)?.contentOrNull.orEmpty()
                             val image = currentData.items.asSequence().flatMap { it.images.asSequence() }.firstOrNull { it.url == url }
@@ -226,6 +234,12 @@ internal fun ExtensionOwnedPage(
                         "ui.settings" -> { if (page == PluginExtensionUiPage.Feed) onOpenSettings() else activePage = PluginExtensionUiPage.Settings; JsonPrimitive(true) }
                         "ui.feed" -> { if (page == PluginExtensionUiPage.Feed) activePage = PluginExtensionUiPage.Feed else currentActions.openFeed(record); JsonPrimitive(true) }
                         "ui.close" -> { if (activePage != page) activePage = page else onBack(); JsonPrimitive(true) }
+                        "ui.openExternal" -> {
+                            val url = (payload["url"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+                            require(ExtensionUrls.isAllowed(url, manifest.allowedHosts) && java.net.URI(url).rawUserInfo == null) { "外部链接不在组件声明的站点里" }
+                            context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                            JsonPrimitive(true)
+                        }
                         "component.remove" -> { require(page == PluginExtensionUiPage.Settings) { "请在组件设置中移除" }; removeConfirmation = true; JsonPrimitive(true) }
                         else -> error("不支持的组件调用：$command")
                     }
@@ -241,10 +255,9 @@ internal fun ExtensionOwnedPage(
             }
         }
     }
-    // 时间是这份快照的采样时间，不随抽屉动画等无关重组更新。
-    // 重复推送会让组件重建 DOM，打断 WebView 的拖动/惯性滚动并重置列表位置。
+    // Sample time belongs to the snapshot; unrelated recompositions must not rebuild component DOM or interrupt scrolling.
     val snapshot = remember(activePage, data, manifest, colors, fontScale) { buildJsonObject {
-        put("version", 4)
+        put("version", com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT)
         put("page", activePage.name.lowercase())
         put("context", buildJsonObject {
             put("fontScale", fontScale)
@@ -265,7 +278,7 @@ internal fun ExtensionOwnedPage(
         put("data", extensionJson.encodeToJsonElement(ExtensionData.serializer(), currentData))
         put("manifest", extensionJson.encodeToJsonElement(PluginManifest.serializer(), manifest))
     } }
-    // 桥和 WebView 的设置活得比「当前页」长：换页时不能拆，否则回来的实例已经和界面脱钩
+    // Keep bridge and WebView settings alive across owned-page changes.
     DisposableEffect(webView, bridge) {
         webView.settings.apply { javaScriptEnabled = true; domStorageEnabled = true; textZoom = 100; manifest.userAgent?.let { userAgentString = it } }
         CookieManager.getInstance().setAcceptCookie(true)
@@ -278,7 +291,7 @@ internal fun ExtensionOwnedPage(
             ExtensionWebViewPool.release(webView)
         }
     }
-    // 换页只换 WebViewClient 和页面内容
+    // Page changes replace only content and WebViewClient.
     DisposableEffect(webView, source, baseUrl, origin) {
         webView.tag = token
         webView.webViewClient = object : WebViewClient() {
@@ -328,14 +341,13 @@ internal fun ExtensionOwnedPage(
     )
 }
 
-/** 组件页是否还挂在这个实例上；换页只换 tag，桥不动 */
+/** Whether the instance still owns a component page; page changes update its tag. */
 private fun bridgeActive(view: WebView): Boolean = view.tag != null
 
 private class ComponentPageBridge(private val view: WebView, private val request: (String, String, String, JsonObject) -> Unit) {
     fun attachToView() = view.addJavascriptInterface(this, "CurSimpleExtensionUi")
     @Volatile private var active = true
     @JavascriptInterface fun request(callToken: String, id: String, command: String, payload: String) {
-        // 页面换掉后旧页面可能还留着回调，token 对不上就丢，免得上一页的请求打到新页
         if (!active || callToken != view.tag || payload.length > 256_000 || id.length > 100 || command.length > 100) return
         val args = runCatching { extensionJson.parseToJsonElement(payload).jsonObject }.getOrNull() ?: JsonObject(emptyMap())
         view.post { if (active && callToken == view.tag) request(callToken, id, command, args) }
@@ -363,11 +375,11 @@ internal fun componentUiHtml(html: String, snapshot: JsonObject, token: String, 
  let state=${componentUiJsonForScript(snapshot.toString())};
  window.__CurSimpleComponentReply=function(id,response){if(id==='legacy-sync'&&window.CurSimpleExtensionUiSetSyncing)window.CurSimpleExtensionUiSetSyncing(false);const p=pending.get(id);if(!p)return;pending.delete(id);clearTimeout(p.timer);response.ok?p.resolve(response.value):p.reject(new Error(response.error||'组件调用失败'));};
  window.__CurSimpleComponentPush=function(value){state=value;listeners.forEach(fn=>fn(state));if(window.CurSimpleExtensionUiSetData)window.CurSimpleExtensionUiSetData(state.data);};
- window.CurSimpleComponent=Object.freeze({version:4,get state(){return state;},subscribe(fn){listeners.add(fn);fn(state);return()=>listeners.delete(fn);},request(command,payload){return new Promise((resolve,reject)=>{const id=String(++seq);const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作超时，请重试'));},command==='sync'?185000:45000);pending.set(id,{resolve,reject,timer});window.CurSimpleExtensionUi.request(token,id,command,JSON.stringify(payload||{}));});}});
+ window.CurSimpleComponent=Object.freeze({version:${com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT},get state(){return state;},subscribe(fn){listeners.add(fn);fn(state);return()=>listeners.delete(fn);},request(command,payload){return new Promise((resolve,reject)=>{const id=String(++seq);const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作超时，请重试'));},(command==='sync'||command==='item.markRead'||command==='notification.test')?185000:45000);pending.set(id,{resolve,reject,timer});window.CurSimpleExtensionUi.request(token,id,command,JSON.stringify(payload||{}));});}});
  const nativeFetch=window.fetch.bind(window), hosts=${extensionJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<String>()), manifest.allowedHosts)}, network=${PluginPermission.NetworkFetch in manifest.permissions};
  const allowed=h=>hosts.some(x=>h===x||h.endsWith('.'+x));
  window.fetch=function(url,init){const u=new URL(typeof url==='string'?url:url.url,location.href),local=u.origin===location.origin&&u.pathname.startsWith('$ASSET_PREFIX');if(!local&&(!network||u.protocol!=='https:'||!allowed(u.hostname)))return Promise.reject(new Error('请求地址不在组件声明的站点内'));return nativeFetch(url,init);};
- // 组件页面可以用 WebSocket（例如扫码登录推送）；和 fetch 一样只放行组件声明的站点
+ // WebSocket destinations use the same declared-host restrictions as fetch.
  const NativeWebSocket=window.WebSocket;
  window.WebSocket=function(url,protocols){const u=new URL(String(url),location.href);if(u.protocol!=='wss:'||!network||!allowed(u.hostname))throw new Error('连接地址不在组件声明的站点内');return protocols===undefined?new NativeWebSocket(url):new NativeWebSocket(url,protocols);};
  window.WebSocket.prototype=NativeWebSocket.prototype;

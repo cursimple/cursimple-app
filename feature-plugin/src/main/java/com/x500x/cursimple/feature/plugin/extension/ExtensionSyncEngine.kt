@@ -13,7 +13,6 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
-/** 一次同步的结果；[Synced] 带出这次新冒出来的条目，宿主据此发通知 */
 sealed interface ExtensionSyncOutcome {
     val pluginId: String
 
@@ -24,7 +23,7 @@ sealed interface ExtensionSyncOutcome {
         val newItems: List<ExtensionFeedItem>,
     ) : ExtensionSyncOutcome
 
-    /** 登录失效；[firstTime] 表示这是刚发现的，宿主只在这一次发「请重新登录」 */
+    /** [firstTime] limits login-expiry notification to the initial detection. */
     data class LoginRequired(
         override val pluginId: String,
         val manifest: PluginManifest,
@@ -33,15 +32,13 @@ sealed interface ExtensionSyncOutcome {
 
     data class Failed(override val pluginId: String, val message: String) : ExtensionSyncOutcome
 
-    /** 没登录过、被禁用、不兼容，这次不跑 */
+    /** Skip unconfigured, disabled or incompatible components. */
     data class Skipped(override val pluginId: String, val reason: String) : ExtensionSyncOutcome
 }
 
 /**
- * 扩展组件的同步：跑入口脚本的 sync，把结果并进 [ExtensionStore]。
- *
- * 通知、截止提醒、写课表这些「产出」不在这里做，由 App 层拿 [ExtensionSyncOutcome] 去办——
- * 这一层只管数据，界面上的「立即同步」和后台任务共用它。
+ * Merge runtime results into [ExtensionStore]; app-layer callers handle notification and
+ * timetable effects.
  */
 class ExtensionSyncEngine(
     context: Context,
@@ -49,8 +46,29 @@ class ExtensionSyncEngine(
     private val store: ExtensionStore = ExtensionStore.get(context),
     private val runtime: ExtensionRuntime = ExtensionRuntime(context),
 ) {
-    /** 同一个组件同一时刻只跑一份：后台任务和用户点的「立即同步」撞上时，后来的排队 */
+    /** Serialize runtime operations per component across manual and background sync. */
     private val locks = mutableMapOf<String, Mutex>()
+
+    suspend fun markRead(record: InstalledPluginRecord, itemId: String): ExtensionData = lockOf(record.pluginId).withLock {
+        check(isCurrent(record)) { "组件已更新或移除" }
+        val before = store.get(record.pluginId)
+        check(before.loggedIn) { "请重新登录组件" }
+        val item = before.items.firstOrNull { it.id == itemId } ?: error("公告已删除，请刷新列表")
+        require(item.isNotice()) { "此内容不是公告" }
+        if (item.done) return@withLock before
+        val (manifest, entry) = pluginManager.loadExtensionPackage(record)
+        val request = ExtensionRunRequest.from(manifest, entry, before, ExtensionRunMode.ItemAction).copy(
+            action = JsonObject(mapOf("type" to JsonPrimitive("markRead"), "itemId" to JsonPrimitive(itemId))),
+        )
+        val run = runtime.run(request)
+        if (run is ExtensionRunResult.Failed) error(run.message)
+        run as ExtensionRunResult.Completed
+        check(isCurrent(record)) { "组件已更新或移除" }
+        store.updateIfPresent(record.pluginId) { current ->
+            if (current.sessionRevision != before.sessionRevision || !current.loggedIn) null
+            else confirmedReadResult(current, itemId, run)
+        } ?: error("账号已变更，请重新打开公告")
+    }
 
     suspend fun sync(record: InstalledPluginRecord, now: Long = System.currentTimeMillis()): ExtensionSyncOutcome {
         val pluginId = record.pluginId
@@ -99,6 +117,7 @@ class ExtensionSyncEngine(
                     val saved = store.updateIfPresent(pluginId) {
                         if (!canAcceptSync(before, it)) null else merged.data.copy(
                             host = it.host, settings = it.settings, sessionRevision = it.sessionRevision,
+                            ignoredItemIds = it.ignoredItemIds, restoredItemIds = it.restoredItemIds,
                         )
                     } ?: return ExtensionSyncOutcome.Skipped(pluginId, "session_changed")
                     PluginLogger.info(
@@ -129,9 +148,8 @@ internal fun canAcceptSync(before: ExtensionData, current: ExtensionData): Boole
 internal data class MergedSync(val data: ExtensionData, val newItems: List<ExtensionFeedItem>)
 
 /**
- * 把这次拿到的整份条目并进存档。条目是「快照」语义：这次没返回的就是没了（老师删了、学期过了）。
- *
- * 新内容 = 这次有、上次没有的 id。登录后第一次同步只建基线，不算新内容。
+ * Sync returns a complete snapshot; absent IDs disappear. First authenticated sync establishes
+ * the baseline.
  */
 internal fun mergeSyncResult(
     before: ExtensionData,
@@ -148,7 +166,7 @@ internal fun mergeSyncResult(
     val account = (run.result["account"] as? JsonObject)?.let { obj ->
         runCatching { extensionJson.decodeFromJsonElement(ExtensionAccount.serializer(), obj) }.getOrNull()
     }
-    // 截止提醒的记录只留还在的条目，免得越攒越多
+    // Prune reminder markers for items no longer present.
     val liveKeys = items.mapNotNull { item -> item.dueAt?.let { "${item.id}@$it" } }.toSet()
     return MergedSync(
         data = before.copy(

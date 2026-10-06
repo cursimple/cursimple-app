@@ -41,7 +41,6 @@ class CourseReminderRuleTest {
         time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
     )
 
-    /** 与高数同一天同节次的另一门课。 */
     private val physics = CourseItem(
         id = "course-physics",
         title = "大学物理",
@@ -50,7 +49,6 @@ class CourseReminderRuleTest {
         time = CourseTimeSlot(dayOfWeek = 3, startNode = 1, endNode = 2),
     )
 
-    /** 另一天但共用同一个节次名的课。 */
     private val english = CourseItem(
         id = "course-english",
         title = "大学英语",
@@ -86,7 +84,6 @@ class CourseReminderRuleTest {
             newRuleId = "rule-${course.id}",
         )
 
-    /** 修复前 createLabelRuleForCourse 产出的规则形状。 */
     private fun legacyLabelRule(course: CourseItem, slotLabel: String): ReminderRule = ReminderRule(
         ruleId = "legacy-${course.id}",
         pluginId = "plugin-a",

@@ -11,19 +11,14 @@ import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import java.time.LocalDateTime
 import java.time.ZoneId
 
-/**
- * 按节次边界排布小组件刷新。
- *
- * 守护链按固定周期跳动，最坏会让上课状态滞后一整个周期；这里在课前提前量、上课与下课
- * 三个时刻各排一次，状态切换的那一刻小组件就会重画。两者互为补充，守护链仍是兜底。
- */
+/** Refresh at advance, start and end boundaries, supplementing the periodic guard. */
 internal object WidgetBoundaryRefreshScheduler {
 
     fun reschedule(context: Context, slots: List<ClassSlotTime>, zone: ZoneId = BeijingTime.zone) {
         val app = context.applicationContext
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val boundaries = widgetRefreshBoundaries(slots, LocalDateTime.now(zone), limit = SLOT_COUNT)
-        // 节次变少或课表清空后，多余的槽位要撤掉，否则会一直空转
+        // Cancel unused boundary slots after the schedule shrinks.
         for (index in boundaries.size until SLOT_COUNT) {
             cancelSlot(app, alarmManager, index)
         }
@@ -56,7 +51,7 @@ internal object WidgetBoundaryRefreshScheduler {
         if (exactAllowed) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, operation)
         } else {
-            // 没有精确闹钟权限时退回不精确闹钟，刷新会晚一点但不至于不刷
+            // Use inexact refresh when exact-alarm access is unavailable.
             alarmManager.set(AlarmManager.RTC_WAKEUP, triggerAtMillis, operation)
         }
     }

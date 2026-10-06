@@ -15,10 +15,8 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 /**
- * 扩展组件在宿主这边的数据：一个组件一个 JSON 文件，放在 filesDir/extensions-v1/。
- *
- * 界面、后台同步、截止提醒的接收器都在同一个进程里读写它，所以做成进程内单例：
- * 内存里一份 [StateFlow] 给界面订阅，写的时候加锁、落盘。
+ * One locked, persisted JSON archive per component; shared [StateFlow] serves same-process
+ * consumers.
  */
 class ExtensionStore internal constructor(private val dir: File) {
 
@@ -56,7 +54,7 @@ class ExtensionStore internal constructor(private val dir: File) {
         }
     }
 
-    /** 运行中的任务只允许改已有存档；组件卸载后不能把存档重新创建出来。 */
+    /** Running tasks may update existing archives only; never recreate data after uninstall. */
     suspend fun updateIfPresent(pluginId: String, transform: (ExtensionData) -> ExtensionData?): ExtensionData? {
         ensureLoaded()
         return mutex.withLock {
@@ -70,13 +68,11 @@ class ExtensionStore internal constructor(private val dir: File) {
         }
     }
 
-    /** 组件被移除时一并删掉，不留账号和缓存 */
     suspend fun remove(pluginId: String) {
         ensureLoaded()
         mutex.withLock {
             withContext(Dispatchers.IO) {
                 fileOf(pluginId).delete()
-                // 用户下载保留的附件也跟着组件走
                 dir.parentFile?.let { ExtensionDownloads.downloadDir(it, pluginId).deleteRecursively() }
             }
             state.value = state.value - pluginId
@@ -101,7 +97,6 @@ class ExtensionStore internal constructor(private val dir: File) {
     }
 
     private fun fileOf(pluginId: String): File {
-        // 插件 id 装的时候已经校验过字符集，这里再挡一次，免得拼出目录外的路径
         val id = pluginId.takeIf { SAFE_ID.matches(it) } ?: error("unsafe plugin id: $pluginId")
         dir.mkdirs()
         return File(dir, "$id.json")

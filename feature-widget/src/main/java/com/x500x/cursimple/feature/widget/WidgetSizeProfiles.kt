@@ -19,12 +19,6 @@ internal enum class WidgetSizeClass {
     }
 }
 
-internal fun WidgetSizeClass.dailyCourseRows(): Int = when (this) {
-    WidgetSizeClass.Compact -> 2
-    WidgetSizeClass.Regular -> 3
-    WidgetSizeClass.Expanded -> 5
-}
-
 internal fun WidgetSizeClass.nextCourseRows(): Int = when (this) {
     WidgetSizeClass.Compact -> 2
     WidgetSizeClass.Regular -> 4
@@ -37,13 +31,11 @@ internal fun WidgetSizeClass.reminderRows(): Int = when (this) {
     WidgetSizeClass.Expanded -> 4
 }
 
-/** 下一节课列表按尺寸档案裁剪，小尺寸不再靠滚动塞下整天。 */
 internal fun visibleNextCourseRows(
     rows: List<NextCourseRow>,
     sizeClass: WidgetSizeClass,
 ): List<NextCourseRow> = rows.take(sizeClass.nextCourseRows())
 
-/** 提醒列表按尺寸档案裁剪；总数仍由标题角标给出。 */
 internal fun visibleReminderRows(
     rows: List<ReminderRowData>,
     sizeClass: WidgetSizeClass,

@@ -10,8 +10,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 
 /**
- * 组件界面的 WebView 只保留一个热实例。页面离开时回收到池里，下次打开直接复用 Chromium
- * 渲染进程；组件自己的 HTML 仍会重新加载，数据不会串到另一个组件。
+ * Reuse one warm WebView, reloading owned HTML so component data does not leak between pages.
  */
 object ExtensionWebViewPool {
     private var pooled: WebView? = null
@@ -43,8 +42,7 @@ object ExtensionWebViewPool {
     private fun newWebView(context: Context): WebView = ComponentWebView(
         ContextThemeWrapper(context.applicationContext, context.theme),
     ).apply {
-        // WRAP_CONTENT 使部分 WebView 将 CSS vh / 百分比高度算成 0，
-        // 列表虽有 DOM 却被零高度滚动区裁掉。容器明确占满 Compose 给定的区域。
+        // Fill the assigned region so WebView percentage and vh heights remain nonzero.
         layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = false
@@ -57,7 +55,10 @@ object ExtensionWebViewPool {
     }
 }
 
-/** 从按下开始就让 WebView 拥有完整手势，避免斜向滚动被 Compose 父级取消。 */
+/**
+ * Give WebView the full touch sequence from Down to prevent parent cancellation of diagonal
+ * scroll.
+ */
 private class ComponentWebView(context: Context) : WebView(context) {
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
         if (event.actionMasked == MotionEvent.ACTION_DOWN) {

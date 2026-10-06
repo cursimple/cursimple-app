@@ -4,17 +4,13 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** 单条备注允许的最大长度，按 Unicode 码点计。 */
+/** Maximum note length in Unicode code points. */
 const val COURSE_NOTE_MAX_LENGTH = 500
 
-/** 单个学期保留的备注条数上限。 */
+/** Maximum retained course notes per term. */
 const val COURSE_NOTE_MAX_COUNT = 400
 
-/**
- * 备注写入时记录下的课程特征。
- *
- * [courseId] 用于快速命中；课表整体替换导致 id 变化时，其余字段作为回退匹配依据。
- */
+/** Use [courseId] first; stored course characteristics support reimported IDs. */
 @Serializable
 data class CourseNoteAnchor(
     @SerialName("courseId") val courseId: String,
@@ -27,7 +23,6 @@ data class CourseNoteAnchor(
     @SerialName("location") val location: String = "",
 )
 
-/** 一条课程备注。备注独立于课表存储，不参与插件下发的课表数据契约。 */
 @Serializable
 data class CourseNote(
     @SerialName("anchor") val anchor: CourseNoteAnchor,
@@ -35,7 +30,7 @@ data class CourseNote(
     @SerialName("updatedAt") val updatedAt: Long = 0L,
 )
 
-/** 关联结果：[byCourseId] 以当前课表里的课程 id 为键，[orphans] 是没能匹配上任何课程的备注。 */
+/** [byCourseId] maps current course IDs; [orphans] contains unmatched notes. */
 data class CourseNoteIndex(
     val byCourseId: Map<String, CourseNote> = emptyMap(),
     val orphans: List<CourseNote> = emptyList(),
@@ -45,15 +40,12 @@ data class CourseNoteIndex(
     fun hasNote(courseId: String): Boolean = byCourseId[courseId]?.text?.isNotBlank() == true
 }
 
-/** 备注文本的校验结果。 */
 sealed interface CourseNoteInput {
-    /** [text] 已归一化；为空串表示删除这条备注。 */
     data class Accepted(val text: String) : CourseNoteInput
 
     data class TooLong(val length: Int, val limit: Int) : CourseNoteInput
 }
 
-/** 回退匹配用的内容特征：课名 + 星期 + 起止节。 */
 fun courseNoteSignature(title: String, dayOfWeek: Int, startNode: Int, endNode: Int): String =
     "${normalizeNoteTitle(title)}|$dayOfWeek|$startNode|$endNode"
 
@@ -74,11 +66,10 @@ fun CourseItem.noteAnchor(): CourseNoteAnchor = CourseNoteAnchor(
     location = location,
 )
 
-/** 备注长度，按码点计，避免 emoji 之类的字符被算成两个字。 */
+/** Count Unicode code points rather than UTF-16 units. */
 fun courseNoteLength(text: String): Int =
     if (text.isEmpty()) 0 else text.codePointCount(0, text.length)
 
-/** 统一换行符并去掉首尾空白。 */
 fun normalizeCourseNoteText(raw: String): String =
     raw.replace("\r\n", "\n").replace('\r', '\n').trim()
 
@@ -93,11 +84,8 @@ fun validateCourseNote(raw: String, limit: Int = COURSE_NOTE_MAX_LENGTH): Course
 }
 
 /**
- * 把备注关联到当前课表。
- *
- * 两轮匹配：先按课程 id 精确命中，再对剩下的备注按「课名 + 星期 + 起止节」回退匹配。
- * 同一内容特征下有多门课或多条备注时，先用周次、教师、地点排出归属，
- * 这些次级特征也完全相同就按顺序落位。课名或上课时间对不上的备注留作孤儿。
+ * Match IDs first, then title/day/periods. Resolve duplicates by weeks, teacher and location,
+ * then stable order; retain unmatched notes as orphans.
  */
 fun resolveCourseNotes(courses: List<CourseItem>, notes: List<CourseNote>): CourseNoteIndex {
     if (notes.isEmpty() || courses.isEmpty()) {
@@ -139,8 +127,7 @@ fun resolveCourseNotes(courses: List<CourseItem>, notes: List<CourseNote>): Cour
 }
 
 /**
- * 把关联上的备注锚点刷新为课程当前的 id 与特征，并把总条数压到 [limit] 以内。
- * 超出上限时淘汰更新时间最早的孤儿备注，关联上的备注不会被淘汰。
+ * Refresh matched anchors; enforce [limit] by evicting oldest orphans before associated notes.
  */
 fun reconcileCourseNotes(
     courses: List<CourseItem>,
@@ -162,7 +149,6 @@ fun reconcileCourseNotes(
     return rebound + keptOrphans
 }
 
-/** 写入或删除一门课的备注。[text] 归一化后为空表示删除。 */
 fun upsertCourseNote(
     courses: List<CourseItem>,
     notes: List<CourseNote>,
@@ -219,8 +205,7 @@ private fun bindContestedGroup(
         usedNotes += candidate.note.index
     }
 
-    // 次级特征也分不出高下时按顺序落位：这些课程在课名、星期、节次乃至周次上完全一致，
-    // 与其让备注消失，不如挂到同名同时间的课上。
+    // Use stable order for otherwise indistinguishable courses rather than losing their notes.
     val leftoverCourses = groupCourses.filterNot { bound.containsKey(it.id) }.iterator()
     groupNotes.filterNot { it.index in usedNotes }.forEach { note ->
         if (!leftoverCourses.hasNext()) return

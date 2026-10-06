@@ -47,7 +47,7 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import com.x500x.cursimple.feature.schedule.R as ScheduleR
 
-/** 只在独立 QA 模拟器显式启用：验证今日安排入口和真实 Compose 布局。 */
+/** Opt-in layout checks for a dedicated QA emulator. */
 class TodayOverviewUiTest {
     private val compose = createAndroidComposeRule<MainActivity>()
     private val previewLanguage = object : ExternalResource() {
@@ -105,12 +105,10 @@ class TodayOverviewUiTest {
                 }
             }
         }
-        // 日视图看今天：课程上方有今日卡片（倒计时 + 冲突），不需要任何按钮
         compose.onNodeWithTag("today-overview-card").assertIsDisplayed()
         compose.onNodeWithText(context.getString(ScheduleR.string.schedule_today_minutes_to_end, 30L)).assertIsDisplayed()
         compose.onNodeWithText(context.getString(ScheduleR.string.schedule_today_conflict_short, 1)).assertIsDisplayed()
         saveScreenshot(if (chinese) "today-card-zh.png" else "today-card.png")
-        // 点卡片展开今日安排：时间线 + 冲突明细
         compose.onNodeWithTag("today-overview-card").performClick()
         compose.onNodeWithTag("today-overview-sheet").assertIsDisplayed()
         compose.onNodeWithText(context.getString(ScheduleR.string.schedule_conflict_pair_title, "测试课程A", "冲突课程C")).assertIsDisplayed()
@@ -119,7 +117,6 @@ class TodayOverviewUiTest {
         compose.onNode(hasText("测试课程B") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         compose.onNodeWithContentDescription(context.getString(ScheduleR.string.schedule_action_close)).assertIsDisplayed().performClick()
         compose.onNodeWithTag("today-overview-sheet").assertDoesNotExist()
-        // 周视图不出现卡片；关掉开关后日视图也不出现
         compose.runOnIdle { viewMode.value = com.x500x.cursimple.feature.schedule.ScheduleViewMode.Week }
         compose.waitUntil(timeoutMillis = 5_000) { compose.onAllNodesWithTag("today-overview-card").fetchSemanticsNodes().isEmpty() }
         compose.runOnIdle { viewMode.value = com.x500x.cursimple.feature.schedule.ScheduleViewMode.Day; overviewEnabled.value = false }
@@ -149,10 +146,8 @@ class TodayOverviewUiTest {
             val courses = compose.onAllNodesWithText("大学英语")
             courses.fetchSemanticsNodes().indices.any { courses[it].isDisplayed() }
         }
-        // 左上角不再有概览按钮；周视图也没有卡片
         compose.onNodeWithContentDescription(context.getString(com.x500x.cursimple.R.string.main_today_overview)).assertDoesNotExist()
         compose.onAllNodesWithTag("today-overview-card").fetchSemanticsNodes().let { assertEquals(0, it.size) }
-        // 切到日视图：今日卡片出现在课程上方
         compose.onNodeWithText(context.getString(com.x500x.cursimple.R.string.schedule_view_mode_week)).performClick()
         compose.waitUntil(timeoutMillis = 10_000) { compose.onAllNodesWithTag("today-overview-card").fetchSemanticsNodes().isNotEmpty() }
         compose.waitForIdle()
@@ -163,13 +158,12 @@ class TodayOverviewUiTest {
         compose.waitForIdle(); Thread.sleep(900); saveScreenshot("main-day-today-agenda-zh.png")
         pressBack()
         compose.onNodeWithTag("today-overview-sheet").assertDoesNotExist()
-        // 没设开学日期：标题照常显示周次，不写「未设置开学日期」
         runBlocking { preferences.setTermStartDate(null) }
         val missing = context.getString(com.x500x.cursimple.core.kernel.R.string.kernel_week_term_start_missing)
         compose.waitUntil(timeoutMillis = 10_000) {
             compose.onAllNodesWithContentDescription(context.getString(com.x500x.cursimple.R.string.main_set_term_start)).fetchSemanticsNodes().isNotEmpty()
         }
-        // 侧边栏收起时也在语义树里（那里的「未设置开学日期」是设置入口），只看屏幕上可见的
+        // The hidden drawer remains in the semantics tree; match visible nodes only.
         val visibleMissing = compose.onAllNodesWithText(missing).let { nodes -> nodes.fetchSemanticsNodes().indices.count { nodes[it].isDisplayed() } }
         assertEquals(0, visibleMissing)
         compose.waitForIdle()
@@ -190,7 +184,6 @@ class TodayOverviewUiTest {
         preferences.setFirstRunGuideCompleted(true)
         preferences.markNotificationPermissionStartupAsked()
         preferences.markIslandStartupPromptShown()
-        // 多次安装/运行测试会留下进程退出记录，截图前标记 QA 模拟器的提示已读。
         com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(context)
         preferences.setLastSeenVersionCode(com.x500x.cursimple.BuildConfig.VERSION_CODE)
         preferences.setAutoUpdateEnabled(false)

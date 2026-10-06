@@ -6,11 +6,10 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import java.time.LocalTime
 
-/** UI 只能修改自身清单中声明的配置项，宿主不解析任何业务服务的登录协议。 */
+/** UI may modify declared settings only; platform authentication belongs to the component. */
 internal fun updateComponentSettings(data: ExtensionData, manifest: PluginManifest, values: JsonObject): ExtensionData {
     val declarations = manifest.extension?.settings.orEmpty().associateBy { it.key }
     values.forEach { (key, value) ->
@@ -35,6 +34,7 @@ internal fun updateComponentSettings(data: ExtensionData, manifest: PluginManife
         loginState = if (data.loginState == ExtensionLoginState.LoggedIn || data.loginState == ExtensionLoginState.Expired) ExtensionLoginState.Expired else data.loginState,
         account = null, state = emptyMap(), items = emptyList(), baselineReady = false,
         remindedKeys = emptySet(), expiredNotified = false,
+        ignoredItemIds = emptySet(), restoredItemIds = emptySet(),
     ) else updated
 }
 
@@ -58,6 +58,8 @@ internal fun acceptComponentLogin(data: ExtensionData, result: JsonObject): Exte
         loginState = ExtensionLoginState.LoggedIn,
         account = account ?: data.account,
         items = if (changed) emptyList() else data.items,
+        ignoredItemIds = if (changed) emptySet() else data.ignoredItemIds,
+        restoredItemIds = if (changed) emptySet() else data.restoredItemIds,
         state = if (changed) emptyMap() else data.state,
         baselineReady = if (changed) false else data.baselineReady,
         remindedKeys = if (changed) emptySet() else data.remindedKeys,
@@ -72,6 +74,7 @@ internal fun loggedOutComponent(data: ExtensionData): ExtensionData = data.copy(
     sessionRevision = data.sessionRevision + 1,
     loginState = ExtensionLoginState.LoggedOut, account = null, items = emptyList(),
     state = emptyMap(), baselineReady = false, remindedKeys = emptySet(), expiredNotified = false,
+    ignoredItemIds = emptySet(), restoredItemIds = emptySet(),
 )
 
 internal fun componentUiJsonForScript(value: String): String = value.replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")

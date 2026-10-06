@@ -166,9 +166,7 @@ jobs:
           overwrite_files: true
           fail_on_unmatched_files: true
 
-      # App 检查更新先读这份清单：它在仓库里，能走国内的 jsDelivr 镜像，一次请求零点几秒；
-      # GitHub API 在国内常常十几秒甚至超时。beta.json 是含测试版在内的最新版，stable.json 只算正式版，
-      # 内容就是这一版的 update.json。正式版两份都更新，测试版只更新 beta.json；比现有的旧就不覆盖
+      # Publish CDN-readable update manifests: stable releases update both channels; beta releases update only beta.json. Never replace a newer manifest.
       - name: Publish update feed
         shell: bash
         env:

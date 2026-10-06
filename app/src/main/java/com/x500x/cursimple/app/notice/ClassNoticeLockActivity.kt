@@ -23,18 +23,9 @@ import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 
 /**
- * 锁屏上的那条横幅：和解锁时的悬浮窗横幅长一个样，只是换成一个能压在锁屏上面的透明 Activity。
- *
- * 悬浮窗（TYPE_APPLICATION_OVERLAY）永远在锁屏下面，锁屏上想自己画东西只剩 showWhenLocked 的
- * Activity 这一条路。系统横幅和锁屏通知都指望不上的机型（见 [SelfDrawnNotice]）才用它。
- *
- * - 不点亮屏幕：熄屏时就静静挂着，下次亮屏一眼看到，和锁屏通知的观感一样，不像闹钟那样接管屏幕。
- * - 点卡片外面的空白就收起，锁屏回来，不挡着解锁。
- * - 点卡片 = 解锁后打开课表；上滑或左右滑 = 收起。
- * - 解锁后再留一会儿当普通横幅，到点自己收；上课时间一过还没看到就不再出现。
- *
- * 从后台拉起 Activity 靠的是悬浮窗权限（Android 10 起它是后台启动界面的豁免条件）；
- * vivo 另外还要「锁屏显示」和「后台弹出界面」两项，没给时系统会静悄悄地不让它出来。
+ * Transparent showWhenLocked Activity for unsupported lock-screen banners. Does not wake the
+ * screen; unlocks before navigation. Vendor background and lock-screen permissions may still
+ * block display.
  */
 class ClassNoticeLockActivity : Activity() {
 
@@ -45,14 +36,13 @@ class ClassNoticeLockActivity : Activity() {
     private var gesture: SwipeToDismiss? = null
     private var afterUnlock: (() -> Unit)? = null
 
-    /** 解锁了：锁屏那一版的使命完成，再当几秒普通横幅就收 */
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) = scheduleFinish(visibleMillis)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 内容只放在内存里：进程被回收后系统重建这一页，就已经没有要提醒的课了
+        // Content is process-local; recreated Activities dismiss if no content remains.
         val pending = pending ?: run {
             finish()
             return
@@ -68,13 +58,11 @@ class ClassNoticeLockActivity : Activity() {
         }
 
         val card = LayoutInflater.from(this).inflate(R.layout.overlay_class_notice, null)
-        // 锁屏上不放行动按钮：反正要先解锁，点卡片本身就是「解锁并去那个页面」，
-        // 按钮在这只会多一个同样要解锁的入口
+        // Lock-screen actions share the card's unlock-and-open flow.
         ClassNoticeOverlay.bindCard(this, card, pending.content, pending.theme, action = null)
         val density = resources.displayMetrics.density
         card.background = ClassNoticeOverlay.glassBackground(pending.theme, blurred = false, density = density)
-        // 窗口铺满、卡片摆在顶上：锁屏被这一页盖住时后面只有壁纸，窗口只有卡片大的话，
-        // 点卡片外面的触摸没有窗口接，用户就收不掉它。铺满之后点空白处就收起，锁屏回来
+        // Use a full-screen transparent window so tapping outside the card can dismiss it.
         val side = resources.getDimensionPixelSize(R.dimen.class_notice_overlay_side)
         val root = FrameLayout(this).apply {
             setOnClickListener { finish() }
@@ -117,20 +105,17 @@ class ClassNoticeLockActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
-        // 熄屏挂了很久，亮屏时课已经开始了：「10 分钟后上课」已经是错话，直接不出来。
-        // 组件通知没有 startAtMillis，不受这条约束
+        // Drop expired class notices on wake; component notices without start time remain eligible.
         val startAt = content?.takeIf { pending?.action == null }?.startAtMillis ?: 0L
         if (startAt > 0L && System.currentTimeMillis() >= startAt) {
             finish()
             return
         }
-        // 没设锁屏、熄屏时发出来的：亮屏就是桌面，按普通横幅挂一会儿就收
         if (!locked() && interactive()) scheduleFinish(visibleMillis)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // 又来一条（比如上一条还挂着就到了下一节）：换内容重建
         recreate()
     }
 
@@ -153,7 +138,7 @@ class ClassNoticeLockActivity : Activity() {
     private fun locked(): Boolean =
         getSystemService(KeyguardManager::class.java)?.isKeyguardLocked == true
 
-    /** 点了卡片：先让用户解锁（有密码时系统弹验证），解开了再打开课表（组件通知则打开它的日历页） */
+    /** Unlock before opening the timetable or source component. */
     private fun openSchedule() {
         val target = pending?.onTap ?: pending?.action?.onClick
         val open = {
@@ -208,34 +193,30 @@ class ClassNoticeLockActivity : Activity() {
         val content: ClassNoticeNotifier.Content,
         val theme: NoticeTheme,
         val visibleMillis: Long,
-        /** 点卡片要打开哪儿；null = 打开课表（上课提醒的老行为） */
         val onTap: (() -> Unit)? = null,
         val action: ClassNoticeOverlay.NoticeAction? = null,
     )
 
     companion object {
         private const val REQUEST_UNLOCK = 7401
-        /** 滑出去这么远就收起，和悬浮窗一致 */
         private const val SWIPE_DISMISS_DP = 48f
 
         @Volatile
         private var pending: Pending? = null
 
         /**
-         * 锁屏时弹一条。返回系统有没有收下这次启动；收下了也不代表一定显示出来——
-         * vivo 没给「锁屏显示」「后台弹出界面」时会悄悄拦掉，这头查不到。
+         * Successful Activity launch does not guarantee visible display under vendor
+         * restrictions.
          */
         fun show(
             context: Context,
             content: ClassNoticeNotifier.Content,
             preferences: ClassNoticePreferences,
             theme: NoticeTheme,
-            /** 点卡片去哪儿；null = 上课提醒那样打开课表 */
             onTap: (() -> Unit)? = null,
             action: ClassNoticeOverlay.NoticeAction? = null,
         ): Boolean {
-            // 锁屏上不给看内容的话，自己画的这条也不该露出来；但组件通知（如登录失效）
-            // 不像上课提醒那样泄露课名地点，没有这个顾虑，照常显示
+            // Respect class lock-screen privacy; component status notices use their separate visibility policy.
             if (preferences.lockScreenEnabled.not() && action == null) return false
             pending = Pending(content, theme, preferences.bannerDurationMillis, onTap, action)
             val intent = Intent(context, ClassNoticeLockActivity::class.java)

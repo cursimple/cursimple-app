@@ -5,7 +5,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 发布说明拆成翻页公告：带图的小节一页一个亮点，其余归到最后一页。 */
 class ReleaseAnnouncementTest {
 
     private val notes = """

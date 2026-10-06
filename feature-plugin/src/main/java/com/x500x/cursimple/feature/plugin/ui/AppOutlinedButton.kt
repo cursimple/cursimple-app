@@ -14,14 +14,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
- * 全应用统一的带框按钮。
- *
- * 为什么不直接用 OutlinedButton：Material3 新版把它的默认配色改成了
- * onSurfaceVariant 文字 + outlineVariant 边框，也就是灰字配浅灰框，
- * 放在绿色 / 蓝色主题里看不出是可点的主题色按钮。这里把文字和边框都换回主题主色，
- * 形状沿用两头全圆的胶囊。
- *
- * 签名与 OutlinedButton 一致，调用方要单独改边框或配色时照常传参覆盖即可。
+ * Shared pill-shaped outlined button with primary text and border; explicit caller colors still
+ * override.
  */
 @Composable
 fun AppOutlinedButton(

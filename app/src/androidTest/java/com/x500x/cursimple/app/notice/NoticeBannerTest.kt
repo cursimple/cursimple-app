@@ -24,7 +24,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** 在独立模拟器上显式启用，检查真实悬浮窗口和系统通知，避免影响日常测试设备。 */
+/** Opt-in system notification and overlay checks; dedicated emulator only. */
 @RunWith(AndroidJUnit4::class)
 class NoticeBannerTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()

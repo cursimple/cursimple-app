@@ -62,7 +62,6 @@ class SystemCalendarPlanTest {
         ).toCalendarDrafts(zone, "")
 
         val draft = drafts.single()
-        // 中间那一周没有课，规则跑到最后一次为止并把缺的那周排除掉
         assertEquals("FREQ=WEEKLY;UNTIL=20260921T000000Z", draft.rrule)
         assertEquals(listOf("20260914T000000Z"), draft.exdatesUtc)
     }

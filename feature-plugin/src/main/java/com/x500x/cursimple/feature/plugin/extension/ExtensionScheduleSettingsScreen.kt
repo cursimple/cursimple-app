@@ -56,11 +56,9 @@ import com.x500x.cursimple.core.plugin.manifest.PluginFeedTypeSpec
 import com.x500x.cursimple.feature.plugin.R
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.serialization.json.Json
 
-/** 开关下的第二级页面；先编辑并预览，保存后一次性更新课表事务。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ExtensionScheduleSettingsScreen(

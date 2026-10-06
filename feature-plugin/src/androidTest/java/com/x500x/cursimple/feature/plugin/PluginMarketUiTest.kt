@@ -11,10 +11,17 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
@@ -37,21 +44,50 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
-/** 无网络、无真实账号，验证两个目录共用控件和实际操作回调。 */
 class PluginMarketUiTest {
     @get:Rule val compose = createComposeRule()
     private val context get() = InstrumentationRegistry.getInstrumentation().targetContext
 
+    @Test fun updateSettingsAndDotsWorkForBothKindsAndClearAfterUpgrade() {
+        val plugin = repo("qa/plugin").copy(latestRelease = release().copy(tagName = "v2.0.0"))
+        val component = repo("qa/component", extension = true).copy(latestRelease = release().copy(tagName = "v2.0.0"))
+        val state = mutableStateOf(PluginMarketUiState(marketRepos = listOf(plugin), componentRepos = listOf(component),
+            allMarketRepos = listOf(plugin, component), installedPlugins = listOf(record(plugin), record(component))))
+        var checks = 0
+        show(state = { state.value }, onUpdateOptions = { auto, badge, hours ->
+            state.value = state.value.copy(autoCheckUpdates = auto, showUpdateBadge = badge, updateIntervalHours = hours)
+        }, onCheckUpdates = { checks++ })
+        compose.onAllNodesWithTag("plugin-update-dot", useUnmergedTree = true).assertCountEquals(2)
+        compose.onNodeWithTag("plugin-update-settings").performClick()
+        compose.onNodeWithTag("plugin-auto-check-switch").assertIsOn().performClick().assertIsOff()
+        compose.onNodeWithTag("plugin-update-badge-switch").assertIsOn().performClick().assertIsOff()
+        compose.onAllNodesWithTag("plugin-update-dot", useUnmergedTree = true).assertCountEquals(0)
+        compose.onNodeWithTag("plugin-update-badge-switch").performClick().assertIsOn()
+        compose.onNodeWithText(context.getString(R.string.plugin_update_interval_hours, 12)).performClick().assertIsSelected()
+        compose.onNodeWithTag("plugin-check-updates").performClick()
+        compose.runOnIdle {
+            assertEquals(1, checks)
+            assertEquals(false, state.value.autoCheckUpdates)
+            assertEquals(12, state.value.updateIntervalHours)
+        }
+        compose.onNodeWithText(context.getString(R.string.plugin_update_settings_title)).assertIsDisplayed()
+        val image = checkNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        java.io.File(context.filesDir, "plugin-update-settings.png").outputStream().use { image.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        Espresso.pressBack()
+        compose.runOnIdle { state.value = state.value.copy(installedPlugins = listOf(record(plugin, "2.0.0"), record(component, "2.0.0"))) }
+        compose.onAllNodesWithTag("plugin-update-dot", useUnmergedTree = true).assertCountEquals(0)
+    }
+
     @Test
     fun marketSearchIsInlineAndSharedWithInstalledTab() {
-        val repo = repo("school/importer").copy(schoolAliases = listOf("北京理工大学"))
+        val repo = repo("school/importer").copy(schoolAliases = listOf("示例理工大学"))
         show(PluginMarketUiState(marketRepos = listOf(repo), installedPlugins = listOf(record(repo))))
-        compose.onNodeWithTag("catalog-search").performTextInput("北京理工")
+        compose.onNodeWithTag("catalog-search").performTextInput("示例理工")
         compose.onNodeWithTag("catalog-list").performScrollToNode(hasTestTag("installed:school/importer:remote"))
         compose.onNodeWithTag("installed:school/importer:remote").assertExists()
         compose.onNodeWithTag("catalog-list").performScrollToNode(hasTestTag("catalog-market"))
         compose.onNodeWithTag("catalog-market").performClick()
-        compose.onNodeWithTag("catalog-search").assertTextContains("北京理工")
+        compose.onNodeWithTag("catalog-search").assertTextContains("示例理工")
         compose.onNodeWithTag("catalog-list").performScrollToNode(hasTestTag("repo:school/importer"))
         compose.onNodeWithTag("repo:school/importer").assertExists()
     }
@@ -154,14 +190,14 @@ class PluginMarketUiTest {
 
     @Test
     fun marketDetailsHideAllTabsAndBothBackActionsRestoreSearch() {
-        val repo = repo("cursimple/YangtzU_course_plugin").copy(schoolAliases = listOf("长江大学"))
+        val repo = repo("cursimple/example_school_plugin").copy(schoolAliases = listOf("示例大学"))
         show(PluginMarketUiState(marketRepos = listOf(repo)))
         compose.onNodeWithTag("catalog-market").performClick()
-        compose.onNodeWithTag("catalog-search").performTextInput("YangtzU")
+        compose.onNodeWithTag("catalog-search").performTextInput("EXAMPLE_SCHOOL")
         compose.onNodeWithTag("catalog-list").performScrollToNode(androidx.compose.ui.test.hasText(context.getString(R.string.plugin_catalog_details)))
         compose.onNodeWithText(context.getString(R.string.plugin_catalog_details)).performClick()
         assertNoCatalogTabs()
-        compose.onNodeWithTag("detail-name").assertTextContains("长江大学")
+        compose.onNodeWithTag("detail-name").assertTextContains("示例大学")
         compose.onNodeWithTag("detail-list").performScrollToNode(hasTestTag("detail-repository-name"))
         compose.onNodeWithTag("detail-repository-name").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
             val layouts = mutableListOf<TextLayoutResult>()
@@ -170,12 +206,51 @@ class PluginMarketUiTest {
         }
         compose.onNodeWithTag("detail-back").performClick()
         compose.onNodeWithTag("catalog-market").assertIsSelected()
-        compose.onNodeWithTag("catalog-search").assertTextContains("YangtzU")
+        compose.onNodeWithTag("catalog-search").assertTextContains("EXAMPLE_SCHOOL")
         compose.onNodeWithTag("catalog-list").performScrollToNode(androidx.compose.ui.test.hasText(context.getString(R.string.plugin_catalog_details)))
         compose.onNodeWithText(context.getString(R.string.plugin_catalog_details)).performClick()
         Espresso.pressBack()
         compose.onNodeWithTag("catalog-market").assertIsSelected()
-        compose.onNodeWithTag("catalog-search").assertTextContains("YangtzU")
+        compose.onNodeWithTag("catalog-search").assertTextContains("EXAMPLE_SCHOOL")
+    }
+
+    @Test
+    fun installedCardsUninstallDirectlyWithConfirmForBothPluginsAndComponents() {
+        val plugin = repo("school/importer")
+        val component = repo("tools/notify", extension = true)
+        val removed = mutableListOf<String>()
+        val installedPlugin = record(plugin)
+        val installedComponent = record(component)
+        show(
+            PluginMarketUiState(allMarketRepos = listOf(plugin, component), installedPlugins = listOf(installedPlugin, installedComponent)),
+            onRemove = { removed += it },
+        )
+        val confirm = context.getString(R.string.plugin_remove_dialog_confirm)
+        compose.onNodeWithTag("remove:${installedPlugin.installKey}").performScrollTo()
+        java.io.File(context.filesDir, "plugin-card-remove.png").outputStream().use {
+            compose.onNodeWithTag("installed:${installedPlugin.installKey}").captureToImage().asAndroidBitmap()
+                .compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+        }
+        // Remove directly from installed cards with confirmation; cancellation leaves records intact.
+        compose.onNodeWithTag("remove:${installedPlugin.installKey}").performScrollTo().performClick()
+        compose.onNodeWithText(confirm).assertExists()
+        compose.onNodeWithText(context.getString(R.string.plugin_action_cancel)).performClick()
+        compose.runOnIdle { assertEquals(emptyList<String>(), removed) }
+        compose.onNodeWithTag("remove:${installedPlugin.installKey}").performClick()
+        compose.onNodeWithText(confirm).performClick()
+        compose.runOnIdle { assertEquals(listOf(installedPlugin.installKey), removed) }
+        assertNoDetailOpened()
+
+        compose.onNodeWithTag("platform-extensions").performClick()
+        compose.onNodeWithTag("remove:${installedComponent.installKey}").performScrollTo().performClick()
+        compose.onNodeWithText(confirm).performClick()
+        compose.runOnIdle { assertEquals(listOf(installedPlugin.installKey, installedComponent.installKey), removed) }
+        assertNoDetailOpened()
+    }
+
+    private fun assertNoDetailOpened() {
+        compose.onNodeWithTag("installed-detail").assertDoesNotExist()
+        compose.onNodeWithTag("catalog-installed").assertExists()
     }
 
     @Test
@@ -216,6 +291,65 @@ class PluginMarketUiTest {
         compose.onNodeWithContentDescription(context.getString(R.string.plugin_action_back)).performClick()
         compose.onNodeWithTag("platform-extensions").assertIsSelected()
         compose.onNodeWithTag("catalog-installed").assertIsSelected()
+    }
+
+    @Test
+    fun installedComponentHasDetailsWithSizeAndInstallTimeAndSettingsStayReachable() {
+        val component = repo("qa/component-details", extension = true)
+        val installed = record(component).copy(storagePath = context.cacheDir.resolve("qa-component-details").apply {
+            mkdirs(); resolve("main.js").writeBytes(ByteArray(2048))
+        }.path, installedAt = "2026-10-04T12:30:00+08:00")
+        val actions = object : ExtensionHostActions {
+            override suspend fun loadPackage(record: InstalledPluginRecord) = manifest(extension = true) to ""
+            override suspend fun loadUi(record: InstalledPluginRecord): String? = null
+            override suspend fun syncNow(record: InstalledPluginRecord) = ExtensionSyncOutcome.Skipped(record.pluginId, "fixture")
+            override fun onDataChanged(pluginId: String) {}
+            override fun openFeed(pluginId: String) {}
+        }
+        show(
+            PluginMarketUiState(componentRepos = listOf(component), installedPlugins = listOf(installed)),
+            initialTab = PluginPlatformTab.Extensions,
+            extensionActions = actions,
+        )
+        compose.onNodeWithTag("details:${installed.installKey}").performScrollTo().performClick()
+        compose.onNodeWithTag("installed-detail").assertExists()
+        compose.onNodeWithTag("detail-install-info").assertExists()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(context.getString(R.string.plugin_detail_size_measuring)).fetchSemanticsNodes().isEmpty()
+        }
+        listOf(
+            R.string.plugin_detail_field_installed_at, R.string.plugin_detail_field_package_size,
+            R.string.plugin_detail_field_data_size, R.string.plugin_detail_field_total_size,
+        ).forEach { compose.onNodeWithText(context.getString(it)).assertExists() }
+        compose.onNodeWithTag("detail-install-info").captureToImage().asAndroidBitmap().let { bitmap ->
+            java.io.File(context.filesDir, "plugin-detail-install-info.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }
+
+        compose.onNodeWithTag("detail-open-settings").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("installed-detail").assertDoesNotExist()
+        compose.onNodeWithContentDescription(context.getString(R.string.plugin_action_back)).performClick()
+        compose.onNodeWithTag("installed-detail").assertExists()
+        compose.onNodeWithTag("detail-back").performClick()
+        compose.onNodeWithTag("catalog-installed").assertIsSelected()
+    }
+
+    @Test
+    fun marketBlocksInstallWhileVersionsAreBeingCheckedAndOnlyShowsFreshOnes() {
+        val bare = repo("school/importer").copy(latestRelease = null)
+        val state = mutableStateOf(PluginMarketUiState(marketRepos = listOf(bare), allMarketRepos = listOf(bare), versionsChecking = true))
+        var installs = 0
+        show(state = { state.value }, onInstall = { installs++ })
+        compose.onNodeWithTag("catalog-market").performClick()
+        // Hide stale versions and disable installation until current metadata is available.
+        compose.onNodeWithTag("install:school/importer").assertIsNotEnabled()
+        compose.onNodeWithText(context.getString(R.string.plugin_catalog_loading_version)).assertExists()
+        compose.runOnIdle { assertEquals(0, installs) }
+
+        val fresh = bare.copy(latestRelease = release().copy(tagName = "v1.3.0"))
+        compose.runOnIdle { state.value = state.value.copy(marketRepos = listOf(fresh), allMarketRepos = listOf(fresh), versionsChecking = false) }
+        compose.onNodeWithTag("install:school/importer").assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(1, installs) }
     }
 
     @Test
@@ -329,6 +463,9 @@ class PluginMarketUiTest {
         openExtensionPluginId: String? = null,
         onExtensionOpenConsumed: () -> Unit = {},
         onDismissInstallPreview: () -> Unit = {},
+        onUpdateOptions: (Boolean, Boolean, Int) -> Unit = { _, _, _ -> },
+        onCheckUpdates: () -> Unit = {},
+        onRemove: (String) -> Unit = {},
     ) {
         val tab = mutableStateOf(initialTab)
         compose.setContent {
@@ -341,10 +478,11 @@ class PluginMarketUiTest {
                     componentSources = listOf(DefaultMarketSources.COMPONENT_REGISTRY),
                     syncStatusMessage = null, onSelectTab = { tab.value = it }, onPickLocalPlugin = {},
                     onRefreshMarket = onRefresh, onOpenRepo = {}, onInstallFromGitHub = onInstall,
-                    onConfirmInstall = {}, onDismissInstallPreview = onDismissInstallPreview, onRemovePlugin = {},
+                    onConfirmInstall = {}, onDismissInstallPreview = onDismissInstallPreview, onRemovePlugin = onRemove,
                     onSetPluginEnabled = { _, _ -> }, onSyncPlugin = { onSchoolImport() },
                     onUpgradePlugin = { _, _ -> onSchoolImport() }, onCompleteWebSession = {}, onCancelWebSession = {},
                     extensionActions = extensionActions, openExtensionPluginId = openExtensionPluginId, onExtensionOpenConsumed = onExtensionOpenConsumed,
+                    onUpdateOptions = onUpdateOptions, onCheckUpdates = onCheckUpdates,
                 )
             }
         }

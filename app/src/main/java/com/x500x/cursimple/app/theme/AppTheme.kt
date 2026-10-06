@@ -299,8 +299,7 @@ private val PinkSwatch = AccentSwatch(
 )
 
 /**
- * 某个主题色在深色或浅色下的完整配色，给通知、悬浮窗这类不在 Compose 里画的地方取色用。
- * [customArgb] 只在 [ThemeAccent.Custom] 时用到。
+ * Complete colors for non-Compose surfaces; [customArgb] applies only to [ThemeAccent.Custom].
  */
 fun appColorScheme(
     accent: ThemeAccent,
@@ -318,11 +317,8 @@ private fun swatchFor(accent: ThemeAccent, customArgb: Int): AccentSwatch = when
 }
 
 /**
- * 从一个自选色推出整套配色。
- *
- * 各档的明度照着手调的五套走（浅色：主色 0.32–0.5、容器 0.87、背景 0.97；深色：主色 0.66–0.8、
- * 容器 0.26、表面 0.1），色相都取自选色，饱和度按档位压住，挑多艳的颜色都不会刺眼。
- * 辅色取色相转 30° 的一档，强调色沿用内置主题共用的暖橙，错误色不变。
+ * Derive readable light and dark palettes from the selected hue, limiting saturation and
+ * preserving common error colors.
  */
 private fun customSwatch(seed: Int): AccentSwatch {
     fun tone(lightness: Float, maxSat: Float, minSat: Float = 0f, hueShift: Float = 0f): Color {
@@ -425,7 +421,7 @@ private val DarkAccents = ScheduleAccents(
 fun ClassScheduleTheme(
     themeMode: ThemeMode,
     themeAccent: ThemeAccent = ThemeAccent.Green,
-    /** 自选主题色，只在 [themeAccent] 为 [ThemeAccent.Custom] 时用到。 */
+    /** Used only with [ThemeAccent.Custom]. */
     customAccentArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
     content: @Composable () -> Unit,
 ) {
@@ -446,7 +442,7 @@ fun ClassScheduleTheme(
     }
 }
 
-/** 当前生效的主题色与深浅色；上课提醒的预览要按它取色，它们不在 Compose 里画，拿不到 MaterialTheme。 */
+/** Current resolved theme for notification previews outside Compose. */
 data class AppThemeChoice(
     val accent: ThemeAccent,
     val dark: Boolean,
@@ -455,14 +451,7 @@ data class AppThemeChoice(
 
 val LocalAppThemeChoice = staticCompositionLocalOf { AppThemeChoice(ThemeAccent.Green, dark = false) }
 
-/**
- * 补齐 surfaceContainer 那一组颜色。
- *
- * 各主题只写了 surface / surfaceVariant，没写 surfaceContainer*。对话框、菜单、
- * 底部面板、抽屉用的正是这一组，没写就回落到 Material 默认的淡紫色，
- * 于是绿色主题里弹出来一个紫底对话框。这里按 surface → surfaceVariant 插值出五档，
- * 跟着当前主题与深浅色走。
- */
+/** Interpolate surface-container colors from the theme to avoid fallback Material colors. */
 private fun ColorScheme.withThemedContainers(): ColorScheme {
     fun mix(t: Float) = lerp(surface, surfaceVariant, t)
     return copy(

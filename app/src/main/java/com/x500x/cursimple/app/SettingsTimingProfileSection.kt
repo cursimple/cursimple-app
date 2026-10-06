@@ -66,9 +66,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
-
-/** 节次上课时间的编辑区，含作息套数管理与模板套用。 */
 
 @Composable
 internal fun TimingProfileEntryRow(quickId: String? = null, onClick: () -> Unit) {
@@ -106,11 +103,10 @@ internal fun TimingProfileSettingsSection() {
     var showTemplatePicker by remember { mutableStateOf(false) }
     var creatingProfile by remember { mutableStateOf(false) }
     val newProfileName = stringResource(R.string.settings_timing_profile_default_name)
-    // 带占位符的先取原文，结果出来后再填数
     val profileCreatedFormat = stringResource(R.string.settings_toast_timing_profile_created)
     val timingHandbackText = stringResource(R.string.settings_toast_timing_handback)
 
-    // 切换作息时把编辑区换成那一套的内容，否则改动会落到另一套上
+    // Reload the editor when changing timing profiles to avoid writing into the wrong profile.
     androidx.compose.runtime.LaunchedEffect(activeProfileId) {
         val slots = repository.timingProfileLibraryFlow.first().active?.slotTimes.orEmpty()
         drafts.clear()
@@ -118,7 +114,6 @@ internal fun TimingProfileSettingsSection() {
         errors = emptyList()
     }
 
-    // 选中一套作息同时把当前学期绑到它上面，之后学期之间来回切会自动带上各自的作息
     fun switchProfile(entry: TimingProfileEntry) {
         scope.launch {
             repository.activateTimingProfile(entry.id)
@@ -278,8 +273,7 @@ internal fun TimingProfileSettingsSection() {
             errors = emptyList()
             scope.launch {
                 val existing = repository.timingProfileFlow.first()
-                // 用户可能还没设开学日期，这里留空而不是发明一个，
-                // 否则小组件、提醒与自动静音会据此算出周次，与界面显示的“未设置”矛盾
+                // Leave an unset term date empty so widgets and reminders do not infer a fabricated week.
                 val termStart = existing?.termStartLocalDate()?.toString()
                     ?: userPreferencesRepository.preferencesFlow.first().termStartDate?.toString()
                     ?: ""

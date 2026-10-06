@@ -93,8 +93,7 @@ class DataStoreUserPreferencesRepository(
             },
             disclaimerAccepted = prefs[KEY_DISCLAIMER_ACCEPTED] ?: false,
             firstRunGuideCompleted = prefs[KEY_FIRST_RUN_GUIDE_COMPLETED] ?: false,
-            // 系统时钟通道只能在应用位于前台时创建闹钟，且表达不了一天以外的时间，
-            // 选中它等于没有闹钟，因此存过这个值的一律读成 App 自管闹钟
+            // Legacy system-clock backend selections map to managed alarms because foreground-only creation cannot sustain automatic scheduling.
             alarmBackend = prefs[KEY_ALARM_BACKEND]
                 ?.let { runCatching { ReminderAlarmBackend.valueOf(it) }.getOrNull() }
                 ?.takeIf { it == ReminderAlarmBackend.AppAlarmClock }
@@ -119,6 +118,9 @@ class DataStoreUserPreferencesRepository(
             ),
             autoSilenceSession = prefs.toAutoSilenceSession(),
             autoUpdateEnabled = prefs[KEY_AUTO_UPDATE_ENABLED] ?: true,
+            pluginAutoUpdateCheckEnabled = prefs[KEY_PLUGIN_AUTO_UPDATE_CHECK] ?: true,
+            pluginUpdateBadgeEnabled = prefs[KEY_PLUGIN_UPDATE_BADGE] ?: true,
+            pluginUpdateCheckIntervalHours = prefs[KEY_PLUGIN_UPDATE_INTERVAL]?.takeIf { it in listOf(1, 6, 12, 24) } ?: 6,
             betaUpdatesEnabled = prefs[KEY_BETA_UPDATES_ENABLED] ?: false,
             lastSeenVersionCode = prefs[KEY_LAST_SEEN_VERSION_CODE] ?: 0,
             appTimeZoneId = prefs[KEY_APP_TIME_ZONE_ID]?.takeIf { it.isNotBlank() },
@@ -201,8 +203,7 @@ class DataStoreUserPreferencesRepository(
     }
 
     override suspend fun setAdvancedToolsEnabled(enabled: Boolean) {
-        // 关高级工具时把私有文件提供器一并关掉，放在同一次事务里，
-        // 避免中间态短暂出现「高级工具已关但提供器仍开」
+        // Disable the private-file provider in the same transaction as advanced tools.
         store.edit { prefs ->
             prefs[KEY_ADVANCED_TOOLS] = enabled
             if (!enabled) {
@@ -390,7 +391,6 @@ class DataStoreUserPreferencesRepository(
         releasePersistedReadPermission(previousImageUri)
     }
 
-    /** 「恢复默认」：底色跟随表头，背景图、自定颜色与透明度一并清掉。 */
     override suspend fun setScheduleBackgroundUseHeaderColor() {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -467,7 +467,7 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?) {
         store.edit { prefs ->
-            // 改动强制时间时一并清掉旧版仅含日期的键。
+            // Clear the legacy date-only key when saving the clock override.
             prefs.remove(KEY_DEBUG_FORCED_DATE_EPOCH_DAY)
             if (dateTime == null) {
                 prefs.remove(KEY_DEBUG_FORCED_DATETIME)
@@ -607,6 +607,14 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setAutoUpdateEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_AUTO_UPDATE_ENABLED] = enabled }
+    }
+    override suspend fun setPluginUpdateOptions(autoCheck: Boolean, badge: Boolean, intervalHours: Int) {
+        require(intervalHours in listOf(1, 6, 12, 24))
+        store.edit { prefs ->
+            prefs[KEY_PLUGIN_AUTO_UPDATE_CHECK] = autoCheck
+            prefs[KEY_PLUGIN_UPDATE_BADGE] = badge
+            prefs[KEY_PLUGIN_UPDATE_INTERVAL] = intervalHours
+        }
     }
 
     override suspend fun setIgnoredUpdateVersionCode(versionCode: Int?) {
@@ -1031,7 +1039,6 @@ class DataStoreUserPreferencesRepository(
         )
     }
 
-    /** 上课通知偏好；默认开，提前 20 分钟，悬浮通知与锁屏显示都开着。 */
     private fun Preferences.toClassNoticePreferences(): ClassNoticePreferences =
         ClassNoticePreferences(
             enabled = this[KEY_CLASS_NOTICE_ENABLED] ?: true,
@@ -1172,7 +1179,6 @@ class DataStoreUserPreferencesRepository(
         val KEY_CLASS_NOTICE_ADVANCE_MINUTES = intPreferencesKey("class_notice_advance_minutes")
         val KEY_CLASS_NOTICE_HEADS_UP = booleanPreferencesKey("class_notice_heads_up")
         val KEY_CLASS_NOTICE_LOCK_SCREEN = booleanPreferencesKey("class_notice_lock_screen")
-        // 换过一次键名：老版本关着的状态胶囊借这次统一回到默认开，之后用户自己关的照常记在新键上
         val KEY_CLASS_NOTICE_FOCUS = booleanPreferencesKey("class_notice_focus_v2")
         val KEY_CLASS_NOTICE_SKIN = stringPreferencesKey("class_notice_skin")
         val KEY_CLASS_NOTICE_ANIMATION = stringPreferencesKey("class_notice_animation")
@@ -1220,7 +1226,6 @@ class DataStoreUserPreferencesRepository(
         val KEY_HOLIDAY_CALENDAR_ENTRIES_JSON = stringPreferencesKey("holiday_calendar_entries_json")
         val KEY_HOLIDAY_CALENDAR_SYNCED_JSON = stringPreferencesKey("holiday_calendar_synced_json")
         val KEY_SKIP_REMINDERS_ON_HOLIDAY = booleanPreferencesKey("skip_reminders_on_holiday")
-        // 换过键名：旧键记的是常驻守护服务那一档，关过它的人不该连静默守护也一并关掉
         val KEY_ALARM_KEEP_ALIVE = booleanPreferencesKey("silent_guard_enabled")
         val KEY_NOTIFICATION_PERMISSION_ASKED = booleanPreferencesKey("notification_permission_startup_asked")
         val KEY_ISLAND_PROMPT_SHOWN = booleanPreferencesKey("island_startup_prompt_shown")
@@ -1257,6 +1262,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_AUTO_SILENCE_SESSION_SUPPRESSED_UNTIL_MILLIS =
             longPreferencesKey("auto_silence_session_suppressed_until_millis")
         val KEY_AUTO_UPDATE_ENABLED = booleanPreferencesKey("auto_update_enabled")
+        val KEY_PLUGIN_AUTO_UPDATE_CHECK = booleanPreferencesKey("plugin_auto_update_check")
+        val KEY_PLUGIN_UPDATE_BADGE = booleanPreferencesKey("plugin_update_badge")
+        val KEY_PLUGIN_UPDATE_INTERVAL = intPreferencesKey("plugin_update_interval_hours")
         val KEY_BETA_UPDATES_ENABLED = booleanPreferencesKey("beta_updates_enabled")
         val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
         val KEY_APP_TIME_ZONE_ID = stringPreferencesKey("app_time_zone_id")
@@ -1265,7 +1273,6 @@ class DataStoreUserPreferencesRepository(
         val KEY_UPDATE_NOTICE_VERSION_NAME = stringPreferencesKey("update_notice_version_name")
         val KEY_MUTED_UPDATE_VERSION_CODE = intPreferencesKey("muted_update_version_code")
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")
-        /** 一行一个 `owner/repo`；存成空串表示用户把来源全删了，和「从没存过」区分开 */
         val KEY_PLUGIN_SOURCES = stringPreferencesKey("plugin_sources")
         val KEY_COMPONENT_SOURCES = stringPreferencesKey("component_sources")
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")

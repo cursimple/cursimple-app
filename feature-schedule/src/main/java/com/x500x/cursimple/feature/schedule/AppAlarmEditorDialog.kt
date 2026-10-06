@@ -54,8 +54,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.format.TextStyle
@@ -101,7 +99,6 @@ internal fun ManualAppAlarmDialog(
     onDismiss: () -> Unit,
     onCreate: (Long, String, String, EditableAppAlarmSettings) -> Unit,
 ) {
-    // 默认时刻按应用时区取，与确认时的换算口径一致
     val zone = LocalAppZone.current
     AlarmEditor(
         title = stringResource(R.string.schedule_manual_alarm_title),
@@ -211,7 +208,6 @@ private fun AlarmEditor(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 AlarmEditorSection(stringResource(R.string.schedule_alarm_section_when)) {
-                    // 键盘录入的时分框，不用表盘，直接敲两个数字
                     TimeInput(state = timeState, modifier = Modifier.fillMaxWidth())
                     AlarmValueRow(
                         label = stringResource(R.string.schedule_alarm_date_label),
@@ -325,7 +321,6 @@ internal fun AlarmEditorSection(title: String, content: @Composable () -> Unit) 
     }
 }
 
-/** 名称在左、当前值在右，同一行显示，点整行打开选择器。 */
 @Composable
 internal fun AlarmValueRow(label: String, value: String, onClick: () -> Unit) {
     Surface(
@@ -352,7 +347,7 @@ internal fun AlarmValueRow(label: String, value: String, onClick: () -> Unit) {
     }
 }
 
-/** 名称、数值和加减挤在同一行，加减用图标按钮，避免行高翻倍。 */
+/** Compact value row with increment/decrement icon controls. */
 @Composable
 private fun AlarmStepperRow(
     label: String,
@@ -608,7 +603,6 @@ internal fun alarmAlertModeLabelRes(mode: AlarmAlertMode?): Int = when (mode) {
     AlarmAlertMode.RingAndVibrate -> R.string.schedule_alert_mode_ring_vibrate
 }
 
-/** 日期跟随界面语言，日期与星期都取当前区域的写法。 */
 @Composable
 internal fun formatPickerDate(date: LocalDate): String {
     val locale = LocalConfiguration.current.locales[0]
@@ -623,7 +617,7 @@ internal fun AlarmDatePickerDialog(
     onDismiss: () -> Unit,
     onPick: (LocalDate) -> Unit,
 ) {
-    // 不用 M3 的 DatePicker：它的星期表头取自系统 narrow 名字，中文环境下七列全是「星」
+    // Explicit weekday resources avoid ambiguous system narrow names.
     var selected by remember(initial) { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,

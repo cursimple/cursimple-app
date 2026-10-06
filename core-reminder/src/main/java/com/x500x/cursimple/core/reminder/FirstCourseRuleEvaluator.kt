@@ -39,7 +39,6 @@ internal class FirstCourseRuleEvaluator {
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
         dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<ReminderPlanTarget> {
-        // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val occurrences = schedule.dailySchedules
             .flatMap { it.courses }
@@ -59,7 +58,7 @@ internal class FirstCourseRuleEvaluator {
                         temporaryScheduleOverrides,
                         holidayCalendar,
                     ).sourceDate
-                    // 被挪到这天的课按它原本那天算周次；否则只调某几节时也要逐门判
+                    // Moved courses use their original source week; partial swaps resolve each course separately.
                     val movedFrom = coursesMovedToWithOrigin(
                         date = courseDate,
                         overrides = temporaryScheduleOverrides,

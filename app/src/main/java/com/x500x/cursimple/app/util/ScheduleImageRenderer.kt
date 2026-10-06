@@ -7,17 +7,13 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Typeface
 
-/** 课程块的一套配色：底色、文字色、左侧色条。 */
 private data class BlockPalette(
     val fill: Int,
     val text: Int,
     val accent: Int,
 )
 
-/**
- * 把 [ScheduleImageLayoutResult] 画进一张位图。
- * 只负责按已算好的坐标落笔，任何尺寸与换行都在排版阶段决定。
- */
+/** Render [ScheduleImageLayoutResult] using precomputed geometry and text wrapping. */
 object ScheduleImageRenderer {
 
     private const val PAGE = 0xFFF4F6F9.toInt()
@@ -40,7 +36,6 @@ object ScheduleImageRenderer {
     private const val BLOCK_RADIUS = 12f
     private const val ACCENT_WIDTH = 6f
 
-    // 八种底色都得是有彩色：灰底会被当成「这门课这周不上」，而图上画出来的课全都是要上的
     private val palettes = listOf(
         BlockPalette(0xFFE7F0FE.toInt(), 0xFF1B4A87.toInt(), 0xFF3B82F6.toInt()),
         BlockPalette(0xFFE4F6EC.toInt(), 0xFF15603D.toInt(), 0xFF10B981.toInt()),
@@ -54,7 +49,6 @@ object ScheduleImageRenderer {
 
     private val examPalette = BlockPalette(0xFFFDE7E3.toInt(), 0xFF8E2410.toInt(), 0xFFEF4444.toInt())
 
-    /** 用真实字体测量文本，供排版阶段换行使用。 */
     fun textMeasurer(): ScheduleImageTextMeasurer {
         val regular = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT }
         val bold = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT_BOLD }
@@ -73,7 +67,7 @@ object ScheduleImageRenderer {
 
         val card = layout.gridRect.toRectF()
         canvas.drawRoundRect(card, CARD_RADIUS, CARD_RADIUS, fillPaint(CARD))
-        // 表格内容一律裁在圆角卡片内，避免方角填充盖掉卡片圆角
+        // Clip table content to the rounded card.
         canvas.save()
         canvas.clipPath(Path().apply { addRoundRect(card, CARD_RADIUS, CARD_RADIUS, Path.Direction.CW) })
         drawDayHeaders(canvas, layout)
@@ -115,7 +109,6 @@ object ScheduleImageRenderer {
             val notePaint = centeredPaint(metrics.dayNoteFontSize, NOTE_TEXT, bold = false)
 
             val nameHeight = metrics.dayNameFontSize * 1.4f
-            // 全部周没有日期，这一行不留空高，星期几才会居中
             val dateHeight = if (header.dateLabel.isBlank()) 0f else metrics.dayDateFontSize * 1.4f
             val noteHeight = metrics.dayNoteFontSize * 1.4f
             val used = nameHeight + dateHeight + (if (header.noteLabel != null) noteHeight else 0f)
@@ -129,7 +122,6 @@ object ScheduleImageRenderer {
             }
             header.noteLabel?.let { canvas.drawTextInLine(it, header.rect.centerX, top, noteHeight, notePaint) }
         }
-        // 表头与格子之间的分隔线
         val line = layout.bodyRect
         canvas.drawLine(line.left, line.top, line.right, line.top, strokePaint(CARD_BORDER, 2f))
     }
@@ -256,7 +248,7 @@ object ScheduleImageRenderer {
             this.color = color
         }
 
-    /** 在高度为 [lineHeight]、顶边为 [lineTop] 的一行里垂直居中地写一行字。 */
+    /** Vertically center text within [lineTop] and [lineHeight]. */
     private fun Canvas.drawTextInLine(text: String, x: Float, lineTop: Float, lineHeight: Float, paint: Paint) {
         if (text.isEmpty()) return
         val fm = paint.fontMetrics
@@ -266,7 +258,7 @@ object ScheduleImageRenderer {
 
     private fun ScheduleImageRect.toRectF(): RectF = RectF(left, top, right, bottom)
 
-    /** 把 [color] 按 [ratio] 向 [towards] 靠拢，用来从主色推出次要文字色。 */
+    /** Blend [color] toward [towards] by [ratio]. */
     private fun blend(color: Int, towards: Int, ratio: Float): Int {
         fun channel(shift: Int): Int {
             val from = (color shr shift) and 0xFF

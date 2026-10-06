@@ -5,16 +5,15 @@ import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import java.time.LocalDate
 
-/** 假期前一天要不要提示，以及提示什么。 */
+/** Whether and how to explain tomorrow's holiday policy. */
 sealed interface HolidayEveNotice {
-    /** 明天放假，按当前规则自动跳过；明确允许假日响铃的闹钟不受影响。 */
+    /** Explain skipped alarms without overriding explicit holiday exceptions. */
     data class AutoSkip(
         val date: LocalDate,
         val holidayName: String?,
         val holidayNameRes: Int?,
         val reminderCount: Int,
     ) : HolidayEveNotice
-    /** 明天放假但仍排着提醒，建议关掉。 */
     data class SuggestMute(
         val date: LocalDate,
         val holidayName: String?,
@@ -22,15 +21,10 @@ sealed interface HolidayEveNotice {
         val reminderCount: Int,
     ) : HolidayEveNotice
 
-    /** 不需要提示。 */
     data object None : HolidayEveNotice
 }
 
-/**
- * 判定假期前一天的提示。
- *
- * 自动跳过模式给出说明；关闭自动跳过时仍保留旧的手动静音建议。
- */
+/** Automatic skipping provides an explanation; otherwise suggest manual date muting. */
 fun holidayEveNotice(
     today: LocalDate,
     holidayCalendar: HolidayCalendarSettings,

@@ -19,7 +19,6 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.time.ZoneId
 
 class SystemAlarmCheckReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -47,7 +46,6 @@ class SystemAlarmCheckReceiver : BroadcastReceiver() {
 
 class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
     companion object {
-        /** 小米等系统的「快速开机」不发标准的 BOOT_COMPLETED，得单独接一份。 */
         const val ACTION_QUICKBOOT_POWERON = "android.intent.action.QUICKBOOT_POWERON"
         const val ACTION_HTC_QUICKBOOT_POWERON = "com.htc.intent.action.QUICKBOOT_POWERON"
     }
@@ -62,13 +60,12 @@ class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
                 Intent.ACTION_BOOT_COMPLETED,
                 Intent.ACTION_LOCKED_BOOT_COMPLETED,
                 Intent.ACTION_MY_PACKAGE_REPLACED,
-                // 切换系统语言后闹钟通知里的标签要按新语言重建
                 Intent.ACTION_LOCALE_CHANGED,
                 ACTION_QUICKBOOT_POWERON,
                 ACTION_HTC_QUICKBOOT_POWERON,
                 AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED -> {
                     app.appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
-                    // 重启会清掉看门狗闹钟；拿到精确闹钟权限后也要换成精确的那一档重挂
+                    // Restore watchdog alarms after reboot and adjust them after exact-alarm permission changes.
                     if (intent.action == AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED) {
                         ReminderWatchdogAlarm.cancel(app)
                     }

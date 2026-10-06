@@ -3,29 +3,21 @@ package com.x500x.cursimple.app.webdav
 import android.content.Context
 import java.io.IOException
 
-/** 参数本身也是一条待渲染的文案。 */
 class WebDavTextArg(val res: Int)
 
-/**
- * 配置或参数不合法。
- * 继承 [IllegalArgumentException]，与改用资源前 require 抛出的类型一致。
- */
+/** Invalid configuration retains the [IllegalArgumentException] contract. */
 class WebDavArgumentException(
     val messageRes: Int,
     val formatArgs: List<Any> = emptyList(),
 ) : IllegalArgumentException()
 
-/**
- * 请求失败。
- * 继承 [IOException]，与改用资源前包装后抛出的类型一致，调用方的 catch 分支不受影响。
- */
+/** Transport failures retain the [IOException] contract. */
 class WebDavRequestException(
     val messageRes: Int,
     val formatArgs: List<Any> = emptyList(),
     cause: Throwable? = null,
 ) : IOException(cause)
 
-/** 能识别出原因时返回本地化文案，其余异常返回 null 交给调用方兜底。 */
 fun Context.webDavErrorText(error: Throwable): String? {
     val res: Int
     val rawArgs: List<Any>

@@ -1,6 +1,5 @@
 package com.x500x.cursimple.app.util
 
-/** 裁切时取用的原图区域，单位是原图像素。 */
 data class CropSourceRect(
     val left: Int,
     val top: Int,
@@ -8,13 +7,7 @@ data class CropSourceRect(
     val height: Int,
 )
 
-/**
- * 算出按课表比例裁切时该取原图的哪一块。
- *
- * 先在原图里取一块符合 [frameAspect] 且尽可能大的区域，再按 [zoom] 收缩，
- * 最后按 [offsetXFraction] / [offsetYFraction] 在剩余空间里平移。
- * 偏移取 -1 到 1，0 是居中，超出范围会被夹回，保证裁切框始终落在原图内。
- */
+/** Compute an in-bounds [frameAspect] crop with [zoom] and clamped fractional offsets. */
 fun cropSourceRect(
     imageWidth: Int,
     imageHeight: Int,
@@ -26,7 +19,6 @@ fun cropSourceRect(
     if (imageWidth <= 0 || imageHeight <= 0 || frameAspect <= 0f || !frameAspect.isFinite()) return null
     val safeZoom = zoom.coerceAtLeast(1f)
     val imageAspect = imageWidth.toFloat() / imageHeight.toFloat()
-    // 先取满足目标比例的最大区域：原图更宽就以高为准，更高就以宽为准
     val baseWidth: Float
     val baseHeight: Float
     if (imageAspect > frameAspect) {
@@ -52,15 +44,9 @@ fun cropSourceRect(
     )
 }
 
-/** 预览框里图片可平移的像素余量，超出这个范围就会露出空白。 */
 data class CropPanBounds(val maxX: Float, val maxY: Float)
 
-/**
- * 算出预览框里图片还能平移多少像素。
- *
- * 图片先按填满取景框缩放，再乘 [zoom]，溢出取景框的部分对半分到两侧，
- * 这个余量与 [cropSourceRect] 在原图里留出的空间是同一块，二者口径一致。
- */
+/** Preview pan limits use the same fill and zoom geometry as [cropSourceRect]. */
 fun cropPanBounds(
     frameWidth: Float,
     frameHeight: Float,
@@ -81,9 +67,8 @@ fun cropPanBounds(
 }
 
 /**
- * 把预览里的像素平移折算成 [cropSourceRect] 用的偏移。
- *
- * 图片向右移意味着取的是原图左侧，所以两者符号相反；余量为零时只能居中。
+ * Image translation has the opposite sign to source-crop displacement; zero overflow stays
+ * centered.
  */
 fun cropOffsetFraction(translation: Float, maxPan: Float): Float =
     if (maxPan <= 0f) 0f else (-translation / maxPan).coerceIn(-1f, 1f)

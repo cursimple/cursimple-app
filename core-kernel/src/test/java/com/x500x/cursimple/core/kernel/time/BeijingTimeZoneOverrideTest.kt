@@ -37,7 +37,6 @@ class BeijingTimeZoneOverrideTest {
 
     @Test
     fun `today follows the overridden zone`() {
-        // 同一瞬间在两个时区可能落在不同日期
         BeijingTime.setOverrideZone(ZoneId.of("Pacific/Kiritimati"))
         val east = BeijingTime.today()
         BeijingTime.setOverrideZone(ZoneId.of("Pacific/Midway"))

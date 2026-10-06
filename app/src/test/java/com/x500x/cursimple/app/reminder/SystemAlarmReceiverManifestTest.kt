@@ -16,20 +16,17 @@ class SystemAlarmReceiverManifestTest {
 
         assertNotNull(receiver)
         assertEquals("false", receiver!!.androidAttribute("exported"))
-        // 直接启动阶段就要重排，不必等用户解锁
         assertEquals("true", receiver.androidAttribute("directBootAware"))
         assertEquals(
             setOf(
                 "android.intent.action.BOOT_COMPLETED",
                 "android.intent.action.LOCKED_BOOT_COMPLETED",
-                // 小米等系统的快速开机不发标准的开机广播
                 "android.intent.action.QUICKBOOT_POWERON",
                 "com.htc.intent.action.QUICKBOOT_POWERON",
                 "android.intent.action.MY_PACKAGE_REPLACED",
                 "android.intent.action.TIME_SET",
                 "android.intent.action.TIMEZONE_CHANGED",
                 "android.intent.action.DATE_CHANGED",
-                // 切换语言后闹钟标签要按新语言重新生成
                 "android.intent.action.LOCALE_CHANGED",
                 "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED",
             ),

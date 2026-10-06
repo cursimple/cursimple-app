@@ -4,12 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 双击日期弹出的面板要把表头上能出现的东西全列出来。
- *
- * 表头一列就那么宽，节日名、「按10/10」这些多半显示不全，双击进来就是为了看完整的。
- * 少列一项，就意味着有信息只能在表头里被截断着看。
- */
+/** Expanded day status must include every potentially truncated header declaration. */
 class ScheduleDayStatusTest {
 
     @Test
@@ -26,7 +21,7 @@ class ScheduleDayStatusTest {
 
     @Test
     fun `今天但没有特殊情况时仍要说明照常上课`() {
-        // 只显示「当前：今天」的话，看不出这天到底上不上课
+        // Today alone does not describe whether classes run.
         val statuses = scheduleDayStatuses(
             isToday = true,
             hasHoliday = false,
@@ -63,7 +58,7 @@ class ScheduleDayStatusTest {
 
     @Test
     fun `按别的日子上课单独成一条`() {
-        // 表头那格只放得下「按10/10」，星期几从来显示不出来，这条必须有
+        // Expose source weekday in full even when the header has room for its date only.
         val statuses = scheduleDayStatuses(
             isToday = false,
             hasHoliday = false,
@@ -95,7 +90,7 @@ class ScheduleDayStatusTest {
 
     @Test
     fun `表头能出现的每一项都有对应的状态`() {
-        // 表头上那行小字目前只有这三种来源，加了新的种类必须同步加到面板里
+        // Keep day-sheet status in sync with every header status type.
         val headerTagKinds = listOf(
             ScheduleDayStatus.Holiday,
             ScheduleDayStatus.MakeUpWorkday,

@@ -27,50 +27,33 @@ import java.time.temporal.TemporalAdjusters
 import kotlin.math.ceil
 import kotlin.math.floor
 
-/** 测量文本在给定字号下的绘制宽度，由绘制层用真实字体实现，单测里用等宽近似实现。 */
 fun interface ScheduleImageTextMeasurer {
     fun measure(text: String, fontSize: Float, bold: Boolean): Float
 }
 
-/** 课表图片里所有需要按语言渲染的文字，由持有 Context 的调用方填好后传入排版函数。 */
 class ScheduleImageLabels(
-    /** 没有学期名时的默认标题。 */
     val defaultTitle: String,
-    /** 假日没有名字时的占位名。 */
     val holidayFallbackName: String,
-    /** 把内置假日的文案资源解析成当前语言的名字。 */
     val holidayNameOfRes: (Int) -> String,
-    /** 假日格里“全天无课”一行。 */
     val holidayAllDayOff: String,
-    /** 同格课程超额时汇总块的说明行。 */
     val overflowMoreDetail: String,
-    /** 没有节次配置时的失败原因。 */
+    /** Missing period configuration. */
     val noTimingFailure: String,
-    /** 星期几名称。 */
     val weekdayName: (Int) -> String,
-    /** 某一天的日期标注。 */
     val dateLabel: (LocalDate) -> String,
-    /** 第几教学周。 */
     val weekLabel: (Int) -> String,
-    /** 全部周模式下的副标题。 */
     val allWeeksSubtitle: String,
-    /** 全部周模式下，限定周次的课程在块内补的一行周次说明；入参是压缩过的周次区间。 */
     val weeksDetail: (String) -> String,
-    /** 全部周模式下，同一格里挤了多门课时写在图下的备注。 */
     val sharedCellFootnote: (weekday: String, nodeLabel: String, titles: List<String>) -> String,
-    /** 调课来源日的表头标注。 */
     val makeUpNote: (String) -> String,
-    /** 同格课程超额时汇总块的标题。 */
     val overflowTitle: (Int) -> String,
-    /** 同格多门课冲突时写在图下的备注。 */
     val conflictFootnote: (weekday: String, nodeLabel: String, titles: List<String>) -> String,
-    /** 某一周没有任何课程时的失败原因。 */
+    /** No courses in the selected week. */
     val emptyWeekFailure: (Int) -> String,
-    /** 全部周模式下一门课都没有时的失败原因。 */
+    /** No courses across all weeks. */
     val emptyAllWeeksFailure: String,
 )
 
-/** 课表图片各区块的像素尺寸与字号，全部以最终位图像素为单位。 */
 data class ScheduleImageMetrics(
     val outerPadding: Float = 44f,
     val headerHeight: Float = 176f,
@@ -101,7 +84,6 @@ data class ScheduleImageMetrics(
     val footnoteLaneThreshold: Int = 3,
 )
 
-/** 位图坐标系里的一个矩形，左上为原点。 */
 data class ScheduleImageRect(
     val left: Float,
     val top: Float,
@@ -124,7 +106,6 @@ data class ScheduleImageTextLine(
     val role: ScheduleImageTextRole,
 )
 
-/** 一门课在图上的位置与已经排好版的文本。 */
 data class ScheduleImageBlock(
     val dayOfWeek: Int,
     val rect: ScheduleImageRect,
@@ -172,7 +153,7 @@ data class ScheduleImageHoliday(
     val lineHeight: Float,
 )
 
-/** 一整张课表图片的排版结果，绘制层只按坐标画，不再做任何计算。 */
+/** Resolved image geometry; rendering performs no layout calculations. */
 data class ScheduleImageLayoutResult(
     val width: Int,
     val height: Int,
@@ -180,7 +161,6 @@ data class ScheduleImageLayoutResult(
     val title: String,
     val subtitle: String,
     val weekNumber: Int,
-    /** 这张图画的是全部周，而不是 [weekNumber] 那一周。 */
     val allWeeks: Boolean,
     val gridRect: ScheduleImageRect,
     val bodyRect: ScheduleImageRect,
@@ -195,13 +175,10 @@ data class ScheduleImageLayoutResult(
     val failureReason: String?,
 )
 
-/**
- * 把某一教学周的课表换算成绘制坐标的纯函数集合。
- * 不引用任何 Android 类型，文本宽度经 [ScheduleImageTextMeasurer] 外部注入。
- */
+/** Pure coordinate layout with externally supplied [ScheduleImageTextMeasurer]. */
 object ScheduleImageLayout {
 
-    /** 课程底色的可选数量，绘制层的调色板长度必须与之一致。 */
+    /** Renderer palette size must match this color count. */
     const val PALETTE_SIZE = 8
 
     private const val DEFAULT_WEEK_COUNT = 20
@@ -213,18 +190,15 @@ object ScheduleImageLayout {
         val rowEnd: Int,
     )
 
-    /** [date] 落在第几教学周，开学之前按第 1 周处理。 */
     fun currentWeekNumber(termStartDate: LocalDate, date: LocalDate): Int =
         resolveTermWeekNumber(termStartDate, date).coerceAtLeast(1)
 
-    /** 课表里出现过的最大周次，全部课程都不限周次时用默认周数。 */
     fun maxWeekNumber(schedule: TermSchedule?, manualCourses: List<CourseItem>): Int {
         val all = (1..7).flatMap { schedule?.coursesOfDay(it).orEmpty() } + manualCourses
         val declared = all.mapNotNull { it.weeks.maxOrNull() }.maxOrNull()
         return (declared ?: DEFAULT_WEEK_COUNT).coerceAtLeast(1)
     }
 
-    /** 第 [weekNumber] 教学周的周一。教学周锚点固定为周一，不跟随显示起始日。 */
     fun weekStartDate(termStartDate: LocalDate, weekNumber: Int): LocalDate =
         termStartDate.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
             .plusWeeks((weekNumber - 1).toLong())
@@ -242,7 +216,7 @@ object ScheduleImageLayout {
         measurer: ScheduleImageTextMeasurer,
         labels: ScheduleImageLabels,
         metrics: ScheduleImageMetrics = ScheduleImageMetrics(),
-        /** 画全部周：不按周次筛课，也不套用假日与临时调课这些只属于某一天的安排。 */
+        /** All-week mode ignores date-specific holidays and temporary overrides. */
         allWeeks: Boolean = false,
     ): ScheduleImageLayoutResult {
         val slots = timingProfile.slotTimes
@@ -254,7 +228,6 @@ object ScheduleImageLayout {
         }
 
         val weekMonday = weekStartDate(termStartDate, safeWeek)
-        // 周日起时这一页最左是周一的前一天，属于同一个显示窗口但在教学周锚点之前
         val displayWeekStart = if (weekStartDay == WeekStartDay.Sunday) weekMonday.minusDays(1) else weekMonday
         val orderedDayOfWeeks = columnDayOfWeeks(
             weekStart = weekStartDay,
@@ -263,7 +236,6 @@ object ScheduleImageLayout {
         )
         val dayDates = orderedDayOfWeeks.associateWith { columnDate(displayWeekStart, it) }
         val resolutions = dayDates.mapValues { (_, date) ->
-            // 全部周不落在具体某天，假日与调课都无从谈起，一律按正常上课日处理
             if (allWeeks) {
                 ScheduleDayResolution(date = date, sourceDate = date, isHoliday = false, holidayName = null)
             } else {
@@ -289,8 +261,7 @@ object ScheduleImageLayout {
             )
         }
 
-        // 一周七天、全部节次都画出来，没课的地方空着：分享出去的图要让人看到整周全貌，
-        // 裁掉周末或晚上的空行，看的人分不清是没课还是没截全
+        // Show all seven days and configured periods, including empty rows.
         val columns = orderedDayOfWeeks
         val dayCount = columns.size
         val shown = columns.flatMap { placedByDay.getValue(it) }
@@ -316,7 +287,6 @@ object ScheduleImageLayout {
                 dayOfWeek = day,
                 rect = ScheduleImageRect(left, gridTop, left + metrics.dayColumnWidth, bodyTop),
                 weekdayLabel = labels.weekdayName(day),
-                // 全部周没有确定的日期，留空让绘制层把这一行收起来
                 dateLabel = if (allWeeks) "" else labels.dateLabel(date),
                 noteLabel = when {
                     resolution.isHoliday -> null
@@ -343,7 +313,6 @@ object ScheduleImageLayout {
         val holidays = columns.mapIndexedNotNull { columnIndex, day ->
             val resolution = resolutions.getValue(day)
             if (!resolution.isHoliday) return@mapIndexedNotNull null
-            // 调课可以推翻放假：这天已经排进了课，就不再拿「全天无课」的整列块盖住它们
             if (placedByDay.getValue(day).isNotEmpty()) return@mapIndexedNotNull null
             val left = columnLeft(columnIndex)
             val rect = ScheduleImageRect(left, bodyTop, left + metrics.dayColumnWidth, bodyBottom)
@@ -428,7 +397,6 @@ object ScheduleImageLayout {
                     val weekday = labels.weekdayName(day)
                     val nodes = nodeLabel(startNode, endNode)
                     footnoteSources.add(
-                        // 全部周里同格的课多半分在不同周，说成冲突并不属实
                         if (allWeeks) {
                             labels.sharedCellFootnote(weekday, nodes, titles)
                         } else {
@@ -499,7 +467,6 @@ object ScheduleImageLayout {
         slots: List<ClassSlotTime>,
         allWeeks: Boolean,
     ): List<PlacedCourse> {
-        // 放假日不出常规课，但调课可以推翻放假：被挪过来的那几门照常画出来
         if (resolution.isHoliday) {
             return placeCourses(
                 coursesMovedTo(
@@ -522,15 +489,13 @@ object ScheduleImageLayout {
                 importedByDay[sourceDay].orEmpty() + visibleManual.filter { it.time.dayOfWeek == sourceDay },
             )
         } else {
-            // 只调某几节时这天会同时挂着两天的课，逐门问过来源日才知道各自算哪天
+            // Resolve the source day per course after partial swaps.
             val ownDay = date.dayOfWeek.value
             val pool = (
                 importedByDay[sourceDay].orEmpty() + importedByDay[ownDay].orEmpty() +
                     visibleManual.filter { it.time.dayOfWeek == sourceDay || it.time.dayOfWeek == ownDay }
                 ).distinct()
-                // 被单独挪到别天的课，这天不再出现
                 .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
-            // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
             val movedIn = coursesMovedTo(
                 date = date,
                 overrides = overrides,
@@ -555,7 +520,6 @@ object ScheduleImageLayout {
         return placeCourses(candidates, slots)
     }
 
-    /** 把课程按节次落到行上并排好序。 */
     private fun placeCourses(courses: List<CourseItem>, slots: List<ClassSlotTime>): List<PlacedCourse> =
         courses
             .map { course ->
@@ -573,12 +537,7 @@ object ScheduleImageLayout {
                 ),
             )
 
-    /**
-     * 全部周模式下把「同一门课按周拆成的多条」并回一条。
-     *
-     * 单双周常常被拆成两条完全一样、只有周次不同的课，一格里并排画两遍既挤又没有意义，
-     * 合并后周次取并集，块上那行周次说明才是这门课真正上课的周。
-     */
+    /** Merge equivalent course fragments across weeks and union their week sets. */
     private fun mergeAcrossWeeks(courses: List<CourseItem>): List<CourseItem> = courses
         .groupBy { course ->
             listOf(
@@ -593,7 +552,6 @@ object ScheduleImageLayout {
         .map { (_, group) ->
             val first = group.first()
             if (group.size == 1) return@map first
-            // 任一条不限周次，说明这门课整学期都在，并集就是「全部周」
             val weeks = if (group.any { it.weeks.isEmpty() }) {
                 emptyList()
             } else {
@@ -602,7 +560,6 @@ object ScheduleImageLayout {
             first.copy(weeks = weeks)
         }
 
-    /** 把周次压成区间写法，例如 [1,2,3,5] → "1-3, 5"；不限周次时返回空串。 */
     internal fun formatWeekRanges(weeks: List<Int>): String {
         val sorted = weeks.filter { it > 0 }.distinct().sorted()
         if (sorted.isEmpty()) return ""
@@ -622,7 +579,6 @@ object ScheduleImageLayout {
         return parts.joinToString(", ")
     }
 
-    /** 节次落在哪一行；落在两个节次之间或超出范围时贴到最近的一行。 */
     private fun rowIndexOf(slots: List<ClassSlotTime>, node: Int): Int {
         val covering = slots.indexOfFirst { node in it.startNode..it.endNode }
         if (covering >= 0) return covering
@@ -631,7 +587,6 @@ object ScheduleImageLayout {
         return if (previous >= 0) previous else slots.lastIndex
     }
 
-    /** 把一列里行区间相互重叠的课程连成一组，同组内的课并排显示。 */
     private fun overlapGroups(placed: List<PlacedCourse>): List<List<PlacedCourse>> {
         val groups = mutableListOf<MutableList<PlacedCourse>>()
         var reach = Int.MIN_VALUE
@@ -662,7 +617,6 @@ object ScheduleImageLayout {
         measurer: ScheduleImageTextMeasurer,
         labels: ScheduleImageLabels,
         showWeeks: Boolean,
-        // 单周出图时取该周单独设置的地点；全部周为 null，退回默认地点
         locationWeek: Int?,
     ): ScheduleImageBlock {
         val rect = laneRect(columnLeft, laneIndex, laneWidth, bodyTop, firstRow, item.rowStart, item.rowEnd, metrics)
@@ -672,7 +626,6 @@ object ScheduleImageLayout {
         val titleLineHeight = metrics.titleLineHeight * scale
         val detailLineHeight = metrics.detailLineHeight * scale
         val course = item.course
-        // 全部周把各周的课画在同一张图上，限定周次的课不标一下就分不清哪周才有
         val weeksNote = if (showWeeks) {
             formatWeekRanges(course.weeks).takeIf { it.isNotEmpty() }?.let(labels.weeksDetail)
         } else {
@@ -784,10 +737,7 @@ object ScheduleImageLayout {
         return ScheduleImageRect(left, top, left + laneWidth, bottom)
     }
 
-    /**
-     * 课程块内的文本排版：课名优先占满可用行数，剩余高度依次留给地点和教师。
-     * 每一行都按 [content] 的宽度换行或省略，不会越出格子。
-     */
+    /** Prioritize titles, then location and teacher, wrapping within [content] bounds. */
     private fun composeBlockLines(
         title: String,
         details: List<String>,
@@ -831,14 +781,13 @@ object ScheduleImageLayout {
         return result
     }
 
-    /** 并排课程越多，字号缩得越小，保证窄格子里仍能放下可读的文字。 */
+    /** Reduce text size as side-by-side course columns become narrower. */
     private fun laneFontScale(laneCount: Int): Float = when {
         laneCount <= 1 -> 1f
         laneCount == 2 -> 0.84f
         else -> 0.72f
     }
 
-    /** 同名课程在任意一周都取到同一个底色。 */
     internal fun paletteIndexOf(title: String): Int {
         var hash = 0
         for (ch in title) {
@@ -884,10 +833,7 @@ object ScheduleImageLayout {
     }
 }
 
-/**
- * 中文优先的换行与省略。中文没有词边界，逐字断行；连续的拉丁字母与数字视为整体，
- * 整体放得下就不从中间切开，放不下才逐字符切。
- */
+/** Wrap CJK by character; keep Latin word runs intact unless wider than the line. */
 internal object ScheduleImageText {
 
     private const val ELLIPSIS = "…"
@@ -949,7 +895,6 @@ internal object ScheduleImageText {
         measurer: ScheduleImageTextMeasurer,
     ): String = wrap(text, maxWidth, 1, fontSize, bold, measurer).firstOrNull().orEmpty()
 
-    /** 在末尾补省略号，必要时回退删字直到整行放得下。 */
     fun ellipsize(
         text: String,
         maxWidth: Float,

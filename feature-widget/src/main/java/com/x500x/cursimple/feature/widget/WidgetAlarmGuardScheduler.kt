@@ -20,12 +20,8 @@ internal data class WidgetAlarmGuardSlot(
 )
 
 /**
- * 维护一条短链式的静默守护闹钟。
- *
- * 这些闹钟与面向用户的上课提醒相互独立：触发时只唤醒应用进程、重新排布守护链、校验提醒闹钟的注册情况，
- * 并用最新数据刷新小组件的 RemoteViews。它们不会响铃、震动或弹出闹钟界面。
- *
- * [WidgetAlarmGuardRunner.run] 是这条静默唤醒路径的统一入口，同样按五分钟周期执行的后台任务挂在其中。
+ * Silent guard chain wakes, reconciles registrations and refreshes RemoteViews without ringing
+ * or UI. [WidgetAlarmGuardRunner.run] owns its shared work.
  */
 internal object WidgetAlarmGuardScheduler {
     fun ensureScheduled(context: Context) {
@@ -72,7 +68,6 @@ internal object WidgetAlarmGuardScheduler {
     internal fun requestCodeForIndex(index: Int): Int =
         REQUEST_CODE_BASE + index
 
-    /** 数一数还有多少条守护闹钟活着，用来判断链是否已经断掉。 */
     private fun registeredSlotCount(context: Context): Int =
         (0 until GUARD_COUNT).count { index ->
             val intent = Intent(context, WidgetAlarmGuardReceiver::class.java).apply {
@@ -141,7 +136,7 @@ internal object WidgetAlarmGuardRunner {
     suspend fun run(context: Context, reason: String) {
         val app = context.applicationContext
 
-        // 先重新排布闹钟，后续同步或小组件刷新失败也不会中断静默守护链。
+        // Reschedule first so later refresh failures cannot break the guard chain.
         WidgetAlarmGuardScheduler.ensureScheduled(app)
 
         runCatching {
@@ -154,14 +149,13 @@ internal object WidgetAlarmGuardRunner {
             )
         }
 
-        // 组件内容按各自的同步间隔顺带检查一次；实现方只发起、不等它跑完
+        // Start due component checks asynchronously without waiting for completion.
         runCatching {
             WidgetGuardHooks.onGuardTick?.invoke(app)
         }.onFailure { error ->
             ReminderLogger.warn("widget.alarm_guard.hook.failure", mapOf("reason" to reason), error)
         }
 
-        // 渲染数据没有变化时 RemoteViews 更新是静默的，不产生通知或界面。
         runCatching {
             ScheduleWidgetUpdater.refreshAll(app)
         }.onFailure { error ->

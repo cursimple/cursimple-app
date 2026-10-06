@@ -30,16 +30,11 @@ import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
-/** 一条问候用到的资源：标题，和几句里随机挑一句的正文。 */
 internal data class GreetingRes(@StringRes val title: Int, @ArrayRes val lines: Int)
 
 /**
- * 节日、节气当天的一句问候，安安静静出现在通知栏里，给课表添一点人情味。
- *
- * 哪天是什么节日、节气查 [FestivalDataset]（联网下载的日期表），不在代码里写死。
- * 只在节日当天发一条（国庆只在 10 月 1 日），每天上午随机一个时刻；那会儿没发出去
- * （手机省电、App 被收走），打开 App 时补上。一天最多一条，撞上好几个节日时随机挑一个。
- * 不写进更新公告、设置里也不放开关，留点惊喜；不想收的人可以在系统通知设置里关掉这个渠道。
+ * Post at most one silent greeting on the festival date, using the downloaded dataset. Retry on
+ * foreground entry if background delivery was missed; users can disable the system channel.
  */
 internal object FestivalGreeting {
     private const val CHANNEL_ID = "festival_greeting"
@@ -47,11 +42,9 @@ internal object FestivalGreeting {
     private const val PREFS = "festival_greeting"
     private const val KEY_LAST_DATE = "last_posted_date"
 
-    /** 定时任务在这个窗口里随机挑一刻：早于八点会吵醒人，太晚了又不像当天的问候 */
     internal val WINDOW_START: LocalTime = LocalTime.of(8, 0)
     internal const val WINDOW_MINUTES = 180L
 
-    /** 过了随机窗口还没发，打开 App 时再补 */
     private val CATCH_UP_AFTER: LocalTime = WINDOW_START.plusMinutes(WINDOW_MINUTES)
 
     fun postIfDue(context: Context, catchUp: Boolean = false) {
@@ -68,7 +61,6 @@ internal object FestivalGreeting {
     }
 
     private fun greetingFor(context: Context, date: LocalDate): GreetingRes? {
-        // 日期以联网下来的数据表为准；本机一次都没下成功过时才现算
         FestivalDataset.idsOn(context, date)?.let { ids ->
             return ids.mapNotNull(::greetingResForId).randomOrNull()
         }
@@ -78,7 +70,7 @@ internal object FestivalGreeting {
         return candidates.randomOrNull()
     }
 
-    /** 农历用系统自带的 ICU 换算；个别 ROM 上换算出错时只认公历节日和节气。 */
+    /** ICU lunar conversion falls back to Gregorian festivals and solar terms on failure. */
     private fun lunarDayOf(date: LocalDate): LunarDay? = runCatching {
         val calendar = android.icu.util.ChineseCalendar(android.icu.util.TimeZone.getTimeZone("Asia/Shanghai"))
         calendar.timeInMillis = date.atTime(12, 0)
@@ -99,8 +91,7 @@ internal object FestivalGreeting {
             PackageManager.PERMISSION_GRANTED
     }
 
-    // 调用方先过了 canPostNotifications()（通知开关 + POST_NOTIFICATIONS），lint 跨函数看不出来；
-    // 用户在这之间撤销权限时 notify 抛的 SecurityException 由下面的 runCatching 兜住
+    // Permission is checked by the caller; catch revocation between that check and notify.
     @SuppressLint("MissingPermission")
     private fun Context.post(greeting: GreetingRes) {
         createChannel()
@@ -128,7 +119,6 @@ internal object FestivalGreeting {
     private fun Context.createChannel() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         runCatching {
-            // 不响铃、不弹横幅：问候不该在课堂上把人吓一跳，出现在通知栏里就够了
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 getString(R.string.greeting_channel_name),
@@ -139,7 +129,6 @@ internal object FestivalGreeting {
     }
 }
 
-/** 每天在上午的随机时刻看一眼今天是不是节日。 */
 class FestivalGreetingWorker(
     context: Context,
     params: WorkerParameters,
@@ -153,7 +142,6 @@ class FestivalGreetingWorker(
     companion object {
         private const val WORK_NAME = "festival_greeting"
 
-        /** 每次启动都重新挑一个时刻，天天差不多同一分钟发就不像真人了。 */
         fun schedule(context: Context) {
             val now = BeijingTime.nowDateTime()
             val offset = Random.nextLong(FestivalGreeting.WINDOW_MINUTES)

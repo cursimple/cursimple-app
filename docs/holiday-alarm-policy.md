@@ -1,18 +1,18 @@
-# 假日闹钟规则
+# Holiday alarm policy
 
-默认开启「节假日自动跳过闹钟」。未保存过这项偏好的旧安装同样使用新默认值；用户明确保存过的开关值继续保留。
+Holiday skipping defaults on. Existing explicit preferences remain unchanged. Evaluate dates in the app's selected time zone.
 
-规则按应用时区及现有节假日日历执行，优先级如下：
+Policy precedence:
 
-1. 用户手动静音某个日期时，该日期不响铃、不震动。
-2. 单个闹钟在编辑页明确开启「节假日也响」时，绕过假日跳过；它不能绕过手动静音。
-3. 用户把假日设为调休上课日，或明确设置补课日时，按现有日历解析正常提醒。
-4. 全局跳过开关开启时，其余假日闹钟自动跳过；关闭时恢复假日响铃。
+1. Manually muted dates always suppress ringing and vibration.
+2. An alarm's explicit `allowOnHoliday` bypasses automatic holiday skipping, never manual date muting.
+3. Explicit make-up class and workday declarations follow resolved schedule policy.
+4. Remaining holidays follow the global skip preference.
 
-课程闹钟在排程阶段过滤，响铃服务在声音、震动及正式响铃通知开始之前再读取最新偏好复核。重复响铃的每轮开始前再次检查，避免跨零点进入假日后继续播放。被跳过的闹钟不删除课程规则，下一个上课日继续排程。
+Filter during planning and recheck immediately before audio, vibration and ringing notifications. Repeated rings recheck each round, including after midnight. Skipping an occurrence preserves its recurring rule for the next class day.
 
-单个闹钟的 `allowOnHoliday` 随记录持久化，并经 Intent、贪睡计划和排程重建传递。旧记录缺少该字段时视为未授权假日响铃。闹钟列表显示假日跳过/日期静音状态；被跳过的闹钟不会发送「即将响铃」预告。
+Persist `allowOnHoliday` through records, Intents, snooze and rebuilding. Missing legacy values mean no holiday exception. Skipped alarms do not produce pre-alarm notices; the alarm list exposes skip and date-mute status.
 
-假期前一晚 20:00 起由 WorkManager 或应用回前台时检查并发送静默说明，同一日期去重。后台任务可能受系统调度延迟；闹钟是否响铃不依赖说明通知是否送达。运行时被跳过的旧排程也会留下静默状态通知和自检记录。
+From 20:00 on the preceding evening, WorkManager or foreground entry can issue a silent, date-deduplicated explanation. Background timing may vary; alarm policy does not depend on that notice arriving. Runtime skips still record diagnostics.
 
-只调整课简自己的闹钟、预告及课程提醒策略；第三方组件保持自己的业务设置。
+This policy governs host alarms and class notices. Component-owned service settings remain independent.

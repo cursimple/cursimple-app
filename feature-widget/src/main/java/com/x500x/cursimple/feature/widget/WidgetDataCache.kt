@@ -1,11 +1,8 @@
 package com.x500x.cursimple.feature.widget
 
-/** 同一份数据被所有小组件实例共用时的缓存键。 */
 internal const val WIDGET_SHARED_CACHE_KEY = 0
 
-/**
- * 一次刷新里头部和列表共用同一份读取结果的短时缓存；超出 [ttlNanos] 或换了缓存键就重新读。
- */
+/** Share reads during refresh until [ttlNanos] expires or the key changes. */
 internal class WidgetDataCache<T : Any>(private val ttlNanos: Long = DEFAULT_TTL_NANOS) {
     private class Entry<T>(
         val key: Int,
@@ -27,7 +24,7 @@ internal class WidgetDataCache<T : Any>(private val ttlNanos: Long = DEFAULT_TTL
         entry = Entry(key, nowNanos, value)
     }
 
-    /** 数据已经改过，下一次读必须重新取，不能再复用这一份。 */
+    /** Invalidate immediately when source data changes. */
     fun clear() {
         entry = null
     }

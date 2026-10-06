@@ -21,7 +21,7 @@ class WeekStartTest {
     @Test
     fun `the term week number does not move when the display start day changes`() {
         val termStart = monday
-        // 同一天的教学周编号只由周一锚点决定，与显示起始日无关
+        // Teaching-week numbers remain independent of display start day.
         listOf(monday, monday.plusDays(3), sunday, sunday.plusDays(1)).forEach { date ->
             assertEquals(
                 resolveTermWeekNumber(termStart, date),
@@ -36,7 +36,7 @@ class WeekStartTest {
     @Test
     fun `a sunday-first window reports the term week of the monday inside it`() {
         val termStart = monday
-        // 周日起时 9/13 那一页的窗口是 9/13-9/19，窗口内的周一是 9/14，属于第 2 周
+        // A Sunday-first window uses its contained Monday's teaching week.
         val window = displayWeekStartOf(sunday, WeekStartDay.Sunday)
 
         assertEquals(monday.plusDays(7), displayWeekAnchorMonday(window))
@@ -59,7 +59,6 @@ class WeekStartTest {
             listOf(7, 1, 2, 3, 4, 5, 6),
             columnDayOfWeeks(WeekStartDay.Sunday, weekendVisible = true, saturdayVisible = true),
         )
-        // 周日不显示时没有把它排在最前的余地，两种起始日都从周一排起
         assertEquals(
             listOf(1, 2, 3, 4, 5, 6),
             columnDayOfWeeks(WeekStartDay.Sunday, weekendVisible = false, saturdayVisible = true),

@@ -12,6 +12,11 @@ import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -20,19 +25,21 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.net.URI
 import java.util.UUID
 
-/** 入口脚本导出的两个函数，宿主按用途挑一个调 */
 enum class ExtensionRunMode(val function: String) {
     CheckLogin("checkLogin"),
     Sync("sync"),
+    ItemAction("performItemAction"),
+    DeliverNotifications("deliverNotifications"),
 }
 
-/** 跑一次入口脚本要的全部东西；由 [ExtensionRunRequest.from] 从 manifest 和存档里拼出来 */
+/** Runtime inputs assembled by [ExtensionRunRequest.from]. */
 data class ExtensionRunRequest(
     val pluginId: String,
     val mode: ExtensionRunMode,
@@ -45,6 +52,13 @@ data class ExtensionRunRequest(
     val state: JsonObject,
     val timeoutMs: Long,
     val maxOutputBytes: Int,
+    val action: JsonObject = JsonObject(emptyMap()),
+    val isolated: Boolean = false,
+    val secureConfiguration: JsonObject = JsonObject(emptyMap()),
+    val secureSessions: JsonObject = JsonObject(emptyMap()),
+    val notifications: JsonArray = JsonArray(emptyList()),
+    val onReceipt: (suspend (JsonObject) -> Boolean)? = null,
+    val onSession: (suspend (JsonObject) -> Boolean)? = null,
 ) {
     companion object {
         fun from(
@@ -66,7 +80,6 @@ data class ExtensionRunRequest(
                 userAgent = manifest.userAgent?.takeIf(String::isNotBlank),
                 settings = JsonObject(settings),
                 state = JsonObject(data.state),
-                // manifest 里写得再长也不许挂过三分钟：后台任务被系统掐掉前总得先交差
                 timeoutMs = manifest.limits.timeoutMs.coerceIn(10_000L, 180_000L),
                 maxOutputBytes = manifest.limits.maxOutputBytes.coerceIn(64 * 1024, 8 * 1024 * 1024),
             )
@@ -75,7 +88,6 @@ data class ExtensionRunRequest(
 }
 
 sealed interface ExtensionRunResult {
-    /** 脚本正常返回；[result] 是入口函数的返回值本身 */
     data class Completed(
         val result: JsonObject,
         val items: List<ExtensionFeedItem>,
@@ -86,16 +98,13 @@ sealed interface ExtensionRunResult {
 }
 
 /**
- * 在看不见的 WebView 里跑扩展组件的入口脚本。
- *
- * 为什么不用 QuickJS 之类的纯 JS 引擎：组件要带着登录态去请求站点接口，Cookie 在 WebView 的
- * CookieManager 里，只有同源页面里的 fetch 才会自动带上、也不会被 CORS 拦。所以先打开组件声明的
- * runUrl（同站点一个很轻的页面），页面加载完再把 ctx 和入口脚本一起注入进去。
- *
- * 入口脚本是**原样拼进注入脚本**里的，不走 eval / new Function：站点若设了 CSP，eval 会被拦。
- * 结果经 [ExtensionBridge] 交回，带一个本次随机生成的 token，别的页面脚本冒充不了。
+ * Run entry code on a same-origin page to preserve cookies. Inject code directly rather than
+ * eval; accept bridge results only with the run token.
  */
-class ExtensionRuntime(context: Context) {
+class ExtensionRuntime(
+    context: Context,
+    private val nativeFetch: suspend (ExtensionRunRequest, JsonObject) -> JsonObject = ExtensionNativeTransport::fetch,
+) {
 
     private val appContext = context.applicationContext
 
@@ -107,27 +116,29 @@ class ExtensionRuntime(context: Context) {
         val token = UUID.randomUUID().toString()
         val done = CompletableDeferred<ExtensionRunResult>()
         val webView = WebView(appContext)
+        val nativeJob = SupervisorJob(coroutineContext[Job])
+        val nativeScope = CoroutineScope(coroutineContext + nativeJob)
         var injected = false
         try {
             webView.settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                // 后台跑不看页面，图片一张都不用下
                 loadsImagesAutomatically = false
                 blockNetworkImage = true
+                blockNetworkLoads = request.isolated
                 request.userAgent?.let { userAgentString = it }
             }
             CookieManager.getInstance().setAcceptCookie(true)
-            webView.addJavascriptInterface(ExtensionBridge(token, request, done), BRIDGE_NAME)
+            webView.addJavascriptInterface(ExtensionBridge(token, request, done, webView, nativeScope, nativeFetch), BRIDGE_NAME)
             webView.webViewClient = object : WebViewClient() {
                 override fun shouldOverrideUrlLoading(view: WebView?, req: WebResourceRequest?): Boolean {
-                    // 跳出声明站点的一律拦下：后台页面上还挂着桥，不能让它落到别人的页面里
-                    return !ExtensionUrls.isAllowed(req?.url?.toString().orEmpty(), request.allowedHosts)
+                    // Block navigation beyond declared hosts while the native bridge is attached.
+                    return request.isolated || !ExtensionUrls.isAllowed(req?.url?.toString().orEmpty(), request.allowedHosts)
                 }
 
                 override fun onPageFinished(view: WebView?, url: String?) {
                     if (injected || view == null) return
-                    if (!ExtensionUrls.isAllowed(url.orEmpty(), request.allowedHosts)) return
+                    if (!request.isolated && !ExtensionUrls.isAllowed(url.orEmpty(), request.allowedHosts)) return
                     injected = true
                     view.evaluateJavascript(buildExtensionScript(request, token, useBridge = true), null)
                 }
@@ -138,10 +149,13 @@ class ExtensionRuntime(context: Context) {
                     }
                 }
             }
-            webView.loadUrl(request.url)
+            if (request.isolated) webView.loadDataWithBaseURL("https://cursimple-extension.invalid/",
+                "<!doctype html><html><head></head><body></body></html>", "text/html", "UTF-8", null)
+            else webView.loadUrl(request.url)
             withTimeoutOrNull(request.timeoutMs) { done.await() }
                 ?: ExtensionRunResult.Failed("组件运行超时（${request.timeoutMs / 1000} 秒）")
         } finally {
+            nativeJob.cancel()
             runCatching {
                 webView.stopLoading()
                 webView.removeJavascriptInterface(BRIDGE_NAME)
@@ -150,12 +164,43 @@ class ExtensionRuntime(context: Context) {
         }
     }
 
-    /** 页面脚本只能通过它交结果；token 对不上的调用一律不理 */
+    /** Accept script results only with the expected run token. */
     private class ExtensionBridge(
         private val token: String,
         private val request: ExtensionRunRequest,
         private val done: CompletableDeferred<ExtensionRunResult>,
+        private val view: WebView,
+        private val scope: CoroutineScope,
+        private val nativeFetch: suspend (ExtensionRunRequest, JsonObject) -> JsonObject,
     ) {
+        @JavascriptInterface
+        fun request(callToken: String?, id: String?, command: String?, payload: String?) {
+            if (callToken != token || id == null || id.length > 64 || payload == null || payload.length > 128 * 1024) return
+            scope.launch {
+                val response = try {
+                    check(request.isolated && request.mode == ExtensionRunMode.DeliverNotifications) { "此运行模式不支持宿主传输" }
+                    val values = extensionJson.parseToJsonElement(payload) as? JsonObject ?: error("请求格式错误")
+                    val value = when (command) {
+                        "network.fetch" -> nativeFetch(request, values)
+                        "mail.send" -> ExtensionSmtpTransport.send(request, values)
+                        "crypto.hmac" -> ExtensionNativeTransport.hmac(values)
+                        "notification.receipt" -> {
+                            require(PluginPermission.NotificationReceive.id in request.permissions) { "组件未声明通知出口权限" }
+                            JsonPrimitive(request.onReceipt?.invoke(values) ?: error("通知回执不可用"))
+                        }
+                        "notification.session" -> {
+                            require(PluginPermission.SecureStorage.id in request.permissions && PluginPermission.NotificationReceive.id in request.permissions) { "组件未声明加密会话权限" }
+                            JsonPrimitive(request.onSession?.invoke(values) ?: error("会话存储不可用"))
+                        }
+                        else -> error("不支持的运行时调用")
+                    }
+                    buildJsonObject { put("ok", true); put("value", value) }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (failure: Exception) { buildJsonObject { put("ok", false); put("error", failure.message ?: "运行时调用失败") } }
+                if (!done.isCompleted) view.evaluateJavascript(
+                    "window.__CurSimpleNativeReply && window.__CurSimpleNativeReply(${JsonPrimitive(id)},${componentUiJsonForScript(response.toString())});", null)
+            }
+        }
         @JavascriptInterface
         fun complete(callToken: String?, payload: String?) {
             if (callToken != token) return
@@ -185,7 +230,7 @@ class ExtensionRuntime(context: Context) {
     }
 }
 
-/** 把入口脚本交回来的 JSON 拆开；条目逐条解析，坏掉的那条丢掉，不连累别的 */
+/** Parse items independently so one malformed row cannot discard the snapshot. */
 internal fun parseExtensionPayload(payload: String?, maxOutputBytes: Int): ExtensionRunResult {
     if (payload.isNullOrBlank()) return ExtensionRunResult.Failed("组件没有返回结果")
     if (payload.length > maxOutputBytes) return ExtensionRunResult.Failed("组件返回的数据太大（${payload.length} 字节）")
@@ -215,7 +260,7 @@ private fun decodeFeedItem(element: JsonElement): ExtensionFeedItem? {
         attachments = item.attachments.mapNotNull { attachment -> extensionMediaUrl(attachment.url)?.let {
             attachment.copy(url = it, name = attachment.name.take(200), type = attachment.type.take(100), size = attachment.size?.takeIf { size -> size > 0L })
         } }.distinctBy { it.url },
-        // 只认网页链接，别的协议（intent:、javascript:）一律不要
+        // Accept web URLs only; reject executable and application schemes.
         url = item.url.takeIf { it.startsWith("https://") || it.startsWith("http://") }.orEmpty(),
         firstSeenAt = 0L,
     )
@@ -231,11 +276,10 @@ internal val extensionJson = Json {
 
 private const val MAX_FEED_ITEMS = 2_000
 
-/** 地址模板与白名单 */
+
 object ExtensionUrls {
     private val PLACEHOLDER = Regex("""\{settings\.([A-Za-z0-9_]+)\}""")
 
-    /** 用户没改过的项按 manifest 里的默认值补齐，脚本拿到的永远是完整的一份 */
     fun effectiveSettings(
         spec: com.x500x.cursimple.core.plugin.manifest.PluginExtensionSpec,
         saved: Map<String, JsonElement>,
@@ -247,7 +291,7 @@ object ExtensionUrls {
     fun resolve(template: String, settings: Map<String, JsonElement>): String =
         PLACEHOLDER.replace(template) { match ->
             val value = (settings[match.groupValues[1]] as? JsonPrimitive)?.contentOrNull.orEmpty()
-            // 模板里只拼主机名、路径片段，带斜杠、问号之类的一律不认，免得拼出别的站点
+            // Restrict URL placeholders to host and path fragments; reject separators that can change destinations.
             value.takeIf { it.matches(Regex("[A-Za-z0-9._-]+")) }.orEmpty()
         }
 
@@ -261,15 +305,11 @@ object ExtensionUrls {
         }
     }
 
-    fun settingBoolean(settings: Map<String, JsonElement>, key: String): Boolean? =
-        (settings[key] as? JsonPrimitive)?.booleanOrNull
 }
 
 /**
- * 注入页面的那段脚本：造 ctx、原样拼进入口脚本、调入口函数、把结果交回。
- *
- * [useBridge] 为 false 时（登录页）没有 JS 桥，结果写在 window 上，由宿主轮询去读——
- * 登录页上用户会点到别的网页，那里不该挂着宿主的桥。
+ * Construct ctx and call entry code. Without [useBridge], publish results on window for host
+ * polling.
  */
 internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, useBridge: Boolean): String {
     val config = JsonObject(
@@ -278,6 +318,11 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
             "mode" to JsonPrimitive(request.mode.function),
             "settings" to request.settings,
             "state" to request.state,
+            "action" to request.action,
+            "isolated" to JsonPrimitive(request.isolated),
+            "secureConfiguration" to request.secureConfiguration,
+            "secureSessions" to request.secureSessions,
+            "notifications" to request.notifications,
             "allowedHosts" to JsonArray(request.allowedHosts.map(::JsonPrimitive)),
             "permissions" to JsonArray(request.permissions.map(::JsonPrimitive)),
             "maxOutputBytes" to JsonPrimitive(request.maxOutputBytes),
@@ -286,11 +331,21 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
     )
     return """
 (function () {
-  var CONFIG = $config;
+  var CONFIG = ${componentUiJsonForScript(config.toString())};
   if (window.__cursimpleExtensionToken === CONFIG.token) return;
   window.__cursimpleExtensionToken = CONFIG.token;
   window.__cursimpleExtensionResult = null;
   var bridge = CONFIG.useBridge ? window.$BRIDGE_JS_NAME : null;
+  var nativePending = new Map(), nativeSequence = 0;
+  window.__CurSimpleNativeReply = function(id, response) {
+    var pending = nativePending.get(id); if (!pending) return;
+    nativePending.delete(id); response.ok ? pending.resolve(response.value) : pending.reject(new Error(response.error));
+  };
+  function nativeRequest(command, payload) {
+    if (!CONFIG.isolated || !bridge || !bridge.request) return Promise.reject(new Error("宿主传输不可用"));
+    return new Promise(function(resolve,reject) { var id = String(++nativeSequence);
+      nativePending.set(id, {resolve:resolve,reject:reject}); bridge.request(CONFIG.token,id,command,JSON.stringify(payload)); });
+  }
   function report(kind, payload) {
     if (bridge) {
       if (kind === "ok") bridge.complete(CONFIG.token, payload); else bridge.fail(CONFIG.token, payload);
@@ -318,6 +373,17 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
   var items = [];
   var ctx = Object.freeze({
     mode: CONFIG.mode,
+    action: Object.freeze(CONFIG.action || {}),
+    secureConfiguration: Object.freeze(CONFIG.secureConfiguration || {}),
+    notifications: Object.freeze(CONFIG.notifications || []),
+    notification: Object.freeze({ session: function(targetId,value) {
+      need("storage.secure"); return nativeRequest("notification.session", {targetId:targetId,value:value});
+    }, receipt: function(messageId,targetId,status,error) {
+      need("notification.receive"); return nativeRequest("notification.receipt", {messageId:messageId,targetId:targetId,status:status,error:error||""});
+    }}),
+    secureSessions: Object.freeze(CONFIG.secureSessions || {}),
+    mail: Object.freeze({ send: function(payload) { need("network.proxy"); return nativeRequest("mail.send",payload); } }),
+    crypto: Object.freeze({ hmacSha256: function(key,message) { return nativeRequest("crypto.hmac", {key:key,message:message}); }}),
     settings: Object.freeze(CONFIG.settings || {}),
     now: function () { return Date.now(); },
     state: Object.freeze({
@@ -326,6 +392,14 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
     }),
     network: Object.freeze({
       fetch: function (url, init) {
+        if (CONFIG.isolated) {
+          need("network.proxy");
+          var nativeOptions = init || {};
+          return nativeRequest("network.fetch", {url:String(url),method:nativeOptions.method||"GET",headers:nativeOptions.headers||{},body:nativeOptions.body||"",timeoutMs:nativeOptions.timeoutMs||20000}).then(function(response){
+            return {ok:response.ok,status:response.status,ambiguous:response.ambiguous,error:response.error,
+              text:function(){return Promise.resolve(response.body);},json:function(){return Promise.resolve(JSON.parse(response.body));}};
+          });
+        }
         need("network.fetch");
         if (!hostAllowed(url)) return Promise.reject(new Error("不允许访问：" + url));
         var options = Object.assign({ credentials: "include" }, init || {});
@@ -361,7 +435,9 @@ ${normalizeExtensionEntrySource(request.entrySource)}
 ;
       return {
         checkLogin: typeof checkLogin === "function" ? checkLogin : undefined,
-        sync: typeof sync === "function" ? sync : undefined
+        sync: typeof sync === "function" ? sync : undefined,
+        performItemAction: typeof performItemAction === "function" ? performItemAction : undefined
+        ,deliverNotifications: typeof deliverNotifications === "function" ? deliverNotifications : undefined
       };
     })();
   } catch (error) {
@@ -389,15 +465,14 @@ ${normalizeExtensionEntrySource(request.entrySource)}
 private const val BRIDGE_JS_NAME = ExtensionRuntime.BRIDGE_NAME
 
 /**
- * 入口脚本是按 ES 模块写的（export async function sync…），拼进普通脚本前把 export 摘掉；
- * import 语句不支持，组件得是单文件。
+ * Strip ES-module exports before injection; imports are unsupported, requiring a single entry
+ * bundle.
  */
 internal fun normalizeExtensionEntrySource(source: String): String = source
     .replace(Regex("""(?m)^\s*export\s*\{[^}]*\}\s*;?\s*$"""), "")
     .replace(Regex("""\bexport\s+default\s+"""), "")
     .replace(Regex("""\bexport\s+(?=(async\s+)?function\b|const\b|let\b|var\b|class\b)"""), "")
 
-/** 登录页轮询读到的那段结果 */
 internal fun parseLoginPollResult(raw: String?, maxOutputBytes: Int): ExtensionRunResult? {
     val text = decodeEvaluateJavascriptString(raw) ?: return null
     val obj = runCatching { extensionJson.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
@@ -406,7 +481,7 @@ internal fun parseLoginPollResult(raw: String?, maxOutputBytes: Int): ExtensionR
     return if (kind == "ok") parseExtensionPayload(payload, maxOutputBytes) else ExtensionRunResult.Failed(payload ?: "组件脚本出错")
 }
 
-/** evaluateJavascript 把返回的字符串再套一层 JSON 引号，null 就是字面量 "null" */
+/** Unwrap evaluateJavascript's JSON-encoded string result; null remains literal null. */
 internal fun decodeEvaluateJavascriptString(raw: String?): String? {
     if (raw.isNullOrBlank() || raw == "null" || raw == "undefined") return null
     return runCatching { (extensionJson.parseToJsonElement(raw) as? JsonPrimitive)?.contentOrNull }.getOrNull()

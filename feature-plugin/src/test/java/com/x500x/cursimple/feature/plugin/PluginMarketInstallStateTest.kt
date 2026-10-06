@@ -8,11 +8,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PluginMarketInstallStateTest {
+    @Test fun `a page operation never marks unrelated installed records as processing`() {
+        val first = record(pluginId = "a", sourceRepo = "qa/a")
+        val second = record(pluginId = "b", sourceRepo = "qa/b")
+        assertEquals(false, PluginMarketUiState(isLoading = true).processingPlugin(first))
+        val remote = PluginMarketUiState(isLoading = true, installingRepo = "QA/A")
+        assertTrue(remote.processingPlugin(first))
+        assertEquals(false, remote.processingPlugin(second))
+        assertEquals(false, remote.processingPlugin(first.copy(source = PluginInstallSource.Local)))
+        val preview = com.x500x.cursimple.core.plugin.install.PluginInstallPreview(
+            com.x500x.cursimple.core.plugin.manifest.PluginManifest("a", "A", version = "1", versionCode = 1, apiVersion = 2, entry = "main.js"),
+            true, PluginInstallSource.Local)
+        val local = PluginMarketUiState(isLoading = true, installPreview = preview)
+        assertTrue(local.processingPlugin(first.copy(source = PluginInstallSource.Local)))
+        assertEquals(false, local.processingPlugin(first))
+        assertEquals(false, local.processingPlugin(second))
+    }
 
     private fun record(
         pluginId: String = "p1",
         version: String = "1.0.33",
-        sourceRepo: String? = "cursimple/YangtzU_course_plugin",
+        sourceRepo: String? = "cursimple/example_school_plugin",
     ) = InstalledPluginRecord(
         pluginId = pluginId,
         name = pluginId,
@@ -35,7 +51,7 @@ class PluginMarketInstallStateTest {
     @Test
     fun `the same version counts as installed`() {
         val state = resolveRepoInstallState(
-            "cursimple/YangtzU_course_plugin",
+            "cursimple/example_school_plugin",
             "v1.0.33",
             listOf(record(version = "1.0.33")),
         )
@@ -47,7 +63,7 @@ class PluginMarketInstallStateTest {
     @Test
     fun `a newer market version offers an update`() {
         val state = resolveRepoInstallState(
-            "cursimple/YangtzU_course_plugin",
+            "cursimple/example_school_plugin",
             "v1.0.34",
             listOf(record(version = "1.0.33")),
         )
@@ -57,7 +73,6 @@ class PluginMarketInstallStateTest {
 
     @Test
     fun `the v prefix does not make an identical version look newer`() {
-        // 市场标签带 v，清单里不带，直接比字符串会一直显示可更新
         listOf("v1.0.33" to "1.0.33", "1.0.33" to "1.0.33", "V1.0.33" to "1.0.33").forEach { (tag, installed) ->
             val state = resolveRepoInstallState("a/b", tag, listOf(record(version = installed, sourceRepo = "a/b")))
             assertTrue("$tag vs $installed", state is PluginRepoInstallState.Installed)
@@ -67,9 +82,9 @@ class PluginMarketInstallStateTest {
     @Test
     fun `the repo slug is matched case insensitively`() {
         val state = resolveRepoInstallState(
-            "CurSimple/yangtzu_course_plugin",
+            "CurSimple/example_school_plugin",
             "v1.0.33",
-            listOf(record(sourceRepo = "cursimple/YangtzU_course_plugin")),
+            listOf(record(sourceRepo = "cursimple/example_school_plugin")),
         )
 
         assertTrue(state is PluginRepoInstallState.Installed)

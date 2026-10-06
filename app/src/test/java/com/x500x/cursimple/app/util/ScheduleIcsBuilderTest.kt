@@ -20,7 +20,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class ScheduleIcsBuilderTest {
-    /** 测试固定用中文文案，断言的是排版而不是语言。 */
     private val labels = IcsTextLabels(
         exam = "类型：考试",
         teacherFormat = "教师：%s",
@@ -31,10 +30,8 @@ class ScheduleIcsBuilderTest {
         defaultCalendarName = "课表",
     )
 
-
     private val shanghai = ZoneId.of("Asia/Shanghai")
 
-    // 2026-09-07 是周一，第 1 教学周周一
     private val termStart = LocalDate.of(2026, 9, 7)
     private val generatedAt = Instant.parse("2026-09-01T04:00:00Z")
 
@@ -90,7 +87,6 @@ class ScheduleIcsBuilderTest {
         generatedAt = generatedAt,
     )
 
-    /** 把折叠后的 ICS 展开成逻辑行。 */
     private fun unfold(content: String): List<String> =
         content.replace("\r\n ", "").split("\r\n").filter { it.isNotEmpty() }
 
@@ -131,7 +127,7 @@ class ScheduleIcsBuilderTest {
         val result = build(schedule = scheduleOf(mondayCourse(weeks = listOf(1, 3, 5))))
         val ev = vevents(result.content).single()
         assertEquals(3, result.occurrenceCount)
-        // 末次 = 第 5 周周一 2026-10-05 08:00 Asia/Shanghai = 2026-10-05 00:00Z
+        // Expected final occurrence expressed in UTC after zone conversion.
         assertTrue(ev.contains("RRULE:FREQ=WEEKLY;UNTIL=20261005T000000Z"))
         val exdate = ev.first { it.startsWith("EXDATE") }
         assertEquals("EXDATE;TZID=Asia/Shanghai:20260914T080000,20260928T080000", exdate)
@@ -148,7 +144,6 @@ class ScheduleIcsBuilderTest {
 
     @Test
     fun `临时调课按来源日的课在目标日单独生成事件`() {
-        // 2026-09-19 周六，按 2026-09-07 周一（第 1 周）上课
         val makeUp = TemporaryScheduleOverride(
             id = "mk1",
             type = TemporaryScheduleOverrideType.MakeUp,
@@ -162,10 +157,8 @@ class ScheduleIcsBuilderTest {
         val events = vevents(result.content)
         assertEquals(2, events.size)
         assertEquals(3, result.occurrenceCount)
-        // 常规系列：第 1、2 周周一
         val recurring = events.first { ev -> ev.any { it.startsWith("RRULE") } }
         assertTrue(recurring.contains("RRULE:FREQ=WEEKLY;COUNT=2"))
-        // 调课事件：目标日 09-19，且不属于 RRULE
         val makeUpEvent = events.first { ev -> ev.any { it.contains("20260919T080000") } }
         assertTrue(makeUpEvent.none { it.startsWith("RRULE") })
         assertTrue(makeUpEvent.any { it.startsWith("UID:") && it.contains("-mk-20260919") })
@@ -191,7 +184,6 @@ class ScheduleIcsBuilderTest {
 
     @Test
     fun `缺少节次时间的课程被跳过并如实记录`() {
-        // startNode 5 不在任何 slot 覆盖范围内
         val result = build(schedule = scheduleOf(mondayCourse(startNode = 5, endNode = 6)))
         assertEquals(0, result.eventCount)
         assertEquals(1, result.skipped.size)
@@ -264,8 +256,6 @@ class ScheduleIcsBuilderTest {
         assertTrue(ev.any { it.startsWith("DESCRIPTION:") && it.contains("类型：考试") })
     }
 
-    // ---- 时区 ----
-
     @Test
     fun `无夏令时时区写出单个 STANDARD 观察项`() {
         val result = build(schedule = scheduleOf(mondayCourse(weeks = listOf(1, 2))))
@@ -280,7 +270,7 @@ class ScheduleIcsBuilderTest {
     @Test
     fun `跨夏令时的时区写出 DAYLIGHT 转换`() {
         val ny = ZoneId.of("America/New_York")
-        val nyStart = LocalDate.of(2026, 3, 2) // 周一，早于 3-8 的春季调整
+        val nyStart = LocalDate.of(2026, 3, 2)
         val result = ScheduleIcsBuilder.build(
             labels = labels,
             termName = "spring",
@@ -300,12 +290,9 @@ class ScheduleIcsBuilderTest {
         assertTrue(lines.contains("DTSTART:20260308T020000"))
         assertTrue(lines.contains("TZOFFSETFROM:-0500"))
         assertTrue(lines.contains("TZOFFSETTO:-0400"))
-        // 事件仍用墙上时钟 08:00，交给 TZID 处理夏令时
         val ev = vevents(result.content).single()
         assertTrue(ev.any { it.contains("DTSTART;TZID=America/New_York:20260302T080000") })
     }
-
-    // ---- 转义 ----
 
     @Test
     fun `文本转义处理逗号分号反斜杠换行`() {
@@ -325,8 +312,6 @@ class ScheduleIcsBuilderTest {
         assertTrue(ev.contains("SUMMARY:数学\\; 复习\\, 第一讲\\\\A"))
     }
 
-    // ---- 折行 ----
-
     @Test
     fun `ASCII 长行按 75 字节折叠且续行以空格开头`() {
         val line = "SUMMARY:" + "a".repeat(100)
@@ -337,13 +322,11 @@ class ScheduleIcsBuilderTest {
             assertTrue(seg.toByteArray(Charsets.UTF_8).size <= 75)
             if (index > 0) assertTrue(seg.startsWith(" "))
         }
-        // 展开后与原文一致
         assertEquals(line, folded.replace("\r\n ", ""))
     }
 
     @Test
     fun `中文折行不切断多字节字符且每行不超过 75 字节`() {
-        // 每个汉字 3 字节，构造会落在 75 字节边界中间的情况
         val line = "SUMMARY:" + "汉".repeat(60)
         val folded = ScheduleIcsBuilder.fold(line)
         val physical = folded.split("\r\n")
@@ -351,7 +334,7 @@ class ScheduleIcsBuilderTest {
         for (seg in physical) {
             val bytes = seg.toByteArray(Charsets.UTF_8)
             assertTrue("行超过 75 字节: ${bytes.size}", bytes.size <= 75)
-            // 每个物理行本身必须是合法 UTF-8：往返转换不丢字符
+            // Every folded physical line must independently round-trip through UTF-8.
             assertEquals(seg, String(bytes, Charsets.UTF_8))
         }
         assertEquals(line, folded.replace("\r\n ", ""))

@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""生成 data/calendar/cn-festivals.json：每一天是什么节日、什么节气。
-
-App 联网时静默下载这份文件，节日问候按日期直接查，不在代码里写死日期。
-农历与节气用寿星天文历（sxtwl）算：pip install sxtwl
-用法：python3 scripts/gen_cn_calendar.py [起始年] [结束年]
-"""
+"""Generate the festival dataset using sxtwl. Usage: gen_cn_calendar.py [first_year] [last_year]."""
 import datetime
 import json
 import sys
@@ -14,7 +9,6 @@ import sxtwl
 FIRST_YEAR = int(sys.argv[1]) if len(sys.argv) > 1 else 2024
 LAST_YEAR = int(sys.argv[2]) if len(sys.argv) > 2 else 2060
 
-# sxtwl 的节气序号从冬至开始
 TERMS = [
     "winter_solstice", "minor_cold", "major_cold", "start_of_spring", "rain_water", "awakening_of_insects",
     "spring_equinox", "pure_brightness", "grain_rain", "start_of_summer", "grain_buds", "grain_in_ear",
@@ -57,7 +51,6 @@ while day <= end:
     d, md, leap = lunar(day)
     if not leap and md in LUNAR:
         ids.append(LUNAR[md])
-    # 除夕是正月初一的前一天：腊月有大小月，按「明天是不是初一」认
     _, tomorrow, tomorrow_leap = lunar(day + datetime.timedelta(days=1))
     if not tomorrow_leap and tomorrow == (1, 1):
         ids.append("new_years_eve")

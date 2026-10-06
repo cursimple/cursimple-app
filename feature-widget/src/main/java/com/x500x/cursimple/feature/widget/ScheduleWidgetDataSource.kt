@@ -33,15 +33,11 @@ internal data class ScheduleWidgetCourseRow(
     val title: String,
     val subtitle: String,
     val hasReminder: Boolean,
-    /** 放假当天的课程，行文字按不可用态显示。 */
     val onHoliday: Boolean = false,
-    /** 相对当前时刻的状态；不是今天、放假或没有作息时间时为空。 */
     val status: CourseStatus? = null,
-    /** 考试与普通课程的状态文案不同。 */
     val isExam: Boolean = false,
-    /** 节次名字，如「第一节」「午间课」；横跨几个时段或作息表里没有时为空。 */
     val slotLabel: String? = null,
-    /** 节号范围，如「1-1」「3-4」；作息表里没有对应时段时为空，只显示 [nodeRange]。 */
+    /** Optional period range from a matching timing slot; otherwise use [nodeRange]. */
     val nodeNumbers: String = "",
 ) {
     val stableId: Long = id.hashCode().toLong()
@@ -58,7 +54,6 @@ internal data class ScheduleWidgetDayData(
     val termStartMissing: Boolean = false,
     val termStartDate: LocalDate? = null,
     val holidayLabel: WidgetHolidayLabel? = null,
-    /** 今天整天没课时代替「今日没有课程」的那句话；看别的日子时为空。 */
     val moodLine: String? = null,
 ) {
     val themeAccent: ThemeAccent = widgetTheme.themeAccent
@@ -67,15 +62,12 @@ internal data class ScheduleWidgetDayData(
 internal object ScheduleWidgetDataSource {
     private val dayCache = WidgetDataCache<ScheduleWidgetDayData>()
 
-    /**
-     * 最近一次真正读数时的「今天」。换天守护拿它判断当前渲染有没有过期：
-     * 零点那次刷新被系统吞掉时，它还停在昨天。
-     */
+    /** Last-read today anchor detects stale rendering after a missed midnight refresh. */
     @Volatile
     var lastRenderedTodayIso: String? = null
         private set
 
-    /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
+    /** [reuseRecent] shares one read between header and list. */
     suspend fun loadDay(
         context: Context,
         appWidgetId: Int,
@@ -88,7 +80,7 @@ internal object ScheduleWidgetDataSource {
             .also { dayCache.put(appWidgetId, System.nanoTime(), it) }
     }
 
-    /** 偏好或课表刚被改过时清掉短时缓存，避免列表还拿着上一天的那一份。 */
+    /** Invalidate short-lived reads after preference or schedule changes. */
     fun invalidate() {
         dayCache.clear()
     }
@@ -104,7 +96,6 @@ internal object ScheduleWidgetDataSource {
 
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
-        // 没单独挑过小组件配色时跟着应用主题色走
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
         val zone = BeijingTime.zone
@@ -112,8 +103,7 @@ internal object ScheduleWidgetDataSource {
         val today = BeijingTime.todayIn(zone)
         val now = BeijingTime.nowTimeIn(zone)
         lastRenderedTodayIso = today.toString()
-        // 偏移锚在按下那天，跨过零点自动作废，不会机械地又往后顺延一天
-        // INVALID_APPWIDGET_ID 就是 0，正好对上仓储里共用那一份偏移的伪实例 id
+        // Day-anchored offsets expire at midnight; zero identifies shared instance state.
         val manualOffset = widgetPreferencesRepository.effectiveWidgetDayOffset(
             appWidgetId = appWidgetId,
             todayIso = today.toString(),
@@ -148,7 +138,6 @@ internal object ScheduleWidgetDataSource {
 
         val currentDay = dayAt(0)
         if (!shouldShowNextDayAtNight(now, currentDay.courses, timingProfile)) return currentDay.data
-        // 今天已经上完才往后翻，并且跳过放假与空课的日子，不是机械地加一天
         val nextDay = (1..AUTO_ADVANCE_MAX_DAYS)
             .firstNotNullOfOrNull { offset ->
                 dayAt(offset).takeIf { it.rows.isNotEmpty() && !it.onHoliday }
@@ -156,7 +145,6 @@ internal object ScheduleWidgetDataSource {
         return (nextDay ?: dayAt(1)).data
     }
 
-    /** 一次读出、多天共用的课表来源，免得往后找有课的一天时把仓储重读好几遍。 */
     private data class DaySources(
         val schedule: com.x500x.cursimple.core.kernel.model.TermSchedule?,
         val manualCourses: List<CourseItem>,
@@ -164,11 +152,9 @@ internal object ScheduleWidgetDataSource {
         val temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         val holidayCalendar: HolidayCalendarSettings,
     ) {
-        // 改过的插件课以同 id 手动课落库，删掉的留墓碑：合并后才不会显示两遍或复活
         val allCourses: List<CourseItem> = schedule.allCoursesWith(manualCourses)
     }
 
-    /** 往后找有课的一天最多看这么多天，都没有就按明天显示。 */
     private const val AUTO_ADVANCE_MAX_DAYS = 7
 
     private fun loadDate(
@@ -280,22 +266,14 @@ internal object ScheduleWidgetDataSource {
     }
 }
 
-/**
- * 小组件视角下的今天（ISO 文本）。
- * 调试用的强制时间也在这里生效，手动翻页的锚点与展示的日期才会是同一天。
- */
+/** Widget today honors the debug clock so offset anchors and displayed dates agree. */
 internal suspend fun widgetTodayIso(context: Context): String {
     val prefs = DataStoreUserPreferencesRepository(context.applicationContext).preferencesFlow.first()
     BeijingTime.setForcedNow(prefs.debugForcedDateTime)
     return BeijingTime.todayIn(BeijingTime.zone).toString()
 }
 
-/**
- * 行上要标的状态。
- *
- * 只有今天且不放假的课才有状态可言；放假当天课程照常列出但不判上课中，
- * 没有作息时间就算不出起止时刻，同样不标。
- */
+/** Class status requires today, a working date and known timing boundaries. */
 internal fun widgetRowStatus(
     course: CourseItem,
     today: LocalDate,
@@ -314,7 +292,7 @@ internal fun widgetRowStatus(
     )
 }
 
-/** 所有小组件共用的开学日期来源，保证不同小组件算出同一个教学周。 */
+/** Shared term-date resolution keeps widget teaching weeks consistent. */
 internal suspend fun resolveWidgetTermStartDate(
     termProfileRepository: DataStoreTermProfileRepository,
     timingProfile: TermTimingProfile?,
@@ -331,13 +309,11 @@ internal suspend fun resolveWidgetTermStartDate(
     )
 }
 
-/** 把计时档案的开学日期换成统一解析出的日期；日期为空或本就一致时返回原档案。 */
 internal fun TermTimingProfile.withTermStartDate(termStartDate: LocalDate?): TermTimingProfile {
     val iso = termStartDate?.toString() ?: return this
     return if (iso == this.termStartDate) this else copy(termStartDate = iso)
 }
 
-/** 当前学期档案 → 小组件计时档案 → 用户偏好，取第一个能解析出日期的来源。 */
 internal fun selectTermStartDate(
     activeTermStartIso: String?,
     timingProfileTermStartIso: String?,

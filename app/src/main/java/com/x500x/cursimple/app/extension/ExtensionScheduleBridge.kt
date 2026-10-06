@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.first
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** 按组件的分类与日期规则写入事务；固定 id 使同步、改设置都只更新同一条。 */
+/** Stable event IDs reconcile component category and date rules without duplicates. */
 object ExtensionScheduleBridge {
     suspend fun apply(
         events: ScheduleEventRepository,
@@ -32,7 +32,6 @@ object ExtensionScheduleBridge {
 
     fun eventPrefix(pluginId: String): String = "ext-${sanitize(pluginId)}-"
 
-    /** 新事务使用明确的来源信息；旧事务按完整生成 id 匹配，不把手动事务交给组件。 */
     fun findSource(event: ScheduleEvent, data: ExtensionData): ExtensionFeedItem? {
         val source = event.source
         if (source != null) {

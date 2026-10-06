@@ -1,9 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  选择器里的预览：按默认绿色主题画成小组件真实的样子，
-  文案与配色和 widget_schedule_today / widget_schedule_course_row 一致，
-  和 drawable-nodpi/widget_preview_today.png 是同一幅画的两种形式。
--->
+<!-- Layout and bitmap previews share the widget's default theme and text. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"

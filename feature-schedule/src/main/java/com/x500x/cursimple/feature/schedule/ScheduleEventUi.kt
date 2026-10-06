@@ -69,7 +69,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
 
-/** 事务块的配色：自选了就用自选的，否则按标题从课表配色里挑，和课程块同一套色板。 */
+/** Use an explicit event color, otherwise choose from the course palette by title. */
 @Composable
 internal fun eventColors(event: ScheduleEvent): CoursePaletteEntry {
     val argb = event.colorArgb
@@ -78,17 +78,14 @@ internal fun eventColors(event: ScheduleEvent): CoursePaletteEntry {
         val on = if (container.luminance() > 0.5f) Color(0xFF1F2A24) else Color.White
         return CoursePaletteEntry(container, on)
     }
-    // 加个前缀，同名的课和事务不至于撞成同一个颜色
     return courseColor("event:${event.title}", LocalScheduleAccents.current.coursePalette)
 }
 
 internal fun ScheduleEvent.timeRangeText(): String = "$startTime–$endTime"
 
 /**
- * 网格里的一件事务。
- *
- * 和课程块同样的圆角与字号，靠三处认出来是事务：左边一条粗色条、
- * 细描边、顶上一行钟点。块矮到放不下时依次丢掉地点、钟点，课名最后才截。
+ * Event blocks retain title priority and use a stripe, outline and clock label to distinguish
+ * them.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -111,7 +108,6 @@ internal fun EventBlock(
             .width(width)
             .height(height)
             .clip(shape)
-            // 课表配色带透明度：先垫一层不透明的底，背景图上也看得清
             .background(MaterialTheme.colorScheme.surface)
             .background(colors.container.copy(alpha = 0.94f))
             .border(BorderStroke(1.dp, colors.onContainer.copy(alpha = 0.28f)), shape)
@@ -134,11 +130,11 @@ internal fun EventBlock(
                 val roomy = maxHeight >= 56.dp
                 val narrow = maxWidth < 58.dp
                 val titleSize = (titleSizeSp - 1f).coerceAtLeast(9f)
-                // 行数按剩下的高度算；窄块宁可一个字一行地折下去，也不要只剩一个省略号
+                // Wrap narrow text within available height rather than replacing it entirely with ellipsis.
                 val timeLineDp = if (tight) 0f else 11f
                 val titleLines = (((maxHeight.value - timeLineDp) / ((titleSize + 1f) * 1.15f)).toInt())
                     .coerceIn(1, 4)
-                // 只放得下一行时按宽度把字缩一点，「交作业」这种短名字就能完整露出来
+                // Shrink short one-line titles when width is limited.
                 val fittedSize = if (titleLines == 1) {
                     fitSingleLineSp(event.title, maxWidth.value, titleSize)
                 } else {
@@ -146,7 +142,7 @@ internal fun EventBlock(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     if (!tight) {
-                        // 窄到放不下「07:00–07:40」时只写开始时间，免得被截成半截
+                        // Show only start time when a full time range cannot fit.
                         Text(
                             text = if (narrow) event.startTime else event.timeRangeText(),
                             fontSize = 9.sp,
@@ -181,7 +177,7 @@ internal fun EventBlock(
     }
 }
 
-/** 插出来那一段在节次栏里的样子：只标起止钟点，和节次格子区分开。 */
+/** Inserted time bands display clock boundaries instead of period numbers. */
 @Composable
 internal fun InsertedTimeCell(startMinute: Int, endMinute: Int, height: Dp, color: Color) {
     Box(
@@ -212,8 +208,8 @@ internal fun InsertedTimeCell(startMinute: Int, endMinute: Int, height: Dp, colo
 }
 
 /**
- * 一行放下 [text] 要多大的字：汉字按一个字宽、字母数字按 0.6 个字宽估，
- * 不超过原来的 [preferredSp]，也不小于 8sp（再小就认不出了，交给截断）。
+ * Estimate one-line size using CJK and Latin widths, bounded by [preferredSp] and an 8sp
+ * minimum.
  */
 internal fun fitSingleLineSp(text: String, widthDp: Float, preferredSp: Float): Float {
     val ems = text.sumOf { c -> if (c.code < 0x2E80) 0.6 else 1.0 }.toFloat().coerceAtLeast(1f)
@@ -222,7 +218,6 @@ internal fun fitSingleLineSp(text: String, widthDp: Float, preferredSp: Float): 
 
 internal fun minuteText(minute: Int): String = "%02d:%02d".format(minute / 60, minute % 60)
 
-/** 点开一件事务：看详情，从这里改或删。 */
 @Composable
 internal fun ScheduleEventDetailDialog(
     event: ScheduleEvent,
@@ -332,10 +327,8 @@ internal fun repeatText(event: ScheduleEvent): String {
 }
 
 /**
- * 新建或修改一件事务。
- *
- * 只要求标题和起止时间；日期默认今天或点进来的那天，
- * 开始默认下一个整点、时长一小时，大多数时候改个名字就能保存。
+ * Event editor requires title and valid times; defaults to the selected date and next whole
+ * hour.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -390,7 +383,6 @@ internal fun ScheduleEventEditorDialog(
             onDismiss = { picking = null },
             onPick = { minute ->
                 if (pick == EventPick.Start) {
-                    // 挪开始时间时保持原来的时长，不用再去改结束
                     val duration = if (startMinute != null && endMinute != null && endMinute > startMinute) {
                         endMinute - startMinute
                     } else {
@@ -571,7 +563,6 @@ internal fun EventTimePickerDialog(
     )
 }
 
-/** 「自动」加课表色板里的几种颜色，外加几种更跳的，事务想醒目一点时用。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EventColorRow(selected: Long?, previewTitle: String, onSelect: (Long?) -> Unit) {
@@ -623,7 +614,6 @@ private fun ColorDot(color: Color, selected: Boolean, label: String?, onClick: (
     }
 }
 
-/** 日视图里的一件事务：左边钟点，右边一张卡，和课程那一行同宽同圆角。 */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun DayEventRow(
@@ -636,7 +626,6 @@ internal fun DayEventRow(
     val colors = eventColors(event)
     val shape = RoundedCornerShape(cornerRadius)
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        // 和课程那一行的节次栏同宽，卡片左沿才对得齐
         Column(
             modifier = Modifier.widthIn(min = 38.dp, max = 52.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -693,10 +682,7 @@ internal fun DayEventRow(
     }
 }
 
-/**
- * 同一段时间里互相叠着的几件事务合成的一块：只画「⋯」和件数，
- * 下面排一排各自的颜色点，点开再看是哪几件。
- */
+/** Group overlapping events into one expandable count with color markers. */
 @Composable
 internal fun EventGroupBlock(
     events: List<ScheduleEvent>,
@@ -764,7 +750,6 @@ internal fun EventGroupBlock(
     }
 }
 
-/** 点开「⋯」：这段时间里的几件事务，按开始时间排好，点哪件看哪件。 */
 @Composable
 internal fun ScheduleEventGroupDialog(
     events: List<ScheduleEvent>,

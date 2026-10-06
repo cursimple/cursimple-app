@@ -2,7 +2,10 @@ package com.x500x.cursimple.app.notice
 
 import kotlin.math.abs
 
-/** 距离足够时拖走，距离较短时允许顺着手势的快速轻甩；反向甩动和触摸抖动不关闭。 */
+/**
+ * Dismiss for sufficient distance or a same-direction fling, excluding reverse motion and
+ * jitter.
+ */
 internal object NoticeSwipePolicy {
     enum class Axis { Horizontal, Vertical }
     enum class Direction { Left, Right, Up }

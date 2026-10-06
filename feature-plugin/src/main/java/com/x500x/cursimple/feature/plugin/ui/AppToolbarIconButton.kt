@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
-/** 沿用课表添加按钮：32dp 的带框图标，保留标准的点击范围。 */
 @Composable
 fun AppToolbarIconButton(
     icon: ImageVector,

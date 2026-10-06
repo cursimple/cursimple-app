@@ -57,7 +57,6 @@ class AppPreferencesViewModel(
     fun setAppLanguage(language: AppLanguage) {
         viewModelScope.launch {
             repository.setAppLanguage(language)
-            // 小组件与提醒的文字都是本进程按语言解析好再发出去的，重画一遍才会跟着改
             refreshScheduleOutputs()
         }
     }
@@ -311,12 +310,10 @@ class AppPreferencesViewModel(
         }
     }
 
-    /** 拖动调课的改动：删和写放在同一个协程里按顺序做，免得两次写入互相覆盖。 */
     fun applyCourseMove(plan: CourseMovePlan) {
         applyTemporaryOverrideChanges(plan.removeIds, listOfNotNull(plan.upsert))
     }
 
-    /** 逐门停课/恢复的改动，同样要先删后写、在一个协程里按顺序做。 */
     fun applyCancelCoursePlan(plan: CancelCoursePlan) {
         applyTemporaryOverrideChanges(plan.removeIds, plan.upserts)
     }
@@ -328,7 +325,6 @@ class AppPreferencesViewModel(
         viewModelScope.launch {
             removeIds.forEach { repository.removeTemporaryScheduleOverride(it) }
             upserts.forEach { repository.upsertTemporaryScheduleOverride(it) }
-            // 小组件、闹钟和上课提醒都按调课列表排，改完要跟着重排，和单条增删一样
             refreshScheduleOutputs()
         }
     }
@@ -409,7 +405,7 @@ class AppPreferencesViewModel(
     }
 
     fun setDebugForcedDateTime(dateTime: LocalDateTime?) {
-        // 先同步写入进程内的时间覆盖，应用其余部分能立刻读到新的当前时间，不必等 DataStore 提交和 flow 重新发射。
+        // Apply the process-local clock immediately, before DataStore emits the saved value.
         BeijingTime.setForcedNow(dateTime)
         viewModelScope.launch {
             repository.setDebugForcedDateTime(dateTime)

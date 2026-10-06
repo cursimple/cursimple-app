@@ -5,9 +5,7 @@ import java.io.InputStream
 
 internal const val BOUNDED_READ_BUFFER_BYTES = 8 * 1024
 
-/**
- * 最多读取 [limit] 字节。流中数据超过上限时立即停止并返回 null，不会把整段内容读进内存。
- */
+/** Read at most [limit] bytes; return null immediately when exceeded. */
 internal fun InputStream.readAtMostBytes(limit: Long): ByteArray? {
     if (limit < 0L) {
         return null

@@ -58,11 +58,7 @@ import java.time.LocalTime
 private enum class MemoDuePick { Date, Time }
 
 /**
- * 新建、修改一条备忘。整屏的对话框：正文长了也有地方写。
- *
- * 正文就是一个文本框，上面一排按钮帮忙加复选框、列表、标题、粗体；
- * 在复选框、列表那一行按回车会自动续上下一项。切到「预览」就是卡片上看到的样子，
- * 复选框在预览里也能直接点。
+ * Full-screen note editor and preview share Markdown-backed formatting and checkbox behavior.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -181,7 +177,6 @@ internal fun MemoEditorDialog(
                             shape = RoundedCornerShape(14.dp),
                         )
 
-                        // 写的时候就是卡片上的样子：复选框能直接勾，列表、标题都画出来，不用再切「预览」
                         MemoBlockEditor(
                             initialBody = initial.body,
                             onBodyChange = { body = it },
@@ -197,7 +192,6 @@ internal fun MemoEditorDialog(
                                         shape = SegmentedButtonDefaults.itemShape(index, MemoPriority.entries.size),
                                         icon = {
                                             if (entry != MemoPriority.None) {
-                                                // 图标位会把子项撑到它的高度，用 requiredSize 定死，才是个正圆点
                                                 Box(
                                                     modifier = Modifier
                                                         .requiredSize(10.dp)
@@ -215,7 +209,6 @@ internal fun MemoEditorDialog(
                             val current = due
                             if (current == null) {
                                 AppOutlinedButton(onClick = {
-                                    // 默认今天结束前；多数截止时间是「今晚」或者改个日期
                                     due = BeijingTime.nowDateTimeIn(zone).toLocalDate().atTime(23, 59)
                                     duePick = MemoDuePick.Date
                                 }) { Text(stringResource(R.string.memo_editor_due_add)) }

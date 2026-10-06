@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 节日、节气当天的问候。不写进更新公告，留点惊喜 -->
 <resources>
     <string name="greeting_title_festival_new_year">🎉 Happy New Year</string>
     <string-array name="greeting_lines_festival_new_year">

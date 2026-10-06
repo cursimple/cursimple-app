@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
@@ -23,8 +24,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,8 +52,9 @@ import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.manifest.PluginFeedTypeSpec
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
-/** 供宿主从课表事务打开同一份内容详情，不依赖组件日历是否被启用。 */
 @Composable
 fun ExtensionContentDetailSheet(
     record: InstalledPluginRecord,
@@ -64,10 +70,48 @@ fun ExtensionContentDetailSheet(
     val colors = MaterialTheme.colorScheme
     val palette = remember(types, colors) { FeedPalette(types, listOf(colors.primary, colors.secondary, colors.tertiary)) }
     val scheduleLabel = scheduleEvent?.let { stringResource(R.string.extension_content_schedule_slot, it.date, it.startTime, it.endTime) }
-    FeedItemDetailSheet(item, record.name, palette, BeijingTime.nowMillis(BeijingTime.zone), onDismiss, scheduleLabel)
+    ActionableFeedItemDetailSheet(record, item, actions, palette, BeijingTime.nowMillis(BeijingTime.zone), onDismiss, scheduleLabel)
 }
 
-/** 内容始终在宿主内阅读：正文、图片和附件都由组件带回后在这里展示。 */
+@Composable
+internal fun ActionableFeedItemDetailSheet(
+    record: InstalledPluginRecord, item: ExtensionFeedItem, actions: ExtensionHostActions,
+    palette: FeedPalette, now: Long, onDismiss: () -> Unit, scheduleLabel: String? = null,
+) {
+    val context = LocalContext.current
+    val store = remember { ExtensionStore.get(context) }
+    val data by store.flow(record.pluginId).collectAsState(initial = ExtensionData(record.pluginId))
+    val current = data.items.firstOrNull { it.id == item.id } ?: item
+    val scope = rememberCoroutineScope()
+    var busy by remember(item.id) { mutableStateOf(false) }
+    var result by remember(item.id) { mutableStateOf<String?>(null) }
+    var failed by remember(item.id) { mutableStateOf(false) }
+    val readSuccess = stringResource(R.string.extension_read_success)
+    val itemUpdated = stringResource(R.string.extension_item_updated)
+    fun run(markRead: Boolean) {
+        if (busy) return
+        busy = true
+        result = null
+        scope.launch {
+            try {
+                if (markRead) actions.markRead(record, item.id)
+                else actions.setItemIgnored(record, item.id, !data.isIgnored(current, now))
+                failed = false
+                result = if (markRead) readSuccess else itemUpdated
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                failed = true
+                result = error.message
+            } finally { busy = false }
+        }
+    }
+    FeedItemDetailSheet(current, record.name, palette, now, onDismiss, scheduleLabel,
+        ignored = data.isIgnored(current, now), busy = busy, result = result, failed = failed,
+        onMarkRead = if (current.isNotice() && !current.done) ({ run(true) }) else null,
+        onIgnore = { run(false) })
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun FeedItemDetailSheet(
@@ -77,8 +121,22 @@ internal fun FeedItemDetailSheet(
     now: Long,
     onDismiss: () -> Unit,
     scheduleLabel: String? = null,
+    ignored: Boolean = false,
+    busy: Boolean = false,
+    result: String? = null,
+    failed: Boolean = false,
+    onMarkRead: (() -> Unit)? = null,
+    onIgnore: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    var confirmRead by remember(item.id) { mutableStateOf(false) }
+    if (confirmRead) AlertDialog(
+        onDismissRequest = { confirmRead = false },
+        title = { Text(stringResource(R.string.extension_read_confirm_title)) },
+        text = { Text(stringResource(R.string.extension_read_confirm_body)) },
+        confirmButton = { TextButton(onClick = { confirmRead = false; onMarkRead?.invoke() }) { Text(stringResource(R.string.extension_mark_read)) } },
+        dismissButton = { TextButton(onClick = { confirmRead = false }) { Text(stringResource(android.R.string.cancel)) } },
+    )
     var media by remember(item.id) { mutableStateOf<LoadedFeedMedia?>(null) }
     LaunchedEffect(item.id, item.images, item.attachments) {
         val loader = ExtensionMediaLoader(context)
@@ -97,8 +155,7 @@ internal fun FeedItemDetailSheet(
         media = LoadedFeedMedia(loadedImages, loadedAttachments)
     }
     val contentScroll = rememberScrollState()
-    // 弹层和内部滚动条抢同一个向下拖动时，滚到底部后弹层会反复位移，看起来一直上下跳。
-    // 只在内容已经滚到顶时才允许把弹层关掉：内容没到顶时弹层不动，循环就断了。
+    // Allow sheet dismissal only after content reaches the top to prevent competing vertical scroll movement.
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
         confirmValueChange = { value -> value != SheetValue.Hidden || contentScroll.value <= 0 },
@@ -122,6 +179,15 @@ internal fun FeedItemDetailSheet(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                if (busy) CircularProgressIndicator(modifier = Modifier.padding(8.dp).size(20.dp), strokeWidth = 2.dp)
+                onMarkRead?.let {
+                    TextButton(onClick = { confirmRead = true }, enabled = !busy) { Text(stringResource(R.string.extension_mark_read)) }
+                }
+                onIgnore?.let {
+                    TextButton(onClick = it, enabled = !busy) {
+                        Text(stringResource(if (ignored) R.string.extension_restore_item else R.string.extension_ignore_item))
+                    }
+                }
                 IconButton(onClick = onDismiss) {
                     Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.extension_item_close))
                 }
@@ -135,6 +201,8 @@ internal fun FeedItemDetailSheet(
                         .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
+                    result?.let { Text(it, color = if (failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+                    if (ignored) Text(stringResource(R.string.extension_ignored_hint), style = MaterialTheme.typography.bodySmall)
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),

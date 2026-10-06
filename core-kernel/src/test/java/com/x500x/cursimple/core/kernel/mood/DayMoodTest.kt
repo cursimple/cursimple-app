@@ -10,7 +10,6 @@ import java.time.LocalDateTime
 
 class DayMoodTest {
 
-    // 2026-10-02 是周五，10-03 周六，10-04 周日
     private fun at(day: Int, hour: Int, minute: Int = 0) = LocalDateTime.of(2026, 10, day, hour, minute)
 
     private fun mood(
@@ -43,7 +42,6 @@ class DayMoodTest {
             DayMood.HolidayLastDay,
             mood(at(7, 10), isHoliday = true, holidayNameRes = R.string.kernel_holiday_national_day, tomorrowHoliday = false),
         )
-        // 不知道明天放不放假时不贸然说「假期最后一天」
         assertEquals(
             DayMood.HolidayNational,
             mood(at(7, 10), isHoliday = true, holidayNameRes = R.string.kernel_holiday_national_day, tomorrowHoliday = null),

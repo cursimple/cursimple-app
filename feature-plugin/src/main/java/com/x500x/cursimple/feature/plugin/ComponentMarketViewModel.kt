@@ -177,6 +177,9 @@ private fun ComponentMarketIndexEntry.toMarketEntry(): ComponentMarketEntry {
     )
 }
 
-/** 列表键取自 id/版本/ABI/下载地址，重复条目会导致 LazyColumn 抛重复键异常。 */
+/** Deduplicate ID/version/ABI/URL keys before LazyColumn rendering. */
 internal fun distinctMarketEntries(entries: List<ComponentMarketEntry>): List<ComponentMarketEntry> =
     entries.distinctBy(::componentMarketEntryKey)
+
+internal fun componentMarketEntryKey(entry: ComponentMarketEntry): String =
+    listOf(entry.id, entry.version, entry.abi ?: "any", entry.downloadUrl.orEmpty()).joinToString(":")

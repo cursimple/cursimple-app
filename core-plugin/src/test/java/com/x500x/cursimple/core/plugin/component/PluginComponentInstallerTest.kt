@@ -19,10 +19,30 @@ class PluginComponentInstallerTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
 
+    @Test fun `runtime asset packages requiring a newer APK cannot write files or records`() = runBlocking {
+        val repository = FakeComponentRepository()
+        val root = temporaryFolder.newFolder("blocked-assets")
+        val installer = PluginComponentInstaller(root, repository, hostVersion = "0.7.5", supportedAbis = emptyList())
+        val payload = "model".toByteArray()
+        val bytes = componentZip(
+            kotlinx.serialization.json.Json.encodeToString(PluginComponentPackageManifest.serializer(),
+                PluginComponentPackageManifest("blocked.model", PluginComponentType.OnnxModel, "1.0.0",
+                    sha256 = sha256(payload), files = listOf("model.bin"), minHostVersion = "0.8.0")),
+            mapOf("model.bin" to payload))
+        for (result in listOf(installer.installLocalPackage(bytes), installer.installRemotePackage(bytes))) {
+            assertTrue(result is PluginComponentInstallResult.Failure)
+            assertPluginError(R.string.plugin_error_compatibility_host_too_old,
+                (result as PluginComponentInstallResult.Failure).reason.error, "0.8.0", "0.7.5")
+        }
+        assertTrue(repository.getInstalledComponents().isEmpty())
+        assertTrue(root.listFiles().orEmpty().isEmpty())
+    }
+
     @Test
     fun `installer stores valid component package`() = runBlocking {
         val repository = FakeComponentRepository()
         val installer = PluginComponentInstaller(
+            hostVersion = "0.7.5",
             componentRoot = temporaryFolder.newFolder("components"),
             repository = repository,
             supportedAbis = listOf("arm64-v8a"),
@@ -48,6 +68,7 @@ class PluginComponentInstallerTest {
     fun `installer marks remote component source`() = runBlocking {
         val repository = FakeComponentRepository()
         val installer = PluginComponentInstaller(
+            hostVersion = "0.7.5",
             componentRoot = temporaryFolder.newFolder("remote-components"),
             repository = repository,
             supportedAbis = listOf("arm64-v8a"),
@@ -72,6 +93,7 @@ class PluginComponentInstallerTest {
     @Test
     fun `installer rejects incompatible abi`() = runBlocking {
         val installer = PluginComponentInstaller(
+            hostVersion = "0.7.5",
             componentRoot = temporaryFolder.newFolder("components"),
             repository = FakeComponentRepository(),
             supportedAbis = listOf("x86_64"),
@@ -99,6 +121,7 @@ class PluginComponentInstallerTest {
     @Test
     fun `installer rejects unlisted payload files when manifest files is explicit`() = runBlocking {
         val installer = PluginComponentInstaller(
+            hostVersion = "0.7.5",
             componentRoot = temporaryFolder.newFolder("extra-file-components"),
             repository = FakeComponentRepository(),
             supportedAbis = listOf("arm64-v8a"),
@@ -128,6 +151,7 @@ class PluginComponentInstallerTest {
     @Test
     fun `installer rejects oversized component entry while streaming`() = runBlocking {
         val installer = PluginComponentInstaller(
+            hostVersion = "0.7.5",
             componentRoot = temporaryFolder.newFolder("oversized-components"),
             repository = FakeComponentRepository(),
             supportedAbis = listOf("arm64-v8a"),

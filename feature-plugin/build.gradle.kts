@@ -18,7 +18,7 @@ android {
     }
 
     testOptions {
-        // 仅提高测试 APK 的 targetSdk，避免 API 36 的旧应用兼容弹窗遮挡 Compose。
+        // Raise test APK targetSdk only to avoid compatibility dialogs covering Compose.
         targetSdk = 36
     }
 
@@ -27,7 +27,6 @@ android {
     }
 
     compileOptions {
-        // java.time 在 minSdk 24 上需要脱糖后才可用
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

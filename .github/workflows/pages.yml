@@ -1,6 +1,5 @@
 name: Pages
 
-# 介绍页：site/ 目录原样发布到 GitHub Pages，不需要构建
 on:
   push:
     branches:
@@ -31,6 +30,7 @@ jobs:
 
       - name: Verify static site
         run: |
+          node --check site/i18n.js
           node --check site/releases.js
           node --check site/main.js
           node --test site/tests/*.test.cjs

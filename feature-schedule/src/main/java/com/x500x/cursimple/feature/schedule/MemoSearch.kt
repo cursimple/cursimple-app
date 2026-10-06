@@ -2,7 +2,6 @@ package com.x500x.cursimple.feature.schedule
 
 import com.x500x.cursimple.core.kernel.model.MemoNote
 
-/** 非空查询在全部笔记中按完整子串匹配；空查询恢复当前筛选，保留输入顺序和原笔记。 */
 internal fun searchMemoNotes(
     memos: List<MemoNote>,
     query: String,

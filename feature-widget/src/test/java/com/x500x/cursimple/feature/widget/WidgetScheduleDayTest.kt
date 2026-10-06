@@ -18,7 +18,6 @@ import java.time.LocalDate
 class WidgetScheduleDayTest {
     private val termStart = LocalDate.of(2026, 9, 7)
 
-    /** 2026-10-01 是内置法定假日，2026-09-28 是普通的星期一。 */
     private val nationalDay = LocalDate.of(2026, 10, 1)
     private val monday = LocalDate.of(2026, 9, 28)
 
@@ -50,7 +49,6 @@ class WidgetScheduleDayTest {
             ),
         )
 
-        // 临时调课明示当天要上课，因此推翻内置假日，不该按放假标记
         assertFalse(day.onHoliday)
         assertEquals(monday, day.sourceDate)
     }

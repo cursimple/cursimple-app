@@ -20,7 +20,6 @@ import java.util.UUID
 
 private val Context.termProfileStore: DataStore<Preferences> by preferencesDataStore(name = "term_profiles")
 
-/** 学期列表存在但无法解析。此时任何整体回写都会抹掉尚可修复的原始内容。 */
 class TermProfileDataCorruptedException : IllegalStateException("学期数据已损坏，无法读取")
 
 class DataStoreTermProfileRepository(
@@ -87,7 +86,6 @@ class DataStoreTermProfileRepository(
         store.edit { prefs ->
             val activeId = prefs[KEY_ACTIVE_TERM_ID].orEmpty()
             val list = readTerms(prefs)
-            // 活动学期还没建好时不写，免得把改动落到一个不存在的 id 上
             val target = list.firstOrNull { it.id == activeId } ?: return@edit
             val next = (target.extraWeekCount + delta).coerceAtLeast(0)
             result = next
@@ -138,7 +136,7 @@ class DataStoreTermProfileRepository(
 
     override suspend fun ensureBootstrapped(defaultName: String, legacyTermStartDateIso: String?): String {
         var resolved: String = ""
-        // 数据损坏时不建学期也不写盘：新建学期会换掉 id，让按学期存放的课表、手动课程和备注全部变成孤儿
+        // Corrupt term data must not create replacement IDs that orphan schedules and notes.
         try {
             store.edit { prefs ->
                 val list = readTerms(prefs).toMutableList()
@@ -179,8 +177,8 @@ class DataStoreTermProfileRepository(
     }
 
     /**
-     * 键不存在返回空列表；内容存在但解析不了时抛出 [TermProfileDataCorruptedException]。
-     * 两者必须区分：写入路径都是先读后整体回写，把损坏当成空列表会用一份空数据覆盖掉原始内容。
+     * Missing keys return empty; corrupt stored content throws
+     * [TermProfileDataCorruptedException] to prevent destructive read-modify-write.
      */
     private fun readTerms(prefs: Preferences): List<TermProfile> {
         val raw = prefs[KEY_TERMS_JSON] ?: return emptyList()

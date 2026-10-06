@@ -5,7 +5,6 @@ import com.x500x.cursimple.core.kernel.time.BeijingTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
-import java.time.ZoneId
 
 @Serializable
 data class ReminderRule(
@@ -55,18 +54,17 @@ enum class ReminderScopeType {
 }
 
 /**
- * 会被展开成提醒计划并下发闹钟的规则类型。
- * 其余取值只出现在旧版本写入的持久化数据里，读取时必须仍能反序列化。
+ * Active rule types produce plans; legacy enum values remain deserializable without triggering
+ * reminders.
  */
 val SYNCABLE_REMINDER_SCOPE_TYPES: Set<ReminderScopeType> = setOf(
     ReminderScopeType.LabelRule,
     ReminderScopeType.FirstCourseOfPeriod,
 )
 
-/** 该类型是否参与提醒展开与闹钟下发。 */
 fun ReminderScopeType.isSyncable(): Boolean = this in SYNCABLE_REMINDER_SCOPE_TYPES
 
-/** 该类型是否只来自旧版本数据，不会再触发提醒。 */
+/** Whether this is an inactive legacy rule type. */
 fun ReminderScopeType.isLegacy(): Boolean = !isSyncable()
 
 @Serializable
@@ -445,7 +443,10 @@ fun ReminderPlan.toAppAlarmRecord(
     )
 }
 
-/** 系统时钟按标签匹配删除闹钟，下发与登记必须给出同一份标签，因此这里不随界面语言变化。 */
+/**
+ * System-clock labels must remain identical between registration and deletion across locale
+ * changes.
+ */
 fun ReminderPlan.systemAlarmLabel(): String {
     val trigger = Instant.ofEpochMilli(triggerAtMillis).atZone(BeijingTime.zone)
     val time = "${trigger.hour.toString().padStart(2, '0')}:${trigger.minute.toString().padStart(2, '0')}"

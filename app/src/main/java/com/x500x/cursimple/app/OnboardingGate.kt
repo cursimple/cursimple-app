@@ -8,7 +8,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -33,10 +32,7 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 
-/**
- * 首次启动时展示阻断式的免责声明对话框；接受后申请应用唯一需要的运行时权限
- * （POST_NOTIFICATIONS，API 33+）。不申请可选权限。
- */
+/** Gate first launch on acceptance, then request POST_NOTIFICATIONS on API 33+. */
 @Composable
 fun OnboardingGate(
     disclaimerAccepted: Boolean,
@@ -76,7 +72,7 @@ fun OnboardingGate(
         }
     }
 
-    // 免责过了但权限这批没问过（老用户从没机会问过）：启动补问一次，拒绝过也绝不再问
+    // Request notification permission once; do not repeat a denied request.
     LaunchedEffect(disclaimerAccepted, notificationPermissionAskedBefore) {
         if (!disclaimerAccepted || notificationAsked) return@LaunchedEffect
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
@@ -100,13 +96,7 @@ fun OnboardingGate(
     }
 }
 
-/**
- * 启动时提一次「打开状态栏胶囊」。
- *
- * 胶囊默认就开着，但小米的焦点通知、部分系统的实时活动得用户到系统里放行，应用自己开不了。
- * 等通知权限那一步走完、通知确实能发了才提；系统已经放行、机型压根没有胶囊的都不提。
- * 只提这一次，之后交给设置页那行提示和通知引导。
- */
+/** Offer chip setup once after notifications become available, only on supported devices. */
 @Composable
 fun IslandStartupPrompt(
     classNotice: ClassNoticePreferences,
@@ -115,7 +105,6 @@ fun IslandStartupPrompt(
     onShown: () -> Unit,
 ) {
     val context = LocalContext.current
-    // 系统授权框、系统设置页回来都会 resume，这时重新查一遍
     var checks by remember { mutableStateOf(0) }
     LifecycleResumeEffect(Unit) {
         checks++

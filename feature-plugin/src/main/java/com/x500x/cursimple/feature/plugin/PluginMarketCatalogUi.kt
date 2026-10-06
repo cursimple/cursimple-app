@@ -24,12 +24,16 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +51,6 @@ import androidx.compose.ui.window.DialogProperties
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.core.plugin.market.github.MarketSourceCheck
 
-/** 插件和组件共用的操作区；切换目录时保留搜索词。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun MarketCatalogControls(
@@ -63,19 +66,31 @@ internal fun MarketCatalogControls(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MarketCatalogTab.entries.forEach { item ->
-                val label = stringResource(
-                    if (item == MarketCatalogTab.Installed) R.string.plugin_catalog_installed
-                    else R.string.plugin_catalog_market,
-                )
-                val buttonModifier = Modifier.weight(1f)
-                    .testTag("catalog-${item.name.lowercase()}")
-                    .semantics { selected = item == tab }
-                if (item == tab) {
-                    Button(onClick = { onSelectTab(item) }, modifier = buttonModifier) { Text(label) }
-                } else {
-                    AppOutlinedButton(onClick = { onSelectTab(item) }, modifier = buttonModifier) { Text(label) }
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                MarketCatalogTab.entries.forEach { item ->
+                    val label = stringResource(
+                        if (item == MarketCatalogTab.Installed) R.string.plugin_catalog_installed
+                        else R.string.plugin_catalog_market,
+                    )
+                    val picked = item == tab
+                    Surface(
+                        onClick = { onSelectTab(item) },
+                        modifier = Modifier.weight(1f).heightIn(min = 40.dp)
+                            .testTag("catalog-${item.name.lowercase()}")
+                            .semantics { selected = picked; role = Role.Tab },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (picked) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        contentColor = if (picked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = if (picked) FontWeight.SemiBold else FontWeight.Medium)
+                        }
+                    }
                 }
             }
         }
@@ -200,7 +215,6 @@ internal fun MarketDetailHeading(title: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** 名称与值纵向排列，长仓库名不再被固定宽度标签挤到最后一字换行。 */
 @Composable
 internal fun MarketInfoBlock(
     label: String,
@@ -229,7 +243,7 @@ internal fun MarketDetailsToggle(expanded: Boolean, onClick: () -> Unit, modifie
     }
 }
 
-/** 只在真实下载数据达到大包阈值时显示，列表和详情使用同一个覆盖层。 */
+/** Show the shared progress overlay only after measured download size reaches the threshold. */
 @Composable
 internal fun MarketDownloadOverlay(
     downloading: Boolean,

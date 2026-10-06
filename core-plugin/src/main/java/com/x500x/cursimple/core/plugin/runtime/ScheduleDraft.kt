@@ -93,7 +93,6 @@ data class ScheduleDraftCourse(
     @SerialName("endNode") val endNode: Int,
     @SerialName("weeks") val weeks: List<Int> = emptyList(),
     @SerialName("category") val category: CourseCategory = CourseCategory.Course,
-    /** 附加信息（课程序号、学分……），见 [CourseItem.details]。 */
     @SerialName("details") val details: List<CourseDetailField> = emptyList(),
 )
 
@@ -101,10 +100,7 @@ private const val MAX_DETAIL_FIELDS = 12
 private const val MAX_DETAIL_LABEL_LENGTH = 24
 private const val MAX_DETAIL_VALUE_LENGTH = 200
 
-/**
- * 插件给的附加信息原样显示在详情里，这里只兜住会把界面撑坏的情况：
- * 空的丢掉、同名只留第一条、条数和长度都截一刀。
- */
+/** Bound extra fields, discard empty values and keep the first duplicate label. */
 internal fun normalizeDetails(details: List<CourseDetailField>): List<CourseDetailField> =
     details
         .map { CourseDetailField(it.label.trim().take(MAX_DETAIL_LABEL_LENGTH), it.value.trim().take(MAX_DETAIL_VALUE_LENGTH)) }

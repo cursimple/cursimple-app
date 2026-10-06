@@ -48,12 +48,7 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 
-/**
- * 长按课程弹出的操作面板。
- *
- * 长按以前只能进多选设提醒，改课得先点开详情再找编辑；这里把编辑、移动、删除
- * 直接摆出来，多选仍留一个入口，批量设提醒的老路子不丢。
- */
+/** Long-press actions expose editing, moving and removal alongside batch reminder selection. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CourseActionSheet(
@@ -147,7 +142,6 @@ internal fun CourseActionSheet(
         }
     }
 
-    // 删除与还原都不可撤销，落库前再问一次，防手误
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -245,11 +239,8 @@ private fun courseActionSubtitle(course: CourseItem): String {
 }
 
 /**
- * 「移动到哪」的选择器。
- *
- * 星期与起始节次分开挑，课程本身的节数保持不变，所以只需要定起点。
- * 落点被别的课占了也照样允许——课表里本来就有同一格多门课的情况，
- * 这里只把重叠的课名提示出来，由用户自己判断。
+ * Moving preserves duration; overlapping destinations remain selectable with an advisory
+ * conflict list.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -261,7 +252,7 @@ internal fun MoveCourseDialog(
     onConfirm: (CourseTimeSlot) -> Unit,
 ) {
     val span = (course.time.endNode - course.time.startNode + 1).coerceAtLeast(1)
-    // 课程本来就排在作息表之外时不能把它夹回来，否则一打开选择器就等于改了位置
+    // Preserve out-of-profile positions when opening the picker rather than silently clamping.
     val nodeCeiling = maxOf(maxNodeCount, course.time.endNode)
     val maxStartNode = (nodeCeiling - span + 1).coerceAtLeast(1)
     var dayOfWeek by remember(course.id) { mutableIntStateOf(course.time.dayOfWeek.coerceIn(1, 7)) }
@@ -272,7 +263,7 @@ internal fun MoveCourseDialog(
     val target = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode)
     val unchanged = target == course.time
 
-    // 同一格上已有的课：只提示，不拦截
+    // Report overlaps without blocking the move.
     val overlapping = remember(existingCourses, course.id, dayOfWeek, startNode, endNode) {
         existingCourses.filter {
             it.id != course.id &&

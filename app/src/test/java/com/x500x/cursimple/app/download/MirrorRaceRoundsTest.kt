@@ -23,7 +23,6 @@ class MirrorRaceRoundsTest {
     fun `the preferred mirror leads the first round`() {
         val rounds = raceRounds(candidates("a", "b", "c"), preferredUrl = "c", roundSize = 2)
 
-        // 上次成功的排第一轮最前，和别的一起竞速：它卡住时不用等满超时才换人
         assertEquals(listOf(listOf("c", "a"), listOf("b")), rounds.map { r -> r.map { it.url } })
     }
 
