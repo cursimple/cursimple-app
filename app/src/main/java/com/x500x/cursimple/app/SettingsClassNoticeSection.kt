@@ -75,6 +75,7 @@ internal fun ClassNoticeSettingsSection(
     onEnabledChange: (Boolean) -> Unit,
     onAdvanceMinutesChange: (Int) -> Unit,
     onHeadsUpChange: (Boolean) -> Unit,
+    onVibrationChange: (Boolean) -> Unit = {},
     onLockScreenChange: (Boolean) -> Unit,
     onFocusChange: (Boolean) -> Unit,
     onSkinChange: (ClassNoticeSkin) -> Unit,
@@ -276,6 +277,13 @@ internal fun ClassNoticeSettingsSection(
             subtitle = stringResource(R.string.settings_class_notice_heads_up_subtitle),
             checked = preferences.headsUpEnabled,
             onCheckedChange = onHeadsUpChange,
+        )
+        SettingsSwitchRow(
+            icon = Icons.Rounded.NotificationsActive,
+            title = stringResource(R.string.settings_class_notice_vibration_title),
+            subtitle = stringResource(R.string.settings_class_notice_vibration_subtitle),
+            checked = preferences.vibrationEnabled,
+            onCheckedChange = onVibrationChange,
         )
         SettingsSwitchRow(
             icon = Icons.Rounded.Lock,

@@ -22,6 +22,13 @@ class CalendarWidgetModelTest {
     private val monday = LocalDate.of(2026, 10, 5)
     private fun week(vararg perDay: List<CourseItem>) = (0 until 7).map { i -> day(monday.plusDays(i.toLong()), *perDay.getOrElse(i) { emptyList() }.toTypedArray()) }
 
+    @Test fun `month cell anchors stack tag above date above dots and stay inside the cell`() {
+        assertTrue(CalendarWidgetRenderer.MONTH_TAG_CENTER in 0f..1f)
+        assertTrue(CalendarWidgetRenderer.MONTH_TAG_CENTER < CalendarWidgetRenderer.MONTH_DATE_CENTER)
+        assertTrue(CalendarWidgetRenderer.MONTH_DATE_CENTER < CalendarWidgetRenderer.MONTH_DOT_CENTER)
+        assertTrue(CalendarWidgetRenderer.MONTH_DOT_CENTER < 1f)
+    }
+
     @Test fun `month grid starts on monday and covers whole weeks`() {
         val october = monthGridDates(YearMonth.of(2026, 10))
         assertEquals(DayOfWeek.MONDAY, october.first().dayOfWeek)

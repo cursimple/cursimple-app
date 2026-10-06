@@ -2,6 +2,11 @@ package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppToolbarIconButton
 import com.x500x.cursimple.feature.widget.WidgetDeepLinks
+import com.x500x.cursimple.core.plugin.logging.PluginLogBuffer
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.app.Activity
 import android.content.Intent
@@ -179,6 +184,8 @@ class MainActivity : ComponentActivity() {
 
     private val extensionFeedRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
 
+    private val componentAboutRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
+
     private val scheduleDateRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
 
     private val memoRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
@@ -191,6 +198,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO)?.let { memoRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
+        intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_ABOUT)?.let { componentAboutRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
     }
@@ -203,6 +211,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             intent?.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO)?.let { memoRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
+            intent?.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_ABOUT)?.let { componentAboutRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
         }
@@ -315,6 +324,13 @@ class MainActivity : ComponentActivity() {
                             extensionFeedRequest.value = null
                         }
                     }
+                    val pendingComponentAbout by componentAboutRequest
+                    LaunchedEffect(pendingComponentAbout) {
+                        pendingComponentAbout?.let {
+                            currentScreen = AppScreen.Plugins
+                            currentExtension = it
+                        }
+                    }
                     val extensionActions = remember {
                         object : com.x500x.cursimple.feature.plugin.extension.ExtensionHostActions {
                             override suspend fun loadPackage(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) =
@@ -343,6 +359,30 @@ class MainActivity : ComponentActivity() {
 
                             override suspend fun notificationCommand(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, command: String, payload: kotlinx.serialization.json.JsonObject) =
                                 container.notificationDeliveryCoordinator.command(record, command, payload)
+
+                            override suspend fun debugLogs(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord): kotlinx.serialization.json.JsonElement =
+                                buildJsonArray {
+                                    PluginLogBuffer.instance.snapshot()
+                                        .filter { it.pluginId == record.pluginId }
+                                        .takeLast(80)
+                                        .forEach { entry ->
+                                            add(buildJsonObject {
+                                                put("time", entry.timestampMs)
+                                                put("level", entry.level.short)
+                                                put("event", entry.event)
+                                                put("source", entry.source.token)
+                                                put("message", entry.fields.entries.joinToString(" · ") { (key, value) -> "$key=$value" })
+                                            })
+                                        }
+                                }
+
+                            override fun refreshWidget(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) {
+                                container.extensionCoordinator.onDataChanged(record.pluginId)
+                            }
+
+                            override fun setAdvancedToolsEnabled(enabled: Boolean) {
+                                prefsViewModel.setAdvancedToolsEnabled(enabled)
+                            }
 
                             override fun openFeed(pluginId: String) {
                                 currentExtension = pluginId
@@ -1069,6 +1109,8 @@ class MainActivity : ComponentActivity() {
                                     com.x500x.cursimple.feature.plugin.extension.ExtensionFeedScreen(
                                         record = extensionRecord,
                                         actions = extensionActions,
+                                        openWidgetAbout = componentAboutRequest.value == extensionRecord.installKey ||
+                                            componentAboutRequest.value == extensionRecord.pluginId,
                                         onOpenSettings = {
                                             openExtensionSettings = extensionRecord.installKey
                                             currentScreen = AppScreen.Plugins
@@ -1168,6 +1210,8 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setClassNoticeAdvanceMinutes,
                                         onClassNoticeHeadsUpChange =
                                             prefsViewModel::setClassNoticeHeadsUpEnabled,
+                                        onClassNoticeVibrationChange =
+                                            prefsViewModel::setClassNoticeVibrationEnabled,
                                         onClassNoticeLockScreenChange =
                                             prefsViewModel::setClassNoticeLockScreenEnabled,
                                         onClassNoticeFocusChange =
@@ -1256,6 +1300,8 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setClassNoticeAdvanceMinutes,
                                         onClassNoticeHeadsUpChange =
                                             prefsViewModel::setClassNoticeHeadsUpEnabled,
+                                        onClassNoticeVibrationChange =
+                                            prefsViewModel::setClassNoticeVibrationEnabled,
                                         onClassNoticeLockScreenChange =
                                             prefsViewModel::setClassNoticeLockScreenEnabled,
                                         onClassNoticeFocusChange =
@@ -1615,7 +1661,10 @@ class MainActivity : ComponentActivity() {
                             (currentScreen != AppScreen.Schedule || currentExtension != null) &&
                             !drawerState.isOpen,
                     ) {
-                        if (currentExtension != null) currentExtension = null else currentScreen = AppScreen.Schedule
+                        if (currentExtension != null) {
+                            currentExtension = null
+                            componentAboutRequest.value = null
+                        } else currentScreen = AppScreen.Schedule
                     }
 
                     if (showDatePicker) {

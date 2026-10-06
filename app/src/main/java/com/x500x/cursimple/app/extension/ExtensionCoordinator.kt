@@ -207,7 +207,9 @@ class ExtensionCoordinator(
         )
         if (data == null || record == null || data.loginState == ExtensionLoginState.LoggedOut || data.loginState == ExtensionLoginState.Never) ExtensionNotifier.cancelAll(context, pluginId)
         ExtensionDueScheduler.reschedule(context, activeData().values, System.currentTimeMillis())
-        refreshOwnedWidgets(pluginId)
+        // Data arriving after install must paint every component-backed surface, including ones
+        // not yet bound so an auto-bind can succeed on the first paint.
+        refreshOwnedWidgets(pluginId, allInstances = true)
     }
 
     private suspend fun publishWidgetDefinitions() {
@@ -222,6 +224,19 @@ class ExtensionCoordinator(
         if (changed) {
             com.x500x.cursimple.feature.widget.WidgetCatalog.notifyInstalledChanged(context)
             com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context)
+            // Render again after data settles so a newly installed component paints its desktop
+            // surface without requiring the user to re-add the widget.
+            launchUpdateWidgetsLater()
+        }
+    }
+
+    private var pendingWidgetRefresh: kotlinx.coroutines.Job? = null
+
+    private fun launchUpdateWidgetsLater() {
+        pendingWidgetRefresh?.cancel()
+        pendingWidgetRefresh = scope.launch {
+            kotlinx.coroutines.delay(1200L)
+            runCatching { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context) }
         }
     }
 
@@ -236,11 +251,11 @@ class ExtensionCoordinator(
         return rendered
     }
 
-    private suspend fun refreshOwnedWidgets(pluginId: String) {
+    private suspend fun refreshOwnedWidgets(pluginId: String, allInstances: Boolean = false) {
         val manager = android.appwidget.AppWidgetManager.getInstance(context)
         val entry = com.x500x.cursimple.feature.widget.WidgetCatalog.entries(context).first { it.fromComponents }
         val ids = (listOf(entry.provider) + entry.vendorProviders).flatMap { manager.getAppWidgetIds(it).toList() }
-            .filter { com.x500x.cursimple.core.data.widget.ComponentWidgetBindings.get(context, it)?.startsWith("$pluginId/") == true }
+            .filter { allInstances || com.x500x.cursimple.core.data.widget.ComponentWidgetBindings.get(context, it)?.startsWith("$pluginId/") == true }
         if (ids.isNotEmpty()) com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, ids.toIntArray())
     }
 
