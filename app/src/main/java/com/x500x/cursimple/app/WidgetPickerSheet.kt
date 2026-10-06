@@ -47,10 +47,12 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -567,6 +569,8 @@ private fun WidgetPickerRow(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val icon: ImageVector = when (entry.id) {
         "next" -> Icons.Rounded.AccessTime
         "today" -> Icons.Rounded.Today
@@ -574,6 +578,17 @@ private fun WidgetPickerRow(
         "calendar" -> Icons.Rounded.CalendarMonth
         "tasks" -> Icons.Rounded.TaskAlt
         else -> Icons.Rounded.Widgets
+    }
+    var preview by remember(entry.componentWidgetKey) { mutableStateOf<android.graphics.Bitmap?>(null) }
+    // Render component previews from the owner's HTML so the picker shows real content.
+    LaunchedEffect(entry.componentWidgetKey) {
+        val key = entry.componentWidgetKey ?: return@LaunchedEffect
+        preview = runCatching {
+            val definition = com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.read(context)
+                .firstOrNull { it.key == key } ?: return@runCatching null
+            val render = com.x500x.cursimple.feature.widget.ComponentWidgetHooks.render ?: return@runCatching null
+            render(definition, 180f, 96f).bitmap
+        }.getOrNull()
     }
     Surface(
         modifier = Modifier
@@ -587,19 +602,30 @@ private fun WidgetPickerRow(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
+            if (preview != null) {
+                androidx.compose.foundation.Image(
+                    bitmap = preview!!.asImageBitmap(),
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier
+                        .size(width = 60.dp, height = 40.dp)
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
             Spacer(Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {

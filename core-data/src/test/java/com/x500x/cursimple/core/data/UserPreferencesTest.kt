@@ -28,6 +28,7 @@ class UserPreferencesTest {
         assertEquals(ClassNoticeSkin.Overlay, preferences.skin)
         assertEquals(15_000L, preferences.bannerDurationMillis)
         assertTrue(preferences.headsUpEnabled)
+        assertEquals(false, preferences.vibrationEnabled)
     }
 
     @Test

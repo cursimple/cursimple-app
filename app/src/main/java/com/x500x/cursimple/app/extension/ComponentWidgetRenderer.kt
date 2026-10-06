@@ -113,7 +113,7 @@ internal object ComponentWidgetRenderer {
                     val aw = area.getDouble("width").toFloat(); val ah = area.getDouble("height").toFloat()
                     val action = area.optString("action", "feed")
                     require(listOf(x, y, aw, ah).all { it.isFinite() } && x >= 0 && y >= 0 && aw > 0 && ah > 0)
-                    require(x + aw <= width + 1 && y + ah <= height + 1 && action in setOf("feed", "settings"))
+                    require(x + aw <= width + 1 && y + ah <= height + 1 && action in setOf("feed", "settings", "about"))
                     ComponentWidgetHit(x, y, aw, ah, action)
                 }
                 // Let the renderer commit the frame after the component's ready callback.

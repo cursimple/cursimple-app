@@ -90,6 +90,7 @@ data class ClassNoticePreferences(
     val enabled: Boolean = true,
     val advanceMinutes: Int = DEFAULT_ADVANCE_MINUTES,
     val headsUpEnabled: Boolean = true,
+    val vibrationEnabled: Boolean = false,
     val lockScreenEnabled: Boolean = true,
     val focusNotificationEnabled: Boolean = true,
     val skin: ClassNoticeSkin = ClassNoticeSkin.Overlay,
@@ -475,6 +476,7 @@ interface UserPreferencesRepository {
     suspend fun setClassNoticeAdvanceMinutes(minutes: Int)
 
     suspend fun setClassNoticeHeadsUpEnabled(enabled: Boolean)
+    suspend fun setClassNoticeVibrationEnabled(enabled: Boolean)
 
     suspend fun setClassNoticeLockScreenEnabled(enabled: Boolean)
 

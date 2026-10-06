@@ -135,6 +135,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setClassNoticeHeadsUpEnabled(enabled) }
     }
 
+    fun setClassNoticeVibrationEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setClassNoticeVibrationEnabled(enabled) }
+    }
+
     fun setClassNoticeLockScreenEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setClassNoticeLockScreenEnabled(enabled) }
     }

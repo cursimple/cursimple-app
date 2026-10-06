@@ -1329,6 +1329,8 @@
     <string name="settings_class_notice_minute_unit">min</string>
     <string name="settings_class_notice_heads_up_title">Banner</string>
     <string name="settings_class_notice_heads_up_subtitle">Slides down from the top. Off still delivers the notice, just without popping up.</string>
+    <string name="settings_class_notice_vibration_title">Vibration</string>
+    <string name="settings_class_notice_vibration_subtitle">Use vibration for both system and enhanced reminders; off keeps visual reminders only</string>
     <string name="settings_class_notice_lock_title">Show details on lock screen</string>
     <string name="settings_class_notice_lock_subtitle">Shows the course and room on the lock screen; off shows only that a notice arrived</string>
     <string name="settings_class_notice_focus_title">Island / Live Updates</string>

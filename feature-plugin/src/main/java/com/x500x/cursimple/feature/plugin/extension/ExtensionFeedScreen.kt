@@ -75,6 +75,7 @@ fun ExtensionFeedScreen(
     actions: ExtensionHostActions,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    openWidgetAbout: Boolean = false,
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -125,6 +126,7 @@ fun ExtensionFeedScreen(
             actions = actions,
             onBack = {},
             onOpenSettings = onOpenSettings,
+            openWidgetAbout = openWidgetAbout,
             modifier = modifier,
         )
         return

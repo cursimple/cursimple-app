@@ -252,12 +252,7 @@ object ExtensionNotifier {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .addExtras(android.os.Bundle().apply { putString(EXTRA_PLUGIN, pluginId) })
 
-    private fun notificationChannel(context: Context, channel: String, bannerShown: Boolean): String {
-        if (!bannerShown || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return channel
-        val manager = context.getSystemService(NotificationManager::class.java) ?: return channel
-        if (manager.getNotificationChannel(channel)?.importance == NotificationManager.IMPORTANCE_NONE) return channel
-        return "$channel.enhanced"
-    }
+    private fun notificationChannel(context: Context, channel: String, bannerShown: Boolean): String = channel
 
     private fun openFeedIntent(context: Context, pluginId: String): PendingIntent = PendingIntent.getActivity(
         context,
@@ -319,7 +314,7 @@ object ExtensionNotifier {
                     NotificationChannel(
                         quietId,
                         context.getString(R.string.extension_channel_enhanced, context.getString(name)),
-                        NotificationManager.IMPORTANCE_DEFAULT,
+                        NotificationManager.IMPORTANCE_HIGH,
                     ).apply {
                         description = context.getString(R.string.extension_channel_desc)
                     },

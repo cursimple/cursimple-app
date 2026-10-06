@@ -74,6 +74,7 @@ internal fun ExtensionOwnedPage(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     onRemove: () -> Unit = {},
+    openWidgetAbout: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     com.x500x.cursimple.feature.plugin.ui.OwnEmbeddedPageGestures()
@@ -123,6 +124,14 @@ internal fun ExtensionOwnedPage(
                         "notification.test", "notification.retry", "notification.fetch" -> {
                             require(spec.notificationReceiver && PluginPermission.NotificationReceive in manifest.permissions) { "组件未声明通知出口能力" }
                             currentActions.notificationCommand(record, command, payload)
+                        }
+                        "debug.logs" -> currentActions.debugLogs(record)
+                        "debug.refreshWidget" -> { currentActions.refreshWidget(record); JsonPrimitive(true) }
+                        "debug.advancedTools" -> {
+                            val enabled = (payload["enabled"] as? JsonPrimitive)?.booleanOrNull
+                                ?: error("高级工具参数无效")
+                            currentActions.setAdvancedToolsEnabled(enabled)
+                            JsonPrimitive(enabled)
                         }
                         "settings.update" -> {
                             val next = store.update(record.pluginId) { updateComponentSettings(it, manifest, payload) }
@@ -256,7 +265,7 @@ internal fun ExtensionOwnedPage(
         }
     }
     // Sample time belongs to the snapshot; unrelated recompositions must not rebuild component DOM or interrupt scrolling.
-    val snapshot = remember(activePage, data, manifest, colors, fontScale) { buildJsonObject {
+    val snapshot = remember(activePage, data, manifest, colors, fontScale, openWidgetAbout) { buildJsonObject {
         put("version", com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT)
         put("page", activePage.name.lowercase())
         put("context", buildJsonObject {
@@ -274,6 +283,7 @@ internal fun ExtensionOwnedPage(
             })
             put("timeZone", com.x500x.cursimple.core.kernel.time.BeijingTime.zone.id)
             put("nowMillis", com.x500x.cursimple.core.kernel.time.BeijingTime.nowMillis(com.x500x.cursimple.core.kernel.time.BeijingTime.zone))
+            put("widgetAbout", openWidgetAbout)
         })
         put("data", extensionJson.encodeToJsonElement(ExtensionData.serializer(), currentData))
         put("manifest", extensionJson.encodeToJsonElement(PluginManifest.serializer(), manifest))
