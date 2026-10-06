@@ -18,10 +18,11 @@ data class WidgetCatalogEntry(
     /** Vendor-aware twin receivers (MIUI/vivo/HONOR). Empty when not applicable. */
     val vendorProviders: List<ComponentName> = emptyList(),
     /**
-     * 内容来自扩展组件的「组件小组件」：没装组件时不出现在任何选择器里，
-     * 组件全部移除后随之下架。课表、事务这类课简自己的数据是系统小组件，一直可用。
+     * Component-backed widgets require enabled extensions; timetable and note widgets remain
+     * available independently.
      */
     val fromComponents: Boolean = false,
+    val componentWidgetKey: String? = null,
 )
 
 object WidgetCatalog {
@@ -74,20 +75,31 @@ object WidgetCatalog {
                 ),
                 fromComponents = true,
             ),
+            WidgetCatalogEntry(
+                id = MemoTodoWidgetReceiver.CATALOG_ID,
+                title = context.getString(R.string.widget_label_memo),
+                description = context.getString(R.string.widget_catalog_memo_description),
+                provider = ComponentName(pkg, MemoTodoWidgetReceiver::class.java.name),
+                vendorProviders = listOf(ComponentName(pkg, MemoTodoWidgetReceiverMIUI::class.java.name)),
+            ),
         )
     }
 
-    /** 应用内选择器里列出的：系统小组件全部，组件小组件只在装了组件时 */
+    /** List all app-owned widgets plus available component-backed providers. */
     fun pickerEntries(context: Context): List<WidgetCatalogEntry> {
-        val componentsReady = ComponentWidgetAvailability.isAvailable(context)
-        return entries(context).filter { !it.fromComponents || componentsReady }
+        val base = entries(context)
+        val container = base.first { it.fromComponents }
+        return base.filterNot { it.fromComponents } + com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.read(context).map { definition ->
+            container.copy(id = "owned:${definition.key}", title = definition.spec.title, description = definition.spec.description,
+                componentWidgetKey = definition.key)
+        }
     }
 
     fun installedCount(context: Context, entry: WidgetCatalogEntry): Int {
         val manager = AppWidgetManager.getInstance(context)
         val all = listOf(entry.provider) + entry.vendorProviders
         return all.sumOf { component ->
-            runCatching { manager.getAppWidgetIds(component).size }.getOrDefault(0)
+            runCatching { manager.getAppWidgetIds(component).count { id -> entry.componentWidgetKey == null || com.x500x.cursimple.core.data.widget.ComponentWidgetBindings.get(context, id) == entry.componentWidgetKey } }.getOrDefault(0)
         }
     }
 
@@ -97,23 +109,17 @@ object WidgetCatalog {
     }
 
     sealed interface PinRequestResult {
-        /** 请求已被受理。[hasMore] 表示这条落空时还有别的 provider 可以再试。 */
         data class Started(val provider: ComponentName, val hasMore: Boolean) : PinRequestResult
         data object Unsupported : PinRequestResult
         data class Failed(val message: String?) : PinRequestResult
     }
 
     /**
-     * 一键添加要依次尝试的 provider。
-     *
-     * 厂商启动器（vivo 尤其明显）认的是带自家元数据的那一份副本：拿通用的那份去请求，
-     * `requestPinAppWidget` 照样返回 true——它只表示「请求被受理」，不表示弹窗会出现——
-     * 然后桌面就把它悄悄丢了，用户既没看到系统弹窗，桌面上也什么都没多。
-     * 所以在厂商机型上先请求副本；被禁用的组件直接跳过，请求它必定落空。
+     * Try enabled vendor-compatible providers in order; request acceptance does not confirm
+     * launcher placement.
      */
     fun pinCandidates(context: Context, entry: WidgetCatalogEntry): List<ComponentName> {
-        // 只有 vivo 要先请求副本。小米上带 miuiWidget 的副本没过小米审核时根本不显示，
-        // 先请求它等于白请求，通用那份才是看得见的
+        // Prefer the vendor copy only on supported launchers; unregistered vendor metadata can hide otherwise valid providers.
         val vendorFirst = detectLauncherVendor(context) == LauncherVendor.Vivo
         val ordered = if (vendorFirst) {
             entry.vendorProviders + entry.provider
@@ -129,19 +135,15 @@ object WidgetCatalog {
     }
 
     /**
-     * 这家桌面基本不会响应一键添加。
-     *
-     * `isRequestPinAppWidgetSupported` 在 vivo / OPPO 上照样返回 true，请求也会被受理，
-     * 然后桌面转头丢掉——实测如此，把「桌面快捷方式」权限开着也一样。系统没有接口能问出来，
-     * 只能按已知的桌面直接给手动步骤，省掉那一次点了没反应再等十几秒的过程。
-     * 判错时用户可以在手动步骤里点「再试一次一键添加」。
+     * Known unresponsive launchers receive manual instructions despite reported pinning
+     * support; users can explicitly retry.
      */
     fun pinLikelyIgnored(context: Context): Boolean = when (detectLauncherVendor(context)) {
         LauncherVendor.Vivo, LauncherVendor.Oppo -> true
         else -> false
     }
 
-    /** [attempt] 是 [pinCandidates] 里的下标；上一条落空后带下一个下标再调一次。 */
+    /** [attempt] selects the next [pinCandidates] index after failure. */
     fun requestPin(context: Context, entry: WidgetCatalogEntry, attempt: Int = 0): PinRequestResult {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return PinRequestResult.Unsupported
         val manager = AppWidgetManager.getInstance(context)
@@ -153,8 +155,8 @@ object WidgetCatalog {
             entry.id.hashCode(),
             Intent(ACTION_WIDGET_PINNED)
                 .setClass(context, WidgetPinResultReceiver::class.java)
-                .setPackage(context.packageName),
-            pendingIntentFlags(),
+                .setPackage(context.packageName).apply { entry.componentWidgetKey?.let { data = Uri.parse("cursimple-widget://pin/" + Uri.encode(it)) } },
+            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0),
         )
         var lastError: String? = null
         for (index in attempt until candidates.size) {
@@ -173,14 +175,6 @@ object WidgetCatalog {
             }
         }
         return PinRequestResult.Failed(lastError)
-    }
-
-    private fun pendingIntentFlags(): Int {
-        var flags = PendingIntent.FLAG_UPDATE_CURRENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            flags = flags or PendingIntent.FLAG_IMMUTABLE
-        }
-        return flags
     }
 
     /** Action for an app-local broadcast emitted whenever the installed-widget set may have changed. */
@@ -204,10 +198,8 @@ object WidgetCatalog {
     }
 
     /**
-     * 当前桌面的包名。
-     *
-     * 没有设过默认桌面时 resolveActivity 给回来的是系统选择器（android / com.android.settings），
-     * 拿它去判厂商会判错，这时改从候选里挑一个真正的桌面。
+     * If resolution returns the system chooser, select an actual launcher candidate before
+     * vendor detection.
      */
     fun homeLauncherPackage(context: Context): String {
         val pm = context.packageManager
@@ -221,7 +213,6 @@ object WidgetCatalog {
                 .map { it.activityInfo.packageName }
                 .firstOrNull { !isResolverPackage(it) }
         }.getOrNull()
-        // 一个真正的桌面都查不到时，宁可报出系统给的那个包名，也好过显示「未知」
         return candidate ?: resolved.orEmpty()
     }
 
@@ -263,17 +254,13 @@ object WidgetCatalog {
     }
 
     /**
-     * 打开厂商的「桌面快捷方式 / 创建桌面图标」权限页。
-     *
-     * vivo（com.bbk.launcher2）与 MIUI 上，这项权限没给时 `requestPinAppWidget` 照样返回
-     * true，桌面却把请求直接丢掉——用户那边就是「点了没反应，也没有弹窗」。
-     * 系统不提供这项权限的查询接口，只能把入口摆给用户自己确认。
-     * 逐个试，都打不开就落到应用详情页。
+     * Offer shortcut-permission destinations for manual confirmation; try candidates then app
+     * details.
      */
     fun openShortcutPermission(context: Context): Boolean {
         val packageName = context.packageName
         val candidates = listOf(
-            // vivo / iQOO：权限管理里的单应用权限页，「桌面快捷方式」在这一页
+            // Vendor per-app permissions include shortcut creation access.
             Intent().setClassName(
                 "com.vivo.permissionmanager",
                 "com.vivo.permissionmanager.activity.SoftPermissionDetailActivity",
@@ -291,7 +278,6 @@ object WidgetCatalog {
                 "com.miui.securitycenter",
                 "com.miui.permcenter.permissions.AppPermissionsEditorActivity",
             ).putExtra("extra_pkgname", packageName),
-            // OPPO / realme ColorOS（两种包名，新旧版本换过）
             Intent().setClassName(
                 "com.coloros.safecenter",
                 "com.coloros.safecenter.permission.PermissionManagerActivity",
@@ -303,8 +289,7 @@ object WidgetCatalog {
         )
         for (intent in candidates) {
             val candidate = Intent(intent).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            // 国产系统把设置页藏起来时 queryIntentActivities 查不到它，白白错过——
-            // 不设这道预检，起不来的 Intent 自己会抛，接着试下一个就是
+            // Try destinations directly because package queries can hide vendor settings.
             if (runCatching { context.startActivity(candidate) }.isSuccess) return true
         }
         return openAppDetails(context)

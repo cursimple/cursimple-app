@@ -28,9 +28,7 @@ class MemoNoteTest {
         assertEquals(body.lines()[2], once.lines()[2])
         val twice = toggleChecklistLine(once, 1)
         assertEquals(body, twice)
-        // 缩进和星号保留
         assertEquals("  * [ ] 缩进的也算", toggleChecklistLine(body, 3).lines()[3])
-        // 不是复选框的行原样返回
         assertEquals(body, toggleChecklistLine(body, 4))
         assertEquals(body, toggleChecklistLine(body, 99))
     }

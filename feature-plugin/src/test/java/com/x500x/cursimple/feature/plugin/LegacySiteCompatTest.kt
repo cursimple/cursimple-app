@@ -6,13 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 老站兼容层里不依赖 Android 的那部分规则。
- *
- * 背景：aTrust 这类 VPN 代理的自举壳页靠 document.domain 跨子域握手，新版 Chromium 在
- * HTTPS 下默认按源隔离把它拦掉；响应头补上 Origin-Agent-Cluster: ?0 才能放行。
- * 本机 Chrome 153 实测：不带头 → SecurityError，带 ?0 → 正常互访。
- */
+/** Pure legacy-compatibility rules for allowlisted document.domain opt-out headers. */
 class LegacySiteCompatTest {
 
     private val navigationAccept =

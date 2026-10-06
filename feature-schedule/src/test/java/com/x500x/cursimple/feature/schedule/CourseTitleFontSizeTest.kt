@@ -8,7 +8,6 @@ class CourseTitleFontSizeTest {
 
     @Test
     fun `disabled by default keeps every card at the same size`() {
-        // 默认关：长短课名字号一致，整屏看下来才不会大小参差不齐
         assertEquals(13f, courseTitleFontSizeSp(13, 4, enabled = false), 0.01f)
         assertEquals(13f, courseTitleFontSizeSp(13, 30, enabled = false), 0.01f)
     }
@@ -33,7 +32,7 @@ class CourseTitleFontSizeTest {
 
     @Test
     fun `shrinking stops before the text becomes unreadable`() {
-        // 用户可以把字号调到很小，再按比例缩就糊了，得有下限
+        // Maintain a readable lower bound for user-selected small text.
         assertEquals(9f, courseTitleFontSizeSp(9, 30), 0.01f)
         assertTrue(courseTitleFontSizeSp(10, 30) >= 9f)
     }

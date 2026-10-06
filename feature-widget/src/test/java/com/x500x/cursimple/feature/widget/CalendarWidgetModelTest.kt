@@ -29,7 +29,6 @@ class CalendarWidgetModelTest {
         assertEquals(0, october.size % 7)
         assertTrue(october.contains(LocalDate.of(2026, 10, 1)))
         assertTrue(october.contains(LocalDate.of(2026, 10, 31)))
-        // 2026 年 2 月 1 日是周日：要往前补到 1 月 26 日，整月 5 周以上
         val february = monthGridDates(YearMonth.of(2026, 2))
         assertEquals(LocalDate.of(2026, 1, 26), february.first())
         assertTrue(february.size / 7 in 5..6)
@@ -92,7 +91,6 @@ class CalendarWidgetModelTest {
         assertEquals(0..0, data.rowSpanOf(blocks.getValue("a")))
         assertEquals(0..1, data.rowSpanOf(blocks.getValue("b")))
         assertEquals(1..3, data.rowSpanOf(blocks.getValue("c")))
-        // 落在作息表空档里的第 6 节，前后都没有能完整容纳它的行
         assertEquals(null, data.rowSpanOf(blocks.getValue("gap")))
     }
 
@@ -138,7 +136,6 @@ class CalendarWidgetModelTest {
         val legend = CalendarWeekData(busy, busy.map(::calendarBlocksOf), calendarRows(emptyList(), busy, labelOf, fallback)).legend()
         assertEquals(CalendarWeekLegend(events = true, exam = true, holiday = false, makeUp = true), legend)
 
-        // 放假日的考试按不可用态画，不算「这周有考试」
         val holiday = week().toMutableList().also { it[0] = day(it[0].date, course("期中", 1, 2, category = CourseCategory.Exam), holiday = true) }
         val holidayLegend = CalendarWeekData(holiday, holiday.map(::calendarBlocksOf), calendarRows(emptyList(), holiday, labelOf, fallback)).legend()
         assertFalse(holidayLegend.exam)

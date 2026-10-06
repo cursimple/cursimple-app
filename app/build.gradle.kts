@@ -87,7 +87,7 @@ android {
         versionName = appVersionName
         buildConfigField("String", "RELEASE_CHANNEL", "\"$appReleaseChannel\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // GitHub OAuth App 的 Client ID（不是密钥）；为空时设置页只提供「粘贴令牌」登录
+        // Public OAuth Client ID; an empty value enables token login only.
         val githubClientId = providers.gradleProperty("github.oauthClientId")
             .orElse(providers.environmentVariable("CURSIMPLE_GITHUB_OAUTH_CLIENT_ID"))
             .getOrElse("")
@@ -129,7 +129,6 @@ android {
     }
 
     compileOptions {
-        // java.time 在 minSdk 24 上需要脱糖后才可用
         isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

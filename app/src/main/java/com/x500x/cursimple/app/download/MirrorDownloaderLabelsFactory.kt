@@ -3,7 +3,6 @@ package com.x500x.cursimple.app.download
 import android.content.Context
 import com.x500x.cursimple.R
 
-/** 用当前语言的资源填充下载器兜底文案。 */
 fun Context.mirrorDownloaderLabels(): MirrorDownloaderLabels = MirrorDownloaderLabels(
     localFileSource = getString(R.string.download_source_local_file),
     verifyFailed = getString(R.string.download_verify_failed),

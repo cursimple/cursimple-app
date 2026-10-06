@@ -139,7 +139,6 @@ class ReminderNotificationTextTest {
         location = location,
     )
 
-    /** 按界面层同样的顺序拼装中文资源，用来核对渲染结果与稳定文本逐字一致。 */
     private fun renderTitleFromResources(title: ReminderNotificationTitle): String {
         val strings = readStrings(REMINDER_ZH)
         val course = if (title.exam) {

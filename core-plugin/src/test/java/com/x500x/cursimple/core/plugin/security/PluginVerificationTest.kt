@@ -328,14 +328,15 @@ class PluginInstallerSignatureTest {
 
     private fun newInstaller(folder: String): PluginInstaller {
         return PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakeRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder(folder)),
         )
     }
 
     /**
-     * [resignAfterTamper] 为 false 时用原始入口脚本签名，再把包内脚本换成 [entryScript] 并重算 checksums，
-     * 模拟重打包但拿不到私钥的场景。
+     * Without [resignAfterTamper], recompute checksums after mutation while retaining the
+     * original signature.
      */
     private fun pluginZip(
         signWith: KeyPair? = null,
@@ -404,6 +405,7 @@ class PluginInstallerSignatureTest {
               "name": "Demo",
               "version": "1.0.0",
               "versionCode": 1,
+              "apiVersion": 2,
               "entry": "main.js",
               "permissions": ["schedule.write"],
               "allowedHosts": ["jw.demo.edu.cn"]

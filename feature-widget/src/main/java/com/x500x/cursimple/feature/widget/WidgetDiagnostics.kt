@@ -6,16 +6,12 @@ import android.graphics.drawable.BitmapDrawable
 import android.os.Build
 
 /**
- * 小组件自检。
- *
- * 「桌面上找不到课简的小组件」在不同手机上有完全不同的原因：系统没解析到 provider、
- * 预览图不是位图被启动器过滤、启动器根本不支持一键添加、或者装的是鸿蒙 NEXT 这种
- * 没有安卓兼容层的系统。隔着屏幕猜不出来，这里把判断依据一次性列出来。
+ * Report provider parsing, preview format, launcher support and platform compatibility for
+ * widget diagnostics.
  */
 data class WidgetDiagnosticsReport(
     val lines: List<Pair<String, String>>,
 ) {
-    /** 便于用户整段复制发出来。 */
     fun asText(): String = lines.joinToString("\n") { (label, value) -> "$label: $value" }
 }
 
@@ -33,8 +29,7 @@ object WidgetDiagnostics {
             add(appContext.getString(R.string.widget_diag_device) to "${Build.MANUFACTURER} ${Build.MODEL}")
             add(appContext.getString(R.string.widget_diag_system) to appContext.systemDescription())
             add(appContext.getString(R.string.widget_diag_launcher) to appContext.launcherPackage())
-            // 系统说「支持」但这家桌面实际不响应时，如实写出来，
-            // 免得自检信息本身把人带偏（vivo 上就是这样）
+            // Distinguish reported pinning support from known launcher nonresponse.
             add(
                 appContext.getString(R.string.widget_diag_pin) to appContext.getString(
                     when {
@@ -44,7 +39,6 @@ object WidgetDiagnostics {
                     },
                 ),
             )
-            // 桌面受理了请求却什么都不弹时，要能看出我们是按什么顺序请求的
             add(
                 appContext.getString(R.string.widget_diag_pin_order) to WidgetCatalog.entries(appContext)
                     .firstOrNull()
@@ -95,12 +89,7 @@ object WidgetDiagnostics {
         return WidgetDiagnosticsReport(lines)
     }
 
-    /**
-     * 系统描述，带上鸿蒙 / EMUI 版本。
-     *
-     * 鸿蒙 NEXT 已经没有安卓兼容层，安卓应用连同它的小组件都不会出现在那上面，
-     * 自检里必须把这点写清楚，否则用户会一直以为是应用没适配。
-     */
+    /** Include vendor OS details and explain platforms without Android compatibility. */
     private fun Context.systemDescription(): String {
         val android = getString(
             R.string.widget_diag_system_android,
@@ -121,7 +110,6 @@ object WidgetDiagnostics {
     private fun Context.launcherPackage(): String =
         WidgetCatalog.homeLauncherPackage(this).ifBlank { getString(R.string.widget_diag_launcher_unknown) }
 
-    /** 矢量预览图会被部分厂商选择器整项过滤掉，所以要能看出它到底是什么。 */
     private fun Context.previewImageKind(previewResId: Int): String {
         if (previewResId == 0) return getString(R.string.widget_diag_preview_missing)
         val drawable = runCatching {

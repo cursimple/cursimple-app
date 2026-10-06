@@ -42,7 +42,6 @@ import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import java.time.format.TextStyle
 
-/** 今日安排：头图卡片 + 冲突提醒 + 按时间排开的时间线，点课程看详情 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun TodayOverviewSheet(
@@ -148,7 +147,6 @@ internal fun TodayOverviewSheet(
     }
 }
 
-/** 时间线上的一节课：左边上下课时间，中间线和状态点，右边课程卡片 */
 @Composable
 private fun TimelineRow(
     occurrence: TodayOverviewItem,
@@ -177,7 +175,6 @@ private fun TimelineRow(
                 val x = size.width / 2
                 val dotY = 21.dp.toPx()
                 val stroke = 2.dp.toPx()
-                // 时间线贯穿整列，第一节上面、最后一节下面不画，像一根完整的线串起今天
                 if (!first) drawLine(lineColor, Offset(x, 0f), Offset(x, dotY), stroke)
                 if (!last) drawLine(lineColor, Offset(x, dotY), Offset(x, size.height + 12.dp.toPx()), stroke)
                 val radius = if (status == TodayItemStatus.Current) 7.dp.toPx() else 5.dp.toPx()

@@ -150,7 +150,7 @@ class TimingProfileLibraryTest {
         assertEquals(listOf("a", "a-copy"), library.profiles.map { it.id })
         assertEquals(3, library.entryOf("a-copy")?.slotTimes?.single()?.startNode)
         assertTrue(library.entryOf("a-copy")?.manuallyEdited == true)
-        // 复制不改变选中项，用户可能只是想留个备份
+        // Duplicating a profile preserves the active selection.
         assertEquals("a", library.activeId)
     }
 

@@ -77,7 +77,7 @@ class HolidayDatasetTest {
             ),
         )
 
-        // 同步数据只声明了 10 月 6 日，同一年内置快照的其它日期不再参与判定
+        // Downloaded year coverage prevents fallback to other bundled dates in that year.
         assertNotNull(settings.entryOn(LocalDate.of(2026, 10, 6)))
         assertNull(settings.entryOn(LocalDate.of(2026, 10, 1)))
     }

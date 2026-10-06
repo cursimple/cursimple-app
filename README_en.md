@@ -10,8 +10,8 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
 [![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![Latest beta 0.7.5](https://img.shields.io/badge/Latest%20beta-0.7.5-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
-[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
+[![Latest beta 0.7.6](https://img.shields.io/badge/Latest%20beta-0.7.6-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6)
+[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
@@ -21,7 +21,7 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 [Website](https://cursimple.github.io/cursimple-app/) · [Download](#download) · [Features](#features) · [Plugins](#plugin-system) · [Build from source](#build-from-source) · [中文](README.md)
 
-Latest beta: [0.7.5](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5) (`beta` / Pre-release).
+Latest beta: [0.7.6](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6) (`beta` / Pre-release).
 
 </div>
 
@@ -108,7 +108,8 @@ The system Clock receives creation requests; open your phone's Clock app to veri
 | Next class | Current and next class information |
 | Reminders | Upcoming course alarms |
 | Course calendar | Switch between a week timetable and month calendar with courses, exams, events and holiday / workday markers. Page forwards or backwards, return to the current date, or tap a date to open its timetable |
-| Pending tasks | Unfinished assignments, exams and other items from enabled extension components, with start / due times and urgency. Tap to open the source component; available only while at least one extension component is enabled |
+| Notes checklist | Unchecked items from local notes, independent of extension components; tap an item to open its note |
+| Component-owned widgets | Installed, enabled components explicitly declare their own widgets and ship their names, UI and content rules. The app supplies data, rendering, desktop binding and navigation interfaces |
 
 Tapping empty space opens the app too. Refresh is layered four ways: the system period, a WorkManager period, the alarm guard chain, and exact refreshes aligned to period boundaries (5 minutes before class, class start, class end). Contextual messages for no classes, holidays, finished classes or empty task lists stay consistent throughout the day.
 
@@ -137,7 +138,7 @@ The search box at the top finds any setting by name, page or keyword. **Quick se
 
 ## Download
 
-The latest beta is [0.7.5](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5). Download the APK for your device from that version's page; the [website](https://cursimple.github.io/cursimple-app/#download) also offers download mirrors and QR codes.
+The latest beta is [0.7.6](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6). Download the APK for your device from that version's page; the [website](https://cursimple.github.io/cursimple-app/#download) also offers download mirrors and QR codes.
 
 | File | Device |
 |---|---|
@@ -147,7 +148,7 @@ The latest beta is [0.7.5](https://github.com/cursimple/cursimple-app/releases/t
 | `CurSimple-x86.apk` | 32-bit Intel devices |
 | `CurSimple-universal.apk` | Works everywhere, at a larger size |
 
-The release channel is set by `app.releaseChannel` in `gradle.properties`. Version 0.7.5 uses `beta`, keeps the tag `v0.7.5`, and sets `prerelease=true` on its GitHub Release; the older `v0.7.4` is also marked Pre-release. A version without a `-beta` suffix can still be a beta, so check the channel and Pre-release label. Enable beta updates in the app to receive this channel.
+The release channel is set by `app.releaseChannel` in `gradle.properties`. Version 0.7.6 uses `beta`, keeps the tag `v0.7.6`, and sets `prerelease=true` on its GitHub Release; the older `v0.7.4` is also marked Pre-release. A version without a `-beta` suffix can still be a beta, so check the channel and Pre-release label. Enable beta updates in the app to receive this channel.
 
 After installing:
 
@@ -175,9 +176,9 @@ Public sources need no login. For private repositories, paste a fine-grained Git
 
 ### Extension components
 
-The host supports extension **API 4**, including components' own login, settings and content pages, plus background sync, new-content notifications, deadline reminders and optional timetable event integration. Components install and update independently; background sync depends on system scheduling and connectivity.
+The development host supports extension **API 9**: owned pages, confirmed read actions, ignore/restore, encrypted notification targets, restricted transport and resumable delivery status. Components install and update independently. The APK checks each bundle's API and minimum app version before writing files or records. Incompatible installs are blocked with a reason, and rejected upgrades preserve the existing version.
 
-The YuKeTang component requires a separate installation. Its local v1.2.0 bundle can be imported as a ZIP; check the component repository for public release availability.
+[YuKeTang notices](https://github.com/cursimple/YuKeTang_notice_plugin) and [multi-platform notifications](https://github.com/cursimple/cursimple-notify-component) are separate components. Real-account read synchronization and message receipt require end-to-end verification after binding.
 
 ### Bundle requirements
 
@@ -223,7 +224,7 @@ The version and release channel are maintained in `gradle.properties`:
 
 ```properties
 app.versionCode=31
-app.versionName=0.7.5
+app.versionName=0.7.6
 app.releaseChannel=beta
 ```
 

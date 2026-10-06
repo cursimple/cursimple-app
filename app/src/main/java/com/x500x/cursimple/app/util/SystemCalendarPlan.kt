@@ -5,10 +5,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
-/**
- * 一条准备写进系统日历的事件。
- * [rrule] 为空表示只发生一次；[durationMinutes] 用于按重复规则展开时算出每次的结束时间。
- */
+/** Null [rrule] means one occurrence; [durationMinutes] determines recurring end times. */
 data class CalendarEventDraft(
     val title: String,
     val description: String,
@@ -22,10 +19,8 @@ data class CalendarEventDraft(
 private val UTC_BASIC: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'")
 
 /**
- * 把一门课整学期的上课时间压成尽量少的事件。
- *
- * 每周固定的那些合成一条按周重复的事件，中间停掉的周写进排除日期；
- * 调课挪走的那几次不在每周节奏上，各自单独成一条。
+ * Compress regular classes into recurrence rules with exclusions; moved occurrences remain
+ * separate.
  */
 fun PlannedCourse.toCalendarDrafts(zone: ZoneId, description: String): List<CalendarEventDraft> {
     val drafts = mutableListOf<CalendarEventDraft>()
@@ -83,7 +78,7 @@ fun PlannedCourse.toCalendarDrafts(zone: ZoneId, description: String): List<Cale
     return drafts
 }
 
-/** 每周重复的那条覆盖多次上课，这里数的是真正会出现在日历上的次数。 */
+/** Count expanded occurrences rather than recurring event rows. */
 fun PlannedCourse.occurrenceCount(): Int = occurrences.size
 
 private fun LocalDateTime.toUtcBasic(zone: ZoneId): String =

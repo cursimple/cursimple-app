@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-/** 沿用市场详情的信息框，用于仓库标识等需要独立展示的内容。 */
 @Composable
 fun AppInfoBlock(
     label: String?,

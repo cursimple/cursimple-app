@@ -7,12 +7,10 @@ import java.time.temporal.TemporalAdjusters
 import kotlin.math.floor
 import kotlin.math.sin
 
-/** 农历日期：月、日，是否闰月。由调用方换算好传进来，这里只管按日子认节日。 */
+/** Caller-supplied lunar date; calendar conversion remains outside festival matching. */
 internal data class LunarDay(val month: Int, val day: Int, val leapMonth: Boolean = false)
 
-/**
- * 当天能发问候的节日和节气。只认节日本身那一天：国庆只在 10 月 1 日，不跟着七天假期走。
- */
+/** Match festival dates themselves, not the entire holiday period. */
 internal enum class Festival {
     NewYear,
     Valentine,
@@ -39,9 +37,7 @@ internal enum class Festival {
     Laba,
 }
 
-/**
- * 二十四节气，按太阳视黄经排：[ordinal] × 15° 就是这个节气的黄经，春分是 0°。
- */
+/** Solar-term longitude is [ordinal] times 15 degrees, starting at the vernal equinox. */
 internal enum class SolarTerm {
     SpringEquinox,
     PureBrightness,
@@ -73,8 +69,8 @@ internal object FestivalCalendar {
     private val BEIJING = ZoneOffset.ofHours(8)
 
     /**
-     * [date] 这一天的节日。农历部分要 [lunar]（当天）和 [lunarTomorrow]（明天，认除夕用），
-     * 换算不出来时传 null，只认公历节日。
+     * Use [lunarTomorrow] to detect the lunar year's last day; null lunar values limit matching
+     * to Gregorian dates.
      */
     fun festivalsOn(date: LocalDate, lunar: LunarDay?, lunarTomorrow: LunarDay?): List<Festival> = buildList {
         when (date.monthValue to date.dayOfMonth) {
@@ -91,7 +87,6 @@ internal object FestivalCalendar {
             12 to 24 -> add(Festival.ChristmasEve)
             12 to 25 -> add(Festival.Christmas)
         }
-        // 母亲节是五月第二个周日，父亲节是六月第三个周日
         if (date.monthValue == 5 && date == nthSunday(date, 2)) add(Festival.MothersDay)
         if (date.monthValue == 6 && date == nthSunday(date, 3)) add(Festival.FathersDay)
         if (lunar != null && !lunar.leapMonth) {
@@ -106,7 +101,6 @@ internal object FestivalCalendar {
                 12 to 8 -> add(Festival.Laba)
             }
         }
-        // 除夕是正月初一的前一天，腊月有大小月，按「明天是不是初一」认
         if (lunarTomorrow != null && !lunarTomorrow.leapMonth && lunarTomorrow.month == 1 && lunarTomorrow.day == 1) {
             add(Festival.NewYearsEve)
         }
@@ -115,23 +109,21 @@ internal object FestivalCalendar {
     private fun nthSunday(date: LocalDate, n: Int): LocalDate =
         date.withDayOfMonth(1).with(TemporalAdjusters.dayOfWeekInMonth(n, DayOfWeek.SUNDAY))
 
-    /** [date]（北京时间）这一天交的节气；这一天没有交节时返回 null。 */
     fun solarTermOn(date: LocalDate): SolarTerm? {
         val start = date.atStartOfDay().toInstant(BEIJING).toEpochMilli()
         val end = date.plusDays(1).atStartOfDay().toInstant(BEIJING).toEpochMilli()
         val from = floor(sunLongitude(start) / TERM_DEGREES).toInt()
         val to = floor(sunLongitude(end) / TERM_DEGREES).toInt()
-        // 一天里太阳只走一度左右，黄经跨过 15° 的整数倍就是这天交节；跨 360° 时 to 回到 0
+        // Detect longitude crossings at 15-degree boundaries, including the 360-degree wrap.
         if (from == to) return null
         return SolarTerm.entries[to.mod(SolarTerm.entries.size)]
     }
 
     /**
-     * 太阳视黄经（度），Meeus《天文算法》第 25 章的低精度算法，误差约 0.01°，
-     * 折成时间不到半小时，认「哪一天交节」足够。
+     * Meeus chapter 25 approximation: about 0.01-degree longitude accuracy for day-level
+     * matching.
      */
     internal fun sunLongitude(epochMillis: Long): Double {
-        // 力学时比世界时快一分多钟，这点差别对认日子无关紧要，按 69 秒补上
         val julianDay = epochMillis / MILLIS_PER_DAY + UNIX_EPOCH_JULIAN_DAY + DELTA_T_SECONDS / SECONDS_PER_DAY
         val t = (julianDay - J2000) / DAYS_PER_CENTURY
         val meanLongitude = 280.46646 + 36000.76983 * t + 0.0003032 * t * t

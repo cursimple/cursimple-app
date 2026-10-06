@@ -3,7 +3,6 @@ package com.x500x.cursimple.core.kernel.model
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** 已应用调课、停课、周次和假日后的单次课程。缺少作息时仍保留课程，时间为空。 */
 data class ScheduledCourseOccurrence(
     val course: CourseItem,
     val date: LocalDate,

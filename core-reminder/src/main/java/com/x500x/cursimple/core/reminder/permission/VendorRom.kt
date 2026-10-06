@@ -5,13 +5,7 @@ import android.content.Context
 import android.os.Build
 import android.os.Process
 
-/**
- * 手机跑的是哪家的系统。
- *
- * 各家的后台管控差别很大：小米国行不开「自启动」时，从最近任务划掉应用就等于强行停止，
- * 挂着的闹钟会被系统一并清掉；华为、荣耀要在「应用启动管理」里手动放开三项。
- * 引导用户去哪一页、说什么话，都得先知道是哪家。
- */
+/** Detect vendor background policy before choosing permission guidance. */
 enum class VendorRom {
     Xiaomi,
     Huawei,
@@ -31,7 +25,7 @@ enum class VendorRom {
         fun current(): VendorRom = cached ?: detect().also { cached = it }
 
         private fun detect(): VendorRom {
-            // 先认系统属性：换过品牌的机型（比如荣耀独立前后）只看厂商名会认错
+            // Prefer OS properties over manufacturer names for rebranded devices.
             when {
                 !prop("ro.mi.os.version.name").isNullOrBlank() ||
                     !prop("ro.miui.ui.version.name").isNullOrBlank() -> return Xiaomi
@@ -65,23 +59,18 @@ enum class VendorRom {
 }
 
 /**
- * 小米系统里几项不对外公开、但能查到的权限。
- *
- * 是 MIUI / HyperOS 自己加的 AppOps（Telegram 也是这样查的），不在 AOSP 里；
- * 查不到（非小米、系统改了实现）时返回 null，界面按「未知」处理，退回让用户自己确认。
+ * Vendor AppOps checks return null when unavailable; treat that as unknown and ask for manual
+ * confirmation.
  */
 object MiuiPermissions {
     private const val OP_AUTO_START = 10008
     private const val OP_SHOW_WHEN_LOCKED = 10020
     private const val OP_BACKGROUND_START_ACTIVITY = 10021
 
-    /** 自启动：国行没开时，划掉应用就是强行停止，闹钟全没了。 */
     fun autoStart(context: Context): Boolean? = checkOp(context, OP_AUTO_START)
 
-    /** 后台弹出界面：闹钟响时直接亮出全屏界面、弹悬浮窗都要它。 */
     fun backgroundStartActivity(context: Context): Boolean? = checkOp(context, OP_BACKGROUND_START_ACTIVITY)
 
-    /** 锁屏显示：锁屏上亮出闹钟界面要它。 */
     fun showWhenLocked(context: Context): Boolean? = checkOp(context, OP_SHOW_WHEN_LOCKED)
 
     private fun checkOp(context: Context, op: Int): Boolean? {

@@ -3,17 +3,13 @@ package com.x500x.cursimple.feature.schedule
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import kotlin.math.roundToInt
 
-/** 拖动落点所在的格子，以及该落点是否可以放下。 */
 internal data class CourseDragTarget(
     val dayIndex: Int,
     val rowIndex: Int,
     val isValid: Boolean,
 )
 
-/**
- * 把累计的拖动位移换算成落点格子。位移按列宽和行高四舍五入取整，
- * 落点被夹在网格范围内，使课程块整体不会越出边界。
- */
+/** Round drag displacement into cells and clamp the entire course span within the grid. */
 internal fun resolveCourseDragTarget(
     startDayIndex: Int,
     startRowIndex: Int,
@@ -36,15 +32,10 @@ internal fun resolveCourseDragTarget(
     return CourseDragTarget(dayIndex = dayIndex, rowIndex = rowIndex, isValid = fits && clear)
 }
 
-/** 落点与起点相同时不构成移动。 */
 internal fun CourseDragTarget.isMoveFrom(startDayIndex: Int, startRowIndex: Int): Boolean =
     isValid && (dayIndex != startDayIndex || rowIndex != startRowIndex)
 
-/**
- * 把落点格子换算成课程的星期与节次。
- * [columnDayOfWeeks] 按列序给出每列的星期值，[slots] 决定跨行课程的首尾节次。
- * 落点超出可用范围时返回 null。
- */
+/** Map cells through [columnDayOfWeeks] and [slots]; return null outside the grid. */
 internal fun movedCourseTime(
     target: CourseDragTarget,
     rowSpan: Int,
@@ -55,10 +46,6 @@ internal fun movedCourseTime(
     return courseTimeAt(dayOfWeek, target.rowIndex, rowSpan, slots)
 }
 
-/**
- * 起止行换算成课程时间。
- * 一行可能覆盖多个节号，所以取首行的起始节与末行的结束节。
- */
 internal fun courseTimeAt(
     dayOfWeek: Int,
     rowIndex: Int,
@@ -74,22 +61,15 @@ internal fun courseTimeAt(
     )
 }
 
-/** 被拖动的是课程块的哪条边。 */
 internal enum class CourseResizeEdge { Top, Bottom }
 
-/** 改跨度后的起止行，以及该结果是否可用。 */
 internal data class CourseResizeTarget(
     val rowIndex: Int,
     val rowSpan: Int,
     val isValid: Boolean,
 )
 
-/**
- * 把边缘拖动的位移换算成新的起止行。
- *
- * 顶边向下压或底边向上压最多剩一行；越出网格范围的部分被夹住；
- * 新占的行与他人课程重叠时判为不可用。
- */
+/** Resize within grid bounds, retain at least one row and reject newly overlapping rows. */
 internal fun resolveCourseResizeTarget(
     startRowIndex: Int,
     rowSpan: Int,
@@ -115,27 +95,22 @@ internal fun resolveCourseResizeTarget(
     }
     val newSpan = (newEnd - newStart).coerceAtLeast(1)
     val fits = newStart >= 0 && newStart + newSpan <= slotCount
-    // 只检查新增的行，原本就占着的行不重复判定
+    // Check only newly occupied rows.
     val added = (newStart until newStart + newSpan).filter { it !in startRowIndex until bottomExclusive }
     val clear = added.none { (dayIndex to it) in occupiedByOthers }
     return CourseResizeTarget(rowIndex = newStart, rowSpan = newSpan, isValid = fits && clear)
 }
 
-/** 起止行都没变时不构成改动。 */
 internal fun CourseResizeTarget.isResizeFrom(startRowIndex: Int, startRowSpan: Int): Boolean =
     isValid && (rowIndex != startRowIndex || rowSpan != startRowSpan)
 
-/** 把改跨度的结果换算成课程时间。 */
 internal fun resizedCourseTime(
     target: CourseResizeTarget,
     dayOfWeek: Int,
     slots: List<DisplaySlot>,
 ): CourseTimeSlot? = courseTimeAt(dayOfWeek, target.rowIndex, target.rowSpan, slots)
 
-/**
- * 网格中除 [excludedCourseId] 之外的课程占用的格子。
- * 被拖动的课程本身要排除掉，否则它会挡住自己原来的位置。
- */
+/** Exclude the dragged course from occupancy so it cannot block its own position. */
 internal fun occupiedCellsExcluding(
     entries: List<CourseRenderEntry>,
     excludedCourseId: String,

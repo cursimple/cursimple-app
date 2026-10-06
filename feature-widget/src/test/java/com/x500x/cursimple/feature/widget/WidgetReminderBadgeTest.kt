@@ -86,7 +86,6 @@ class WidgetReminderBadgeTest {
         assertFalse(rule.matchesWidgetCourse(math, timingProfile = null))
     }
 
-    /** 单课与考试提醒的规则形状：首课候选范围锁定到课程自身，并带上课程 id。 */
     private fun courseScopedRule(courseId: String, categories: List<CourseCategory>): ReminderRule =
         baseRule().copy(
             scopeType = ReminderScopeType.FirstCourseOfPeriod,

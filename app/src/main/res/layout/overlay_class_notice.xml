@@ -1,14 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  「系统增强」皮肤的横幅。
-
-  这是我们自己的窗口，不受 RemoteViews 那套限制：普通 View、属性动画、
-  真正的背景模糊都能用。
-
-  文字颜色和 logo 的底都按主题色在 ClassNoticeOverlay 里设，这里不写死。
-  这里不设背景也不设 margin：圆角半透明底挂在 Dialog 的 window 上（有界模糊要
-  裁进那个形状），左右边距靠把窗口宽度按屏宽减出来，都在 ClassNoticeOverlay 里。
--->
+<!-- Overlay colors and rounded Window background are applied by ClassNoticeOverlay for bounded blur. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -60,11 +51,7 @@
             android:maxLines="2"
             android:textSize="13sp" />
 
-        <!--
-          行动按钮：上课提醒用不到，组件通知才用（如登录失效的「重新登录」）。
-          没有动作时整块 GONE，上课横幅的长相一点不变。背景和文字颜色在
-          ClassNoticeOverlay.bindCard 里按主题色上色，这里不写死。
-        -->
+        <!-- Optional component action; hidden when absent and themed by bindCard. -->
         <TextView
             android:id="@+id/overlay_action"
             android:layout_width="wrap_content"

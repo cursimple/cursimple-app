@@ -28,11 +28,11 @@ class PluginWebSessionScreenTest {
 
     @Test
     fun `allowed host accepts atrust proxied subdomains`() {
-        val allowed = listOf("atrust.yangtzeu.edu.cn")
+        val allowed = listOf("atrust.example.edu")
 
-        assertTrue(isAllowedHost("https://cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn/authserver/login", allowed))
-        assertTrue(isAllowedHost("https://ehall-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/portal", allowed))
-        assertFalse(isAllowedHost("https://fake-atrust-yangtzeu.edu.cn/login", allowed))
+        assertTrue(isAllowedHost("https://cas-example-edu.atrust.example.edu/authserver/login", allowed))
+        assertTrue(isAllowedHost("https://ehall-example-edu-s.atrust.example.edu/portal", allowed))
+        assertFalse(isAllowedHost("https://fake-atrust-example.edu/login", allowed))
     }
 
     @Test
@@ -76,7 +76,7 @@ class PluginWebSessionScreenTest {
             capturePackets = listOf(
                 WebSessionCaptureSpec(
                     id = "eams-course-home",
-                    urlHost = "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn",
+                    urlHost = "jwc3-example-edu-s.atrust.example.edu",
                     urlPathContains = "/eams/courseTableForStd.action",
                     captureSelectors = listOf("title"),
                     minCookieCount = 1,
@@ -84,7 +84,7 @@ class PluginWebSessionScreenTest {
             ),
         )
         val packet = webPacket(
-            finalUrl = "https://atrust.yangtzeu.edu.cn:4443/portal/shortcut.html?appUrl=https%253A%252F%252Fjwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn%253A443%252Feams%252FcourseTableForStd.action",
+            finalUrl = "https://atrust.example.edu:4443/portal/shortcut.html?appUrl=https%253A%252F%252Fjwc3-example-edu-s.atrust.example.edu%253A443%252Feams%252FcourseTableForStd.action",
             cookies = mapOf("JSESSIONID" to "cookie"),
             capturedFields = mapOf("title" to "登录"),
         )
@@ -94,7 +94,7 @@ class PluginWebSessionScreenTest {
 
     @Test
     fun `auto navigation targets configured allowed follow up once`() {
-        val target = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action"
+        val target = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action"
         val request = webRequest(
             autoNavigateOnUrlContains = "/eams/home.action",
             autoNavigateToUrl = target,
@@ -104,7 +104,7 @@ class PluginWebSessionScreenTest {
             target,
             autoNavigateTargetForRequest(
                 request,
-                "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/home.action",
+                "https://jwc3-example-edu-s.atrust.example.edu/eams/home.action",
                 emptySet(),
             ),
         )
@@ -112,7 +112,7 @@ class PluginWebSessionScreenTest {
             null,
             autoNavigateTargetForRequest(
                 request,
-                "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/home.action",
+                "https://jwc3-example-edu-s.atrust.example.edu/eams/home.action",
                 setOf(target),
             ),
         )
@@ -120,7 +120,7 @@ class PluginWebSessionScreenTest {
             null,
             autoNavigateTargetForRequest(
                 request,
-                "https://atrust.yangtzeu.edu.cn/portal/shortcut.html?appUrl=https%3A%2F%2Fjwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn%2Feams%2Fhome.action",
+                "https://atrust.example.edu/portal/shortcut.html?appUrl=https%3A%2F%2Fjwc3-example-edu-s.atrust.example.edu%2Feams%2Fhome.action",
                 emptySet(),
             ),
         )
@@ -128,7 +128,7 @@ class PluginWebSessionScreenTest {
             null,
             autoNavigateTargetForRequest(
                 request,
-                "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+                "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
                 emptySet(),
             ),
         )
@@ -177,18 +177,18 @@ class PluginWebSessionScreenTest {
     fun `required capture packets must all be present before web session completes`() {
         val request = webRequest(
             capturePackets = listOf(
-                WebSessionCaptureSpec(id = "login", urlHost = "atrust.yangtzeu.edu.cn"),
-                WebSessionCaptureSpec(id = "eams", urlHost = "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn"),
+                WebSessionCaptureSpec(id = "login", urlHost = "atrust.example.edu"),
+                WebSessionCaptureSpec(id = "eams", urlHost = "jwc3-example-edu-s.atrust.example.edu"),
             ),
         )
         val loginPacket = WebCapturedPacket(
             id = "login",
-            finalUrl = "https://atrust.yangtzeu.edu.cn/portal",
+            finalUrl = "https://atrust.example.edu/portal",
             timestamp = "2026-05-02T12:00:00+08:00",
         )
         val eamsPacket = WebCapturedPacket(
             id = "eams",
-            finalUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+            finalUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
             timestamp = "2026-05-02T12:00:01+08:00",
         )
 
@@ -220,16 +220,16 @@ class PluginWebSessionScreenTest {
             ),
         )
         val latest = webPacket(
-            finalUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+            finalUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
             cookies = mapOf("latest" to "1"),
         )
         val login = webPacket(
-            finalUrl = "https://atrust.yangtzeu.edu.cn/portal",
+            finalUrl = "https://atrust.example.edu/portal",
             cookies = mapOf("atrust" to "1"),
             capturedFields = mapOf("title" to "认证"),
         ).toCapturedPacket("login")
         val eams = webPacket(
-            finalUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+            finalUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
             cookies = mapOf("JSESSIONID" to "ok"),
             capturedFields = mapOf("title" to "课表"),
         ).toCapturedPacket("eams")
@@ -247,10 +247,10 @@ class PluginWebSessionScreenTest {
             capturePackets = listOf(WebSessionCaptureSpec(id = "login")),
         )
         val latest = webPacket(
-            finalUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
+            finalUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
         ).copy(scheduleDraftJson = """{"termId":"2026","courses":[]}""")
         val login = webPacket(
-            finalUrl = "https://atrust.yangtzeu.edu.cn/portal",
+            finalUrl = "https://atrust.example.edu/portal",
         ).toCapturedPacket("login")
 
         val aggregate = aggregateWebSessionPacket(request, latest, mapOf("login" to login))
@@ -281,7 +281,7 @@ class PluginWebSessionScreenTest {
 
         val script = buildPluginRuntimeScript(
             request = request,
-            currentUrl = "https://atrust.yangtzeu.edu.cn/portal",
+            currentUrl = "https://atrust.example.edu/portal",
         )
 
         assertTrue(script.contains("schedule.write"))
@@ -308,10 +308,10 @@ class PluginWebSessionScreenTest {
     @Test
     fun `aggregate web session packet includes network packets`() {
         val request = webRequest()
-        val latest = webPacket(finalUrl = "https://atrust.yangtzeu.edu.cn/portal")
+        val latest = webPacket(finalUrl = "https://atrust.example.edu/portal")
         val networkPacket = WebNetworkPacket(
             captureId = "course-json",
-            url = "https://atrust.yangtzeu.edu.cn/api/course",
+            url = "https://atrust.example.edu/api/course",
             method = "GET",
             responseHeaders = mapOf("content-type" to "application/json"),
             responseBody = """{"ok":true}""",
@@ -336,7 +336,7 @@ class PluginWebSessionScreenTest {
         )
         val networkPacket = WebNetworkPacket(
             captureId = "course-json",
-            url = "https://atrust.yangtzeu.edu.cn/api/course",
+            url = "https://atrust.example.edu/api/course",
             method = "GET",
             responseBody = """{"ok":true}""",
             timestamp = "2026-05-02T12:00:00+08:00",
@@ -344,7 +344,7 @@ class PluginWebSessionScreenTest {
 
         val script = buildPluginRuntimeScript(
             request = request,
-            currentUrl = "https://atrust.yangtzeu.edu.cn/portal",
+            currentUrl = "https://atrust.example.edu/portal",
             networkPackets = mapOf("course-json" to listOf(networkPacket)),
         )
 
@@ -364,7 +364,7 @@ class PluginWebSessionScreenTest {
 
         val script = buildPluginRuntimeScript(
             request = request,
-            currentUrl = "https://atrust.yangtzeu.edu.cn/portal",
+            currentUrl = "https://atrust.example.edu/portal",
         )
 
         assertTrue(script.contains("setUserAgent(userAgent)"))
@@ -375,14 +375,14 @@ class PluginWebSessionScreenTest {
     fun `completion page stability ignores query-only changes`() {
         assertTrue(
             isCompletionPageStable(
-                capturedUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
-                activeUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action?_=${System.currentTimeMillis()}",
+                capturedUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
+                activeUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action?_=${System.currentTimeMillis()}",
             ),
         )
         assertTrue(
             isCompletionPageStable(
-                capturedUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
-                activeUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn:443/eams/courseTableForStd.action",
+                capturedUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
+                activeUrl = "https://jwc3-example-edu-s.atrust.example.edu:443/eams/courseTableForStd.action",
             ),
         )
     }
@@ -391,8 +391,8 @@ class PluginWebSessionScreenTest {
     fun `completion page stability rejects redirected page`() {
         assertFalse(
             isCompletionPageStable(
-                capturedUrl = "https://jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn/eams/courseTableForStd.action",
-                activeUrl = "https://atrust.yangtzeu.edu.cn:4443/portal/shortcut.html?appUrl=https%3A%2F%2Fjwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn%2Feams%2FcourseTableForStd.action",
+                capturedUrl = "https://jwc3-example-edu-s.atrust.example.edu/eams/courseTableForStd.action",
+                activeUrl = "https://atrust.example.edu:4443/portal/shortcut.html?appUrl=https%3A%2F%2Fjwc3-example-edu-s.atrust.example.edu%2Feams%2FcourseTableForStd.action",
             ),
         )
     }
@@ -424,11 +424,11 @@ class PluginWebSessionScreenTest {
     ): WebSessionRequest {
         return WebSessionRequest(
             token = "token",
-            pluginId = "yangtzeu-eams-v2",
+            pluginId = "exampleu-eams-v2",
             sessionId = "login",
             title = "登录",
-            startUrl = "https://atrust.yangtzeu.edu.cn/portal",
-            allowedHosts = listOf("atrust.yangtzeu.edu.cn", "jwc3-yangtzeu-edu-cn-s.atrust.yangtzeu.edu.cn"),
+            startUrl = "https://atrust.example.edu/portal",
+            allowedHosts = listOf("atrust.example.edu", "jwc3-example-edu-s.atrust.example.edu"),
             capturePackets = capturePackets,
             autoNavigateOnUrlContains = autoNavigateOnUrlContains,
             autoNavigateToUrl = autoNavigateToUrl,

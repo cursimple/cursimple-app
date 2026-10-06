@@ -1,15 +1,22 @@
 package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
+import com.x500x.cursimple.core.plugin.install.PluginInstallSource
 
-/** 市场里一个仓库相对本机的安装状态。 */
+/** A page lock does not mean every item is being checked or installed. */
+internal fun PluginMarketUiState.processingRepo(repoSlug: String): Boolean =
+    isLoading && installingRepo?.trim()?.equals(repoSlug.trim(), ignoreCase = true) == true
+
+internal fun PluginMarketUiState.processingPlugin(record: InstalledPluginRecord): Boolean =
+    isLoading && (upgradingKey == record.installKey ||
+        (record.source == PluginInstallSource.Remote && record.sourceRepo?.let { processingRepo(it) } == true) ||
+        (installPreview?.manifest?.id == record.pluginId && installPreview?.source == record.source))
+
 internal sealed interface PluginRepoInstallState {
     data object NotInstalled : PluginRepoInstallState
 
-    /** 已装且与市场版本一致。 */
     data class Installed(val record: InstalledPluginRecord) : PluginRepoInstallState
 
-    /** 已装但市场上有更新的版本。 */
     data class Updatable(val record: InstalledPluginRecord, val latestTag: String) : PluginRepoInstallState
 }
 
@@ -21,9 +28,8 @@ internal val PluginRepoInstallState.installedRecord: InstalledPluginRecord?
     }
 
 /**
- * 按安装时记下的来源仓库匹配已装插件。
- *
- * 本次改动之前装的插件没有记来源，会被当成未安装；重装或更新一次即可正常显示。
+ * Match installations by stored source repository; legacy records without provenance require
+ * reinstalling to establish it.
  */
 internal fun resolveRepoInstallState(
     repoSlug: String,
@@ -42,11 +48,8 @@ internal fun resolveRepoInstallState(
 }
 
 /**
- * [candidate] 是不是比 [installed] 新。
- *
- * 市场的版本号带 v 前缀、插件清单里不带，先去掉；再按点分的数字逐段比，1.0.10 比 1.0.9 新。
- * 以前只比字符串是否相同，市场上的版本比本机旧（比如本地装了测试版）也会提示「可更新」，
- * 一点就降级了。解析不出数字时退回「不相同就算新」。
+ * Compare normalized numeric version components, ignoring a leading v; unequal unparseable
+ * versions use legacy fallback.
  */
 internal fun isNewerVersion(candidate: String, installed: String): Boolean {
     val a = versionParts(candidate)

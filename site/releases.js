@@ -1,4 +1,4 @@
-/* 官网渠道元数据与选择逻辑；GitHub prerelease 字段决定渠道，标签后缀不决定渠道。 */
+/* Explicit GitHub prerelease metadata determines channel, independent of tag suffix. */
 ((root, factory) => {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.SiteReleases = factory();
@@ -6,9 +6,9 @@
   const REPO = 'cursimple/cursimple-app';
   const CHANNEL_METADATA = {
     stable: { noRelease: true },
-    beta: { tagName: 'v0.7.5', versionName: '0.7.5', versionCode: 31, prerelease: true, assets: [] },
+    beta: { tagName: 'v0.7.6', versionName: '0.7.6', versionCode: 32, prerelease: true, assets: [] },
   };
-  // 发布方已确认的纠正：旧 feed / GitHub 元数据更新前也不能把 0.7.4 当成正式版。
+  // Publisher correction marks legacy 0.7.4 metadata as prerelease.
   const PRERELEASE_OVERRIDES = { 'v0.7.4': true, 'v0.7.5': true };
 
   function normalize(data, fromApi = false) {
@@ -36,7 +36,7 @@
 
   function compare(a, b) {
     if (a.code && b.code && a.code !== b.code) return a.code - b.code;
-    // 数字部分仅用于排序；即使 tag 没有 -beta，渠道仍然来自显式元数据。
+    // Numeric tags sort versions only; explicit metadata still determines channels.
     const parts = (tag) => /^v?(\d+)\.(\d+)\.(\d+)/.exec(tag)?.slice(1).map(Number) || [0, 0, 0];
     const av = parts(a.tag), bv = parts(b.tag);
     for (let i = 0; i < 3; i++) if (av[i] !== bv[i]) return av[i] - bv[i];

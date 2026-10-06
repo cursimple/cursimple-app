@@ -13,12 +13,12 @@ import com.x500x.cursimple.core.plugin.install.PluginInstaller
 import com.x500x.cursimple.core.plugin.install.PluginRegistryRepository
 import com.x500x.cursimple.core.plugin.install.pluginCompatibilityText
 import com.x500x.cursimple.core.plugin.install.resolvePluginCompatibility
+import com.x500x.cursimple.core.plugin.install.pluginHostVersion
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.plugin.manifest.PluginComponentRequirement
 import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginExtensionUiPage
 import com.x500x.cursimple.core.plugin.manifest.PluginPermission
-import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
 import com.x500x.cursimple.core.plugin.manifest.PluginWebEngineRequirement
 import com.x500x.cursimple.core.plugin.market.ComponentMarketIndexPayload
 import com.x500x.cursimple.core.plugin.market.MarketIndexRepository
@@ -52,6 +52,7 @@ class PluginManager(
         registryRepository = registryRepository,
         fileStore = fileStore,
         json = json,
+        hostVersion = appContext.pluginHostVersion(),
     )
     private val pendingSessions = ConcurrentHashMap<String, PendingPluginSession>()
     private val extensionUiCache = ConcurrentHashMap<String, String?>()
@@ -60,11 +61,13 @@ class PluginManager(
 
     suspend fun getInstalledPlugins(): List<InstalledPluginRecord> = registryRepository.getInstalledPlugins()
 
-    /** 扩展组件的运行时要读 manifest 里的 extension 段和入口脚本，导课插件走 [startSync] 不用它 */
+    /**
+     * Extension runtime reads its manifest section and entry; schedule sync uses [startSync].
+     */
     suspend fun loadExtensionPackage(record: InstalledPluginRecord): Pair<PluginManifest, String> =
         withContext(Dispatchers.IO) { fileStore.loadManifest(record) to fileStore.loadEntryScript(record) }
 
-    /** 读取组件自带 UI；没有声明 UI 的旧组件返回 null，交给宿主兼容页面。 */
+    /** Null for components without owned UI; the host provides a fallback. */
     suspend fun loadExtensionUi(record: InstalledPluginRecord, page: PluginExtensionUiPage = PluginExtensionUiPage.Feed): String? = withContext(Dispatchers.IO) {
         val key = "${record.packageRevision}:${page.name}"
         extensionUiCache[key]?.let { return@withContext it }
@@ -73,7 +76,7 @@ class PluginManager(
         fileStore.loadExtensionUi(record, entry).also { extensionUiCache[key] = it }
     }
 
-    // 解压、SHA-256 校验、签名验签、逐文件落盘都是重活，统一切到 IO 线程，避免卡住调用方（多为主线程的 viewModelScope）
+    // Unpacking, digest checks and file writes run on IO.
     suspend fun previewPackage(bytes: ByteArray, source: PluginInstallSource): PluginInstallPreview =
         withContext(Dispatchers.IO) {
             PluginLogger.info(
@@ -153,7 +156,6 @@ class PluginManager(
                 ),
                 error,
             )
-            // 记完日志继续抛出：吞掉会让界面提示“已移除插件”，而插件仍留在已安装列表里
             throw error
         }
     }
@@ -284,7 +286,7 @@ class PluginManager(
             if (record.compatibilityStatus == PluginCompatibilityStatus.Incompatible) {
                 return WorkflowExecutionResult.Failure(incompatibleMessage(record))
             }
-            // 扩展组件不产出课表，走的是自己那套后台同步，不能被当成导课插件跑
+            // Extensions do not produce timetable drafts and cannot run as schedule plugins.
             if (record.isExtension) {
                 return WorkflowExecutionResult.Failure(appContext.getString(R.string.plugin_error_extension_not_schedule))
             }
@@ -499,7 +501,6 @@ class PluginManager(
         )
     }
 
-    /** 旧记录里存过渲染好的原因，没有时按记录声明的接口版本现算。 */
     private fun incompatibleMessage(record: InstalledPluginRecord): String {
         return record.compatibilityMessage?.takeIf(String::isNotBlank)
             ?: appContext.pluginCompatibilityText(resolvePluginCompatibility(record.apiVersion))

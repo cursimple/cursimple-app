@@ -31,7 +31,6 @@ sealed interface AppUpdateCheckResult {
     data object UpToDate : AppUpdateCheckResult
     data class Available(val info: AppUpdateInfo) : AppUpdateCheckResult
 
-    /** 当前装的是测试版，而线上正式版版本号更低，可以回退过去。 */
     data class Rollback(val info: AppUpdateInfo) : AppUpdateCheckResult
     data class Failure(val reason: UpdateStatusReason) : AppUpdateCheckResult
 }
@@ -41,12 +40,11 @@ sealed interface AppUpdateDownloadResult {
     data class Failure(val reason: UpdateStatusReason) : AppUpdateDownloadResult
 }
 
-/** 下载进度。[totalBytes] 为 null 表示服务端没给 Content-Length。 */
+/** Null [totalBytes] means no known Content-Length. */
 data class AppUpdateDownloadProgress(
     val downloadedBytes: Long,
     val totalBytes: Long?,
 ) {
-    /** 0f..1f，总大小未知时为 null，界面据此改用不确定进度条。 */
     val fraction: Float?
         get() = totalBytes
             ?.takeIf { it > 0L }

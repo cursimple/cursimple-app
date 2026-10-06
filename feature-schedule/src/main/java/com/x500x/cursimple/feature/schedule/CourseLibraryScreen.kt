@@ -44,14 +44,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 
-/** 屏幕高度低于这条线就把页头收成两行；横屏手机大多在 400dp 上下。 */
 private const val COMPACT_HEADER_MAX_HEIGHT_DP = 500
 
-/**
- * 本学期全部课程的平铺列表。
- * 课多时不必在网格里逐格点开找，可直接搜索、编辑、删除。
- * 插件同步的课也能改，改完会转成手动课程，随时能还原回插件那一份。
- */
+/** Searchable term-wide course list with reversible manual overrides for plugin courses. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CourseLibraryScreen(
@@ -62,11 +57,10 @@ internal fun CourseLibraryScreen(
     onRemoveCourse: (String) -> Unit,
     maxNodeCount: Int,
     maxWeekCount: Int,
-    /** 被删掉、只剩墓碑的课；不为空时列表上方给出恢复入口。 */
+    /** Deleted-course tombstones enable the restoration entry point. */
     hiddenCourses: List<CourseItem> = emptyList(),
     onRestoreCourse: (String) -> Unit = {},
     onSetReminder: (CourseItem) -> Unit = {},
-    /** 用户排进课表的事务，和课程分栏显示 */
     events: List<ScheduleEvent> = emptyList(),
     onSaveEvent: (ScheduleEvent) -> Unit = {},
     onRemoveEvent: (String) -> Unit = {},
@@ -74,10 +68,8 @@ internal fun CourseLibraryScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var tab by rememberSaveable { mutableStateOf(LibraryTab.Courses) }
-    // 新建事务时是一件空的草稿，修改时是原件；为 null 表示没在编辑
     var eventEditing by remember { mutableStateOf<ScheduleEvent?>(null) }
     var addingEvent by remember { mutableStateOf(false) }
-    // 走应用自己的「今天」：跟随时区设置，高级诊断里钉的日期也作数
     val appZone = LocalAppZone.current
     val today = remember(appZone) { appZone.today() }
     if (addingEvent || eventEditing != null) {
@@ -92,7 +84,6 @@ internal fun CourseLibraryScreen(
                 onSaveEvent(event)
                 addingEvent = false
                 eventEditing = null
-                // 刚加的事务要能马上看到
                 tab = LibraryTab.Events
             },
         )
@@ -147,7 +138,7 @@ internal fun CourseLibraryScreen(
         )
     }
 
-    // 改过的插件课删掉的只是那份手动覆盖，插件原件会重新露出来，所以叫"还原"而不是"删除"
+    // Removing a manual override reveals the plugin original; label this as restoration.
     pendingRestore?.let { target ->
         AlertDialog(
             onDismissRequest = { pendingRestore = null },
@@ -180,7 +171,6 @@ internal fun CourseLibraryScreen(
         )
     }
 
-    // 移动是易误触的改动，落库前再确认一次
     pendingMove?.let { (course, time) ->
         AlertDialog(
             onDismissRequest = { pendingMove = null },
@@ -210,7 +200,7 @@ internal fun CourseLibraryScreen(
         )
     }
 
-    // 横屏高度只有几百 dp，搜索框、筛选、统计各占一行的话列表就没地方了：横屏时并排收成两行
+    // Compact landscape controls to preserve list height.
     val compactHeader = LocalConfiguration.current.screenHeightDp < COMPACT_HEADER_MAX_HEIGHT_DP
     val searchField = @Composable { fieldModifier: Modifier ->
         OutlinedTextField(
@@ -400,7 +390,7 @@ private fun CourseLibraryList(
     onMove: (CourseItem) -> Unit,
     onSetReminder: (CourseItem) -> Unit,
 ) {
-    // 只有按星期排序时分组才有意义，其余两种保持平铺
+    // Group only under weekday sorting; other modes remain flat.
     val grouped = remember(matched, sortMode, columnDayOfWeeks) {
         if (sortMode == CourseSortMode.ByWeekday) {
             groupCourseLibraryByWeekday(matched, columnDayOfWeeks)
@@ -483,7 +473,6 @@ private fun CourseLibraryRow(
                         },
                     ),
                 )
-                // 改过的插件课两个标都挂上：来源仍是插件，但眼下这份是用户自己的
                 if (entry.overridesPlugin) {
                     CourseLibraryTag(stringResource(R.string.schedule_library_source_manual_edited))
                 }
@@ -521,7 +510,6 @@ private fun CourseLibraryRow(
                         Text(stringResource(R.string.schedule_action_restore_plugin), maxLines = 2)
                     }
                 }
-                // 插件课删不掉原件，但可以把它盖住；两种情况用户看到的都是「删除」
                 AppOutlinedButton(onClick = { onDelete(entry) }) {
                     Text(stringResource(R.string.schedule_action_delete), maxLines = 2)
                 }
@@ -530,7 +518,6 @@ private fun CourseLibraryRow(
     }
 }
 
-/** 已删除课程的墓碑列表，给一条回头路。 */
 @Composable
 private fun HiddenCourseList(
     hiddenCourses: List<CourseItem>,

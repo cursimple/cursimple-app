@@ -15,27 +15,22 @@ import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import kotlin.math.max
 import kotlin.math.min
 
-/** 画在图上的文字，由界面层按当前语言给出 */
 internal data class CalendarRenderLabels(
-    /** 周一到周日的短称 */
     val weekdays: List<String>,
     val holidayTag: String,
     val makeUpTag: String,
     val legendClass: String,
     val legendExam: String,
     val legendEvent: String,
-    /** 网格里一节课都没有时居中显示；为空则不显示 */
     val emptyMessage: String?,
 )
 
 /**
- * 课程日历的网格画成一张图。
- *
- * RemoteViews 排不出按节次跨行的格子，各家桌面对嵌套布局的支持也参差不齐，
- * 画成图在哪个桌面上都一个样。点击由盖在图上的透明格子负责，几何尺寸取自这里的常量。
+ * Render spanning cells into a bitmap for consistent RemoteViews geometry; transparent click
+ * cells share its dimensions.
  */
 internal object CalendarWidgetRenderer {
-    /** 周视图：顶部日期栏高（dp）；左侧节次栏宽随作息表里的名字长短变，见 [weekGutterDp] */
+    /** Week header height in dp; gutter width follows [weekGutterDp]. */
     const val WEEK_HEADER_DP = 32f
     private const val GUTTER_MIN_DP = 16f
     private const val GUTTER_MAX_DP = 38f
@@ -43,17 +38,13 @@ internal object CalendarWidgetRenderer {
     private const val GUTTER_LABEL_MIN_DP = 6.5f
     private const val GUTTER_TIME_DP = 7f
 
-    /**
-     * 左侧节次栏宽（dp）：放得下最长的节次名（如「第一大节」「午间课」），太长的换行或缩小，
-     * 但不超过 [GUTTER_MAX_DP]，给课程格留出地方。点击层按同一个宽度对齐。
-     */
+    /** Bound label gutter by [GUTTER_MAX_DP] and align click geometry to it. */
     fun weekGutterDp(week: CalendarWeekData): Float {
         val paint = textPaint(GUTTER_LABEL_DP, TEXT_SECONDARY, bold = false)
         val widest = week.rows.maxOfOrNull { paint.measureText(it.label) } ?: 0f
         return (widest + 5f).coerceIn(GUTTER_MIN_DP, GUTTER_MAX_DP)
     }
 
-    /** 月视图：顶部星期栏高、底部图例高（dp） */
     const val MONTH_HEADER_DP = 18f
     const val MONTH_LEGEND_DP = 18f
 
@@ -67,7 +58,6 @@ internal object CalendarWidgetRenderer {
     private const val INACTIVE_CONTAINER = 0xFFE6EAE7.toInt()
     private const val INACTIVE_ON = 0xFF8E988F.toInt()
 
-    /** 与课表网格同一套课程配色（浅色），按课名取 */
     private val COURSE_PALETTE = listOf(
         0xFFDDEBFA.toInt() to 0xFF2C5587.toInt(),
         0xFFDCEFD7.toInt() to 0xFF325E2A.toInt(),
@@ -105,8 +95,6 @@ internal object CalendarWidgetRenderer {
     private fun accentOf(theme: WidgetThemePreferences): Int =
         if (theme.themeAccent == ThemeAccent.Custom) theme.customColorArgb else AccentColors.presetPrimary(theme.themeAccent)
 
-    // ---------------- 周视图 ----------------
-
     private fun drawWeek(canvas: Canvas, week: CalendarWeekData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels) {
         val w = canvas.width.toFloat()
         val h = canvas.height.toFloat()
@@ -118,14 +106,12 @@ internal object CalendarWidgetRenderer {
         val rowH = (h - header) / rowCount
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        // 今天那一列铺一层浅底，一眼找到
         week.days.forEachIndexed { index, day ->
             if (!day.isToday) return@forEachIndexed
             fill.color = withAlpha(accent, 0x1F)
             canvas.drawRoundRect(RectF(gutter + index * colW + 1 * px, 0f, gutter + (index + 1) * colW - 1 * px, h), 8 * px, 8 * px, fill)
         }
 
-        // 时段横线与左侧节次名（作息表里的名字，和 App 课表左栏一致）
         val line = Paint().apply { color = GRID_LINE; strokeWidth = max(1f, 0.6f * px) }
         week.rows.forEachIndexed { index, row ->
             val top = header + index * rowH
@@ -133,7 +119,6 @@ internal object CalendarWidgetRenderer {
             drawRowLabel(canvas, row, RectF(0f, top, gutter, top + rowH), px)
         }
 
-        // 顶部：星期、日期，今天用实心胶囊
         val weekdayPaint = textPaint(9f * px, TEXT_SECONDARY, bold = false).apply { textAlign = Paint.Align.CENTER }
         val datePaint = textPaint(12f * px, TEXT_PRIMARY, bold = true).apply { textAlign = Paint.Align.CENTER }
         val tagPaint = textPaint(7.5f * px, EXAM_RED, bold = true).apply { textAlign = Paint.Align.CENTER }
@@ -165,7 +150,6 @@ internal object CalendarWidgetRenderer {
             }
         }
 
-        // 课程块
         val gap = 1.5f * px
         week.blocks.forEachIndexed { index, blocks ->
             val colLeft = gutter + index * colW
@@ -190,8 +174,8 @@ internal object CalendarWidgetRenderer {
     }
 
     /**
-     * 一行的节次名：先按一行放，放不下就换行，行高也不够再把字缩小（最小 [GUTTER_LABEL_MIN_DP]）；
-     * 名字下面还有地方时补上开始时间。
+     * Wrap labels before shrinking to [GUTTER_LABEL_MIN_DP]; add start time only if height
+     * permits.
      */
     private fun drawRowLabel(canvas: Canvas, row: CalendarRow, cell: RectF, px: Float) {
         val width = (cell.width() - 3f * px).toInt()
@@ -228,7 +212,6 @@ internal object CalendarWidgetRenderer {
             .setEllipsize(TextUtils.TruncateAt.END)
             .build()
 
-    /** 被截断时 StaticLayout 会在最后一行留下省略号 */
     private fun StaticLayout.isTruncated(): Boolean = lineCount > 0 && getEllipsisCount(lineCount - 1) > 0
 
     private fun drawCourseBlock(canvas: Canvas, rect: RectF, block: CalendarCourseBlock, px: Float) {
@@ -253,12 +236,11 @@ internal object CalendarWidgetRenderer {
         val availH = rect.height() - pad * 2
         if (textW <= 4) return
         val titlePaint = textPaint(9.5f * px, onContainer, bold = true)
-        // 格子矮到放不下一整行时也照样写一行，按格子裁掉，总比一块空色块强
-        val titleLines = if (availH <= 4) 0 else maxLinesFor(availH, titlePaint)
+        val titleLines = if (availH <= 4) 0 else maxLinesFor(availH, titlePaint).coerceAtMost(4)
         canvas.save()
         canvas.clipRect(rect)
         if (titleLines <= 1) {
-            // 只放得下一行时直接按格子裁掉：「高等数」比「高…」认得出；格子比一行还矮就把字缩到放得下
+            // Clip one-line labels without ellipsis; reduce size if the row is shorter than a line.
             titlePaint.textSize = min(titlePaint.textSize, max(6f * px, rect.height() * 0.72f))
             val baseline = rect.centerY() - (titlePaint.descent() + titlePaint.ascent()) / 2f
             canvas.drawText(block.title, rect.left + pad, baseline, titlePaint)
@@ -272,7 +254,7 @@ internal object CalendarWidgetRenderer {
         val location = block.location.trim()
         if (location.isNotEmpty()) {
             val locPaint = textPaint(8.5f * px, withAlpha(onContainer, 0xCC), bold = false)
-            val lines = maxLinesFor(availH - used - 1.5f * px, locPaint)
+            val lines = maxLinesFor(availH - used - 1.5f * px, locPaint).coerceAtMost(2)
             if (lines > 0) {
                 canvas.translate(0f, used + 1.5f * px)
                 staticLayout("@$location", locPaint, textW, lines).draw(canvas)
@@ -280,8 +262,6 @@ internal object CalendarWidgetRenderer {
         }
         canvas.restore()
     }
-
-    // ---------------- 月视图 ----------------
 
     private fun drawMonth(canvas: Canvas, month: CalendarMonthData, px: Float, accent: Int, accentText: Int, labels: CalendarRenderLabels) {
         val w = canvas.width.toFloat()
@@ -308,7 +288,6 @@ internal object CalendarWidgetRenderer {
             val cellTop = top + row * rowH
             val cx = left + colW / 2f
             val inMonth = month.inMonth(day)
-            // 数字放在格子上半部，下面留给圆点
             val numberCenterY = cellTop + rowH * 0.42f
             if (day.isToday) {
                 fill.color = accent
@@ -350,7 +329,6 @@ internal object CalendarWidgetRenderer {
             }
         }
 
-        // 图例：每种圆点是什么意思
         val legendPaint = textPaint(8.5f * px, TEXT_SECONDARY, bold = false)
         val entries = listOf(accent to labels.legendClass, EXAM_RED to labels.legendExam, EVENT_ORANGE to labels.legendEvent)
         val itemGap = 10f * px
@@ -368,8 +346,6 @@ internal object CalendarWidgetRenderer {
             x += legendPaint.measureText(text) + itemGap
         }
     }
-
-    // ---------------- 工具 ----------------
 
     private fun textPaint(sizePx: Float, color: Int, bold: Boolean) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
         textSize = sizePx

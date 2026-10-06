@@ -32,19 +32,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.OpenInBrowser
-import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +55,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
@@ -102,14 +105,12 @@ fun PluginMarketRoute(
     onCompleteWebSession: (WebSessionPacket) -> Unit,
     onCancelWebSession: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 课表那边的同步进度与结果（正在打开登录页、导入成功、失败原因）。 */
+    /** Schedule-sync progress and final result from the timetable workflow. */
     syncStatusMessage: String? = null,
-    /** 扩展组件的设置面板要用；为空时扩展组件按普通插件详情显示 */
     extensionActions: com.x500x.cursimple.feature.plugin.extension.ExtensionHostActions? = null,
-    /** 从侧边栏日历页点「设置」过来时，直接打开这个组件的设置面板 */
     openExtensionPluginId: String? = null,
     onExtensionOpenConsumed: () -> Unit = {},
-    /** 账号身份和刷新版本组成的标识；不要传访问令牌。 */
+    /** Account identity and refresh generation only; never pass access tokens. */
     accountKey: String? = null,
 ) {
     val context = LocalContext.current
@@ -132,16 +133,16 @@ fun PluginMarketRoute(
         if (openExtensionPluginId != null) selectedTab = PluginPlatformTab.Extensions
     }
 
-    LaunchedEffect(pluginSources, componentSources, accountKey) {
+    // Refresh on entry and kind changes; hide versions while checking.
+    LaunchedEffect(pluginSources, componentSources, accountKey, selectedTab) {
         pluginMarketViewModel.setSources(pluginSources, componentSources)
         pluginMarketViewModel.onAccountChanged(accountKey)
-        pluginMarketViewModel.refreshIfStale(MARKET_CACHE_TTL_MILLIS)
-        pluginMarketViewModel.refreshInstalledPluginVersions()
+        pluginMarketViewModel.refreshOnEnter()
     }
 
     PluginMarketScreen(
         uiState = pluginUiState,
-        // 兼容旧页面状态：曾选中运行环境时回到插件页。
+        // Map legacy runtime-selection state back to the plugin page.
         selectedTab = selectedTab.takeIf { it in PluginPlatformTab.visibleTabs } ?: PluginPlatformTab.Plugins,
         enabledPluginIds = enabledPluginIds,
         syncingPluginId = syncingPluginId,
@@ -152,20 +153,19 @@ fun PluginMarketRoute(
         componentSources = componentSources,
         onSelectTab = { selectedTab = it },
         onPickLocalPlugin = { pluginPackageLauncher.launch(PACKAGE_MIME_TYPES) },
-        onRefreshMarket = { pluginMarketViewModel.loadRegistry() },
+        onRefreshMarket = { pluginMarketViewModel.loadRegistry(); pluginMarketViewModel.refreshInstalledPluginVersions(force = true) },
         onOpenRepo = { url -> context.openExternalUrl(url) },
         onInstallFromGitHub = pluginMarketViewModel::installFromGitHub,
         onConfirmInstall = pluginMarketViewModel::confirmInstall,
         onDismissInstallPreview = pluginMarketViewModel::dismissInstallPreview,
         onRemovePlugin = { installKey ->
-            // 移除插件时一并清掉它在网页登录里存过的密码
             pluginUiState.installedPlugins.firstOrNull { it.installKey == installKey }?.let { record ->
                 WebLoginCredentialStore(context).clear(record.pluginId)
             }
             pluginMarketViewModel.removePlugin(installKey)
         },
         onSetPluginEnabled = onSetPluginEnabled,
-        // 同步课表前先查插件有没有新版，有新版就先升级；放行后由下面的 PluginUpgradeGate 真正发起同步
+        // Check for an upgrade before importing; [PluginUpgradeGate] continues sync after approval.
         onSyncPlugin = { installKey ->
             pluginUiState.installedPlugins.firstOrNull { it.installKey == installKey }
                 ?.let(pluginMarketViewModel::syncWithUpdateCheck)
@@ -177,6 +177,8 @@ fun PluginMarketRoute(
         extensionActions = extensionActions,
         openExtensionPluginId = openExtensionPluginId,
         onExtensionOpenConsumed = onExtensionOpenConsumed,
+        onUpdateOptions = { auto, badge, hours -> pluginMarketViewModel.setUpdateOptions(auto, badge, hours) },
+        onCheckUpdates = { pluginMarketViewModel.refreshInstalledPluginVersions(force = true) },
         modifier = modifier,
     )
     PluginUpgradeGate(uiState = pluginUiState, viewModel = pluginMarketViewModel, onSyncPlugin = onSyncPlugin)
@@ -210,9 +212,12 @@ internal fun PluginMarketScreen(
     openExtensionPluginId: String?,
     onExtensionOpenConsumed: () -> Unit,
     modifier: Modifier = Modifier,
+    onUpdateOptions: (Boolean, Boolean, Int) -> Unit = { _, _, _ -> },
+    onCheckUpdates: () -> Unit = {},
 ) {
     val catalogState = rememberSaveableStateHolder()
     var detailVisible by remember(selectedTab) { mutableStateOf(false) }
+    var updateSettingsVisible by rememberSaveable { mutableStateOf(false) }
     var downloadTarget by remember { mutableStateOf<GitHubRepoSummary?>(null) }
     Box(
         modifier = modifier
@@ -220,11 +225,20 @@ internal fun PluginMarketScreen(
             .background(MaterialTheme.colorScheme.background),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            if (!detailVisible) PluginPlatformTabs(
-                selected = selectedTab,
-                onSelect = onSelectTab,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-            )
+            if (!detailVisible) Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                PluginPlatformTabs(selected = selectedTab, onSelect = onSelectTab,
+                    updateKeys = if (uiState.showUpdateBadge) uiState.availableUpdateKeys() else emptySet(),
+                    installed = uiState.installedPlugins, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                AppOutlinedButton(
+                    onClick = { updateSettingsVisible = true },
+                    modifier = Modifier.size(48.dp).testTag("plugin-update-settings"),
+                    contentPadding = PaddingValues(0.dp),
+                ) {
+                    Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.plugin_update_settings_title), modifier = Modifier.size(22.dp))
+                }
+            }
             catalogState.SaveableStateProvider(selectedTab.name) {
                 val extensionMode = selectedTab == PluginPlatformTab.Extensions
                 PluginListContent(
@@ -252,6 +266,9 @@ internal fun PluginMarketScreen(
                 )
             }
         }
+
+        if (updateSettingsVisible) PluginUpdateSettingsSheet(uiState, onUpdateOptions, onCheckUpdates,
+            onDismiss = { updateSettingsVisible = false })
 
         uiState.installPreview?.let { preview ->
             InstallPreviewDialog(
@@ -292,7 +309,7 @@ internal fun PluginListContent(
     syncStatusMessage: String?,
     missingComponents: List<PluginComponentRequirement>,
     pluginRegistryRepo: String,
-    /** true 时是「组件」标签页：只列扩展组件；false 时只列学校系统插件 */
+    /** True filters extension components; false filters school schedule plugins. */
     extensionMode: Boolean,
     onPickLocalPlugin: () -> Unit,
     onRefreshMarket: () -> Unit,
@@ -309,7 +326,9 @@ internal fun PluginListContent(
     onDetailVisibilityChange: (Boolean) -> Unit = {},
 ) {
     var detailPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
-    // 两个标签页共用这份列表：插件页只看学校系统，组件页只看扩展组件
+    // Keep host-owned installation details separate from component-owned settings.
+    var settingsPluginKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // Share the list while filtering by plugin kind.
     val shownInstalled = uiState.installedPlugins.filter { it.isExtension == extensionMode }
     val catalogRepos = (uiState.allMarketRepos + uiState.marketRepos + uiState.componentRepos)
         .distinctBy { it.fullName.lowercase() }
@@ -322,7 +341,7 @@ internal fun PluginListContent(
                 .let { matches -> matches.filter { com.x500x.cursimple.core.plugin.install.isPluginInstallEnabled(it, enabledPluginIds, uiState.installedPlugins) }.ifEmpty { matches } }
                 .maxByOrNull { it.versionCode }
             ?: return@LaunchedEffect
-        detailPluginKey = installedPluginKey(record)
+        settingsPluginKey = installedPluginKey(record)
         onExtensionOpenConsumed()
     }
     var detailRepoSlug by rememberSaveable { mutableStateOf<String?>(null) }
@@ -335,25 +354,32 @@ internal fun PluginListContent(
     val detailPlugin = detailPluginKey?.let { key ->
         uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
     }
+    val settingsPlugin = settingsPluginKey?.let { key ->
+        uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key && it.isExtension }
+    }
     val detailRepo = detailRepoSlug?.let { slug -> catalogRepos.firstOrNull { it.fullName == slug } }
-    SideEffect { onDetailVisibilityChange(detailPlugin != null || detailRepo != null) }
+    SideEffect { onDetailVisibilityChange(detailPlugin != null || detailRepo != null || settingsPlugin != null) }
 
-    // 详情页要先退回列表，否则系统返回键会一路退出应用
+    // Back from settings returns one level; Back from details returns to the list.
     androidx.activity.compose.BackHandler(
-        enabled = detailPluginKey != null || detailRepoSlug != null,
+        enabled = settingsPluginKey != null || detailPluginKey != null || detailRepoSlug != null,
     ) {
-        detailPluginKey = null
-        detailRepoSlug = null
+        if (settingsPluginKey != null) {
+            settingsPluginKey = null
+        } else {
+            detailPluginKey = null
+            detailRepoSlug = null
+        }
     }
 
-    // 扩展组件点开就是它的设置面板：登录、同步、提醒方式都在那里
-    if (detailPlugin != null && detailPlugin.isExtension && extensionActions != null) {
+    if (settingsPlugin != null && extensionActions != null) {
         com.x500x.cursimple.feature.plugin.extension.ExtensionSettingsScreen(
-            record = detailPlugin,
+            record = settingsPlugin,
             actions = extensionActions,
-            onBack = { detailPluginKey = null },
+            onBack = { settingsPluginKey = null },
             onRemove = {
-                onRemovePlugin(detailPlugin.installKey)
+                onRemovePlugin(settingsPlugin.installKey)
+                settingsPluginKey = null
                 detailPluginKey = null
             },
             modifier = modifier,
@@ -367,7 +393,7 @@ internal fun PluginListContent(
             registrySource = detailPlugin.registrySourceFor(catalogRepos, pluginRegistryRepo),
             isEnabled = isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins),
             isSyncing = syncingPluginId == detailPlugin.pluginId || syncingPluginId == detailPlugin.installKey ||
-                uiState.checkingUpdateKey == detailPlugin.installKey || uiState.upgradingKey == detailPlugin.installKey,
+                uiState.checkingUpdateKey == detailPlugin.installKey || uiState.upgradingKey == detailPlugin.installKey || uiState.processingPlugin(detailPlugin),
             upgrade = availableUpgrade(detailPlugin, uiState.copy(marketRepos = catalogRepos)),
             onBack = { detailPluginKey = null },
             onSetEnabled = { onSetPluginEnabled(detailPlugin.installKey, it) },
@@ -378,6 +404,9 @@ internal fun PluginListContent(
                 } else onUpgradePlugin(detailPlugin, latest)
             },
             onOpenRepo = onOpenRepo,
+            onOpenSettings = if (detailPlugin.isExtension && extensionActions != null) {
+                { settingsPluginKey = installedPluginKey(detailPlugin) }
+            } else null,
             onRemove = {
                 onRemovePlugin(detailPlugin.installKey)
                 detailPluginKey = null
@@ -395,6 +424,9 @@ internal fun PluginListContent(
                 installed = uiState.installedPlugins,
             ),
             isLoading = uiState.isLoading,
+            isCheckingVersions = uiState.isRefreshingReleases || uiState.versionsChecking,
+            isProcessing = uiState.processingRepo(detailRepo.fullName),
+            isCheckingInstall = uiState.processingRepo(detailRepo.fullName) && uiState.status is PluginMarketStatus.CheckingInstallRelease,
             registryRepo = pluginRegistryRepo,
             onBack = { detailRepoSlug = null },
             onOpenRepo = { onOpenRepo(detailRepo.htmlUrl) },
@@ -404,7 +436,6 @@ internal fun PluginListContent(
         )
         return
     }
-
 
     val context = LocalContext.current
     LazyColumn(
@@ -433,8 +464,7 @@ internal fun PluginListContent(
             }
         }
 
-        // 「已加载 N 个插件」这种流水账不常驻；但进行中的步骤和失败原因必须看得见，
-        // 以前这里一并删掉了，查新版、升级、下载失败、导课失败在插件页上全都没有声音
+        // Keep active operations and failures visible while omitting routine loaded-count messages.
         val busyText = when {
             uiState.checkingUpdateKey != null || uiState.upgradingKey != null ->
                 uiState.status?.let { context.pluginMarketStatusText(it) }
@@ -511,7 +541,9 @@ internal fun PluginListContent(
                     registryRepo = pluginRegistryRepo,
                     installState = resolveRepoInstallState(repo.fullName, repo.latestRelease?.tagName, uiState.installedPlugins),
                     isLoading = uiState.isLoading,
-                    isRefreshingReleases = uiState.isRefreshingReleases,
+                    isRefreshingReleases = uiState.isRefreshingReleases || uiState.versionsChecking,
+                    isProcessing = uiState.processingRepo(repo.fullName),
+                    isCheckingInstall = uiState.processingRepo(repo.fullName) && uiState.status is PluginMarketStatus.CheckingInstallRelease,
                     onInstall = { onInstallFromGitHub(repo) },
                     onOpenDetail = { detailRepoSlug = repo.fullName },
                 )
@@ -525,12 +557,15 @@ internal fun PluginListContent(
                     isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey ||
                         uiState.checkingUpdateKey == plugin.installKey || uiState.upgradingKey == plugin.installKey,
                     isLoading = uiState.isLoading,
+                    isProcessing = uiState.processingPlugin(plugin),
                     upgrade = availableUpgrade(plugin, uiState.copy(marketRepos = catalogRepos)),
                     onSetEnabled = { onSetPluginEnabled(plugin.installKey, it) },
                     onSync = { onSyncPlugin(plugin.installKey) },
                     onUpgrade = { latest -> onUpgradePlugin(plugin, latest) },
                     onInstallUpgrade = { latest -> onInstallFromGitHub(latest) },
                     onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
+                    onOpenSettings = { settingsPluginKey = installedPluginKey(plugin) },
+                    onRemove = { onRemovePlugin(plugin.installKey) },
                 )
             }
         }
@@ -547,6 +582,8 @@ internal fun GitHubRepoCard(
     isRefreshingReleases: Boolean,
     onInstall: () -> Unit,
     onOpenDetail: () -> Unit,
+    isProcessing: Boolean = false,
+    isCheckingInstall: Boolean = false,
 ) {
     MarketItemSurface(Modifier.testTag("repo:${repo.fullName}")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -572,7 +609,7 @@ internal fun GitHubRepoCard(
             overflow = TextOverflow.Ellipsis,
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            RepoInstallButton(repo, installState, isLoading, isRefreshingReleases, onInstall)
+            RepoInstallButton(repo, installState, isLoading, isRefreshingReleases, onInstall, isProcessing, isCheckingInstall)
             AppOutlinedButton(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_catalog_details)) }
         }
     }
@@ -585,6 +622,8 @@ private fun RepoInstallButton(
     isLoading: Boolean,
     isRefreshingReleases: Boolean,
     onInstall: () -> Unit,
+    isProcessing: Boolean = false,
+    isCheckingInstall: Boolean = false,
 ) {
     val hasRelease = repo.latestRelease?.tagName?.isNotBlank() == true
     Button(
@@ -594,7 +633,8 @@ private fun RepoInstallButton(
     ) {
         Text(
             when {
-                isLoading -> stringResource(R.string.plugin_repo_action_processing)
+                isCheckingInstall -> stringResource(R.string.plugin_repo_action_checking)
+                isProcessing -> stringResource(R.string.plugin_repo_action_processing)
                 installState is PluginRepoInstallState.Installed -> stringResource(R.string.plugin_repo_state_installed)
                 !hasRelease && isRefreshingReleases -> stringResource(R.string.plugin_catalog_loading_version)
                 !hasRelease -> stringResource(R.string.plugin_market_version_missing)
@@ -667,7 +707,7 @@ private fun OwnerAvatar(owner: String, size: Dp) {
     }
 }
 
-/** 已装包名和学校名优先；英文回退标题把分隔符整理为空格，仓库标识另行展示。 */
+/** Prefer installed names and school aliases; normalize separators only in fallback titles. */
 private fun GitHubRepoSummary.detailDisplayTitle(): String =
     (if (isExtension) displayTitle else schoolDisplayTitle()).replace('_', ' ').replace('-', ' ')
 
@@ -677,6 +717,9 @@ private fun GitHubRepoDetailScreen(
     repo: GitHubRepoSummary,
     installState: PluginRepoInstallState,
     isLoading: Boolean,
+    isCheckingVersions: Boolean,
+    isProcessing: Boolean,
+    isCheckingInstall: Boolean,
     registryRepo: String,
     onBack: () -> Unit,
     onOpenRepo: () -> Unit,
@@ -703,7 +746,7 @@ private fun GitHubRepoDetailScreen(
                     }
                     MarketSourceLabel(repo.marketSource(registryRepo))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        RepoInstallButton(repo, installState, isLoading, false, onInstall)
+                        RepoInstallButton(repo, installState, isLoading, isCheckingVersions, onInstall, isProcessing, isCheckingInstall)
                         installState.installedRecord?.let { installed ->
                             AppOutlinedButton(onClick = { onUninstall(installed.installKey) }, enabled = !isLoading) {
                                 Text(stringResource(R.string.plugin_repo_action_uninstall))
@@ -755,6 +798,8 @@ private fun PluginPlatformTabs(
     selected: PluginPlatformTab,
     onSelect: (PluginPlatformTab) -> Unit,
     modifier: Modifier = Modifier,
+    updateKeys: Set<String> = emptySet(),
+    installed: List<InstalledPluginRecord> = emptyList(),
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -765,6 +810,7 @@ private fun PluginPlatformTabs(
                 tab = tab,
                 selected = tab == selected,
                 onClick = { onSelect(tab) },
+                hasUpdates = installed.any { it.installKey in updateKeys && it.isExtension == (tab == PluginPlatformTab.Extensions) },
                 modifier = Modifier.weight(1f),
             )
         }
@@ -777,6 +823,7 @@ private fun PlatformTabChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    hasUpdates: Boolean = false,
 ) {
     val tabModifier = modifier.testTag("platform-${tab.name.lowercase()}")
         .semantics { this.selected = selected }
@@ -784,6 +831,7 @@ private fun PlatformTabChip(
         Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(stringResource(tab.labelRes))
+        if (hasUpdates) { Spacer(Modifier.width(6.dp)); PluginUpdateDot() }
     }
     if (selected) Button(onClick = onClick, modifier = tabModifier, content = content)
     else AppOutlinedButton(onClick = onClick, modifier = tabModifier, content = content)
@@ -830,22 +878,49 @@ private fun PluginCard(
     isEnabled: Boolean,
     isSyncing: Boolean,
     isLoading: Boolean,
+    isProcessing: Boolean,
     upgrade: GitHubRepoSummary?,
     onSetEnabled: (Boolean) -> Unit,
     onSync: () -> Unit,
     onUpgrade: (GitHubRepoSummary) -> Unit,
     onInstallUpgrade: (GitHubRepoSummary) -> Unit,
     onOpenDetail: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onRemove: () -> Unit,
 ) {
-    MarketItemSurface(Modifier.testTag("installed:${plugin.installKey}")) {
-        Text(
-            text = plugin.name,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
+    var showRemoveConfirm by rememberSaveable(plugin.installKey) { mutableStateOf(false) }
+    if (showRemoveConfirm) {
+        AppConfirmationDialog(
+            title = stringResource(R.string.plugin_remove_dialog_title),
+            message = stringResource(R.string.plugin_remove_dialog_message),
+            confirmLabel = stringResource(R.string.plugin_remove_dialog_confirm),
+            cancelLabel = stringResource(R.string.plugin_action_cancel),
+            onConfirm = {
+                showRemoveConfirm = false
+                onRemove()
+            },
+            onDismiss = { showRemoveConfirm = false },
         )
+    }
+    MarketItemSurface(Modifier.testTag("installed:${plugin.installKey}")) {
+        // Separate enablement switch from primary, details and removal actions.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = plugin.name,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Switch(
+                checked = isEnabled,
+                onCheckedChange = onSetEnabled,
+                enabled = !isLoading && !isSyncing,
+                modifier = Modifier.testTag("toggle:${plugin.installKey}"),
+            )
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             VersionPill(displayVersion(plugin.version))
-            MarketStatusBadge(stringResource(if (isEnabled) R.string.plugin_badge_enabled else R.string.plugin_catalog_disabled))
+            if (!isEnabled) MarketStatusBadge(stringResource(R.string.plugin_catalog_disabled))
             if (upgrade != null) MarketStatusBadge(stringResource(R.string.plugin_repo_state_update), attention = true)
             if (plugin.compatibilityStatus == PluginCompatibilityStatus.Incompatible) {
                 MarketStatusBadge(stringResource(R.string.plugin_catalog_incompatible), attention = true)
@@ -859,33 +934,60 @@ private fun PluginCard(
             },
         )
         MarketSourceLabel(source)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            if (plugin.isExtension) {
-                Button(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_card_action_extension_settings)) }
-            } else if (isEnabled) {
-                PluginSyncOrUpgradeButton(plugin, isSyncing || isLoading, upgrade, onSync, onUpgrade)
-            } else {
-                AppOutlinedButton(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_catalog_details)) }
+        // Component upgrades use install preview without entering school-import sync.
+        if (upgrade != null && (plugin.isExtension || !isEnabled)) {
+            Button(
+                onClick = { onInstallUpgrade(upgrade) },
+                enabled = !isLoading && !isSyncing,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.plugin_repo_action_update, displayVersion(upgrade.latestRelease!!.tagName)))
             }
-            // 组件更新只走安装预览；不能走学校插件的升级后导课流程。
-            if (upgrade != null && (plugin.isExtension || !isEnabled)) {
-                Button(onClick = { onInstallUpgrade(upgrade) }, enabled = !isLoading && !isSyncing) {
-                    Text(stringResource(R.string.plugin_repo_action_update, displayVersion(upgrade.latestRelease!!.tagName)))
+        }
+        val hasPrimary = plugin.isExtension || isEnabled
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (plugin.isExtension) {
+                Button(onClick = onOpenSettings, modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.plugin_card_action_extension_settings))
+                }
+            } else if (isEnabled) {
+                Box(Modifier.weight(1f)) {
+                    PluginSyncOrUpgradeButton(plugin, isSyncing || isProcessing, upgrade, onSync, onUpgrade, fill = true, blocked = isLoading)
                 }
             }
-            AppOutlinedButton(onClick = { onSetEnabled(!isEnabled) }, enabled = !isLoading && !isSyncing) {
-                Text(stringResource(if (isEnabled) R.string.plugin_catalog_disable else R.string.plugin_catalog_enable))
+            AppOutlinedButton(
+                onClick = onOpenDetail,
+                modifier = (if (hasPrimary) Modifier else Modifier.weight(1f)).testTag("details:${plugin.installKey}"),
+            ) {
+                Text(stringResource(R.string.plugin_catalog_details))
             }
-            if (!plugin.isExtension && isEnabled) {
-                AppOutlinedButton(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_catalog_details)) }
-            }
+            RemoveIconButton(
+                label = stringResource(if (plugin.isExtension) R.string.extension_action_remove else R.string.plugin_detail_action_remove),
+                enabled = !isLoading && !isSyncing,
+                onClick = { showRemoveConfirm = true },
+                modifier = Modifier.testTag("remove:${plugin.installKey}"),
+            )
         }
     }
 }
 
-/**
- * 同步课表按钮；市场上已知有新版时换成「升级到 vX」，旁边写明当前版本，升级装好后自动接着同步。
- */
+/** Distinct removal action with confirmation. */
+@Composable
+private fun RemoveIconButton(label: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val error = MaterialTheme.colorScheme.error
+    AppOutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.size(48.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = error),
+        border = BorderStroke(1.dp, error.copy(alpha = if (enabled) 0.55f else 0.12f)),
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Icon(Icons.Rounded.Delete, contentDescription = label, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** An available upgrade replaces sync; successful installation then continues the import. */
 @Composable
 private fun PluginSyncOrUpgradeButton(
     plugin: InstalledPluginRecord,
@@ -893,8 +995,11 @@ private fun PluginSyncOrUpgradeButton(
     upgrade: GitHubRepoSummary?,
     onSync: () -> Unit,
     onUpgrade: (GitHubRepoSummary) -> Unit,
+    fill: Boolean = false,
+    blocked: Boolean = false,
 ) {
     val newVersion = upgrade?.latestRelease?.tagName
+    val buttonModifier = if (fill) Modifier.fillMaxWidth() else Modifier
     if (upgrade != null && newVersion != null && !isSyncing) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -906,7 +1011,7 @@ private fun PluginSyncOrUpgradeButton(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.tertiary,
             )
-            Button(onClick = { onUpgrade(upgrade) }) {
+            Button(onClick = { onUpgrade(upgrade) }, modifier = buttonModifier, enabled = !blocked) {
                 Text(stringResource(R.string.plugin_upgrade_action_version, displayVersion(newVersion)))
             }
         }
@@ -914,7 +1019,8 @@ private fun PluginSyncOrUpgradeButton(
     }
     Button(
         onClick = onSync,
-        enabled = !isSyncing,
+        enabled = !isSyncing && !blocked,
+        modifier = buttonModifier,
     ) {
         Text(
             if (isSyncing) {
@@ -922,22 +1028,6 @@ private fun PluginSyncOrUpgradeButton(
             } else {
                 stringResource(R.string.plugin_card_action_sync)
             },
-        )
-    }
-}
-
-@Composable
-private fun EnabledBadge() {
-    Surface(
-        shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.primaryContainer,
-    ) {
-        Text(
-            text = stringResource(R.string.plugin_badge_enabled),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-            fontWeight = FontWeight.SemiBold,
         )
     }
 }
@@ -956,6 +1046,7 @@ private fun PluginDetailScreen(
     onSync: () -> Unit,
     onUpgrade: (GitHubRepoSummary) -> Unit,
     onOpenRepo: (String) -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -966,6 +1057,9 @@ private fun PluginDetailScreen(
     var hasSavedPasswords by remember(plugin.pluginId) { mutableStateOf(credentialStore.hasAny(plugin.pluginId)) }
     val compatibilityMessage = plugin.compatibilityMessage?.takeIf { it.isNotBlank() }
         ?: context.pluginCompatibilityText(resolvePluginCompatibility(plugin.apiVersion))
+    val usage by produceState<PluginStorageUsage?>(null, plugin.packageRevision) {
+        value = measurePluginStorage(context.filesDir, plugin)
+    }
     val sourceLabel = registrySource ?: plugin.sourceRepo?.takeIf { it.isNotBlank() } ?: stringResource(
         when (plugin.source) {
             PluginInstallSource.Local -> R.string.plugin_install_origin_local
@@ -986,10 +1080,18 @@ private fun PluginDetailScreen(
             ) {
                 item(key = "identity") {
                     MarketItemSurface {
-                        MarketDetailHeading(plugin.name, Modifier.testTag("detail-name"))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            MarketDetailHeading(plugin.name, Modifier.weight(1f).testTag("detail-name"))
+                            Switch(
+                                checked = isEnabled,
+                                onCheckedChange = onSetEnabled,
+                                enabled = !isSyncing,
+                                modifier = Modifier.testTag("detail-toggle"),
+                            )
+                        }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             VersionPill(plugin.version)
-                            MarketStatusBadge(stringResource(if (isEnabled) R.string.plugin_badge_enabled else R.string.plugin_catalog_disabled))
+                            if (!isEnabled) MarketStatusBadge(stringResource(R.string.plugin_catalog_disabled))
                             if (upgrade != null) MarketStatusBadge(stringResource(R.string.plugin_repo_state_update), attention = true)
                         }
                         MarketSourceLabel(sourceLabel)
@@ -1001,10 +1103,17 @@ private fun PluginDetailScreen(
                                     Text(stringResource(R.string.plugin_repo_action_update, displayVersion(upgrade.latestRelease!!.tagName)))
                                 }
                             }
-                            AppOutlinedButton(onClick = { onSetEnabled(!isEnabled) }, enabled = !isSyncing) {
-                                Text(stringResource(if (isEnabled) R.string.plugin_catalog_disable else R.string.plugin_catalog_enable))
+                            onOpenSettings?.let { open ->
+                                Button(onClick = open, modifier = Modifier.testTag("detail-open-settings")) {
+                                    Text(stringResource(R.string.plugin_card_action_extension_settings))
+                                }
                             }
-                            AppOutlinedButton(onClick = { showRemoveConfirm = true }, enabled = !isSyncing) {
+                            AppOutlinedButton(
+                                onClick = { showRemoveConfirm = true },
+                                enabled = !isSyncing,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = if (isSyncing) 0.12f else 0.55f)),
+                            ) {
                                 Text(stringResource(if (plugin.isExtension) R.string.extension_action_remove else R.string.plugin_detail_action_remove))
                             }
                         }
@@ -1015,6 +1124,25 @@ private fun PluginDetailScreen(
                                 hasSavedPasswords = false
                                 Toast.makeText(context, clearedMessage, Toast.LENGTH_SHORT).show()
                             }) { Text(stringResource(R.string.plugin_detail_action_clear_passwords)) }
+                        }
+                    }
+                }
+                item(key = "install-info") {
+                    DetailSection(stringResource(R.string.plugin_detail_section_install)) {
+                        Column(Modifier.testTag("detail-install-info"), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            val measuring = stringResource(R.string.plugin_detail_size_measuring)
+                            fun size(bytes: Long?) = bytes?.let { Formatter.formatShortFileSize(context, it) } ?: measuring
+                            InstallInfoRow(stringResource(R.string.plugin_detail_field_installed_at), formatInstalledAt(plugin.installedAt))
+                            InstallInfoRow(stringResource(R.string.plugin_detail_field_package_size), size(usage?.packageBytes))
+                            if (plugin.isExtension) {
+                                InstallInfoRow(stringResource(R.string.plugin_detail_field_data_size), size(usage?.dataBytes))
+                                InstallInfoRow(stringResource(R.string.plugin_detail_field_total_size), size(usage?.totalBytes))
+                                Text(
+                                    text = stringResource(R.string.plugin_detail_data_size_hint),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
@@ -1136,7 +1264,7 @@ internal fun InstallPreviewDialog(
         if (isPublicMarketSource(it)) stringResource(R.string.plugin_catalog_public_source) else it
     } ?: context.pluginInstallOriginText(pluginInstallOriginLabel(preview.source, origin))
     val size = packageSizeBytes?.takeIf { it >= 0 } ?: origin?.sizeBytes?.takeIf { it >= 0 }
-    // 高度只跟可用屏幕大小有关，展开技术信息时只增加内部滚动内容。
+    // Keep dialog height fixed; expanded details scroll internally.
     val dialogHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.82f).coerceAtMost(680.dp)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1172,7 +1300,7 @@ internal fun InstallPreviewDialog(
                     size?.let { Formatter.formatShortFileSize(context, it) } ?: stringResource(R.string.plugin_install_size_unknown),
                     valueModifier = Modifier.testTag("preview-size"),
                 )
-                // 阻止安装的原因始终展示，折叠权限与校验不会改变确认按钮的校验条件。
+                // Blocking errors remain visible independently of collapsed technical sections.
                 pluginInstallBlockReason(preview)?.let { reason ->
                     Text(
                         context.pluginInstallBlockReasonText(reason),
@@ -1274,6 +1402,20 @@ private fun DetailSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
+private fun InstallInfoRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            text = value,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.End,
+        )
+    }
+}
+
+@Composable
 private fun DetailRow(label: String, value: String) {
     MarketInfoBlock(label, value)
 }
@@ -1329,9 +1471,9 @@ internal enum class PluginPlatformTab(
     val icon: ImageVector,
 ) {
     Plugins(R.string.plugin_market_tab_plugins, Icons.Rounded.Extension),
-    /** 通知类的扩展组件 */
+
     Extensions(R.string.plugin_market_tab_extensions, Icons.Rounded.Widgets),
-    /** 仅兼容旧版保存的页面状态；运行环境入口暂不开放。 */
+    /** Reserved for legacy saved page state; runtime installation is unavailable. */
     Components(R.string.plugin_market_tab_components, Icons.Rounded.Memory);
 
     companion object {
@@ -1373,8 +1515,6 @@ private fun Context.openExternalUrl(url: String) {
     runCatching { startActivity(intent) }
 }
 
-internal const val MARKET_CACHE_TTL_MILLIS = 24L * 60L * 60L * 1000L
-
 private val PACKAGE_MIME_TYPES = arrayOf(
     "application/zip",
     "application/x-zip-compressed",
@@ -1382,7 +1522,6 @@ private val PACKAGE_MIME_TYPES = arrayOf(
     "*/*",
 )
 
-/** 已装或可更新时在卡片上标一下，未安装时不占位。 */
 @Composable
 private fun InstallStatePill(state: PluginRepoInstallState) {
     val labelRes = when (state) {
@@ -1404,33 +1543,3 @@ private fun InstallStatePill(state: PluginRepoInstallState) {
         )
     }
 }
-
-/** 详情页左上角的返回，带边框以便和旁边的标题区分开。 */
-@Composable
-private fun DetailBackButton(onBack: () -> Unit) {
-    AppOutlinedButton(
-        onClick = onBack,
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-            contentDescription = null,
-            modifier = Modifier.size(16.dp),
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(stringResource(R.string.plugin_action_back), maxLines = 1)
-    }
-}
-
-
-/** 包里 manifest.json 带 entry / apiVersion 的是插件包（学校插件或扩展组件），不是运行环境包 */
-private fun looksLikePluginPackage(bytes: ByteArray): Boolean = runCatching {
-    java.util.zip.ZipInputStream(bytes.inputStream()).use { zip ->
-        generateSequence { zip.nextEntry }
-            .firstOrNull { it.name == "manifest.json" }
-            ?.let {
-                val text = zip.readBytes().toString(Charsets.UTF_8)
-                "\"apiVersion\"" in text || "\"entry\"" in text
-            } ?: false
-    }
-}.getOrDefault(false)

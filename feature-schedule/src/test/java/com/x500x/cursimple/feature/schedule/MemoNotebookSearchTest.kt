@@ -24,7 +24,7 @@ class MemoNotebookSearchTest {
         assertTrue(memoNotebookMatches(nb("数值分析"), "数分"))
         assertTrue(memoNotebookMatches(nb("汇编语言与微型计算机技术"), "汇微"))
         assertTrue(memoNotebookMatches(nb("MATLAB应用"), "mat 应用"))
-        // 顺序反了不算，单个字只按包含算
+        // Abbreviation order matters; single characters use substring matching only.
         assertFalse(memoNotebookMatches(nb("数值分析"), "分数"))
         assertFalse(memoNotebookMatches(nb("数值分析"), "计"))
     }

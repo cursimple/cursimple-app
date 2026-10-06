@@ -177,7 +177,7 @@ internal fun normalizeSecureWebDavDirectoryUrl(rawUrl: String): String {
     return if (url.endsWith("/")) url else "$url/"
 }
 
-// 服务端返回的 href 可能指向别的主机，下载前限制在配置的服务器上，避免 Basic 凭据外发
+// Restrict returned hrefs to the configured server before forwarding Basic credentials.
 internal fun requireSameWebDavOrigin(baseUrl: String, url: String): String {
     val baseUri = runCatching { URI(baseUrl) }.getOrNull()
     val targetUri = runCatching { URI(url) }.getOrNull()

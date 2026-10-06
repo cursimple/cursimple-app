@@ -3,24 +3,16 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Android 16 实时活动：上课通知在状态栏挂胶囊、锁屏置顶 -->
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
-    <!--
-        默认「系统增强」用自绘弹窗补充系统通知；需要用户在通知设置中授予悬浮窗权限。
-        未授权时继续发送普通系统通知。
-    -->
+    <!-- Custom overlays require user permission; fall back to system notifications when unavailable. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <!--
-        Android 14 起 SCHEDULE_EXACT_ALARM 默认不授予，闹钟会在排程前就被挡下。
-        USE_EXACT_ALARM 安装即授予，适用于以闹钟为核心功能的应用；
-        旧系统上仍用 SCHEDULE_EXACT_ALARM，那一档装了就自动给。
-    -->
+    <!-- Use USE_EXACT_ALARM on supported versions; SCHEDULE_EXACT_ALARM handles older systems. -->
     <uses-permission
         android:name="android.permission.SCHEDULE_EXACT_ALARM"
         android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
-    <!-- MIUI 13 以下要靠这条权限才弹得出「添加到桌面」确认框，AOSP 上没有实际作用 -->
+    <!-- Required for widget pinning prompts on older MIUI versions. -->
     <uses-permission android:name="com.android.launcher.permission.INSTALL_SHORTCUT" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
@@ -37,19 +29,13 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
 
-    <!--
-        Android 11 起的包可见性：不声明这段就查不到桌面应用是谁，
-        厂商识别与「找不到小组件」的自检都会给出错误结论。
-    -->
+    <!-- Android 11+ package visibility is required for launcher detection. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.HOME" />
         </intent>
-        <!--
-            各家的自启动、省电策略设置页。Android 11 起不声明就查不到这些应用，
-            权限页会以为厂商页面不存在，自启动那一项就不显示。
-        -->
+        <!-- Expose vendor settings packages to background permission checks. -->
         <package android:name="com.miui.securitycenter" />
         <package android:name="com.miui.powerkeeper" />
         <package android:name="com.huawei.systemmanager" />
@@ -88,11 +74,7 @@
         <!-- Vendor opt-ins so MIUI / vivo / HONOR launchers index our widgets in their pickers. -->
         <meta-data android:name="miuiWidgetVersion" android:value="1" />
         <meta-data android:name="vivoWidgetVersion" android:value="1" />
-        <!--
-          允许华为 / 荣耀的系统服务（智慧助手、系统日历）读取本应用的数据。
-          这是华为侧「让课程出现在系统卡片里」的开关：不声明时系统服务不会来读。
-          只是一个许可位，本身不主动上传任何东西。
-        -->
+        <!-- Allows vendor system cards to query app data; does not upload data itself. -->
         <meta-data android:name="sync_data_to_system_service" android:value="true" />
         <activity
             android:name=".app.MainActivity"
@@ -104,12 +86,11 @@
             </intent-filter>
         </activity>
 
-        <!-- 扩展组件的截止前提醒 -->
         <receiver
             android:name=".app.extension.ExtensionDueReceiver"
             android:exported="false" />
 
-        <!-- 锁屏上的上课横幅：透明、只有卡片大、不点亮屏幕；单独一个任务，别把课表主界面带到锁屏上 -->
+        <!-- Separate lock-screen task; keeps the timetable off the lock screen without waking it. -->
         <activity
             android:name=".app.notice.ClassNoticeLockActivity"
             android:excludeFromRecents="true"
@@ -206,7 +187,6 @@
             </intent-filter>
         </receiver>
 
-        <!-- 提醒巡检（静默守护）：系统每 15 分钟拉起一次，重挂上课提醒和闹钟 -->
         <service
             android:name=".app.reminder.ReminderGuardJobService"
             android:exported="false"

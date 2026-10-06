@@ -1,6 +1,5 @@
 package com.x500x.cursimple.app.update
 
-/** 发布说明里的一段行内文字。 */
 data class ReleaseNoteSpan(
     val text: String,
     val bold: Boolean = false,
@@ -8,7 +7,6 @@ data class ReleaseNoteSpan(
     val link: String? = null,
 )
 
-/** 发布说明解析后的一个块。 */
 sealed interface ReleaseNoteBlock {
     data class Heading(val level: Int, val spans: List<ReleaseNoteSpan>) : ReleaseNoteBlock
 
@@ -18,21 +16,15 @@ sealed interface ReleaseNoteBlock {
 
     data object Divider : ReleaseNoteBlock
 
-    /** 连续的几张图，在公告里排成一组左右翻页。 */
     data class Gallery(val images: List<ReleaseNoteImage>) : ReleaseNoteBlock
 }
 
-/** 公告里的一张图：[url] 是图片地址，[caption] 取自 Markdown 的替代文字，显示在图下方。 */
+/** Image [url] and Markdown-derived [caption]. */
 data class ReleaseNoteImage(val url: String, val caption: String)
 
 /**
- * 把 Release 正文的 Markdown 解析成块。
- *
- * 支持标题、无序列表、分隔线，行内支持粗体、行内代码、链接与裸链接。
- * 段落与列表项里的换行按续行合并，两侧都不是中日韩文字时补一个空格。
- *
- * 独占一行的 `![说明](地址)` 是图片；相邻的几张（中间隔空行也算）并成一个 [ReleaseNoteBlock.Gallery]，
- * 公告里左右翻。GitHub 网页上它们照常一张张往下排，两边都能看。
+ * Parse headings, lists, dividers and inline formatting. Join CJK continuation lines without
+ * extra spaces; group adjacent images into galleries.
  */
 fun parseReleaseNotes(markdown: String): List<ReleaseNoteBlock> {
     val blocks = mutableListOf<ReleaseNoteBlock>()
@@ -63,7 +55,6 @@ fun parseReleaseNotes(markdown: String): List<ReleaseNoteBlock> {
         pending.append(text)
     }
 
-    // 上一个非空行是不是图片：是的话下一张图接进同一组
     var afterImage = false
 
     for (rawLine in markdown.lines()) {
@@ -117,7 +108,6 @@ fun parseReleaseNotes(markdown: String): List<ReleaseNoteBlock> {
     return blocks
 }
 
-/** 解析行内标记，返回顺序排列的片段。 */
 internal fun parseInline(text: String): List<ReleaseNoteSpan> {
     val spans = mutableListOf<ReleaseNoteSpan>()
     var index = 0
@@ -170,7 +160,6 @@ private enum class PendingKind { Paragraph, Bullet }
 
 private fun Char.isCjk(): Boolean = this in '⺀'..'鿿' || this in '＀'..'￯'
 
-/** 独占一行的图片；可选的 "标题" 部分忽略，说明文字取方括号里的。 */
 private val IMAGE_LINE = Regex("^!\\[([^\\]]*)]\\((\\S+?)(?:\\s+\"[^\"]*\")?\\)$")
 private val HORIZONTAL_RULE = Regex("^(-{3,}|\\*{3,}|_{3,})$")
 private val BULLET_PREFIX = Regex("^([-*+]|\\d+\\.)\\s+")

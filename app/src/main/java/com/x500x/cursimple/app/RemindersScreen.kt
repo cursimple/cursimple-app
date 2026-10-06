@@ -39,13 +39,7 @@ import com.x500x.cursimple.core.data.ClassNoticeAnimation
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
 
-/**
- * 侧边栏「提醒」页，分两栏：
- *
- * - 闹钟：按课程响铃的闹钟规则、铃声与重复，原来整页就是它；
- * - 提醒：上课前弹一条悬浮横幅或通知，这才是真正意义上的「提醒」。
- *   它的设置原本藏在「设置 → 提醒与权限 → 上课通知」里，这里放一份，不用绕路就能开关、改提前量。
- */
+/** Separate alarm rules from class-notice settings in the reminders page. */
 @Composable
 internal fun RemindersScreen(
     classNotice: ClassNoticePreferences,
@@ -123,7 +117,6 @@ private enum class RemindersTab(val labelRes: Int, val icon: ImageVector) {
     Notice(R.string.reminders_tab_notice, Icons.Rounded.NotificationsActive),
 }
 
-/** 与插件页「插件 / 组件」同一种胶囊分栏，两处切换手感一致。 */
 @Composable
 private fun RemindersTabChip(
     tab: RemindersTab,

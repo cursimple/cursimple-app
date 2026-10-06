@@ -4,7 +4,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 登录页「记住密码」脚本的生成规则；存储与加密依赖 Keystore，在真机上验证。 */
 class WebLoginCredentialsTest {
 
     @Test
@@ -21,7 +20,6 @@ class WebLoginCredentialsTest {
             WebLoginCredential(host = "cas.example.edu.cn", username = "2024\"01", password = "p\\w</script>"),
         )
         assertTrue(script.contains("\"2024\\\"01\""))
-        // `<` 转义掉，密码里带 </script> 也截不断外层脚本
         assertFalse(script.contains("</script>"))
         assertTrue(script.contains("\"p\\\\w\\u003c/script>\""))
     }

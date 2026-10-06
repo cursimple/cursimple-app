@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
@@ -57,14 +56,12 @@ internal enum class WeekParity(@param:StringRes val labelRes: Int) {
     Odd(R.string.schedule_week_parity_odd),
     Even(R.string.schedule_week_parity_even),
 
-    /** 自己在周次矩阵里逐周点选，用于 3、5、11 这种没有规律的排课。 */
     Custom(R.string.schedule_week_parity_custom),
 }
 
 /**
- * 按单双周筛选出周次列表，输入区间非法或筛完为空时返回 null。
- * 空列表在课程模型里表示"每周都有"，直接建课会让课程出现在所有周，
- * 所以这里用 null 与之区分，调用方拿到 null 必须禁止保存。
+ * Null means invalid or empty selection; do not confuse it with the model's every-week empty
+ * list.
  */
 internal fun manualCourseWeeksOrNull(
     startWeek: Int?,
@@ -80,18 +77,14 @@ internal fun manualCourseWeeksOrNull(
             WeekParity.All -> true
             WeekParity.Odd -> week % 2 == 1
             WeekParity.Even -> week % 2 == 0
-            // 自选不走区间，调用方直接给周次集合，这里不该被用到
             WeekParity.Custom -> true
         }
     }.takeIf { it.isNotEmpty() }
 }
 
 /**
- * 从已有周次反推该用哪一档。
- *
- * 判据是「能不能用区间加单双周表达出来」：用 min..max 套一遍规则，结果和原周次
- * 一模一样才算那一档，否则就是自选。不这么判的话，3、5、11 这种会被归成全部周，
- * 一打开编辑器就被区间悄悄改写成 3..11 的每一周。
+ * Infer a week preset only if it reproduces the exact stored week set; otherwise preserve
+ * custom selection.
  */
 internal fun weekParityOf(weeks: List<Int>?): WeekParity {
     if (weeks.isNullOrEmpty()) return WeekParity.All
@@ -112,25 +105,13 @@ internal fun weekParityOf(weeks: List<Int>?): WeekParity {
     return WeekParity.Custom
 }
 
-/**
- * 周次矩阵要铺到第几周。
- *
- * 取「学期总周数」与「这门课已有的最大周次」里大的那个：课程的周次超出学期设定时
- * （导进来的数据常有），矩阵里得点得到那几周，否则用户既看不到也改不掉。
- */
+/** Include stored weeks beyond the configured term so they remain editable. */
 internal fun customWeekLimit(maxWeekCount: Int, weeks: List<Int>?): Int =
     maxOf(maxWeekCount, weeks?.maxOrNull() ?: 0).coerceAtLeast(1)
 
-/** 自选周次在表单状态里存成逗号串，便于 rememberSaveable 直接存取。 */
 internal fun encodeCustomWeeks(weeks: Collection<Int>): String = weeks.distinct().sorted().joinToString(",")
 
-/**
- * 解析自选周次。
- *
- * [maxWeekCount] 传的是放宽后的上限（见 [customWeekLimit]）：课程本身的周次可能
- * 超出学期设定的总周数（导进来的数据写到 24 周而学期只设了 20 周），
- * 按学期总周数硬切会把用户已有的周次悄悄丢掉。
- */
+/** Use expanded [maxWeekCount] from [customWeekLimit] to preserve imported weeks. */
 internal fun decodeCustomWeeks(raw: String, maxWeekCount: Int): List<Int> = raw
     .split(',')
     .mapNotNull { it.trim().toIntOrNull() }
@@ -138,8 +119,7 @@ internal fun decodeCustomWeeks(raw: String, maxWeekCount: Int): List<Int> = raw
     .distinct()
     .sorted()
 
-// 各周单独地点在表单状态里的编码：条目间用 ，周次与地点间用 。
-// 地点里可能带任何可见字符，用不可见控制符当分隔符才不会撞上教室号。
+// Encode week locations with control-character separators to avoid collisions with visible room text.
 private const val WEEK_LOC_ENTRY_SEP = "\u0002"
 private const val WEEK_LOC_KV_SEP = "\u0001"
 
@@ -160,11 +140,8 @@ internal fun decodeWeekLocations(raw: String): Map<Int, String> {
 }
 
 /**
- * 课程的编辑表单本体，只负责字段与校验，按钮由调用方自己摆。
- *
- * 新增课程与在详情页里改课共用这一份，两处的字段、校验与冲突提示才不会走散。
- * 每次输入变动都通过 [onDraftChange] 吐出当前草稿，输入不合法时给 null，
- * 调用方据此决定保存按钮是否可用。
+ * Shared field editor emits [onDraftChange] with null for invalid input; callers place save
+ * controls.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -187,8 +164,7 @@ internal fun CourseEditFormFields(
     var endNodeText by rememberSaveable(initial) {
         mutableStateOf(initial?.time?.endNode?.toString() ?: "2")
     }
-    // 新建课程时周次留空由用户自己填：预填的 1-16 多半不是这门课的真实周次，
-    // 填了反而容易被当成已经填好而直接保存。
+    // Leave new-course weeks unset rather than assuming a misleading default range.
     var startWeekText by rememberSaveable(initial) {
         mutableStateOf(initial?.weeks?.minOrNull()?.toString().orEmpty())
     }
@@ -196,7 +172,6 @@ internal fun CourseEditFormFields(
         mutableStateOf(initial?.weeks?.maxOrNull()?.toString().orEmpty())
     }
     var parity by rememberSaveable(initial) { mutableStateOf(weekParityOf(initial?.weeks)) }
-    // 自选的周次存成逗号串，rememberSaveable 才存得下
     var customWeeksRaw by rememberSaveable(initial) {
         mutableStateOf(encodeCustomWeeks(initial?.weeks.orEmpty()))
     }
@@ -204,7 +179,6 @@ internal fun CourseEditFormFields(
     var category by rememberSaveable(initial) {
         mutableStateOf(initial?.category ?: CourseCategory.Course)
     }
-    // 各周单独地点存成一串，rememberSaveable 才存得下
     var pickingWeekLocations by rememberSaveable(initial) { mutableStateOf(false) }
     var weekLocationsRaw by rememberSaveable(initial) {
         mutableStateOf(encodeWeekLocations(initial?.weekLocations.orEmpty()))
@@ -217,7 +191,7 @@ internal fun CourseEditFormFields(
     val endWeek = endWeekText.toIntOrNull()
     val rangeValid = startWeek != null && endWeek != null &&
         startWeek in 1..maxWeekCount && endWeek in startWeek..maxWeekCount
-    // 课程原有的周次可能超出学期总周数，矩阵与解码都按放宽后的上限来
+    // Use expanded bounds for both week selection and decoding.
     val weekLimit = remember(maxWeekCount, initial) {
         customWeekLimit(maxWeekCount, initial?.weeks)
     }
@@ -232,7 +206,7 @@ internal fun CourseEditFormFields(
     val nodesValid = startNode != null && endNode != null &&
         startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount
     val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
-    // 只保留当前选中周里、且真填了内容的地点；关掉开关就整份清空
+    // Retain nonblank locations in selected weeks only; disabling clears overrides.
     val effectiveWeekLocations = if (weeks != null) {
         weekLocationsMap.filterKeys { it in weeks }.mapValues { it.value.trim() }.filterValues { it.isNotBlank() }
     } else {
@@ -254,7 +228,6 @@ internal fun CourseEditFormFields(
     } else {
         null
     }
-    // 回调可能每次重组都是新 lambda，锁一层再在草稿真的变了时才上报
     val currentOnDraftChange by rememberUpdatedState(onDraftChange)
     LaunchedEffect(draft) { currentOnDraftChange(draft) }
 
@@ -350,7 +323,7 @@ internal fun CourseEditFormFields(
         }
 
         CourseFormLabel(stringResource(R.string.schedule_weeks_label))
-        // 自选时起止周没有意义，收起来只留已选周的摘要
+        // Custom selection replaces start/end inputs with a selected-week summary.
         if (parity == WeekParity.Custom) {
             SelectedWeeksRow(
                 weeks = customWeeks,
@@ -386,7 +359,6 @@ internal fun CourseEditFormFields(
                     selected = parity == p,
                     onClick = {
                         parity = p
-                        // 切到自选就把当前区间的结果带过去当初值，省得从零点起
                         if (p == WeekParity.Custom) {
                             if (customWeeksRaw.isBlank()) {
                                 customWeeksRaw = encodeCustomWeeks(
@@ -446,8 +418,6 @@ internal fun CourseEditFormFields(
     }
 }
 
-
-/** 自选模式下的摘要行：左边列出选了哪几周，右边一直留着「修改」入口。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SelectedWeeksRow(
@@ -496,11 +466,7 @@ private fun SelectedWeeksRow(
     }
 }
 
-/**
- * 周次矩阵。
- *
- * 一格一周铺成网格，点一下切换选中；确认才写回表单，中途反悔直接关掉就行。
- */
+/** Week-grid edits remain local until confirmation. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WeekMatrixDialog(
@@ -581,18 +547,10 @@ private fun WeekMatrixDialog(
     )
 }
 
+/** Select one week to edit its location without creating a long row for every week. */
 /**
- * 各周单独地点。
- *
- * 上面一片周次格，哪几周设过就点亮哪几周；点一格，下面只出一个输入框填那一周的地点。
- * 不把每周都摊成一行——周次一多就是长长一条，既难看又要一直往下滚。
- */
-/**
- * 上课地点输入框，右边带「逐周设地点」的按钮。
- *
- * 每周换教室的课（物理实验之类）从这里逐周设。按钮常驻：没填默认地点、还没选周次时也能先设，
- * 周次没选就先列出整个学期的周，保存时只留选中那几周的。新建、快速添加、编辑三处共用这一个，
- * 免得哪一处漏了按钮。
+ * Shared location input exposes per-week editing even before weeks are chosen; saving filters
+ * to the final week set.
  */
 @Composable
 internal fun CourseLocationField(
@@ -651,7 +609,6 @@ internal fun WeekLocationDialog(
         title = { Text(stringResource(R.string.schedule_week_location_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // 这里要让人确认「我正在给哪门课改地点」，而不是再读一遍功能说明
                 Surface(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)),
                     color = MaterialTheme.colorScheme.surfaceVariant,
@@ -807,8 +764,7 @@ private fun buildCourse(
     existing: CourseItem? = null,
 ): CourseItem {
     val time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode)
-    // 编辑时只覆盖表单里的字段，id 与提醒占位字段原样保留。
-    // 改的若是插件课，保持 id 不变正是覆盖的关键：保存后它以同 id 的手动课盖掉插件原件。
+    // Edit only form fields, preserving IDs and placeholder metadata so manual overrides replace plugin originals.
     if (existing != null) {
         return existing.copy(
             title = title,

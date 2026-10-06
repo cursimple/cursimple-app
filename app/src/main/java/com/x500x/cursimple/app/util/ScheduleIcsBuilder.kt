@@ -1,7 +1,6 @@
 package com.x500x.cursimple.app.util
 
 import androidx.annotation.StringRes
-import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
@@ -19,7 +18,7 @@ import java.time.zone.ZoneOffsetTransition
 import kotlin.math.abs
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 
-/** 一门无法导出的课程及原因，供界面告知用户而不是静默丢弃。[reason] 为文案资源 id。 */
+/** Report excluded courses with localized [reason] resource IDs. */
 data class IcsSkippedCourse(
     val title: String,
     val dayOfWeek: Int,
@@ -29,8 +28,8 @@ data class IcsSkippedCourse(
 )
 
 /**
- * ICS 生成结果。
- * [content] 始终是一份合法的 iCalendar 文本；[failureReason] 非空（文案资源 id）表示因缺少必要配置整份日历没有任何事件。
+ * [content] is valid iCalendar even when [failureReason] denotes missing configuration and no
+ * events.
  */
 data class IcsExportResult(
     val content: String,
@@ -40,16 +39,8 @@ data class IcsExportResult(
     @StringRes val failureReason: Int?,
 )
 
-/**
- * 把当前学期课表渲染成 iCalendar（RFC 5545）文本的纯函数集合。
- * 不接触 Android Context 与文件 IO，便于单元测试。
- */
-/**
- * 导出的 .ics 里出现的文字。
- *
- * 生成逻辑是纯函数，不该依赖 Context；文案由导出层按当前语言取好再传进来，
- * 这样单测能直接给定文本，用户拿到的日历文件也跟着应用语言走。
- */
+/** Pure RFC 5545 generation without Android Context or file IO. */
+/** Inject localized export text rather than resolving Context in pure generation. */
 data class IcsTextLabels(
     val exam: String,
     val teacherFormat: String,
@@ -270,8 +261,8 @@ object ScheduleIcsBuilder {
     }
 
     /**
-     * 依据设备时区的真实换算规则生成 VTIMEZONE，覆盖 [windowStart]~[windowEnd]。
-     * 有夏令时的时区会按实际转换点写出 STANDARD/DAYLIGHT，无夏令时则只有一个 STANDARD。
+     * Generate real zone transitions across [windowStart]..[windowEnd], including STANDARD and
+     * DAYLIGHT where applicable.
      */
     private fun buildVTimeZone(zone: ZoneId, windowStart: LocalDate, windowEnd: LocalDate): List<String> {
         val rules = zone.rules
@@ -346,7 +337,6 @@ object ScheduleIcsBuilder {
     private fun offsetName(offset: ZoneOffset): String =
         if (offset.totalSeconds == 0) "GMT" else "GMT${offset.id}"
 
-    /** RFC 5545 文本值转义：反斜杠、分号、逗号、换行。 */
     internal fun escapeText(value: String): String {
         val builder = StringBuilder(value.length + 8)
         var i = 0
@@ -368,7 +358,8 @@ object ScheduleIcsBuilder {
     }
 
     /**
-     * 按 75 字节折行，续行以单个空格开头；以 UTF-8 字节计量，绝不从多字节字符中间切断。
+     * Fold at 75 UTF-8 bytes without splitting characters; continuation lines start with one
+     * space.
      */
     internal fun fold(line: String): String {
         val builder = StringBuilder(line.length + 8)

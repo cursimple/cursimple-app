@@ -13,8 +13,7 @@ data class ClassSlotTime(
     @SerialName("endTime") val endTime: String,
     @SerialName("label") val label: String = "",
     /**
-     * 内置模板填入的标签标识，只用于按当前语言显示。
-     * [label] 保持语言无关：按标签匹配的提醒规则用它作键，跟随语言会让已存规则失配。
+     * [label] text remains a stable reminder key; built-in IDs supply localized display labels.
      */
     @SerialName("labelKey") val labelKey: String? = null,
 )
@@ -26,10 +25,7 @@ data class TermTimingProfile(
     @SerialName("timezone") val timezone: String = "",
 )
 
-/**
- * 开学日期为空或无法解析时返回 null。
- * 节次时间表可以在还没有开学日期时保存，调用方必须自行处理这一状态。
- */
+/** Null for absent or invalid term dates; timing profiles can exist without a date. */
 fun TermTimingProfile.termStartLocalDate(): LocalDate? =
     termStartDate.takeIf { it.isNotBlank() }?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
 
@@ -38,8 +34,8 @@ fun ClassSlotTime.startLocalTime(): LocalTime = LocalTime.parse(startTime)
 fun ClassSlotTime.endLocalTime(): LocalTime = LocalTime.parse(endTime)
 
 /**
- * 容错解析节次时间：插件同步、备份恢复、AI 导入写入的时间串未必是合法 ISO（如 "8:00"、"24:10"），
- * 解析失败时返回 null，调用方跳过该节次而不是让整轮提醒同步协程崩掉。
+ * Return null for invalid imported times so one bad period cannot abort reminder
+ * synchronization.
  */
 fun ClassSlotTime.startLocalTimeOrNull(): LocalTime? = runCatching { LocalTime.parse(startTime) }.getOrNull()
 
@@ -49,12 +45,7 @@ fun TermTimingProfile.findSlot(startNode: Int, endNode: Int): ClassSlotTime? {
     return slotTimes.firstOrNull { it.startNode == startNode && it.endNode == endNode }
 }
 
-/**
- * 课程第 [startNode]..[endNode] 节覆盖到的节次时段，按节次先后排列。
- *
- * 带上在排序后作息表里的序号（从 0 起），界面据此取「第一节」「午间课」这类名字；
- * 标签为空时也能按序号生成，和课表左侧的节次栏一致。
- */
+/** Resolve covered timing slots with sorted zero-based indices for localized display labels. */
 fun TermTimingProfile.slotsCovering(startNode: Int, endNode: Int): List<IndexedValue<ClassSlotTime>> {
     if (endNode < startNode) return emptyList()
     return slotTimes

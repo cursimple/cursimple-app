@@ -9,4 +9,6 @@
     <exclude
         domain="sharedpref"
         path="github_account.xml" />
+    <exclude domain="sharedpref" path="extension_secure_config.xml" />
+    <exclude domain="file" path="notification-outbox/" />
 </full-backup-content>

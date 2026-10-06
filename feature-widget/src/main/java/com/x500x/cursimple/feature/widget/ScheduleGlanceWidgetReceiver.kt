@@ -17,14 +17,12 @@ import kotlinx.coroutines.launch
 
 open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
-        // 厂商启动器的刷新广播不会变成 onUpdate，这里单独接一次
         if (handleVendorWidgetUpdate(context, intent) { updateWidgets(it) }) return
         super.onReceive(context, intent)
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // 有的启动器加完小组件不发 onUpdate，会一直停在「加载中」
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
             try {
@@ -224,7 +222,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                 putExtra(ScheduleWidgetActionReceiver.EXTRA_ACTION, action)
                 putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 putExtra(ScheduleWidgetActionReceiver.EXTRA_CURRENT_OFFSET, currentOffset)
-                // 相对偏移只在渲染的那一天成立；跨过零点还没重画时再点，就得按绝对日期重算
+                // Recompute relative offset from the rendered absolute date after midnight.
                 renderedDate?.let { putExtra(ScheduleWidgetActionReceiver.EXTRA_RENDERED_DATE, it.toString()) }
             }
             return PendingIntent.getBroadcast(
@@ -245,8 +243,5 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
     }
 }
 
-/**
- * [ScheduleGlanceWidgetReceiver] 的厂商适配副本。单独注册，便于 MIUI / vivo / HONOR 启动器
- * 通过各自的小组件 action 与 meta-data 识别。
- */
+/** Separately registered vendor provider copy for launcher actions and metadata. */
 class ScheduleGlanceWidgetReceiverMIUI : ScheduleGlanceWidgetReceiver()

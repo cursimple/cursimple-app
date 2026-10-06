@@ -78,24 +78,16 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** 下拉列表最高这么高，课再多就在框里接着滑，不会铺满整屏；键盘弹起时 Material 自己再往矮里缩 */
+/** Bound menu height and allow internal scrolling with keyboard-aware resizing. */
 private val DROPDOWN_LIST_MAX_HEIGHT = 300.dp
 
-/** 「点外面收起」和按在选择框上前后差不到这么久，就当是同一下，不收 */
 private const val ANCHOR_PRESS_WINDOW_MS = 300L
 
-/** 一项大约多高（两行：课名 + 老师地点），打开时据此把选中项滚到眼前 */
 private val MENU_ITEM_ESTIMATE = 60.dp
 
 /**
- * 选笔记本的下拉框：总览顶上和编辑页共用。
- *
- * 课一多，横着排一串的选择条就翻不到了；下拉框按待办多少排好，
- * 每项带课程颜色、老师地点和待办数，有固定的最大高度，里面自己滚。
- * 点开之后选择框本身变成搜索框（Material 可输入的下拉框），
- * 列表始终挂在它下面，键盘弹起时跟着缩矮，不会跳到上面把选择框盖住。
- *
- * [includeAll] 为真时第一项是「全部」，选中它回调 [onSelect] 传 [ALL_NOTEBOOKS]。
+ * Shared searchable notebook picker stays below its anchor, with bounded scrolling.
+ * [includeAll] adds an entry returning [ALL_NOTEBOOKS].
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,23 +102,19 @@ internal fun MemoNotebookDropdown(
     allCount: Int = 0,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    // 收起时选择框的高度：点开换成搜索框后保持一样高，不上下跳
     var collapsedHeight by remember { mutableIntStateOf(0) }
     val density = LocalDensity.current
     val selected = notebooks.firstOrNull { it.key == selectedKey }
-    // 搜索词；收起时清掉，下次打开从头来
     var query by remember { mutableStateOf("") }
     val searching = query.isNotBlank()
     val shown = remember(notebooks, query) { notebooks.filter { memoNotebookMatches(it, query) } }
     val searchFocus = remember { FocusRequester() }
-    // 菜单把点在它外面的都当成「点外面收起」，搜索框、清空按钮也在它外面。
-    // 记下最近一次按在选择框上的时间，这种「外面」不收
+    // Anchor and clear-button taps count as picker interaction despite being outside the popup.
     var lastAnchorPress by remember { mutableLongStateOf(0L) }
     val scope = rememberCoroutineScope()
-    // 菜单开着时，点在外面的那一下只用来收起菜单，不再落到下面的卡片上
+    // Outside taps dismiss without activating the underlying note.
     val shield = LocalMemoTapShield.current
     DisposableEffect(shield, expanded) {
-        // 记下这一轮是不是开着的：onDispose 跑的时候 expanded 已经变成新值了
         val armed = shield != null && expanded
         if (armed) {
             shield.active = true
@@ -134,7 +122,6 @@ internal fun MemoNotebookDropdown(
         }
         onDispose { if (armed) shield.active = false }
     }
-    // 每次打开都把选中的那一项滚到眼前（上面留一项），不停在上回滑到的地方
     val menuScroll = rememberScrollState()
     val itemHeightPx = with(density) { MENU_ITEM_ESTIMATE.toPx() }
     LaunchedEffect(expanded) {
@@ -142,7 +129,6 @@ internal fun MemoNotebookDropdown(
             query = ""
             return@LaunchedEffect
         }
-        // 点开就能直接打字
         runCatching { searchFocus.requestFocus() }
         val index = when {
             includeAll && allSelected -> 0
@@ -153,7 +139,6 @@ internal fun MemoNotebookDropdown(
             menuScroll.scrollTo(0)
             return@LaunchedEffect
         }
-        // 菜单排好版之后才有滚动范围；列表短到不用滚的话就一直是 0，等一会儿就算了
         withTimeoutOrNull(600) { snapshotFlow { menuScroll.maxValue }.first { it > 0 } }
         menuScroll.scrollTo(target)
     }
@@ -171,7 +156,6 @@ internal fun MemoNotebookDropdown(
                 if (expanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
             ),
             modifier = Modifier
-                // 打开以后点框里是在搜索框里挪光标，不该把菜单收起来；收起靠右边的箭头、点外面或返回
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = !expanded)
                 .fillMaxWidth()
                 .onGloballyPositioned { shield?.anchor = it.boundsInRoot() }
@@ -277,7 +261,7 @@ internal fun MemoNotebookDropdown(
                         modifier = Modifier.rotate(180f),
                     )
                 } else {
-                    // 收着的时候点整个框就展开，箭头只是个样子，不再单独接点击（免得一次点两下来回切）
+                    // The whole collapsed anchor owns expansion; the arrow must not toggle again.
                     Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.ExpandMore, contentDescription = stringResource(R.string.memo_notebook_pick))
                     }
@@ -287,8 +271,7 @@ internal fun MemoNotebookDropdown(
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = {
-                // 「点外面」和按在选择框上的那一下谁先到不一定，稍等一下再比两者的时间；
-                // 比的是两件事发生的时刻，不是等了多久：手机一卡，这一下可能等上好几百毫秒
+                // Compare event timestamps after both callbacks arrive, not elapsed handler delay.
                 val dismissAt = SystemClock.uptimeMillis()
                 scope.launch {
                     delay(80)
@@ -308,7 +291,6 @@ internal fun MemoNotebookDropdown(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
                 )
             }
-            // 搜的时候「全部」不算一门课，先藏起来
             if (includeAll && !searching) {
                 NotebookMenuItem(
                     title = stringResource(R.string.memo_notebook_all),
@@ -341,8 +323,8 @@ internal fun MemoNotebookDropdown(
 }
 
 /**
- * 下拉框里搜课：课名、老师、地点里包含搜索词就算；
- * 两个字以上时再认按顺序的缩写，「数分」找得到「数值分析」，「汇微」找得到「汇编语言与微型计算机技术」。
+ * Search course, teacher and location substrings; multi-character queries also support ordered
+ * abbreviations.
  */
 internal fun memoNotebookMatches(notebook: MemoNotebook, query: String): Boolean {
     val q = query.trim().lowercase().filterNot { it.isWhitespace() }
@@ -360,9 +342,8 @@ internal fun memoNotebookMatches(notebook: MemoNotebook, query: String): Boolean
 }
 
 /**
- * 可输入的下拉菜单不抢焦点（抢了键盘就归它了），代价是点在菜单外面的那一下会落到下面去：
- * 想收起菜单，结果点开了底下的笔记。把整页包在 [MemoTapShieldHost] 里，
- * 菜单开着时点在选择框以外的地方只收起菜单，这一下连同后面的滑动、抬起都吞掉。
+ * [MemoTapShieldHost] consumes outside touch sequences while a non-focusable menu is open,
+ * preserving editor keyboard focus.
  */
 internal class MemoTapShield {
     var active = false
@@ -400,7 +381,6 @@ internal fun MemoTapShieldHost(
     }
 }
 
-/** 选中「全部」时回调给的值：和「其他」（null）区分开 */
 internal const val ALL_NOTEBOOKS = "\u0000all"
 
 @Composable
@@ -459,7 +439,6 @@ private fun NotebookMenuItem(
     )
 }
 
-/** 选择框里的小圆按钮：比 IconButton 小一圈，打开、收起时框的高度不变 */
 @Composable
 private fun FieldIconButton(
     icon: ImageVector,
@@ -478,7 +457,6 @@ private fun FieldIconButton(
     }
 }
 
-/** 课程颜色的圆点；「全部」没有颜色，换成一个格子图标 */
 @Composable
 private fun NotebookGlyph(color: Color?) {
     if (color == null) {

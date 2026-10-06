@@ -2,18 +2,13 @@ package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppSearchField
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Context
@@ -42,9 +37,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 
-/**
- * 设置首页顶上的搜索框。设置项多、藏得深，记得名字的直接搜，省得一层层点进去找。
- */
 @Composable
 internal fun SettingsSearchField(
     query: String,
@@ -63,7 +55,6 @@ internal fun SettingsSearchField(
     )
 }
 
-/** 「常用」里的一格：最常改的几项摆成方块，一眼能看到当前值，点一下就改。 */
 internal data class SettingsQuickTileSpec(
     val icon: ImageVector,
     val title: String,
@@ -123,12 +114,9 @@ internal fun SettingsQuickTile(
     }
 }
 
-/** 设置首页怎么排：一行一项的列表，或一行三格的网格。 */
 internal enum class SettingsHomeLayout { List, Grid }
 
-/**
- * 首页排法只影响这台手机上怎么看，不跟着备份走，存在本地就够了。
- */
+/** Home layout is device-local and excluded from backups. */
 internal object SettingsHomeLayoutStore {
     private const val PREFS = "settings_ui"
     private const val KEY = "home_layout"
@@ -143,7 +131,6 @@ internal object SettingsHomeLayoutStore {
     }
 }
 
-/** 搜索框右边那个按钮：列表和网格来回切。图标画的是点下去会变成的样子。 */
 @Composable
 internal fun SettingsHomeLayoutToggle(layout: SettingsHomeLayout, onToggle: () -> Unit) {
     val toGrid = layout == SettingsHomeLayout.List
@@ -165,13 +152,10 @@ internal fun SettingsHomeLayoutToggle(layout: SettingsHomeLayout, onToggle: () -
     }
 }
 
-/** 为 true 时 [SettingsActionRow] 画成一格方块，交给 [SettingsTileGrid] 排。 */
+/** Render [SettingsActionRow] as a tile for [SettingsTileGrid]. */
 internal val LocalSettingsRowAsTile = staticCompositionLocalOf { false }
 
-/**
- * 网格视图下的一组：一行 [SETTINGS_GRID_COLUMNS] 格，同一行的格子一样高，
- * 说明文字长短不一时也齐整。没显示出来（高度为 0）的条目不占格子。
- */
+/** Equal-height rows of [SETTINGS_GRID_COLUMNS]; zero-height entries take no space. */
 @Composable
 internal fun SettingsTileGrid(content: @Composable () -> Unit) {
     val density = LocalDensity.current
@@ -202,10 +186,7 @@ internal fun SettingsTileGrid(content: @Composable () -> Unit) {
 
 private const val SETTINGS_GRID_COLUMNS = 3
 
-/**
- * 可搜到的一项设置。[path] 是它在哪一页（「课程与时间 › 显示」），搜出来时写在标题下面，
- * [keywords] 是这一页里的其它条目名，搜里面的开关也能找到这一页。
- */
+/** Searchable setting with a navigation [path] and related [keywords]. */
 internal data class SettingsSearchEntry(
     val icon: ImageVector,
     val title: String,
@@ -251,10 +232,7 @@ internal fun rankSettingsSearch(entries: List<SettingsSearchEntry>, query: Strin
         .map { it.third }
         .distinctBy { it.title to it.path }
 
-/**
- * 一项设置和搜索词对不对得上，对得上时数越小越靠前：
- * 标题开头 → 标题里有 → 这一页的其它条目里有 → 所在页的名字里有 → 标题按顺序含着这几个字（「提前分」找「提前几分钟」）。
- */
+/** Rank matches by title prefix, title substring, keywords, path, then ordered characters. */
 internal fun settingsSearchRank(title: String, path: String, keywords: List<String>, query: String): Int? {
     val q = query.normalizedForSearch()
     if (q.isEmpty()) return null

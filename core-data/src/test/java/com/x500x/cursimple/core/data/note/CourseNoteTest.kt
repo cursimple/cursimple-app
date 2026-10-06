@@ -48,7 +48,6 @@ class CourseNoteTest {
     fun `note survives a sync that changes the plugin course id`() {
         val before = course("plugin-aaaa", "高等数学", location = "A101")
         val notes = listOf(note(before, "老师说下周小测"))
-        // 插件重新下发同一门课，自动生成的 id 变了
         val after = before.copy(id = "plugin-bbbb")
 
         val index = resolveCourseNotes(listOf(after), notes)
@@ -133,7 +132,6 @@ class CourseNoteTest {
 
         assertEquals("带教材", index.textOf("manual-2"))
         assertEquals(listOf("这门退掉了"), index.orphans.map { it.text })
-        // 孤儿备注留在存储里，不会被 reconcile 删掉
         assertEquals(2, reconcileCourseNotes(listOf(kept), notes).size)
     }
 

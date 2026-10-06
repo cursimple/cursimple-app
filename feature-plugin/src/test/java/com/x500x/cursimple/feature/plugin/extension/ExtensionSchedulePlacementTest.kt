@@ -125,15 +125,12 @@ class ExtensionSchedulePlacementTest {
         assertEquals(1, extensionScheduleItems(data(listOf(undatedHomework), ExtensionScheduleSettings(includeCompleted = true)), now, zone).size)
     }
 
-    // 下面几条钉住「宿主不认类型名」：换个组件用别的 id，语义照样认得出来。
-
     @Test fun `declared task role wins even when the item has no deadline`() {
         val undatedTask = ExtensionFeedItem(
             id = "a", type = "zuoye", title = "作业", kind = "task", done = true,
             publishAt = ms("2026-09-28T16:00"), dueAt = null,
         )
         assertFalse(undatedTask.isNotice())
-        // 已完成的任务按任务策略隐藏；当成公告的话会因为它「读过了」而留下
         assertTrue(extensionScheduleItems(data(listOf(undatedTask)), now, zone).isEmpty())
     }
 
@@ -144,7 +141,7 @@ class ExtensionSchedulePlacementTest {
     }
 
     @Test fun `items without a declared role are inferred from their times`() {
-        // 老条目没有 kind：宿主不认类型名，只看有没有开始或截止时间；下次同步时会盖上清单声明的角色
+        // Legacy items infer semantics from timing; later sync applies manifest declarations.
         val withDeadline = item(type = "announcement", done = true).copy(dueAt = ms("2026-10-20T23:59"))
         assertFalse(withDeadline.isNotice())
         assertEquals(LocalDate.of(2026, 10, 20), placed(withDeadline).date)

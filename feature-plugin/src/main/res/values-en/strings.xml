@@ -495,7 +495,6 @@
     <string name="extension_feed_media_title">Images and attachments</string>
     <string name="extension_item_historical">Previous term</string>
 
-    <!-- 插件与组件共用目录 -->
     <string name="plugin_catalog_installed">Installed</string>
     <string name="plugin_catalog_market">Market</string>
     <string name="plugin_catalog_search_label">Search plugins</string>
@@ -531,7 +530,6 @@
     <string name="plugin_catalog_source_account_expired">Your GitHub session has expired. Sign in again, then refresh.</string>
     <string name="plugin_catalog_source_no_release">This repository has no installable release yet.</string>
 
-    <!-- 详情与安装摘要 -->
     <string name="extension_detail_title">Component details</string>
     <string name="plugin_detail_intro">About</string>
     <string name="plugin_detail_no_description">No description available</string>
@@ -547,4 +545,44 @@
     <string name="plugin_download_bytes">Downloaded %1$s</string>
     <string name="plugin_download_percent">%1$d%%</string>
     <string name="plugin_download_cancel">Cancel download</string>
+    <string name="extension_mark_read">Mark read</string>
+    <string name="extension_read_confirm_title">Mark as read?</string>
+    <string name="extension_read_confirm_body">Sync the read status with the official service. Once confirmed, this notice will stop reminding you.</string>
+    <string name="extension_read_success">Read status synced with the official service</string>
+    <string name="extension_item_updated">Status updated</string>
+    <string name="extension_ignore_item">Ignore</string>
+    <string name="extension_restore_item">Restore</string>
+    <string name="extension_ignored_hint">Ignored items are hidden from pending widgets and reminders. You can restore them anytime.</string>
+    <string name="extension_show_active">Back to content</string>
+    <string name="extension_show_ignored">Ignored %1$d</string>
+    <string name="extension_ignore_overdue">Automatically ignore overdue tasks</string>
+    <string name="extension_ignore_overdue_desc">Off by default. Hide overdue tasks and stop reminders; restore individual tasks from the ignored list.</string>
+    <string name="plugin_permission_notification_receive">Read CurSimple notifications and deliver them to your bound targets</string>
+    <string name="plugin_permission_secure_storage">Store component bindings and secrets encrypted, excluded from backups</string>
+    <string name="plugin_permission_network_proxy">Send HTTPS requests or TLS mail to bound targets through the host</string>
+    <string name="plugin_update_settings_title">Plugin and component updates</string>
+    <string name="plugin_auto_check_title">Automatically check for updates</string>
+    <string name="plugin_auto_check_description">Check installed plugins and components in the background when the app opens, then at the selected interval.</string>
+    <string name="plugin_update_badge_title">Show update dots</string>
+    <string name="plugin_update_badge_description">Show a dot in the sidebar and relevant tab when an update is available; clear it after updating.</string>
+    <string name="plugin_update_interval_title">Automatic check interval</string>
+    <string name="plugin_update_interval_hours">%1$d hours</string>
+    <string name="plugin_update_available_badge">Updates available</string>
+    <string name="plugin_update_check_progress">Checking %1$d / %2$d</string>
+    <string name="plugin_update_check_unconfirmed">%1$d updates found; version information unavailable for %2$d items</string>
+    <string name="plugin_update_check_result">%1$d updates available</string>
+    <string name="plugin_update_check_not_yet">Installed items have not been checked yet</string>
+    <string name="plugin_update_check_last">Last complete check: %1$s</string>
+    <string name="plugin_update_check_now">Check plugins and components now</string>
+    <string name="plugin_update_check_busy">Checking…</string>
+    <string name="plugin_update_check_local_hint">Locally imported items without a source repository need a new package imported manually.</string>
+    <string name="plugin_detail_section_install">Installation</string>
+    <string name="plugin_detail_field_installed_at">Installed</string>
+    <string name="plugin_detail_field_package_size">Package size</string>
+    <string name="plugin_detail_field_data_size">Data</string>
+    <string name="plugin_detail_field_total_size">Total</string>
+    <string name="plugin_detail_size_measuring">Calculating…</string>
+    <string name="plugin_detail_data_size_hint">Data is the content the component synced and any attachments you kept; both are removed with the component.</string>
+    <string name="plugin_market_status_checking_install">Checking the latest version of %1$s…</string>
+    <string name="plugin_repo_action_checking">Checking…</string>
 </resources>

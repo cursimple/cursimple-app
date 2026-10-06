@@ -24,7 +24,7 @@ import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** 显式启用的离线素材与隐藏入口检查，只在独立 QA 模拟器运行。 */
+/** Opt-in offline preview checks for a dedicated QA emulator. */
 class LocalReleasePreviewUiQaTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 

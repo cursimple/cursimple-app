@@ -10,15 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 每日守护 Worker - WorkManager 每日任务
- *
- * 每天凌晨 2:00 执行，主要职责：
- * 1. 全量重建所有闹钟注册
- * 2. 清理过期的闹钟记录
- * 3. 同步未来 7 天的课程提醒
- *
- * 这是闹钟可靠性的核心保障机制，确保每天都有一次完整的闹钟状态重建，
- * 防止因系统清理或其他原因导致的闹钟失效问题。
+ * Daily rebuilding reconciles alarm registrations, prunes expired records and refreshes the
+ * reminder window.
  */
 class DailyGuardWorker(
     appContext: Context,
@@ -34,15 +27,11 @@ class DailyGuardWorker(
                 mapOf("worker" to WORKER_NAME),
             )
 
-            // 获取 AppContainer（手动依赖注入）
             val appContainer = getAppContainer()
 
-            // 1. 先执行全量闹钟重建
             appContainer.refreshScheduleOutputs(recreateAppManagedAlarms = true)
 
-            // 2. 执行共享闹钟完整性检查（今天和明天）
-            // 绕过 40 分钟去重闸门：上一步 refreshScheduleOutputs 已把 poll 时间戳设为 now，
-            // 否则这里必被挡掉，2 点的「明日」窗口就永远同步不到
+            // Bypass polling cooldown after prior refresh has marked the current poll time.
             val summaries = appContainer.runSharedAlarmIntegrityCheck(
                 reason = ReminderSyncReason.DailyNextDay,
                 includeTomorrow = true,
@@ -52,7 +41,6 @@ class DailyGuardWorker(
             val endTime = System.currentTimeMillis()
             val duration = endTime - startTime
 
-            // 记录每日巡检结果
             val totalCreated = summaries.sumOf { it.createdCount }
             val totalSubmitted = summaries.sumOf { it.submittedCount }
             val totalFailed = summaries.sumOf { it.failedCount }
@@ -73,8 +61,7 @@ class DailyGuardWorker(
 
             AutoSilenceController.evaluate(applicationContext, reason = WORKER_NAME)
 
-            // 每日巡检无论失败与否都视为成功，下次会重试
-            // 只有连续失败才会触发 WorkManager 的回退策略
+            // Report this attempt complete; later periodic runs perform another inspection.
             Result.success()
         } catch (e: Exception) {
             ReminderLogger.warn(
@@ -82,7 +69,7 @@ class DailyGuardWorker(
                 mapOf("worker" to WORKER_NAME),
                 e,
             )
-            // 每日守护失败也要重试
+            // Retry failed daily maintenance.
             Result.retry()
         }
     }

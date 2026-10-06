@@ -52,9 +52,7 @@ import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.term.TermProfile
 import com.x500x.cursimple.core.kernel.time.BeijingTime
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -427,8 +425,7 @@ private fun TermDatePickerDialog(
     onConfirm: (LocalDate) -> Unit,
 ) {
     var selectedDate by remember(initial) { mutableStateOf(initial) }
-    // 用 AlertDialog 而不是 DatePickerDialog：后者把内容高度按系统日历的尺寸写死了，
-    // 换成自绘的月历后会把内容挤在一起叠着画。
+    // AlertDialog allows the custom calendar's required height.
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {

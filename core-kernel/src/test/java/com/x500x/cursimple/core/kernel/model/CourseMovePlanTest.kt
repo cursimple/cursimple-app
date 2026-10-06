@@ -6,12 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
-/**
- * 拖动调课对调课列表的改动。
- *
- * 曾经每拖一次都新建一条挪课记录：把已经挪过去的课再拖走时，挪进来的那份不会被隐藏，
- * 课越拖越多，原位置也一直还在。
- */
+/** Repeated dragging rewrites the existing move instead of creating duplicate occurrences. */
 class CourseMovePlanTest {
 
     private val tue = LocalDate.of(2026, 9, 22)

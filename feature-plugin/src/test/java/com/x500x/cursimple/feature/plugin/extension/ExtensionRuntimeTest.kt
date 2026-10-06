@@ -28,7 +28,6 @@ class ExtensionRuntimeTest {
         """.trimIndent()
         val result = parseExtensionPayload(payload, 1_000_000) as ExtensionRunResult.Completed
         assertEquals(listOf("a", "b"), result.items.map { it.id })
-        // 非网页链接一律清掉，免得点开跑出 javascript:
         assertEquals("", result.items[0].url)
         assertTrue(result.state.containsKey("cache"))
     }
@@ -70,7 +69,6 @@ class ExtensionRuntimeTest {
         assertEquals("https://campus.portal.example/web", ExtensionUrls.resolve(spec.loginUrl, defaults))
         val picked = ExtensionUrls.effectiveSettings(spec, mapOf("site" to JsonPrimitive("www.portal.example")))
         assertEquals("https://www.portal.example/api", ExtensionUrls.resolve(spec.runUrl, picked))
-        // 塞斜杠想拼出别的站点：整个值作废
         val evil = mapOf("site" to JsonPrimitive("evil.com/x?"))
         assertEquals("https:///web", ExtensionUrls.resolve(spec.loginUrl, evil))
     }
@@ -118,7 +116,6 @@ class ExtensionRuntimeTest {
         val merged = mergeSyncResult(before, run, now = 2_000L)
         assertEquals(listOf("c"), merged.newItems.map { it.id })
         assertEquals(10L, merged.data.items.first { it.id == "a" }.firstSeenAt)
-        // 没了的条目，提醒记录一并清掉
         assertEquals(setOf("a@100"), merged.data.remindedKeys)
         assertEquals("部分没取到", merged.data.lastMessage)
     }

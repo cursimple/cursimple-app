@@ -17,16 +17,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
-/** 胶囊形：和全应用的按钮保持同一种圆角，不再是默认那种 8dp 的小圆角方块。 */
 private val ChipShape: Shape = RoundedCornerShape(50)
 
-/**
- * 全应用统一的筛选片。
- *
- * Material3 默认的 FilterChip 选中时用 secondaryContainer 上色，而各主题的 secondary
- * 并不是主色（绿色主题的 secondary 是蓝色），选中后就成了一块淡蓝，和主题对不上；
- * 形状也是 8dp 的小圆角。这里改成主色容器 + 胶囊形，选中时再描一圈主色边。
- */
+/** Shared pill filters use primary-container selection and a primary outline. */
 @Composable
 fun AppFilterChip(
     selected: Boolean,
@@ -69,9 +62,7 @@ fun AppFilterChip(
     )
 }
 
-/**
- * 全应用统一的操作片：胶囊形，文字与边框用主色，和 [AppOutlinedButton] 是一套观感。
- */
+/** Primary-colored action pills consistent with [AppOutlinedButton]. */
 @Composable
 fun AppAssistChip(
     onClick: () -> Unit,

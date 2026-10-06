@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
-import java.time.LocalDateTime
 
 class WidgetRefreshBoundariesTest {
 
@@ -22,7 +21,7 @@ class WidgetRefreshBoundariesTest {
 
     @Test
     fun `no slots still refreshes at midnight`() {
-        // 没有作息也要在换天时刷一次，否则小组件会一直停在昨天那一页
+        // Midnight refresh remains scheduled even without timing data.
         assertEquals(
             listOf(day.plusDays(1).atStartOfDay()),
             widgetRefreshBoundaries(emptyList(), at(8, 0)),
@@ -48,7 +47,7 @@ class WidgetRefreshBoundariesTest {
             limit = 10,
         )
 
-        // 转入即将开始的那一刻也要刷，否则状态要等到下一次周期刷新才出现
+        // Refresh when starting-soon status first becomes active.
         assertTrue(at(7, 30) in result)
         assertTrue(at(7, 55) in result)
         assertTrue(at(8, 0) in result)
@@ -63,7 +62,7 @@ class WidgetRefreshBoundariesTest {
             limit = 10,
         )
 
-        // 即将开始、课前和开始都过去了，只剩下课那一刻
+        // After earlier boundaries pass, only class-end refresh remains.
         assertTrue(at(7, 30) !in result)
         assertTrue(at(7, 55) !in result)
         assertTrue(at(8, 0) !in result)
@@ -90,7 +89,6 @@ class WidgetRefreshBoundariesTest {
             limit = 2,
         )
 
-        // 零点自己占一个槽位，剩下的才留给节次边界
         assertEquals(listOf(at(7, 30), day.plusDays(1).atStartOfDay()), result)
     }
 
@@ -128,7 +126,7 @@ class WidgetRefreshBoundariesTest {
 
     @Test
     fun `slots sharing a boundary are not scheduled twice`() {
-        // 上一节结束与下一节课前提前量重合时只排一次
+        // Deduplicate coincident end and advance boundaries.
         val result = widgetRefreshBoundaries(
             listOf(slot("08:00", "09:40"), slot("09:45", "11:25", node = 2)),
             now = at(9, 0),

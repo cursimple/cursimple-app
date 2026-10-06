@@ -24,7 +24,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.TemporalAdjusters
 
-/** 一门课在某一天的一次上课。[displaced] 表示这一次来自调课，不在原本的每周节奏上。 */
+/** One dated course occurrence; [displaced] denotes a temporary move. */
 data class CourseOccurrence(
     val date: LocalDate,
     val start: LocalDateTime,
@@ -32,27 +32,20 @@ data class CourseOccurrence(
     val displaced: Boolean,
 )
 
-/** 一门课及其整学期的全部上课时间。 */
 data class PlannedCourse(
     val course: CourseItem,
     val slotLabel: String?,
     val occurrences: List<CourseOccurrence>,
 )
 
-/**
- * 整学期展开的结果。
- * [failureReason] 非空（文案资源 id）表示缺少必要配置，[courses] 必然为空。
- */
+/** Missing configuration sets [failureReason] and leaves [courses] empty. */
 data class SchedulePlan(
     val courses: List<PlannedCourse>,
     val skipped: List<IcsSkippedCourse>,
     @StringRes val failureReason: Int?,
 )
 
-/**
- * 把课表按日历逐天展开成具体的上课时间。
- * 假期整天跳过，调课按调课后的日期落位并标记为 [CourseOccurrence.displaced]。
- */
+/** Expand the term into actual dates, skipping holidays and marking moved occurrences. */
 fun planScheduleOccurrences(
     termStartDate: LocalDate?,
     schedule: TermSchedule?,
@@ -95,7 +88,7 @@ fun planScheduleOccurrences(
     var date = iterationStart
     while (!date.isAfter(iterationEnd)) {
         val dayResolution = resolveScheduleDay(date, overrides, holidayCalendar)
-        // 放假日不出常规课，但调课可以推翻放假：只把被挪过来的那几门排进去
+        // On holidays, include explicitly moved-in courses only.
         val holidayMovedIn = if (dayResolution.isHoliday) {
             coursesMovedToWithOrigin(
                 date = date,
@@ -113,16 +106,14 @@ fun planScheduleOccurrences(
             continue
         }
         val sourceDate = dayResolution.sourceDate
-        // 只调某几节时这天同时挂着来源日与本日的课，逐门问过来源日才知道各自算哪天
+        // Partial swaps require per-course source-day resolution.
         val sourceDayOfWeek = sourceDate.dayOfWeek.value
         val ownDayOfWeek = date.dayOfWeek.value
         val pool = (
             importedByDay[sourceDayOfWeek].orEmpty() + importedByDay[ownDayOfWeek].orEmpty() +
                 visibleManual.filter { it.time.dayOfWeek == sourceDayOfWeek || it.time.dayOfWeek == ownDayOfWeek }
             ).distinct()
-            // 被单独挪到别天的课，这天不再出现
             .filterNot { isCourseMovedAwayFrom(date, it, overrides) }
-        // 从别天挪到这天的课；该不该上已按它原本那天判过，算作一次调课落位
         val movedIn = coursesMovedToWithOrigin(
             date = date,
             overrides = overrides,
@@ -155,7 +146,6 @@ fun planScheduleOccurrences(
                 continue
             }
             val startDateTime = date.atTime(startTime)
-            // 结束时间不晚于开始时间说明这一节跨了午夜
             val endDateTime = if (endTime.isAfter(startTime)) {
                 date.atTime(endTime)
             } else {

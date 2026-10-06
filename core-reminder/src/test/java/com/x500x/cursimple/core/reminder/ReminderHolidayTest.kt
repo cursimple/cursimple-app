@@ -188,7 +188,6 @@ class ReminderHolidayTest {
         val SKIP_ON_HOLIDAY = ReminderDayPolicy(skipOnHoliday = true)
     }
 
-    /** 目标日按开学第一周的周一课表上课。 */
     private fun mondayMakeUpOn(targetDate: String): TemporaryScheduleOverride = TemporaryScheduleOverride(
         id = "makeup-$targetDate",
         type = TemporaryScheduleOverrideType.MakeUp,

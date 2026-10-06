@@ -2,12 +2,7 @@ package com.x500x.cursimple.feature.widget
 
 import android.content.Context
 
-/**
- * 每个课程日历小组件自己的视图与翻页位置。
- *
- * 翻页偏移锚在按下的那一天：跨过零点后自动回到本周 / 本月，和「每日课程」的翻页一致。
- * 视图（周 / 月）一直保留，直到用户再切回来。
- */
+/** Per-widget view persists; page offsets expire after the anchored day changes. */
 internal object CalendarWidgetState {
     private const val PREFS = "calendar_widget_state"
 
@@ -36,7 +31,6 @@ internal object CalendarWidgetState {
         prefs(context).edit().remove(offsetKey(appWidgetId)).remove(anchorKey(appWidgetId)).apply()
     }
 
-    /** 切换视图时回到本周 / 本月：「第 3 周往后」换成月视图后没有对应的意思 */
     fun toggleMode(context: Context, appWidgetId: Int) {
         val next = if (mode(context, appWidgetId) == CalendarWidgetMode.Week) CalendarWidgetMode.Month else CalendarWidgetMode.Week
         prefs(context).edit()
@@ -61,6 +55,6 @@ internal object CalendarWidgetState {
     private fun offsetKey(id: Int) = "offset_$id"
     private fun anchorKey(id: Int) = "anchor_$id"
 
-    /** 往前往后最多翻两年，防止连点出离谱的日期 */
+    /** Bound page navigation to two years in either direction. */
     private const val MAX_OFFSET = 104
 }

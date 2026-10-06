@@ -111,4 +111,7 @@
     <string name="plugin_error_unknown_kind">Unknown plugin kind: %1$s. You may need to update the app</string>
     <string name="plugin_error_extension_not_schedule">This is an extension and can’t be used to import a timetable</string>
     <string name="plugin_error_package_missing_ui_file">Plugin package is missing its extension UI file: %1$s</string>
+    <string name="plugin_error_compatibility_host_invalid">This package declares an invalid minimum app version and cannot be installed.</string>
+    <string name="plugin_error_compatibility_host_unknown">The app version could not be verified. Installation was blocked.</string>
+    <string name="plugin_error_compatibility_host_too_old">This package requires CurSimple %1$s or newer. This app is %2$s; update it before installing.</string>
 </resources>

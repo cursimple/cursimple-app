@@ -310,7 +310,7 @@ class CourseDragTargetTest {
         )
         assertFalse(blocked.isValid)
 
-        // 原本就占着的行不重复判定，缩回去不该被自己挡住
+        // Shrinking spans must not collide with their own original rows.
         val shrink = resolveCourseResizeTarget(
             startRowIndex = 0, rowSpan = 3, edge = CourseResizeEdge.Bottom,
             dragOffsetY = -60f, slotHeightPx = 60f, slotCount = 4,

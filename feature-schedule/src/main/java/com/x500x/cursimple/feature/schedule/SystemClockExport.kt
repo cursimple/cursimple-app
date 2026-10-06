@@ -54,27 +54,19 @@ import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 
 /**
- * 把明天的闹钟抄一份到系统时钟。
- *
- * 系统时钟只收「几点几分」，落在下一次到达的那个钟点：明天 8:00 的闹钟要等今天 8:00 过了才能写，
- * 否则它会在今天响。这类先不写，告诉用户几点以后再来。
+ * System Clock chooses the next wall-clock occurrence; defer tomorrow's export until today's
+ * same minute has passed.
  */
 internal data class SystemClockExportPlan(
-    /** 明天，按应用时区算，和响铃时判断静音用的是同一个日期。 */
     val date: LocalDate,
-    /** 现在写进去正好落在明天的，同一分钟的合成一条。 */
     val writable: List<SystemClockAlarm>,
-    /** 现在写会落到今天的。 */
     val notYet: List<SystemClockAlarm>,
-    /** 明天已经静音，课简不响，也就没东西可写。 */
     val alreadyMuted: Boolean,
 ) {
-    /** 过了这个钟点（设备时间）再写就能全部写进去。 */
     val allWritableAfter: LocalTime? get() = notYet.maxOfOrNull { it.time }
 }
 
 internal data class SystemClockAlarm(
-    /** 设备时区下的钟点，系统时钟按设备时区解释。 */
     val time: LocalTime,
     val records: List<SystemAlarmRecord>,
 )
@@ -112,7 +104,7 @@ internal fun systemClockExportPlan(
 private fun triggerMinute(millis: Long, zone: ZoneId): LocalDateTime =
     Instant.ofEpochMilli(millis).atZone(zone).toLocalDateTime().truncatedTo(ChronoUnit.MINUTES)
 
-/** 系统时钟收到一个钟点后实际会响的时刻：今天还没到就是今天，否则是明天。 */
+/** Resolve the system Clock's next occurrence: today if still future, otherwise tomorrow. */
 private fun nextOccurrence(now: LocalDateTime, time: LocalTime): LocalDateTime {
     val today = now.toLocalDate().atTime(time)
     return if (today.isAfter(now)) today else today.plusDays(1)
@@ -123,9 +115,8 @@ internal fun Context.systemAlarmRecordTitle(record: SystemAlarmRecord): String =
         ?: record.displayTitle ?: record.alarmLabel ?: record.message
 
 /**
- * 逐条交给系统时钟。连发时有的时钟会吞掉后面的请求，所以每条之间停一下；
- * 全部停顿加起来远小于系统给刚离开前台的应用留的 10 秒启动窗口。
- * 返回送出去的条数；系统里没有能接的时钟应用时返回 null。
+ * Space creation requests so Clock can handle each; return submitted count or null without a
+ * handler.
  */
 private suspend fun Context.sendToSystemClock(alarms: List<SystemClockAlarm>): Int? {
     var sent = 0
@@ -179,7 +170,6 @@ internal fun SystemClockExportDialog(
             },
         )
     }
-    // 有写不进去的就不静音：静音按整天算，会把这些也一起关掉，两边都不响
     val canMute = plan.notYet.isEmpty()
     var mute by rememberSaveable { mutableStateOf(true) }
     var sending by remember { mutableStateOf(false) }

@@ -17,3 +17,8 @@ captures/
 .android-home/
 .kotlin/
 
+
+# Local tooling and Python caches
+__pycache__/
+*.py[cod]
+.venv/

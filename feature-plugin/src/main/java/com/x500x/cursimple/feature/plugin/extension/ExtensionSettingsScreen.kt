@@ -1,6 +1,5 @@
 package com.x500x.cursimple.feature.plugin.extension
 
-import android.webkit.CookieManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -77,6 +75,7 @@ import com.x500x.cursimple.feature.plugin.R
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -84,14 +83,11 @@ import kotlinx.serialization.json.doubleOrNull
 import java.time.Instant
 import java.time.format.DateTimeFormatter
 
-/**
- * 宿主替扩展组件办的几件事：同步、读包、把「产出」重新铺一遍（截止提醒、课表事务）、打开日历。
- * 由 App 层实现——通知、闹钟、课表事务都在那边。
- */
+/** App-layer facade for sync, package reads, reminder reconciliation and navigation. */
 interface ExtensionHostActions {
     suspend fun loadPackage(record: InstalledPluginRecord): Pair<PluginManifest, String>
 
-    /** 读取组件自己携带的界面文件；null 表示旧组件，宿主使用兼容页面。 */
+    /** Null owned-UI content requests the host fallback. */
     suspend fun loadUi(record: InstalledPluginRecord): String?
 
     suspend fun loadUi(record: InstalledPluginRecord, page: PluginExtensionUiPage): String? =
@@ -99,21 +95,24 @@ interface ExtensionHostActions {
 
     suspend fun isCurrent(record: InstalledPluginRecord): Boolean = true
 
-    /** 立即同步一次，连同通知、提醒、课表事务都办掉 */
     suspend fun syncNow(record: InstalledPluginRecord): ExtensionSyncOutcome
 
-    /** 宿主选项或登录状态变了，不必重新同步，只把提醒和课表事务按新设置重铺 */
+    suspend fun markRead(record: InstalledPluginRecord, itemId: String): ExtensionData = error("请更新应用以支持已读同步")
+
+    suspend fun setItemIgnored(record: InstalledPluginRecord, itemId: String, ignored: Boolean): ExtensionData =
+        error("请更新应用以支持忽略内容")
+
+    suspend fun notificationCommand(record: InstalledPluginRecord, command: String, payload: JsonObject): JsonElement =
+        error("请更新应用以支持通知出口组件")
+
+    /** Reconcile reminders and events after host or login changes without fetching again. */
     fun onDataChanged(pluginId: String)
 
-    /** 打开侧边栏里那个专属日历页 */
     fun openFeed(pluginId: String)
 
     fun openFeed(record: InstalledPluginRecord) = openFeed(record.pluginId)
 }
 
-/**
- * 扩展组件的设置面板：点开组件就是这一页。先登录，登录后才有同步与各项设置。
- */
 @Composable
 fun ExtensionSettingsScreen(
     record: InstalledPluginRecord,
@@ -243,7 +242,6 @@ fun ExtensionSettingsScreen(
             loadError?.let { message ->
                 item { SettingsCard { Text(stringResource(R.string.extension_load_failed, message), color = MaterialTheme.colorScheme.error) } }
             }
-            // ---- 账号：一切从登录开始 ----
             item {
                 Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                   Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -272,7 +270,6 @@ fun ExtensionSettingsScreen(
             }
 
             if (data.loginState == ExtensionLoginState.LoggedIn || data.loginState == ExtensionLoginState.Expired) {
-                // ---- 同步 ----
                 item {
                     SectionTitle(stringResource(R.string.extension_section_sync))
                     SettingsCard {
@@ -326,7 +323,6 @@ fun ExtensionSettingsScreen(
 
             }
 
-                // ---- 课简这边怎么用这些内容：所有组件都一样 ----
                 item {
                     SectionTitle(stringResource(R.string.extension_section_host))
                     SettingsCard {
@@ -357,6 +353,11 @@ fun ExtensionSettingsScreen(
                             subtitle = stringResource(R.string.extension_host_notify_desc),
                             checked = data.host.notifyNew,
                         ) { checked -> updateHost(scope, store, actions, record) { it.copy(notifyNew = checked) } }
+                        SwitchRow(
+                            title = stringResource(R.string.extension_ignore_overdue),
+                            subtitle = stringResource(R.string.extension_ignore_overdue_desc),
+                            checked = data.host.ignoreOverdue,
+                        ) { checked -> updateHost(scope, store, actions, record) { it.copy(ignoreOverdue = checked) } }
                         ChoiceRow(
                             title = stringResource(R.string.extension_host_due),
                             value = data.host.dueReminderHours,
@@ -397,7 +398,6 @@ fun ExtensionSettingsScreen(
                 }
             }
 
-            // ---- 组件自己的选项（manifest 里声明） ----
             if (spec != null && spec.settings.isNotEmpty()) {
                 item {
                     SectionTitle(stringResource(R.string.extension_section_plugin, title))
@@ -410,13 +410,14 @@ fun ExtensionSettingsScreen(
                                     val changed = effective[setting.key] != value
                                     store.update(record.pluginId) { current ->
                                         val next = current.copy(settings = current.settings + (setting.key to value))
-                                        // 换了站点之类：旧登录作废，旧条目也不是这个账号的了
                                         if (changed && setting.requiresRelogin && current.loginState == ExtensionLoginState.LoggedIn) {
                                             next.copy(
+                                                sessionRevision = current.sessionRevision + 1,
                                                 loginState = ExtensionLoginState.Expired,
                                                 items = emptyList(),
                                                 state = emptyMap(),
                                                 baselineReady = false,
+                                                ignoredItemIds = emptySet(), restoredItemIds = emptySet(),
                                             )
                                         } else {
                                             next
@@ -468,11 +469,14 @@ fun ExtensionSettingsScreen(
                     scope.launch {
                         store.update(record.pluginId) {
                             it.copy(
+                                sessionRevision = it.sessionRevision + 1,
                                 loginState = ExtensionLoginState.LoggedIn,
                                 account = account ?: it.account,
-                                // 换了账号的话，上一个账号的条目不能当成这个账号的基线
+                                // Discard the previous account's synchronization baseline on account change.
                                 items = if (account != null && account.id != it.account?.id) emptyList() else it.items,
                                 baselineReady = if (account != null && account.id != it.account?.id) false else it.baselineReady,
+                                ignoredItemIds = if (account != null && account.id != it.account?.id) emptySet() else it.ignoredItemIds,
+                                restoredItemIds = if (account != null && account.id != it.account?.id) emptySet() else it.restoredItemIds,
                                 expiredNotified = false,
                                 lastError = null,
                             )
@@ -497,16 +501,7 @@ fun ExtensionSettingsScreen(
                     showLogoutConfirm = false
                     scope.launch {
                         clearExtensionCookies(record.allowedHosts)
-                        store.update(record.pluginId) {
-                            it.copy(
-                                loginState = ExtensionLoginState.LoggedOut,
-                                account = null,
-                                items = emptyList(),
-                                state = emptyMap(),
-                                baselineReady = false,
-                                remindedKeys = emptySet(),
-                            )
-                        }
+                        store.update(record.pluginId, ::loggedOutComponent)
                         actions.onDataChanged(record.pluginId)
                     }
                 }) { Text(stringResource(R.string.extension_action_logout)) }
@@ -652,7 +647,6 @@ internal fun SwitchRow(title: String, subtitle: String, checked: Boolean, onChan
     }
 }
 
-/** 一行 + 点开单选弹窗 */
 @Composable
 internal fun <T> ChoiceRow(
     title: String,
@@ -705,7 +699,6 @@ internal fun <T> ChoiceRow(
     }
 }
 
-/** 组件在 manifest 里声明的一项设置，按类型画 */
 @Composable
 private fun PluginSettingRow(setting: PluginExtensionSetting, value: JsonElement?, onChange: (JsonElement) -> Unit) {
     val primitive = value as? JsonPrimitive

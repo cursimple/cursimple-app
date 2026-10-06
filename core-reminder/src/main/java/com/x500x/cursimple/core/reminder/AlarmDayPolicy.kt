@@ -8,7 +8,6 @@ import java.time.ZoneId
 
 enum class AlarmDaySuppression { Holiday, MutedDate }
 
-/** 排程和响铃共同使用：按闹钟的实际响铃日期判断，用户声明的调休上课日照常响。 */
 fun alarmDaySuppression(
     triggerAtMillis: Long,
     allowOnHoliday: Boolean,

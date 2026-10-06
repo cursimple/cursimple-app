@@ -5,15 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 课程卡片里几行文字的取舍。
- *
- * 按优先级从上往下填：课名 > 地点 > 附注，能放几行放几行，放不全的截断。
- * 行底由 TextMeasurer 量出，这里直接给出每行的底边位置（像素）。
- */
+/** Prioritize title, location and annotation using supplied measured line bottoms. */
 class CourseCardTextPlanTest {
 
-    /** 行高 [lineHeight]、共 [lines] 行时各行的行底。 */
     private fun bottoms(lines: Int, lineHeight: Float) = List(lines) { (it + 1) * lineHeight }
 
     private fun plan(
@@ -40,7 +34,7 @@ class CourseCardTextPlanTest {
 
     @Test
     fun `放得下几行课名就显示几行，一行都不浪费`() {
-        // 202 能放下 5 行 40 的课名；以前按字号估算只给 4 行，下面空着一大截
+        // Measured heights admit five title lines rather than estimating four from font size.
         val result = plan(height = 202f, titleLines = 6)
 
         assertEquals(5, result.titleLines)
@@ -57,7 +51,7 @@ class CourseCardTextPlanTest {
 
     @Test
     fun `地点放不全时显示放得下的那几行`() {
-        // 课名 2 行占 80，剩 60，地点 3 行只放得下 2 行
+        // Remaining height admits two of three location lines.
         val result = plan(height = 140f, titleLines = 2, locationLines = 3)
 
         assertTrue(result.showLocation)
@@ -114,18 +108,17 @@ class CourseCardTextPlanTest {
     fun `格子里的地点在楼名和房间号之间补上连字符`() {
         assertEquals("@东-16-B-103", cardLocationText("@东16-B-103"))
         assertEquals("@实验东-5教-101", cardLocationText("@实验东5教101"))
-        // 本来就隔开的不重复补
+        // Preserve existing room separators.
         assertEquals("@东-16-B-103", cardLocationText("@东-16-B-103"))
         assertEquals("@LA BB203", cardLocationText("@LA BB203"))
     }
 
-    /** 假定每个字宽 10。 */
     private fun wrap(text: String, maxWidth: Int) =
         wrapByCharacter(text, maxWidth) { it.codePointCount(0, it.length) * 10 }
 
     @Test
     fun `地点按字符塞满一行再换行，不按词整块挪`() {
-        // 一行放 6 个字：不会把「16-B-103」整块挪走、只留「@东-」在第一行
+        // Character wrapping does not move a whole room token onto the next line.
         assertEquals("@东-16-\nB-103", wrap("@东-16-B-103", maxWidth = 60))
     }
 

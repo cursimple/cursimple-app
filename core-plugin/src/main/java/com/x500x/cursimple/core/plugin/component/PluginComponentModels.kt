@@ -73,6 +73,7 @@ data class PluginComponentPackageManifest(
     @SerialName("abi") val abi: String? = null,
     @SerialName("sha256") val sha256: String,
     @SerialName("files") val files: List<String> = emptyList(),
+    val minHostVersion: String = "0.1.0",
 )
 
 sealed interface PluginComponentInstallResult {
@@ -80,7 +81,6 @@ sealed interface PluginComponentInstallResult {
     data class Failure(val reason: PluginComponentInstallFailure) : PluginComponentInstallResult
 }
 
-/** [error] 由界面层渲染成当前语言的文案。 */
 data class PluginComponentInstallFailure(
     val code: String,
     val error: Throwable,

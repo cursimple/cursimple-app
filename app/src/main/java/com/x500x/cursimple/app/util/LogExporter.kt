@@ -18,8 +18,7 @@ import com.x500x.cursimple.R
 object LogExporter {
 
     /**
-     * 抓取当前进程的完整 logcat 写入 cache/logs/ 下，返回该文件的 content:// URI 的分享 Intent。
-     * 失败返回 null。
+     * Export current-process logcat to cache/logs and return a share Intent; null on failure.
      */
     suspend fun exportRecentLogs(context: Context): Intent? = withContext(Dispatchers.IO) {
         val file = collectLogs(context) ?: return@withContext null
@@ -32,7 +31,6 @@ object LogExporter {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.log_export_share_subject, file.name))
-            // 让内容 URI 对系统的授权机制可见，包括分享面板。
             clipData = ClipData.newUri(context.contentResolver, file.name, uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

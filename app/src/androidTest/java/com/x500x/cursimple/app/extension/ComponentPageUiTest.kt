@@ -49,7 +49,7 @@ class ComponentPageUiTest {
         fail("Condition not met: $code; page=${js("document.body.innerText")}")
     }
     private fun viewportMetrics(): String = js("JSON.stringify({w:innerWidth,h:innerHeight,sh:document.documentElement.scrollHeight,overflow:document.documentElement.scrollHeight-innerHeight,dpr:devicePixelRatio,fontScale:getComputedStyle(document.documentElement).getPropertyValue('--font-scale')})")
-    /** 新版设置增加了附件和账号入口：长页面必须能用触摸滚到末尾，不能裁掉入口。 */
+    /** Long settings pages must keep every entry reachable by scrolling. */
     private fun verifySettingsCanBeScrolled() {
         assertEquals("true", js("!['hidden','clip'].includes(getComputedStyle(document.body).overflowY) && !['hidden','clip'].includes(getComputedStyle(document.getElementById('app')).overflowY)"))
         if (js("document.documentElement.scrollHeight <= innerHeight+1") != "true") {

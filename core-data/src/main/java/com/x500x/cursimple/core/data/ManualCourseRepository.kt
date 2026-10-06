@@ -7,7 +7,7 @@ interface ManualCourseRepository {
     val manualCoursesFlow: Flow<List<CourseItem>>
     suspend fun addCourse(course: CourseItem)
 
-    /** 按 id 原地替换，id 不存在时不做任何事，避免把编辑当成新增。 */
+    /** Replace by ID only; editing a missing record must not insert it. */
     suspend fun updateCourse(course: CourseItem)
     suspend fun removeCourse(courseId: String)
     suspend fun replaceAll(courses: List<CourseItem>)

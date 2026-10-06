@@ -10,14 +10,10 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -42,10 +38,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
@@ -120,7 +113,6 @@ import com.x500x.cursimple.core.data.widget.classSlotLabelText
 import com.x500x.cursimple.core.data.widget.slotBlockIndex
 import androidx.compose.runtime.CompositionLocalProvider
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleLocationSuffix
-import com.x500x.cursimple.core.kernel.model.stripLocationSuffix
 import com.x500x.cursimple.core.kernel.model.sharedLocationSuffix
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
@@ -129,7 +121,6 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.occurrencesOn
-import com.x500x.cursimple.core.kernel.model.coursesScheduledOn
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
@@ -172,7 +163,6 @@ import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -211,11 +201,9 @@ fun ScheduleRoute(
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
     onUpsertHolidayEntry: (HolidayCalendarEntry) -> Unit = {},
     onRemoveHolidayEntry: (LocalDate) -> Unit = {},
-    /** 宿主可直接打开组件生成的事务；返回 true 时本页不再打开普通事务对话框。 */
     onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    // 拖动是易误触的操作，改动先记在这里等用户确认，确认前不落库
     var pendingDrag by remember { mutableStateOf<PendingCourseDrag?>(null) }
     pendingDrag?.let { pending ->
         CourseDragConfirmDialog(
@@ -291,7 +279,6 @@ fun ScheduleScreen(
     onRemoveReminderRule: (String) -> Unit,
     onRemoveManualCourse: (String) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
-    /** 详情里就地改课；插件课保存后转为手动课程。 */
     onSaveCourse: (CourseItem) -> Unit = {},
     onMoveManualCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
     onResizeManualCourse: (String, CourseTimeSlot) -> Unit = { _, _ -> },
@@ -324,7 +311,6 @@ fun ScheduleScreen(
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     onUpsertTemporaryScheduleOverride: (TemporaryScheduleOverride) -> Unit = {},
     onRemoveTemporaryScheduleOverride: (String) -> Unit = {},
-    /** 双击日期栏改这一天的放假状态。 */
     onUpsertHolidayEntry: (HolidayCalendarEntry) -> Unit = {},
     onRemoveHolidayEntry: (LocalDate) -> Unit = {},
     onSaveEvent: (ScheduleEvent) -> Unit = {},
@@ -332,10 +318,8 @@ fun ScheduleScreen(
     onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
-    // 点开的事务与它在哪天；编辑中的事务
     var eventDetail by remember { mutableStateOf<Pair<ScheduleEvent, LocalDate>?>(null) }
     var eventEditing by remember { mutableStateOf<ScheduleEvent?>(null) }
-    // 点开「⋯」：这一段时间里叠在一起的几件事务
     var eventGroup by remember { mutableStateOf<Pair<List<ScheduleEvent>, LocalDate>?>(null) }
     fun openEvent(event: ScheduleEvent, date: LocalDate) {
         if (!onOpenLinkedEvent(event)) eventDetail = event to date
@@ -381,17 +365,15 @@ fun ScheduleScreen(
         )
     }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
-    // 建提醒前的权限闸门：缺通知或精确闹钟权限时先把人送去授权
+    // Check blocking access before creating reminders.
     val context = LocalContext.current
     val alarmPermissionGate = rememberAlarmPermissionGateState()
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
-    // 长按课程后的三条去向：操作面板、就地编辑、移动选点
     var actionSheetCourse by remember { mutableStateOf<CourseItem?>(null) }
     var editRequest by remember { mutableStateOf<CourseItem?>(null) }
     var moveRequest by remember { mutableStateOf<CourseItem?>(null) }
-    // 双击日期栏打开的「这一天」设置
     var daySheetDate by remember { mutableStateOf<LocalDate?>(null) }
     val zone = LocalAppZone.current
 
@@ -401,13 +383,13 @@ fun ScheduleScreen(
     val pluginCourseIds = remember(state.schedule) {
         state.schedule?.dailySchedules.orEmpty().flatMap { it.courses }.mapTo(mutableSetOf()) { it.id }
     }
-    // 节次上限跟随当前作息，作息未设置时退回表单默认值
+    // Period bounds follow active timing, otherwise form defaults.
     val maxNodeCount = state.timingProfile?.slotTimes?.maxOfOrNull { it.endNode } ?: 12
-    // 周次上限跟着本学期实际排到第几周走，学期比默认长时才改得动后面的周次
+    // Week bounds include the actual term coverage.
     val editableMaxWeek = remember(allVisibleCourses) {
         maxOf(DefaultEditableWeekCount, allVisibleCourses.flatMap { it.weeks }.maxOrNull() ?: 0)
     }
-    // 今日卡片只在日视图看今天时出现；点开是完整的今日安排
+    // Show today's overview only for today's day view.
     var todaySheetOpen by rememberSaveable { mutableStateOf(false) }
     val todayCardVisible = state.initialized && scheduleDisplay.todayOverviewEnabled &&
         viewMode == ScheduleViewMode.Day && dayOffset == 0
@@ -478,7 +460,7 @@ fun ScheduleScreen(
                         detailRequest = CourseDetailRequest(coursesAtCell, targetDate)
                     }
                 }
-                // 已在多选里长按就继续加选；否则先给操作面板，改课不必再点进详情
+                // Long-press adds to active multiselection, otherwise opens course actions.
                 val onLongClickHandler: (String) -> Unit = { id ->
                     if (multiSelectMode) {
                         selectedIds = selectedIds + id
@@ -493,9 +475,7 @@ fun ScheduleScreen(
                     }
                 }
 
-                // 校名不一定写在地点里：有的教务插件把它塞成课程徽章，地点反而是干净的
-                // 「东13-C-315」。只看地点就推不出校名，徽章里那串「长江大学」就一直留在格子里，
-                // 所以两边的文字一起拿去推断。
+                // Infer shared institution text from both locations and badges because either can contain it.
                 val locationSuffix = remember(allVisibleCourses, state.uiSchema.courseBadges) {
                     val texts = allVisibleCourses.map { it.location } +
                         allVisibleCourses.flatMap {
@@ -659,7 +639,6 @@ fun ScheduleScreen(
                     temporaryScheduleOverrides,
                     holidayCalendar,
                 ),
-                // 真实的当前周，用来区分「本周」和「你正在看的那一周」
                 currentWeekNumber = computeWeekNumberForDate(overrideTermStart, zone.today()),
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
                 examReminderEnabled = examRules.isNotEmpty(),
@@ -681,7 +660,6 @@ fun ScheduleScreen(
                 onSaveNote = onSaveCourseNote,
                 onSaveCourse = { c ->
                     onSaveCourse(c)
-                    // 详情里的课程是点开那一刻的快照，就地换成刚存的这份，弹窗不用关掉重开
                     detailRequest = request.copy(
                         courses = request.courses.map { if (it.id == c.id) c else it },
                     )
@@ -711,7 +689,7 @@ fun ScheduleScreen(
                 },
                 onDismiss = { detailRequest = null },
                 onSetReminder = { c ->
-                    // 没有通知或精确闹钟权限时先拦住：建出来的提醒到点也不会响
+                    // Gate reminder creation on required notification and scheduling access.
                     alarmPermissionGate.require(context) {
                         pendingReminderCourse = c
                         detailRequest = null
@@ -721,7 +699,6 @@ fun ScheduleScreen(
                     cancellableReminderRuleIds(c, state.reminderRules).isNotEmpty()
                 },
                 onCancelReminder = { c ->
-                    // 弹窗留在原地，规则删完按钮自己翻回「提醒」，用户当场看得见结果
                     cancellableReminderRuleIds(c, state.reminderRules).forEach(onRemoveReminderRule)
                 },
                 onMuteExamReminder = { c -> onMuteExamReminder(c.id) },
@@ -804,7 +781,7 @@ fun ScheduleScreen(
                 maxNodeCount = maxNodeCount,
                 existingCourses = allVisibleCourses,
                 onDismiss = { moveRequest = null },
-                // 真正落库前还有一道确认弹窗，这里只是选好落点
+                // Destination selection is provisional until confirmation.
                 onConfirm = { time ->
                     moveRequest = null
                     onMoveManualCourse(course.id, time)
@@ -865,9 +842,8 @@ fun ScheduleAppearancePreview(
     scheduleDisplay: ScheduleDisplayPreferences,
     customColorsAdaptToTheme: Boolean,
     modifier: Modifier = Modifier,
-    /** 只画前几节；设置页把预览钉在顶上时只要两节，省地方 */
+    /** Limit preview to the first periods when space is constrained. */
     maxSlots: Int = Int.MAX_VALUE,
-    /** 预览最高多高；排出来比它高就整体等比缩小（宽度照样铺满），不会把下面挤没 */
     maxHeight: Dp = Dp.Unspecified,
 ) {
     val previewWeek = remember(scheduleDisplay.weekStartDay) {
@@ -901,7 +877,6 @@ fun ScheduleAppearancePreview(
     val slotHeight = scheduleCardStyle.courseCardHeightDp.dp
     val dayHeaderHeight = 52.dp
     val previewHeight = dayHeaderHeight + slotHeight * previewSlots.size + 16.dp
-    // 缩放用的是换一个更小的密度：文字、卡片一起按比例变小，宽度还是占满，不会两边空出一截
     val baseDensity = LocalDensity.current
     val fitScale = if (maxHeight.isSpecified && previewHeight > maxHeight) maxHeight / previewHeight else 1f
 
@@ -1107,7 +1082,6 @@ private fun WeeklyScheduleSection(
     val slots = remember(slotContext, schedule, timingProfile, manualCourses) {
         displaySlots(slotContext, schedule, timingProfile, manualCourses)
     }
-    // 缩放倍数跨周保留：放大看完这周，翻到下周还是同样大小
     var zoom by rememberSaveable { mutableStateOf(1f) }
     if (!scheduleDisplay.pinchZoomEnabled && zoom != 1f) zoom = 1f
     val zoomed = zoom > SCHEDULE_ZOOM_EPSILON
@@ -1139,7 +1113,6 @@ private fun WeeklyScheduleSection(
                 val safeMin = minWeekOffset.coerceAtMost(weekOffset)
                 val safeMax = maxWeekOffset.coerceAtLeast(weekOffset)
                 val weekPageCount = safeMax - safeMin + 1
-                // 最后再挂一页「添加周」，翻到底就能接着往后加空白周
                 val addPageEnabled = onAddWeek != null
                 val pageCount = weekPageCount + if (addPageEnabled) 1 else 0
                 val initialPage = (weekOffset - safeMin).coerceIn(0, weekPageCount - 1)
@@ -1197,9 +1170,7 @@ private fun WeeklyScheduleSection(
                         }
                     }
                 }
-                // 在「添加周」那一页点了加号：页数变多，用户原地就落到了新加的那一周上。
-                // 页号没变，翻页的 snapshotFlow 不会再发，周偏移也就不会更新——
-                // 顶部还写着上一周。这里按页数变化补一次同步。
+                // Synchronize week offset after page-count changes even when pager index remains unchanged.
                 androidx.compose.runtime.LaunchedEffect(weekPageCount, safeMin) {
                     val page = pagerState.currentPage
                     if (page >= weekPageCount) return@LaunchedEffect
@@ -1209,9 +1180,7 @@ private fun WeeklyScheduleSection(
                         onWeekOffsetChange(newOffset)
                     }
                 }
-                // 这个收集器活得比一次组合长，读到的必须是最新的页数与起点。
-                // 直接捕获局部变量会留在启动那一刻的值：加完周之后页数变了、它还按旧的算，
-                // 翻到新增的那一周会被当成「添加页」忽略掉，顶部周数就再也不动了。
+                // Long-lived collectors must read current page count and range rather than captured initial values.
                 val latestWeekPageCount = androidx.compose.runtime.rememberUpdatedState(weekPageCount)
                 val latestSafeMin = androidx.compose.runtime.rememberUpdatedState(safeMin)
                 androidx.compose.runtime.LaunchedEffect(pagerState) {
@@ -1222,7 +1191,7 @@ private fun WeeklyScheduleSection(
                         .drop(1)
                         .collect { page ->
                             if (isReconciling.value) return@collect
-                            // 停在「添加周」那一页时不改周偏移，否则会被当成翻到了不存在的一周
+                            // The add-week page does not represent a teaching-week offset.
                             if (page >= latestWeekPageCount.value) return@collect
                             val newOffset = page + latestSafeMin.value
                             if (newOffset != pagerLatestRequest.intValue) {
@@ -1238,7 +1207,7 @@ private fun WeeklyScheduleSection(
                         .fillMaxSize()
                         .nestedScroll(edgeNestedScroll),
                     beyondViewportPageCount = 1,
-                    // 放大后单指左右拖是在看课表，不能顺手翻到下一周
+                    // Disable week paging while one-finger dragging a zoomed timetable.
                     userScrollEnabled = !zoomed,
                 ) { page ->
                     if (addPageEnabled && page == pageCount - 1) {
@@ -1356,13 +1325,7 @@ private fun WeeklyScheduleSection(
     }
 }
 
-
-/**
- * 周课表翻到底之后的那一页。
- *
- * 整页只有一个大加号：实习周、考试周这种没有课但确实存在的周，
- * 课程里推不出来，只能由用户自己接在后面。
- */
+/** Trailing page for explicitly adding blank term weeks. */
 @Composable
 private fun AddWeekPage(onClick: () -> Unit) {
     Column(
@@ -1471,8 +1434,6 @@ private fun DailyScheduleSection(
                 return@Column
             }
 
-
-            // 用分页器承载相邻日，拖动时左右两天会跟着露出来，松手才落到整页
             val pageCount = DAY_PAGE_SPAN * 2 + 1
             val pagerState = androidx.compose.foundation.pager.rememberPagerState(
                 initialPage = (dayOffset + DAY_PAGE_SPAN).coerceIn(0, pageCount - 1),
@@ -1517,8 +1478,7 @@ private fun DailyScheduleSection(
                 pageSpacing = 8.dp,
             ) { page ->
                 val animatedDate = today.plusDays((page - DAY_PAGE_SPAN).toLong())
-                // 解析当天 + 按星期/周次过滤+排序全量课程较重，beyondViewportPageCount=1 时约 3 页同时组合，
-                // 每次高亮/多选切换都会重组，缓存住避免每页每次重算
+                // Cache resolved day courses across selection recompositions and adjacent pager pages.
                 val dayEntry = remember(
                     animatedDate,
                     allCourses,
@@ -1534,9 +1494,7 @@ private fun DailyScheduleSection(
                         computeWeekNumberForDate(termStartDate, sourceDate).takeIf {
                             sourceDate != animatedDate
                         } ?: targetWeekNumber
-                    // 还没开学时不按周过滤，课程照常列出并按不可用态显示
                     val beforeTerm = weekNumber != null && weekNumber < 1
-                    // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
                     val movedInHere = coursesMovedTo(
                         date = animatedDate,
                         overrides = temporaryScheduleOverrides,
@@ -1547,9 +1505,8 @@ private fun DailyScheduleSection(
                         },
                     )
                     val courses = allCourses
-                        // 被单独挪到别天的课，这天不再出现
                         .filterNot { isCourseMovedAwayFrom(animatedDate, it, temporaryScheduleOverrides) }
-                        // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+                        // Resolve each course's source day and week under partial swaps.
                         .mapNotNull { course ->
                             temporaryScheduleCourseSourceDate(
                                 date = animatedDate,
@@ -1565,9 +1522,7 @@ private fun DailyScheduleSection(
                         .map { (course, _) -> course }
                         .plus(movedInHere)
                         .sortedBy { it.time.startNode }
-                    // 调课推翻放假时这天只剩被挪过来的那几门，且不再按休息日渲染，
-                    // 否则调过去的课会被置灰成「今天不上」。
-                    // 没有挪课的放假日保持原样：课程照常列出，只是标成不可用。
+                    // Explicit moves into holidays render active; untouched holiday courses remain visible but unavailable.
                     val holidayOverridden = resolution.isHoliday && movedInHere.isNotEmpty()
                     DailyPageEntry(
                         resolution = if (holidayOverridden) resolution.copy(isHoliday = false) else resolution,
@@ -1623,7 +1578,6 @@ private fun DailyHeaderRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // 双击日期栏改当天的放假状态，与周视图表头一致
             .let {
                 if (onDoubleTap == null) {
                     it
@@ -1716,14 +1670,12 @@ private fun DayList(
     onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
 ) {
-    // 事务按开始钟点插到节次之间；没有钟点的节次排在最后，保持原来的先后
     val dayEvents = remember(events, targetDate) { events.occurrencesOn(targetDate) }
     val timedOrder = remember(slots, dayEvents) {
         val slotKeys = slots.mapIndexed { index, slot ->
             (clockMinute(slot.startTime) ?: (24 * 60 + index)) to slot
         }
         val eventKeys = dayEvents.map { (it.startMinute ?: 0) to it }
-        // 同一分钟开始时先列课再列事务
         (slotKeys + eventKeys).sortedWith(compareBy({ it.first }, { if (it.second is ScheduleEvent) 1 else 0 }))
             .map { it.second }
     }
@@ -1748,7 +1700,7 @@ private fun DayList(
             val coursesInSlot = courses.filter { course ->
                 course.time.startNode <= slot.endNode && course.time.endNode >= slot.startNode
             }
-            // 只渲染从此 slot 起始的课程，避免跨节多次绘制
+            // Draw a spanning course only where its first slot begins.
             val starting = coursesInSlot.filter { it.time.startNode in slot.startNode..slot.endNode }
             if (starting.isEmpty()) {
                 return@forEach
@@ -1944,7 +1896,6 @@ private fun DayRow(
                             .fillMaxHeight()
                             .background(onColor.copy(alpha = 0.9f)),
                     )
-                    // 放不下的文字默认直接切掉不留省略号，省下的位置多显示一个字；用户开了偏好再用「…」
                     val textOverflow = if (scheduleTextStyle.truncationEllipsis) {
                         TextOverflow.Ellipsis
                     } else {
@@ -2034,7 +1985,6 @@ private fun DayRow(
                                 modifier = Modifier.size(12.dp),
                             )
                         }
-                        // 和周视图同一个「调」：放在这一列最下面，即卡片右下角
                         if (isCourseMovedTo(targetDate, course, temporaryScheduleOverrides)) {
                             Box(
                                 modifier = Modifier
@@ -2180,16 +2130,12 @@ private fun computeWeekNumber(
     return computeWeekNumberForDate(termStart, target)
 }
 
-/** 没有开学日期就算不出周次，返回 null 交给调用方决定怎么显示。 */
 internal fun computeWeekNumberForDate(
     termStart: LocalDate?,
     target: LocalDate,
 ): Int? = termStart?.let { resolveTermWeekNumber(it, target) }
 
-/**
- * 课程详情弹窗判断“本周/非本周”所用的周次：按格子实际所在日期取，
- * 调课日则取被借用的来源日期，与列表按周次取课的口径一致。
- */
+/** Detail badges use the cell's resolved source date, matching course-week filtering. */
 internal fun detailWeekNumber(
     targetDate: LocalDate,
     termStart: LocalDate?,
@@ -2200,15 +2146,11 @@ internal fun detailWeekNumber(
     resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar).sourceDate,
 )
 
-/** 假日在表头与空态里显示的名字来源。 */
 internal sealed interface HolidayLabel {
-    /** 用户自建条目自带的名字，按原文显示。 */
     data class Named(val name: String) : HolidayLabel
 
-    /** 内置假日，名字随语言变化。 */
     data class BuiltIn(val nameRes: Int) : HolidayLabel
 
-    /** 用户手动加的假日可以没有名字，用通用文案。 */
     data object Unnamed : HolidayLabel
 }
 
@@ -2224,19 +2166,15 @@ internal fun Context.holidayLabelText(label: HolidayLabel): String = when (label
     HolidayLabel.Unnamed -> getString(R.string.schedule_holiday_unnamed)
 }
 
-/** 网格里没有课时的提示分类。 */
 internal sealed interface EmptyScheduleHint {
-    /** 既没有课表来源，也没有任何课程。 */
     data object NeedsSync : EmptyScheduleHint
 
-    /** 有课表来源，但一门课都没有。 */
     data object NoCourses : EmptyScheduleHint
 
-    /** 有课程，只是这一周没有排到。 */
+    /** Courses exist, but none occur this week. */
     data object NoCourseThisWeek : EmptyScheduleHint
 }
 
-/** 网格里没有课时提示去哪儿补课表；返回 null 表示这一周有课，不需要提示。 */
 internal fun emptyScheduleHint(
     hasSchedule: Boolean,
     hasAnyCourse: Boolean,
@@ -2271,29 +2209,20 @@ internal data class ScheduleEmptyStateText(
     val subtitle: String,
 )
 
-/** 这一周（或这一天）没有课的原因。 */
 internal sealed interface ScheduleEmptyState {
-    /** 整天放假。 */
     data class Holiday(val label: HolidayLabel) : ScheduleEmptyState
 
-    /** 还没开学，且知道开学是哪一天。 */
     data class NotStarted(val termStartMonth: Int, val termStartDay: Int) : ScheduleEmptyState
 
-    /** 还没开学，但没有具体日期可说。 */
     data object NotStartedWithoutDate : ScheduleEmptyState
 
-    /** 一次课表都没有同步过。 */
     data object NoSchedule : ScheduleEmptyState
 
-    /** 有课表，只是这一周没有课。 */
+    /** A timetable exists without courses in this week. */
     data object EmptyWeek : ScheduleEmptyState
 }
 
-/**
- * 空态的原因判定。假日排在最前：这一天不上课是由日期本身决定的，
- * 无论课表是否同步、是否已开学，说明放假都比其余文案更贴近实际。
- * 其后未开学优先于课表为空，避免开学前把“还没有同步到课表”盖在“还没开学”上面。
- */
+/** Empty-state precedence: holiday, pre-term, then missing timetable. */
 internal fun scheduleEmptyState(
     hasSchedule: Boolean,
     notStarted: Boolean = false,
@@ -2411,9 +2340,7 @@ private fun ScheduleGrid(
     onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     onEventGroupClick: (List<ScheduleEvent>, LocalDate) -> Unit = { _, _ -> },
-    /** 放大后外层的滚动位置：表头跟着纵向、节次栏跟着横向反向挪，看起来就是冻结在边上 */
     stickyOffset: () -> androidx.compose.ui.unit.IntOffset = { androidx.compose.ui.unit.IntOffset.Zero },
-    /** 冻结的表头与节次栏要垫一层不透明底色，不然滚过去的课会透出来 */
     pinnedHeaders: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -2423,18 +2350,15 @@ private fun ScheduleGrid(
             .map { (_, list) ->
                 val main = list.first()
                 val sorted = list.map { it.course }.distinctBy { it.id }
-                // 角标数字：以去重后的本周课程数为准，点击可展开查看同格课程
+                // Use deduplicated current-cell course counts for expandable badges.
                 Triple(main, sorted, sorted.size)
             }
     }
-    // week.days 已按显示窗口顺序排好，按可见星期过滤即得列序
     val visibleDays = remember(week.days, columnDayOfWeeks) {
         week.days.filter { it.dayOfWeek in columnDayOfWeeks }
     }
     val dayColumnCount = visibleDays.size.coerceAtLeast(1)
-    // 这一周每一列当天的事务
     val dayEvents = remember(events, visibleDays) { visibleDays.map { events.occurrencesOn(it.date) } }
-    // 纵轴：没有事务落在节次以外时和原来的等高网格一模一样
     val timeline = remember(slots, dayEvents) {
         GridTimeline.build(
             slots = slots.map { it.clock() },
@@ -2447,9 +2371,8 @@ private fun ScheduleGrid(
     }
     val rows = timeline.rows
 
-    // 空白格点击添加的浮层状态。提升到网格作用域，使对话框能在内层定位 Box 之外读取。提示格在 2.5 秒后自动清除。
+    // Keep quick-add hint state at grid scope; expire it after 2.5 seconds.
     var hintCell by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<Int, Int>?>(null) }
-    // 同一格里叠着好几门课时，长按先问要编辑哪一门
     var longPressPick by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<List<CourseItem>?>(null)
     }
@@ -2473,7 +2396,6 @@ private fun ScheduleGrid(
         }
     }
 
-    // 长按拖动课程块：起拖的课程 id 与累计位移，位移为零时按长按处理
     var draggingCourseId by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<String?>(null)
     }
@@ -2502,8 +2424,7 @@ private fun ScheduleGrid(
     val gridScrollState = rememberScrollState()
     androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
         val timeColumnWidth = timeColumnWidth(maxWidth, scheduleTextStyle.headerTextSizeSp, slots.map { it.label })
-        // 调课与假日都会在日期下方多出一行说明，表头需要更高。
-        // 高度按当前字号与系统字体缩放算，写死 dp 会在大字号下把星期或日号切掉半行。
+        // Calculate header height with font scaling for weekday, date and override text.
         val headerDensity = androidx.compose.ui.platform.LocalDensity.current
         val dayHeaderMinHeight = dayHeaderHeight(
             density = headerDensity,
@@ -2513,10 +2434,7 @@ private fun ScheduleGrid(
             },
         )
         val totalWidth = maxWidth
-        // 平铺是「把所有节次塞进一屏」，塞不下时它既不滚动也不缩，底下几节直接够不着。
-        // 横屏高度只有竖屏的一半，节次一多必然塞不下；竖屏节次很多时同样会。
-        // 所以先算一遍塞不塞得下，塞不下就自动按可滚动处理。
-        // 插出来的段按节高折算，一起参与平铺，所以除的是总节高数而不是节数
+        // Measure whether the complete period-and-event timeline fits; otherwise permit vertical scrolling.
         val fitSlotHeight = if (slots.isEmpty()) {
             MIN_FIT_SLOT_HEIGHT
         } else {
@@ -2524,21 +2442,17 @@ private fun ScheduleGrid(
         }
         val fitRequested = scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit && slots.isNotEmpty()
         val fitMode = fitRequested && fitSlotHeight >= MIN_FIT_SLOT_HEIGHT
-        // 本来一屏塞得下、只是这周插了段才塞不下：格子保持平铺允许的最矮高度、改成可滚动。
-        // 否则多加一件事整张课表就突然跳成设置里的大格子，看着像排版坏了
+        // Keep the minimum compact row height when inserted event bands alone require scrolling.
         val squeezedByEvents = fitRequested && !fitMode && timeline.hasInsertedRows &&
             (maxHeight - dayHeaderMinHeight) / slots.size >= MIN_FIT_SLOT_HEIGHT
         val slotHeight = when {
-            // 平铺时把剩余高度均分给每节，课名靠自身省略号收尾
             fitMode -> fitSlotHeight
             squeezedByEvents -> MIN_FIT_SLOT_HEIGHT
             else -> scheduleCardStyle.courseCardHeightDp.dp
         }
         val gridHeight = slotHeight * timeline.totalUnits
 
-        // 同一天里叠在一起的课与事务并排分道：课在左、事务在右；不叠的照旧占满整列
         val minEventUnits = EVENT_MIN_HEIGHT / slotHeight
-        // 每一列当天的事务按画出来的位置归组：单独一件照常画，互相叠着的几件合成一块「⋯」
         val dayEventGroups = remember(dayEvents, timeline, minEventUnits) {
             dayEvents.map { list ->
                 val placed = list.map { event ->
@@ -2579,7 +2493,6 @@ private fun ScheduleGrid(
                 .values
                 .fold(emptyMap<Any, LanePosition>()) { acc, day -> acc + assignLanes(day) }
         }
-        // 哪天有块要并排，那一列就按道数放宽，并排之后每块仍有正常一列宽；没有重叠的周各列等宽
         val columns = remember(lanes, dayColumnCount) {
             val laneCounts = IntArray(dayColumnCount) { 1 }
             lanes.forEach { (key, position) ->
@@ -2592,7 +2505,7 @@ private fun ScheduleGrid(
             }
             DayColumns.of(laneCounts.toList())
         }
-        // 「普通一列」的宽度。放宽只在塞得下时才放：好几天都要并排时收回放宽的量，一天都不挤出屏幕
+        // Redistribute expanded columns only while every day remains within the viewport.
         val gridAvailable = totalWidth - timeColumnWidth
         val fittedColumns = remember(columns, gridAvailable) {
             columns.fitInto(availableDp = gridAvailable.value, minUnitDp = MIN_DAY_COLUMN_DP)
@@ -2602,7 +2515,7 @@ private fun ScheduleGrid(
         val columnX: (Int) -> Dp = { index -> dayColumnWidth * fittedColumns.start(index) }
         val columnWidth: (Int) -> Dp = { index -> dayColumnWidth * fittedColumns.width(index) }
 
-        // 背景铺满整块课表，节次列与日期行都在其上，否则图片只盖住中间一块
+        // Apply backgrounds beneath both header and period columns.
         ScheduleGridBackground(
             scheduleBackground = scheduleBackground,
             scheduleCardStyle = scheduleCardStyle,
@@ -2620,7 +2533,6 @@ private fun ScheduleGrid(
                 Modifier.verticalScroll(gridScrollState)
             },
         ) {
-            // 顶部周日期头
             val pinnedColor = MaterialTheme.colorScheme.surface
             val pinnedBackground = if (pinnedHeaders) Modifier.background(pinnedColor) else Modifier
             Row(
@@ -2689,7 +2601,6 @@ private fun ScheduleGrid(
                 ) {
                     val density = androidx.compose.ui.platform.LocalDensity.current
                     val darkTheme = isDarkColorScheme()
-                    // 插出来的段铺一层很淡的主色，一眼看出这段是为事务临时撑开的
                     val insertedTint = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
                     Box(
                         modifier = Modifier
@@ -2743,20 +2654,17 @@ private fun ScheduleGrid(
                                         val dayWidthPx = with(density) { dayColumnWidth.toPx() }
                                         val slotHeightPx = with(density) { slotHeight.toPx() }
                                         val day = fittedColumns.indexAt(offset.x / dayWidthPx)
-                                        // 插出来的段里没有节次，点了不出加课
                                         val slot = timeline.slotIndexAt(offset.y / slotHeightPx)
                                             ?: return@detectTapGestures
                                         if ((day to slot) !in occupiedCells) {
                                             hintCell = day to slot
                                         }
                                     },
-                                    // 空白处双击当成「这天要改放假/调休」，和双击日期栏是同一个入口：
-                                    // 表头那一条窄，课少的日子用户更容易点在空格子上
+                                    // Blank-cell double taps open the same day policy sheet as header taps.
                                     onDoubleTap = { offset: androidx.compose.ui.geometry.Offset ->
                                         val dayWidthPx = with(density) { dayColumnWidth.toPx() }
                                         val slotHeightPx = with(density) { slotHeight.toPx() }
                                         val day = fittedColumns.indexAt(offset.x / dayWidthPx)
-                                        // 插出来的段里没有节次，点了不出加课
                                         val slot = timeline.slotIndexAt(offset.y / slotHeightPx)
                                             ?: return@detectTapGestures
                                         if ((day to slot) !in occupiedCells) {
@@ -2769,8 +2677,7 @@ private fun ScheduleGrid(
 
                         val dayWidthPx = with(density) { dayColumnWidth.toPx() }
                         val slotHeightPx = with(density) { slotHeight.toPx() }
-                        // 拖动与改跨度按「挪了几节」吸附。插了段之后一节不再是固定高度，
-                        // 先在纵轴上找到最近的那一节，再折回等高网格下的位移交给原来的算法
+                        // Map timeline positions to nearest periods before applying equal-row drag calculations.
                         val snapDragY: (Int, Float) -> Float = { startRow, dy ->
                             if (!timeline.hasInsertedRows) {
                                 dy
@@ -2779,7 +2686,6 @@ private fun ScheduleGrid(
                                 (target - startRow) * slotHeightPx
                             }
                         }
-                        // 横向同理：列宽不再相等时，先按手指落在哪一列算，再折回等宽网格下的位移
                         val snapDragX: (Int, Float) -> Float = { startDay, dx ->
                             if (fittedColumns.isUniform) {
                                 dx
@@ -2816,7 +2722,6 @@ private fun ScheduleGrid(
                                 )
                             }
                         }
-                        // 落点提示：可放下用主色，被占用用错误色
                         dragTarget?.let { target ->
                             val span = cellGroups
                                 .firstOrNull { it.first.course.id == draggingCourseId }
@@ -2896,7 +2801,7 @@ private fun ScheduleGrid(
                                     onCellClick(sortedCourses, columnDate)
                                 },
                                 onLongClick = {
-                                    // 叠了好几门时不能闷头编辑最上面那一门——那多半不是用户想改的那门
+                                    // Select among overlapping courses before editing.
                                     if (sortedCourses.size > 1) {
                                         longPressPick = sortedCourses
                                     } else {
@@ -2982,7 +2887,7 @@ private fun ScheduleGrid(
                             )
                         }
 
-                        // 事务按钟点定位，和节次对不齐也照画；只占它自己那一段，不撑满整格
+                        // Place events at actual clock coordinates without filling whole course cells.
                         dayEventGroups.forEachIndexed { dayIndex, groups ->
                             val date = visibleDays.getOrNull(dayIndex)?.date ?: return@forEachIndexed
                             groups.forEach { group ->
@@ -3020,8 +2925,7 @@ private fun ScheduleGrid(
                             }
                         }
 
-                        // 点击提示浮层：半透明底色加居中的加号按钮。保留上一个提示格，用透明度做淡出动画，
-                        // 而不是在计时器清空 hintCell 的瞬间直接从组合树里移除。
+                        // Retain the prior quick-add hint during fade-out rather than removing it immediately.
                         val lastHintCell = androidx.compose.runtime.remember { mutableStateOf<Pair<Int, Int>?>(null) }
                         androidx.compose.runtime.LaunchedEffect(hintCell) {
                             if (hintCell != null) lastHintCell.value = hintCell
@@ -3078,8 +2982,7 @@ private fun ScheduleGrid(
                 }
             }
 
-            // 滚到底时给最后一节留一段余量，否则贴着容器边缘看起来像被截断了。
-            // 平铺模式本来就把全部节次塞进一屏，再加留白反而会把格子压矮。
+            // Add bottom space only to scrolling layouts; compact mode needs its full row height.
             if (!fitMode) {
                 Spacer(modifier = Modifier.height(GRID_BOTTOM_SPACING))
             }
@@ -3110,7 +3013,6 @@ private fun ScheduleGrid(
                 startNode = startNode,
                 endNode = endNode,
                 existingCourses = existingCourses,
-                // 和左侧节次栏同一个叫法
                 slotLabel = slots.firstOrNull { it.startNode == startNode && it.endNode == endNode }
                     ?.label?.takeIf { it.isNotBlank() },
                 onDismiss = { addRequest = null },
@@ -3123,7 +3025,6 @@ private fun ScheduleGrid(
     }
 }
 
-/** 平铺以外的模式下课表要滚动，右侧画一条滑块告诉用户下面还有节次。 */
 @Composable
 private fun GridScrollIndicator(
     scrollState: ScrollState,
@@ -3158,19 +3059,17 @@ private fun GridScrollIndicator(
     }
 }
 
-/** 日视图向前后各铺这么多天，够覆盖一整学年。 */
 private const val DAY_PAGE_SPAN = 200
 
-/** 普通一列最窄的宽度，和原来等宽网格的下限一致 */
+/** Minimum normal-column width. */
 private const val MIN_DAY_COLUMN_DP = 36f
 
-/** 事务块最矮的高度：十分钟的事按比例只有几 dp，至少要放得下一行字。 */
+/** Minimum event height must contain one readable line. */
 private val EVENT_MIN_HEIGHT = 22.dp
 
-/** 事务在分道表里的键：同一件每周重复的事一周里可能出现在好几列。 */
+/** Per-occurrence lane key distinguishes repeated events across dates. */
 private data class EventLaneKey(val dayIndex: Int, val eventId: String)
 
-/** 网格里的一块事务：一件，或者互相叠着的好几件合成的「⋯」。 */
 private data class PlacedEventGroup(
     val events: List<ScheduleEvent>,
     val top: Float,
@@ -3179,61 +3078,37 @@ private data class PlacedEventGroup(
     val key: String get() = events.first().id
 }
 
-/** 平铺时每节至少留出的高度，再挤就连课名都放不下。 */
 private val MIN_FIT_SLOT_HEIGHT = 52.dp
 
-/** 可滚动时网格底部的留白，让最后一节看起来是「到底了」而不是「被切了」。 */
 private val GRID_BOTTOM_SPACING = 28.dp
 
-/**
- * 课名长到放不下时按比例缩字号。
- *
- * 默认不启用：缩过之后长课名和短课名字号不一样，整屏看下来大小参差不齐，
- * 反倒比统一字号难看。课名普遍很长、宁可小一点也要看全的人再到设置里打开。
- * [enabled] 为 false 时原样返回配置字号。
- */
+/** Optional proportional title shrinking; disabled returns the configured size. */
 internal fun courseTitleFontSizeSp(
     baseSizeSp: Int,
     titleLength: Int,
     enabled: Boolean = true,
 ): Float {
     if (!enabled) return baseSizeSp.toFloat()
-    // 分档按真实课名定：「数据结构」4 字不动，「数据库原理及应用」8 字小一档，
-    // 「计算机组成与系统结构」10 字要小两档才塞得下
+    // Choose shrink steps by title length.
     val scale = when {
         titleLength <= 5 -> 1f
         titleLength <= 7 -> 0.92f
         titleLength <= 9 -> 0.84f
         else -> 0.76f
     }
-    // 下限按 9sp 兜底：再小连笔画都糊成一团
+    // Keep a 9sp readability floor.
     return (baseSizeSp * scale).coerceAtLeast(9f)
 }
 
-
-/**
- * 给定高度里能完整放下几行。
- *
- * 露出小半个字既看不出是什么，又白占一行高度，所以只数放得下的整行。
- * 至少返回 1：再挤也要给课名留一行，否则这一格等于白画。
- */
+/** Count complete lines only, retaining at least one title line. */
 internal fun fitLineCount(availableHeightDp: Float, lineHeightDp: Float): Int {
     if (lineHeightDp <= 0f || !availableHeightDp.isFinite()) return Int.MAX_VALUE
     return kotlin.math.floor(availableHeightDp / lineHeightDp).toInt().coerceAtLeast(1)
 }
 
-
-
 /**
- * 从上往下摆，放不下的整块直接丢掉。
- *
- * 课程格子高度是固定的，靠行高估算去决定「地点排几行」总会差那么一点，
- * 差出来的半行就被卡片边缘切掉，屏幕上留下「13-C-」这种半截字。
- * 这里不估算：逐块量出真实高度，累计超过可用高度的那一块连同后面的一起不摆，
- * 宁可不显示也不露半截。
- *
- * 第一块（课名）例外，再挤也要摆上——它自己有 maxLines 和省略号策略兜着，
- * 整块丢掉会得到一张空卡片。
+ * Measure actual blocks and omit those beyond available height; always retain the title with
+ * its own overflow policy.
  */
 @Composable
 private fun FitOrDropColumn(
@@ -3264,10 +3139,8 @@ private fun FitOrDropColumn(
 }
 
 /**
- * 课程卡片里各行文字的排布方案。
- *
- * 按优先级从上往下填：课名 > 地点 > 附注。能放几行就放几行，放不全的截断；
- * 上一项没显示完就不再排下一项——空间本来就被它占满了。
+ * Allocate title, location, then badges; do not show lower-priority text before the preceding
+ * content fits.
  */
 internal data class CourseCardTextPlan(
     val titleLines: Int,
@@ -3279,15 +3152,8 @@ internal data class CourseCardTextPlan(
 )
 
 /**
- * 按真实排版结果排出课名、地点、附注各占几行。
- *
- * 参数里的「行底」是文字截到这一行为止画出来的高度（像素），由 TextMeasurer 量出，
- * 最后一行底下的字体下沿也算在里面，见 cutHeights。以前按字号估算每行能放几个字，
- * 中英混排、标点避头尾时总估少一行：格子下面明明空着，课名却被截在半路。
- *
- * @param titleLineBottoms 课名截到各行时的高度；
- * @param locationLineBottoms 地点截到各行时的高度，不显示地点时传空；
- * @param badgeHeight 附注一行的高度，没有附注时传 0。
+ * Use measured titleLineBottoms and locationLineBottoms, including descenders; badgeHeight is
+ * zero when absent.
  */
 internal fun courseCardTextPlan(
     availableHeight: Float,
@@ -3297,7 +3163,6 @@ internal fun courseCardTextPlan(
 ): CourseCardTextPlan {
     fun linesThatFit(bottoms: List<Float>, height: Float) = bottoms.count { it <= height + FIT_TOLERANCE_PX }
 
-    // 课名再挤也至少给一行，整张卡片空着更认不出是哪门课
     val titleLines = linesThatFit(titleLineBottoms, availableHeight)
         .coerceAtLeast(1)
         .coerceAtMost(titleLineBottoms.size.coerceAtLeast(1))
@@ -3324,14 +3189,11 @@ internal fun courseCardTextPlan(
     )
 }
 
-/** 自动缩小时课名最小到这么大：再小连笔画都糊成一团 */
 private const val MIN_FIT_TITLE_SP = 8f
 
-/** 格子里地点的字号，和自动缩小时它最小到多大 */
 private const val CARD_LOCATION_SP = 10f
 private const val MIN_FIT_LOCATION_SP = 8f
 
-/** 格子里的课名、地点按比例缩：行距始终比字号高 1sp，和不缩时一样紧凑 */
 private fun androidx.compose.ui.text.TextStyle.scaledCardText(
     baseSp: Float,
     scale: Float,
@@ -3342,12 +3204,8 @@ private fun androidx.compose.ui.text.TextStyle.scaledCardText(
 }
 
 /**
- * 「长课名自动缩小」时课名和地点一起缩到多少才放得下。
- *
- * [measure] 按缩放比例量出课名、地点各行的行底（像素），不显示地点时地点给空。
- * 返回 1 表示不用再缩；缩到 [minScale] 课名加地点仍放不全时，退一步：课名保持完整，
- * 地点露出的行数取缩到最小时能露出的那么多，在这个前提下字号尽量大。
- * 缩到最小也露不出一行地点，就不缩了——没必要为了什么都换不来把课名缩小。
+ * Shrink title and location together to [minScale]; preserve full title and maximize readable
+ * location lines, or avoid shrinking when it gains nothing.
  */
 internal fun fitCourseCardTextScale(
     availableHeight: Float,
@@ -3367,7 +3225,6 @@ internal fun fitCourseCardTextScale(
     }
     if (target(1f)) return 1f
     if (!target(minScale)) return minScale
-    // target(low) 成立、target(high) 不成立，二分到差不到 1%
     var low = minScale
     var high = 1f
     while (high - low > FIT_SCALE_PRECISION) {
@@ -3379,12 +3236,7 @@ internal fun fitCourseCardTextScale(
 
 private const val FIT_SCALE_PRECISION = 0.01f
 
-/**
- * 课程格子里的地点文字：楼名和房间号之间补「-」。
- *
- * 「@东16-B-103」在窄格子里会从中文与数字之间断开，「@东」被单独甩成一行；
- * 补成「@东-16-B-103」再交给 [wrapByCharacter] 按字符折行，楼名和房间号连成一段。
- */
+/** Normalize room separators before character wrapping to avoid isolating building prefixes. */
 internal fun cardLocationText(location: String): String {
     if (location.isEmpty()) return location
     val codePoints = location.codePoints().toArray()
@@ -3400,13 +3252,8 @@ internal fun cardLocationText(location: String): String {
 }
 
 /**
- * 按字符贪心折行：每行塞到放不下为止再换行，不管词的边界。
- *
- * 排版器会把「16-B-103」当成一个整词整体挪到下一行，窄格子里前一行就空出一大截；
- * 这里直接量宽度、在行尾插入换行符。不用零宽连接符去禁断行，是因为它在常见字体里
- * 并不真的零宽，每个字之间会多出一点空隙。
- *
- * @param measureWidth 量一段文字单行排版后的宽度。
+ * Greedily insert line breaks using measured width, independent of word runs; avoid
+ * nonzero-width joiner spacing.
  */
 internal fun wrapByCharacter(text: String, maxWidth: Int, measureWidth: (String) -> Int): String {
     if (text.isEmpty() || maxWidth <= 0 || measureWidth(text) <= maxWidth) return text
@@ -3426,32 +3273,21 @@ internal fun wrapByCharacter(text: String, maxWidth: Int, measureWidth: (String)
 
 private const val CJK_START = 0x2E80
 
-/**
- * 截到每一行为止，画出来有多高（像素）。
- *
- * 中间那些行的底边只算到行距为止，截下来当最后一行画时底下还要留出字体的下沿。
- * 只拿行底比较的话，地点那一行看着正好放得下，实际画出来高了几个像素，被整行丢掉；
- * 换成书法体这类下沿大的系统字体差得更多，格子里明明空着一截，地点就是不显示。
- * 多出来的量 [lastLineExtra] 只和字体、字号有关，见 [lastLineExtra]。
- */
+/** Include final-line descender allowance when computing each truncated line height. */
 private fun androidx.compose.ui.text.TextLayoutResult.cutHeights(lastLineExtra: Float): List<Float> =
     List(lineCount) { line -> getLineBottom(line) + if (line == lineCount - 1) 0f else lastLineExtra }
 
-/** 一行字当最后一行画，比它夹在多行中间时高出多少。 */
 private fun androidx.compose.ui.text.TextMeasurer.lastLineExtra(style: androidx.compose.ui.text.TextStyle): Float {
     val alone = measure("汉", style, softWrap = false, maxLines = 1).size.height.toFloat()
     val inMiddle = measure("汉\n汉", style).getLineBottom(0)
     return (alone - inMiddle).coerceAtLeast(0f)
 }
 
-/** 行底与可用高度比较时的容差，吸收像素取整误差，不然正好放得下的一行会被丢掉。 */
 private const val FIT_TOLERANCE_PX = 0.5f
 
 /**
- * 截取排版结果的前 [lines] 行文字。
- *
- * 不省略时只把这几行交给 Text，而不是整段加 maxLines：课名行距压得很紧，
- * 整段排版时下一行的字头会渗进上一行的底部，露出一排看不懂的碎笔画。
+ * Pass only the visible prefix when ellipsis is disabled to avoid leaking partial glyphs from
+ * tightly spaced hidden lines.
  */
 internal fun visibleLinesText(
     text: String,
@@ -3463,13 +3299,10 @@ internal fun visibleLinesText(
     return text.substring(0, layout.getLineEnd(lines - 1, visibleEnd = true)).trimEnd()
 }
 
-/** 背景图解码后的长边上限，超过按 2 的幂降采样。 */
+/** Maximum decoded background edge; use power-of-two sampling above it. */
 private const val BACKGROUND_MAX_EDGE_PX = 2048
 
-/**
- * 日期表头需要的高度：星期与日号各一行，调课或放假时再加一行小字。
- * 行高按 sp 换算成 dp，跟随系统字体缩放，字放大后表头一起长高而不是把字裁掉。
- */
+/** Scale header height with system font size, including optional day-policy labels. */
 internal fun dayHeaderHeight(
     density: androidx.compose.ui.unit.Density,
     headerTextSizeSp: Int,
@@ -3481,11 +3314,9 @@ internal fun dayHeaderHeight(
     } else {
         0.dp
     }
-    // 两行正文 + 说明行，外加行距与今天胶囊的上下内边距
     return (mainLine * 2 + extraLine + DAY_HEADER_PADDING).coerceAtLeast(DAY_HEADER_MIN_HEIGHT)
 }
 
-/** 字号到行高的放大比例，留出中文的上下伸展空间。 */
 private const val TEXT_LINE_HEIGHT_RATIO = 1.45f
 private const val DAY_HEADER_EXTRA_TEXT_SIZE_SP = 10f
 private val DAY_HEADER_PADDING = 14.dp
@@ -3507,7 +3338,6 @@ private fun DayHeader(
     val columnModifier = Modifier
         .width(width)
         .padding(horizontal = 2.dp)
-        // 双击这一列的日期改当天的放假状态；单击不接管，横向翻周仍然照常
         .let {
             if (onDoubleTap == null) {
                 it
@@ -3519,11 +3349,9 @@ private fun DayHeader(
         }
         .let {
             if (day.isToday) {
-                // 胶囊外先留一圈余量，表头压到最小高度时它也不会顶着行边被切
                 it.padding(vertical = 2.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .background(todayContainer)
-                    // 今天这一列本来就比别人窄，内边距再宽标签就没地方了
                     .padding(horizontal = 3.dp, vertical = 2.dp)
             } else {
                 it
@@ -3534,8 +3362,7 @@ private fun DayHeader(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        // 原先是 softWrap=false 且没给 overflow，默认直接硬切——
-        // 大字号或窄列时「10月」会被切掉半个字，连省略号都没有。改成同样按列宽缩字号
+        // Shrink header text to column width rather than clipping partial characters.
         AutoFitHeaderText(
             text = stringResource(day.weekdayLabelRes),
             color = if (day.isToday) todayContent else headerColor.copy(alpha = 0.88f),
@@ -3554,13 +3381,12 @@ private fun DayHeader(
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.tertiary,
             )
         } else if (day.isMakeUpWorkday) {
-            // 周末被调成上课日，日历上看着是休息日，不标一下容易睡过去
             DayHeaderTagText(
                 text = stringResource(R.string.schedule_makeup_workday_tag),
                 color = if (day.isToday) todayContent else MaterialTheme.colorScheme.error,
             )
         } else if (day.overrideLabel != null) {
-            // 列本身就代表星期几，这里只留「按 月/日」，写全「按10/5周日」在一列宽里必被截掉
+            // Column position already denotes weekday; source labels need only the date.
             DayHeaderTagText(
                 text = stringResource(
                     R.string.schedule_override_source_short,
@@ -3573,13 +3399,7 @@ private fun DayHeader(
     }
 }
 
-
-/**
- * 表头里按列宽自动缩字号的文字。
- *
- * 一列就那么宽，固定字号时「10月」「按10/5」在大字号或窄屏上会被切掉或省略成「按1…」。
- * 缩到下限还放不下才用省略号，至少不会出现半个字。
- */
+/** Shrink within readable bounds, then ellipsize rather than clipping glyphs. */
 @Composable
 private fun AutoFitHeaderText(
     text: String,
@@ -3607,7 +3427,7 @@ private fun AutoFitHeaderText(
     )
 }
 
-/** 表头下方那行小标签（放假名、调休、按某天），上限 10sp。 */
+/** Compact header policy label with a 10sp maximum. */
 @Composable
 private fun DayHeaderTagText(
     text: String,
@@ -3619,19 +3439,13 @@ private fun DayHeaderTagText(
         color = color,
         fontWeight = FontWeight.Bold,
         maxFontSize = DAY_HEADER_EXTRA_TEXT_SIZE_SP.sp,
-        // 「按10/10」是最宽的一种：一个全角字加五个半角字符。
-        // 今天那一列还要减去胶囊的内边距，6sp 在大字号下仍会被省略，这里再留一档
+        // Allow extra shrink room for the widest source-date label inside the today badge.
         minFontSize = 5.sp,
         modifier = modifier,
     )
 }
 
-
-/**
- * 同一格里叠了好几门课时，长按先选一门。
- *
- * 格子里只画得下最上面那一门，长按却总是编辑它——用户想改的往往是被压在下面的那门。
- */
+/** Long-press overlapping cells requires choosing the intended course first. */
 @Composable
 private fun OverlappingCoursePickerDialog(
     courses: List<CourseItem>,
@@ -3706,7 +3520,6 @@ private fun MonthCornerCell(
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         if (monthNumber != null) {
-            // 中文把月份数字与「月」上下两行分开排；英文用月份缩写单行呈现
             if (booleanResource(R.bool.schedule_month_stacked)) {
                 Text(
                     text = monthNumber.toString(),
@@ -3790,7 +3603,7 @@ private fun slotTimeRange(slot: DisplaySlot): String {
 @Composable
 private fun CourseBlock(
     course: CourseItem,
-    // 这一格实际显示的地点：设过单独地点的周用它，否则就是课程默认地点
+    // Resolve per-week location, falling back to the default.
     displayLocation: String,
     badges: List<String>,
     hasReminder: Boolean,
@@ -3836,7 +3649,6 @@ private fun CourseBlock(
     }
     val horizontalCentered = scheduleTextStyle.horizontalCenter
     val verticalCentered = scheduleTextStyle.verticalCenter
-    // 放不下的文字默认直接切掉不留省略号，把省下的位置留给多一个字；用户开了偏好再用「…」
     val cellTextOverflow = if (scheduleTextStyle.truncationEllipsis) {
         TextOverflow.Ellipsis
     } else {
@@ -3949,7 +3761,6 @@ private fun CourseBlock(
                     },
                 ),
         ) {
-            // 左侧深色竖条
             Box(
                 modifier = Modifier
                     .width(2.dp)
@@ -3971,8 +3782,7 @@ private fun CourseBlock(
                 verticalArrangement = if (verticalCentered) Arrangement.Center else Arrangement.spacedBy(1.dp),
                 horizontalAlignment = if (horizontalCentered) Alignment.CenterHorizontally else Alignment.Start,
             ) {
-                // 「非本周」「考试」这类标记只是注解，字号和行距都压到最小，
-                // 免得它占掉一整行、把本来就长的课名再挤掉一行
+                // Keep annotation badges compact so titles retain line space.
                 if (inactive) {
                     Text(
                         text = stringResource(
@@ -4000,9 +3810,7 @@ private fun CourseBlock(
                         textAlign = TextAlign.Center,
                     )
                 }
-                // 课名优先：它按自身需要的行数占位，地点拿剩下的高度。
-                // 反过来先给地点占三行的话，「数据结构」这种长课名会被挤成「数据」，
-                // 而地点缺几个字还能靠详情页补——课名认不出来这一格就白画了。
+                // Allocate title height before location; full details can supply omitted room text.
                 val titleFontSizeSp = remember(titleSizeSp, course.title, scheduleTextStyle.autoShrinkLongTitles) {
                     courseTitleFontSizeSp(
                         baseSizeSp = titleSizeSp,
@@ -4010,7 +3818,7 @@ private fun CourseBlock(
                         enabled = scheduleTextStyle.autoShrinkLongTitles,
                     )
                 }
-                // 按优先级从上往下填：课名 > 地点 > 附注，能放几行放几行，放不全的截断
+                // Fill title, location and annotation in priority order.
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                     val badgeText = badges.joinToString(separator = " · ")
                     val rawLocationText = cardLocationText(
@@ -4024,14 +3832,13 @@ private fun CourseBlock(
                     val showBadgeText = badges.isNotEmpty() && !inactive
                     val textAlign = if (horizontalCentered) TextAlign.Center else TextAlign.Start
                     val baseStyle = androidx.compose.material3.LocalTextStyle.current
-                    // 测量与绘制用同一份样式，量出来几行就是画出来几行。
-                    // 换行固定用贪心策略：每行尽量塞满，截取前几行重新排版时断行位置也不会变
+                    // Measure and render with identical styles and greedy wrapping so prefix extraction preserves breaks.
                     val baseTitleStyle = remember(baseStyle, titleFontSizeSp, titleColor, textAlign) {
                         baseStyle.merge(
                             androidx.compose.ui.text.TextStyle(
                                 color = titleColor,
                                 fontSize = titleFontSizeSp.sp,
-                                // 行距压到比字号只高 1sp：课名常要折三四行，行距是最占地方的一项
+                                // Use compact line spacing for multiline titles.
                                 lineHeight = (titleFontSizeSp + 1f).sp,
                                 fontWeight = FontWeight.SemiBold,
                                 textAlign = textAlign,
@@ -4063,8 +3870,7 @@ private fun CourseBlock(
                     }
                     val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
                     val widthConstraints = Constraints(maxWidth = constraints.maxWidth)
-                    // 开了「长课名自动缩小」：按字数定的字号放不下课名加地点时，两者一起再缩，
-                    // 缩到都放得下为止。以前只看字数，格子明明还空着一截，地点却因为差一点点被整行丢掉
+                    // Fit title and location together against measured available height when shrinking is enabled.
                     val fitScale = remember(
                         course.title,
                         rawLocationText,
@@ -4143,7 +3949,7 @@ private fun CourseBlock(
                         locationLineBottoms = locationLayout?.cutHeights(locationLastLineExtra).orEmpty(),
                         badgeHeight = badgeHeight.toFloat(),
                     )
-                    // 开了省略号就交给 Text 在最后一行补「…」；否则只画放得下的那几行
+                    // Use Text ellipsis only when requested; otherwise render the fitting line prefix.
                     val ellipsize = scheduleTextStyle.truncationEllipsis
                     FitOrDropColumn(centered = horizontalCentered) {
                         Text(
@@ -4181,7 +3987,6 @@ private fun CourseBlock(
             }
         }
 
-        // 左下角响铃标识
         if (hasReminder && !inactive) {
             Box(
                 modifier = Modifier
@@ -4201,7 +4006,7 @@ private fun CourseBlock(
             }
         }
 
-        // 上下边缘的改跨度手柄，只对可编辑的课程渲染
+        // Render span handles only for editable courses.
         if (interactive && resizeEnabled) {
             listOf(
                 CourseResizeEdge.Top to Alignment.TopCenter,
@@ -4212,8 +4017,7 @@ private fun CourseBlock(
                         .align(alignment)
                         .fillMaxWidth()
                         .height(14.dp)
-                        // 外层课表可纵向滚动，按下事件不当场吃掉就会被它接管，
-                        // 所以这里自己处理手势：按下即消费，滚动无从开始
+                        // Consume handle Down events before parent vertical scrolling can claim them.
                         .pointerInput(edge, resizeEnabled) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
@@ -4249,8 +4053,7 @@ private fun CourseBlock(
             }
         }
 
-        // 右下角「调」：这门课是拖动调课单独挪过来的。
-        // 用主色实心圆，比备注、响铃那种半透明小标更显眼——调过的课最容易忘
+        // Distinct move marker highlights individually rescheduled courses.
         if (movedIn && !inactive) {
             Box(
                 modifier = Modifier
@@ -4280,7 +4083,6 @@ private fun CourseBlock(
             }
         }
 
-        // 右下角备注标识；右下角被「调」占了就往左让一格
         if (hasNote && !inactive) {
             Box(
                 modifier = Modifier
@@ -4300,7 +4102,7 @@ private fun CourseBlock(
             }
         }
 
-        // 左上角课程数角标（多个课程占同一格时显示，贴角内嵌避免被父级裁切）
+        // Inset overlap-count badge avoids parent clipping.
         if (cellCount > 1 && !(multiSelectMode && multiSelected)) {
             Box(
                 modifier = Modifier
@@ -4330,7 +4132,6 @@ private fun CourseBlock(
             }
         }
 
-        // 多选选中标识：右上角
         if (multiSelectMode && multiSelected) {
             Box(
                 modifier = Modifier
@@ -4355,14 +4156,9 @@ private fun CourseBlock(
 @StringRes
 internal fun scheduleWeekdayFullRes(dayOfWeek: Int): Int = weekdayNameRes(dayOfWeek)
 
-/**
- * [overrideLabel] 与 [holidayLabel] 不会同时有值：一天要么按别的日期上课，要么整天放假。
- * 两者分开存放，是为了让表头能按各自的语义着色，而不是让一个字段既表示调课又表示放假。
- */
+/** Separate mutually exclusive override and holiday fields for semantic header coloring. */
 internal data class DayHeaderModel(
-    /** 这一列的实际日期，消费方不再按列下标反推。 */
     val date: LocalDate,
-    /** 星期值，1 为周一，7 为周日。 */
     val dayOfWeek: Int,
     val monthNumber: Int?,
     val weekdayLabelRes: Int,
@@ -4370,17 +4166,15 @@ internal data class DayHeaderModel(
     val isToday: Boolean,
     val overrideLabel: SourceDateLabel? = null,
     val holidayLabel: HolidayLabel? = null,
-    /** 调休补班日：本该休息却要上课，表头单独标一下。 */
     val isMakeUpWorkday: Boolean = false,
 )
 
-/** 日期格的显示内容：月首显示所在月份，其余显示当天日号。 */
 internal sealed interface DayDateLabel {
     data class Day(val dayOfMonth: Int) : DayDateLabel
     data class MonthStart(val month: Int) : DayDateLabel
 }
 
-/** 调课来源日期，逻辑层只给字段，文字由界面层按当前语言渲染。 */
+/** Source-date fields localized by the UI. */
 internal data class SourceDateLabel(val month: Int, val dayOfMonth: Int, val dayOfWeek: Int)
 
 internal fun sourceDateLabel(date: LocalDate): SourceDateLabel =
@@ -4419,15 +4213,11 @@ internal data class CourseRenderEntry(
     val placement: CoursePlacement,
     val inactive: Boolean,
     val temporarilyCancelled: Boolean = false,
-    /** 不可用的原因是放假而不是课程不在本周，徽标据此换文案。 */
     val onHoliday: Boolean = false,
-    /** 这一格落在第几教学周，用来取该周单独设置的地点。 */
     val sourceWeekIndex: Int = 1,
-    /** 这门课是通过「拖动调课」单独挪过来的，卡片右下角要标「调」。 */
     val movedIn: Boolean = false,
 )
 
-/** 按列序排列的星期值。起始日一变「列下标 + 1 = 星期」就不成立，所以直接给星期本身。 */
 internal fun visibleColumnDayOfWeeks(display: ScheduleDisplayPreferences): List<Int> = columnDayOfWeeks(
     weekStart = display.weekStartDay,
     weekendVisible = display.weekendVisible,
@@ -4471,7 +4261,7 @@ private fun ScheduleGridBackground(
             ) {
                 value = withContext(Dispatchers.IO) {
                     runCatching {
-                        // 按屏幕能显示的规模降采样，避免整张大图常驻内存
+                        // Downsample to display size rather than retaining a full-resolution background.
                         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                         context.contentResolver.openInputStream(Uri.parse(imageUri)).use { input ->
                             requireNotNull(input) { openFailedText }
@@ -4499,7 +4289,6 @@ private fun ScheduleGridBackground(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
-                        // 图片自身的透明度与课表整体透明度叠乘
                         .alpha(
                             scheduleCardStyle.scheduleOpacityPercent.asAlpha() *
                                 scheduleBackground.imageTransparencyPercent.asAlpha(),
@@ -4599,12 +4388,10 @@ private data class CourseDetailRequest(
     val targetDate: LocalDate,
 )
 
-/** 日视图单页缓存：当天归属、是否开学前、已过滤排序的课程。 */
 private data class DailyPageEntry(
     val resolution: ScheduleDayResolution,
     val beforeTerm: Boolean,
     val courses: List<CourseItem>,
-    /** 这一天所在的教学周，用来取该周单独设置的地点；未知时为 null。 */
     val weekNumber: Int? = null,
 )
 
@@ -4671,8 +4458,7 @@ internal fun buildWeekModel(
 ): WeekModel {
     val today = BeijingTime.todayIn(zone)
     val weekStart = displayWeekStartOf(today, weekStartDay).plusWeeks(weekOffset.toLong())
-    // 没有开学日期时用 1 让翻页算术成立；是否显示周次由 weekNumberKnown 单独决定
-    // 周日起时窗口第一天属于上一教学周，周次按窗口内的周一算，否则页头周次会和页内课程差一周
+    // Unset dates use week one for pager arithmetic; actual numbering uses the contained Monday and separate known-state flag.
     val weekIndex = termStart?.let { displayWeekTermIndex(it, weekStart) } ?: 1
     val days = (0..6).map { index ->
         val date = weekStart.plusDays(index.toLong())
@@ -4699,7 +4485,7 @@ internal fun buildWeekModel(
 }
 
 private fun appearancePreviewWeek(weekStartDay: WeekStartDay): WeekModel {
-    // 固定一周样例数据，只让列序跟随起始日，保证设置页预览与真实课表排列一致
+    // Preview fixed sample data while applying the real display column order.
     val monday = LocalDate.of(2026, 3, 2)
     val weekStart = if (weekStartDay == WeekStartDay.Sunday) monday.minusDays(1) else monday
     return WeekModel(
@@ -4789,7 +4575,7 @@ private fun appearancePreviewCourses(): List<CourseItem> = listOf(
     ),
 )
 
-/** 详情里改周次时的周数下限，学期排得更长时按实际周次往上放。 */
+/** Minimum editable week range expands to actual term coverage. */
 private const val DefaultEditableWeekCount = 20
 
 private fun displaySlots(
@@ -4804,7 +4590,7 @@ private fun displaySlots(
     val allCoursesForExtras = schedule.allCoursesWith(manualCourses)
     if (profileSlots.isNotEmpty()) {
         val coveredMax = profileSlots.maxOf { it.endNode }
-        // 课程节号超出 timing 配置范围时，按顺次补无时间的大节占位（避免课丢失）
+        // Pad untimed slots for courses beyond the timing profile so they remain visible.
         val extraNodes = allCoursesForExtras
             .flatMap { listOf(it.time.startNode, it.time.endNode) }
             .filter { it > coveredMax }
@@ -4828,7 +4614,6 @@ private fun displaySlots(
                 endTime = "",
             )
         }
-        // 即使没有课时数据也补到至少 8 节，方便用户在下半段加课。
         val combined = baseSlots + extraSlots
         val blockCount = profileSlots.count { context.slotBlockIndex(it) != null }
         val blockSpan = profileSlots.lastOrNull()?.let { it.endNode - it.startNode + 1 } ?: 1
@@ -4855,10 +4640,7 @@ private fun displaySlots(
     return padToMinimumSlots(context, derivedSlots, minimum = 8)
 }
 
-/**
- * 把节次补到 [minimum] 行，让用户能在下半段加课。
- * [blockLabelFrom] 不为 null 时补出来的行沿用大节命名并从该序号往下排，每行占 [nodesPerPad] 个节号。
- */
+/** Pad to [minimum] rows; [blockLabelFrom] and [nodesPerPad] control generated block labels. */
 private fun padToMinimumSlots(
     context: Context,
     slots: List<DisplaySlot>,
@@ -4923,15 +4705,10 @@ internal fun badgesForCourse(
     rules: List<CourseBadgeRule>,
     schoolName: String = "",
 ): List<String> = matchedBadgeLabels(course, rules)
-    // 有的教务插件把学校名塞成徽章：一份课表就一所学校，和地点里的校名一样是噪音，
-    // 剥掉学校名后什么都不剩的徽章直接不显示（strippedLocationOrNull 剥完为空返回 null）
+    // Hide institution-only badges using strippedLocationOrNull.
     .filter { label -> schoolName.isBlank() || strippedLocationOrNull(label, schoolName) != null }
 
-/**
- * 命中这门课的徽章文字，未经校名过滤。
- *
- * 推断校名时要用这一份：过滤本身依赖校名，拿过滤后的结果去推断就成了死循环。
- */
+/** Infer institution text from unfiltered badge labels to avoid circular filtering. */
 internal fun matchedBadgeLabels(
     course: CourseItem,
     rules: List<CourseBadgeRule>,
@@ -4947,11 +4724,8 @@ internal fun matchedBadgeLabels(
 }
 
 /**
- * 详情页能直接撤掉的提醒规则 id。
- *
- * 只挑单独服务这一门课的规则；按节次或按 label 的规则同时管着好几门课，
- * 在这里删会误伤别的课，那类提醒仍然只能去提醒设置里改。
- * 考试提醒有自己的「本场静音」入口，也不走这条路。
+ * Remove only rules dedicated to one course; shared period/label rules and exam muting have
+ * separate controls.
  */
 internal fun cancellableReminderRuleIds(
     course: CourseItem,
@@ -4996,10 +4770,7 @@ private fun hasReminderForCourse(
     }
 }
 
-/**
- * 多选模式下点一格的结果：整格还没全选中就补齐，已经全选中就整格取消，
- * 这样同一格里叠放的每一门课都够得着。
- */
+/** Cell taps complete partial multiselection or clear a fully selected cell. */
 internal fun toggleCellSelection(
     selectedIds: Set<String>,
     coursesAtCell: List<CourseItem>,
@@ -5035,22 +4806,21 @@ internal fun buildWeekRenderEntries(
         val temporarilyCancelled: Boolean,
         val onHoliday: Boolean = false,
         /**
-         * 这一格是被单独挪过来的课。
-         *
-         * 它该不该上已经按「原本那天」判过了，目标周未必在它的周次里，
-         * 再按目标周判一次会被误标成「非本周」置灰。
+         * Moved courses already passed source-week validation; do not recheck their destination
+         * week.
          */
         val forceActive: Boolean = false,
     ) {
-        /** 放假当天与不在本周的课程一样按不可用态渲染。 */
-        // forceActive 排在放假之前：调课可以推翻放假，挪到休息日的课照常上，不该置灰
+        /**
+         * Explicit moved-in forceActive overrides holiday rendering; other holiday courses are
+         * unavailable.
+         */
         fun isInactive(weekNumberKnown: Boolean): Boolean = when {
             forceActive -> false
             onHoliday -> true
             else -> weekNumberKnown && !course.isActiveInWeek(sourceWeekIndex)
         }
     }
-    // 列序由 columnDayOfWeeks 决定，星期几落在第几列不再等于「星期 - 1」
     val visibleColumns = columnDayOfWeeks
         .filter { it in 1..7 }
         .distinct()
@@ -5058,18 +4828,15 @@ internal fun buildWeekRenderEntries(
         .toMap()
 
     val displayCourses = allCourses.visibleScheduleCourses()
-    // 周次未知时既不按周过滤，也不给任何课程打“非本周”，界面不对周次做断言
     val showEveryCourse = totalScheduleDisplayEnabled || !weekNumberKnown
-    // 拿得到列日期就一律按列解析：周日起时最左那列属于上一教学周，不按列解析会显示错周次的课
     val resolved = if (weekStart != null) {
         visibleColumns.keys.flatMap { dayOfWeek ->
             val actualDate = columnDate(weekStart, dayOfWeek)
             val resolution = resolveScheduleDay(actualDate, temporaryScheduleOverrides, holidayCalendar)
-            // 假日当天照常排出课程，只是渲染成不可用态；提醒仍按假日跳过。
+            // Display holiday courses as unavailable while reminder planning skips them.
             val sourceDate = resolution.sourceDate
-            // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+            // Resolve source dates per course after partial swaps.
             val stayingCourses = displayCourses
-                // 被单独挪到别天的课，这天不再出现
                 .filterNot { isCourseMovedAwayFrom(actualDate, it, temporaryScheduleOverrides) }
                 .mapNotNull { course ->
                     temporaryScheduleCourseSourceDate(
@@ -5079,7 +4846,6 @@ internal fun buildWeekRenderEntries(
                         overrides = temporaryScheduleOverrides,
                     )?.let { course to (computeWeekNumberForDate(termStart, it) ?: weekIndex) }
                 }
-            // 从别天挪到这天的课，时间已改写到目标节次
             val movedIn = coursesMovedTo(
                 date = actualDate,
                 overrides = temporaryScheduleOverrides,
@@ -5090,8 +4856,7 @@ internal fun buildWeekRenderEntries(
                 },
             ).filterNot { it.reminderOnly }
                 .map { it to (computeWeekNumberForDate(termStart, actualDate) ?: weekIndex) }
-            // 周次过滤只作用于原地不动的课：挪过来的课已按它原本那天判过，
-            // 再按目标周判一次会把跨周挪的课误删
+            // Filter weeks only for unmoved courses; moved occurrences already use original-week coverage.
             stayingCourses
                 .filter { (course, courseWeekIndex) ->
                     showEveryCourse || (!course.reminderOnly && course.isActiveInWeek(courseWeekIndex))
@@ -5161,7 +4926,6 @@ internal fun buildWeekRenderEntries(
     return entries
 }
 
-/** 表头用的短星期文案资源。 */
 private fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
     DayOfWeek.MONDAY -> R.string.schedule_weekday_short_monday
     DayOfWeek.TUESDAY -> R.string.schedule_weekday_short_tuesday
@@ -5172,13 +4936,7 @@ private fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
     DayOfWeek.SUNDAY -> R.string.schedule_weekday_short_sunday
 }
 
-/**
- * 节次列的宽度。
- *
- * 至少要放得下「第一节」这样三个汉字的标签，否则标签会被折成每行一个字，
- * 把下面的起止时间挤出行高。表头字号与系统字号放大时同比放宽，
- * 上限为可用宽度的三成，保证课程列还有位置。
- */
+/** Scale period-column width with labels and fonts, capped at 30 percent of available width. */
 @Composable
 private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: List<String>): Dp {
     val base = when {
@@ -5186,7 +4944,6 @@ private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: L
         availableWidth < 420.dp -> 42.dp
         else -> 44.dp
     }
-    // 全角字实际步进略大于字号，标签字宽乘上步进系数再加左右内边距即为不折行所需的宽度
     val labelWidth =
         (headerTextSizeSp * timeColumnLabelChars(labels) * TIME_COLUMN_CHAR_WIDTH_FACTOR).dp + TIME_COLUMN_PADDING
     val scale = LocalDensity.current.fontScale.coerceIn(1f, 1.8f)
@@ -5196,7 +4953,6 @@ private fun timeColumnWidth(availableWidth: Dp, headerTextSizeSp: Int, labels: L
 private const val TIME_COLUMN_CHAR_WIDTH_FACTOR = 1.12f
 private val TIME_COLUMN_PADDING = 8.dp
 
-/** 等待确认的拖动改动。 */
 internal data class PendingCourseDrag(
     val courseId: String,
     val courseTitle: String,

@@ -8,7 +8,7 @@ import com.x500x.cursimple.core.reminder.model.ReminderScopeType
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** 课程详情页上那个「取消提醒」按钮，判定的是哪些规则能就地撤掉。 */
+/** Course detail can remove only rules scoped to that course. */
 class CancellableReminderTest {
 
     private val math = CourseItem(
@@ -50,12 +50,9 @@ class CancellableReminderTest {
     @Test
     fun `rules covering other courses are left alone`() {
         val rules = listOf(
-            // 别的课的规则
             rule("other", ReminderScopeType.FirstCourseOfPeriod, courseId = "course-english"),
-            // 按节次与按 label 的规则同时管着好几门课
             rule("slot", ReminderScopeType.TimeSlot),
             rule("label", ReminderScopeType.LabelRule),
-            // 已经停用的规则本来就不提醒
             rule("disabled", ReminderScopeType.SingleCourse, courseId = math.id, enabled = false),
         )
 

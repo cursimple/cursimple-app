@@ -24,8 +24,7 @@ class WeekParityOfTest {
 
     @Test
     fun `没有规律的周次归为自选`() {
-        // 3、5、11 用「区间 + 单双周」表达不出来，归成全部周的话
-        // 一打开编辑器就会被区间悄悄改写成 3..11 的每一周
+        // Sparse weeks must remain custom rather than becoming a continuous preset range.
         assertEquals(WeekParity.Custom, weekParityOf(listOf(3, 5, 11)))
     }
 
@@ -58,7 +57,7 @@ class WeekParityOfTest {
 
     @Test
     fun `矩阵上限取学期总周数与已有最大周次里大的那个`() {
-        // 导进来的课写到 24 周而学期只设了 20 周：矩阵得铺到 24，否则那几周点不到也改不掉
+        // Stored course coverage extends the selection matrix beyond configured term length.
         assertEquals(24, customWeekLimit(maxWeekCount = 20, weeks = listOf(3, 24)))
         assertEquals(20, customWeekLimit(maxWeekCount = 20, weeks = listOf(3, 5)))
         assertEquals(20, customWeekLimit(maxWeekCount = 20, weeks = null))

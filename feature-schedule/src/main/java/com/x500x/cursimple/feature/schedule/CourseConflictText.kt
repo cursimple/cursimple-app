@@ -9,21 +9,15 @@ import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.core.kernel.model.ExamCountdown
 import com.x500x.cursimple.core.kernel.model.conflictsWithCourse
-import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 
-/** 表单里还没入库的候选课程用的临时 id，不会和任何已保存的课程相同。 */
 internal const val DRAFT_COURSE_ID = "draft-course"
 
-/** 加课表单里最多列出几门冲突课程，其余折成总数。 */
 private const val CONFLICT_PREVIEW_LIMIT = 3
 
-/** 周次分段超过这个数量就不再逐段列出，只给首尾和总数。 */
+/** Summarize excessive week segments by endpoints and count. */
 private const val WEEK_SEGMENT_LIMIT = 4
 
-/**
- * 表单当前填写的内容会和 [existingCourses] 里的哪些课冲突。
- * 节次或周次还没填完整（传 null）时不算冲突，等填全了再提示。
- */
+/** Wait for complete period and week input before computing form conflicts. */
 internal fun draftCourseConflicts(
     existingCourses: List<CourseItem>,
     dayOfWeek: Int,
@@ -47,16 +41,13 @@ internal fun draftCourseConflicts(
     return conflictsWithCourse(draft, existingCourses, maxWeekCount)
 }
 
-/** 节次区间的两种写法。 */
 internal sealed interface NodeRangeLabel {
-    /** 只占一节。 */
+    /** One period only. */
     data class Single(val node: Int) : NodeRangeLabel
 
-    /** 跨了连续的若干节。 */
     data class Range(val startNode: Int, val endNode: Int) : NodeRangeLabel
 }
 
-/** 节次区间。 */
 internal fun describeNodeRange(range: IntRange): NodeRangeLabel =
     if (range.first == range.last) {
         NodeRangeLabel.Single(range.first)
@@ -70,22 +61,16 @@ internal fun Context.nodeRangeText(label: NodeRangeLabel): String = when (label)
         getString(R.string.schedule_conflict_node_range, label.startNode, label.endNode)
 }
 
-/** 周次列表压缩后的形态。 */
 internal sealed interface WeekRangesLabel {
-    /** 没有周次可说。 */
     data object Empty : WeekRangesLabel
 
-    /** 逐段列出的连续周次区间。 */
     data class Segments(val segments: List<IntRange>) : WeekRangesLabel
 
-    /** 分段过多，只给首尾周次和总周数。 */
+    /** Summarize endpoints and total when there are too many segments. */
     data class Summary(val firstWeek: Int, val lastWeek: Int, val weekCount: Int) : WeekRangesLabel
 }
 
-/**
- * 把周次列表压成连续区间。
- * 分段太多（单双周之类）时改成首尾加总数，避免提示被撑长。
- */
+/** Compress consecutive weeks; summarize sparse ranges to limit message length. */
 internal fun compactWeekRanges(weeks: List<Int>): WeekRangesLabel {
     val sorted = weeks.distinct().sorted()
     if (sorted.isEmpty()) return WeekRangesLabel.Empty
@@ -135,14 +120,12 @@ internal fun Context.weekRangesText(label: WeekRangesLabel): String = when (labe
     )
 }
 
-/** 冲突两侧的类别组合对应的文案资源 id。 */
 internal fun conflictKindNameRes(kind: CourseConflictKind): Int = when (kind) {
     CourseConflictKind.ExamVsExam -> R.string.schedule_conflict_kind_exam_vs_exam
     CourseConflictKind.ExamVsCourse -> R.string.schedule_conflict_kind_exam_vs_course
     CourseConflictKind.CourseVsCourse -> R.string.schedule_conflict_kind_course_vs_course
 }
 
-/** 冲突发生在哪一天、哪几节、哪几周。 */
 internal data class ConflictScope(
     val dayOfWeek: Int,
     val nodes: NodeRangeLabel,
@@ -155,14 +138,6 @@ internal fun conflictScope(conflict: CourseConflict): ConflictScope = ConflictSc
     weeks = compactWeekRanges(conflict.overlappingWeeks),
 )
 
-internal fun Context.conflictScopeText(scope: ConflictScope): String = getString(
-    R.string.schedule_conflict_scope,
-    getString(weekdayNameRes(scope.dayOfWeek)),
-    nodeRangeText(scope.nodes),
-    weekRangesText(scope.weeks),
-)
-
-/** 课表管理页里一条冲突涉及的两门课。 */
 internal data class ConflictPair(
     val firstTitle: String,
     val secondTitle: String,
@@ -173,26 +148,19 @@ internal fun conflictPairTitle(conflict: CourseConflict): ConflictPair = Conflic
     secondTitle = conflict.second.title,
 )
 
-internal fun Context.conflictPairTitleText(pair: ConflictPair): String =
-    getString(R.string.schedule_conflict_pair_title, pair.firstTitle, pair.secondTitle)
-
-/** 提示里列出的一门撞课课程。 */
 internal data class ConflictPreviewItem(
     val title: String,
     val nodes: NodeRangeLabel,
     val weeks: WeekRangesLabel,
 )
 
-/** 加课表单的冲突提示内容，[previewed] 最多列出 3 门，[totalCount] 是冲突总数。 */
+/** Preview up to three conflicts while retaining [totalCount]. */
 internal data class AddCourseConflictWarning(
     val previewed: List<ConflictPreviewItem>,
     val totalCount: Int,
 )
 
-/**
- * 加课表单的冲突提示，没有冲突返回 null。
- * 只提示不拦截：学生可能有意排两个可选时段，最终由他自己决定要不要保存。
- */
+/** Return null without conflicts; warnings never prevent intentional overlapping schedules. */
 internal fun addCourseConflictWarning(conflicts: List<CourseConflict>): AddCourseConflictWarning? {
     if (conflicts.isEmpty()) return null
     return AddCourseConflictWarning(
@@ -225,19 +193,14 @@ internal fun Context.addCourseConflictWarningText(warning: AddCourseConflictWarn
     return getString(R.string.schedule_conflict_warning, preview + tail)
 }
 
-/** 距离考试还有多久。 */
 internal sealed interface ExamCountdownLabel {
-    /** 考试就在今天。 */
     data object Today : ExamCountdownLabel
 
-    /** 考试在明天。 */
     data object Tomorrow : ExamCountdownLabel
 
-    /** 离考试还有多于一天。 */
     data class DaysRemaining(val days: Long) : ExamCountdownLabel
 }
 
-/** 考试倒计时。 */
 internal fun examCountdownLabel(countdown: ExamCountdown): ExamCountdownLabel =
     when (countdown.daysRemaining) {
         0L -> ExamCountdownLabel.Today

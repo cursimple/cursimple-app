@@ -34,12 +34,11 @@ import kotlin.math.pow
 enum class ThemeMode { System, Light, Dark }
 
 /**
- * 主题色。前五个是手调好的配色；[Custom] 是用户在调色板里自选的颜色，
- * 颜色值另存在 [UserPreferences.themeCustomColorArgb]，其余配色都由它推出来。
+ * [Custom] stores its source color in [UserPreferences.themeCustomColorArgb]; derive remaining
+ * colors from it.
  */
 enum class ThemeAccent { Green, Blue, Purple, Orange, Pink, Custom }
 
-/** 界面语言。[System] 跟随系统设置，其余为用户显式选定。 */
 enum class AppLanguage(val tag: String) {
     System(""),
     Chinese("zh-CN"),
@@ -49,19 +48,16 @@ enum class AppLanguage(val tag: String) {
 
 enum class ScheduleBackgroundType { Color, Image, Header }
 
-/** 上课时段自动静音采用的手段。 */
 enum class AutoSilenceMode {
-    /** 铃声模式切到仅震动，只需 MODIFY_AUDIO_SETTINGS。 */
+    /** Vibrate mode requires MODIFY_AUDIO_SETTINGS. */
     Vibrate,
 
-    /** 铃声模式切到静音，需要勿扰访问授权。 */
     Silent,
 
-    /** 打开勿扰（仅优先级），需要勿扰访问授权。 */
+    /** Priority-only DND requires policy access. */
     DoNotDisturb,
 }
 
-/** 铃声模式取值与 AudioManager 保持一致，UNKNOWN 表示没有记录。 */
 object RingerModeValues {
     const val UNKNOWN = -1
     const val SILENT = 0
@@ -69,7 +65,7 @@ object RingerModeValues {
     const val NORMAL = 2
 }
 
-/** 勿扰级别取值与 NotificationManager 保持一致，UNKNOWN 表示没有记录。 */
+/** Values match NotificationManager; UNKNOWN denotes no saved state. */
 object InterruptionFilterValues {
     const val UNKNOWN = 0
     const val ALL = 1
@@ -79,28 +75,16 @@ object InterruptionFilterValues {
 }
 
 /**
- * 上课通知长什么样。
- *
- * [System] 是系统原生样式；默认的 [Overlay] 用自绘弹窗补充系统通知：
- * - [Card] 用自绘的 RemoteViews，能换底色、排版和图；但 Android 12 起自定义通知一律
- *   被套上系统头部，动效和毛玻璃在通知里根本没有 API，所以这一档只是「换皮」。
- * - [Overlay] 是我们自己加的悬浮窗，动效和真毛玻璃只有它做得到；代价是要悬浮窗权限，
- *   而且锁屏上盖不住锁屏，那时候自动退回系统通知。
+ * System, RemoteViews card and overlay skins. Only overlays provide animation and blur,
+ * requiring separate permission and lock-screen fallback.
  */
 enum class ClassNoticeSkin { System, Card, Overlay }
 
-/** 悬浮窗皮肤的入场动效。 */
 enum class ClassNoticeAnimation { None, Slide, Spring }
 
 /**
- * 上课通知：快上课时提前推一条通知。
- *
- * 只是一条通知，不是闹钟——不响铃、不接管屏幕，和提醒规则那套响铃闹钟完全分开。
- *
- * [headsUpEnabled] 是从屏幕顶部滑下来的悬浮通知横幅；
- * [lockScreenEnabled] 决定锁屏上是否直接显示课名与地点（关掉则只显示有通知）；
- * [focusNotificationEnabled] 是状态栏胶囊：Android 16 实时活动（ColorOS 流体云、HyperOS、
- * 荣耀、One UI 8.5、Pixel）加小米焦点通知，不支持的机型会忽略，普通通知照常。
+ * Non-ringing class notices with independent heads-up, lock-screen privacy and supported chip
+ * controls.
  */
 data class ClassNoticePreferences(
     val enabled: Boolean = true,
@@ -108,20 +92,17 @@ data class ClassNoticePreferences(
     val headsUpEnabled: Boolean = true,
     val lockScreenEnabled: Boolean = true,
     val focusNotificationEnabled: Boolean = true,
-    /** 默认自绘弹窗增强，通知栏里的系统通知照常保留 */
     val skin: ClassNoticeSkin = ClassNoticeSkin.Overlay,
     val animation: ClassNoticeAnimation = ClassNoticeAnimation.Slide,
-    /** 毛玻璃；机型不支持跨窗口模糊时会自动降级成半透明 */
+    /** Fall back to translucency without cross-window blur support. */
     val blurEnabled: Boolean = true,
-    /** 毛玻璃强度，百分比。存百分比而不是像素，换算时再按屏幕密度折成 dp，各机型观感一致 */
     val blurStrength: Int = DEFAULT_BLUR_STRENGTH,
-    /** 自绘横幅停留时长；按住暂停，松开后重新计时 */
     val bannerDurationSeconds: Int = DEFAULT_BANNER_DURATION_SECONDS,
 ) {
     companion object {
         const val DEFAULT_ADVANCE_MINUTES = 20
         const val MIN_ADVANCE_MINUTES = 1
-        /** 上限 60 分钟：再早就跨到上一节课了，提示也失去意义 */
+        /** Bound advance time to 60 minutes to keep notices relevant to the class. */
         const val MAX_ADVANCE_MINUTES = 60
 
         const val DEFAULT_BLUR_STRENGTH = 80
@@ -132,7 +113,6 @@ data class ClassNoticePreferences(
         const val MIN_BANNER_DURATION_SECONDS = 5
         const val MAX_BANNER_DURATION_SECONDS = 60
 
-        /** 100% 对应的模糊半径（dp）。80% 正好是之前写死的那档观感 */
         const val BLUR_RADIUS_DP_AT_FULL = 40f
 
         fun coerceAdvanceMinutes(value: Int): Int =
@@ -150,8 +130,8 @@ data class ClassNoticePreferences(
 }
 
 /**
- * 闹钟响前的预告：闹钟快响时先弹一条通知（悬浮窗皮肤下也弹悬浮窗），样式跟上课通知走。
- * 默认关：早起闹钟前几分钟亮屏弹一条，没开过这个的人会被吓到。
+ * Optional pre-alarm notification, disabled by default; appearance follows class-notice
+ * settings.
  */
 data class AlarmPreNoticePreferences(
     val enabled: Boolean = false,
@@ -173,12 +153,8 @@ data class AutoSilencePreferences(
 )
 
 /**
- * 一次自动静音的现场记录。
- *
- * [previousRingerMode] 与 [previousInterruptionFilter] 是切换之前手机的状态，下课后照此恢复。
- * [appliedRingerMode] 与 [appliedInterruptionFilter] 是本次实际写进系统的值，恢复前用来确认
- * 用户中途没有手动改过。[plannedEndAtMillis] 是本次静音的兜底截止时刻，即使课表数据读不出来，
- * 超过它也一律恢复。[suppressedUntilMillis] 之前不再重新静音，供用户手动恢复后使用。
+ * Capture previous and applied device modes for conditional restoration. Planned end provides
+ * schedule-independent recovery; suppression prevents reapplying after manual restore.
  */
 data class AutoSilenceSession(
     val active: Boolean = false,
@@ -194,7 +170,6 @@ data class AutoSilenceSession(
 
 const val DEFAULT_PLUGIN_REGISTRY_REPO = "cursimple/cursimple-plugins"
 
-/** 公有组件仓库，结构与插件仓库相同。 */
 const val DEFAULT_COMPONENT_REGISTRY_REPO = "cursimple/cursimple-components"
 
 const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
@@ -205,10 +180,7 @@ const val DEFAULT_WEBDAV_URL = "https://dav.jianguoyun.com/dav/"
 const val WEBDAV_PASSWORD_PREFERENCE_KEY = "webdav_password"
 const val AI_IMPORT_API_KEY_PREFERENCE_KEY = "ai_import_api_key"
 
-/**
- * 用户设置里可直接用于认证的键。
- * 导出备份时不写入这些键，恢复备份时也不覆盖本机现值。
- */
+/** Exclude credential keys from exported backups and preserve local values during restore. */
 val USER_PREFERENCES_CREDENTIAL_KEYS: Set<String> = setOf(
     WEBDAV_PASSWORD_PREFERENCE_KEY,
     AI_IMPORT_API_KEY_PREFERENCE_KEY,
@@ -233,19 +205,9 @@ data class ScheduleTextStylePreferences(
     val todayHeaderBackgroundColorCustomized: Boolean = false,
     val horizontalCenter: Boolean = false,
     val verticalCenter: Boolean = false,
-    /**
-     * 课名太长时自动缩字号。
-     *
-     * 默认关：开了之后长课名和短课名字号不一样，整屏看下来大小参差不齐。
-     * 课名普遍很长、宁可小一点也要看全的人再自己打开。
-     */
+    /** Opt-in title shrinking may produce different font sizes across course cards. */
     val autoShrinkLongTitles: Boolean = false,
-    /**
-     * 格子里放不下的文字用省略号收尾。
-     *
-     * 默认关：省略号本身要占掉一两个字的位置，还不如把那点空间留着多显示一个字，
-     * 放不下的直接切掉不留记号。想一眼看出「这里被截断了」的人再打开。
-     */
+    /** Optional ellipsis consumes text space; default clipping maximizes visible characters. */
     val truncationEllipsis: Boolean = false,
 ) {
     companion object {
@@ -300,19 +262,14 @@ data class ScheduleCardStylePreferences(
     }
 }
 
-
-/** 系统查不到、只能由用户自己确认的那几项厂商权限。 */
+/** Vendor permission keys requiring user confirmation. */
 object VendorPermissionKey {
-    /** 自启动 / 后台管理白名单。 */
     const val AUTO_START = "vendor_auto_start"
 
-    /** 后台弹出界面。 */
     const val BACKGROUND_POPUP = "vendor_background_popup"
 
-    /** 厂商省电策略（小米「无限制」、三星「永不休眠」）。 */
     const val BATTERY_SAVER = "vendor_battery_saver"
 
-    /** 桌面快捷方式：没有它时一键添加小组件会被桌面静默丢弃。 */
     const val SHORTCUT_PIN = "vendor_shortcut_pin"
 }
 
@@ -320,7 +277,6 @@ data class ScheduleBackgroundPreferences(
     val type: ScheduleBackgroundType = DEFAULT_BACKGROUND_TYPE,
     val colorArgb: Long = DEFAULT_BACKGROUND_COLOR_ARGB,
     val imageUri: String? = null,
-    /** 背景图自身的透明度，0 为不透明，与课表整体透明度叠乘。 */
     val imageTransparencyPercent: Int = DEFAULT_IMAGE_TRANSPARENCY_PERCENT,
 ) {
     companion object {
@@ -340,16 +296,12 @@ data class ScheduleDisplayPreferences(
     val locationVisible: Boolean = true,
     val teacherVisible: Boolean = true,
     val totalScheduleDisplayEnabled: Boolean = true,
-    /** 一周从哪天开始显示，不影响教学周编号。 */
     val weekStartDay: WeekStartDay = WeekStartDay.Monday,
-    /** 允许在课表上拖动调整课程。默认关闭，避免误触改动课表。 */
+    /** Drag rescheduling is opt-in to prevent accidental timetable changes. */
     val courseDragEnabled: Boolean = false,
-    /**
-     * 双指缩放课表：放大后上下左右随意拖动查看，塞不下的部分滚动。
-     * 默认关闭，关着时课表和原来一样，单指手势不受影响。
-     */
+    /** Optional pinch zoom and panning; disabled mode preserves ordinary gestures. */
     val pinchZoomEnabled: Boolean = false,
-    /** 开启后在顶部左侧显示概览按钮，详情仅在点击按钮时打开。 */
+    /** Whether to show today's overview in today's day view. */
     val todayOverviewEnabled: Boolean = true,
 )
 
@@ -403,11 +355,11 @@ private fun srgbChannelToLinear(channelByte: Int): Double {
 data class UserPreferences(
     val themeMode: ThemeMode = ThemeMode.Light,
     val themeAccent: ThemeAccent = ThemeAccent.Green,
-    /** 自选主题色（[ThemeAccent.Custom]）的颜色，不透明 ARGB；选内置色时保留上次挑的，再切回来不用重挑。 */
+    /** Opaque custom ARGB; preserve it when selecting a built-in accent. */
     val themeCustomColorArgb: Int = com.x500x.cursimple.core.data.theme.AccentColors.DEFAULT_CUSTOM_ARGB,
     val appLanguage: AppLanguage = AppLanguage.System,
     val termStartDate: LocalDate? = null,
-    /** 开学日期是否由用户自己定过。为假时才允许从插件同步的作息里继承。 */
+    /** Explicit user date choices prevent plugin timing defaults from replacing them. */
     val termStartUserDecided: Boolean = false,
     val advancedToolsEnabled: Boolean = false,
     val scheduleTextStyle: ScheduleTextStylePreferences = ScheduleTextStylePreferences(),
@@ -418,49 +370,32 @@ data class UserPreferences(
     val enabledPluginIds: Set<String> = emptySet(),
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
     val holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings(),
-    /** 默认在假日跳过闹钟；用户可关闭此项，或为单个闹钟明确允许假日响铃。 */
+    /** Skip holiday alarms by default, with global and per-alarm opt-outs. */
     val skipRemindersOnHoliday: Boolean = true,
     /**
-     * 静默守护：退出应用后靠巡检闹钟和巡检任务定时重挂上课提醒、体检闹钟，不挂任何通知。
-     * 默认开：部分国产机划掉应用会一并清掉闹钟，不开的话要等下次打开应用才补回来，
-     * 用户也想不到要来这里开。存储换了新键，早先关过常驻守护的人升级后也回到开。
+     * Silent guard uses alarms and jobs without persistent notifications; its independent
+     * preference defaults on.
      */
     val alarmKeepAliveEnabled: Boolean = true,
     /**
-     * 通知运行时权限是否已经问过。
-     *
-     * 拒绝过一次、后来又进来了不能每次启动都弹，权限页和通知引导随时可以补；
-     * 撤销过权限的人每重启一次都被问就是骚扰，所以只问一次、记下来了就不再问。
+     * Remember the initial runtime notification request so denial is not repeated at startup.
      */
     val notificationPermissionStartupAsked: Boolean = false,
-    /**
-     * 启动时「打开状态栏胶囊」的提示是否已经弹过。
-     *
-     * 胶囊要用户到系统里放行，应用自己开不了；启动时提一次，之后交给通知引导，不反复打扰。
-     */
+    /** Remember the one-time chip setup prompt; later guidance lives in settings. */
     val islandStartupPromptShown: Boolean = false,
     /**
-     * 用户自己确认已经开好的厂商权限。
-     *
-     * 自启动、后台弹出这类权限系统不提供任何查询接口，应用永远读不到真实状态，
-     * 只能一直写「需手动确认」。既然查不到，就让用户自己勾一下：勾过之后界面不再催，
-     * 没勾就在用到它的地方继续提醒。取值见 [VendorPermissionKey]。
+     * User-confirmed vendor permissions whose status cannot be queried; see
+     * [VendorPermissionKey].
      */
     val vendorPermissionAcks: Set<String> = emptySet(),
     /**
-     * 这台手机的桌面不响应一键添加。
-     *
-     * `requestPinAppWidget` 返回 true 只表示请求被受理，桌面完全可以转头就丢掉
-     * （vivo 的 com.bbk.launcher2 实测如此，「桌面快捷方式」权限开着也一样）。
-     * 系统没有任何接口能提前问出来，只能等真失败一次再记下来：
-     * 之后直接给手动添加步骤，不再让用户对着没反应的按钮反复点。
+     * Remember observed widget-pinning failure; request acceptance alone does not prove
+     * launcher placement.
      */
     val widgetPinUnsupportedOnDevice: Boolean = false,
-    /** 单独静音的日期，ISO 日期字符串。 */
     val reminderMutedDates: Set<String> = emptySet(),
     val debugForcedDateTime: LocalDateTime? = null,
     val disclaimerAccepted: Boolean = false,
-    /** 新手引导是否已经走完或被跳过。 */
     val firstRunGuideCompleted: Boolean = false,
     val alarmBackend: ReminderAlarmBackend = ReminderAlarmBackend.AppAlarmClock,
     val alarmRingtoneUri: String? = null,
@@ -472,28 +407,23 @@ data class UserPreferences(
     val classNotice: ClassNoticePreferences = ClassNoticePreferences(),
     val alarmPreNotice: AlarmPreNoticePreferences = AlarmPreNoticePreferences(),
     val autoSilenceSession: AutoSilenceSession = AutoSilenceSession(),
-    /** 自动检查更新；默认开着，修好的问题得先让人知道有新版本。 */
     val autoUpdateEnabled: Boolean = true,
-    /** 更新检查是否带上预发布版本。 */
+    val pluginAutoUpdateCheckEnabled: Boolean = true,
+    val pluginUpdateBadgeEnabled: Boolean = true,
+    val pluginUpdateCheckIntervalHours: Int = 6,
     val betaUpdatesEnabled: Boolean = false,
-    /** 上次看过更新公告时的版本号，0 表示还没记录过。 */
     val lastSeenVersionCode: Int = 0,
-    /** 应用使用的时区；为空表示跟随设备。 */
     val appTimeZoneId: String? = null,
     val ignoredUpdateVersionCode: Int? = null,
-    /** 最近一次检查发现的可更新版本号，0 表示没有发现。 */
     val updateNoticeVersionCode: Int = 0,
-    /** 与 [updateNoticeVersionCode] 对应的版本名。 */
     val updateNoticeVersionName: String = "",
-    /** 已选择不再弹窗提醒的版本号，角标仍然保留。 */
     val mutedUpdateVersionCode: Int? = null,
     val pluginRegistryRepo: String = DEFAULT_PLUGIN_REGISTRY_REPO,
     /**
-     * 插件来源仓库（`owner/repo`），按顺序读取、合并；同一个插件以排在前面的来源为准。
-     * 默认只有公有仓库，删掉它就只从自己加的仓库取。
+     * Ordered registry sources; first duplicate wins. Removing the public source leaves only
+     * user-selected sources.
      */
     val pluginSources: List<String> = listOf(DEFAULT_PLUGIN_REGISTRY_REPO),
-    /** 组件来源仓库，规则同 [pluginSources]。 */
     val componentSources: List<String> = listOf(DEFAULT_COMPONENT_REGISTRY_REPO),
     val pluginMarketCacheJson: String = "",
     val pluginMarketCachedAtMillis: Long = 0L,
@@ -516,18 +446,15 @@ interface UserPreferencesRepository {
     suspend fun setThemeMode(mode: ThemeMode)
     suspend fun setThemeAccent(accent: ThemeAccent)
 
-    /** 选用自选主题色：同时把主题色切到 [ThemeAccent.Custom]。 */
     suspend fun setThemeCustomColor(argb: Int)
 
-    /** 记下 / 撤销用户对某项厂商权限的手动确认。 */
+    /** Record or revoke manual vendor-permission confirmation. */
     suspend fun setVendorPermissionAck(key: String, acked: Boolean)
 
-    /** 记下 / 清除「这台手机的一键添加没反应」。 */
     suspend fun setWidgetPinUnsupportedOnDevice(unsupported: Boolean)
     suspend fun setAppLanguage(language: AppLanguage)
     suspend fun setTermStartDate(date: LocalDate?)
 
-    /** 记下开学日期已由用户决定，此后插件同步不再覆盖，包括用户主动清空的情况。 */
     suspend fun setTermStartUserDecided(decided: Boolean)
     suspend fun setAdvancedToolsEnabled(enabled: Boolean)
     suspend fun setScheduleCourseTextSizeSp(sizeSp: Int)
@@ -605,23 +532,22 @@ interface UserPreferencesRepository {
     suspend fun removeHolidayCalendarEntry(date: String)
     suspend fun clearHolidayCalendarEntries()
 
-    /** 写入同步下来的放假安排，按年覆盖同一年的旧数据。 */
     suspend fun putSyncedHolidayYears(years: List<SyncedHolidayYear>)
 
     suspend fun clearSyncedHolidayYears()
 
     suspend fun setSkipRemindersOnHoliday(enabled: Boolean)
 
-    /** 「静默守护」开关，见 [UserPreferences.alarmKeepAliveEnabled]。 */
+    /** Silent-guard setting; see [UserPreferences.alarmKeepAliveEnabled]. */
     suspend fun setAlarmKeepAliveEnabled(enabled: Boolean)
 
-    /** 通知权限问过了：拒绝过一次就不在启动时打扰了，见 [UserPreferences.notificationPermissionStartupAsked]。 */
+    /** Remember the startup request even after denial. */
     suspend fun markNotificationPermissionStartupAsked()
 
-    /** 启动时的胶囊提示弹过了，见 [UserPreferences.islandStartupPromptShown]。 */
+    /** Remember the startup chip prompt. */
     suspend fun markIslandStartupPromptShown()
 
-    /** 把某一天设为静音或取消静音，当天不再下发任何课程提醒。 */
+    /** Set or remove date muting for course reminders. */
     suspend fun setReminderMuted(date: String, muted: Boolean)
     suspend fun setDebugForcedDateTime(dateTime: LocalDateTime?)
     suspend fun setDisclaimerAccepted(accepted: Boolean)
@@ -646,12 +572,11 @@ interface UserPreferencesRepository {
     suspend fun setAppTimeZoneId(zoneId: String?)
 
     suspend fun setAutoUpdateEnabled(enabled: Boolean)
+    suspend fun setPluginUpdateOptions(autoCheck: Boolean, badge: Boolean, intervalHours: Int)
     suspend fun setIgnoredUpdateVersionCode(versionCode: Int?)
 
-    /** 记下检查到的可更新版本，用于设置入口的角标。 */
     suspend fun setUpdateNotice(versionCode: Int, versionName: String)
 
-    /** 清掉角标，已是最新或检查不到新版本时调用。 */
     suspend fun clearUpdateNotice()
 
     suspend fun setMutedUpdateVersionCode(versionCode: Int?)
@@ -667,10 +592,7 @@ interface UserPreferencesRepository {
     suspend fun resetAllSettings()
 }
 
-/**
- * [version] 与 [stores] 没有默认值：缺了它们的 JSON 不是备份文件，
- * 有默认值会让任意 JSON 都解析成一份没有内容的备份，恢复流程随后报成功却什么都没写。
- */
+/** Require [version] and [stores] so unrelated JSON cannot be accepted as an empty backup. */
 @Serializable
 data class AppBackupPayload(
     @SerialName("version") val version: Int,
@@ -698,7 +620,6 @@ object AppBackupStores {
     const val SCHEDULE_EVENTS = "schedule_events_store"
     const val MEMOS = "memo_store"
 
-    /** 备份里出现过的全部存储名，用于判断一份文件是否真的属于本应用。 */
     val ALL: Set<String> = setOf(
         USER_PREFERENCES,
         SCHEDULE,
@@ -761,7 +682,6 @@ fun Preferences.toBackupEntries(): List<PreferencesBackupEntry> = asMap()
     .mapNotNull { (key, value) -> value.toBackupEntry(key.name) }
     .sortedBy { it.name }
 
-/** 去掉 [excludedKeyNames] 命中的条目，其余条目原样保留。 */
 fun excludeBackupEntries(
     entries: List<PreferencesBackupEntry>,
     excludedKeyNames: Set<String>,
@@ -769,10 +689,8 @@ fun excludeBackupEntries(
     if (excludedKeyNames.isEmpty()) entries else entries.filterNot { it.name in excludedKeyNames }
 
 /**
- * 计算恢复时最终写回的条目。
- *
- * [preservedKeyNames] 命中的键一律取本机现值 [localEntries]：备份里的同名条目（老备份仍带着）被丢弃，
- * 本机没有该键时结果里也不出现，保持未设置状态。其余键完全按 [snapshotEntries] 覆盖。
+ * Restore snapshot entries except [preservedKeyNames], which retain [localEntries] or remain
+ * unset.
  */
 fun mergeRestoredBackupEntries(
     snapshotEntries: List<PreferencesBackupEntry>,
@@ -807,10 +725,7 @@ suspend fun DataStore<Preferences>.restoreSnapshot(
     }
 }
 
-/**
- * 备份恢复后是否释放 [previousUri] 的持久化读取授权。
- * 恢复结果仍指向同一个 URI 时保留授权，否则该 URI 之后无法再被读取。
- */
+/** Keep [previousUri] permission when restored data still references it. */
 fun shouldReleasePersistedUriPermission(previousUri: String?, restoredUri: String?): Boolean =
     !previousUri.isNullOrBlank() && previousUri != restoredUri
 
@@ -892,7 +807,6 @@ private fun MutablePreferences.restoreEntry(entry: PreferencesBackupEntry) {
     }
 }
 
-/** 把偏好里的假日与静音设置换成提醒侧的判定策略。 */
 fun UserPreferences.reminderDayPolicy(): ReminderDayPolicy = ReminderDayPolicy(
     skipOnHoliday = skipRemindersOnHoliday,
     mutedDates = reminderMutedDates.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.toSet(),

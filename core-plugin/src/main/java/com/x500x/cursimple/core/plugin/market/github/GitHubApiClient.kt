@@ -25,11 +25,8 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
 /**
- * 直连 api.github.com 的小客户端，私有仓库全靠它。
- *
- * 令牌只在这里加到请求头上，而且只发给 api.github.com：公有仓库走的那些镜像、代理
- * 都是第三方，令牌绝不能经过它们。下载 Release 附件时 GitHub 会 302 到对象存储，
- * 手动处理 HTTPS 重定向：离开 API 主机后移除凭据，禁止降级到 HTTP。
+ * Send credentials only to api.github.com. Follow HTTPS asset redirects manually and strip
+ * credentials when leaving that host.
  */
 class GitHubApiClient(
     client: OkHttpClient = OkHttpClient.Builder()
@@ -37,7 +34,7 @@ class GitHubApiClient(
         .callTimeout(Duration.ofSeconds(40))
         .build(),
     private val json: Json = Json { ignoreUnknownKeys = true },
-    /** 测试用的单跳 transport；不能自行跟随重定向。生产路径始终禁用自动重定向。 */
+    /** Single-hop test transport; production never follows redirects automatically. */
     private val transport: Call.Factory = client.newBuilder()
         .followRedirects(false)
         .followSslRedirects(false)
@@ -49,7 +46,6 @@ class GitHubApiClient(
         json.decodeFromString(ApiRepo.serializer(), it.decodeToString())
     }
 
-    /** 读仓库某个分支上的文件原文。 */
     suspend fun fileText(slug: String, branch: String, path: String, token: String?): String =
         get(
             repoUrl(slug).addPathSegment("contents").apply {
@@ -65,7 +61,7 @@ class GitHubApiClient(
             json.decodeFromString(ApiRelease.serializer(), it.decodeToString())
         }
 
-    /** 下载 Release 附件；[assetApiUrl] 是 `https://api.github.com/repos/o/r/releases/assets/<id>`。 */
+    /** Download the API release asset identified by [assetApiUrl]. */
     suspend fun downloadAsset(
         assetApiUrl: String,
         token: String?,
@@ -80,13 +76,11 @@ class GitHubApiClient(
         GitHubViewer(login = user.login, avatarUrl = user.avatarUrl)
     }
 
-    /** 设备码登录第一步：拿到让用户去网页上输的码。 */
     suspend fun requestDeviceCode(clientId: String, scope: String): DeviceCode = post(
         "https://github.com/login/device/code",
         FormBody.Builder().add("client_id", clientId).add("scope", scope).build(),
     ).let { json.decodeFromString(DeviceCode.serializer(), it) }
 
-    /** 设备码登录第二步：按间隔轮询，用户在网页上点了授权才会拿到令牌。 */
     suspend fun pollDeviceToken(clientId: String, deviceCode: String): DeviceTokenResponse = post(
         "https://github.com/login/oauth/access_token",
         FormBody.Builder()
@@ -180,7 +174,7 @@ class GitHubApiClient(
         @SerialName("stargazers_count") val stars: Int = 0,
         @SerialName("language") val language: String? = null,
         @SerialName("html_url") val htmlUrl: String = "",
-        // 缺少 visibility 的异常响应不能被当成「已确认公有」交给镜像。
+        // Missing visibility metadata cannot establish public access.
         @Required @SerialName("private") val isPrivate: Boolean = false,
         @SerialName("owner") val owner: ApiOwner = ApiOwner(),
     )
@@ -246,7 +240,7 @@ class GitHubApiClient(
     }
 }
 
-/** 只根据响应体读取的字节报告进度；没有 Content-Length 时，完成回调也保留 -1。 */
+/** Report actual body bytes; retain -1 for unknown totals even at completion. */
 internal fun readDownloadBody(
     body: ResponseBody,
     onProgress: (Long, Long) -> Unit,

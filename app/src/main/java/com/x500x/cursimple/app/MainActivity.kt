@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -51,8 +50,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Brightness4
-import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.School
@@ -70,7 +67,6 @@ import androidx.compose.material.icons.rounded.PriorityHigh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.AlertDialog
@@ -113,7 +109,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 import com.x500x.cursimple.R
 import androidx.compose.ui.draw.clip
@@ -145,7 +140,6 @@ import com.x500x.cursimple.app.update.shouldShowUpdateBadge
 import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ThemeAccent
-import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.feature.schedule.CourseSwapScreen
 import com.x500x.cursimple.core.kernel.model.isCurrentTermWeek
@@ -154,6 +148,8 @@ import com.x500x.cursimple.core.kernel.model.termWeekText
 import com.x500x.cursimple.core.kernel.model.planCourseMove
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.plugin.PluginMarketRoute
+import com.x500x.cursimple.feature.plugin.availableUpdateKeys
+import com.x500x.cursimple.feature.plugin.PluginUpdateAutoCheck
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModel
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
 import com.x500x.cursimple.feature.plugin.SchoolImportRoute
@@ -172,7 +168,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -182,11 +177,11 @@ import androidx.compose.foundation.gestures.detectTapGestures
 
 class MainActivity : ComponentActivity() {
 
-    /** 点了扩展组件的通知：要打开哪个组件的日历页；界面消费后清空 */
     private val extensionFeedRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
 
-    /** 点了桌面课程日历上的某一天：要在日视图里打开的日期（ISO）；界面消费后清空 */
     private val scheduleDateRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
+
+    private val memoRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
@@ -194,6 +189,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO)?.let { memoRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
@@ -205,6 +201,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val container = (application as ClassScheduleApplication).appContainer
         if (savedInstanceState == null) {
+            intent?.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO)?.let { memoRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
@@ -268,13 +265,11 @@ class MainActivity : ComponentActivity() {
                     ) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     var memoSearchOpen by rememberSaveable { mutableStateOf(false) }
-                    // 扩展组件的侧边栏日历页：不在 AppScreen 这个固定枚举里，装了几个组件就有几个
                     var currentExtension by rememberSaveable { mutableStateOf<String?>(null) }
                     var linkedExtensionContent by remember {
                         mutableStateOf<Triple<com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem, com.x500x.cursimple.core.kernel.model.ScheduleEvent>?>(null)
                     }
                     var openExtensionSettings by remember { mutableStateOf<String?>(null) }
-                    // 组件的横幅/通知上点了「重新登录」：进「组件」页并直接打开那个组件的设置面板
                     val pendingOpenSettings by openExtensionSettingsRequest
                     LaunchedEffect(pendingOpenSettings) {
                         pendingOpenSettings?.let {
@@ -297,15 +292,21 @@ class MainActivity : ComponentActivity() {
                                 com.x500x.cursimple.app.extension.ExtensionCoordinator.titleOf(manifest, record)
                         }
                     }
-                    // 侧边栏里列哪些组件：启用着、没在组件设置里关掉「侧边栏专属页面」的
                     val sidebarExtensions = com.x500x.cursimple.app.extension.activeExtensionRecords(installedPlugins, prefs.enabledPluginIds)
                         .filter { extensionData[it.pluginId]?.host?.showInSidebar != false }
                         .map { it.installKey to (extensionTitles[it.installKey] ?: it.name) }
-                    // 切到别的页面就离开组件日历页（很多地方直接改 currentScreen）
                     var lastScreen by remember { mutableStateOf(currentScreen) }
                     LaunchedEffect(currentScreen) {
                         if (currentScreen != lastScreen) currentExtension = null
                         lastScreen = currentScreen
+                    }
+                    val pendingMemo by memoRequest
+                    LaunchedEffect(pendingMemo) {
+                        if (pendingMemo != null) {
+                            currentExtension = null
+                            currentScreen = AppScreen.Memos
+                            if (pendingMemo!!.isEmpty()) memoRequest.value = null
+                        }
                     }
                     val pendingExtensionFeed by extensionFeedRequest
                     LaunchedEffect(pendingExtensionFeed) {
@@ -334,6 +335,15 @@ class MainActivity : ComponentActivity() {
                             override fun onDataChanged(pluginId: String) =
                                 container.extensionCoordinator.onDataChanged(pluginId)
 
+                            override suspend fun markRead(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, itemId: String) =
+                                container.extensionCoordinator.markRead(record, itemId)
+
+                            override suspend fun setItemIgnored(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, itemId: String, ignored: Boolean) =
+                                container.extensionCoordinator.setItemIgnored(record, itemId, ignored)
+
+                            override suspend fun notificationCommand(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, command: String, payload: kotlinx.serialization.json.JsonObject) =
+                                container.notificationDeliveryCoordinator.command(record, command, payload)
+
                             override fun openFeed(pluginId: String) {
                                 currentExtension = pluginId
                             }
@@ -355,7 +365,6 @@ class MainActivity : ComponentActivity() {
                     }
                     val onScheduleScreen = currentScreen == AppScreen.Schedule && currentExtension == null
                     var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
-                    // 拖动调课页要摆开的两天，由临时调课表单选好后带过来
                     var swapTargetDate by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
                     var swapSourceDate by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
@@ -381,7 +390,6 @@ class MainActivity : ComponentActivity() {
                             resolveTimingProfile = { container.widgetPreferencesRepository.timingProfileFlow.first() },
                             timingProfileFlow = container.widgetPreferencesRepository.timingProfileFlow,
                             createTermAndActivate = { name ->
-                                // 课表与手动课都按学期分区，切过去之后再写就落在新表里，旧表原封不动
                                 val term = container.termProfileRepository.createTerm(name, null)
                                 container.termProfileRepository.setActiveTerm(term.id)
                             },
@@ -409,14 +417,15 @@ class MainActivity : ComponentActivity() {
                             accountKeyFlow = container.gitHubSessionKeys,
                         ),
                     )
-                    // 启动后在后台先把插件清单和已装插件的最新版拉好：等点进导课页再现拉，
-                    // 第一次就得对着转圈等；拉过之后镜像也挑好了，后面的请求都快
+                    val pluginUpdateState by pluginMarketViewModel.uiState.collectAsStateWithLifecycle()
+                    val pluginUpdateBadgeVisible = pluginUpdateState.showUpdateBadge && pluginUpdateState.availableUpdateKeys().isNotEmpty()
+                    PluginUpdateAutoCheck(pluginMarketViewModel)
+                    // Refresh plugin and component versions at startup rather than displaying cached releases.
                     androidx.compose.runtime.LaunchedEffect(prefs.loaded, prefs.pluginSources, prefs.componentSources) {
                         if (!prefs.loaded) return@LaunchedEffect
                         pluginMarketViewModel.setSources(prefs.pluginSources, prefs.componentSources)
                         kotlinx.coroutines.delay(PLUGIN_PREFETCH_DELAY_MILLIS)
-                        pluginMarketViewModel.refreshIfStale(PLUGIN_PREFETCH_MAX_AGE_MILLIS)
-                        pluginMarketViewModel.refreshInstalledPluginVersions()
+                        pluginMarketViewModel.refreshOnEnter()
                     }
                     fun setActiveTermStartDate(date: LocalDate?) {
                         prefsViewModel.markTermStartUserDecided()
@@ -431,14 +440,12 @@ class MainActivity : ComponentActivity() {
                     val updateNotice = UpdateNoticeState(
                         versionCode = prefs.updateNoticeVersionCode,
                         versionName = prefs.updateNoticeVersionName,
-                        mutedVersionCode = prefs.mutedUpdateVersionCode,
                         ignoredVersionCode = prefs.ignoredUpdateVersionCode,
                     )
                     val updateBadgeVisible = shouldShowUpdateBadge(updateNotice, BuildConfig.VERSION_CODE)
 
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
-                    // 组件内容区的横滑、斜滑交给组件；仍可点菜单打开，并滑动收起已打开的抽屉。
                     val drawerGesturesEnabled = !scheduleState.isSyncing && scheduleState.pendingWebSession == null &&
                         (drawerState.isOpen || (currentExtension == null && !embeddedPageGestures.ownsContentGestures))
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
@@ -446,15 +453,13 @@ class MainActivity : ComponentActivity() {
                     var pendingCurrentWeek by rememberSaveable { mutableStateOf<Int?>(null) }
                     var showTermStartReminder by rememberSaveable { mutableStateOf(false) }
                     var autoPromptedThisSession by rememberSaveable { mutableStateOf(false) }
-                    var updateDialogVisible by remember { mutableStateOf(false) }
                     var announcementVisible by remember { mutableStateOf(false) }
                     androidx.compose.runtime.LaunchedEffect(
                         prefs.loaded, prefs.termStartDate, prefs.disclaimerAccepted,
-                        updateDialogVisible, announcementVisible,
+                        announcementVisible,
                     ) {
-                        // 每次启动应用检查一次开学日期，缺失时弹出可关闭的提醒，而不是直接打开日期选择器。
-                        // 更新与更新公告弹窗优先：它们出现时开学日期提醒让位，关掉后再补出来，不叠着显示。
-                        val blocked = updateDialogVisible || announcementVisible
+                        // Release announcements take priority over the missing term-date prompt.
+                        val blocked = announcementVisible
                         if (blocked && showTermStartReminder) {
                             showTermStartReminder = false
                             autoPromptedThisSession = false
@@ -486,12 +491,12 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     }
-                    // 上次是被强行停止的：这之间的闹钟都没响，得让人知道原因和怎么避免
+                    // Explain missed alarms after a force-stop.
                     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
                     var showForceStopPrompt by remember {
                         mutableStateOf(com.x500x.cursimple.app.reminder.ForceStopMonitor.promptPending(appContext))
                     }
-                    if (showForceStopPrompt && !updateDialogVisible) {
+                    if (showForceStopPrompt) {
                         androidx.compose.material3.AlertDialog(
                             onDismissRequest = {
                                 showForceStopPrompt = false
@@ -517,15 +522,13 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     var showUpdateCheckDialog by rememberSaveable { mutableStateOf(false) }
-                    AutomaticUpdateCheckPrompt(
+                    // Automatic checks report updates through badges only.
+                    AutomaticUpdateCheck(
                         autoCheckEnabled = prefs.autoUpdateEnabled,
                         betaUpdatesEnabled = prefs.betaUpdatesEnabled,
                         updateNotice = updateNotice,
-                        onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
-                        onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
                         onUpdateFound = prefsViewModel::setUpdateNotice,
                         onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
-                        onDialogVisibleChange = { updateDialogVisible = it },
                     )
                     if (showUpdateCheckDialog) {
                         UpdateCheckDialog(
@@ -534,8 +537,8 @@ class MainActivity : ComponentActivity() {
                             ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
                             updateNotice = updateNotice,
                             onAutoCheckEnabledChange = prefsViewModel::setAutoUpdateEnabled,
+                            onBetaUpdatesEnabledChange = prefsViewModel::setBetaUpdatesEnabled,
                             onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
-                            onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
                             onUpdateFound = prefsViewModel::setUpdateNotice,
                             onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
                             onDismiss = { showUpdateCheckDialog = false },
@@ -614,9 +617,7 @@ class MainActivity : ComponentActivity() {
                         pendingLocalAudioResult = onPicked
                         localAudioLauncher.launch(arrayOf("audio/*"))
                     }
-                    // 课表域的成功与失败反馈统一走 Snackbar；同步完成另有专门提示，此处跳过。
-                    // 必须用 rememberSaveable：切换语言会重建 Activity 而 ViewModel 还活着，
-                    // 用 remember 的话「已经弹过哪一条」被清空，旧提示会在新界面上又弹一次。
+                    // Save consumed feedback across Activity recreation so locale changes cannot replay old messages.
                     var lastShownStatusMessage by rememberSaveable { mutableStateOf<String?>(null) }
                     var lastSuppressedSyncCount by rememberSaveable { mutableIntStateOf(0) }
                     androidx.compose.runtime.LaunchedEffect(scheduleState.statusMessage) {
@@ -632,7 +633,6 @@ class MainActivity : ComponentActivity() {
                             snackbarHostState.showSnackbar(message)
                         }
                     }
-                    // 教务系统同步回来有增减时先问覆盖还是新建，别直接把旧表盖掉
                     scheduleState.pendingImport?.let { pending ->
                         ImportDiffDialog(
                             diff = pending.diff,
@@ -696,7 +696,6 @@ class MainActivity : ComponentActivity() {
                             dayOffset = ChronoUnit.DAYS.between(today, target).toInt()
                         }
                     }
-                    // 周次小于 1 表示尚未开学；未设置开学日期时回退到第 1 周。
                     val currentWeekIndex = resolveWeekIndexForDate(effectiveTermStart, today)
                     val dayWeekIndex = resolveWeekIndexForDate(
                         effectiveTermStart,
@@ -706,13 +705,12 @@ class MainActivity : ComponentActivity() {
                         ScheduleViewMode.Week -> currentWeekIndex + weekOffset
                         ScheduleViewMode.Day -> dayWeekIndex
                     }
-                    // 课程推出来的周数，和用户自己加的空白周分开记：
-                    // 前者删不掉（下次算还会回来），后者才是可加可删的那部分
+                    // Track user-added blank weeks separately from course-derived weeks.
                     val activeTermExtraWeeks = termProfileState.terms
                         .firstOrNull { it.id == termProfileState.activeTermId }
                         ?.extraWeekCount
                         ?: 0
-                    // 不能把正在看的那一周算进总周数：叠上自己加的空白周会变成自增循环
+                    // Exclude the viewed week from inferred totals to avoid a growth loop.
                     val derivedWeeks = remember(
                         scheduleState.schedule,
                         scheduleState.manualCourses,
@@ -725,13 +723,12 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     val weekPickerTotalWeeks = derivedWeeks + activeTermExtraWeeks
-                    // 读-改-写交给仓储一次做完：界面上这个数可能已经过期
-                    // （连点两下、或写入还没回流），按旧数写会把前一次加的周吞掉
+                    // Use an atomic repository update; UI values can lag repeated taps.
                     val addWeek: () -> Unit = {
                         scope.launch { container.termProfileRepository.adjustActiveTermExtraWeekCount(1) }
                     }
                     val deleteWeek: (Int) -> Unit = { week ->
-                        // 只有超出课程推导范围的那些才是用户加的，删掉即减一
+                        // Only user-added weeks beyond the course range can be removed.
                         if (week > derivedWeeks) {
                             scope.launch { container.termProfileRepository.adjustActiveTermExtraWeekCount(-1) }
                         }
@@ -753,6 +750,7 @@ class MainActivity : ComponentActivity() {
                                 currentWeekIndex = currentWeekIndex,
                                 appVersionName = BuildConfig.VERSION_NAME,
                                 updateBadgeVisible = updateBadgeVisible,
+                                pluginUpdateBadgeVisible = pluginUpdateBadgeVisible,
                                 onSelectScreen = {
                                     currentScreen = it
                                     currentExtension = null
@@ -768,7 +766,7 @@ class MainActivity : ComponentActivity() {
                                 subScreen = null
                                 openSettingsDestination = SettingsDestinationKey.TemporaryOverrides
                             },
-                            // 只想看一眼有没有新版，不该被丢进设置页再自己退出来
+                            // Open update checks directly from the drawer.
                             onOpenUpdateCheck = {
                                 scope.launch { drawerState.close() }
                                 showUpdateCheckDialog = true
@@ -791,16 +789,12 @@ class MainActivity : ComponentActivity() {
                                 CenterAlignedTopAppBar(
                                     title = {
                                         if (onScheduleScreen) {
-                                            // detectTapGestures 不像 clickable 那样自带水波纹，
-                                            // 点下去毫无反应会让人以为没点中。这里自己接一个
-                                            // interactionSource，在按下/抬起时发 PressInteraction，
-                                            // 单击开面板、双击回本周的手势都保持不变。
+                                            // Emit press interactions explicitly because detectTapGestures supplies no ripple.
                                             val weekTitleInteraction = remember { MutableInteractionSource() }
                                             Column(
                                                     modifier = Modifier
                                                         .guideAnchor(GuideAnchor.WeekTitle)
                                                     .indication(weekTitleInteraction, ripple())
-                                                    // 单击开周次面板，双击直接回本周——翻远了要回来不用再点两下
                                                     .pointerInput(Unit) {
                                                         detectTapGestures(
                                                             onPress = { offset ->
@@ -822,15 +816,13 @@ class MainActivity : ComponentActivity() {
                                                             },
                                                         )
                                                     }
-                                                    // 内边距放在水波纹里面：整块（周次 + 学期那行）一起亮。
-                                                    // 左右要留够半个高度，胶囊两头的圆弧才不会切到学期文字
+                                                    // Keep padding inside the ripple and leave room for rounded edges.
                                                     .padding(
                                                         horizontal = 20.dp,
                                                         vertical = 4.dp,
                                                     ),
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
-                                                // 未设置开学日期或尚未开学时都不存在“当前周”，底色与徽章都不应出现
                                                 val isCurrentWeek = isCurrentTermWeek(
                                                     termStart = effectiveTermStart,
                                                     displayedWeekIndex = displayedWeekIndex,
@@ -839,7 +831,7 @@ class MainActivity : ComponentActivity() {
                                                 Surface(
                                                     color = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
                                                     else androidx.compose.ui.graphics.Color.Transparent,
-                                                    // 只有真正显示“当前周”胶囊时才使用圆角形状，透明 Surface 也会裁剪内容
+                                                    // Apply rounded clipping only when the current-week badge is visible.
                                                     shape = if (isCurrentWeek) RoundedCornerShape(50)
                                                     else androidx.compose.ui.graphics.RectangleShape,
                                                 ) {
@@ -851,8 +843,7 @@ class MainActivity : ComponentActivity() {
                                                         ),
                                                     ) {
                                                         Text(
-                                                            // 没设开学日期时照常显示周次（回退到第 1 周起算），
-                                                            // 不再写「未设置开学日期」，右边的感叹号已经在提醒
+                                                            // Missing term dates use week one; the warning icon provides the date hint.
                                                             text = LocalContext.current.termWeekText(
                                                                 if (effectiveTermStart == null) termWeekLabel(displayedWeekIndex)
                                                                 else termWeekLabel(effectiveTermStart, displayedWeekIndex),
@@ -908,10 +899,20 @@ class MainActivity : ComponentActivity() {
                                                 onClick = { scope.launch { drawerState.open() } },
                                                 modifier = Modifier.guideAnchor(GuideAnchor.Drawer),
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Rounded.Menu,
-                                                    contentDescription = stringResource(R.string.main_open_drawer),
-                                                )
+                                                Box {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Menu,
+                                                        contentDescription = stringResource(R.string.main_open_drawer),
+                                                    )
+                                                    if (updateBadgeVisible || pluginUpdateBadgeVisible) {
+                                                        UpdateBadgeDot(
+                                                            modifier = Modifier
+                                                                .align(Alignment.TopEnd)
+                                                                .offset(x = 2.dp, y = (-2).dp)
+                                                                .testTag("menu-update-dot"),
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
                                     },
@@ -1080,7 +1081,7 @@ class MainActivity : ComponentActivity() {
                                         viewModel = scheduleViewModel,
                                         overrideTermStart = prefs.termStartDate,
                                         weekOffset = weekOffset,
-                                        // 开学前最早只翻到当前这个未开学的周，开学后最早翻到第 1 周。
+                                        // Bound backward navigation by the current pre-term week or week one.
                                         minWeekOffset = (1 - currentWeekIndex).coerceAtMost(0),
                                         maxWeekOffset = weekPickerTotalWeeks - currentWeekIndex,
                                         onAddWeek = addWeek,
@@ -1156,6 +1157,8 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxSize(),
                                         searchOpen = memoSearchOpen,
                                         onCloseSearch = { memoSearchOpen = false },
+                                        openNoteId = pendingMemo?.takeIf { it.isNotBlank() },
+                                        onNoteOpened = { memoRequest.value = null },
                                     )
 
                                     AppScreen.Reminders -> RemindersScreen(
@@ -1343,7 +1346,6 @@ class MainActivity : ComponentActivity() {
                                         onResetScheduleAppearanceAndDisplay =
                                             prefsViewModel::resetScheduleAppearanceAndDisplay,
                                         onReplayFirstRunGuide = {
-                                            // 引导从课表主页起讲，先回去再把完成标记清掉
                                             currentScreen = AppScreen.Schedule
                                             subScreen = null
                                             prefsViewModel.setFirstRunGuideCompleted(false)
@@ -1430,7 +1432,6 @@ class MainActivity : ComponentActivity() {
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         onBetaUpdatesEnabledChange = prefsViewModel::setBetaUpdatesEnabled,
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
-                                        onMuteUpdateVersion = prefsViewModel::setMutedUpdateVersionCode,
                                         onUpdateFound = prefsViewModel::setUpdateNotice,
                                         onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,
                                         modifier = Modifier.fillMaxSize(),
@@ -1526,7 +1527,6 @@ class MainActivity : ComponentActivity() {
                         }
                         MainActivity.SubScreen.CourseSwap -> {
                             val today = LocalAppZone.current.today()
-                            // 两天由临时调课表单带过来；万一没带就退回今天与明天，页面里还能再改
                             val swapLeft = swapTargetDate ?: today
                             val swapRight = swapSourceDate ?: today.plusDays(1)
                             var pickingSwapLeft by rememberSaveable { mutableStateOf(false) }
@@ -1542,7 +1542,6 @@ class MainActivity : ComponentActivity() {
                                 onPickLeftDate = { pickingSwapLeft = true },
                                 onPickRightDate = { pickingSwapRight = true },
                                 onMove = { course, from, to, startNode, endNode ->
-                                    // 拖的可能是已经挪过一次的课，要改写原记录而不是再叠一条，见 planCourseMove
                                     val natural = scheduleState.schedule
                                         .allCoursesWith(scheduleState.manualCourses)
                                         .firstOrNull { it.id == course.id }
@@ -1603,7 +1602,6 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.fillMaxSize(),
                             )
-                            // 登录浮层开着时让本页自己处理返回（退出登录回搜索），别在这里越级退回课表
                             androidx.activity.compose.BackHandler(
                                 enabled = scheduleState.pendingWebSession == null,
                             ) { subScreen = null }
@@ -1611,8 +1609,7 @@ class MainActivity : ComponentActivity() {
                         null -> Unit
                     }
 
-                    // 非课表页按返回键退回课表，只有课表页才把返回交给系统去关应用。
-                    // 抽屉打开时禁用本处理器，让抽屉自带的「返回即关闭」优先，否则会先跳回课表、抽屉还开着
+                    // Let the open drawer consume Back first; other pages return to the timetable.
                     androidx.activity.compose.BackHandler(
                         enabled = subScreen == null &&
                             (currentScreen != AppScreen.Schedule || currentExtension != null) &&
@@ -1627,7 +1624,6 @@ class MainActivity : ComponentActivity() {
                             onDismiss = { showDatePicker = false },
                             onConfirm = { date ->
                                 setActiveTermStartDate(date)
-                                // 设置开学日期后把视图跳回今天所在的周。
                                 weekOffset = 0
                                 dayOffset = 0
                                 showDatePicker = false
@@ -1669,7 +1665,7 @@ class MainActivity : ComponentActivity() {
                             onSelect = { language ->
                                 showAppLanguageDialog = false
                                 if (language != prefs.appLanguage) {
-                                    // 语言在附着基础上下文时读取，改完必须重建界面才能生效
+                                    // Locale changes require Activity recreation to reattach the base context.
                                     AppLocale.cache(this@MainActivity, language)
                                     prefsViewModel.setAppLanguage(language)
                                     recreate()
@@ -1697,7 +1693,6 @@ class MainActivity : ComponentActivity() {
                     if (showWidgetThemeAccentDialog) {
                         ThemeAccentDialog(
                             current = widgetPrefs.themeAccent,
-                            // 小组件还没单独挑过自选色时，调色板从应用那份自选色起步
                             customArgb = if (widgetPrefs.followsAppThemeAccent) {
                                 prefs.themeCustomColorArgb
                             } else {
@@ -1773,7 +1768,6 @@ class MainActivity : ComponentActivity() {
                                 showWeekMenu = false
                             },
                             onSetSelectedAsCurrent = { selectedWeek ->
-                                // 这一步会改写开学日期，牵动所有周次与提醒，先让用户确认
                                 pendingCurrentWeek = selectedWeek
                                 showWeekMenu = false
                             },
@@ -1813,8 +1807,7 @@ class MainActivity : ComponentActivity() {
                     if (showWidgetPicker) {
                         WidgetPickerSheet(
                             onDismiss = { showWidgetPicker = false },
-                            // 小组件面板是独立窗口，Scaffold 的 Snackbar 会画在它下面，
-                            // 得先把面板关掉才看得见。这里改用 Toast，它浮在所有窗口之上
+                            // Use Toast above the widget window; Scaffold snackbars render behind it.
                             onShowMessage = { msg ->
                                 android.widget.Toast.makeText(
                                     this@MainActivity,
@@ -1851,14 +1844,13 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // 引导压在内容最上层，等免责声明与开学日期提醒都过去之后再出现
                     if (
                         shouldShowFirstRunGuide(
                             loaded = prefs.loaded,
                             disclaimerAccepted = prefs.disclaimerAccepted,
                             guideCompleted = prefs.firstRunGuideCompleted,
                             blockingDialogVisible = showTermStartReminder || showDatePicker ||
-                                updateDialogVisible || announcementVisible,
+                                announcementVisible,
                         )
                     ) {
                         FirstRunGuideOverlay(
@@ -1886,7 +1878,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             onFinish = {
-                                // 跳出去讲过的页面要收回来，引导结束时人站在课表上
                                 currentScreen = AppScreen.Schedule
                                 subScreen = null
                                 prefsViewModel.setFirstRunGuideCompleted(true)
@@ -1901,18 +1892,14 @@ class MainActivity : ComponentActivity() {
     }
 
     companion object {
-        /** 通知里带这个 extra（组件 id）就直接打开那个扩展组件的日历页 */
         const val EXTRA_OPEN_EXTENSION_FEED = WidgetDeepLinks.EXTRA_OPEN_COMPONENT_PAGE
 
-        /** 桌面课程日历点了某一天：带 ISO 日期，切到日视图停在那天 */
         const val EXTRA_OPEN_SCHEDULE_DATE = WidgetDeepLinks.EXTRA_OPEN_SCHEDULE_DATE
 
-        /** 点组件通知上的「重新登录」：进「组件」页并直接打开那个组件的设置面板 */
         const val EXTRA_OPEN_EXTENSION_SETTINGS = "com.x500x.cursimple.extra.OPEN_EXTENSION_SETTINGS"
 
         /**
-         * 组件通知/横幅上的按钮点了之后，「组件」页要直接打开的那个设置面板。
-         * 由 [EXTRA_OPEN_EXTENSION_SETTINGS] 这条 Intent 带进来，界面消费后清空。
+         * Settings destination from [EXTRA_OPEN_EXTENSION_SETTINGS]; clear after consumption.
          */
         internal val openExtensionSettingsRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
     }
@@ -1951,6 +1938,7 @@ private fun AppDrawer(
     currentWeekIndex: Int,
     appVersionName: String,
     updateBadgeVisible: Boolean,
+    pluginUpdateBadgeVisible: Boolean,
     onSelectScreen: (MainActivity.AppScreen) -> Unit,
     onPickThemeAccent: () -> Unit,
     onPickScheduleBackground: () -> Unit,
@@ -1967,7 +1955,6 @@ private fun AppDrawer(
                 .fillMaxSize()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .verticalScroll(scrollState)
-                // 抽屉右侧是大圆角，右边距要留够，不然长文字（手写字体、大字号）会被圆角裁掉
                 .padding(start = 14.dp, end = 24.dp, top = 12.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -2006,7 +1993,7 @@ private fun AppDrawer(
                             modifier = Modifier.size(20.dp),
                         )
                     },
-                    badge = if (updateBadgeVisible && screen == MainActivity.AppScreen.About) {
+                    badge = if ((updateBadgeVisible && screen == MainActivity.AppScreen.About) || (pluginUpdateBadgeVisible && screen == MainActivity.AppScreen.Plugins)) {
                         { UpdateBadgeDot() }
                     } else null,
                     selected = screen == currentScreen && currentExtension == null,
@@ -2019,7 +2006,6 @@ private fun AppDrawer(
                 )
             }
 
-            // 扩展组件各自的专属页，在组件设置里可以关掉
             if (extensionEntries.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -2052,7 +2038,6 @@ private fun AppDrawer(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 换配色和换背景都埋在设置的三级菜单里，这里给两个直达入口
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -2073,7 +2058,6 @@ private fun AppDrawer(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // 调课和查更新都是隔三差五就要用一次的，埋在设置里每次都要翻好几层
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -2093,7 +2077,6 @@ private fun AppDrawer(
                 )
             }
 
-            // 版本号也能点：看到这里有新版的人，点版本号就是想更新
             Text(
                 text = stringResource(R.string.main_drawer_version, appVersionName),
                 style = MaterialTheme.typography.labelSmall,
@@ -2152,8 +2135,7 @@ private fun TermStartDatePicker(
 ) {
     val zone = LocalAppZone.current
     var selectedDate by remember(initial) { mutableStateOf(initial ?: LocalDate.now(zone)) }
-    // 用 AlertDialog 而不是 DatePickerDialog：后者把内容高度按系统日历的尺寸写死了，
-    // 换成自绘的月历再加上提示条会超出去，内容会叠着画。
+    // AlertDialog permits the custom calendar height without DatePickerDialog clipping.
     AlertDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -2366,13 +2348,10 @@ private fun AppLanguageDialog(
 @Composable
 private fun ThemeAccentDialog(
     current: ThemeAccent,
-    /** 自选色当前的颜色，调色板从它起步。 */
     customArgb: Int,
     onDismiss: () -> Unit,
     onSelect: (ThemeAccent) -> Unit,
-    /** 在调色板里挑好了自选色。 */
     onSelectCustom: (Int) -> Unit,
-    /** 传了这个回调就多给一项「跟随应用主题」，小组件配色用得上。 */
     followAppSelected: Boolean = false,
     onSelectFollowApp: (() -> Unit)? = null,
 ) {
@@ -2426,7 +2405,6 @@ private fun ThemeAccentDialog(
                         Text(stringResource(option.labelRes), style = MaterialTheme.typography.bodyLarge)
                     }
                 }
-                // 最后一项是自选色：点开调色板挑，或者直接输 #RRGGBB / RGB
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2515,8 +2493,4 @@ internal fun resolveDayOffsetForSelectedWeek(
     return ChronoUnit.DAYS.between(today, targetDate).toInt()
 }
 
-/** 启动后隔一会儿再预取插件清单，不和首屏抢网络。 */
 private const val PLUGIN_PREFETCH_DELAY_MILLIS = 3_000L
-
-/** 和导课页同一个缓存时效：一天内拉过就不重拉。 */
-private const val PLUGIN_PREFETCH_MAX_AGE_MILLIS = 24 * 60 * 60 * 1000L

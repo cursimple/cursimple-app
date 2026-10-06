@@ -51,9 +51,6 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
 import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import kotlin.math.roundToInt
-import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
-
-/** 设置页里颜色相关的取值、换算与选择控件。 */
 
 @Composable
 internal fun ColorAlphaRow(
@@ -115,7 +112,6 @@ internal fun ColorPickerDialog(
         hexText = formatArgb(currentArgb())
     }
 
-    /** 调色板、色相条、常用色改了颜色：联动 hex 框；透明度不动。 */
     fun applyHsv(h: Float, s: Float, v: Float) {
         hue = h
         saturation = s
@@ -123,7 +119,6 @@ internal fun ColorPickerDialog(
         syncHex()
     }
 
-    /** hex 框改的颜色：把调色板挪过去；透明度没带时保留当前值。 */
     fun applyParsed(color: Long) {
         val v = color and 0xFFFF_FFFFL
         alpha = argbAlphaByte(v)
@@ -151,7 +146,6 @@ internal fun ColorPickerDialog(
                     onChange = { s, v -> applyHsv(hue, s, v) },
                 )
                 HueBar(hue = hue, onChange = { h -> applyHsv(h, saturation, value) })
-                // 常用色：点一下直接拿，比拖更能让人知道「大概长什么样」
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -296,12 +290,6 @@ internal fun argbAlphaPercent(argb: Long): Int = (((argb ushr 24) and 0xFF) * 10
 internal fun argbTransparencyPercent(argb: Long): Int = 100 - argbAlphaPercent(argb)
 
 internal fun argbAlphaByte(argb: Long): Int = ((argb ushr 24) and 0xFF).toInt()
-
-internal fun argbRedByte(argb: Long): Int = ((argb ushr 16) and 0xFF).toInt()
-
-internal fun argbGreenByte(argb: Long): Int = ((argb ushr 8) and 0xFF).toInt()
-
-internal fun argbBlueByte(argb: Long): Int = (argb and 0xFF).toInt()
 
 internal fun alphaToTransparencyPercent(alpha: Int): Int =
     100 - (alpha.coerceIn(0, 255) * 100 / 255)

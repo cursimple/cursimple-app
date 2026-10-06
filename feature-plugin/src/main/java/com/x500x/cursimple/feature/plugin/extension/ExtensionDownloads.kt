@@ -18,7 +18,6 @@ import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
 
-/** 组件用户主动下载并保留的一份文件；预览时的临时文件不算 */
 @Serializable
 internal data class ExtensionDownload(
     val id: String,
@@ -30,9 +29,8 @@ internal data class ExtensionDownload(
 )
 
 /**
- * 组件附件的下载区：每个组件一个目录（filesDir/extension-downloads/<pluginId>/），
- * 跟着组件走，移除组件时由 [ExtensionStore.remove] 整个删掉。
- * 宿主只管存、列、开、删，不关心文件是什么业务内容。
+ * Component-scoped attachment storage is removed by [ExtensionStore.remove]; the host handles
+ * generic file operations only.
  */
 internal class ExtensionDownloads(context: Context, pluginId: String) {
     private val app = context.applicationContext
@@ -47,7 +45,6 @@ internal class ExtensionDownloads(context: Context, pluginId: String) {
 
     suspend fun find(url: String): ExtensionDownload? = list().firstOrNull { it.url == url }
 
-    /** 先走预览用的下载器拿到文件（带登录 Cookie、限大小、防重定向外泄），再复制进下载区 */
     suspend fun save(url: String, name: String, hint: String, userAgent: String?): ExtensionDownload {
         find(url)?.let { return it }
         val fetched = ExtensionMediaLoader(app).fetch(url, name, hint, userAgent = userAgent)
@@ -103,7 +100,6 @@ internal class ExtensionDownloads(context: Context, pluginId: String) {
     }
 }
 
-/** 用系统里能处理它的应用打开 */
 internal fun openExtensionFile(context: Context, file: File, mime: String) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
     context.startActivity(
@@ -113,9 +109,8 @@ internal fun openExtensionFile(context: Context, file: File, mime: String) {
 }
 
 /**
- * 把图片存进系统相册（Pictures/课简）。Android 10 起走 MediaStore，不需要存储权限；
- * 更老的系统要权限才能写相册，就退回系统分享面板，让用户自己选保存到哪里。
- * 返回 true 表示已经存进相册。
+ * Use MediaStore on Android 10+; older systems use sharing without requiring storage
+ * permission. True confirms a gallery write.
  */
 internal suspend fun saveExtensionImage(context: Context, file: File, name: String, mime: String): Boolean {
     val safeMime = mime.takeIf { it.startsWith("image/") } ?: "image/jpeg"

@@ -25,9 +25,7 @@ class MemoEditingTest {
         )
         assertEquals(listOf("复习", "第一章", "第二章", "带笔", "甲", "乙", "别忘了", "普通"), parsed.map { it.content })
         assertEquals(true, parsed[1].checked)
-        // 编号存回去时按 1、2 重新数
         assertEquals("# 复习\n- [x] 第一章\n- [ ] 第二章\n- 带笔\n1. 甲\n2. 乙\n> 别忘了\n普通", serializeMemoLines(parsed))
-        // 缩进留着
         assertEquals("  - [ ] 子项", serializeMemoLines(lines("  - [ ] 子项")))
     }
 
@@ -46,15 +44,12 @@ class MemoEditingTest {
         assertEquals(split.lines[1].id, split.focusId)
         assertEquals(0, split.cursor)
 
-        // 在中间回车：后半截带到下一行
         val middle = memoInsertLineBreaks(parseMemoLines("- 甲乙", newId), 0, "甲\n乙", 2, newId)
         assertEquals("- 甲\n- 乙", serializeMemoLines(middle.lines))
 
-        // 标题后面接普通文字
         val heading = memoInsertLineBreaks(parseMemoLines("# 标题", newId), 0, "标题\n", 3, newId)
         assertEquals(MemoLineKind.Plain, heading.lines[1].kind)
 
-        // 空的列表项上回车：变回普通文字，不多出一行
         val exit = memoInsertLineBreaks(parseMemoLines("- 甲\n- ", newId), 1, "\n", 1, newId)
         assertEquals("- 甲\n", serializeMemoLines(exit.lines))
         assertEquals(2, exit.lines.size)
@@ -89,11 +84,9 @@ class MemoEditingTest {
         assertEquals(MemoLineKind.Check, check.kind)
         assertEquals("买书", check.content)
         assertEquals(6, removed)
-        // 先敲「- 」变成列表，再敲「[ ] 」变成复选框
         val (fromBullet, _) = memoApplyShortcut(MemoLine(2, MemoLineKind.Bullet, "[ ] "))!!
         assertEquals(MemoLineKind.Check, fromBullet.kind)
         assertEquals(MemoLineKind.Heading, memoApplyShortcut(MemoLine(3, content = "# "))!!.first.kind)
-        // 「>」后面没打空格先不变，不然打不出「>=」
         assertNull(memoApplyShortcut(MemoLine(4, content = ">=")))
         assertNull(memoApplyShortcut(MemoLine(5, content = "普通文字")))
         assertNull(memoApplyShortcut(MemoLine(6, MemoLineKind.Check, "- 不再转")))

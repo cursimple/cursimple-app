@@ -5,7 +5,6 @@ import com.x500x.cursimple.core.kernel.mood.DayMood
 import android.content.Context
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
-import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.data.reminderDayPolicy
@@ -41,15 +40,12 @@ internal data class ReminderWidgetData(
     val emptyTitle: String,
     val emptySubtitle: String?,
     val rows: List<ReminderRowData>,
-) {
-    val themeAccent: ThemeAccent = widgetTheme.themeAccent
-}
+)
 
 internal object ReminderDataSource {
     private val cache = WidgetDataCache<ReminderWidgetData>()
 
-    /** [reuseRecent] 为 true 时优先复用刚读出的当次结果，让列表跟着头部走同一份数据。 */
-    /** 数据刚被改过时清掉短时缓存，下一次读一定是新的。 */
+    /** [reuseRecent] shares one read between header and list. */
     fun invalidate() {
         cache.clear()
     }
@@ -78,7 +74,6 @@ internal object ReminderDataSource {
         val alarmRecords = reminderRepository.systemAlarmRecordsFlow.first()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
         val userPrefs = userPreferencesRepository.preferencesFlow.first()
-        // 没单独挑过小组件配色时跟着应用主题色走
         val widgetTheme = widgetPreferencesRepository.themePreferencesFlow.first()
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
         val zone = BeijingTime.zone

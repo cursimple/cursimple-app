@@ -8,10 +8,7 @@ data class CoursePaletteEntry(
     val onContainer: Color,
 )
 
-/**
- * 课程网格使用的次级调色板。app 模块根据当前主题为其提供具体值；
- * 默认值用于预览或未提供 CompositionLocal 的场景。
- */
+/** App-supplied secondary course palette; defaults support isolated previews. */
 data class ScheduleAccents(
     val gridBackground: Color,
     val gridLine: Color,
@@ -42,5 +39,4 @@ private val DefaultAccents = ScheduleAccents(
 
 val LocalScheduleAccents = staticCompositionLocalOf { DefaultAccents }
 
-/** 当前课表全部地点里过半数共有的学校名后缀，显示时剥掉；由课表根部按课程全集提供。 */
 val LocalScheduleLocationSuffix = staticCompositionLocalOf { "" }

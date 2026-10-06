@@ -22,7 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -33,13 +32,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -65,17 +62,10 @@ import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import java.time.LocalDate
 
-/** 一格的高度：两列并排后宽度有限，高度给足才放得下课名与地点。 */
 private val CELL_HEIGHT = 64.dp
 private val NODE_COLUMN_WIDTH = 44.dp
 
-/**
- * 正在拖的那门课。
- *
- * [pointer] 是手指在根坐标系里的位置，[grab] 是按下时手指落在卡片内的偏移，
- * [size] 是原卡片的像素尺寸——浮块按这两项还原成整张卡片跟着手走，
- * 而不是另画一个小标签。
- */
+/** Drag state uses root [pointer], initial [grab] offset and original card [size]. */
 private data class SwapDrag(
     val course: CourseItem,
     val fromLeft: Boolean,
@@ -84,7 +74,6 @@ private data class SwapDrag(
     val size: IntSize,
 )
 
-/** 待确认的调课。 */
 private data class PendingSwap(
     val course: CourseItem,
     val fromDate: LocalDate,
@@ -93,12 +82,7 @@ private data class PendingSwap(
     val endNode: Int,
 )
 
-/**
- * 两天并排的调课编辑器。
- *
- * 左右各铺满一整天的节次（空节也留格），长按课程块拖到另一列的某一格即可调课，
- * 松手前先确认调到哪天哪几节。整页全屏，不套弹窗——两列网格在弹窗里根本摆不下。
- */
+/** Two-day full-screen move editor with empty slots and confirmation before applying moves. */
 @Composable
 fun CourseSwapScreen(
     leftDate: LocalDate,
@@ -121,7 +105,6 @@ fun CourseSwapScreen(
             .orEmpty()
     }
     val context = LocalContext.current
-    // 序号跟课表左侧节次栏一样按排序后的作息表取，没写名字的时段也能生成「第 N 节」
     val slotLabels = remember(slots, context) {
         slots.mapIndexed { index, slot -> context.classSlotLabelText(slot, index + 1) }
     }
@@ -133,13 +116,11 @@ fun CourseSwapScreen(
         coursesScheduledOn(rightDate, visible, overrides, holidayCalendar, termStartDate)
     }
 
-    // 每一格在根坐标系里的范围：(是否左列, 节次下标) -> 矩形，拖拽落点靠它判定
     val cellBounds = remember { mutableStateMapOf<Pair<Boolean, Int>, Rect>() }
     var drag by remember { mutableStateOf<SwapDrag?>(null) }
     var pending by remember { mutableStateOf<PendingSwap?>(null) }
     val density = LocalDensity.current
-    // 浮块画在下面那个 Box 里，而拖拽坐标记的是根坐标；
-    // 不减掉这个 Box 自己的根偏移，浮块就会整体掉到手指下方标题栏那么高的地方
+    // Subtract container root offset before drawing the drag ghost.
     var dragLayerOrigin by remember { mutableStateOf(Offset.Zero) }
     val scrollState = rememberScrollState()
 
@@ -215,7 +196,6 @@ fun CourseSwapScreen(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    // 拖拽中锁住滚动：一滚，记下来的格子坐标就和屏幕对不上了
                     .verticalScroll(scrollState, enabled = drag == null)
                     .padding(horizontal = 8.dp, vertical = 6.dp),
             ) {
@@ -226,7 +206,6 @@ fun CourseSwapScreen(
                             verticalArrangement = Arrangement.Center,
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            // 和课表左侧的节次栏同一套叫法，节号是内部编号，直接写出来对不上课表
                             Text(
                                 text = slotLabels.getOrElse(index) { nodeLabelOf(slot) },
                                 style = MaterialTheme.typography.labelSmall,
@@ -271,8 +250,7 @@ fun CourseSwapScreen(
                 )
             }
 
-            // 跟手的浮块就是整张卡片本身：尺寸、配色、内容都和原来那格一样，
-            // 并且保持按下时手指在卡片里的相对位置，拖起来不会突然跳开
+            // Preserve card size and grab offset so the drag ghost follows the pointer without jumping.
             drag?.let { d ->
                 SwapCourseCard(
                     course = d.course,
@@ -295,7 +273,6 @@ fun CourseSwapScreen(
     }
 
     pending?.let { swap ->
-        // 调课可以推翻放假，但得让人知道自己正把课排进休息日
         val targetHoliday = remember(swap.toDate, overrides, holidayCalendar) {
             resolveScheduleDay(swap.toDate, overrides, holidayCalendar)
                 .takeIf { it.isHoliday }
@@ -312,7 +289,6 @@ fun CourseSwapScreen(
                             formatSwapDate(swap.toDate),
                             nodeSpanText(swap.startNode, swap.endNode),
                         ).let { numbered ->
-                            // 落点正好是一个时段就说「第六节」，跨了几个时段才说节号
                             context.courseSlotLabelText(timingProfile, swap.startNode, swap.endNode)
                                 ?.let { name ->
                                     stringResource(
@@ -353,7 +329,7 @@ fun CourseSwapScreen(
     }
 }
 
-/** [holidayName] 非空表示这天放假；仍然能往里调课，只是先把话说在前面。 */
+/** Show holiday guidance without preventing explicit moves into the date. */
 @Composable
 private fun SwapDayHeader(
     date: LocalDate,
@@ -412,9 +388,8 @@ private fun SwapDayColumn(
 ) {
     Column(modifier = modifier) {
         slots.forEachIndexed { index, slot ->
-            // 只在课程起始的那一格画块，跨节的课不重复画
+            // Draw a spanning course only at its first row.
             val starting = courses.filter { it.time.startNode in slot.startNode..slot.endNode }
-            // 高亮走和落点一模一样的判定，松手前看到哪一格亮就是会落到哪一格
             val hovered = dragging != null &&
                 dragging.fromLeft != isLeft &&
                 targetCell(dragging.pointer, isLeft, cellBounds) == index
@@ -502,7 +477,6 @@ private fun SwapCourseBlock(
             )
         }
     }
-    // 拖起来之后原位留个淡淡的影子，让人看清这门课是从哪一格走的
     SwapCourseCard(
         course = course,
         modifier = Modifier
@@ -516,7 +490,6 @@ private fun SwapCourseBlock(
     )
 }
 
-/** 课程卡片本体：格子里和拖动时的浮块共用同一份，拖起来才是「整张卡片」跟着走。 */
 @Composable
 private fun SwapCourseCard(
     course: CourseItem,
@@ -557,11 +530,8 @@ private fun SwapCourseCard(
 }
 
 /**
- * 目标列里手指落在哪一格。
- *
- * 精确落进格子当然算；但两列之间有缝、每格自己还带内边距，
- * 手指偏个几 dp 就会掉进空档里，严格判定会让人白拖一趟、以为拖不动，
- * 所以差一点也认，按就近吸附；只有横向离这一列太远才算真没落上。
+ * Snap near cell gaps while rejecting pointers too far horizontally from the destination
+ * column.
  */
 private fun targetCell(
     pointer: Offset,
@@ -578,7 +548,6 @@ private fun targetCell(
         else -> 0f
     }
     val nearest = candidates.minByOrNull { (_, rect) ->
-        // 横向权重给大些：宁可吸到同一列的上下格，也别横着跳列
         gap(rect.left, rect.right, pointer.x) * 2f + gap(rect.top, rect.bottom, pointer.y)
     } ?: return null
     val rect = nearest.value
@@ -587,7 +556,6 @@ private fun targetCell(
     return nearest.key.second
 }
 
-/** 松手时落在哪一格；落在原列或离目标列太远都返回 null。 */
 private fun resolveDrop(
     drag: SwapDrag,
     cellBounds: Map<Pair<Boolean, Int>, Rect>,
@@ -598,7 +566,6 @@ private fun resolveDrop(
     val targetIsLeft = !drag.fromLeft
     val index = targetCell(drag.pointer, targetIsLeft, cellBounds) ?: return null
     val slot = slots.getOrNull(index) ?: return null
-    // 保持课程原本跨了几节，落到目标格的起始节次上
     val span = (drag.course.time.endNode - drag.course.time.startNode).coerceAtLeast(0)
     return PendingSwap(
         course = drag.course,
@@ -611,7 +578,6 @@ private fun resolveDrop(
 
 private fun nodeLabelOf(slot: ClassSlotTime): String = nodeSpanText(slot.startNode, slot.endNode)
 
-/** 单节写「3」，跨节写「3-4」，不写成「3-3」。 */
 private fun nodeSpanText(startNode: Int, endNode: Int): String =
     if (startNode == endNode) "$startNode" else "$startNode-$endNode"
 

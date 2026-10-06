@@ -10,8 +10,8 @@
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
 [![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![最新测试版 0.7.5](https://img.shields.io/badge/Latest%20beta-0.7.5-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
-[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)
+[![最新测试版 0.7.6](https://img.shields.io/badge/Latest%20beta-0.7.6-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6)
+[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
@@ -21,7 +21,7 @@
 
 [官网](https://cursimple.github.io/cursimple-app/) · [下载安装](#下载安装) · [功能特性](#功能特性) · [插件系统](#插件系统) · [从源码构建](#从源码构建) · [English](README_en.md)
 
-最新测试版：[0.7.5](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)（`beta` / Pre-release）。
+最新测试版：[0.7.6](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6)（`beta` / Pre-release）。
 
 </div>
 
@@ -108,7 +108,8 @@
 | 下一节课 | 当前与下一节课程信息 |
 | 提醒 | 即将触发的课程闹钟清单 |
 | 课程日历 | 切换周课表 / 月历，查看课程、考试、事务与休 / 班标记；支持翻页、回到当前日期，点日期打开对应课表 |
-| 待完成 | 显示启用扩展组件的作业、考试等未完成内容、开始 / 截止时间与紧急状态，点开回到来源组件；仅在有启用中的扩展组件时提供 |
+| 笔记待办 | 展示本地笔记中的未勾选清单，独立于扩展组件；点击打开对应笔记 |
+| 组件自带小组件 | 由已安装并启用的组件自行声明，名称、界面和内容规则随组件提供及更新；软件提供数据、渲染、桌面绑定和跳转接口 |
 
 点卡片空白处也能打开 App。刷新有四层保障：系统周期、WorkManager 周期、闹钟守护链，以及按节次边界（课前 5 分钟 / 上课 / 下课）对齐的精确刷新。无课、假日、下课或空任务时显示当天保持稳定的情境提示。
 
@@ -137,7 +138,7 @@
 
 ## 下载安装
 
-最新测试版为 [0.7.5（beta）](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5)，请在该版本页下载对应架构的 APK；[官网](https://cursimple.github.io/cursimple-app/#download)也提供国内加速和扫码下载入口。
+最新测试版为 [0.7.6（beta）](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6)，请在该版本页下载对应架构的 APK；[官网](https://cursimple.github.io/cursimple-app/#download)也提供国内加速和扫码下载入口。
 
 | 文件 | 适用设备 |
 |---|---|
@@ -147,7 +148,7 @@
 | `CurSimple-x86.apk` | 32 位 Intel 设备 |
 | `CurSimple-universal.apk` | 不确定架构时选这个，体积较大 |
 
-发布渠道由 `gradle.properties` 的 `app.releaseChannel` 指定。0.7.5 使用 `beta`，标签保持 `v0.7.5`，GitHub Release 标记为 `prerelease=true`；旧版 `v0.7.4` 同样标记为 Pre-release。版本号没有 `-beta` 后缀仍可能是测试版，请以发布渠道与 Pre-release 标记为准。应用内需开启测试版更新才能接收此渠道。
+发布渠道由 `gradle.properties` 的 `app.releaseChannel` 指定。0.7.6 使用 `beta`，标签保持 `v0.7.6`，GitHub Release 标记为 `prerelease=true`；旧版 `v0.7.4` 同样标记为 Pre-release。版本号没有 `-beta` 后缀仍可能是测试版，请以发布渠道与 Pre-release 标记为准。应用内需开启测试版更新才能接收此渠道。
 
 安装后首次启动：
 
@@ -175,9 +176,9 @@
 
 ### 扩展组件
 
-宿主支持扩展接口 **API 4**，可加载组件自带的登录、设置和内容页面，也提供后台同步、新内容通知、截止前提醒，以及可选的课表事务联动。组件独立安装和更新，后台同步受系统调度与网络影响。
+开发版宿主支持扩展接口 **API 9**，提供组件自带页面、官方确认的已读操作、忽略与恢复、加密通知绑定及异步发送状态查询。组件独立安装和更新；APK 在写入前校验接口版本和最低软件版本，不兼容时禁止安装并显示原因，升级失败会保留原有版本。后台运行受系统调度与网络影响。
 
-雨课堂组件需单独安装；本地 v1.2.0 包可另行导入 ZIP，其公有发布进度以组件仓库为准。
+[雨课堂通知](https://github.com/cursimple/YuKeTang_notice_plugin)和[多平台通知](https://github.com/cursimple/cursimple-notify-component)需独立安装。首次绑定后需核对真实账号的已读同步或消息到账情况。
 
 ### 插件包要求
 
@@ -223,7 +224,7 @@ CLASS_VIEWER_KEY_PASSWORD=替换为密钥密码
 
 ```properties
 app.versionCode=31
-app.versionName=0.7.5
+app.versionName=0.7.6
 app.releaseChannel=beta
 ```
 

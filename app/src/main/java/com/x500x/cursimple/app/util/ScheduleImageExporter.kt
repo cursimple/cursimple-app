@@ -21,7 +21,6 @@ import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
 
-/** 课表图片导出结果：分享意图（成功时非空）与需要提示用户的信息。 */
 data class ScheduleImageExportOutcome(
     val intent: Intent?,
     val weekNumber: Int,
@@ -29,12 +28,12 @@ data class ScheduleImageExportOutcome(
     val failureReason: String?,
 )
 
-/** 把某一教学周的课表画成 PNG 并封装为系统分享意图；排版委托给纯函数 [ScheduleImageLayout]。 */
+/** Share a PNG laid out by [ScheduleImageLayout]. */
 object ScheduleImageExporter {
 
     private const val PNG_QUALITY = 100
 
-    /** 全部周只需要一个周一来排列七列，取哪个周一都一样。 */
+    /** All-week export needs only a Monday to label its seven columns. */
     private val FALLBACK_ANCHOR: LocalDate = LocalDate.of(2024, 1, 1)
 
     suspend fun export(
@@ -50,7 +49,6 @@ object ScheduleImageExporter {
         weekStartDay: WeekStartDay = WeekStartDay.Monday,
         allWeeks: Boolean = false,
     ): ScheduleImageExportOutcome = withContext(Dispatchers.IO) {
-        // 全部周不落在具体日期上，没设开学日期也照样能出图
         val anchorDate = termStartDate ?: if (allWeeks) FALLBACK_ANCHOR else null
         if (anchorDate == null) {
             return@withContext failure(weekNumber, context.getString(R.string.image_failure_no_term_start))
@@ -140,7 +138,6 @@ object ScheduleImageExporter {
         }.joinToString("").trim('-').take(40)
 }
 
-/** 用当前语言的资源填充课表图片里的所有文字。 */
 fun Context.scheduleImageLabels(): ScheduleImageLabels = ScheduleImageLabels(
     defaultTitle = getString(R.string.image_default_title),
     holidayFallbackName = getString(R.string.image_holiday_fallback),

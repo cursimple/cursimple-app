@@ -25,7 +25,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasAnyAncestor
-import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
@@ -91,9 +90,9 @@ import java.util.concurrent.TimeUnit
 import com.x500x.cursimple.feature.schedule.R as ScheduleR
 
 /**
- * 本地公告截图：主统一 build/run；须传 instrumentation 参数 releaseCaptureQa=true。
- * 不写高级日期、课表或学期。备忘录仅插入本次 UUID 笔记，结束/失败时按 ID 清理。
- * 输出在 targetContext.getExternalFilesDir(null)/release-capture/，包含真实系统栏。
+ * Requires releaseCaptureQa=true. Temporary notes are removed by ID even on failure; term and
+ * clock settings remain untouched. Captures include system bars and use
+ * externalFilesDir/release-capture.
  */
 class ReleasePreviewCaptureTest {
     private val compose = createAndroidComposeRule<MainActivity>()
@@ -124,7 +123,7 @@ class ReleasePreviewCaptureTest {
         ),
     )
 
-    // 只临时覆盖截图所需的键；恢复时保留其他键在运行期间的现值。
+    // Restore only overridden keys, preserving unrelated preference changes.
     private val temporaryPreferenceKeys = setOf(
         "theme_mode", "app_language", "disclaimer_accepted", "first_run_guide_completed",
         "last_seen_version_code", "auto_update_enabled",
@@ -140,7 +139,6 @@ class ReleasePreviewCaptureTest {
     private val captureSession = TestRule { base: Statement, description: Description ->
         object : Statement() {
             override fun evaluate() {
-                // 外层 gate：未显式启用时，连 MainActivity 都不启动。
                 assumeTrue(InstrumentationRegistry.getArguments().getString("releaseCaptureQa") == "true")
                 try {
                     prepareSession(description.methodName == "captureMemoSearch")
@@ -228,7 +226,7 @@ class ReleasePreviewCaptureTest {
         )
         compose.waitForIdle()
         compose.runOnUiThread {
-            // 仅当前 process；finally 恢复原高级时间，不持久化 fixture 日期。
+            // The fixture clock is process-local and restored in finally.
             BeijingTime.setForcedNow(fixtureNow)
             activity.setContent {
                 CompositionLocalProvider(
@@ -280,7 +278,6 @@ class ReleasePreviewCaptureTest {
             compose.onAllNodesWithContentDescription(activity.getString(R.string.main_open_drawer))
                 .fetchSemanticsNodes().isNotEmpty()
         }
-        // 没有开学日期时关闭真实提示，不为截图写开学日期。
         compose.waitForIdle()
         val missingTerm = compose.onAllNodesWithText(activity.getString(R.string.main_term_start_missing_title))
         if (missingTerm.fetchSemanticsNodes().indices.any { missingTerm[it].isDisplayed() }) {
@@ -288,7 +285,6 @@ class ReleasePreviewCaptureTest {
         }
         compose.onNodeWithContentDescription(activity.getString(R.string.main_open_drawer)).performClick()
         compose.onNodeWithText(activity.getString(R.string.screen_memos)).performClick()
-        // 真实 MainActivity 右上角搜索按钮，保留产品的导航栏和系统栏适配。
         compose.onNodeWithTag("memo-search-action").assertIsDisplayed().performClick()
         compose.onNodeWithTag("memo-search-field").performTextReplacement("期末")
         compose.onNodeWithTag("memo-search-field").performImeAction()
@@ -405,7 +401,7 @@ class ReleasePreviewCaptureTest {
         }
     }
 
-    /** 等真实 View 绘制两帧；Dialog 优先于 Activity，不能只推进 Compose 测试时钟。 */
+    /** Wait for two real draw frames, preferring Dialog over Activity. */
     private fun awaitTwoDrawnFrames() {
         val drawn = CountDownLatch(1)
         lateinit var root: View
@@ -420,7 +416,7 @@ class ReleasePreviewCaptureTest {
             listener = ViewTreeObserver.OnDrawListener {
                 frames++
                 if (frames == 2) {
-                    // onDraw 回调内不能移除监听；post 后这帧已完成绘制。
+                    // Remove draw listeners after the frame, outside onDraw.
                     root.post {
                         if (root.viewTreeObserver.isAlive) root.viewTreeObserver.removeOnDrawListener(listener)
                         drawn.countDown()

@@ -44,8 +44,8 @@ class PluginPackageReaderTest {
     fun `reader accepts package wrapped in a single root directory`() {
         val layout = reader.read(
             zipBytes(
-                "yangtzeu-eams/manifest.json" to manifestJson(entry = "main.js"),
-                "yangtzeu-eams/main.js" to "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }",
+                "exampleu-eams/manifest.json" to manifestJson(entry = "main.js"),
+                "exampleu-eams/main.js" to "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }",
             ),
         )
 
@@ -104,6 +104,7 @@ class PluginPackageReaderTest {
               "name": "Demo",
               "version": "1.0.0",
               "versionCode": 1,
+              "apiVersion": 2,
               "entry": "$entry",
               "permissions": ["schedule.write"]
             }
@@ -131,6 +132,7 @@ class PluginInstallerPackageTest {
     fun `local package installs with checksum verification`() = runBlocking {
         val repository = FakePluginRegistryRepository()
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = repository,
             fileStore = PluginFileStore(temporaryFolder.newFolder("plugins")),
         )
@@ -151,6 +153,7 @@ class PluginInstallerPackageTest {
     fun `remote package installs with checksum verification`() = runBlocking {
         val repository = FakePluginRegistryRepository()
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = repository,
             fileStore = PluginFileStore(temporaryFolder.newFolder("remote-plugins")),
         )
@@ -170,6 +173,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `remote package rejects checksum mismatch`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("bad-checksum-plugins")),
         )
@@ -189,6 +193,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `package rejects empty checksum manifest`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("empty-checksum-plugins")),
         )
@@ -206,6 +211,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `package rejects partial checksum coverage`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("partial-checksum-plugins")),
         )
@@ -224,6 +230,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `package rejects checksum path not present in zip`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("unknown-checksum-plugins")),
         )
@@ -242,6 +249,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `package rejects invalid checksum digest format`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("invalid-digest-plugins")),
         )
@@ -260,6 +268,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `package rejects unsupported checksum algorithm`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("unsupported-algorithm-plugins")),
         )
@@ -278,6 +287,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `package rejects path traversal plugin id`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("traversal-id-plugins")),
         )
@@ -296,6 +306,7 @@ class PluginInstallerPackageTest {
     @Test
     fun `package rejects slash containing plugin id`() = runBlocking {
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = FakePluginRegistryRepository(),
             fileStore = PluginFileStore(temporaryFolder.newFolder("slash-id-plugins")),
         )
@@ -316,6 +327,7 @@ class PluginInstallerPackageTest {
         val repository = FakePluginRegistryRepository()
         val fileStore = PluginFileStore(temporaryFolder.newFolder("windows-entry-plugins"))
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = repository,
             fileStore = fileStore,
         )
@@ -355,6 +367,7 @@ class PluginInstallerPackageTest {
     fun `local and remote packages with same id remain separate installs`() = runBlocking {
         val repository = FakePluginRegistryRepository()
         val installer = PluginInstaller(
+            hostVersion = "0.7.5",
             registryRepository = repository,
             fileStore = PluginFileStore(temporaryFolder.newFolder("separate-source-plugins")),
         )
@@ -419,6 +432,7 @@ class PluginInstallerPackageTest {
               "name": "Demo",
               "version": "1.0.0",
               "versionCode": 1,
+              "apiVersion": 2,
               "entry": "${entry.escapeJson()}",
               "permissions": ["schedule.write"]
             }

@@ -65,10 +65,7 @@ object PluginLogger {
         emit(level, source, event, fields, error)
     }
 
-    /**
-     * 返回的作用域会把 traceId/pluginId/sessionId 自动注入每条事件，调用处不必重复传入。
-     * [PluginLogger.scope] 用在流程边界上，例如一次同步开始并生成 traceId 时。
-     */
+    /** Inject trace, plugin and session IDs through logger scopes at workflow boundaries. */
     fun scope(
         traceId: String? = null,
         pluginId: String? = null,

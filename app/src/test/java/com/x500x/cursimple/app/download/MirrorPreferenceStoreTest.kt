@@ -52,7 +52,7 @@ class MirrorPreferenceStoreTest {
                 now,
             ),
         )
-        // 时钟回拨时记录不算新鲜，避免永久命中陈旧缓存
+        // Clock rollback invalidates measurement freshness.
         assertFalse(MirrorPreferenceStore.isProbeFresh(now + 1_000, now))
     }
 
@@ -62,7 +62,6 @@ class MirrorPreferenceStoreTest {
 
         val rounds = raceRounds(candidates, preferredUrl = "ud", roundSize = 2)
 
-        // 记住的镜像领头，和下一个一起竞速；它卡住时不用等满超时
         assertEquals(listOf("ud", "ua"), rounds.first().map { it.url })
         assertEquals(
             listOf(listOf("ub", "uc"), listOf("ue", "uf")),

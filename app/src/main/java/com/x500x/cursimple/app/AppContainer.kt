@@ -1,5 +1,7 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.core.plugin.install.pluginHostVersion
+
 import android.app.AlarmManager
 import android.app.Application
 import android.app.NotificationManager
@@ -92,6 +94,11 @@ class AppContainer(
     val scheduleEventRepository: ScheduleEventRepository = scheduleEventStore
     private val memoStore = DataStoreMemoRepository(app)
     val memoRepository: MemoRepository = memoStore
+    val notificationDeliveryCoordinator by lazy {
+        com.x500x.cursimple.app.notification.NotificationDeliveryCoordinator(
+            app, pluginManager, userPreferencesRepository, memoRepository, containerScope,
+        )
+    }
     private val sharedDownloader = MirrorDownloader(
         labels = app.mirrorDownloaderLabels(),
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
@@ -108,6 +115,7 @@ class AppContainer(
     }.stateIn(containerScope, SharingStarted.Eagerly, gitHubAccountStore.account.value?.let { "${it.login}:0" })
     val gitHubRegistryRepository = GitHubRegistryRepository(
         fetchText = { url -> downloadTextViaMirrors(url) },
+        fetchTextValidated = { url, validate -> downloadTextViaMirrors(url, validate) },
         tokenProvider = { gitHubAccountStore.token() },
     )
     val marketSourceServices = MarketSourceServices(
@@ -119,6 +127,7 @@ class AppContainer(
     val pluginComponentInstaller = PluginComponentInstaller(
         componentRoot = File(app.filesDir, "plugin-components-v1"),
         repository = pluginComponentRepository,
+        hostVersion = app.pluginHostVersion(),
     )
     val pluginManager = PluginManager(
         context = app,
@@ -144,7 +153,6 @@ class AppContainer(
             UserPreferences().toReminderAlarmSettings(),
         )
 
-    /** 扩展组件的同步与产出：通知、截止提醒、课表事务 */
     val extensionCoordinator by lazy {
         com.x500x.cursimple.app.extension.ExtensionCoordinator(
             context = app,
@@ -165,7 +173,7 @@ class AppContainer(
     )
 
     val bootstrapJob: Job = containerScope.launch {
-        // 学期列表为空时，用已有的旧版 termStartDate 生成初始学期，升级后课表不丢失。
+        // Seed an empty term list from the legacy term start date.
         val legacyTermStart = userPreferencesRepository.preferencesFlow.first()
             .termStartDate?.toString()
         val activeTermId = termProfileRepository.ensureBootstrapped(
@@ -204,7 +212,6 @@ class AppContainer(
         require(payload.version <= AppBackupPayload.CURRENT_VERSION) {
             app.getString(R.string.backup_restore_version_too_new)
         }
-        // 一条都恢复不了说明这不是本应用的备份，如实报错而不是静默走完
         require(payload.stores.any { it.storeName in AppBackupStores.ALL }) {
             app.getString(R.string.backup_restore_no_data)
         }
@@ -233,18 +240,11 @@ class AppContainer(
         refreshScheduleOutputs()
     }
 
-    suspend fun downloadPluginComponentPackage(url: String): ByteArray {
-        return downloadBytesViaMirrors(url)
-    }
-
-    suspend fun fetchPluginComponentMarket(url: String) =
-        pluginManager.fetchComponentMarketIndex(url).components
-
-    private suspend fun downloadTextViaMirrors(url: String): String {
+    private suspend fun downloadTextViaMirrors(url: String, validate: (String) -> Unit = ::requireJsonLikeText): String {
         return when (val result = sharedDownloader.downloadText(
             request = downloadRequestFor(url),
             accept = "application/json",
-            validate = ::requireJsonLikeText,
+            validate = validate,
         )) {
             is MirrorDownloadResult.Success -> result.value
             is MirrorDownloadResult.Failure -> throw IllegalStateException(result.message)
@@ -255,7 +255,6 @@ class AppContainer(
         url: String,
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): ByteArray {
-        // 私有仓库的安装包是 API 附件地址：直连 GitHub 带令牌下载，绝不交给镜像
         if (com.x500x.cursimple.core.plugin.market.github.GitHubApiClient.isAssetApiUrl(url)) {
             return gitHubRegistryRepository.downloadAccountAsset(url, onProgress)
         }
@@ -296,7 +295,7 @@ class AppContainer(
 
     suspend fun refreshWidgets(timingProfile: TermTimingProfile? = null) {
         awaitBootstrap()
-        // 用户手动编辑过的节次时间表优先，插件同步不覆盖，除非用户主动交回同步管理
+        // User-managed timing profiles take priority over plugin sync.
         val manuallyEdited = widgetPreferencesRepository.timingProfileManuallyEditedFlow.first()
         val effectiveProfile = if (manuallyEdited) {
             widgetPreferencesRepository.timingProfileFlow.first() ?: timingProfile
@@ -307,7 +306,6 @@ class AppContainer(
             timingProfile
         }
         ScheduleWidgetUpdater.refreshAll(app)
-        // 课表或作息一变，下一节课就可能变了，上课通知的闹钟跟着重挂
         runCatching { ClassNoticeGateway.reschedule(app) }
         scheduleSystemAlarmChecks(effectiveProfile)
     }
@@ -393,8 +391,7 @@ class AppContainer(
         includeTomorrow: Boolean,
         nowMillis: Long = System.currentTimeMillis(),
         clearExpiredRecords: Boolean = true,
-        // 每日守护这类刻意的一次性调度任务应绕过 40 分钟去重闸门，
-        // 否则同一次守护里前一步刚 markAlarmPollAt(now)，这里就会被挡掉、明日窗口永远不同步
+        // Explicit daily maintenance bypasses the polling cooldown to schedule tomorrow's alarms.
         bypassPollClaim: Boolean = false,
     ): List<SystemAlarmSyncSummary> {
         awaitBootstrap()
@@ -448,7 +445,6 @@ class AppContainer(
         awaitBootstrap()
         val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
 
-        // App 启动时主动巡检并重建失效的闹钟
         performStartupAlarmHealthCheck()
 
         scheduleSystemAlarmChecks(timingProfile)
@@ -456,12 +452,7 @@ class AppContainer(
         logAlarmRuntimeHealth()
     }
 
-    /**
-     * App 启动时主动巡检闹钟注册状态
-     *
-     * 验证现有闹钟注册状态，如有失效则立即重建。
-     * 这是防止 App 被系统清理后闹钟失效的关键机制。
-     */
+    /** Rebuild invalid alarm registrations at app startup. */
     private suspend fun performStartupAlarmHealthCheck() {
         try {
             ReminderLogger.info(
@@ -469,10 +460,9 @@ class AppContainer(
                 emptyMap(),
             )
 
-            // 1. 重建所有失效的 App 自管闹钟
             val recreateSummary = reminderCoordinator.recreateAppManagedAlarmsFromRegistry()
 
-            // 2. 如果有重建失败的闹钟，记录警告
+            // Report failed alarm registrations.
             if (recreateSummary.registryWriteFailedCount > 0) {
                 ReminderLogger.warn(
                     "reminder.startup.health_check.registry_write_failed",
@@ -500,10 +490,7 @@ class AppContainer(
         }
     }
 
-    /**
-     * 切到活动学期绑定的那套作息。
-     * 学期没有绑定、或绑定的作息已被删除时保持当前选中项不变。
-     */
+    /** Activate the term's timing profile; preserve selection if its binding is missing. */
     suspend fun applyActiveTermTimingProfile() {
         awaitBootstrap()
         val activeTermId = termProfileRepository.activeTermId()
@@ -527,7 +514,6 @@ class AppContainer(
             .firstOrNull { it.id == activeTermId }
         val activeTermStart = activeTerm?.termStartDate?.let(::parseIsoDate)
         val pluginTermStart = runCatching { timingProfile.termStartLocalDate() }.getOrNull()
-        // 用户定过开学日期就不再被插件带的日期改写，包括他主动清空的情况
         val userDecided = userPreferencesRepository.preferencesFlow.first().termStartUserDecided
         val canonicalTermStart = resolveCanonicalTermStart(
             userDecided = userDecided,

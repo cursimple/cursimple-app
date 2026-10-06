@@ -12,12 +12,8 @@ import java.time.LocalTime
 import java.util.concurrent.TimeUnit
 
 /**
- * 闹钟同步调度器 - 封装 WorkManager 定期任务调度逻辑
- *
- * 提供三种定期任务：
- * 1. AlarmSyncWorker - 每 2 小时执行一次，用于常规闹钟同步
- * 2. DailyGuardWorker - 每天凌晨执行，用于全量闹钟重建
- * 3. AutoSilenceGuardWorker - 每 15 分钟执行一次，用于复查上课自动静音状态
+ * Schedule periodic alarm sync, daily rebuilding and automatic-silence checks through
+ * WorkManager.
  */
 object AlarmSyncScheduler {
 
@@ -25,10 +21,7 @@ object AlarmSyncScheduler {
     private const val DAILY_GUARD_WORK_NAME = "alarm_daily_guard"
     private const val AUTO_SILENCE_GUARD_WORK_NAME = "auto_silence_guard"
 
-    /**
-     * 调度周期性闹钟同步 Worker
-     * 每 2 小时执行一次，确保闹钟注册状态与数据库记录一致
-     */
+    /** Reconcile alarm records and registrations every two hours. */
     fun schedulePeriodicSync(context: Context) {
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(true)
@@ -36,7 +29,7 @@ object AlarmSyncScheduler {
 
         val workRequest = PeriodicWorkRequestBuilder<AlarmSyncWorker>(
             2, TimeUnit.HOURS,
-            30, TimeUnit.MINUTES,  // 弹性延迟
+            30, TimeUnit.MINUTES,
         )
             .setConstraints(constraints)
             .addTag(SYNC_WORK_NAME)
@@ -49,16 +42,11 @@ object AlarmSyncScheduler {
         )
     }
 
-    /**
-     * 调度每日守护 Worker
-     * 每天凌晨 2:00 执行，全量重建所有闹钟注册
-     */
     fun scheduleDailyGuard(context: Context) {
         val constraints = Constraints.Builder()
             .setRequiresBatteryNotLow(true)
             .build()
 
-        // 计算到凌晨 2:00 的初始延迟
         val now = BeijingTime.nowDateTime()
         val targetTime = if (now.toLocalTime().isBefore(DAILY_GUARD_TIME)) {
             LocalDateTime.of(now.toLocalDate(), DAILY_GUARD_TIME)
@@ -69,7 +57,7 @@ object AlarmSyncScheduler {
 
         val workRequest = PeriodicWorkRequestBuilder<DailyGuardWorker>(
             24, TimeUnit.HOURS,
-            1, TimeUnit.HOURS,  // 弹性延迟
+            1, TimeUnit.HOURS,
         )
             .setConstraints(constraints)
             .setInitialDelay(initialDelayMinutes, TimeUnit.MINUTES)
@@ -83,10 +71,7 @@ object AlarmSyncScheduler {
         )
     }
 
-    /**
-     * 调度自动静音巡检 Worker
-     * 每 15 分钟复查一次，确保上课静音能按时恢复，不依赖单一的边界闹钟
-     */
+    /** Inspect automatic silence every 15 minutes as a fallback for boundary alarms. */
     fun scheduleAutoSilenceGuard(context: Context) {
         val workRequest = PeriodicWorkRequestBuilder<AutoSilenceGuardWorker>(
             15, TimeUnit.MINUTES,
@@ -101,10 +86,7 @@ object AlarmSyncScheduler {
         )
     }
 
-    /**
-     * 取消自动静音巡检 Worker
-     * 只在功能关闭且没有待恢复的现场时调用
-     */
+    /** Cancel only when the feature is disabled and no previous state needs restoration. */
     fun cancelAutoSilenceGuard(context: Context) {
         WorkManager.getInstance(context).cancelUniqueWork(AUTO_SILENCE_GUARD_WORK_NAME)
     }

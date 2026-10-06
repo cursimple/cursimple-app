@@ -41,6 +41,10 @@ data class PluginPackageLayout(
                 }
             }
         }
+        manifest.extension?.widgets.orEmpty().forEach { widget ->
+            val path = normalizePluginPackagePath(widget.entry)
+            pluginRequire(path in files, R.string.plugin_error_package_missing_ui_file, widget.entry)
+        }
         return manifest.copy(entry = normalizedEntry)
     }
 

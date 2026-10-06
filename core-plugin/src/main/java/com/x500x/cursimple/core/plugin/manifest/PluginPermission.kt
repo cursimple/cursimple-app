@@ -32,9 +32,17 @@ enum class PluginPermission(val id: String) {
     @SerialName("component.use")
     ComponentUse("component.use"),
 
-    /** 扩展组件交出条目（作业、公告……）给宿主做通知与日历 */
     @SerialName("feed.write")
     FeedWrite("feed.write"),
+
+    @SerialName("notification.receive")
+    NotificationReceive("notification.receive"),
+
+    @SerialName("storage.secure")
+    SecureStorage("storage.secure"),
+
+    @SerialName("network.proxy")
+    NetworkProxy("network.proxy"),
 
     ;
 

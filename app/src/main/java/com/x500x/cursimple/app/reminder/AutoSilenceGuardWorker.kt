@@ -7,12 +7,7 @@ import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/**
- * 自动静音巡检 Worker。
- *
- * 每 15 分钟复查一次手机状态，边界闹钟被系统丢弃、进程被杀或设备重启时由它把手机调回来，
- * 最坏情况下手机多静音一个巡检周期，不会一直静音下去。
- */
+/** Periodic state reconciliation supplements lost boundary alarms and process restarts. */
 class AutoSilenceGuardWorker(
     appContext: Context,
     workerParams: WorkerParameters,

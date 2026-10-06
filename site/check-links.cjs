@@ -1,4 +1,3 @@
-// 原生 Node 校验静态页面、截图、锚点与公告链接，不访问网络。
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');

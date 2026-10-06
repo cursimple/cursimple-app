@@ -4,17 +4,13 @@ package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
-import android.app.AlarmManager
-import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -23,7 +19,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.Column
@@ -48,8 +43,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.BugReport
@@ -86,14 +79,12 @@ import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.Style
-import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VerticalAlignCenter
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material.icons.rounded.Weekend
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material3.AlertDialog
@@ -106,7 +97,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -118,7 +108,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -139,7 +128,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -182,7 +170,6 @@ import com.x500x.cursimple.core.data.adaptScheduleForegroundColorArgb
 import com.x500x.cursimple.core.data.coerceAiImportTimeoutSeconds
 import com.x500x.cursimple.app.reminder.AlarmDiagnostics
 import com.x500x.cursimple.app.reminder.AlarmDiagnosticsReport
-import com.x500x.cursimple.app.reminder.AlarmPermissionIntents
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
 import com.x500x.cursimple.core.reminder.permission.canScheduleExactAlarms
@@ -202,47 +189,25 @@ import com.x500x.cursimple.core.data.ClassNoticeAnimation
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
 import com.x500x.cursimple.core.data.ThemeMode
-import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
-import com.x500x.cursimple.core.data.widget.MAX_SLOT_NODE
-import com.x500x.cursimple.core.data.widget.MIN_SLOT_NODE
-import com.x500x.cursimple.core.data.widget.SlotDraftInput
-import com.x500x.cursimple.core.data.widget.TimingDraftError
 import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
-import com.x500x.cursimple.core.data.widget.buildTimingSlots
 import com.x500x.cursimple.core.data.widget.slotTimes
-import com.x500x.cursimple.core.data.widget.timingDraftErrorText
-import com.x500x.cursimple.core.data.widget.timingTemplates
-import com.x500x.cursimple.core.data.widget.toDraftInput
 import com.x500x.cursimple.core.kernel.model.CancelCoursePlan
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.SyncedHolidayYear
-import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
-import com.x500x.cursimple.core.kernel.model.TimingProfileEntry
-import com.x500x.cursimple.core.kernel.model.TimingProfileLibrary
 import com.x500x.cursimple.core.kernel.model.active
-import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
-import com.x500x.cursimple.feature.widget.ScheduleWidgetUpdater
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
-import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
-import com.x500x.cursimple.core.kernel.model.builtInHolidayYears
-import com.x500x.cursimple.core.kernel.model.entryOn
-import com.x500x.cursimple.core.kernel.model.localDate
-import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.sortedUserEntries
-import com.x500x.cursimple.core.kernel.model.userEntryOn
 import com.x500x.cursimple.core.kernel.model.termWeekLabel
 import com.x500x.cursimple.core.kernel.model.termWeekText
-import com.x500x.cursimple.core.kernel.model.weekdayLabel
 import com.x500x.cursimple.core.reminder.model.AlarmAlertMode
-import com.x500x.cursimple.core.reminder.model.ReminderAlarmBackend
 import com.x500x.cursimple.feature.schedule.ScheduleAppearancePreview
 import com.x500x.cursimple.feature.schedule.ScheduleSettingsRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
@@ -257,13 +222,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.UUID
-import kotlin.math.roundToInt
-import com.x500x.cursimple.core.kernel.time.datePickerMillisToLocalDate
-import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Checkbox
 import com.x500x.cursimple.core.data.VendorPermissionKey
 
@@ -273,7 +232,6 @@ private enum class SettingsDestination {
     TemporaryOverrides,
     Holidays,
     ScheduleAppearance,
-    /** 背景二级菜单：课表背景与小组件背景各占一行。 */
     BackgroundHub,
     ScheduleBackground,
     WidgetBackground,
@@ -286,7 +244,6 @@ private enum class SettingsDestination {
     WebDav,
     AiImport,
     Permissions,
-    /** 高级设置的几个二级页。 */
     DevTime,
     DevNotice,
     DevLogs,
@@ -298,10 +255,9 @@ enum class SettingsDestinationKey {
     AiImport,
     ScheduleBackground,
 
-    /** 侧边栏「调课」直达的临时调课页。 */
     TemporaryOverrides,
 
-    /** 发现被强行停止后，从提示直达权限页。 */
+    /** Open permission setup from the force-stop explanation. */
     Permissions,
 }
 
@@ -317,7 +273,6 @@ private fun SettingsDestinationKey.toDestination(): SettingsDestination = when (
     SettingsDestinationKey.Permissions -> SettingsDestination.Permissions
 }
 
-/** 深链跳转时补齐的上级页面，返回键沿这条链逐级回退。 */
 private fun SettingsDestination.parentChain(): List<SettingsDestination> = when (this) {
     SettingsDestination.ScheduleBackground,
     SettingsDestination.WidgetBackground,
@@ -325,16 +280,11 @@ private fun SettingsDestination.parentChain(): List<SettingsDestination> = when 
     else -> emptyList()
 }
 
-/**
- * 从侧边栏直接进来的页面，自己就是栈底。
- *
- * 「换背景」是侧边栏上的独立入口，不该把设置根页垫在下面——那样返回一次会掉进设置里，
- * 还得再返回一次才出得去。栈底时返回不被这里消费，交给应用级处理退回课表。
- */
+/** Drawer destinations form their own navigation root; Back returns to the timetable. */
 private fun SettingsDestination.isStandaloneEntry(): Boolean =
     this == SettingsDestination.BackgroundHub
 
-/** 课表样式页顶上钉着的预览：只画两节课，最高这么高，下面的设置项才有地方 */
+/** Limit the pinned timetable preview to leave room for settings. */
 private const val STYLE_PREVIEW_SLOTS = 2
 private val STYLE_PREVIEW_MAX_HEIGHT = 200.dp
 
@@ -345,7 +295,7 @@ private fun themeModeLabel(mode: ThemeMode): String = when (mode) {
     ThemeMode.Dark -> stringResource(R.string.settings_theme_mode_dark)
 }
 
-/** 常用格子里的背景：格子窄，只说是图片、纯色还是跟随主题 */
+/** Compact background label for narrow quick-setting tiles. */
 @Composable
 private fun quickBackgroundLabel(background: ScheduleBackgroundPreferences): String = when {
     background.type == ScheduleBackgroundType.Image && background.imageUri != null ->
@@ -354,10 +304,7 @@ private fun quickBackgroundLabel(background: ScheduleBackgroundPreferences): Str
     else -> stringResource(R.string.settings_quick_bg_theme)
 }
 
-/**
- * 设置搜索能搜到的东西：每个设置页一条，页里常找的开关也各一条，点了直接进到那一页。
- * 页那一条带着页里其它条目的名字当关键词，搜里面的某个开关也能把这一页找出来。
- */
+/** Search includes pages and their individual controls, with related keywords. */
 @Composable
 private fun settingsSearchEntries(
     navigate: (SettingsDestination) -> Unit,
@@ -375,7 +322,7 @@ private fun settingsSearchEntries(
     val data = stringResource(R.string.settings_group_data)
     val general = stringResource(R.string.settings_group_general)
     fun under(group: String, page: String) = "$group › $page"
-    // 页面上的字不一定是大家会搜的词（没人搜「显示天数」，都搜「周末」），每页再配一串常说的叫法
+    // Include common synonyms alongside visible setting labels.
     fun words(text: String): List<String> = text.split(' ').filter { it.isNotBlank() }
     val entries = mutableListOf<SettingsSearchEntry>()
     val themeWords = words(stringResource(R.string.settings_search_kw_theme))
@@ -459,7 +406,6 @@ private fun settingsSearchEntries(
         ),
         words(stringResource(R.string.settings_search_kw_display)),
     )
-    // 「显示天数」这一条再挂上几个选项名，搜「周末」「周六」也能找到
     entries += SettingsSearchEntry(
         Icons.AutoMirrored.Rounded.MenuBook,
         stringResource(R.string.settings_display_days_title),
@@ -761,11 +707,9 @@ fun AppSettingsRoute(
     onOpenDestinationConsumed: () -> Unit = {},
     returnTarget: SettingsReturnTargetKey? = null,
     onReturnTargetReady: () -> Unit = {},
-    /** 打开全屏的拖动调课页，参数是已经选好的调课日与来源日。 */
     onOpenCourseSwap: (LocalDate, LocalDate) -> Unit = { _, _ -> },
-    /** 按 id 找课名，调课页列「拖动调课」时用；课已删掉就返回 null。 */
     courseTitleOf: (String) -> String? = { null },
-    /** 课表里的全部课程，临时取消页按它列出选中那天的课。 */
+    /** All timetable courses used by the selected-day cancellation picker. */
     scheduleCourses: List<CourseItem> = emptyList(),
     scheduleTimingProfile: TermTimingProfile? = null,
     onApplyCancelPlan: (CancelCoursePlan) -> Unit = {},
@@ -779,8 +723,7 @@ fun AppSettingsRoute(
     var settingsQuery by rememberSaveable { mutableStateOf("") }
     var homeLayout by remember { mutableStateOf(SettingsHomeLayoutStore.load(context)) }
     val homeGrid = homeLayout == SettingsHomeLayout.Grid
-    // 各页共用一个滚动状态，进子页时位置会被压回顶部；记下根页的位置，回来时滚回去，
-    // 不然从底部的隐藏入口进出一次，就得重新滑到底
+    // Restore the root-page scroll offset after visiting subpages.
     var rootScrollOffset by rememberSaveable { mutableIntStateOf(0) }
     fun navigate(next: SettingsDestination) {
         if (destination == SettingsDestination.Root) rootScrollOffset = scrollState.value
@@ -789,7 +732,6 @@ fun AppSettingsRoute(
     LaunchedEffect(destination) {
         if (destination == SettingsDestination.Root) {
             val target = rootScrollOffset
-            // 刚切回来时根页还没排好版，可滚范围还是子页的，等它长到够再滚
             withTimeoutOrNull(ROOT_SCROLL_RESTORE_TIMEOUT_MS) {
                 snapshotFlow { scrollState.maxValue }.first { it >= target }
             }
@@ -834,7 +776,7 @@ fun AppSettingsRoute(
     var showHolidayEditor by rememberSaveable { mutableStateOf(false) }
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
     var showResetAllSettingsConfirm by rememberSaveable { mutableStateOf(false) }
-    // 被永久拒绝后系统不再弹窗，此时必须改把用户送到应用详情页，否则按钮点了没有任何反应
+    // Permanent permission denial requires the app settings page.
     fun handlePermissionResult(permission: String, granted: Boolean, grantedRes: Int, deniedRes: Int) {
         val activity = context.findActivity()
         val canAskAgain = activity?.let {
@@ -853,7 +795,7 @@ fun AppSettingsRoute(
                     context.getString(R.string.settings_toast_permission_open_settings),
                     Toast.LENGTH_LONG,
                 ).show()
-                launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
+                launchSettingsIntent(context, AlarmSettingsIntents.appDetails(context))
             }
         }
     }
@@ -891,7 +833,6 @@ fun AppSettingsRoute(
                 context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }.isSuccess
             if (persisted) {
-                // 先让用户按课表比例裁切并确认，再落到设置里
                 pendingBackgroundSource = uri
             } else {
                 Toast.makeText(
@@ -902,7 +843,7 @@ fun AppSettingsRoute(
             }
         }
     }
-    // 小组件背景同样先裁切：不裁的话竖图铺到扁扁的小组件上只剩中间一条
+    // Crop widget backgrounds before applying them to wide layouts.
     var pendingWidgetBackgroundSource by remember { mutableStateOf<android.net.Uri?>(null) }
     pendingWidgetBackgroundSource?.let { source ->
         ScheduleBackgroundCropDialog(
@@ -1089,7 +1030,6 @@ fun AppSettingsRoute(
         emptyList()
     }
 
-    // 影子要浮在整页上面，拖到哪都看得见，所以外面再套一层
     Box(modifier = modifier.fillMaxSize()) {
         CompositionLocalProvider(
             LocalSettingsQuickDrag provides quickDrag.takeIf { destination == SettingsDestination.Root },
@@ -1099,8 +1039,7 @@ fun AppSettingsRoute(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
             ) {
-                // 返回栏和课表样式的预览钉在顶上，下面的设置项自己滚：
-                // 改样式时预览一直看得见，不用滑回顶上看效果
+                // Pin navigation and preview while the settings content scrolls.
                 if (destination != SettingsDestination.Root) {
                     Row(
                         modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp),
@@ -1175,7 +1114,6 @@ fun AppSettingsRoute(
                                     },
                                 )
                             } else {
-                                // 常用单独一块深色底放最上面：挑哪几项自己定，点「＋」选，或把下面的长按拖上来
                                 SettingsQuickSection(state = quickDrag, items = quickItems)
 
                                 SettingsCardGroup(stringResource(R.string.settings_group_schedule), tiles = homeGrid) {
@@ -1218,7 +1156,7 @@ fun AppSettingsRoute(
                                 }
 
                                 SettingsCardGroup(stringResource(R.string.settings_group_reminder), tiles = homeGrid) {
-                                    // 开关直接放在这一行上：只想开关提醒的话不用点进去
+                                    // Expose the reminder switch without requiring another page.
                                     SettingsActionRow(
                                         icon = Icons.Rounded.NotificationsActive,
                                         title = stringResource(R.string.settings_dest_class_notice),
@@ -1410,7 +1348,6 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.ScheduleAppearance -> {
-                            // 以前文字、表头、卡片各是一层子页，调一个样式要点三层；现在全铺在这一页，预览钉在上面
                             SettingsSwitchRow(
                                 Icons.Rounded.Brightness4,
                                 stringResource(R.string.settings_adapt_colors_title),
@@ -1571,7 +1508,6 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.BackgroundHub -> {
-                            // 课表和小组件各自一页，和设置里其它二级菜单同一个结构
                             SettingsActionRow(
                                 icon = Icons.Rounded.Wallpaper,
                                 title = stringResource(R.string.settings_schedule_background),
@@ -1632,7 +1568,6 @@ fun AppSettingsRoute(
                                 scheduleTextStyle = scheduleTextStyle,
                                 customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
                             )
-                            // 背景图是这一页最主要的事，放第一个
                             SettingsActionRow(
                                 icon = Icons.Rounded.Wallpaper,
                                 title = stringResource(R.string.settings_background_image_title),
@@ -1663,7 +1598,6 @@ fun AppSettingsRoute(
                                     scheduleBackground.colorArgb.adaptBackgroundForPreview(darkTheme),
                                 )
                             }
-                            // 恢复默认沉到最后：它是退路，不是日常要点的东西
                             SettingsActionRow(
                                 icon = Icons.Rounded.Restore,
                                 title = stringResource(R.string.settings_background_reset_title),
@@ -1760,8 +1694,7 @@ fun AppSettingsRoute(
                                     subtitle = widgetThemeLabel(widgetThemePreferences),
                                     onClick = onPickWidgetThemeAccent,
                                 )
-                                // 背景整套（选图、裁剪、透明度、清除）都在背景页里，
-                                // 这里只留一个入口，免得同一件事在两处各有一半
+                                // Keep background selection, cropping and opacity controls on one page.
                                 SettingsActionRow(
                                     icon = Icons.Rounded.Wallpaper,
                                     title = stringResource(R.string.settings_widget_background_title),
@@ -1931,12 +1864,7 @@ fun AppSettingsRoute(
     }
 }
 
-/**
- * 百分比滑块。
- *
- * 透明度这种连续量用加减号一档一档点很折磨，拖着看效果才对。
- * 拖动过程中就把值报上去，预览跟着手指实时变——等松手才显示会一顿一顿的。
- */
+/** Report slider values during dragging for a live percentage preview. */
 @Composable
 private fun SliderPercentRow(
     title: String,
@@ -1965,7 +1893,7 @@ private fun SliderPercentRow(
             }
             Slider(
                 value = value.toFloat(),
-                // 整数档位直接回调，相同值不会触发重复写入
+                // Avoid duplicate writes for unchanged integer steps.
                 onValueChange = { next ->
                     val rounded = next.toInt().coerceIn(0, 100)
                     if (rounded != value) onValueChange(rounded)
@@ -2040,26 +1968,20 @@ private fun FloatStepperRow(
     }
 }
 
-/** 设置列表的一个分组：标题加同类条目，条目间距比分组间距更紧。 */
 @Composable
 internal fun SettingsGroup(
     title: String,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    // 子页的分组以前默认折叠，收起来看不出里面有什么，现在和根页一样全部直接铺开
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SettingsSectionHeader(title)
         content()
     }
 }
 
-/** 在 [SettingsCardGroup] 里的条目不再各画一块底，由外面那张卡片统一画 */
 internal val LocalSettingsRowInCard = staticCompositionLocalOf { false }
 
-/**
- * 设置首页的分组：同一组的条目放进一张卡片，中间一道细线隔开。
- * 以前每条各是一块，一页下来全是一样的方块，分不清哪几条是一组，也拉得很长。
- */
+/** Group related settings in one card with dividers. */
 @Composable
 internal fun SettingsCardGroup(
     title: String,
@@ -2075,7 +1997,6 @@ internal fun SettingsCardGroup(
     }
     val dividerColor = MaterialTheme.colorScheme.outlineVariant
     val density = LocalDensity.current
-    // 分隔线从文字开始画（让出左边图标那一截），右边留一点
     val dividerStart = with(density) { 46.dp.toPx() }
     val dividerEnd = with(density) { 14.dp.toPx() }
     val dividerWidth = with(density) { 1.dp.toPx() }
@@ -2107,7 +2028,6 @@ internal fun SettingsCardGroup(
                         dividerTops.clear()
                         var y = 0
                         placeables.forEach { placeable ->
-                            // 高度为 0 的（没显示出来的条目）不算一条，前面不画线
                             if (y > 0 && placeable.height > 0) dividerTops += y
                             placeable.placeRelative(0, y)
                             y += placeable.height
@@ -2353,7 +2273,7 @@ private fun PermissionsSection(
     onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
-    // 用户去系统设置改完权限再回来，这里必须重读，否则界面一直停在进页面那一刻的状态
+    // Refresh permission state after returning from system settings.
     val state = rememberPermissionState(context)
 
     val missingAlarmPermissions = buildList {
@@ -2361,15 +2281,14 @@ private fun PermissionsSection(
         if (!state.exactAlarm) add(stringResource(R.string.settings_permission_exact_alarm))
         if (!state.fullScreenIntent) add(stringResource(R.string.settings_permission_full_screen))
         if (!state.batteryOptimizationIgnored) add(stringResource(R.string.settings_permission_background))
-        // 守护没开的话，退出应用后闹钟照样可能被厂商系统清掉，和缺权限同等重要
+        // Disabled guard scheduling can leave alarms vulnerable to vendor cleanup.
         if (!alarmKeepAliveEnabled) add(stringResource(R.string.settings_alarm_keep_alive_title))
-        // 小米国行不开自启动时，划掉应用就是强行停止，闹钟全被清掉
         if (state.miuiAutoStart == false) add(stringResource(R.string.settings_permission_autostart_title))
     }
 
     PermissionSummaryCard(missing = missingAlarmPermissions)
 
-    // 静默守护不是系统权限，但它和上面那几项一起决定「退出应用后闹钟还响不响」
+    // Silent guard status affects background alarm delivery alongside permissions.
     SettingsSwitchRow(
         icon = Icons.Rounded.Restore,
         title = stringResource(R.string.settings_alarm_keep_alive_title),
@@ -2384,8 +2303,7 @@ private fun PermissionsSection(
         onCheckedChange = onAlarmKeepAliveEnabledChange,
     )
 
-    // 权限全绿闹钟照样不响的情况太多（渠道被关、省电模式、排程掉了），
-    // 光看上面这几行判断不出卡在哪，自检把各处状态一次性摊开
+    // Diagnostics include channels, power policy and registrations, beyond permission checks.
     var showAlarmDiagnostics by remember { mutableStateOf(false) }
     SettingsActionRow(
         icon = Icons.Rounded.BugReport,
@@ -2405,7 +2323,7 @@ private fun PermissionsSection(
         offText = stringResource(R.string.settings_permission_notification_off),
         onText = stringResource(R.string.settings_permission_runtime_hint),
         onClick = {
-            // 已授予时也要能进系统设置关掉，不然用户在这一页只有单向操作
+            // Granted permissions still link to system settings for revocation.
             if (!state.notification && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 notificationLauncher(Manifest.permission.POST_NOTIFICATIONS)
             } else {
@@ -2434,16 +2352,14 @@ private fun PermissionsSection(
         title = stringResource(R.string.settings_permission_battery_title),
         granted = state.batteryOptimizationIgnored,
         offText = stringResource(R.string.settings_permission_battery_off),
-        // 已经允许后台运行时那条「请求加入白名单」的 Intent 会被系统直接吃掉，
-        // 界面上什么都不出现；这时改为打开白名单总列表，从那里才能关掉
+        // Already-exempt apps open the exemption list rather than an ignored request Intent.
         onText = stringResource(R.string.settings_permission_battery_on),
         onClick = {
             launchSettingsIntents(context, AlarmSettingsIntents.batteryOptimization(context))
         },
     )
     if (AlarmSettingsIntents.hasVendorAutoStartPage(context)) {
-        // 小米能查到真实状态就照实显示；别家不提供查询接口，只能由用户自己勾一下，
-        // 勾过就当已开启，界面不再催，用到它的地方也不再弹提示
+        // Use queried vendor status where available; otherwise rely on explicit user confirmation.
         val miuiAutoStart = state.miuiAutoStart
         if (miuiAutoStart != null) {
             PermissionRow(
@@ -2494,7 +2410,7 @@ private fun PermissionsSection(
                 onAckChange = { onVendorPermissionAckChange(VendorPermissionKey.BATTERY_SAVER, it) },
             )
         }
-        // 每家都认的最后一道：在最近任务里把课简锁住，一键清理就不会带走它。系统不给接口，只能教
+        // Explain Recents locking; the system exposes no API for it.
         VendorKeepAliveGuide()
     }
     PermissionRow(
@@ -2505,7 +2421,7 @@ private fun PermissionsSection(
         onText = stringResource(R.string.settings_permission_runtime_hint),
         onClick = {
             if (state.camera) {
-                launchSettingsIntent(context, AlarmPermissionIntents.appDetailsIntent(context))
+                launchSettingsIntent(context, AlarmSettingsIntents.appDetails(context))
             } else {
                 cameraLauncher(Manifest.permission.CAMERA)
             }
@@ -2535,11 +2451,7 @@ private fun PermissionsSection(
     )
 }
 
-/**
- * 闹钟自检弹窗。
- *
- * 读排程要碰 DataStore，拿不到就先显示「读取中」，不能让这一下卡住界面。
- */
+/** Load DataStore diagnostics asynchronously and show a loading state. */
 @Composable
 private fun AlarmDiagnosticsDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -2603,7 +2515,7 @@ private fun AlarmDiagnosticsDialog(onDismiss: () -> Unit) {
     )
 }
 
-/** 权限页关心的几项当前状态。 */
+/** Current permission-page status. */
 private data class AppPermissionState(
     val notification: Boolean,
     val exactAlarm: Boolean,
@@ -2611,14 +2523,12 @@ private data class AppPermissionState(
     val batteryOptimizationIgnored: Boolean,
     val camera: Boolean,
     val installPackages: Boolean,
-    /** 小米的自启动 / 后台弹出界面，查不到（非小米）为 null。 */
     val miuiAutoStart: Boolean? = null,
     val miuiBackgroundPopup: Boolean? = null,
 )
 
 private fun readPermissionState(context: Context): AppPermissionState {
     return AppPermissionState(
-        // 通知总开关关掉时闹钟通知同样发不出来，低版本系统也要一起看
         notification = hasNotificationPermission(context),
         exactAlarm = canScheduleExactAlarms(context),
         fullScreenIntent = canUseFullScreenIntent(context),
@@ -2632,12 +2542,7 @@ private fun readPermissionState(context: Context): AppPermissionState {
     )
 }
 
-/**
- * 最后一道：在最近任务里把课简锁住。
- *
- * 各家都认这一招，锁住后一键清理不会带走它；但系统没有接口，只能按厂商说清楚怎么操作。
- * 顺带把最近一次被系统强行停止的时间摆出来：那次之后到下次打开应用之间的闹钟都不会响。
- */
+/** Explain vendor Recents locking and show the latest force-stop timestamp. */
 @Composable
 private fun VendorKeepAliveGuide() {
     val context = LocalContext.current
@@ -2679,7 +2584,7 @@ private fun VendorKeepAliveGuide() {
     }
 }
 
-/** 每次回到前台重读一次权限，跟随用户在系统设置里的改动。 */
+/** Recheck permissions on every foreground entry. */
 @Composable
 private fun rememberPermissionState(context: Context): AppPermissionState {
     var state by remember { mutableStateOf(readPermissionState(context)) }
@@ -2752,20 +2657,9 @@ private fun PermissionSummaryCard(missing: List<String>) {
     }
 }
 
-/**
- * 名称、当前状态徽章与一句操作说明，点整行进对应的授予或系统设置入口。
- *
- * [granted] 为 null 表示系统没有可查的接口（厂商的自启动、后台弹出界面都属于这一类），
- * 徽章显示「需手动确认」，而不是假装知道它开没开。
- */
+/** A null [granted] means status is unavailable; require manual confirmation. */
 
-/**
- * 厂商权限那一行。
- *
- * 自启动、后台弹出这类权限没有任何查询接口，应用读不到真实状态。
- * 与其永远显示「需手动确认」，不如点行进设置、回来自己勾一下，
- * 勾过就不再催；真没开，用到的地方还会再提醒。
- */
+/** Unqueryable vendor permissions need user confirmation after visiting settings. */
 @Composable
 private fun VendorPermissionRow(
     icon: ImageVector,
@@ -2904,7 +2798,7 @@ private fun unknownAppInstallSettingsIntent(context: Context): Intent =
             data = android.net.Uri.parse("package:${context.packageName}")
         }
     } else {
-        AlarmPermissionIntents.appDetailsIntent(context)
+        AlarmSettingsIntents.appDetails(context)
     }
 
 @Composable
@@ -2916,7 +2810,6 @@ internal fun AlarmNumberSettingRow(
     max: Int,
     step: Int,
     onValueChange: (Int) -> Unit,
-    /** 开了之后点标题那一块可以直接键入数字，范围大、按步进点半天的那种才需要 */
     editable: Boolean = false,
 ) {
     var editing by remember { mutableStateOf(false) }
@@ -2989,10 +2882,7 @@ internal fun AlarmNumberSettingRow(
 }
 
 /**
- * 直接键入一个数字。
- *
- * 只认十进制数字，超出 [min]..[max] 就把「确定」禁掉并把范围写在下面——
- * 悄悄夹到边界的话，用户会以为自己输的值生效了。
+ * Accept decimal integers within [min]..[max]; disable confirmation rather than silently clamp.
  */
 @Composable
 private fun NumberInputDialog(
@@ -3016,7 +2906,6 @@ private fun NumberInputDialog(
                 OutlinedTextField(
                     value = text,
                     onValueChange = { input ->
-                        // 中文输入法会给出全角数字，顺手折回半角，免得看着是数字却解析不出来
                         text = input.map { ch ->
                             if (ch in '\uFF10'..'\uFF19') ch - 0xFEE0 else ch
                         }.filter { it.isDigit() }.take(4).joinToString("")
@@ -3055,14 +2944,9 @@ private fun launchSettingsIntent(context: Context, intent: Intent) {
     launchSettingsIntents(context, listOf(intent))
 }
 
-/**
- * 按顺序试候选入口，第一个能起来的就用它，一条都起不来才提示用户。
- *
- * 厂商系统上单条 Intent 经常不存在或被拦，逐个回退到应用详情页，
- * 保证权限页上的每一项点下去都有反应。
- */
+/** Try candidate settings activities in order and report failure only after all fail. */
 internal fun launchSettingsIntents(context: Context, intents: List<Intent>) {
-    val opened = launchFirstAvailableSetting(context, intents + AlarmPermissionIntents.appDetailsIntent(context))
+    val opened = launchFirstAvailableSetting(context, intents + AlarmSettingsIntents.appDetails(context))
     if (!opened) {
         Toast.makeText(
             context,
@@ -3071,7 +2955,6 @@ internal fun launchSettingsIntents(context: Context, intents: List<Intent>) {
         ).show()
     }
 }
-
 
 internal fun parseIsoDate(value: String): LocalDate? =
     runCatching { LocalDate.parse(value) }.getOrNull()
@@ -3294,10 +3177,7 @@ private fun SettingsEditorPanel(
     }
 }
 
-/**
- * 设置根页底部的隐藏入口。条目多了挤在一起不好找，按用途分成几个二级页，
- * 这里只放入口和「关闭高级工具」。
- */
+/** Developer tools are grouped into subpages. */
 @Composable
 private fun AdvancedToolsSection(
     debugForcedDateTime: LocalDateTime?,
@@ -3372,7 +3252,6 @@ private fun AdvancedToolsSection(
     }
 }
 
-/** 高级 · 时间调试：把「现在」钉在某个时刻，课表、小组件、闹钟都按它算。 */
 @Composable
 private fun AdvancedTimeSection(
     debugForcedDateTime: LocalDateTime?,
@@ -3450,7 +3329,6 @@ private fun AdvancedTimeSection(
 
 }
 
-/** 高级 · 日志：导出、清空诊断日志，实时看插件运行事件。 */
 @Composable
 private fun AdvancedLogsSection() {
     val context = LocalContext.current
@@ -3560,7 +3438,6 @@ private fun AdvancedLogsSection() {
     }
 }
 
-/** 勾选即生效，不用确认。 */
 @Composable
 private fun LogCategoriesDialog(
     enabled: Set<LogCategory>,
@@ -3589,7 +3466,6 @@ private fun LogCategoriesDialog(
                             ),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
-                        // 整行可点，Checkbox 自己不再接点击，免得读屏报两次
                         Checkbox(checked = checked, onCheckedChange = null)
                         Text(
                             text = stringResource(category.labelRes),
@@ -3605,7 +3481,6 @@ private fun LogCategoriesDialog(
     )
 }
 
-/** 高级 · 数据与文件：私有目录的文件管理器入口，导出课表元数据。 */
 @Composable
 private fun AdvancedDataSection(
     privateFilesProviderEnabled: Boolean,
@@ -3632,10 +3507,7 @@ private fun AdvancedDataSection(
     ReleaseAnnouncementPreviewRow()
 }
 
-/**
- * 沿用正式更新公告的展示方式：优先读取私有目录的自定义稿，否则读取测试包附带的本地稿。
- * 图片跟随所选稿件从本地目录或 assets 加载，不需要访问远端。
- */
+/** Load private preview drafts first, then debug assets; resolve images locally. */
 @Composable
 private fun ReleaseAnnouncementPreviewRow() {
     val context = LocalContext.current
@@ -3720,9 +3592,8 @@ internal fun SettingsActionRow(
     subtitle: String,
     onClick: () -> Unit,
     trailing: (@Composable () -> Unit)? = null,
-    // 画成方块时放不下 trailing（开关之类），用图标底色表示开着
     tileActive: Boolean = false,
-    /** 首页上的条目给一个 id，长按就能拖进「常用」，见 [SettingsQuickItem]。 */
+    /** Stable IDs support dragging entries into quick settings; see [SettingsQuickItem]. */
     quickId: String? = null,
 ) {
     val quickDrag = LocalSettingsQuickDrag.current
@@ -3872,15 +3743,11 @@ fun SettingsRoute(
 internal fun appLanguageLabel(language: AppLanguage): String = when (language) {
     AppLanguage.System -> stringResource(R.string.settings_language_system)
     AppLanguage.Chinese -> stringResource(R.string.settings_language_chinese)
-    // 语言名用该语言自身书写，不随界面语言变化
     AppLanguage.TraditionalChinese -> "繁體中文"
     AppLanguage.English -> "English"
 }
 
-/**
- * 节假日数据的同步入口。
- * 放假安排每年由通知决定，这里从公开维护的数据集取回并缓存，取不到时沿用已有数据。
- */
+/** Refresh published holiday data; retain the cache on failure. */
 @Composable
 private fun HolidayCalendarSyncRow(syncedYears: List<SyncedHolidayYear>) {
     val context = LocalContext.current
@@ -3933,7 +3800,7 @@ private fun holidaySyncSubtitle(syncedYears: List<SyncedHolidayYear>): String {
     )
 }
 
-/** 同步结果的提示文案，只报告最值得说的一条。 */
+/** Show the most relevant synchronization result. */
 private fun Context.holidaySyncMessage(outcomes: List<HolidaySyncOutcome>): String {
     outcomes.filterIsInstance<HolidaySyncOutcome.Updated>().firstOrNull()
         ?.let { return getString(R.string.settings_holiday_sync_done) }
@@ -3944,7 +3811,6 @@ private fun Context.holidaySyncMessage(outcomes: List<HolidaySyncOutcome>): Stri
     return getString(R.string.settings_holiday_sync_fresh)
 }
 
-/** 一周起始日选择。两个取值对等，用并排按钮而不是开关。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> Unit) {
@@ -3991,11 +3857,7 @@ private fun WeekStartDayRow(selected: WeekStartDay, onSelect: (WeekStartDay) -> 
     }
 }
 
-/**
- * 背景效果预览。
- * 按课表比例画出当前背景，图片与颜色都按实际透明度渲染，
- * 上面叠一格示意课程，用户不必回到课表就能看出可读性。
- */
+/** Preview background opacity and course readability at timetable proportions. */
 @Composable
 private fun ScheduleBackgroundPreview(
     scheduleBackground: ScheduleBackgroundPreferences,
@@ -4075,8 +3937,7 @@ private fun ScheduleBackgroundPreview(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            // 画一张课表的缩略：表头 + 节数栏 + 几格课，
-            // 只有摆成真实样子才能判断背景之上还读不读得清
+            // Use a miniature timetable to assess background readability.
             SchedulePreviewMiniature(
                 scheduleCardStyle = scheduleCardStyle,
                 scheduleTextStyle = scheduleTextStyle,
@@ -4087,13 +3948,7 @@ private fun ScheduleBackgroundPreview(
     }
 }
 
-
-/**
- * 背景预览里那张小课表。
- *
- * 之前只摆了一个孤零零的方块，看不出真正铺上去是什么样。这里按真实结构画：
- * 一行星期表头、一列节数、几格课，颜色与圆角都取用户当前的设置。
- */
+/** Preview headers, periods and courses using current colors and corner shapes. */
 @Composable
 private fun SchedulePreviewMiniature(
     scheduleCardStyle: ScheduleCardStylePreferences,
@@ -4111,7 +3966,6 @@ private fun SchedulePreviewMiniature(
     )
     val cardShape = RoundedCornerShape(scheduleCardStyle.courseCornerRadiusDp.dp)
     val cardAlpha = 1f - (scheduleCardStyle.scheduleOpacityPercent.coerceIn(0, 100) / 100f)
-    // 哪些格子有课，摆得错落一些才像真的课表
     val filled = listOf(
         listOf(true, false, true, false, true),
         listOf(true, true, false, false, false),
@@ -4195,13 +4049,7 @@ private fun SchedulePreviewMiniature(
     }
 }
 
-
-/**
- * 小组件背景预览。
- *
- * 和课表那张缩略同一个意思：按挂件的真实比例铺一遍背景，
- * 上面压两行示意内容，用来判断透明度调到多少字还看得清。
- */
+/** Preview widget backgrounds at their actual proportions with sample content. */
 @Composable
 private fun WidgetBackgroundPreview(widgetThemePreferences: WidgetThemePreferences) {
     val context = LocalContext.current
@@ -4265,10 +4113,8 @@ private fun WidgetBackgroundPreview(widgetThemePreferences: WidgetThemePreferenc
     }
 }
 
-/** 透明百分比换算成绘制用的 alpha，0 表示完全不透明。 */
 private fun transparencyToAlpha(percent: Int): Float = 1f - (percent.coerceIn(0, 100) / 100f)
 
-/** 平铺与滚动二选一，平铺把全部节次压进一屏，滚动保留设定行高并在右侧给出滑块。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFitMode) -> Unit) {
@@ -4310,7 +4156,6 @@ private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFi
     }
 }
 
-/** 五天、六天、整周三选一，替代原先相互牵连的两个开关。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun VisibleDaysRow(
@@ -4362,13 +4207,10 @@ private fun VisibleDaysRow(
     }
 }
 
-/** 课表大致的宽高比，裁切框按它预览。 */
 private const val SCHEDULE_BACKGROUND_FRAME_ASPECT = 0.62f
 
-/** 小组件裁切框的比例：4x2 格挂件大致就是这个宽高比。 */
 private const val WIDGET_BACKGROUND_FRAME_ASPECT = 2.0f
 
-/** 设置项下方的补充说明，用于解释某项在当前配置下不生效。 */
 @Composable
 private fun SettingsHintText(text: String) {
     Text(
@@ -4379,12 +4221,8 @@ private fun SettingsHintText(text: String) {
     )
 }
 
-
 /**
- * 高级设置里的上课提醒测试：不用等到快上课，直接看各种样式弹出来的样子。
- *
- * 「悬浮窗」「系统通知」两项不看当前选的样式，强制走那一条路，
- * 用来排查某台机器上到底是哪一路不显示。
+ * Developer previews can force overlay or system delivery independently of the selected skin.
  */
 @Composable
 private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
@@ -4399,8 +4237,7 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
             ).show()
         }
     }
-    // 国产 ROM 上「不弹 / 没胶囊 / 锁屏不置顶」光看设置页判断不出卡在哪一层，
-    // 诊断报告把系统那头的状态摊开，两个跳转直达最常被关掉的那两处开关
+    // Diagnostics distinguish vendor notification layers and link to relevant system controls.
     var showDiagnostics by remember { mutableStateOf(false) }
     AdvancedActionRow(
         icon = Icons.Rounded.BugReport,
@@ -4417,7 +4254,6 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
         title = stringResource(R.string.settings_dev_notice_channel_settings_title),
         subtitle = stringResource(R.string.settings_dev_notice_channel_settings_subtitle, channelId),
         onClick = {
-            // 渠道要发第一条才建，没建时渠道设置页会是空的
             ClassNoticeNotifier.ensureChannel(context)
             context.openClassNoticeSettings(channelId)
         },
@@ -4429,7 +4265,6 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
             subtitle = stringResource(R.string.settings_dev_notice_promotion_settings_subtitle),
             onClick = {
                 ClassNoticeNotifier.ensureChannel(context)
-                // 没有这一页的系统退回通知设置，小米的焦点通知开关也在那里
                 context.openIslandSettings(channelId)
             },
         )
@@ -4498,7 +4333,7 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
         onClick = {
             warnIfBlocked(classNotice)
             val app = context.applicationContext
-            // 用主线程 Handler 而不是界面协程：人切到后台或锁屏后，这一页的协程可能已经被取消
+            // Use a main-thread Handler because screen coroutines can stop on background entry.
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
                 { ClassNoticeNotifier.notifyPreview(app, classNotice, noticeTheme) },
                 DEV_NOTICE_DELAY_MS,
@@ -4512,12 +4347,7 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
     )
 }
 
-/**
- * 上课通知诊断弹窗。
- *
- * 报告要挨个问 NotificationManager、读系统属性，都是跨进程调用，放到 IO 上读，免得点开那一下卡住。
- * 打开时顺手整份写进日志：用户往往只会导出日志、不会想到先复制弹窗内容。
- */
+/** Read cross-process notification diagnostics on IO and include the report in logs. */
 @Composable
 internal fun ClassNoticeDiagnosticsDialog(preferences: ClassNoticePreferences, onDismiss: () -> Unit) {
     val context = LocalContext.current

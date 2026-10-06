@@ -57,12 +57,7 @@ import com.x500x.cursimple.core.plugin.market.github.GitHubRepoSummary
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 
-/**
- * 「从教务系统导课」的引导页。
- *
- * 插件市场是按仓库列的，新用户并不知道自己学校对应哪个仓库；这里把入口收成
- * 一件事：搜学校名 → 装上匹配的插件 → 就地登录导课，装完的插件默认就是打开的。
- */
+/** Search schools, install a matching plugin and sign in without leaving the import page. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SchoolImportRoute(
@@ -88,21 +83,17 @@ fun SchoolImportRoute(
     LaunchedEffect(pluginSources, componentSources, accountKey) {
         pluginMarketViewModel.setSources(pluginSources, componentSources)
         pluginMarketViewModel.onAccountChanged(accountKey)
-        pluginMarketViewModel.refreshIfStale(MARKET_CACHE_TTL_MILLIS)
-        // 已装插件单独现查最新版，有新版在列表里直接标出来
+        pluginMarketViewModel.refreshOnEnter()
         pluginMarketViewModel.refreshInstalledPluginVersions()
     }
 
-    // 网页登录浮层开着时，返回键该退出登录流程回到搜索页，
-    // 而不是一路退回课表把整个导课流程丢掉。
+    // Back closes the login session before leaving the search workflow.
     BackHandler(enabled = pendingWebSession != null) { onCancelWebSession() }
 
-    // 扩展组件不产出课表，导课页不列它们
     val matched = remember(uiState.marketRepos, query) {
         filterMarketRepos(uiState.marketRepos.filterNot { it.isExtension }, query)
     }
-    // 插件清单在本地缓存 24 小时，新收录的学校在缓存过期前一直搜不到，
-    // 用户还以为是自己学校没人做。搜不到时先自动拉一次最新清单，每次进页面只补拉一次。
+    // Retry the catalog once per entry when search finds no school in cached data.
     var refreshedForMiss by remember(pluginSources, componentSources, accountKey) { mutableStateOf(false) }
     LaunchedEffect(query, uiState.marketRepos, uiState.isLoading) {
         if (query.isBlank() || matched.isNotEmpty() || uiState.isLoading || refreshedForMiss) return@LaunchedEffect
@@ -110,7 +101,6 @@ fun SchoolImportRoute(
         refreshedForMiss = true
         pluginMarketViewModel.loadRegistry()
     }
-    // 装自哪个仓库记在安装记录里，据此判断这一条是不是已经装好了
     val installedByRepo = remember(uiState.installedPlugins) {
         uiState.installedPlugins
             .filter { !it.sourceRepo.isNullOrBlank() }
@@ -167,11 +157,7 @@ fun SchoolImportRoute(
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
             )
 
-            // 只留有信息量的状态：加载中、失败要让用户看见，
-            // 「已加载 N 个插件」说的是清单总数，紧挨着下面的「搜到 M 个」像在自相矛盾，
-            // 而且下面那行已经把总数说清楚了。
-            // 查新版、升级、登录抓课表、写入课表，这一路每一步都要看得见：
-            // 以前只有按钮位置一个小圈，状态字还压在页面最底下，看着像没反应
+            // Expose active checks, upgrades, login and persistence progress; avoid redundant loaded-count messages.
             val busyText = when {
                 uiState.checkingUpdateKey != null || uiState.upgradingKey != null ->
                     uiState.status?.let { context.pluginMarketStatusText(it) }
@@ -203,7 +189,6 @@ fun SchoolImportRoute(
                     text = if (query.isBlank()) {
                         pluralStringResource(R.plurals.school_import_catalog_count, uiState.marketRepos.size, uiState.marketRepos.size)
                     } else {
-                        // 一句话把「清单里有几个」和「搜中几个」都交代了，不再分两行各说各的
                         pluralStringResource(
                             R.plurals.school_import_match_count,
                             uiState.marketRepos.size,
@@ -229,7 +214,6 @@ fun SchoolImportRoute(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    // 学校真没插件时，「浏览全部」帮不上忙，得告诉用户还能怎么把课表弄进来
                     if (matched.isEmpty()) {
                         item(key = "no-match") {
                             SchoolImportEmpty(
@@ -241,8 +225,6 @@ fun SchoolImportRoute(
                                 onSecondaryAction = { pluginMarketViewModel.loadRegistry() },
                             )
                         }
-                        // 没搜中不等于没得装：清单里的插件照样列出来，
-                        // 别让人对着空屏以为一个插件都没有
                         item(key = "catalog-header") {
                             Text(
                                 text = pluralStringResource(
@@ -263,11 +245,10 @@ fun SchoolImportRoute(
                             installed = installed,
                             upgrade = installed?.let { availableUpgrade(it, uiState) },
                             busy = uiState.isLoading,
-                            checking = installed != null &&
-                                (uiState.checkingUpdateKey == installed.installKey || uiState.upgradingKey == installed.installKey),
+                            checking = uiState.processingRepo(repo.fullName) || (installed != null &&
+                                (uiState.checkingUpdateKey == installed.installKey || uiState.upgradingKey == installed.installKey)),
                             syncingPluginId = syncingPluginId,
                             onInstall = { pluginMarketViewModel.installFromGitHub(repo) },
-                            // 导课前先查新版，有新版就先升级
                             onSync = { record -> pluginMarketViewModel.syncWithUpdateCheck(record) },
                             onUpgrade = { record, latest -> pluginMarketViewModel.upgradeThenSync(record, latest) },
                         )
@@ -283,7 +264,7 @@ fun SchoolImportRoute(
                 }
             }
 
-            // 进行中的已经在上面的卡片里了，这里只留结果（导入成功、失败原因）
+            // Show final sync results separately from the active progress card.
             syncStatusMessage?.takeIf { it.isNotBlank() && syncingPluginId == null }?.let { message ->
                 Text(
                     text = message,
@@ -307,8 +288,7 @@ fun SchoolImportRoute(
         )
     }
 
-    // 登录教务系统的网页会话就在本页弹出，装完插件不必再绕去插件页。
-    // 放在铺满的 Box 里，尺寸才和插件页那边一致。
+    // Keep the login session in a full-page container within school import.
     pendingWebSession?.let { request ->
         WebSessionOverlay(
             request = request,
@@ -359,7 +339,7 @@ private fun SchoolImportSteps() {
 private fun SchoolPluginRow(
     repo: GitHubRepoSummary,
     installed: InstalledPluginRecord?,
-    /** 市场上已知有新版时是那个仓库（带着最新 release），否则为 null。 */
+    /** Repository with its known newer release, or null. */
     upgrade: GitHubRepoSummary?,
     busy: Boolean,
     checking: Boolean,
@@ -388,13 +368,11 @@ private fun SchoolPluginRow(
             )
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    // 标题给学校全称：这一页的人是在找自己学校，不是在找仓库
                     text = repo.schoolDisplayTitle(),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     maxLines = 2,
                 )
-                // 副标题给仓库简介：标题已经是学校名了，这里该说的是这个插件本身
                 if (repo.description.isNotBlank()) {
                     Text(
                         text = repo.description,
@@ -427,7 +405,6 @@ private fun SchoolPluginRow(
             when {
                 syncing || checking -> CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
 
-                // 已知有新版：按钮直接换成升级，升级装好后自动接着导课
                 installed != null && upgrade != null -> Button(
                     onClick = { onUpgrade(installed, upgrade) },
                     enabled = !busy,
@@ -456,7 +433,6 @@ private fun SchoolPluginRow(
     }
 }
 
-/** 进行中的那一步：转圈加一句话。导课页和插件页共用。 */
 @Composable
 internal fun SchoolImportProgressCard(text: String) {
     Surface(

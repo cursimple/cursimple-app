@@ -22,7 +22,7 @@ class PluginManifestTest {
               "version": "1.0.0",
               "versionCode": 1,
               "entry": "main.js",
-              "startUrl": "https://atrust.yangtzeu.edu.cn:4443/",
+              "startUrl": "https://atrust.example.edu:4443/",
               "userAgent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
               "webSession": {
                 "completionStableDelayMs": 2000,
@@ -35,7 +35,7 @@ class PluginManifestTest {
 
         assertEquals("edu.demo", manifest.id)
         assertEquals("main.js", manifest.entry)
-        assertEquals("https://atrust.yangtzeu.edu.cn:4443/", manifest.startUrl)
+        assertEquals("https://atrust.example.edu:4443/", manifest.startUrl)
         assertEquals(PluginWebEngineRequirement.ENGINE_SYSTEM_WEBVIEW, manifest.webEngine.preferred)
         assertEquals(
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
@@ -114,8 +114,8 @@ class PluginManifestTest {
         val userAgent = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 " +
             "(KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36"
         val manifest = PluginManifest(
-            id = "yangtzeu-eams-js-v1",
-            name = "长江大学教务插件 JS v1",
+            id = "exampleu-eams-js-v1",
+            name = "示例大学教务插件 JS v1",
             version = "1.0.1",
             versionCode = 1001,
             entry = "main.js",
@@ -124,7 +124,7 @@ class PluginManifestTest {
                 PluginPermission.NetworkFetch,
                 PluginPermission.ScheduleWrite,
             ),
-            allowedHosts = listOf("atrust.yangtzeu.edu.cn"),
+            allowedHosts = listOf("atrust.example.edu"),
             userAgent = userAgent,
         )
         val record = InstalledPluginRecord(
@@ -147,7 +147,7 @@ class PluginManifestTest {
             token = "token",
             record = record,
             sessionId = "session",
-            startUrl = "https://atrust.yangtzeu.edu.cn/",
+            startUrl = "https://atrust.example.edu/",
             termId = "2026-spring",
             entryScript = "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }",
             manifest = manifest,
@@ -164,13 +164,13 @@ class PluginManifestTest {
     @Test
     fun `manifest web session options flow into request`() {
         val manifest = PluginManifest(
-            id = "yangtzeu-eams-js-v1",
-            name = "长江大学教务插件 JS v1",
+            id = "exampleu-eams-js-v1",
+            name = "示例大学教务插件 JS v1",
             version = "1.0.1",
             versionCode = 1001,
             entry = "main.js",
             permissions = listOf(PluginPermission.ScheduleWrite),
-            allowedHosts = listOf("atrust.yangtzeu.edu.cn"),
+            allowedHosts = listOf("atrust.example.edu"),
             webSession = PluginWebSessionOptions(
                 completionStableDelayMs = 2500,
                 autoCompleteOnScheduleDraft = false,
@@ -196,7 +196,7 @@ class PluginManifestTest {
             token = "token",
             record = record,
             sessionId = "session",
-            startUrl = "https://atrust.yangtzeu.edu.cn/",
+            startUrl = "https://atrust.example.edu/",
             termId = "2026-spring",
             entryScript = "export async function run(ctx) { return ctx.schedule.commit({ courses: [] }); }",
             manifest = manifest,
@@ -210,13 +210,13 @@ class PluginManifestTest {
     fun `manifest start url takes priority over first allowed host`() {
         val startUrl = resolveWebSessionStartUrl(
             requestBaseUrl = "",
-            manifestStartUrl = "https://atrust.yangtzeu.edu.cn:4443/",
+            manifestStartUrl = "https://atrust.example.edu:4443/",
             allowedHosts = listOf(
-                "cas-yangtzeu-edu-cn.atrust.yangtzeu.edu.cn",
-                "atrust.yangtzeu.edu.cn",
+                "cas-example-edu.atrust.example.edu",
+                "atrust.example.edu",
             ),
         )
 
-        assertEquals("https://atrust.yangtzeu.edu.cn:4443/", startUrl)
+        assertEquals("https://atrust.example.edu:4443/", startUrl)
     }
 }

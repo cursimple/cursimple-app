@@ -24,7 +24,6 @@ private class NextCourseListFactory(
     appContext: Context,
     private val appWidgetId: Int,
 ) : RemoteViewsService.RemoteViewsFactory {
-    // 工厂会被系统长期复用，改完语言进程又不重启，所以每次取数都重新按当前语言包一层
     private var context: Context = appContext.widgetLocaleContext()
     private var rows: List<NextCourseRow> = emptyList()
     private var themeAccent: ThemeAccent = ThemeAccent.Green
@@ -68,7 +67,6 @@ private class NextCourseListFactory(
     override fun hasStableIds(): Boolean = true
 }
 
-/** 下一节课那一行的 RemoteViews，列表服务与内联行共用。 */
 internal fun buildNextCourseRow(
     context: Context,
     data: NextCourseRow,

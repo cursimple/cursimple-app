@@ -48,15 +48,12 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 
 /**
- * 首次进入时的分步引导。
- *
- * 整屏压一层半透明遮罩，把当前这一步要讲的区域挖空露出来，
- * 说明卡片避开这块区域放在另一侧，让用户看得见指的是哪。
+ * Highlight the current target through a translucent overlay while keeping its explanation
+ * visible.
  */
 @Composable
 fun FirstRunGuideOverlay(
     steps: List<GuideStep> = FIRST_RUN_GUIDE_STEPS,
-    /** 每进入一步都上报它要讲的界面，由宿主负责切过去。 */
     onNavigate: (GuideDestination) -> Unit = {},
     onFinish: () -> Unit,
 ) {
@@ -67,7 +64,6 @@ fun FirstRunGuideOverlay(
     var index by rememberSaveable { mutableIntStateOf(0) }
     val step = steps[index.coerceIn(steps.indices)]
 
-    // 先把界面切过去再讲：说明卡片压在那一页上面，用户看的是真页面
     val currentOnNavigate by rememberUpdatedState(onNavigate)
     LaunchedEffect(step.destination) { currentOnNavigate(step.destination) }
 
@@ -75,8 +71,7 @@ fun FirstRunGuideOverlay(
     val spotlight = step.anchor?.let { anchors[it] }
 
     BoxWithConstraints(
-        // 吃掉遮罩上的点击，否则会穿透到底层控件（例如点到抽屉按钮会在遮罩后偷偷打开抽屉）；
-        // 引导靠卡片上的按钮推进，不依赖点遮罩
+        // Consume scrim taps so underlying controls cannot activate.
         modifier = Modifier
             .fillMaxSize()
             .pointerInput(Unit) { detectTapGestures {} },
@@ -157,12 +152,7 @@ fun FirstRunGuideOverlay(
     }
 }
 
-/**
- * 半透明遮罩，把这一步要讲的那块挖出来。
- *
- * 位置由元素自己上报，四周留一点余量让框比元素稍大；
- * 还没上报到位置时只压遮罩不画框，不至于圈错地方。
- */
+/** Use reported element bounds with margin; omit the highlight until bounds are available. */
 @Composable
 private fun SpotlightScrim(spotlight: Rect?) {
     val scrimColor = Color.Black.copy(alpha = 0.62f)
@@ -199,7 +189,6 @@ private fun SpotlightScrim(spotlight: Rect?) {
 
 private val SPOTLIGHT_PADDING = 4.dp
 
-/** 进度点，让用户知道还有几步。 */
 @Composable
 private fun StepDots(current: Int, total: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
