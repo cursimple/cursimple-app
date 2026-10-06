@@ -56,8 +56,8 @@
     <string name="about_runtime_sdk">SDK range</string>
     <string name="about_license_line">MIT License · Copyright © 2026 the CurSimple Team</string>
     <string name="about_version_label">Version</string>
-    <string name="about_advanced_badge">Developer</string>
-    <string name="about_dev_mode_hint">Open Settings › Developer tools to find debugging tools and log export.</string>
+    <string name="about_advanced_badge">Advanced</string>
+    <string name="about_dev_mode_hint">Open Settings › Advanced tools to find debugging tools and log export.</string>
     <string name="about_project_desc">CurSimple is a microkernel Android timetable app that runs hot-updatable school plugins through a manifest and WebView sessions.</string>
     <string name="about_tech_title">Tech stack</string>
     <string name="about_tech_glance">1.1.1 (home-screen widget)</string>
@@ -761,7 +761,7 @@
     <string name="settings_ai_import_timeout_label">Timeout (seconds)</string>
     <string name="settings_ai_import_timeout_hint">%1$d-%2$d seconds, leave blank to use %3$d</string>
     <string name="settings_toast_ai_import_saved">AI image import settings saved</string>
-    <string name="settings_advanced_title">Developer tools</string>
+    <string name="settings_advanced_title">Advanced tools</string>
     <string name="settings_advanced_subtitle">Time debugging, reminder tests, logs, and data and files, grouped into the pages below.</string>
     <string name="settings_dev_files_title">Let file managers open the private folder</string>
     <string name="settings_dev_files_on">On, the app appears in the system file manager sidebar</string>
