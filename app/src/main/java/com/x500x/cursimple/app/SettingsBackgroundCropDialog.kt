@@ -1,7 +1,6 @@
 package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -32,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -54,12 +52,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/**
- * 背景图裁切。
- *
- * 预览框按课表比例显示，拖动与双指缩放决定取图范围，确认后裁好另存，
- * 用户在应用到课表前就能看到大致效果。
- */
+/** Preview the timetable-shaped crop before saving the transformed image. */
 @Composable
 internal fun ScheduleBackgroundCropDialog(
     source: Uri,
@@ -90,9 +83,7 @@ internal fun ScheduleBackgroundCropDialog(
             zoom = zoom,
         )
     } ?: CropPanBounds(0f, 0f)
-    // pointerInput 只在 source 变化时重启，手势闭包会一直抱着第一帧那份余量。
-    // 而第一帧 zoom 还是 1：图比画框窄的那个方向余量正好是 0，于是放大之后
-    // 那个方向依然按 0 余量算，怎么拖都不动。这里改成每帧都读最新的一份。
+    // Read current pan limits inside the gesture closure; initial limits become stale after zooming.
     val currentPanBounds = rememberUpdatedState(panBounds)
 
     AlertDialog(
@@ -120,7 +111,6 @@ internal fun ScheduleBackgroundCropDialog(
                         .pointerInput(source) {
                             detectTransformGestures { _, pan, gestureZoom, _ ->
                                 zoom = (zoom * gestureZoom).coerceIn(1f, 6f)
-                                // 拖动的像素按当前可移动余量折成偏移量，一路拖得到图片两端
                                 val bounds = currentPanBounds.value
                                 offsetX = (offsetX + cropOffsetFraction(pan.x, bounds.maxX))
                                     .coerceIn(-1f, 1f)
@@ -168,7 +158,7 @@ internal fun ScheduleBackgroundCropDialog(
                 onClick = {
                     working = true
                     scope.launch {
-                        // 解码、裁切、PNG 压缩、落盘都放到 IO 线程，避免大图卡住 UI
+                        // Decode, crop and encode images off the UI thread.
                         val saved = withContext(Dispatchers.IO) {
                             val size = ScheduleBackgroundImageStore.readSize(context, source)
                             val rect: CropSourceRect? = size?.let { (width, height) ->
@@ -195,12 +185,7 @@ internal fun ScheduleBackgroundCropDialog(
     )
 }
 
-/**
- * 画出会被裁到的那一块。
- *
- * 取图区域由 [cropSourceRect] 算出，与确认后落盘用的是同一套参数，
- * 因此框里看到的就是最终结果。
- */
+/** Use [cropSourceRect] for both preview and saved crop. */
 @Composable
 private fun CropPreviewImage(
     bitmap: ImageBitmap,
@@ -228,7 +213,6 @@ private fun CropPreviewImage(
     }
 }
 
-/** 取景框边线与三分辅助线，让用户看清哪一块会落到课表上。 */
 @Composable
 private fun CropFrameOverlay(modifier: Modifier = Modifier) {
     val lineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)

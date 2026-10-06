@@ -13,15 +13,11 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-/** 界面上显示的登录状态；令牌本身不往外给。 */
 data class GitHubAccount(val login: String, val avatarUrl: String)
 
 /**
- * 读私有仓库用的 GitHub 令牌。
- *
- * 令牌用 Android Keystore 里的密钥加密后存进单独的 SharedPreferences，
- * 这个文件在 backup_rules / data_extraction_rules 里排除了，也不进 WebDAV 备份：
- * 换手机要重新登录，令牌不会跟着备份四处走。
+ * Encrypt GitHub credentials with Keystore; exclude their preference file from cloud, device
+ * and WebDAV backups.
  */
 class GitHubAccountStore(context: Context) {
     private val prefs: SharedPreferences =
@@ -33,10 +29,8 @@ class GitHubAccountStore(context: Context) {
     private val _account = MutableStateFlow(readAccount())
     val account: StateFlow<GitHubAccount?> = _account
     private val _revision = MutableStateFlow(0L)
-    /** 同一个账号换了令牌也会触发来源重读。 */
     val revision: StateFlow<Long> = _revision
 
-    /** 取令牌；解不开（比如系统清过 Keystore）就当没登录。 */
     @Synchronized
     fun token(): String? {
         cachedToken?.let { return it }
@@ -108,7 +102,7 @@ class GitHubAccountStore(context: Context) {
     }
 
     companion object {
-        /** 与 backup_rules / data_extraction_rules 里的排除项保持一致。 */
+        /** Keep this filename aligned with backup exclusion rules. */
         const val PREFS_NAME = "github_account"
         private const val KEY_TOKEN = "token"
         private const val KEY_LOGIN = "login"

@@ -38,14 +38,12 @@ import com.x500x.cursimple.core.kernel.model.TimingProfileEntry
 import com.x500x.cursimple.core.kernel.model.TimingProfileLibrary
 import com.x500x.cursimple.core.kernel.model.active
 
-/** 名称为空的是内置那一套，按当前语言显示默认名。 */
 @Composable
 internal fun timingProfileDisplayName(entry: TimingProfileEntry): String {
     return entry.name.takeIf { it.isNotBlank() }
         ?: stringResource(R.string.settings_timing_profile_default_name)
 }
 
-/** 作息套数的选择与增删改。编辑节次内容仍在下方的编辑区里进行。 */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun TimingProfileLibrarySection(

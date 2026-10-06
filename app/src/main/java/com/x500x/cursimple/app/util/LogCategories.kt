@@ -8,11 +8,8 @@ import com.x500x.cursimple.core.plugin.logging.PluginLogSink
 import com.x500x.cursimple.core.reminder.logging.ReminderLogSink
 
 /**
- * 诊断日志按用途分几类，高级设置里可以只留自己在查的那几类。
- *
- * 类别从事件名的前缀认出来（「class_notice.deliver.failure」就是上课通知），
- * 不用改每一处打日志的地方。关掉的类别只丢 info，警告和错误照记：
- * 出了问题回头翻日志时不能是空的。
+ * Classify logs by event prefix. Category filtering removes info only, retaining warnings and
+ * errors.
  */
 enum class LogCategory(
     val key: String,
@@ -27,7 +24,6 @@ enum class LogCategory(
     ;
 
     companion object {
-        /** 插件日志走自己那条 sink，不按前缀认；其余认不出的都算「其他」 */
         fun of(message: String): LogCategory =
             entries.firstOrNull { category -> category.prefixes.any(message::startsWith) } ?: General
     }
@@ -37,7 +33,6 @@ object LogCategories {
     private const val PREFS = "diagnostics_log_categories"
     private const val KEY_DISABLED = "disabled"
 
-    /** 每条日志都要问一遍，读一次 SharedPreferences 后留在内存里 */
     @Volatile
     private var disabled: Set<String>? = null
 
@@ -61,7 +56,6 @@ object LogCategories {
         priority >= Log.WARN || isEnabled(context, category)
 }
 
-/** 应用和提醒日志共用的那份文件，写之前按类别过一遍。 */
 class CategoryFilteredSink(
     context: Context,
     private val delegate: AppDiagnosticsFileSink,
@@ -74,7 +68,6 @@ class CategoryFilteredSink(
     }
 }
 
-/** 插件日志整类开关。 */
 class CategoryFilteredPluginSink(
     context: Context,
     private val delegate: PluginLogSink,

@@ -12,100 +12,77 @@ import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 import com.x500x.cursimple.app.download.DownloadSourceIds
 
-/** 更新链路上某个错误的可读原因，逻辑层只判定种类，文字由界面层按当前语言渲染。 */
+/** Typed update failures; the UI supplies localized text. */
 sealed interface UpdateErrorReason {
-    /** 域名无法解析。 */
     data object UnknownHost : UpdateErrorReason
 
-    /** 连接超时。 */
     data object Timeout : UpdateErrorReason
 
-    /** 无法建立连接。 */
     data object ConnectFailed : UpdateErrorReason
 
-    /** 路由不可达或端口不可达。 */
     data object Unreachable : UpdateErrorReason
 
-    /** 安全连接建立失败。 */
+    /** Secure connection setup failed. */
     data object TlsFailed : UpdateErrorReason
 
-    /** 更新信息不是合法 JSON。 */
     data object MalformedManifest : UpdateErrorReason
 
-    /** 其余网络请求失败。 */
+    /** Other network failure. */
     data object NetworkFailed : UpdateErrorReason
 
-    /** 校验安装包摘要未通过。 */
     data object ChecksumFailed : UpdateErrorReason
 
-    /** 没有任何可用的下载源。 */
     data object NoSource : UpdateErrorReason
 
-    /** 无法归类的错误。 */
     data object Unknown : UpdateErrorReason
 
-    /** 从异常文本里识别出的 HTTP 状态码。 */
     data class HttpStatus(val statusCode: Int) : UpdateErrorReason
 
-    /** 异常文本已是可直接展示的内容，原样透传。 */
     data class Passthrough(val text: String) : UpdateErrorReason
 
-    /** 下载更新清单失败，[detail] 为具体原因。 */
+    /** Update-manifest download failure with [detail]. */
     data class ManifestDownloadFailed(val detail: UpdateErrorReason) : UpdateErrorReason
 
-    /** 下载测速失败，[detail] 为具体原因。 */
+    /** Download probe failure with [detail]. */
     data class ProbeFailed(val detail: UpdateErrorReason) : UpdateErrorReason
 }
 
-/** 携带可读原因的更新异常，跨协程边界传递而不丢失类型。 */
 class UpdateException(val reason: UpdateErrorReason) : Exception()
 
-/** 展示给用户的更新状态文案的原因，界面层用 Context 渲染。 */
 sealed interface UpdateStatusReason {
-    /** 拿到响应但状态码不可用。 */
     data class SourceHttpError(val sourceName: String, val statusCode: Int) : UpdateStatusReason
 
-    /** 源返回的正文不是更新信息。 */
     data class SourceUnusableBody(val sourceName: String) : UpdateStatusReason
 
-    /** 没有任何可用的更新源。 */
     data object SourceNoneAvailable : UpdateStatusReason
 
-    /** 所有源都连不上，[detail] 为首个可读原因。 */
     data class SourceUnreachable(val detail: UpdateErrorReason) : UpdateStatusReason
 
-    /** 检查失败但拿不到更具体的原因。 */
+    /** Check failure without a more specific cause. */
     data object CheckRetry : UpdateStatusReason
 
-    /** 检查过程中抛出异常，[detail] 为具体原因。 */
     data class CheckError(val detail: UpdateErrorReason) : UpdateStatusReason
 
-    /** 更新清单缺少版本号。 */
     data object ManifestVersionCodeMissing : UpdateStatusReason
 
-    /** 更新清单缺少版本名称。 */
     data object ManifestVersionNameMissing : UpdateStatusReason
 
-    /** 更新清单没有提供任何可用安装包。 */
     data object AssetNoPackage : UpdateStatusReason
 
-    /** 有安装包但没有适配本机的架构，[deviceAbi] 为本机首选架构。 */
     data class AssetNoCompatibleAbi(
         val deviceAbi: String?,
         val availableAbis: List<String>,
     ) : UpdateStatusReason
 
-    /** 没有匹配当前设备的安装包，兜底提示。 */
     data object AssetNoMatch : UpdateStatusReason
 
-    /** 下载失败，[detail] 为具体原因。 */
+    /** Download failure with [detail]. */
     data class DownloadDetail(val detail: UpdateErrorReason) : UpdateStatusReason
 
-    /** 下载失败但拿不到更具体的原因。 */
+    /** Download failure without a more specific cause. */
     data object DownloadRetry : UpdateStatusReason
 }
 
-/** 单个更新源返回的文本响应 */
 data class UpdateSourceResponse(
     val sourceName: String,
     val statusCode: Int,
@@ -113,7 +90,7 @@ data class UpdateSourceResponse(
     val latencyMillis: Long,
 )
 
-/** 单个更新源的请求结果：要么拿到响应，要么在网络层失败 */
+/** HTTP response or transport failure from one update source. */
 data class UpdateSourceAttempt(
     val sourceName: String,
     val response: UpdateSourceResponse? = null,
@@ -121,31 +98,26 @@ data class UpdateSourceAttempt(
 )
 
 sealed interface UpdateSourceSelection {
-    /** 至少有一个源返回 2xx，取其中最快的一个 */
     data class Success(val response: UpdateSourceResponse) : UpdateSourceSelection
 
-    /** 拿到响应的源一致指向“资源不存在” */
     data object NotFound : UpdateSourceSelection
 
-    /** 拿到响应，但状态码不可用 */
     data class HttpError(val sourceName: String, val statusCode: Int) : UpdateSourceSelection
 
-    /** 所有源都返回 2xx，但正文都不是期望格式 */
     data class UnusableBody(val sourceName: String) : UpdateSourceSelection
 
-    /** 没有任何源返回响应 */
     data class Unreachable(val attempts: List<UpdateSourceAttempt>) : UpdateSourceSelection
 }
 
 object UpdateSourceSelector {
-    /** GitHub 源站的 404 可以直接判定为没有该资源，代理源的 404 不具备同等权威性 */
+    /** Origin 404 proves absence; proxy 404 does not. */
     const val AUTHORITATIVE_SOURCE_NAME = DownloadSourceIds.GITHUB_ORIGIN
 
     private const val HTTP_NOT_FOUND = 404
 
     /**
-     * [isUsableBody] 用来剔除返回 2xx 但正文不是期望格式的代理源，
-     * 这类响应不能算命中，否则会盖掉源站给出的权威状态码。
+     * [isUsableBody] rejects malformed 2xx proxy responses before they can mask authoritative
+     * origin status.
      */
     fun select(
         attempts: List<UpdateSourceAttempt>,
@@ -181,7 +153,7 @@ object UpdateSourceSelector {
     private val RESPONSE_ORDER = compareBy<UpdateSourceResponse>({ it.latencyMillis }, { it.sourceName })
 }
 
-/** 把选择结果转成失败原因，成功与“没有发布版本”返回 null */
+/** Success and confirmed absence have no failure reason. */
 fun updateSourceFailureMessage(selection: UpdateSourceSelection): UpdateStatusReason? = when (selection) {
     is UpdateSourceSelection.Success -> null
     UpdateSourceSelection.NotFound -> null
@@ -202,10 +174,8 @@ fun updateSourceFailureMessage(selection: UpdateSourceSelection): UpdateStatusRe
 sealed interface UpdateAssetSelection {
     data class Matched(val asset: AppUpdateAsset) : UpdateAssetSelection
 
-    /** 清单里没有任何字段完整的安装包 */
     data object NoAsset : UpdateAssetSelection
 
-    /** 有安装包，但没有本机 ABI 也没有 universal */
     data class NoCompatibleAbi(
         val deviceAbis: List<String>,
         val availableAbis: List<String>,
@@ -232,7 +202,7 @@ object UpdateAssetSelector {
     }
 }
 
-/** 把资产选择结果转成失败原因，命中时返回 null */
+/** Asset hits have no failure reason. */
 fun updateAssetFailureMessage(selection: UpdateAssetSelection): UpdateStatusReason? = when (selection) {
     is UpdateAssetSelection.Matched -> null
     UpdateAssetSelection.NoAsset -> UpdateStatusReason.AssetNoPackage
@@ -244,10 +214,7 @@ fun updateAssetFailureMessage(selection: UpdateAssetSelection): UpdateStatusReas
 
 private val HTTP_STATUS_DETAIL = Regex("""HTTP (\d{3})""")
 
-/**
- * 过滤第三方库与 JDK 抛出的英文异常文本，只保留自己写的中文提示或 HTTP 状态。
- * 无法识别时返回 null，由调用方给出统一原因。
- */
+/** Keep recognized app messages and HTTP status; omit raw library exception text. */
 fun readableErrorReason(message: String?): UpdateErrorReason? {
     val trimmed = message?.trim().orEmpty()
     if (trimmed.isEmpty()) {
@@ -261,14 +228,13 @@ fun readableErrorReason(message: String?): UpdateErrorReason? {
         ?.let { UpdateErrorReason.HttpStatus(it) }
 }
 
-/** 把更新链路上抛出的异常转成可读原因 */
 fun describeUpdateError(error: Throwable): UpdateErrorReason {
     (error as? UpdateException)?.let { return it.reason }
     networkErrorReason(error)?.let { return it }
     return readableErrorReason(error.message) ?: UpdateErrorReason.Unknown
 }
 
-/** 把下载环节的失败原因转成用户可读的失败提示 */
+/** Localize typed download failures for presentation. */
 fun downloadFailureStatus(reason: DownloadFailureReason): UpdateStatusReason = when (reason) {
     is DownloadFailureReason.Thrown -> {
         val detail = describeUpdateError(reason.error)
@@ -294,14 +260,12 @@ private fun networkErrorReason(error: Throwable): UpdateErrorReason? = when {
     else -> null
 }
 
-/** 更新清单里的版本字段是否足以判断新旧，不足时返回可读的原因。 */
 fun updateManifestVersionProblem(versionCode: Int, versionName: String): UpdateStatusReason? = when {
     versionCode <= 0 -> UpdateStatusReason.ManifestVersionCodeMissing
     versionName.isBlank() -> UpdateStatusReason.ManifestVersionNameMissing
     else -> null
 }
 
-/** 把错误原因渲染成用户可读的中文/英文描述。 */
 fun Context.updateErrorText(reason: UpdateErrorReason): String = when (reason) {
     UpdateErrorReason.UnknownHost -> getString(R.string.update_error_unknown_host)
     UpdateErrorReason.Timeout -> getString(R.string.update_error_timeout)
@@ -321,7 +285,6 @@ fun Context.updateErrorText(reason: UpdateErrorReason): String = when (reason) {
         getString(R.string.update_error_probe_failed, updateErrorText(reason.detail))
 }
 
-/** 把更新状态原因渲染成用户可读的中文/英文描述。 */
 fun Context.updateStatusText(reason: UpdateStatusReason): String = when (reason) {
     is UpdateStatusReason.SourceHttpError ->
         getString(R.string.update_check_source_http_error, reason.sourceName, reason.statusCode)
@@ -353,10 +316,7 @@ fun Context.updateStatusText(reason: UpdateStatusReason): String = when (reason)
     UpdateStatusReason.DownloadRetry -> getString(R.string.update_download_retry)
 }
 
-/**
- * 更新面板当前展示的状态。
- * 只记录种类与参数，文字在界面层按当前语言渲染，切换应用内语言后才会跟着变。
- */
+/** Store status types and arguments, resolving text with the current locale. */
 sealed interface UpdatePanelStatus {
     data object Idle : UpdatePanelStatus
 
@@ -375,9 +335,6 @@ sealed interface UpdatePanelStatus {
     data class Ignored(val versionName: String) : UpdatePanelStatus
 
     data class IgnoredManual(val versionName: String) : UpdatePanelStatus
-
-    /** 该版本只关掉了弹窗，设置入口的角标仍在。 */
-    data class Muted(val versionName: String) : UpdatePanelStatus
 
     data class Downloading(val fileName: String) : UpdatePanelStatus
 

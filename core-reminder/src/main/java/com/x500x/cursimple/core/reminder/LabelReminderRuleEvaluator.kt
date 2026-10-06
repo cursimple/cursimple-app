@@ -112,26 +112,23 @@ internal class LabelReminderRuleEvaluator {
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
         dayPolicy: ReminderDayPolicy = ReminderDayPolicy(),
     ): List<DailyReminderObject> {
-        // 没有开学日期就换算不出教学周，无法判断课程哪天上，不下发任何提醒
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val day = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
         val allCourses = schedule.dailySchedules.flatMap { it.courses }
-        // 从别天挪到这天的课；该不该上已按它原本那天判过，不再按本周过滤
         val movedIn = coursesMovedTo(
             date = targetDate,
             overrides = temporaryScheduleOverrides,
             courseById = { id -> allCourses.firstOrNull { it.id == id } },
             isOriginallyActive = { course, from -> course.isActiveInTermWeek(resolveTermWeek(termStart, from)) },
         )
-        // 明确的补课日由 resolveScheduleDay 判为上课日；假日/静音规则不再被移入课程绕过。
+        // Explicit make-up days may override holidays; moved courses still respect holiday and mute policy.
         if (dayPolicy.suppresses(targetDate, day)) {
             return emptyList()
         }
         return allCourses
             .asSequence()
-            // 被单独挪到别天的课，这天不再提醒
             .filterNot { isCourseMovedAwayFrom(targetDate, it, temporaryScheduleOverrides) }
-            // 只调某几节时这天同时挂着两天的课，逐门问过来源日才知道各自算哪天、按哪周
+            // Mixed-day partial swaps require per-course source-date resolution.
             .mapNotNull { course ->
                 temporaryScheduleCourseSourceDate(
                     date = targetDate,
@@ -149,7 +146,6 @@ internal class LabelReminderRuleEvaluator {
             .toList()
     }
 
-    /** 课程配上它的节次标签与节次时间；没有标签或对不上节次的课不产生提醒对象。 */
     private fun CourseItem.toDailyObject(
         timingProfile: TermTimingProfile,
         date: LocalDate,
@@ -208,7 +204,7 @@ internal class LabelReminderRuleEvaluator {
         dayPolicy: ReminderDayPolicy,
     ): List<LocalDate> {
         val termStart = timingProfile.termStartLocalDate()
-        // 没有开学日期时只剩临时调课这类带具体日期的安排，常规课程排不出日期
+        // Without a term date, only explicitly dated overrides can produce occurrences.
         val regularDates = if (termStart == null) {
             emptyList()
         } else {
@@ -235,7 +231,6 @@ internal class LabelReminderRuleEvaluator {
         rule: ReminderRule,
         zone: ZoneId,
     ): ReminderPlan? {
-        // 时间串非法时跳过这一节，不让异常掀翻整轮同步
         val startTime = daily.slot.startLocalTimeOrNull() ?: return null
         val classStart = LocalDateTime.of(daily.date, startTime)
         val trigger = classStart
@@ -279,7 +274,7 @@ internal class LabelReminderRuleEvaluator {
             startNode = daily.course.time.startNode,
             endNode = daily.course.time.endNode,
             location = daily.course.location,
-            // 规则按标签匹配到的课，标签就是它所在时段的名字；横跨几个时段时只写节号
+            // Use a single timing-slot label when available; multi-slot courses use period numbers.
             slotLabel = daily.slotLabel.trim().takeIf {
                 daily.slot.startNode <= daily.course.time.startNode && daily.slot.endNode >= daily.course.time.endNode
             }.orEmpty(),

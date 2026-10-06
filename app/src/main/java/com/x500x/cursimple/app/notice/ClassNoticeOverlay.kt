@@ -26,68 +26,44 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * 「系统增强」皮肤。
- *
- * 系统通知的长相是系统画的，动效和毛玻璃在通知 API 里根本不存在；要这两样就只能
- * 自己加一个窗口来画。代价写在这里，免得以后有人以为它能取代系统通知：
- *
- * - 要 SYSTEM_ALERT_WINDOW 权限，得用户去系统里手动给。
- * - 盖不住锁屏。锁屏上只有系统通知，所以这一档始终是「系统通知照发 + 解锁时额外画一层」，
- *   而不是替代品。
- * - 前台应用可以把它藏掉。系统设置、权限弹窗、部分支付/银行类应用会开
- *   setHideOverlayWindows（反遮罩攻击），这时窗口照样挂得上，但被系统按下
- *   mForceHideNonSystemOverlayWindow，alpha 直接归零。查不到也拦不住，
- *   好在通知本身照发，通知栏里还在。
- *
- * 为什么用 Dialog 而不是 WindowManager.addView：
- * 有界的背景模糊（只糊横幅自己那一块）是 Window#setBackgroundBlurRadius，而
- * addView 挂上去的裸 View 没有 Window。WindowManager.LayoutParams 上只有
- * blurBehindRadius，那个糊的是窗口背后的**整个屏幕**——一条上课提示把整个桌面
- * 糊掉太喧宾夺主。把窗口类型设成 TYPE_APPLICATION_OVERLAY 的 Dialog 两头都占：
- * 既是悬浮窗，又有 Window 可以调有界模糊。
+ * Overlay Dialog supplies bounded background blur through Window. Requires overlay permission,
+ * cannot cover the lock screen, and may be hidden by secure apps; system notifications remain
+ * available.
  */
 object ClassNoticeOverlay {
 
-    /** 只等窗口挂好，不占用广播接收器的生命周期等待整个展示时长。 */
+    /** Wait only for window attachment, not the banner's full display duration. */
     private const val ATTACH_TIMEOUT_MILLIS = 1_500L
 
-    /** 滑出去这么远就收起，不够就弹回原位 */
     private const val SWIPE_DISMISS_DP = 48f
 
-    /** 没有有界模糊时底色要浓得多，不然半透明一层压在桌面上几乎看不出边 */
     private const val SURFACE_ALPHA_BLURRED = 0.70f
     private const val SURFACE_ALPHA_SOLID = 0.94f
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    /** 同一时刻只挂一个，来了新的就把旧的顶掉 */
+    /** Only one banner is mounted; a new one replaces it. */
     private var current: Dialog? = null
     private var currentGesture: SwipeToDismiss? = null
     private val dismissRunnable = Runnable { dismiss() }
 
-    /** 最近一次 [show] 是否已经完成窗口挂载（成功或失败均放行）。 */
+    /** Whether the latest [show] attachment attempt has finished. */
     @Volatile
     private var attached: CompletableDeferred<Boolean>? = null
 
-    /** 有没有权限画悬浮窗。 */
+    /** Whether overlay drawing is permitted. */
     fun canDraw(context: Context): Boolean = Settings.canDrawOverlays(context)
 
-    /**
-     * 这一刻能不能用悬浮窗皮肤。
-     *
-     * 锁屏上悬浮窗盖不住锁屏，落到用户眼里就是「什么都没弹」，所以这时候直接说不行，
-     * 让调用方退回系统悬浮横幅。
-     */
+    /** Reject overlays while locked so callers can choose a visible fallback. */
     fun canShowNow(context: Context): Boolean {
         if (!canDraw(context)) return false
         val keyguard = context.getSystemService(KeyguardManager::class.java) ?: return true
         return !keyguard.isKeyguardLocked
     }
 
-    /** 扩展组件的通知也借这条横幅显示时，卡片上多出来的那一下点击。 */
     data class NoticeAction(val label: String, val onClick: () -> Unit)
 
-    /** 弹一条。可以从广播接收器那种非主线程的地方调，内部自己切回主线程。 */
+    /** Safe from non-main callers; window work runs on the main thread. */
     fun show(
         context: Context,
         content: ClassNoticeNotifier.Content,
@@ -98,10 +74,8 @@ object ClassNoticeOverlay {
     }
 
     /**
-     * 弹一条自定义横幅，给扩展组件的通知用（见 `ExtensionNotifier`）。
-     *
-     * 内容复用上课通知那一套（[ClassNoticeNotifier.Content]）：组件通知的标题、正文、
-     * 头部小字分别填进去，长相和上课横幅完全一致。点横幅走 [onTap]，卡片上的按钮走 [action]。
+     * Component banners reuse class-notice layout; [onTap] and [action] handle separate
+     * interactions.
      */
     fun show(
         context: Context,
@@ -127,10 +101,7 @@ object ClassNoticeOverlay {
         }
     }
 
-    /**
-     * 广播接收器只等窗口建立，再及时 finish，避免 15～60 秒展示导致广播超时。
-     * TYPE_APPLICATION_OVERLAY 显示期间系统会提高进程优先级，计时由主线程负责。
-     */
+    /** Release broadcasts after attachment; the main thread owns display timing. */
     suspend fun awaitShown(): Boolean {
         val done = attached ?: return false
         return withTimeoutOrNull(ATTACH_TIMEOUT_MILLIS) { done.await() } ?: false
@@ -152,9 +123,7 @@ object ClassNoticeOverlay {
         val density = context.resources.displayMetrics.density
 
         val dialog = Dialog(themed, R.style.ClassNoticeOverlayDialog)
-        // inflate(res, null) 会把根布局上的 layout_height 丢掉，setContentView(View)
-        // 再按 MATCH_PARENT 兜底，窗口就比卡片高出一截；有界模糊按窗口矩形裁，
-        // 多出来那块会露成一个方角的模糊矩形。所以这里显式给一份 WRAP_CONTENT
+        // Set WRAP_CONTENT explicitly because inflation without a parent loses the root height.
         dialog.setContentView(
             view,
             ViewGroup.LayoutParams(
@@ -171,15 +140,12 @@ object ClassNoticeOverlay {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
         )
         window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-        // DecorView 默认会给系统栏留内边距，留了窗口就又比卡片大了
         window.decorView.setPadding(0, 0, 0, 0)
-        // 对话框窗口自带阴影，会在圆角卡片下方露出一块方角灰影；卡片自己不需要投影
         window.setElevation(0f)
-        // 圆角背景挂在 window 上而不是内容布局上：有界模糊会被裁进这个形状，
-        // 挂在里层的话模糊会露出方角
+        // Put rounding on the Window background so bounded blur follows its shape.
         val blurred = shouldBlur(context, preferences)
         window.setBackgroundDrawable(glassBackground(theme, blurred, density))
-        // 动画也挂在窗口上：玻璃底属于窗口，只动内容的话底板一出来就在原位
+        // Animate the Window so content and blurred backing move together.
         window.setWindowAnimations(
             when (preferences.animation) {
                 ClassNoticeAnimation.None -> 0
@@ -195,7 +161,6 @@ object ClassNoticeOverlay {
             y = context.resources.getDimensionPixelSize(R.dimen.class_notice_overlay_top)
             dimAmount = 0f
         }
-        // 版本判断 shouldBlur 里已经做了，但 lint 跨函数看不出来，这里再写一次
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && blurred) {
             window.setBackgroundBlurRadius(blurRadiusPx(context, preferences))
         }
@@ -244,7 +209,7 @@ object ClassNoticeOverlay {
         mainHandler.postDelayed(dismissRunnable, visibleMillis)
     }
 
-    /** 横幅里的 logo 和三行字；悬浮窗和锁屏上那一版（[ClassNoticeLockActivity]）共用。 */
+    /** Shared logo and text layout for overlay and lock-screen banners. */
     internal fun bindCard(
         context: Context,
         view: android.view.View,
@@ -255,7 +220,6 @@ object ClassNoticeOverlay {
         val density = context.resources.displayMetrics.density
         view.findViewById<ImageView>(R.id.overlay_logo).apply {
             setImageResource(R.mipmap.ic_launcher_foreground)
-            // logo 垫一块主题色的浅底，一眼看出是哪个 App、用的哪个主题色
             background = GradientDrawable().apply {
                 cornerRadius = 14f * density
                 setColor(theme.primaryContainer)
@@ -288,17 +252,14 @@ object ClassNoticeOverlay {
                 cornerRadius = 999f * density
                 setColor(theme.primaryContainer)
             }
-            // 按钮自己吃掉点击，别再落到卡片上（那会顺手把横幅点掉、只打开课表）
+            // Consume action clicks before the card's navigation handler.
             setOnClickListener { action.onClick() }
         }
     }
 
     /**
-     * 毛玻璃的底：主题色浅底往表面色过渡的半透明圆角块，外加一圈描边。
-     *
-     * 以前是一层 25% 的白，模糊没生效（省电、低端机、模拟器）或者桌面本来就偏白时，
-     * 玻璃和背景几乎分不开。现在底色带主题色、浓度按有没有模糊分两档，
-     * 再用一圈主题色描边把边界勾出来——窗口不能投影（会露出方角阴影），只能靠描边。
+     * Use a themed translucent surface and outline; strengthen opacity when blur is
+     * unavailable.
      */
     internal fun glassBackground(theme: NoticeTheme, blurred: Boolean, density: Float): GradientDrawable {
         val alpha = if (blurred) SURFACE_ALPHA_BLURRED else SURFACE_ALPHA_SOLID
@@ -321,10 +282,8 @@ object ClassNoticeOverlay {
         ColorUtils.setAlphaComponent(color, (alpha * 255).toInt().coerceIn(0, 255))
 
     /**
-     * 有界模糊只在 API 31+ 且机型开了跨窗口模糊时才有。
-     *
-     * 关掉这条的机器（省电模式、低端机、高级选项里关了窗口模糊）上设了也没效果，
-     * 这时候就靠背景本身那层半透明白，不至于难看。
+     * Bounded blur requires API 31+ and enabled cross-window blur; retain a translucent
+     * fallback.
      */
     private fun shouldBlur(context: Context, preferences: ClassNoticePreferences): Boolean {
         if (!preferences.blurEnabled) return false
@@ -333,19 +292,13 @@ object ClassNoticeOverlay {
         return windowManager.isCrossWindowBlurEnabled
     }
 
-    /**
-     * 把「模糊强度」百分比折成像素半径。
-     *
-     * 设置里存的是百分比不是像素：同一个像素半径在 1080p 和 2K 屏上糊出来的程度差很多，
-     * 先按百分比取 dp 再乘密度，各机型看到的才是同一个效果。
-     */
+    /** Convert blur percentage through dp and density for consistent visual strength. */
     private fun blurRadiusPx(context: Context, preferences: ClassNoticePreferences): Int {
         val ratio = ClassNoticePreferences.coerceBlurStrength(preferences.blurStrength) / 100f
         val dp = ClassNoticePreferences.BLUR_RADIUS_DP_AT_FULL * ratio
         return (dp * context.resources.displayMetrics.density).toInt().coerceAtLeast(1)
     }
 
-    /** 收起。退场动画是窗口动画，摘窗口时系统自己播。 */
     fun dismiss() {
         mainHandler.removeCallbacks(dismissRunnable)
         dismissNow()

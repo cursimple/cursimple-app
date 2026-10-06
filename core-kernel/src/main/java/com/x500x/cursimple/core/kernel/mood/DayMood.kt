@@ -9,10 +9,7 @@ import java.time.LocalTime
 import kotlin.random.Random
 
 /**
- * 今天没课、放假、或者课都上完了的时候，用一句带点人味的话代替干巴巴的「今日没有课程」。
- *
- * 每种情形各有一组句子，按日期挑一句：同一天里 App 和小组件说的是同一句，不会一刷新就换，
- * 第二天再换一句。不进设置、不写进更新公告，留着当彩蛋。
+ * Date-seeded empty-state messages stay consistent between app and widgets throughout the day.
  */
 enum class DayMood(val lines: Int) {
     LateNight(R.array.mood_late_night),
@@ -34,7 +31,6 @@ enum class DayMood(val lines: Int) {
     DoneEvening(R.array.mood_done_evening),
     Done(R.array.mood_done),
 
-    // 下面几类不经 [dayMood] 判断，由各个小组件在对应的空状态下直接取用
     TomorrowFree(R.array.mood_tomorrow_free),
     WeekFree(R.array.mood_week_free),
     NoAlarms(R.array.mood_no_alarms),
@@ -42,13 +38,9 @@ enum class DayMood(val lines: Int) {
 }
 
 /**
- * 挑出今天该说哪类话；还有课在上或没上的时候返回 null，那会儿该看的是课。
- *
- * @param holidayNameRes 内置假日名称资源（[com.x500x.cursimple.core.kernel.model.ScheduleDayResolution.holidayNameRes]），
- *   认得出是哪个节就说那个节的话，认不出按普通假期说。
- * @param tomorrowHoliday 明天是否放假；不知道时传 null，相关的几类就不说。
- * @param timeSensitive 是否按钟点说话（深夜、晚上、周日晚上）。小组件不会准点刷新，
- *   挂在桌面上的「早点睡」到第二天中午还在就尴尬了，所以只有 App 里传 true。
+ * Return null while courses remain. holidayNameRes selects holiday-specific text; unknown
+ * tomorrowHoliday omits related cases. Enable timeSensitive only for promptly refreshed app
+ * surfaces.
  */
 fun dayMood(
     now: LocalDateTime,
@@ -95,7 +87,6 @@ private fun holidayMoodOf(nameRes: Int?): DayMood = when (nameRes) {
     else -> DayMood.HolidayOther
 }
 
-/** 同一天、同一类话总是同一句；换一天或换一类就重新抽。 */
 fun dayMoodLineIndex(date: LocalDate, mood: DayMood, size: Int): Int =
     if (size <= 1) 0 else Random(date.toEpochDay() * 31 + mood.ordinal).nextInt(size)
 

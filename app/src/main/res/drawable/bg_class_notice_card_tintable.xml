@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 品牌卡片的底（自选主题色）：白底圆角，由 ClassNoticeNotifier 按自选色着色 -->
+<!-- White rounded base for runtime theme tinting. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="#FFFFFFFF" />

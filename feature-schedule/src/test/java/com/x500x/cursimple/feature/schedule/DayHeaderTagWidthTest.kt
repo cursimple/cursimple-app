@@ -4,22 +4,17 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 表头小标签能不能在一列宽里显示完整。
- *
- * 「按10/10」是这行里最宽的一种：一个全角「按」加五个半角字符。它被省略成「按1…」
- * 就完全失去意义——看不出到底按的是哪天。这里按中日韩字体的常见宽度比例估算，
- * 把「缩到下限时应当放得下」这条约束钉住，改动字号下限或内边距时不会悄悄退化。
+ * Pin source-date label fit at minimum size so padding or font changes cannot silently truncate
+ * it.
  */
 class DayHeaderTagWidthTest {
 
-    /** 全角字约占一个字号宽，半角数字与斜杠约占一半。 */
     private fun estimatedWidthDp(text: String, fontSizeSp: Float, fontScale: Float): Float {
         val fullWidthCount = text.count { it.code > 0x2E80 }
         val halfWidthCount = text.length - fullWidthCount
         return (fullWidthCount + halfWidthCount * 0.5f) * fontSizeSp * fontScale
     }
 
-    /** 一列的可用宽度：列宽减去表头左右内边距；今天那一列还要再减胶囊的内边距。 */
     private fun availableWidthDp(columnWidthDp: Float, isToday: Boolean): Float {
         val headerPadding = 2f * 2
         val todayCapsulePadding = if (isToday) 3f * 2 else 0f
@@ -31,7 +26,6 @@ class DayHeaderTagWidthTest {
 
     @Test
     fun `普通一列在标准字号下放得下按某天`() {
-        // 360dp 屏、节次栏约 30dp、七列显示
         val columnWidth = (360f - 30f) / 7f
         val width = estimatedWidthDp(overrideTag, minTagFontSizeSp, fontScale = 1f)
 
@@ -54,7 +48,6 @@ class DayHeaderTagWidthTest {
 
     @Test
     fun `系统字体放到最大时也不至于被省略`() {
-        // 用户把系统字体拉到 1.3 倍，正是反馈里出现「按1…」的那种情形
         val columnWidth = (360f - 30f) / 7f
         val width = estimatedWidthDp(overrideTag, minTagFontSizeSp, fontScale = 1.3f)
 
@@ -66,7 +59,7 @@ class DayHeaderTagWidthTest {
 
     @Test
     fun `窄屏七列时也放得下`() {
-        // 320dp 的小屏，列宽只剩 41dp 出头
+        // Narrow-screen fixture leaves about 41dp per day.
         val columnWidth = (320f - 30f) / 7f
         val width = estimatedWidthDp(overrideTag, minTagFontSizeSp, fontScale = 1f)
 

@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 日期表头的高度要跟着字号与系统字体缩放长，否则大字号下星期或调休那行会被切掉。 */
+/** Header height follows font size and system scaling. */
 class DayHeaderHeightTest {
 
     private val density = Density(density = 3f, fontScale = 1f)

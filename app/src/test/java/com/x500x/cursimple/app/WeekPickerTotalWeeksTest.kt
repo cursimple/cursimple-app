@@ -68,7 +68,7 @@ class WeekPickerTotalWeeksTest {
 
     @Test
     fun `当前周比课程周次还靠后时总周数跟着当前周走`() {
-        // 课表只排到 16 周但人已经在第 20 周，周次面板不能把当前周关在外面
+        // The picker must retain access to the current week even beyond course coverage.
         val derived = derivedWeekCount(
             schedule = schedule(course(listOf(1, 16))),
             manualCourses = emptyList(),
@@ -80,15 +80,13 @@ class WeekPickerTotalWeeksTest {
 
     @Test
     fun `总周数不随正在看的那一周变化`() {
-        // 这是「自己加空白周」引入过的一个回归：总周数一旦跟着当前页走，
-        // 再叠上加出来的周就成了自增循环——翻到最后一周总数就 +1，又多一页，
-        // 再翻又 +1，周数一路涨下去。
+        // Viewed-week changes must not inflate the total when extra blank weeks exist.
         val args = schedule(course(listOf(1, 17)))
         val atWeekOne = resolveWeekPickerTotalWeeks(args, emptyList(), currentWeek = 1, extraWeekCount = 1)
 
         assertEquals(18, atWeekOne)
 
-        // 模拟「翻到第 18 周」之后再算一次：总数必须还是 18，不能变成 19
+        // Recomputing after paging must preserve the same total.
         val afterBrowsingLastWeek = resolveWeekPickerTotalWeeks(
             args,
             emptyList(),

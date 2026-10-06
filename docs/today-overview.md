@@ -1,25 +1,19 @@
-# 今日课程概览
+# Today's overview
 
-主界面直接显示课表，周视图不增加任何内容。切到日视图并停在今天时，课表上方出现今日卡片：已上完的课程数环、当前或下一节课程、上课进度、上下课倒计时和下一节简讯。
-点击卡片打开底部面板，顶部重复卡片内容，下面按时间线列出当天全部课程及「正在上课 / 待上课 / 已结束 / 待设置时间」状态，有冲突时列出冲突课程。点击课程进入详情，关闭面板后回到课表。
+The overview appears above courses only in today's day view. It shows completed count, current or next class, progress and countdowns. Tapping opens a full-day timeline with conflicts and course details. The display preference defaults on and does not alter week view.
 
-顶部标题栏只显示周次；开学日期未设置时由右侧感叹号提醒，不再在标题下写说明文字。
+## Resolution rules
 
-开关位于「设置 → 显示 → 显示今日概览」，也可以在设置里搜索「今日概览」。默认开启（只影响日视图）；选择会保存，恢复课表外观默认设置时回到开启。
+- Count untimed courses, but count upcoming classes only with known start times.
+- Keep courses with missing or invalid timing and prompt for configuration rather than displaying fabricated countdowns.
+- Round remaining seconds upward; change state exactly at start and end.
+- Apply week coverage, holidays, cancellations and moves before deriving occurrences. Cross-week moves retain the source week's location.
+- Detect timed overlaps by actual intervals; adjacent boundaries do not conflict. Untimed courses use period intersections.
+- Exclude hidden and reminder-only placeholders. Missing term dates require an explicit week-configuration hint.
+- Respect teacher and location preferences. Refresh visible overview data every 30 seconds and stop in the background.
 
-## 计算规则
+## Shared model and validation
 
-- 今日数量包括时间尚未配置的课程；待上数量只统计能够确认开始时间、且尚未开始的课程。
-- 作息未设置、起止时间无效或反向时，保留课程并提示补充作息，不显示错误倒计时。
-- 倒计时按剩余秒数向上取整，课程在开始时切换为正在上课，在结束时切换为已结束。
-- 应用单双周、停课、放假及调课规则后再判断当天课程。跨周移入课程使用原周的教室。
-- 已知时间的课程按实际时间重叠检查冲突，相邻起止时间不算冲突；缺少时间时按节次交集判断。
-- 开学日期缺失时明确提示核对周次。隐藏课程和仅用于提醒的占位课程不进入概览。
-- 教师和地点遵循已有显示开关。今日卡片或面板可见时每 30 秒更新；进入后台或关闭面板后停止定时更新。
+`ScheduledCourseOccurrence` in `core-kernel` serves both overview and class-notice planning. Tests cover boundaries, invalid timing, parity, source-week rooms, overrides and conflicts.
 
-## 维护与验证
-
-`ScheduledCourseOccurrence` 位于 `core-kernel`，今日概览和上课通知规划复用实际课程日期与时间计算。
-单元测试覆盖时间边界、缺少作息、导入时间的空格、隐藏课程、单双周、原周教室、调停课、放假与课程冲突。
-
-`TodayOverviewUiTest` 仅在独立 QA 模拟器上使用 `todayOverviewQa=true` 显式启用。测试使用固定日期和模拟课程，验证周视图保持原样、日视图今日卡片、面板打开关闭、倒计时、冲突列表、详情入口和标题栏不显示开学说明，并截取原生中文界面图片。
+`TodayOverviewUiTest` requires `todayOverviewQa=true` on a dedicated emulator. Fixed dates and sample courses verify day/week visibility, timeline navigation, countdowns, conflicts and course entry points.

@@ -16,10 +16,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.TemporalAdjusters
 
-/**
- * 节假日在课表显示上的表现。
- * 用例统一落在 2026-05-04 这一周：周一 5 月 4 日是内置的劳动节补假，周三 5 月 6 日不是内置假日。
- */
+/** Fixtures cover both a bundled holiday and an ordinary weekday. */
 class ScheduleHolidayDisplayTest {
     private val weekStart = LocalDate.of(2026, 5, 4)
     private val mondayDate = LocalDate.of(2026, 5, 4)

@@ -16,6 +16,8 @@ import androidx.work.WorkerParameters
 import com.x500x.cursimple.app.ClassScheduleApplication
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.feature.plugin.extension.ExtensionData
+import com.x500x.cursimple.feature.plugin.extension.isIgnored
+import com.x500x.cursimple.feature.plugin.extension.isNotice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,9 +25,7 @@ import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 /**
- * 扩展组件的后台同步。每 30 分钟醒一次，各组件按自己的间隔决定这次跑不跑。
- *
- * 只在联网时跑：没网跑了也是失败，还白白唤醒一次。
+ * Network-constrained worker wakes every 30 minutes; components apply their own sync intervals.
  */
 class ExtensionSyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
 
@@ -50,10 +50,8 @@ class ExtensionSyncWorker(context: Context, params: WorkerParameters) : Coroutin
 }
 
 /**
- * 截止前提醒的闹钟：所有组件、所有条目里最早的那个提醒时刻挂一个，响了发完再挂下一个。
- *
- * 用不精确闹钟就够了：「截止前 24 小时」早几分钟晚几分钟都无所谓，
- * 也不必为这个去要精确闹钟权限。
+ * Schedule only the earliest component deadline reminder; inexact alarms avoid requiring
+ * exact-alarm access.
  */
 object ExtensionDueScheduler {
 
@@ -62,7 +60,7 @@ object ExtensionDueScheduler {
             .filter { it.loggedIn && it.host.dueReminderHours > 0 }
             .flatMap { data ->
                 data.items.asSequence()
-                    .filter { !it.done && "${it.id}@${it.dueAt}" !in data.remindedKeys }
+                    .filter { !it.done && !it.historical && !it.isNotice() && !data.isIgnored(it, now) && "${it.id}@${it.dueAt}" !in data.remindedKeys }
                     .mapNotNull { item -> item.dueAt?.takeIf { it > now } }
                     .map { due -> (due - data.host.dueReminderHours * 3_600_000L).coerceAtLeast(now + 60_000L) }
             }

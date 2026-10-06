@@ -437,7 +437,7 @@ class GitHubSourceRepositoryTest {
         assertNull(repo.fetchLatestReleaseAsset("owner/plugin", viaAccount = true))
         assertEquals(1, manifestCalls)
         assertEquals("/repos/owner/plugin/releases/latest", transport.requests.single().url.encodedPath)
-        // 重新读公开清单也不能盖掉账号路径。
+        // Public catalog reloads must not replace an account-only route.
         repo.fetchSource(DefaultMarketSources.PLUGIN_REGISTRY, MarketSourceKind.Plugin)
         assertNull(repo.fetchLatestReleaseAsset("owner/plugin"))
         assertEquals(1, manifestCalls)

@@ -4,11 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/**
- * 版本历史的过滤规则。
- *
- * 「接收测试版更新」关着的人不该在历史里看到 beta：他装不到，列出来只会让人以为漏了更新。
- */
+/** Release history excludes beta versions when prerelease updates are disabled. */
 class AppReleaseHistoryTest {
 
     private val body = """
@@ -63,7 +59,6 @@ class AppReleaseHistoryTest {
     @Test
     fun `坏数据不会让整份历史崩掉`() {
         assertEquals(emptyList<AppReleaseSummary>(), parseReleaseHistory("不是 JSON", includePrerelease = true))
-        // 缺 tag 的那条跳过，其余照常
         val mixed = parseReleaseHistory(
             """[{"name":"缺标签"},{"tag_name":"v1.0.0","prerelease":false,"draft":false}]""",
             includePrerelease = false,

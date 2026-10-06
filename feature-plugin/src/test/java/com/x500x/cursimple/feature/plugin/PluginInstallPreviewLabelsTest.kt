@@ -121,6 +121,25 @@ class PluginInstallPreviewLabelsTest {
         assertNull(pluginInstallBlockReason(preview))
     }
 
+    @Test fun `API incompatibility blocks confirmation even with valid digests and signature`() {
+        val base = preview(checksumVerified = true, signature = PluginSignatureStatus.Valid)
+        val api = com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT + 1
+        val blocked = base.copy(manifest = base.manifest.copy(apiVersion = api),
+            compatibility = com.x500x.cursimple.core.plugin.install.resolvePluginCompatibility(api))
+        assertFalse(canConfirmPluginInstall(blocked))
+        assertEquals(PluginInstallBlockReason.Incompatible(blocked.compatibility), pluginInstallBlockReason(blocked))
+        assertEquals(PluginMarketStatus.PreviewIncompatible(blocked.compatibility), installPreviewStatus(blocked))
+    }
+
+    @Test fun `minimum app version rejection stays visible outside technical details`() {
+        val base = preview(checksumVerified = true, signature = PluginSignatureStatus.Absent)
+        val manifest = base.manifest.copy(minHostVersion = "0.8.0")
+        val blocked = base.copy(manifest = manifest,
+            compatibility = com.x500x.cursimple.core.plugin.install.resolvePluginCompatibility(manifest, "0.7.5"))
+        assertFalse(canConfirmPluginInstall(blocked))
+        assertEquals(PluginInstallBlockReason.Incompatible(blocked.compatibility), pluginInstallBlockReason(blocked))
+    }
+
     @Test
     fun `broken checksum blocks the confirm button`() {
         val preview = preview(checksumVerified = false, signature = PluginSignatureStatus.Absent)
@@ -165,6 +184,7 @@ class PluginInstallPreviewLabelsTest {
                 name = "Demo",
                 version = "1.0.0",
                 versionCode = 1,
+                apiVersion = 2,
                 entry = "main.js",
                 permissions = listOf(PluginPermission.ScheduleWrite),
                 allowedHosts = listOf("jw.demo.edu.cn"),

@@ -50,7 +50,9 @@ internal fun extensionMediaMime(name: String, hint: String = ""): String {
 
 internal data class ExtensionMediaFile(val file: File, val name: String, val mime: String)
 
-/** 图片及文件共用登录 Cookie；重定向时重新按目标域名取 Cookie，不把学校会话转发给其他域。 */
+/**
+ * Resolve cookies again at every redirect destination; never forward another host's session.
+ */
 internal class ExtensionMediaLoader(context: Context) {
     private val app = context.applicationContext
 

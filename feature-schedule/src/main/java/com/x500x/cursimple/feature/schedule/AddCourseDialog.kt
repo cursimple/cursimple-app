@@ -43,10 +43,9 @@ fun AddCourseDialog(
     existingCourses: List<CourseItem> = emptyList(),
     maxNodeCount: Int = 12,
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
-    /** 不为 null 时是编辑已有课程，保存会保留它的 id 与提醒相关字段。 */
     initial: CourseItem? = null,
 ) {
-    // 表单自己管字段，这里只接住它吐出的草稿；为 null 表示当前输入还不能保存
+    // Null drafts indicate input that cannot be saved.
     var draft by remember(initial) { mutableStateOf<CourseItem?>(null) }
 
     Dialog(
@@ -107,8 +106,7 @@ fun AddCourseDialog(
 }
 
 /**
- * 加课表单里的时间冲突提示。
- * 用 tertiaryContainer 而不是 errorContainer：这是提醒而非阻止，保存按钮仍然可用。
+ * Conflicts are advisory, using tertiary rather than error styling; saving remains available.
  */
 @Composable
 internal fun CourseConflictWarning(warning: AddCourseConflictWarning) {

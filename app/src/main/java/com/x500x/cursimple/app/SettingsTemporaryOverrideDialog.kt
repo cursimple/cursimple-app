@@ -10,15 +10,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteSweep
@@ -32,8 +28,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,32 +65,25 @@ import java.time.LocalDate
 import java.util.UUID
 import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
 
-/** 临时调课的查看与编辑。 */
-
-/** 两种规则各占一个 tab：表单和下面的规则列表都只属于当前 tab。 */
+/** Each rule tab owns its form and list. */
 private enum class TemporaryOverrideTab { MakeUp, CancelCourse }
 
-/** 调课覆盖整天，还是只覆盖指定的几节。 */
+/** Whether a swap covers a whole day or selected periods. */
 private enum class MakeUpScope { WholeDay, Nodes }
 
-/** 需要二次确认的动作。 */
 private sealed interface OverrideConfirm {
     data class Remove(val id: String) : OverrideConfirm
 
     data object Clear : OverrideConfirm
 
-    /** 表单里还有没添加的草稿就想关闭。 */
     data object DiscardDraft : OverrideConfirm
 }
 
 private const val MAX_NODE = 32
 
 /**
- * 临时调课的设置页区块。
- *
- * 直接内联在设置页里而不是弹窗：弹窗自带一层和设置页不同的底色与表头，插在设置页上很突兀；
- * 内联后配色、圆角、行高都跟着设置页走。点已有规则会把它读回上面的表单里单条修改，
- * 行尾的叉只删这一条。
+ * Inline override editor; selecting a rule loads it into the form, while removal affects only
+ * that rule.
  */
 @Composable
 internal fun TemporaryOverrideSettingsSection(
@@ -106,16 +93,15 @@ internal fun TemporaryOverrideSettingsSection(
     onClear: () -> Unit,
     onOpenCourseSwap: (LocalDate, LocalDate) -> Unit = { _, _ -> },
     courseTitleOf: (String) -> String? = { null },
-    /** 课表里的全部课程（导入的加手动的），临时取消页按它列出选中那天的课。 */
+    /** All imported and manual courses for the selected-day cancellation list. */
     courses: List<CourseItem> = emptyList(),
-    /** 用来把节号换成「第三节 14:00–15:35」这种给人看的写法，和课表左侧的节次栏一致。 */
+    /** Format periods using timing-profile labels, matching the timetable header. */
     timingProfile: TermTimingProfile? = null,
     holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
     termStartDate: LocalDate? = null,
     onApplyCancelPlan: (CancelCoursePlan) -> Unit = {},
 ) {
     var tab by rememberSaveable { mutableStateOf(TemporaryOverrideTab.MakeUp) }
-    // 非空表示正在修改这一条已有规则，保存时沿用它的 id 覆盖回去
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
 
     var makeUpTargetDate by rememberSaveable { mutableStateOf<LocalDate?>(null) }
@@ -141,12 +127,10 @@ internal fun TemporaryOverrideSettingsSection(
         cancelTargetDate = null
     }
 
-    /** 把已有规则读回表单，单条修改。 */
     fun loadForEdit(rule: TemporaryScheduleOverride) {
         resetDraft()
         val target = parseIsoDate(rule.targetDate) ?: parseIsoDate(rule.startDate)
         if (rule.type == TemporaryScheduleOverrideType.CancelCourse) {
-            // 停课没有表单可改，点开就是把那天的课列出来，在列表里逐门停或恢复
             tab = TemporaryOverrideTab.CancelCourse
             cancelTargetDate = target
         } else {
@@ -175,8 +159,7 @@ internal fun TemporaryOverrideSettingsSection(
         }
     }
 
-    // 两类规则各占一个分段，切换时下面的表单与规则列表一起换。
-    // 用和设置行同一套底色与圆角，不用 Material 自带的 chip/tab，免得一眼看出是两种控件
+    // Switch the form and rule list together using shared settings styles.
     OverrideModeSwitch(
         selected = tab,
         onSelect = { picked ->
@@ -246,7 +229,6 @@ internal fun TemporaryOverrideSettingsSection(
             text = makeUpHintText(makeUpTargetDate, makeUpSourceDate, makeUpScope, makeUpNodes),
             isError = makeUpTargetDate != null && makeUpSourceDate != null && !makeUpUsable,
         )
-        // 两天都选好了才谈得上「摆开看」，所以这个入口跟着日期出现，而不是常驻在页首
         if (makeUpTargetDate != null && makeUpSourceDate != null && makeUpTargetDate != makeUpSourceDate) {
             SettingsActionRow(
                 icon = Icons.Rounded.SwapHoriz,
@@ -334,8 +316,7 @@ internal fun TemporaryOverrideSettingsSection(
         )
     }
 
-    // 拖动调课挪过的单门课。它们不属于「整天/节次换课」那套规则，以前根本不列出来，
-    // 挪了几门、挪到哪天都看不到，也没法单独撤回
+    // List individual drag-based moves separately from day and period swaps.
     if (tab == TemporaryOverrideTab.MakeUp) {
         MovedCoursesList(
             overrides = overrides,
@@ -371,7 +352,6 @@ internal fun TemporaryOverrideSettingsSection(
             onConfirm = {
                 when (pending) {
                     is OverrideConfirm.Remove -> {
-                        // 删掉的正是在改的那条，表单要退回新建态，免得保存时又把它写回来
                         if (editingId == pending.id) resetDraft()
                         onRemove(pending.id)
                     }
@@ -387,12 +367,7 @@ internal fun TemporaryOverrideSettingsSection(
     }
 }
 
-/**
- * 临时取消：选中那天实际要上的课逐门列出，点「停课」就记下，已停的点「恢复」。
- *
- * 以前要自己填起止节次，得先去课表里查那门课是第几节；而且按节次停会把同一时段的
- * 别的课一起停掉。现在每条规则都记下课程 id，只停点中的那一门。
- */
+/** Cancel or restore courses by ID so simultaneous courses remain independent. */
 @Composable
 private fun CancelDayCourseList(
     date: LocalDate?,
@@ -424,14 +399,13 @@ private fun CancelDayCourseList(
     }
     dayCourses.forEach { course ->
         val cancelled = isCourseTemporarilyCancelled(date, course, overrides)
-        // 旧版跨几天的按节次规则拆不开，只能去下面的规则列表整条删
+        // Legacy multi-day period rules must be removed as a whole.
         val restorePlan = if (cancelled) {
             planRestoreCourse(date, course, dayCourses, overrides, newId = { UUID.randomUUID().toString() })
         } else {
             null
         }
-        // 节号是内部编号（午间课占了第 3 号，「第三节」其实是 4 号），直接写给人看会对不上课表，
-        // 所以优先用作息表里的时段名；跨了几个时段的课没有单一名字，才退回节号
+        // Prefer timing-profile names; internal period numbers may differ from visible labels.
         val covering = timingProfile?.slotsCovering(course.time.startNode, course.time.endNode).orEmpty()
         val period = context.slotLabelText(covering) ?: stringResource(
             R.string.settings_override_cancel_course_nodes,
@@ -472,12 +446,7 @@ private fun CancelDayCourseList(
     }
 }
 
-/**
- * 拖动调课挪过的课，按「挪到哪天」分组。
- *
- * 每天一行写清调入了几门，点开才列出具体是哪几门、各自从哪天调来、落在第几节，
- * 行尾的叉只撤回那一门。天数多的时候不至于一打开就铺满整页。
- */
+/** Group individual moves by destination date and allow per-course reversal. */
 @Composable
 private fun MovedCoursesList(
     overrides: List<TemporaryScheduleOverride>,
@@ -570,7 +539,7 @@ private fun MovedCourseRow(
     }
 }
 
-/** 补课/调课 与 临时取消 的分段切换，外形对齐设置页的行：同样的圆角与底色。 */
+/** Use the settings row's shared colors and rounding for rule tabs. */
 @Composable
 private fun OverrideModeSwitch(
     selected: TemporaryOverrideTab,
@@ -619,7 +588,7 @@ private fun OverrideModeSwitch(
     }
 }
 
-/** 添加/保存按钮；正在改已有规则时多给一个「取消修改」。 */
+/** Offer cancellation while editing an existing rule. */
 @Composable
 private fun OverrideSubmitRow(
     editing: Boolean,
@@ -704,7 +673,7 @@ private fun makeUpHintText(
     scope: MakeUpScope,
     nodes: NodeRange?,
 ): String? = when {
-    // 只是还没填完，不是填错了：这时什么都不说，别拿报错色吓人
+    // Incomplete fields are not validation errors.
     targetDate == null || sourceDate == null -> null
     targetDate == sourceDate -> stringResource(R.string.settings_override_same_day)
     scope == MakeUpScope.Nodes && nodes == null -> stringResource(R.string.settings_override_node_invalid)
@@ -761,7 +730,6 @@ private fun OverrideConfirmDialog(
     )
 }
 
-/** 日期选择入口；[date] 为空时显示「未选择」，不拿今天冒充用户的选择。 */
 @Composable
 internal fun DateChoiceButton(
     label: String,
@@ -778,44 +746,12 @@ internal fun DateChoiceButton(
 }
 
 @Composable
-internal fun TemporaryOverrideRuleRow(
-    rule: TemporaryScheduleOverride,
-    onRemove: () -> Unit,
-) {
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(12.dp),
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = formatOverrideRange(rule),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = formatOverrideSource(rule),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            AppOutlinedButton(onClick = onRemove) {
-                Text(stringResource(R.string.settings_delete))
-            }
-        }
-    }
-}
-
-@Composable
 internal fun SettingsDatePickerDialog(
     initial: LocalDate?,
     onConfirm: (LocalDate) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    // 不用 M3 的 DatePicker：它的星期表头取自系统 narrow 名字，中文环境下七列全是「星」
+    // Use custom weekday labels; narrow system names can be ambiguous in some locales.
     val fallback = com.x500x.cursimple.core.kernel.time.BeijingTime.today()
     var selected by remember(initial) { mutableStateOf(initial ?: fallback) }
     AlertDialog(
@@ -896,7 +832,6 @@ internal fun formatOverrideSource(
     )
 }
 
-/** 起止节次；两端都填了且落在 1..[MAX_NODE] 内才成立，顺序写反时自动归位。 */
 internal data class NodeRange(val first: Int, val last: Int)
 
 internal fun nodeRangeOf(startText: String, endText: String): NodeRange? {
@@ -906,7 +841,6 @@ internal fun nodeRangeOf(startText: String, endText: String): NodeRange? {
     return NodeRange(minOf(start, end), maxOf(start, end))
 }
 
-/** 单节写「3」，跨节写「3-4」。 */
 internal fun nodeSpanText(start: Int, end: Int): String =
     if (start == end) "$start" else "$start-$end"
 

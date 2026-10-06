@@ -10,10 +10,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * 自动静音的广播入口。
- *
- * 上下课边界闹钟、开机、覆盖安装、系统时间变更都在这里重新体检一次；
- * 通知上的「立即恢复」也走这里，保证用户随时能一键把手机调回来。
+ * Reconcile silence on class boundaries, boot, package replacement and clock changes; handles
+ * manual restore actions too.
  */
 class AutoSilenceReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {

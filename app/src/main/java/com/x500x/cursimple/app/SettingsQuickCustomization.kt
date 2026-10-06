@@ -9,7 +9,6 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -72,24 +71,18 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/**
- * 「常用」里能放的一项。[id] 存进本地记住用户挑了哪些，[group] 是它在首页属于哪一组，
- * 「＋」弹出的选择框按它分段。
- */
+/** Persist [id] for selection; [group] determines picker sections. */
 internal data class SettingsQuickItem(
     val id: String,
     val group: String,
     val spec: SettingsQuickTileSpec,
 )
 
-/**
- * 「常用」挑了哪几项、什么顺序。和首页排法一样只关乎这台手机上怎么看，存本地，不跟着备份走。
- */
+/** Quick-setting selection and order are device-local, outside backups. */
 internal object SettingsQuickStore {
     private const val PREFS = "settings_ui"
     private const val KEY = "quick_ids"
 
-    /** 没动过时的样子：最常改的六项。 */
     val DEFAULT_IDS = listOf("theme_mode", "theme_accent", "background", "current_week", "class_notice", "widget")
 
     fun load(context: Context): List<String> =
@@ -104,8 +97,7 @@ internal object SettingsQuickStore {
 }
 
 /**
- * 首页拖动的状态：长按下面任意一项拖进「常用」就加进来；「常用」里的格子长按可以换位置，
- * 拖出去松手就移走。坐标全按根布局算，拖动的「影子」由 [SettingsQuickDragGhost] 画在整页最上面。
+ * Drag in root coordinates; add, reorder or remove quick settings via the top-level drag ghost.
  */
 @Stable
 internal class SettingsQuickDragState(
@@ -121,13 +113,10 @@ internal class SettingsQuickDragState(
     var pointer by mutableStateOf(Offset.Zero)
         private set
 
-    /** 「常用」那块深色底的范围，判断松手时落没落在里面。 */
     var quickBounds by mutableStateOf(Rect.Zero)
 
-    /** 可见的滚动区域，拖到上下边缘时自动滚。 */
     var viewport by mutableStateOf(Rect.Zero)
 
-    /** 「常用」里一格的宽度，影子按它画，拖进来之前就是加进来后的大小。 */
     var cellWidthPx by mutableStateOf(0)
 
     val tileBounds = mutableMapOf<String, Rect>()
@@ -136,7 +125,6 @@ internal class SettingsQuickDragState(
 
     val insideQuick: Boolean get() = draggingId != null && quickBounds.contains(pointer)
 
-    /** 长按拖动之后松手，底下那一项的点击也会跟着触发，拖过就吞掉这一下。 */
     fun consumeClickAfterDrag(): Boolean =
         draggingId != null || SystemClock.uptimeMillis() - lastDragAt < CLICK_SUPPRESS_MILLIS
 
@@ -150,7 +138,6 @@ internal class SettingsQuickDragState(
     fun move(at: Offset) {
         val id = draggingId ?: return
         pointer = at
-        // 「常用」里拖着换位置：压到别的格子上就挪过去，边拖边看到新顺序
         if (fromQuick && insideQuick) {
             val target = tileBounds.entries.firstOrNull { (other, rect) -> other != id && rect.contains(at) }?.key
                 ?: return
@@ -168,7 +155,6 @@ internal class SettingsQuickDragState(
         if (fromQuick) {
             if (!insideQuick) ids.remove(id)
         } else if (insideQuick) {
-            // 落在哪一格上就插在那一格的位置，落在空白处就接在最后
             val target = tileBounds.entries.firstOrNull { (other, rect) -> other != id && rect.contains(pointer) }?.key
             ids.remove(id)
             val index = target?.let { ids.indexOf(it) }?.takeIf { it >= 0 } ?: ids.size
@@ -197,7 +183,6 @@ internal class SettingsQuickDragState(
 
 internal val LocalSettingsQuickDrag = staticCompositionLocalOf<SettingsQuickDragState?> { null }
 
-/** 首页上可以长按拖进「常用」的一项；不在首页（没有拖动状态）时什么都不做。 */
 internal fun Modifier.settingsQuickDragSource(id: String?, fromQuick: Boolean = false): Modifier = composed {
     val state = LocalSettingsQuickDrag.current
     if (id == null || state == null) return@composed this
@@ -221,7 +206,6 @@ internal fun Modifier.settingsQuickDragSource(id: String?, fromQuick: Boolean = 
         }
 }
 
-/** 拖到滚动区上下边缘时自动滚，「常用」在页顶，从底下拖上来不用松手先滑回去。 */
 @Composable
 internal fun SettingsQuickAutoScroll(state: SettingsQuickDragState, scrollState: ScrollState) {
     val edge = with(LocalDensity.current) { 72.dp.toPx() }
@@ -244,10 +228,7 @@ internal fun SettingsQuickAutoScroll(state: SettingsQuickDragState, scrollState:
 
 private const val MAX_SCROLL_STEP = 28f
 
-/**
- * 「常用」：单独一块深色底，和下面几组分开。右上角「＋」从全部设置里挑；
- * 也可以把下面任意一项长按拖进来。格子长按能换位置，拖出这块松手就移走。
- */
+/** Quick settings support picker selection and drag-based reordering or removal. */
 @Composable
 internal fun SettingsQuickSection(
     state: SettingsQuickDragState,
@@ -340,10 +321,7 @@ internal fun SettingsQuickSection(
     }
 }
 
-/**
- * 常用格子：一行三个、同一行一样高。所有格子是同一层的子项（按 id 标记），
- * 拖着换位置时格子节点跟着移动而不是重建，手指底下那一格的拖动才不会断。
- */
+/** Keep tiles keyed by ID across reordering so active drags retain their node. */
 @Composable
 private fun QuickTilesLayout(state: SettingsQuickDragState, tiles: List<SettingsQuickItem>) {
     val gap = with(LocalDensity.current) { 8.dp.roundToPx() }
@@ -383,7 +361,6 @@ private fun QuickTilesLayout(state: SettingsQuickDragState, tiles: List<Settings
             }
         }
     }
-    // 移走的格子不再占着判断落点
     SideEffect {
         val present = tiles.map { it.id }.toSet()
         state.tileBounds.keys.retainAll(present)
@@ -392,7 +369,6 @@ private fun QuickTilesLayout(state: SettingsQuickDragState, tiles: List<Settings
 
 private const val QUICK_COLUMNS = 3
 
-/** 拖动时跟着手指走的那一格，画在整页最上面，拖到哪都看得见。 */
 @Composable
 internal fun SettingsQuickDragGhost(state: SettingsQuickDragState, items: List<SettingsQuickItem>) {
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -408,7 +384,7 @@ internal fun SettingsQuickDragGhost(state: SettingsQuickDragState, items: List<S
         val width = with(density) { widthPx.toDp() }
         SettingsQuickTile(
             tile = item.spec.copy(onClick = {}),
-            // 主题里的 surface 为了透出课表背景带点透明，影子压在别的格子上会透字，先合成成实色
+            // Composite an opaque drag-ghost surface to prevent text showing through.
             color = MaterialTheme.colorScheme.surface.compositeOver(MaterialTheme.colorScheme.background),
             modifier = Modifier
                 .offset {
@@ -428,10 +404,9 @@ internal fun SettingsQuickDragGhost(state: SettingsQuickDragState, items: List<S
     }
 }
 
-// 影子画在手指上方一点，别被手指挡住
 private const val GHOST_FINGER_OFFSET_DP = 56
 
-/** 「＋」弹出的选择框：按首页的分组列出全部可放进「常用」的项，勾上就加，取消就移走。 */
+/** Grouped quick-setting picker; selection adds or removes entries. */
 @Composable
 private fun SettingsQuickPickerDialog(
     items: List<SettingsQuickItem>,

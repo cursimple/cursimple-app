@@ -18,7 +18,7 @@ class AlarmScheduleDecisionTest {
     fun `losing exact permission falls back to a window instead of failing`() {
         val decision = alarmScheduleDecision(canScheduleExact = false)
 
-        // setAlarmClock 没有精确闹钟权限会抛异常，得退到窗口闹钟，不能整条排程落空
+        // Lack of exact-alarm access requires windowed fallback rather than a failed alarm-clock request.
         assertEquals(AlarmPrimaryChannel.Window, decision.primary)
         assertEquals(false, decision.backup)
     }

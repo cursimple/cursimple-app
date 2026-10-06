@@ -16,7 +16,6 @@ import java.time.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** 开学日为周三（2026-09-09），其所在周的周一是 2026-09-07。 */
 class TermWeekRulesTest {
     private val planner = ReminderPlanner()
     private val wednesdayTermStart = LocalDate.of(2026, 9, 9)

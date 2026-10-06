@@ -9,12 +9,10 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -44,7 +42,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -57,9 +54,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.annotation.StringRes
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -67,7 +62,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.kernel.model.CourseItem
-import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.UserPreferences
 import com.x500x.cursimple.core.data.reminderDayPolicy
@@ -180,7 +174,7 @@ fun ScheduleSettingsScreen(
 ) {
     var editingRule by remember { mutableStateOf<ReminderRule?>(null) }
     var showRuleEditor by rememberSaveable { mutableStateOf(false) }
-    // 新建闹钟、新建提醒规则同样要先过权限闸门
+    // Gate new alarms and reminder rules on required access.
     val alarmPermissionGate = rememberAlarmPermissionGateState()
     val gateContext = LocalContext.current
     var showPlaceholderDialog by rememberSaveable { mutableStateOf(false) }
@@ -221,8 +215,7 @@ fun ScheduleSettingsScreen(
                 .padding(horizontal = 18.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // 精确闹钟没给的时候闹钟一律不准时，这条常驻在最上面，
-            // 不是弹一次就算数的提示——没开之前每次进来都看得见
+            // Keep missing exact-alarm guidance visible until permission is granted.
             ExactAlarmBanner()
             AlarmManagementCard(
                 alarmRecords = state.systemAlarmRecords,
@@ -384,14 +377,7 @@ private fun SectionHeader(title: String, subtitle: String) {
     }
 }
 
-
-/**
- * 没开精确闹钟时顶在闹钟页最上面的一条。
- *
- * 缺这项时闹钟会被系统丢进一个模糊的时间窗，迟到十几分钟很常见，
- * 但界面上看不出任何异常。所以不做成一次性提示，回前台就重读一次权限，
- * 开了它自己消失。
- */
+/** Recheck exact-alarm access on resume; persistent guidance disappears once granted. */
 @Composable
 private fun ExactAlarmBanner() {
     val context = LocalContext.current
@@ -490,7 +476,6 @@ private fun AlarmManagementCard(
                 Text(stringResource(R.string.schedule_system_clock_action))
             }
         }
-        // 记录还在但系统里已经没有对应闹钟时，界面要说出来，不然它就是个不会响的摆设
         val unregisteredKeys = remember(appRecords) {
             val verifier = AppAlarmClockRegistrationVerifier(context)
             appRecords.filterNot { runCatching { verifier.isRegistered(it) }.getOrDefault(true) }
@@ -522,7 +507,7 @@ private fun AlarmRecordRow(
 ) {
     val zone = LocalAppZone.current
     val context = LocalContext.current
-    // 有类型内容就按当前语言渲染，旧数据只有语言无关的展示文本时回退到它
+    // Localize typed content, otherwise retain legacy display text.
     val repository = remember(context) { DataStoreUserPreferencesRepository(context.applicationContext) }
     val preferences by repository.preferencesFlow.collectAsState(initial = UserPreferences())
     val suppressed = alarmDaySuppression(
@@ -540,7 +525,6 @@ private fun AlarmRecordRow(
         stringResource(alarmRingtoneLabelRes(record.ringtoneUriOverride)),
         stringResource(alarmAlertModeLabelRes(record.alertModeOverride)),
     ).joinToString(" · ")
-    // 时间、开关和按钮宽度固定，放大字号后会把描述挤成一列单字，因此描述独占整行
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -577,7 +561,7 @@ private fun AlarmRecordRow(
             }
             Text(title, fontWeight = FontWeight.SemiBold)
             if (record.enabled && suppressed == AlarmDaySuppression.MutedDate) {
-                // 静音日期只有通知和「写入系统时钟」能设，撤销的入口放在受影响的闹钟上
+                // Expose date-unmute on the affected alarms.
                 val scope = rememberCoroutineScope()
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -857,20 +841,15 @@ private fun CourseReminderCard(
     }
 }
 
-/** 旧版本写入、当前引擎不再展开的规则，列出来供用户确认和删除。 */
 internal fun legacyReminderRules(rules: List<ReminderRule>): List<ReminderRule> =
     rules.filter { it.scopeType.isLegacy() }
 
-/** 旧版规则在列表里显示的标题来源。 */
 internal sealed interface LegacyReminderRuleLabel {
-    /** 规则自带展示名。 */
     data class DisplayName(val name: String) : LegacyReminderRuleLabel
 
-    /** 没有展示名，按作用域给通用标题。 */
     data class ScopeName(val nameRes: Int) : LegacyReminderRuleLabel
 }
 
-/** 作用域对应的通用标题资源 id。 */
 internal fun legacyReminderRuleScopeNameRes(scopeType: ReminderScopeType): Int = when (scopeType) {
     ReminderScopeType.SingleCourse -> R.string.schedule_legacy_rule_scope_single_course
     ReminderScopeType.TimeSlot -> R.string.schedule_legacy_rule_scope_time_slot
@@ -991,23 +970,6 @@ private fun EmptySurface(text: String) {
 }
 
 @Composable
-private fun SettingRow(title: String, subtitle: String, onClick: () -> Unit) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
 private fun NumberSettingRow(
     title: String,
     value: Int,
@@ -1058,7 +1020,6 @@ private fun NumberSettingRow(
         }
     }
 }
-
 
 @Composable
 private fun AlarmPermissionRow(onOpenSettings: () -> Unit) {

@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""生成小组件选择器用的位图预览。
-
-为什么要位图：不少国产启动器（EMUI / HarmonyOS、vivo 的挂件选择器尤其明显）在读
-`android:previewImage` 时按 BitmapDrawable 处理，遇到矢量图会直接跳过这一项，
-于是应用明明装了，选择器里却找不到这个小组件。
-
-为什么画成真样子而不是示意条：选择器里那张图就是用户决定装不装的全部依据。
-之前用灰条占位，看着像半成品草图，和装上之后的样子对不上。这里按小组件的
-默认绿色主题、真实字号与真实文案画一遍，所见即所得。
-
-运行：python3 scripts/generate_widget_previews.py
-输出：feature-widget/src/main/res/drawable-nodpi/widget_preview_*.png
-"""
+"""Generate localized bitmap widget previews matching resource colors and text. Bitmap previews preserve compatibility with launchers that reject vector preview images."""
 
 from __future__ import annotations
 
@@ -20,8 +8,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-# 取自 res/drawable/widget_bg_*_green 与 res/values/colors.xml：
-# 默认主题色是绿色，预览必须画成新用户装上之后真正看到的那一套
+# Match the resource palette used by the default installed widget.
 CARD = (221, 239, 228, 255)        # widget_bg_card_green
 SURFACE = (184, 220, 201, 255)     # widget_bg_surface_green
 BADGE = (211, 227, 251, 255)       # widget_bg_badge
@@ -30,9 +17,8 @@ MUTED = (102, 112, 127, 255)       # widget_row_subtitle
 TIME = (49, 95, 137, 255)          # widget_row_time
 BADGE_INK = (36, 78, 114, 255)     # widget_badge_text
 
-SCALE = 3  # dp → px，画大一些让选择器缩放后仍然清楚
+SCALE = 3
 
-# 系统自带的中文字体；换机器跑不出来时改这里
 FONT_CANDIDATES = [
     ("/System/Library/Fonts/Hiragino Sans GB.ttc", 0),
     ("/System/Library/Fonts/STHeiti Medium.ttc", 0),
@@ -40,10 +26,9 @@ FONT_CANDIDATES = [
 ]
 
 
-# 预览里的示例文案，和 res/values*/strings.xml 的 widget_preview_* 一一对应。
-# 选择器按系统语言挑 drawable-<语言>-nodpi，所以每种语言各出一套图。
+# Generate one bitmap set per locale, matching widget_preview resource strings.
 LOCALES = {
-    "": {  # 默认：简体中文
+    "": {
         "date": "9月20日 · 今天", "weekday": "周六",
         "nodes1": "1-2节", "nodes2": "3-4节",
         "time1": "08:00-09:35", "time2": "10:05-11:40",
@@ -166,7 +151,6 @@ def today_preview(t: dict) -> Image.Image:
     width, height = 220, 148
     image, draw = _card(width, height)
 
-    # 左右翻页键：和真机一样是两个圆底方块
     _surface(draw, 8, 8, 30, 30, radius=20)
     _surface(draw, width - 38, 8, 30, 30, radius=20)
     _chevron(draw, 23, 23, pointing_left=True)
@@ -181,7 +165,7 @@ def today_preview(t: dict) -> Image.Image:
 
 
 def next_preview(t: dict) -> Image.Image:
-    """下一节课：标题加徽标，下面一条当前要上的课。"""
+    """Next-class card with status and timing."""
     width, height = 220, 64
     image, draw = _card(width, height)
 
@@ -195,7 +179,7 @@ def next_preview(t: dict) -> Image.Image:
 
 
 def reminder_preview(t: dict) -> Image.Image:
-    """课程提醒：两条待响的提醒。"""
+    """Preview two upcoming course reminders."""
     width, height = 220, 118
     image, draw = _card(width, height)
 
@@ -212,6 +196,49 @@ def reminder_preview(t: dict) -> Image.Image:
     return image
 
 
+def memo_preview(locale: str) -> Image.Image:
+    """Notebook checklist preview, distinct from component task cards."""
+    width, height = 300, 148
+    image, draw = _card(width, height)
+    texts = {
+        "": ("笔记待办", "整理实验报告", "数据结构 · 第三次实验", "复习第三章", "其他笔记 · 本周计划", "2 项待办"),
+        "en": ("Note to-dos", "Finish the lab report", "Data structures · Lab 3", "Review chapter 3", "Other notes · This week", "2 to-dos"),
+        "zh-rTW": ("筆記待辦", "整理實驗報告", "資料結構 · 第三次實驗", "複習第三章", "其他筆記 · 本週計劃", "2 項待辦"),
+    }[locale]
+    heading, task1, meta1, task2, meta2, count = texts
+    accent = (63, 162, 119, 255)
+    rule = (194, 216, 204, 255)
+    draw.rounded_rectangle((_px(13), _px(16), _px(29), _px(34)), radius=_px(2), outline=accent, width=_px(1.5))
+    draw.line((_px(18), _px(16), _px(18), _px(34)), fill=accent, width=_px(1))
+    for y in (22, 27):
+        draw.line((_px(22), _px(y), _px(26), _px(y)), fill=accent, width=_px(1))
+    _text(draw, 41, 14, heading, 16, INK)
+    count_width = draw.textlength(count, font=_font(11)) / SCALE
+    _text(draw, width - 12 - count_width, 18, count, 11, accent)
+    for y, title, meta in ((42, task1, meta1), (78, task2, meta2)):
+        draw.rounded_rectangle((_px(14), _px(y+10), _px(29), _px(y+25)), radius=_px(2), outline=accent, width=_px(1.5))
+        _text(draw, 42, y+3, title, 13, INK)
+        _text(draw, 42, y+20, meta, 10, MUTED)
+        draw.line((_px(42), _px(y+36), _px(width-12), _px(y+36)), fill=rule, width=_px(.7))
+    return image
+
+
+def tasks_preview(locale: str) -> Image.Image:
+    """Generic container preview; actual UI ships in the selected component."""
+    width, height = 300, 148
+    image, draw = _card(width, height)
+    heading, caption, detail = {
+        "": ("组件小组件", "由已安装的组件提供", "名称与界面随组件更新"),
+        "en": ("Component widgets", "Provided by installed components", "Names and UI come from the owner"),
+        "zh-rTW": ("組件小組件", "由已安裝的組件提供", "名稱與介面隨組件更新"),
+    }[locale]
+    _text(draw, 14, 10, heading, 14, INK)
+    draw.rounded_rectangle((_px(14), _px(40), _px(width - 14), _px(height - 14)), radius=_px(12), outline=MUTED, width=_px(1))
+    _text(draw, 26, 58, caption, 12, INK)
+    _text(draw, 26, 87, detail, 10, MUTED)
+    return image
+
+
 def main() -> None:
     res_dir = Path(__file__).resolve().parent.parent / "feature-widget/src/main/res"
     for locale, texts in LOCALES.items():
@@ -222,6 +249,8 @@ def main() -> None:
             "widget_preview_today.png": today_preview(texts),
             "widget_preview_next.png": next_preview(texts),
             "widget_preview_reminder.png": reminder_preview(texts),
+            "widget_preview_memo.png": memo_preview(locale),
+            "widget_preview_tasks.png": tasks_preview(locale),
         }
         for name, image in previews.items():
             path = out_dir / name

@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 没课、放假、下课后的随机一句；挑选逻辑见 DayMood.kt -->
 <resources>
     <string-array name="mood_tomorrow_free">
         <item>明天没课，今晚可以多玩一会儿</item>

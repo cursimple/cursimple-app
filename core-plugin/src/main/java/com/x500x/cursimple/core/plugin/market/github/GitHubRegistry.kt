@@ -28,9 +28,7 @@ import kotlin.coroutines.resumeWithException
 import java.net.URLEncoder
 import java.time.Duration
 
-/**
- * plugins-stars.json 注册表中的一条记录，并附带最新 release 的 manifest 信息。
- */
+/** Registry entry with optional release-manifest metadata. */
 @Serializable
 data class GitHubRepoSummary(
     val fullName: String,
@@ -48,18 +46,14 @@ data class GitHubRepoSummary(
     val isFresh: Boolean,
     val latestRelease: GitHubReleaseAsset? = null,
     /**
-     * 这个插件覆盖的学校别名，由注册表声明。
-     *
-     * 仓库名多半是 `bit-schedule` 这类英文缩写，学生搜的却是「北京理工」；
-     * 注册表把中文全称、简称、拼音一并写进来，搜索时按普通子串比对即可命中，
-     * 应用侧不做拼音转换，新学校只改注册表、不必发版。
+     * Registry-declared school aliases support substring search across names, abbreviations and
+     * romanization; the app does not transliterate.
      */
     val schoolAliases: List<String> = emptyList(),
-    /** 注册表里写了 `"kind": "extension"` 的是扩展组件，不出现在「从教务系统导课」里 */
+    /** Extension entries are excluded from school timetable import. */
     val kind: String = "",
-    /** 从哪个来源仓库读到的（`owner/repo`），界面上据此显示「公有仓库」或仓库名。 */
     val registrySource: String = "",
-    /** 靠登录的 GitHub 账号才读到的（私有仓库）：版本和安装包都得直连 GitHub API 去拿。 */
+    /** Account-only repositories and assets require direct authenticated API access. */
     val viaAccount: Boolean = false,
 ) {
     val displayTitle: String get() = name.ifBlank { fullName }
@@ -83,7 +77,7 @@ private data class PluginStarsRepositoryApi(
     @SerialName("language") val language: String? = null,
     @SerialName("url") val htmlUrl: String = "",
     @SerialName("release") val release: PluginStarsReleaseApi? = null,
-    // 两个键名都认：schools 是本意，aliases 留给只想补几个别称的条目
+    // Merge schools and aliases keys.
     @SerialName("schools") val schools: List<String> = emptyList(),
     @SerialName("aliases") val aliases: List<String> = emptyList(),
     @SerialName("kind") val kind: String = "",
@@ -117,10 +111,11 @@ class GitHubRegistryRepository(
     private val json: Json = Json { ignoreUnknownKeys = true },
     private val fetchText: suspend (String) -> String = { url -> defaultFetchText(client, url) },
     private val apiClient: GitHubApiClient = GitHubApiClient(json = json),
-    /** 登录的 GitHub 令牌；没登录时为 null。只交给 [apiClient]，从不进镜像那条路。 */
+    /** Pass the optional token only to [apiClient], never mirror requests. */
     private val tokenProvider: () -> String? = { null },
     private val fetchBytes: (suspend (String) -> ByteArray)? = null,
     private val fetchBytesWithProgress: (suspend (String, (Long, Long) -> Unit) -> ByteArray)? = null,
+    private val fetchTextValidated: (suspend (String, (String) -> Unit) -> String)? = null,
 ) {
 
     private data class AccountSession(val token: String?, val generation: Long)
@@ -132,14 +127,12 @@ class GitHubRegistryRepository(
     private var accountToken: String? = null
     private var accountGeneration = 0L
     private val accountRepos = HashSet<String>()
-    /** 公开清单已公开声明的仓库，查版本无需额外依赖 API 可达性。 */
     private val knownPublicRepos = HashSet<String>()
     private val releaseCache = HashMap<String, CachedRelease>()
     private val inFlight = HashMap<ReleaseRequest, CompletableDeferred<GitHubReleaseAsset?>>()
 
     private fun token(): String? = tokenProvider()?.trim()?.takeIf { it.isNotEmpty() }
 
-    /** 注销 / 切换账号时调用。旧账号的标记、缓存和等待中的查询一起失效。 */
     fun clearAccountCache() = synchronized(accountLock) {
         resetAccountState()
         accountToken = token()
@@ -198,9 +191,8 @@ class GitHubRegistryRepository(
     }
 
     /**
-     * 读注册表，或把来源当作只有一个插件 / 组件的 Release 仓库。
-     * 只有默认公有来源可以直接走镜像；其他来源先在 GitHub API 确认可见性。
-     * 账号优先、私有或已经靠账号读取的来源始终走 API，失败不会回退到镜像。
+     * Only trusted public defaults bypass visibility checks. Account and private paths stay on
+     * API without mirror fallback.
      */
     suspend fun fetchSource(
         source: String,
@@ -229,7 +221,7 @@ class GitHubRegistryRepository(
                 entry.copy(
                     registrySource = slug,
                     viaAccount = viaAccount,
-                    // 私有注册表声明的浏览器下载 URL 不能交给公有下载器。
+                    // Private registry download URLs must never reach the public downloader.
                     latestRelease = if (viaAccount && !GitHubApiClient.isAssetApiUrl(entry.latestRelease?.downloadUrl.orEmpty())) {
                         null
                     } else entry.latestRelease,
@@ -270,7 +262,7 @@ class GitHubRegistryRepository(
     private suspend fun publicRegistry(slug: String, branch: String, file: String): List<GitHubRepoSummary> {
         val url = "https://raw.githubusercontent.com/$slug/$branch/$file".toHttpUrl().newBuilder()
             .addQueryParameter("ts", cacheBucket().toString()).build()
-        return parseRegistry(fetchText(url.toString()))
+        return parseRegistry(checkedText(url.toString()) { parseRegistry(it) })
     }
 
     private fun singleRepoEntry(
@@ -294,7 +286,7 @@ class GitHubRegistryRepository(
         )
     }
 
-    /** API 清单的附件 URL 要与仓库一致；清单和安装包都只走 API。 */
+    /** Validate API asset ownership against the repository; both files stay on API routes. */
     private suspend fun apiReleaseAsset(slug: String, expected: AccountSession): GitHubReleaseAsset? {
         val release = try {
             accountRequest(expected) { apiClient.latestRelease(slug, expected.token) }
@@ -307,7 +299,7 @@ class GitHubRegistryRepository(
         val manifestText = try {
             accountRequest(expected) { apiClient.downloadAsset(manifestAsset.url, expected.token) }.decodeToString()
         } catch (error: GitHubApiClient.HttpError) {
-            // 仓库本身可见；资产下载的 404 不能误报成仓库不存在。
+            // Asset absence is distinct from repository absence.
             if (error.code == 404) throw IOException("GitHub manifest 附件不可用", error)
             throw error
         }
@@ -327,7 +319,6 @@ class GitHubRegistryRepository(
         require("${parts[1]}/${parts[2]}".equals(slug, ignoreCase = true)) { "GitHub 附件不属于该仓库" }
     }
 
-    /** 下载账号路径的附件。保留旧入口，注销后不会继续使用旧令牌或缓存。 */
     suspend fun downloadAccountAsset(
         assetApiUrl: String,
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
@@ -341,7 +332,7 @@ class GitHubRegistryRepository(
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
     ): ByteArray = downloadReleaseAsset(asset.downloadUrl, onProgress)
 
-    /** API 附件直连；浏览器下载地址仅用于已确认公有的仓库。 */
+    /** Use browser asset URLs only after confirming public visibility. */
     suspend fun downloadReleaseAsset(
         downloadUrl: String,
         onProgress: (downloaded: Long, total: Long) -> Unit = { _, _ -> },
@@ -382,7 +373,10 @@ class GitHubRegistryRepository(
 
     suspend fun viewer(token: String): GitHubViewer = apiClient.viewer(token)
 
-    /** 缺少发布内容与网络、解析、鉴权失败分别处理；取消始终向调用者传播。 */
+    /**
+     * Separate release absence from network, parsing and authorization failures; propagate
+     * cancellation.
+     */
     suspend fun checkSource(source: String, kind: MarketSourceKind, preferAccount: Boolean = true): MarketSourceCheck {
         val slug = GitHubRepoAddress.parse(source) ?: return MarketSourceCheck.NotFound
         return try {
@@ -410,11 +404,13 @@ class GitHubRegistryRepository(
             .mapNotNull { it.toSummary() }.distinctBy { it.fullName.lowercase() }
     }
 
-    /** 保留公有 API 的分支参数，同样保护账号仓库。 */
     suspend fun fetchRegistry(registryRepo: String, branch: String = PLUGIN_STARS_BRANCH): List<GitHubRepoSummary> =
         fetchSourceInternal(registryRepo, MarketSourceKind.Plugin, preferAccount = false, branch = branch)
 
-    /** [viaAccount] 强制 API 路径；未标记的自定义仓库也必须先确认 metadata，才能走镜像。 */
+    /**
+     * [viaAccount] forces API access; custom public sources require metadata verification
+     * first.
+     */
     suspend fun fetchLatestReleaseAsset(
         repoSlug: String,
         fresh: Boolean = false,
@@ -471,7 +467,13 @@ class GitHubRegistryRepository(
 
     private suspend fun publicReleaseAsset(slug: String, fresh: Boolean): GitHubReleaseAsset? = attempt {
         val manifestUrl = latestReleaseDownloadUrl(slug, RELEASE_MANIFEST_FILE)
-        val raw = fetchText(if (fresh) "$manifestUrl?ts=${System.currentTimeMillis() / 60_000}" else manifestUrl)
+        // Always cache-bust mutable release manifests; fresh reads use a shorter time slice.
+        val bucket = if (fresh) System.currentTimeMillis() / 60_000 else cacheBucket()
+        val raw = checkedText("$manifestUrl?ts=$bucket") {
+            val value = json.decodeFromString<LatestPluginReleaseManifest>(it)
+            requireFilename(value.filename.ifBlank { value.name }.trim())
+            pluginRequire(value.version.isNotBlank(), R.string.plugin_error_release_manifest_missing_version)
+        }
         val manifest = json.decodeFromString<LatestPluginReleaseManifest>(raw)
         val filename = manifest.filename.ifBlank { manifest.name }.trim()
         requireFilename(filename)
@@ -479,6 +481,9 @@ class GitHubRegistryRepository(
         pluginRequire(version.isNotBlank(), R.string.plugin_error_release_manifest_missing_version)
         GitHubReleaseAsset(version, filename, latestReleaseDownloadUrl(slug, filename), 0)
     }
+
+    private suspend fun checkedText(url: String, validate: (String) -> Unit): String =
+        fetchTextValidated?.invoke(url, validate) ?: fetchText(url).also(validate)
 
     private suspend fun <T> attempt(block: suspend () -> T): T? = try {
         block()
@@ -499,20 +504,14 @@ class GitHubRegistryRepository(
 
     companion object {
         /**
-         * 注册表 URL 上带的时间片，用来击穿中间 CDN 的缓存。
-         *
-         * 清单走的是分支路径，各家代理与 CDN 会按整条 URL 缓存上十几个小时，
-         * 而且是按边缘节点各自缓存的——源站和我这边都更新了，用户那边的节点
-         * 仍可能发旧数据，谁也没法把全世界的节点都清一遍。
-         * 加一个按 5 分钟取整的参数，等于把缓存上限压到 5 分钟；
-         * 清单只有几百字节，这点重复请求可以忽略。
+         * Five-minute query slices limit reuse of mutable branch manifests across independent
+         * CDN caches.
          */
         private fun cacheBucket(): Long =
             System.currentTimeMillis() / CACHE_BUCKET_MILLIS
 
         private const val CACHE_BUCKET_MILLIS = 5 * 60 * 1000L
 
-        /** 要最新版时，一分钟内查过的算数：导课前那次查询紧跟在进页面那次后面。 */
         private const val FRESH_RELEASE_TTL_MILLIS = 60 * 1000L
         private const val RELEASE_TTL_MILLIS = 10 * 60 * 1000L
         private const val PLUGIN_STARS_BRANCH = "plugin-stars-data"

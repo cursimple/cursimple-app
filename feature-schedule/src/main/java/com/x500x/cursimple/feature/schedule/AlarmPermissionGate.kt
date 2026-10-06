@@ -33,16 +33,10 @@ import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
 import com.x500x.cursimple.core.reminder.permission.launchFirstAvailableSetting
 import com.x500x.cursimple.core.reminder.permission.readAlarmPermissionState
 
-/**
- * 建提醒之前的权限闸门。
- *
- * 没有通知权限或精确闹钟权限时，闹钟根本不会响，这时候让用户把提醒建出来
- * 只会换来一次「到点没响」。所以这一档缺失就拦住，先给授权入口；
- * 电池优化、全屏通知这类只影响可靠性的，列出来提示但不挡路。
- */
+/** Gate creation on blocking reminder access; present reliability-only access as advice. */
 @Stable
 internal class AlarmPermissionGateState {
-    /** 权限补齐后要接着做的事。 */
+    /** Continuation after required access is granted. */
     var pendingAction by mutableStateOf<(() -> Unit)?>(null)
         private set
 
@@ -51,10 +45,10 @@ internal class AlarmPermissionGateState {
 
     val visible: Boolean get() = pendingAction != null
 
-    /** 权限齐了就直接做，缺关键项就先弹授权说明。 */
+    /** Proceed with access or defer the action through permission guidance. */
     fun require(context: Context, action: () -> Unit) {
         val state = readAlarmPermissionState(context)
-        // 只差电池白名单这类可靠性项时照常建，提醒留在权限页里说
+        // Advisory battery access does not block creation.
         if (state.missingBlocking.isEmpty()) {
             action()
             return
@@ -63,7 +57,6 @@ internal class AlarmPermissionGateState {
         pendingAction = action
     }
 
-    /** 回到前台时重新看一次，补齐了就把原来要做的事接上。 */
     fun refresh(context: Context) {
         if (pendingAction == null) return
         val state = readAlarmPermissionState(context)
@@ -84,10 +77,7 @@ internal class AlarmPermissionGateState {
 internal fun rememberAlarmPermissionGateState(): AlarmPermissionGateState =
     remember { AlarmPermissionGateState() }
 
-/**
- * 闸门的界面部分：列出缺的权限，每一项点了直接进对应的系统页面。
- * 放在页面里调用一次即可，没有待办时不画任何东西。
- */
+/** Render missing-access destinations only while an action is pending. */
 @Composable
 internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
     val context = LocalContext.current
@@ -96,13 +86,13 @@ internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         if (!granted) {
-            // 系统不再弹窗时只能去设置里开
+            // Permanent denial requires settings rather than another runtime prompt.
             launchFirstAvailableSetting(context, AlarmSettingsIntents.notifications(context))
         }
         state.refresh(context)
     }
 
-    // 用户去系统页面开完权限回来，这里立刻接上刚才被拦下的操作
+    // Resume the deferred action when returning with permission.
     DisposableEffect(lifecycleOwner, state.visible) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) state.refresh(context)

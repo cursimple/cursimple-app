@@ -81,12 +81,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * 更新公告。
- *
- * 带图的说明铺满全屏翻页：一页一个亮点，上面一行大标题、一两句说明，下面是尽量大的截图，
- * 点图全屏放大；最后一页是其余改动的文字清单。没有图的说明（旧版本）照旧用小弹窗整篇滚动。
- */
+/** Image sections become full-screen highlights; text-only notes use a scrollable dialog. */
 @Composable
 fun ReleaseAnnouncementDialog(
     versionName: String,
@@ -110,7 +105,7 @@ fun ReleaseAnnouncementDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        // 铺满全屏后系统栏压在我们的底色上，图标颜色得跟着深浅色改，不然浅色主题下导航键是白的看不见
+        // Match system-bar icon contrast to the full-screen announcement background.
         val dialogView = LocalView.current
         val lightBars = MaterialTheme.colorScheme.surface.luminance() > 0.5f
         SideEffect {
@@ -131,10 +126,7 @@ fun ReleaseAnnouncementDialog(
     }
 }
 
-/**
- * 全屏公告的内容。没人碰时隔几秒自动翻到下一页，最后一页之后回到第一页；
- * 手指按住或拖动时暂停，松手后从当前页重新计时。
- */
+/** Auto-advance after idle time; pause for touch or drag and restart from the settled page. */
 @Composable
 private fun ReleaseAnnouncementScreen(
     versionName: String,
@@ -146,31 +138,25 @@ private fun ReleaseAnnouncementScreen(
     val pageCount = highlights.size + if (announcement.rest.isNotEmpty()) 1 else 0
     val pagerState = rememberPagerState(pageCount = { pageCount })
     val scope = rememberCoroutineScope()
-    // 手指是否按在翻页区上；只看不拦，拦了会和翻页组件自己的滑动手势抢事件
+    // Observe touch without consuming the pager's gestures.
     var touching by remember { mutableStateOf(false) }
     var zoomed by remember { mutableStateOf<ReleaseNoteImage?>(null) }
     val restScroll = rememberScrollState()
-    // 最后一页是一长串文字：多停一会儿；往下滚了就是在读，不再自动翻走
     val readingRest by remember {
         derivedStateOf { pagerState.settledPage >= highlights.size && restScroll.value > 0 }
     }
 
-    // 自动翻页只在某一页停稳之后才开始计时，翻页动画一旦开始就让它走完：
-    // 以前一有按下、拖动之类的状态变化就把整段计时连同正在跑的翻页动画一起取消，
-    // 页面停在两页中间，也没有任何东西再把它拉回整页。用户在动画途中上手滑，
-    // 由翻页组件自己接管（它的拖动优先级更高），松手后照常吸附到整页
+    // Start idle timing only on settled pages; gesture state changes must not cancel an active page animation.
     LaunchedEffect(pagerState, pageCount) {
         if (pageCount < 2) return@LaunchedEffect
         snapshotFlow { pagerState.settledPage }.collectLatest { page ->
             delay(if (page >= highlights.size) REST_PAGE_DWELL_MS else AUTO_ADVANCE_MS)
-            // 手指还按着、正在看大图、正在读最后一页时先等着，不翻
             snapshotFlow { touching || pagerState.isScrollInProgress || zoomed != null || readingRest }
                 .first { busy -> !busy }
             try {
                 pagerState.animateScrollToPage((page + 1) % pageCount)
             } catch (interrupted: CancellationException) {
-                // 被用户的拖动抢走了：本轮作罢，等它停到新的一页再重新计时。
-                // 整个效果真被取消（公告关了）时照常往外抛
+                // Treat user-drag cancellation locally; propagate cancellation when the announcement closes.
                 currentCoroutineContext().ensureActive()
             }
         }
@@ -261,7 +247,6 @@ private fun ReleaseAnnouncementScreen(
     }
 }
 
-/** 页码圆点：当前页拉长成一小段，一眼看出翻到第几页。 */
 @Composable
 private fun PageDots(count: Int, current: Int, modifier: Modifier = Modifier) {
     Row(
@@ -292,7 +277,7 @@ private fun HighlightPage(
     onZoom: (ReleaseNoteImage) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
-        // 标题只占一行：长了就是公告写得不对，宁可截断也不换行把图挤小
+        // Keep titles to one line to preserve image space.
         Text(
             text = highlight.title,
             style = MaterialTheme.typography.headlineMedium,
@@ -348,9 +333,6 @@ private fun RestPage(announcement: ReleaseAnnouncement, scrollState: androidx.co
     }
 }
 
-/**
- * 全屏看图：双指缩放、拖动，双击在原大和两倍半之间切换，单击或返回键关闭。
- */
 @Composable
 private fun ReleaseImageViewer(
     image: ReleaseNoteImage,

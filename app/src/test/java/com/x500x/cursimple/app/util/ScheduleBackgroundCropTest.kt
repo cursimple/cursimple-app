@@ -17,7 +17,6 @@ class ScheduleBackgroundCropTest {
 
     @Test
     fun `a wide image is cropped on the sides to match a tall frame`() {
-        // 原图 200x100，目标比例 1:1，应取中间的 100x100
         val rect = cropSourceRect(200, 100, frameAspect = 1f)!!
 
         assertEquals(100, rect.width)
@@ -100,7 +99,6 @@ class ScheduleBackgroundCropTest {
 class CropPanBoundsTest {
     @Test
     fun `a wide photo in a tall frame can be panned across its whole width`() {
-        // 竖长取景框配横图：图片按高度填满，左右各溢出一半
         val bounds = cropPanBounds(
             frameWidth = 310f,
             frameHeight = 500f,
@@ -109,7 +107,7 @@ class CropPanBoundsTest {
             zoom = 1f,
         )
 
-        // 填满高度后图片宽 4000 * (500/3000) = 666.7，溢出 356.7，两侧各 178.3
+        // Fill scaling yields 178.3 pixels of horizontal pan allowance per side.
         assertEquals(178.3f, bounds.maxX, 0.5f)
         assertEquals(0f, bounds.maxY, 0.01f)
     }
@@ -166,7 +164,6 @@ class CropOffsetFractionTest {
 
     @Test
     fun `the preview offset lands on the same area the crop takes`() {
-        // 4000x3000 的横图放进 0.62 的竖框，把图片拖到最右端
         val frameWidth = 310f
         val frameHeight = frameWidth / 0.62f
         val bounds = cropPanBounds(frameWidth, frameHeight, 4000, 3000, zoom = 1f)

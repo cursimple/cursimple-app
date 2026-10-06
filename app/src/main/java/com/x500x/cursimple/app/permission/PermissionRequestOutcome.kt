@@ -4,24 +4,19 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 
-/** 一次运行时权限请求的结果。 */
+/** Result of one runtime permission request. */
 enum class PermissionRequestOutcome {
-    /** 已授予。 */
     Granted,
 
-    /** 本次拒绝，再点还能弹系统弹窗。 */
+    /** Denied, but the system can present another request. */
     Denied,
 
-    /** 系统不会再弹窗，只能去应用详情页里开。 */
+    /** Permanently denied; requires app settings. */
     PermanentlyDenied,
 }
 
 /**
- * 判断这次请求之后该怎么引导。
- *
- * [canAskAgain] 取自请求返回后的 shouldShowRequestPermissionRationale：
- * 拒绝之后它仍为真表示系统还会再弹，为假则表示被永久拒绝，
- * 此时再点按钮不会有任何反应，必须把用户送到应用详情页。
+ * Use post-request [canAskAgain] to distinguish retryable denial from settings-only recovery.
  */
 fun permissionRequestOutcome(granted: Boolean, canAskAgain: Boolean): PermissionRequestOutcome = when {
     granted -> PermissionRequestOutcome.Granted
@@ -29,7 +24,7 @@ fun permissionRequestOutcome(granted: Boolean, canAskAgain: Boolean): Permission
     else -> PermissionRequestOutcome.PermanentlyDenied
 }
 
-/** 从 Compose 的 Context 里找出宿主 Activity，拿不到时返回 null。 */
+/** Find the Activity through Context wrappers, or return null. */
 fun Context.findActivity(): Activity? {
     var current: Context? = this
     while (current is ContextWrapper) {

@@ -39,7 +39,7 @@ class ScheduleImportDiffTest {
     @Test
     fun `没有变化时不报任何增减`() {
         val before = schedule(course("1", "高数"), course("2", "英语", day = 2))
-        // id 换了但课没变：教务系统每次抓取都会换 id，不能因此判成全删全增
+        // Changing portal IDs alone must not create a full removal/addition diff.
         val after = schedule(course("x", "高数"), course("y", "英语", day = 2))
 
         val diff = diffSchedules(before, after)
@@ -83,7 +83,6 @@ class ScheduleImportDiffTest {
 
     @Test
     fun `用户删掉的课不参与比对`() {
-        // hidden 是「这门课被用户删了」的墓碑，不该在导入比对里冒出来
         val diff = diffSchedules(
             schedule(course("1", "高数"), course("2", "体育", day = 4, hidden = true)),
             schedule(course("1", "高数")),
@@ -102,7 +101,7 @@ class ScheduleImportDiffTest {
 
     @Test
     fun `同一门课多条时按条数差计增减`() {
-        // 单双周常常拆成两条，删掉其中一条只能算减一，不能两条都当没变
+        // Removing one parity fragment counts once while the other remains.
         val before = schedule(course("1", "高数"), course("2", "高数"))
         val after = schedule(course("1", "高数"))
 

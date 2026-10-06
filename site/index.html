@@ -3,12 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>课简 CurSimple · 开源 Android 课表</title>
-<meta name="description" content="课简是一款开源免费、无广告的 Android 课表应用。0.7.5 测试版新增今日概览、备忘录全文检索、课程日历与待完成小组件，插件和组件支持多来源市场。">
+<title data-i18n="meta.title">课简 CurSimple · 开源 Android 课表</title>
+<meta name="description" content="课简是一款开源免费、无广告的 Android 课表应用。0.7.6 测试版新增今日概览、备忘录全文检索、课程日历与待完成小组件，插件和组件支持多来源市场。" data-i18n-content="meta.description">
 <meta name="theme-color" content="#3FA277">
-<meta property="og:title" content="课简 CurSimple · 开源 Android 课表">
-<meta property="og:description" content="课表、提醒与桌面小组件，一个应用装下整个学期。">
+<meta property="og:title" content="课简 CurSimple · 开源 Android 课表" data-i18n-content="meta.title">
+<meta property="og:description" content="课表、提醒与桌面小组件，一个应用装下整个学期。" data-i18n-content="meta.socialDescription">
 <meta property="og:image" content="https://cursimple.github.io/cursimple-app/assets/icon.png">
+<meta property="og:locale" content="zh_CN">
 <meta property="og:url" content="https://cursimple.github.io/cursimple-app/">
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="apple-touch-icon" href="assets/icon.png">
@@ -46,420 +47,411 @@
   <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.2 0 1.8-.9 1.4-1.9-.5-1.2.3-2.1 1.5-2.1H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="7.5" cy="11" r="1.4" fill="currentColor"/><circle cx="10.5" cy="7" r="1.4" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1.4" fill="currentColor"/></symbol>
 </svg>
 
-<!-- ================= 顶栏 ================= -->
 <header class="nav" id="nav">
   <div class="wrap nav-in">
-    <a class="brand" href="#top"><img src="assets/icon.png" alt="" width="34" height="34"><span>课简</span><em>CurSimple</em></a>
+    <a class="brand" href="#top"><img src="assets/icon.png" alt="" width="34" height="34"><span data-i18n="brand.name">课简</span><em>CurSimple</em></a>
     <nav class="nav-links">
-      <a href="#schedule">课表</a>
-      <a href="#reminder">提醒</a>
-      <a href="#widget">小组件</a>
-      <a href="#schools">学校</a>
-      <a href="#more">更多</a>
-      <a href="#changelog" class="nav-news" data-changelog><svg><use href="#i-megaphone"/></svg>更新公告<i class="dot" hidden></i></a>
+      <a href="#schedule" data-i18n="nav.schedule">课表</a>
+      <a href="#reminder" data-i18n="nav.reminder">提醒</a>
+      <a href="#widget" data-i18n="nav.widget">小组件</a>
+      <a href="#schools" data-i18n="nav.schools">学校</a>
+      <a href="#more" data-i18n="nav.more">更多</a>
+      <a href="#changelog" class="nav-news" data-changelog><svg><use href="#i-megaphone"/></svg><span data-i18n="notes.title">更新公告</span><i class="dot" hidden></i></a>
     </nav>
     <div class="nav-act">
+      <label class="language-picker"><svg aria-hidden="true"><use href="#i-globe"/></svg><select id="siteLanguage" aria-label="语言" data-i18n-aria-label="language.label">
+        <option value="zh-CN" lang="zh-CN">简体中文</option>
+        <option value="zh-TW" lang="zh-TW">繁體中文</option>
+        <option value="en" lang="en">English</option>
+      </select></label>
       <a class="icon-btn" href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener" aria-label="GitHub"><svg><use href="#i-github"/></svg></a>
-      <a class="btn btn-sm btn-primary" href="#download"><svg><use href="#i-download"/></svg>下载</a>
-      <button class="icon-btn menu-btn" id="menuBtn" aria-label="菜单" aria-expanded="false" aria-controls="mMenu"><svg><use href="#i-menu"/></svg></button>
+      <a class="btn btn-sm btn-primary" href="#download" aria-label="下载" data-i18n-aria-label="nav.download"><svg><use href="#i-download"/></svg><span data-i18n="nav.download">下载</span></a>
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="菜单" aria-expanded="false" aria-controls="mMenu" data-i18n-aria-label="nav.menu"><svg><use href="#i-menu"/></svg></button>
     </div>
   </div>
   <nav class="m-menu" id="mMenu" hidden>
-    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span>更新公告<small><span data-ver>v0.7.5</span> · <span data-channel-label>最新测试版</span></small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
+    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span><span data-i18n="notes.title">更新公告</span><small><span data-ver>v0.7.6</span> · <span data-channel-label data-i18n="channel.beta">最新测试版</span></small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
     <div class="m-grid">
-      <a href="#schedule">课表</a>
-      <a href="#memo">备忘录</a>
-      <a href="#reminder">提醒</a>
-      <a href="#widget">小组件</a>
-      <a href="#schools">学校</a>
-      <a href="#more">更多功能</a>
+      <a href="#schedule" data-i18n="nav.schedule">课表</a>
+      <a href="#memo" data-i18n="nav.memo">备忘录</a>
+      <a href="#reminder" data-i18n="nav.reminder">提醒</a>
+      <a href="#widget" data-i18n="nav.widget">小组件</a>
+      <a href="#schools" data-i18n="nav.schools">学校</a>
+      <a href="#more" data-i18n="nav.moreFeatures">更多功能</a>
     </div>
   </nav>
 </header>
 
 <main id="top">
 
-<!-- ================= 首屏 ================= -->
 <section class="hero">
   <div class="hero-bg" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
   <div class="wrap hero-in">
     <div class="hero-text">
       <a class="pill" href="#changelog" data-changelog>
-        <b><i class="dot" hidden></i><span data-ver>v0.7.5</span></b><span class="pill-text" data-highlights>今日概览 · 备忘录全文检索 · 新桌面小组件</span><svg><use href="#i-arrow"/></svg>
+        <b><i class="dot" hidden></i><span data-ver>v0.7.6</span></b><span class="pill-text" data-highlights data-i18n="hero.highlights">今日概览 · 备忘录全文检索 · 新桌面小组件</span><svg><use href="#i-arrow"/></svg>
       </a>
-      <h1>课表、提醒与小组件<br><span class="grad">一个应用装下整个学期</span></h1>
-      <p class="lead">课简是一款开源免费、没有广告的 Android 课表。登录教务一键导课，快上课时准时提醒，桌面小组件随手看下一节。</p>
+      <h1><span data-i18n="hero.title">课表、提醒与小组件</span><br><span class="grad" data-i18n="hero.tagline">一个应用装下整个学期</span></h1>
+      <p class="lead" data-i18n="hero.description">课简是一款开源免费、没有广告的 Android 课表。登录教务一键导课，快上课时准时提醒，桌面小组件随手看下一节。</p>
       <div class="hero-cta">
-        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-arm64-v8a.apk">
-          <svg><use href="#i-download"/></svg><span>下载安装包<small data-dl-meta>arm64 · 适合绝大多数手机</small></span>
+        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.6/CurSimple-arm64-v8a.apk">
+          <svg><use href="#i-download"/></svg><span><span data-i18n="hero.download">下载安装包</span><small data-dl-meta data-i18n="hero.downloadMeta">arm64 · 适合绝大多数手机</small></span>
         </a>
-        <a class="btn btn-lg btn-ghost" href="#download">其他版本与扫码下载</a>
+        <a class="btn btn-lg btn-ghost" href="#download" data-i18n="hero.otherDownloads">其他版本与扫码下载</a>
       </div>
       <ul class="hero-meta">
-        <li><svg><use href="#i-spark"/></svg><span data-channel-label>最新测试版</span></li>
-        <li><svg><use href="#i-check"/></svg>Android 7.0 及以上</li>
-        <li><svg><use href="#i-check"/></svg>MIT 开源</li>
-        <li><svg><use href="#i-check"/></svg>简 / 繁 / English</li>
+        <li><svg><use href="#i-spark"/></svg><span data-channel-label data-i18n="channel.beta">最新测试版</span></li>
+        <li><svg><use href="#i-check"/></svg><span data-i18n="hero.android">Android 7.0 及以上</span></li>
+        <li><svg><use href="#i-check"/></svg><span data-i18n="hero.openSource">MIT 开源</span></li>
+        <li><svg><use href="#i-check"/></svg><span data-i18n="hero.languages">简 / 繁 / English</span></li>
       </ul>
     </div>
 
     <div class="hero-visual">
-      <div class="phone phone-hero"><img src="assets/shots/week.webp" alt="课简周视图" width="540" height="1200" fetchpriority="high"></div>
-      <div class="float f-capsule"><svg><use href="#i-cal"/></svg>10:00 上课</div>
+      <div class="phone phone-hero"><img src="assets/shots/week.webp" alt="课简周视图" width="540" height="1200" fetchpriority="high" data-i18n-alt="shot.week"></div>
+      <div class="float f-capsule"><svg><use href="#i-cal"/></svg><span data-i18n="hero.classTime">10:00 上课</span></div>
       <div class="float f-notice">
         <img src="assets/icon.png" alt="" width="40" height="40">
-        <div><small>50 分钟后上课</small><b>大学物理</b><span>10:00-11:40 · 格物楼D210</span></div>
+        <div><small data-i18n="hero.startsIn">50 分钟后上课</small><b data-i18n="hero.physics">大学物理</b><span data-i18n="hero.classPlace">10:00-11:40 · 格物楼D210</span></div>
       </div>
-      <div class="float f-widget"><img src="assets/shots/widget-next.webp" alt="下一节课小组件" width="660" height="192"></div>
+      <div class="float f-widget"><img src="assets/shots/widget-next.webp" alt="下一节课小组件" width="660" height="192" data-i18n-alt="shot.nextWidget"></div>
     </div>
   </div>
 </section>
 
-<!-- ================= 数字条 ================= -->
 <section class="wrap stats reveal">
-  <div><b>1 键</b><span>登录教务导入课表</span></div>
-  <div><b>3 种</b><span>上课提醒样式</span></div>
-  <div><b>5 款</b><span>桌面小组件</span></div>
-  <div><b>300%</b><span>双指缩放课表</span></div>
+  <div><b data-i18n="stats.oneTap">1 键</b><span data-i18n="stats.import">登录教务导入课表</span></div>
+  <div><b data-i18n="stats.reminderCount">3 种</b><span data-i18n="stats.reminders">上课提醒样式</span></div>
+  <div><b data-i18n="stats.widgetCount">5 款</b><span data-i18n="widget.title">桌面小组件</span></div>
+  <div><b>300%</b><span data-i18n="stats.zoom">双指缩放课表</span></div>
 </section>
 
-<!-- ================= 课表 ================= -->
 <section class="feature" id="schedule">
   <div class="wrap feature-in">
     <div class="feature-media reveal">
       <div class="tabs" role="tablist">
-        <button class="on" data-shot="assets/shots/week.webp">周视图</button>
-        <button data-shot="assets/shots/day.webp">日视图</button>
-        <button data-shot="assets/shots/zoom.webp">双指缩放</button>
-        <button data-shot="assets/shots/library.webp">管理列表</button>
-        <button data-shot="assets/shots/agenda.png">今日概览</button>
+        <button class="on" data-shot="assets/shots/week.webp" data-i18n="schedule.week">周视图</button>
+        <button data-shot="assets/shots/day.webp" data-i18n="schedule.day">日视图</button>
+        <button data-shot="assets/shots/zoom.webp" data-i18n="schedule.zoom">双指缩放</button>
+        <button data-shot="assets/shots/library.webp" data-i18n="schedule.library">管理列表</button>
+        <button data-shot="assets/shots/agenda.png" data-i18n="schedule.agenda">今日概览</button>
       </div>
-      <div class="phone"><img id="scheduleShot" src="assets/shots/week.webp" alt="课表截图" width="540" height="1200" loading="lazy"></div>
+      <div class="phone"><img id="scheduleShot" src="assets/shots/week.webp" alt="课表截图" width="540" height="1200" loading="lazy" data-i18n-alt="shot.schedule"></div>
     </div>
     <div class="feature-text reveal">
-      <span class="kicker k-green"><svg><use href="#i-grid"/></svg>课表</span>
-      <h2>一整周的课，<br>一屏看完</h2>
-      <p class="sub">节次平铺进一屏，不用上下滑；想看细节就双指放大。</p>
+      <span class="kicker k-green"><svg><use href="#i-grid"/></svg><span data-i18n="nav.schedule">课表</span></span>
+      <h2><span data-i18n="schedule.title">一整周的课，</span><br><span data-i18n="schedule.tagline">一屏看完</span></h2>
+      <p class="sub" data-i18n="schedule.description">节次平铺进一屏，不用上下滑；想看细节就双指放大。</p>
       <ul class="points">
-        <li><b>周视图 / 日视图</b>周视图一屏看全，日视图左右滑切换日期</li>
-        <li><b>今日概览与时间线</b>今天的日视图显示当前 / 下一节课与上下课倒计时，点开查看全天安排和冲突</li>
-        <li><b>把自己的事排进去</b>组会、社团、约球按真实时间排进课表，撞课时并排显示</li>
-        <li><b>双指缩放</b>放大到 300% 任意拖动，表头与节次栏冻结在边上</li>
-        <li><b>调课停课随手改</b>长按卡片拖到别的日子；也能整天调休、单停一门课</li>
-        <li><b>单双周与连堂</b>任意周次组合，连堂课渲染成整块</li>
-        <li><b>节假日自动更新</b>放假与调休联网静默同步，也可手动补</li>
+        <li><b data-i18n="schedule.viewsTitle">周视图 / 日视图</b><span data-i18n="schedule.views">周视图一屏看全，日视图左右滑切换日期</span></li>
+        <li><b data-i18n="schedule.agendaTitle">今日概览与时间线</b><span data-i18n="schedule.agendaDescription">今天的日视图显示当前 / 下一节课与上下课倒计时，点开查看全天安排和冲突</span></li>
+        <li><b data-i18n="schedule.eventsTitle">把自己的事排进去</b><span data-i18n="schedule.events">组会、社团、约球按真实时间排进课表，撞课时并排显示</span></li>
+        <li><b data-i18n="schedule.zoom">双指缩放</b><span data-i18n="schedule.zoomDescription">放大到 300% 任意拖动，表头与节次栏冻结在边上</span></li>
+        <li><b data-i18n="schedule.changesTitle">调课停课随手改</b><span data-i18n="schedule.changes">长按卡片拖到别的日子；也能整天调休、单停一门课</span></li>
+        <li><b data-i18n="schedule.weeksTitle">单双周与连堂</b><span data-i18n="schedule.weeks">任意周次组合，连堂课渲染成整块</span></li>
+        <li><b data-i18n="schedule.holidaysTitle">节假日自动更新</b><span data-i18n="schedule.holidays">放假与调休联网静默同步，也可手动补</span></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- ================= 外观 ================= -->
 <section class="feature alt" id="look">
   <div class="wrap feature-in rev">
     <div class="feature-media reveal">
       <div class="duo">
-        <div class="card-img"><img src="assets/shots/color-picker.webp" alt="调色盘" width="720" height="1071" loading="lazy"></div>
-        <div class="card-img"><img src="assets/shots/schedule-events.webp" alt="课表上的事务" width="720" height="839" loading="lazy"></div>
+        <div class="card-img"><img src="assets/shots/color-picker.webp" alt="调色盘" width="720" height="1071" loading="lazy" data-i18n-alt="shot.colors"></div>
+        <div class="card-img"><img src="assets/shots/schedule-events.webp" alt="课表上的事务" width="720" height="839" loading="lazy" data-i18n-alt="shot.events"></div>
       </div>
     </div>
     <div class="feature-text reveal">
-      <span class="kicker k-pink"><svg><use href="#i-palette"/></svg>外观</span>
-      <h2>好看，<br>也按你的喜好来</h2>
-      <p class="sub">从主题色到每一条网格线，都能自己调。</p>
+      <span class="kicker k-pink"><svg><use href="#i-palette"/></svg><span data-i18n="look.label">外观</span></span>
+      <h2><span data-i18n="look.title">好看，</span><br><span data-i18n="look.tagline">也按你的喜好来</span></h2>
+      <p class="sub" data-i18n="look.description">从主题色到每一条网格线，都能自己调。</p>
       <ul class="points">
-        <li><b>全局调色盘</b>文字、表头、卡片、网格线、主题色，拖色块就能选</li>
-        <li><b>自定义背景</b>用自己的图当课表背景，可裁切</li>
-        <li><b>长课名自动缩小</b>按格子剩余空间缩字号，课名和地点尽量都显示全</li>
+        <li><b data-i18n="look.paletteTitle">全局调色盘</b><span data-i18n="look.palette">文字、表头、卡片、网格线、主题色，拖色块就能选</span></li>
+        <li><b data-i18n="look.backgroundTitle">自定义背景</b><span data-i18n="look.background">用自己的图当课表背景，可裁切</span></li>
+        <li><b data-i18n="look.textTitle">长课名自动缩小</b><span data-i18n="look.text">按格子剩余空间缩字号，课名和地点尽量都显示全</span></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- ================= 备忘录 ================= -->
 <section class="feature" id="memo">
   <div class="wrap feature-in">
     <div class="feature-media reveal">
-      <div class="phone"><img src="assets/shots/memo-search.png" alt="备忘录全文检索 · 演示数据" width="1080" height="2400" loading="lazy"></div>
+      <div class="phone"><img src="assets/shots/memo-search.png" alt="备忘录全文检索 · 演示数据" width="1080" height="2400" loading="lazy" data-i18n-alt="shot.memo"></div>
     </div>
     <div class="feature-text reveal">
-      <span class="kicker k-yellow"><svg><use href="#i-note"/></svg>备忘录</span>
-      <h2>每门课，<br>一个笔记本</h2>
-      <p class="sub">作业、实验报告、考试范围，记在对应的课下面。</p>
+      <span class="kicker k-yellow"><svg><use href="#i-note"/></svg><span data-i18n="nav.memo">备忘录</span></span>
+      <h2><span data-i18n="memo.title">每门课，</span><br><span data-i18n="memo.tagline">一个笔记本</span></h2>
+      <p class="sub" data-i18n="memo.description">作业、实验报告、考试范围，记在对应的课下面。</p>
       <ul class="points">
-        <li><b>笔记内容一搜就到</b>跨笔记本检索标题、完整正文和课程信息，已完成笔记也能找到；清空后恢复原筛选</li>
-        <li><b>清单与进度</b>复选框清单在卡片上直接勾，进度一目了然</li>
-        <li><b>优先级与截止时间</b>要紧的置顶，总览里看到待办、今天到期与已逾期</li>
-        <li><b>所见即所得</b>列表、标题、引用、粗体编辑时直接渲染</li>
+        <li><b data-i18n="memo.searchTitle">笔记内容一搜就到</b><span data-i18n="memo.search">跨笔记本检索标题、完整正文和课程信息，已完成笔记也能找到；清空后恢复原筛选</span></li>
+        <li><b data-i18n="memo.checklistTitle">清单与进度</b><span data-i18n="memo.checklist">复选框清单在卡片上直接勾，进度一目了然</span></li>
+        <li><b data-i18n="memo.priorityTitle">优先级与截止时间</b><span data-i18n="memo.priority">要紧的置顶，总览里看到待办、今天到期与已逾期</span></li>
+        <li><b data-i18n="memo.editorTitle">所见即所得</b><span data-i18n="memo.editor">列表、标题、引用、粗体编辑时直接渲染</span></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- ================= 提醒 ================= -->
 <section class="feature alt" id="reminder">
   <div class="wrap feature-in rev">
     <div class="feature-media reveal">
       <div class="stack">
-        <div class="phone"><img src="assets/shots/notice.webp" alt="上课提醒悬浮窗" width="540" height="1200" loading="lazy"></div>
-        <div class="card-img stack-top"><img src="assets/shots/live-update.webp" alt="状态栏上课胶囊" width="720" height="433" loading="lazy"></div>
+        <div class="phone"><img src="assets/shots/notice.webp" alt="上课提醒悬浮窗" width="540" height="1200" loading="lazy" data-i18n-alt="shot.notice"></div>
+        <div class="card-img stack-top"><img src="assets/shots/live-update.webp" alt="状态栏上课胶囊" width="720" height="433" loading="lazy" data-i18n-alt="reminder.liveTitle"></div>
       </div>
     </div>
     <div class="feature-text reveal">
-      <span class="kicker k-blue"><svg><use href="#i-bell"/></svg>提醒</span>
-      <h2>快上课了，<br>它会先叫你</h2>
-      <p class="sub">课名、时间、教室一起弹出来，锁屏和状态栏上都看得到。</p>
+      <span class="kicker k-blue"><svg><use href="#i-bell"/></svg><span data-i18n="nav.reminder">提醒</span></span>
+      <h2><span data-i18n="reminder.title">快上课了，</span><br><span data-i18n="reminder.tagline">它会先叫你</span></h2>
+      <p class="sub" data-i18n="reminder.description">课名、时间、教室一起弹出来，锁屏和状态栏上都看得到。</p>
       <ul class="points">
-        <li><b>三种提醒样式</b>系统原生、品牌卡片、毛玻璃悬浮窗，滑一下就收起</li>
-        <li><b>状态栏上课胶囊</b>支持实时活动的手机在时钟旁挂上「10:00 上课」，小米走焦点通知</li>
-        <li><b>不漏一节</b>提醒点错过但还没上课，打开 App 立即补发</li>
-        <li><b>静默守护</b>不常驻通知，被系统清掉的提醒与闹钟自动重新挂上</li>
-        <li><b>按节次定闹钟</b>「节次 + 条件 + 动作」规则生成闹钟，早八不再睡过</li>
-        <li><b>假日闹钟按规则跳过</b>单个闹钟可选择「节假日也响」，手动静音日期仍优先</li>
-        <li><b>上课自动静音</b>按作息进出静音，下课恢复原来的铃声模式</li>
-        <li><b>机型放行引导</b>按这台手机列出要打开的权限，点一下直达系统设置</li>
+        <li><b data-i18n="reminder.stylesTitle">三种提醒样式</b><span data-i18n="reminder.styles">系统原生、品牌卡片、毛玻璃悬浮窗，滑一下就收起</span></li>
+        <li><b data-i18n="reminder.liveTitle">状态栏上课胶囊</b><span data-i18n="reminder.live">支持实时活动的手机在时钟旁挂上「10:00 上课」，小米走焦点通知</span></li>
+        <li><b data-i18n="reminder.missedTitle">不漏一节</b><span data-i18n="reminder.missed">提醒点错过但还没上课，打开 App 立即补发</span></li>
+        <li><b data-i18n="reminder.recoveryTitle">静默守护</b><span data-i18n="reminder.recovery">不常驻通知，被系统清掉的提醒与闹钟自动重新挂上</span></li>
+        <li><b data-i18n="reminder.rulesTitle">按节次定闹钟</b><span data-i18n="reminder.rules">「节次 + 条件 + 动作」规则生成闹钟，早八不再睡过</span></li>
+        <li><b data-i18n="reminder.holidaysTitle">假日闹钟按规则跳过</b><span data-i18n="reminder.holidays">单个闹钟可选择「节假日也响」，手动静音日期仍优先</span></li>
+        <li><b data-i18n="reminder.silenceTitle">上课自动静音</b><span data-i18n="reminder.silence">按作息进出静音，下课恢复原来的铃声模式</span></li>
+        <li><b data-i18n="reminder.permissionsTitle">机型放行引导</b><span data-i18n="reminder.permissions">按这台手机列出要打开的权限，点一下直达系统设置</span></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- ================= 闹钟 ================= -->
 <section class="feature" id="alarm">
   <div class="wrap feature-in">
     <div class="feature-media reveal">
       <div class="duo alarm-shots">
-        <div class="phone"><img src="assets/shots/alarm-ringing.png" alt="早上 07:45 的上课闹钟 · 演示数据" width="1080" height="2400" loading="lazy"></div>
-        <div class="phone"><img src="assets/shots/system-clock.png" alt="写入明天 07:45 和 09:45 的系统时钟 · 演示数据" width="1080" height="2400" loading="lazy"></div>
+        <div class="phone"><img src="assets/shots/alarm-ringing.png" alt="早上 07:45 的上课闹钟 · 演示数据" width="1080" height="2400" loading="lazy" data-i18n-alt="shot.alarm"></div>
+        <div class="phone"><img src="assets/shots/system-clock.png" alt="写入明天 07:45 和 09:45 的系统时钟 · 演示数据" width="1080" height="2400" loading="lazy" data-i18n-alt="shot.systemClock"></div>
       </div>
     </div>
     <div class="feature-text reveal">
-      <span class="kicker k-blue"><svg><use href="#i-bell"/></svg>闹钟</span>
-      <h2>明天的闹钟，<br>也能交给系统时钟</h2>
-      <p class="sub">在闹钟页手动写入明天的安排，再到手机时钟里核对。</p>
+      <span class="kicker k-blue"><svg><use href="#i-bell"/></svg><span data-i18n="alarm.label">闹钟</span></span>
+      <h2><span data-i18n="alarm.title">明天的闹钟，</span><br><span data-i18n="alarm.tagline">也能交给系统时钟</span></h2>
+      <p class="sub" data-i18n="alarm.description">在闹钟页手动写入明天的安排，再到手机时钟里核对。</p>
       <ul class="points">
-        <li><b>同一分钟合并</b>将明天可写入的闹钟逐一送到系统时钟；全部送出后，可选择静音课简明天的闹钟</li>
-        <li><b>新响铃界面</b>时间、日期和课程信息更清楚，配色跟随主题；底部滑动关闭，也可延后</li>
-        <li><b>写入后独立管理</b>之后的调课或假日变化不会自动修改系统时钟里的闹钟，静音也能在课简列表里取消</li>
+        <li><b data-i18n="alarm.mergeTitle">同一分钟合并</b><span data-i18n="alarm.merge">将明天可写入的闹钟逐一送到系统时钟；全部送出后，可选择静音课简明天的闹钟</span></li>
+        <li><b data-i18n="alarm.ringingTitle">新响铃界面</b><span data-i18n="alarm.ringing">时间、日期和课程信息更清楚，配色跟随主题；底部滑动关闭，也可延后</span></li>
+        <li><b data-i18n="alarm.independentTitle">写入后独立管理</b><span data-i18n="alarm.independent">之后的调课或假日变化不会自动修改系统时钟里的闹钟，静音也能在课简列表里取消</span></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- ================= 小组件 ================= -->
 <section class="feature" id="widget">
   <div class="wrap feature-in">
     <div class="feature-media reveal">
       <div class="desktop">
-        <img class="w" src="assets/shots/calendar-widget.png" alt="课程日历小组件 · 周课表演示数据" width="928" height="1007" loading="lazy">
-        <img class="w" src="assets/shots/pending-widget.png" alt="待完成小组件 · 演示数据" width="928" height="665" loading="lazy">
+        <img class="w" src="assets/shots/calendar-widget.png" alt="课程日历小组件 · 周课表演示数据" width="928" height="1007" loading="lazy" data-i18n-alt="shot.calendarWidget">
+        <img class="w" src="assets/shots/pending-widget.png" alt="待完成小组件 · 演示数据" width="928" height="665" loading="lazy" data-i18n-alt="shot.pendingWidget">
         <div class="row">
-          <img class="w w-next" src="assets/shots/widget-next.webp" alt="下一节课小组件" width="660" height="192" loading="lazy">
-          <img class="w w-rem" src="assets/shots/widget-reminder.webp" alt="提醒小组件" width="660" height="354" loading="lazy">
+          <img class="w w-next" src="assets/shots/widget-next.webp" alt="下一节课小组件" width="660" height="192" loading="lazy" data-i18n-alt="shot.nextWidget">
+          <img class="w w-rem" src="assets/shots/widget-reminder.webp" alt="提醒小组件" width="660" height="354" loading="lazy" data-i18n-alt="shot.reminderWidget">
         </div>
       </div>
     </div>
     <div class="feature-text reveal">
-      <span class="kicker k-green"><svg><use href="#i-widget"/></svg>桌面小组件</span>
-      <h2>不用打开，<br>桌面就能看</h2>
-      <p class="sub">课程日历、待完成，加上今日课表、下一节课和提醒，五款小组件任你摆。</p>
+      <span class="kicker k-green"><svg><use href="#i-widget"/></svg><span data-i18n="widget.title">桌面小组件</span></span>
+      <h2><span data-i18n="widget.heading">不用打开，</span><br><span data-i18n="widget.tagline">桌面就能看</span></h2>
+      <p class="sub" data-i18n="widget.description">今日课表、下一节课、提醒、课程日历和笔记待办，再加上已安装组件自带的小组件。</p>
       <ul class="points">
-        <li><b>课程日历</b>周课表与月历随时切换，查看课程、考试、事务和休息日；点日期打开对应课表</li>
-        <li><b>待完成</b>把启用组件里的作业、考试等未完成内容放到桌面，显示开始 / 截止时间，点开回到来源组件</li>
-        <li><b>准点刷新</b>课前 5 分钟、上课、下课这些节点精确刷新，不会显示过期的课</li>
-        <li><b>四层保障</b>系统周期、WorkManager、闹钟守护链与节次对齐刷新</li>
-        <li><b>点哪都能进</b>点卡片空白处也能直接打开 App</li>
+        <li><b data-i18n="widget.calendarTitle">课程日历</b><span data-i18n="widget.calendar">周课表与月历随时切换，查看课程、考试、事务和休息日；点日期打开对应课表</span></li>
+        <li><b data-i18n="widget.pendingTitle">组件自带小组件</b><span data-i18n="widget.pending">安装并启用声明了小组件的组件后即可添加；名称、界面和内容规则由对应组件管理，点开回到来源组件</span></li>
+        <li><b data-i18n="widget.refreshTitle">准点刷新</b><span data-i18n="widget.refresh">课前 5 分钟、上课、下课这些节点精确刷新，不会显示过期的课</span></li>
+        <li><b data-i18n="widget.recoveryTitle">四层保障</b><span data-i18n="widget.recovery">系统周期、WorkManager、闹钟守护链与节次对齐刷新</span></li>
+        <li><b data-i18n="widget.openTitle">点哪都能进</b><span data-i18n="widget.open">点卡片空白处也能直接打开 App</span></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- ================= 插件与组件市场 ================= -->
 <section class="feature alt" id="market">
   <div class="wrap feature-in rev">
     <div class="feature-media reveal">
-      <div class="phone"><img src="assets/shots/plugin-market.png" alt="插件与组件双市场、已安装入口和搜索" width="1080" height="2400" loading="lazy"></div>
+      <div class="phone"><img src="assets/shots/plugin-market.png" alt="插件与组件双市场、已安装入口和搜索" width="1080" height="2400" loading="lazy" data-i18n-alt="shot.market"></div>
     </div>
     <div class="feature-text reveal">
-      <span class="kicker k-green"><svg><use href="#i-plug"/></svg>插件与组件</span>
-      <h2>导课与扩展，<br>都有自己的市场</h2>
-      <p class="sub">插件和组件分别提供「已安装 / 市场」入口，搜名称、简介、学校别名或来源都能找到。</p>
+      <span class="kicker k-green"><svg><use href="#i-plug"/></svg><span data-i18n="market.label">插件与组件</span></span>
+      <h2><span data-i18n="market.title">导课与扩展，</span><br><span data-i18n="market.tagline">都有自己的市场</span></h2>
+      <p class="sub" data-i18n="market.description">插件和组件分别提供「已安装 / 市场」入口，搜名称、简介、学校别名或来源都能找到。</p>
       <ul class="points">
-        <li><b>多个来源一起用</b>保留默认公有仓库，也能分别添加插件与组件来源；一个来源暂不可用不影响其他来源</li>
-        <li><b>私有 GitHub 仓库</b>在来源设置中登录 GitHub 令牌，读取有权限的仓库；令牌加密保存在当前手机，不随备份迁移</li>
-        <li><b>详情与安装先看重点</b>简介、版本、来源和实际包大小更清楚，权限与技术信息按需展开，大包显示真实下载进度</li>
-        <li><b>版本重新核对</b>卡片直接显示更新状态，手动刷新与安装前重新检查版本</li>
+        <li><b data-i18n="market.sourcesTitle">多个来源一起用</b><span data-i18n="market.sources">保留默认公有仓库，也能分别添加插件与组件来源；一个来源暂不可用不影响其他来源</span></li>
+        <li><b data-i18n="market.privateTitle">私有 GitHub 仓库</b><span data-i18n="market.private">在来源设置中登录 GitHub 令牌，读取有权限的仓库；令牌加密保存在当前手机，不随备份迁移</span></li>
+        <li><b data-i18n="market.installTitle">详情与安装先看重点</b><span data-i18n="market.install">简介、版本、来源和实际包大小更清楚，权限与技术信息按需展开，大包显示真实下载进度</span></li>
+        <li><b data-i18n="market.versionTitle">版本重新核对</b><span data-i18n="market.version">卡片直接显示更新状态，手动刷新与安装前重新检查版本</span></li>
       </ul>
-      <p class="shot-note">雨课堂 v1.2.0 仍是未公开发布的本地 ZIP，需另行导入；公有市场尚未提供该版本。</p>
+      <p class="shot-note" data-i18n="market.localNotice">雨课堂 v1.2.0 仍是未公开发布的本地 ZIP，需另行导入；公有市场尚未提供该版本。</p>
     </div>
   </div>
 </section>
 
-<!-- ================= 学校 ================= -->
 <section class="schools-sec" id="schools">
   <div class="wrap">
     <div class="sec-head reveal">
-      <span class="kicker k-green"><svg><use href="#i-plug"/></svg>插件导课</span>
-      <h2>登录教务，一键导入课表</h2>
-      <p class="sub">每所学校由独立插件适配，学校系统改版只需更新插件，不必等应用发版。</p>
+      <span class="kicker k-green"><svg><use href="#i-plug"/></svg><span data-i18n="schools.label">插件导课</span></span>
+      <h2 data-i18n="schools.title">登录教务，一键导入课表</h2>
+      <p class="sub" data-i18n="schools.description">每所学校由独立插件适配，学校系统改版只需更新插件，不必等应用发版。</p>
     </div>
 
     <div class="schools reveal">
       <a class="school" href="https://github.com/cursimple/YangtzU_course_plugin" target="_blank" rel="noopener">
-        <span class="school-logo">长</span>
-        <span class="school-name">长江大学<small>Yangtze University</small></span>
-        <span class="tag"><svg><use href="#i-check"/></svg>已支持</span>
+        <span class="school-logo" data-i18n="schools.logo">长</span>
+        <span class="school-name"><span data-i18n="schools.yangtze">长江大学</span><small data-i18n="schools.yangtzeSecondary">Yangtze University</small></span>
+        <span class="tag"><svg><use href="#i-check"/></svg><span data-i18n="schools.supported">已支持</span></span>
       </a>
       <a class="school school-add" href="https://github.com/cursimple/cursimple-app/blob/main/docs/plugin-system.md" target="_blank" rel="noopener">
         <span class="school-logo"><svg><use href="#i-plus"/></svg></span>
-        <span class="school-name">更多学校<small>陆续适配中 · 欢迎贡献插件</small></span>
+        <span class="school-name"><span data-i18n="schools.more">更多学校</span><small data-i18n="schools.contribute">陆续适配中 · 欢迎贡献插件</small></span>
         <span class="go"><svg><use href="#i-arrow"/></svg></span>
       </a>
     </div>
 
     <div class="import-ways reveal">
-      <p>学校还没适配？这些方式也能把课表搬进来：</p>
+      <p data-i18n="schools.alternatives">学校还没适配？这些方式也能把课表搬进来：</p>
       <ul>
-        <li><svg><use href="#i-plus"/></svg>手动添加课程</li>
-        <li><svg><use href="#i-qr"/></svg>二维码 / 口令互传</li>
-        <li><svg><use href="#i-scan"/></svg>AI 识别课表截图</li>
-        <li><svg><use href="#i-layers"/></svg>导入 JSON 备份</li>
+        <li><svg><use href="#i-plus"/></svg><span data-i18n="schools.manual">手动添加课程</span></li>
+        <li><svg><use href="#i-qr"/></svg><span data-i18n="schools.share">二维码 / 口令互传</span></li>
+        <li><svg><use href="#i-scan"/></svg><span data-i18n="schools.ai">AI 识别课表截图</span></li>
+        <li><svg><use href="#i-layers"/></svg><span data-i18n="schools.json">导入 JSON 备份</span></li>
       </ul>
     </div>
   </div>
 </section>
 
-<!-- ================= 更多 ================= -->
 <section class="more" id="more">
   <div class="wrap">
     <div class="sec-head reveal">
-      <span class="kicker k-blue"><svg><use href="#i-spark"/></svg>还有这些</span>
-      <h2>细节都替你想好了</h2>
+      <span class="kicker k-blue"><svg><use href="#i-spark"/></svg><span data-i18n="more.label">还有这些</span></span>
+      <h2 data-i18n="more.title">细节都替你想好了</h2>
     </div>
     <div class="bento reveal">
       <div class="tile t-wide t-settings">
         <div class="tile-text">
           <svg class="ti"><use href="#i-search"/></svg>
-          <h3>设置一搜就到</h3>
-          <p>按名称、页面、关键词直达任意设置；「常用」放哪几项自己定，长按拖进来即可。</p>
+          <h3 data-i18n="more.searchTitle">设置一搜就到</h3>
+          <p data-i18n="more.search">按名称、页面、关键词直达任意设置；「常用」放哪几项自己定，长按拖进来即可。</p>
         </div>
-        <img src="assets/shots/settings.webp" alt="设置页" width="540" height="1200" loading="lazy">
+        <img src="assets/shots/settings.webp" alt="设置页" width="540" height="1200" loading="lazy" data-i18n-alt="shot.settings">
       </div>
       <div class="tile">
         <svg class="ti"><use href="#i-cloud"/></svg>
-        <h3>备份不丢</h3>
-        <p>本地 JSON 备份，或同步到任意 WebDAV，事务与备忘录一起带走。</p>
+        <h3 data-i18n="more.backupTitle">备份不丢</h3>
+        <p data-i18n="more.backup">本地 JSON 备份，或同步到任意 WebDAV，事务与备忘录一起带走。</p>
       </div>
       <div class="tile">
         <svg class="ti"><use href="#i-cal"/></svg>
-        <h3>写进系统日历</h3>
-        <p>整学期一键写入手机日历，也能一键撤销；支持导出 .ics。</p>
+        <h3 data-i18n="more.calendarTitle">写进系统日历</h3>
+        <p data-i18n="more.calendar">整学期一键写入手机日历，也能一键撤销；支持导出 .ics。</p>
       </div>
       <div class="tile">
         <svg class="ti"><use href="#i-qr"/></svg>
-        <h3>和同学互传</h3>
-        <p>二维码或口令交换课表，也可以导出一张课表图片发群里。</p>
+        <h3 data-i18n="more.shareTitle">和同学互传</h3>
+        <p data-i18n="more.share">二维码或口令交换课表，也可以导出一张课表图片发群里。</p>
       </div>
       <div class="tile">
         <svg class="ti"><use href="#i-layers"/></svg>
-        <h3>多学期并存</h3>
-        <p>每个学期独立的课表、作息与周数，随时切换。</p>
+        <h3 data-i18n="more.semestersTitle">多学期并存</h3>
+        <p data-i18n="more.semesters">每个学期独立的课表、作息与周数，随时切换。</p>
       </div>
       <div class="tile">
         <svg class="ti"><use href="#i-globe"/></svg>
-        <h3>语言与时区</h3>
-        <p>简 / 繁 / English 应用内即时切换；时区可独立设置，跨时区上网课也不乱。</p>
+        <h3 data-i18n="more.languageTitle">语言与时区</h3>
+        <p data-i18n="more.language">简 / 繁 / English 应用内即时切换；时区可独立设置，跨时区上网课也不乱。</p>
       </div>
       <div class="tile">
         <svg class="ti"><use href="#i-refresh"/></svg>
-        <h3>应用内更新</h3>
-        <p>发现新版直接下载安装，走国内加速线路；更新后翻页看本版亮点。</p>
+        <h3 data-i18n="more.updateTitle">应用内更新</h3>
+        <p data-i18n="more.update">发现新版直接下载安装，走国内加速线路；更新后翻页看本版亮点。</p>
       </div>
       <div class="tile t-bar">
         <svg class="ti"><use href="#i-github"/></svg>
         <div>
-          <h3>开源，也不追踪你</h3>
-          <p>代码全部公开在 GitHub；没有统计与广告 SDK，不用注册账号，课表只存在你自己的手机上。</p>
+          <h3 data-i18n="more.privacyTitle">开源，也不追踪你</h3>
+          <p data-i18n="more.privacyDescription">代码全部公开在 GitHub；没有统计与广告 SDK，不用注册账号，课表只存在你自己的手机上。</p>
         </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ================= 上手 ================= -->
 <section class="steps-sec">
   <div class="wrap">
     <div class="sec-head reveal">
-      <h2>四步上手</h2>
+      <h2 data-i18n="steps.title">四步上手</h2>
     </div>
     <ol class="steps reveal">
-      <li><i>1</i><b>设置开学日期</b><span>课表页顶部的提示按钮，或侧边栏进入</span></li>
-      <li><i>2</i><b>安装学校插件</b><span>在「插件」页的插件市场里找到你的学校</span></li>
-      <li><i>3</i><b>登录教务同步</b><span>按插件提示登录，课表自动导入</span></li>
-      <li><i>4</i><b>放行通知</b><span>设置 › 上课通知 › 通知弹出引导，照清单打开</span></li>
+      <li><i>1</i><b data-i18n="steps.termTitle">设置开学日期</b><span data-i18n="steps.term">课表页顶部的提示按钮，或侧边栏进入</span></li>
+      <li><i>2</i><b data-i18n="steps.pluginTitle">安装学校插件</b><span data-i18n="steps.plugin">在「插件」页的插件市场里找到你的学校</span></li>
+      <li><i>3</i><b data-i18n="steps.loginTitle">登录教务同步</b><span data-i18n="steps.login">按插件提示登录，课表自动导入</span></li>
+      <li><i>4</i><b data-i18n="steps.notificationTitle">放行通知</b><span data-i18n="steps.notification">设置 › 上课通知 › 通知弹出引导，照清单打开</span></li>
     </ol>
   </div>
 </section>
 
-<!-- ================= 下载 ================= -->
 <section class="download" id="download">
   <div class="wrap">
     <div class="dl-card reveal">
       <div class="dl-main">
         <img class="dl-icon" src="assets/icon.png" alt="" width="84" height="84">
-        <h2>下载课简</h2>
-        <p class="dl-ver"><b data-ver>v0.7.5</b><span data-channel-label>最新测试版</span><span data-date></span><a href="#changelog" class="dl-notes" data-changelog>更新内容<svg><use href="#i-right"/></svg></a></p>
-        <p class="beta-line" data-channel="stable">最新正式版：暂无正式版</p>
-        <p class="beta-line" id="betaLine" data-channel="beta">最新测试版：<a href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5" target="_blank" rel="noopener">v0.7.5</a></p>
-        <p class="beta-line">0.7.4 与 0.7.5 均为测试版。</p>
+        <h2 data-i18n="download.title">下载课简</h2>
+        <p class="dl-ver"><b data-ver>v0.7.6</b><span data-channel-label data-i18n="channel.beta">最新测试版</span><span data-date></span><a href="#changelog" class="dl-notes" data-changelog><span data-i18n="download.notes">更新内容</span><svg><use href="#i-right"/></svg></a></p>
+        <p class="beta-line" data-channel="stable" data-i18n="channel.stableEmptyLine">最新正式版：暂无正式版</p>
+        <p class="beta-line" id="betaLine" data-channel="beta"><span data-i18n="channel.betaPrefix">最新测试版：</span><a href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6" target="_blank" rel="noopener">v0.7.6</a></p>
+        <p class="beta-line" data-i18n="download.betaNotice">0.7.4 与 0.7.6 均为测试版。</p>
 
-        <div class="route" role="radiogroup" aria-label="下载线路">
-          <button class="on" data-route="github">GitHub 直连</button>
-          <button data-route="mirror">国内加速</button>
+        <div class="route" role="radiogroup" aria-label="下载线路" data-i18n-aria-label="download.route">
+          <button class="on" data-route="github" data-i18n="download.github">GitHub 直连</button>
+          <button data-route="mirror" data-i18n="download.mirror">国内加速</button>
         </div>
 
-        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-arm64-v8a.apk">
-          <svg><use href="#i-download"/></svg><span>下载 arm64 版<small data-dl-meta>推荐 · 绝大多数手机选这个</small></span>
+        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.6/CurSimple-arm64-v8a.apk">
+          <svg><use href="#i-download"/></svg><span><span data-i18n="download.arm64">下载 arm64 版</span><small data-dl-meta data-i18n="download.arm64Meta">推荐 · 绝大多数手机选这个</small></span>
         </a>
 
-        <div class="wx-tip" id="wxTip" hidden>检测到你在微信 / QQ 里打开，可能无法下载。请点右上角「···」选择「在浏览器打开」。</div>
+        <div class="wx-tip" id="wxTip" hidden data-i18n="download.embedded">检测到你在微信 / QQ 里打开，可能无法下载。请点右上角「···」选择「在浏览器打开」。</div>
 
         <details class="abis">
-          <summary>其他架构安装包</summary>
+          <summary data-i18n="download.architectures">其他架构安装包</summary>
           <ul id="abiList">
-            <li><a data-dl="universal" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-universal.apk"><b>通用版 universal</b><span>不确定手机架构时选这个</span><em data-size="universal">大小待获取</em></a></li>
-            <li><a data-dl="armeabi-v7a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span>较旧的 32 位手机</span><em data-size="armeabi-v7a">大小待获取</em></a></li>
-            <li><a data-dl="x86_64" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-x86_64.apk"><b>x86_64</b><span>Intel 设备与模拟器</span><em data-size="x86_64">大小待获取</em></a></li>
-            <li><a data-dl="x86" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-x86.apk"><b>x86</b><span>32 位 Intel 设备</span><em data-size="x86">大小待获取</em></a></li>
+            <li><a data-dl="universal" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.6/CurSimple-universal.apk"><b data-i18n="download.universal">通用版 universal</b><span data-i18n="download.universalDescription">不确定手机架构时选这个</span><em data-size="universal" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="armeabi-v7a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.6/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span data-i18n="download.arm32Description">较旧的 32 位手机</span><em data-size="armeabi-v7a" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="x86_64" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.6/CurSimple-x86_64.apk"><b>x86_64</b><span data-i18n="download.intelDescription">Intel 设备与模拟器</span><em data-size="x86_64" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="x86" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.6/CurSimple-x86.apk"><b>x86</b><span data-i18n="download.intel32Description">32 位 Intel 设备</span><em data-size="x86" data-i18n="download.sizePending">大小待获取</em></a></li>
           </ul>
         </details>
 
         <p class="dl-links">
-          <a href="https://github.com/cursimple/cursimple-app/releases" target="_blank" rel="noopener">历史版本与测试版</a>
-          <a data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5" target="_blank" rel="noopener">更新日志</a>
-          <a href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener">源代码</a>
+          <a href="https://github.com/cursimple/cursimple-app/releases" target="_blank" rel="noopener" data-i18n="download.history">历史版本与测试版</a>
+          <a data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6" target="_blank" rel="noopener" data-i18n="download.changelog">更新日志</a>
+          <a href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener" data-i18n="download.source">源代码</a>
         </p>
       </div>
       <div class="dl-qr">
-        <div class="qr-box"><img src="assets/qr.svg" alt="下载页二维码" width="198" height="198"></div>
-        <p><b>用手机扫一扫</b><span>在电脑上看到这里？扫码直接到手机上下载</span></p>
+        <div class="qr-box"><img src="assets/qr.svg" alt="下载页二维码" width="198" height="198" data-i18n-alt="shot.qr"></div>
+        <p><b data-i18n="download.scanTitle">用手机扫一扫</b><span data-i18n="download.scan">在电脑上看到这里？扫码直接到手机上下载</span></p>
       </div>
     </div>
 
     <div class="faq reveal">
       <details>
-        <summary>该下载哪个安装包？</summary>
-        <p>绝大多数手机选 arm64 版。实在不确定就下载通用版 universal，体积稍大但所有设备都能装。</p>
+        <summary data-i18n="faq.archTitle">该下载哪个安装包？</summary>
+        <p data-i18n="faq.arch">绝大多数手机选 arm64 版。实在不确定就下载通用版 universal，体积稍大但所有设备都能装。</p>
       </details>
       <details>
-        <summary>安装时提示「未知来源」或「有风险」？</summary>
-        <p>课简不在应用商店上架，安装包直接来自 GitHub Releases 的自动构建，源代码完全公开。按提示允许浏览器安装应用即可。</p>
+        <summary data-i18n="faq.installTitle">安装时提示「未知来源」或「有风险」？</summary>
+        <p data-i18n="faq.install">课简不在应用商店上架，安装包直接来自 GitHub Releases 的自动构建，源代码完全公开。按提示允许浏览器安装应用即可。</p>
       </details>
       <details>
-        <summary>上课提醒没有弹出来？</summary>
-        <p>国内厂商对后台限制较严。打开「设置 › 上课通知 › 通知弹出引导」，按清单逐项放行（通知、悬浮横幅、悬浮窗、后台弹出等）即可。</p>
+        <summary data-i18n="faq.reminderTitle">上课提醒没有弹出来？</summary>
+        <p data-i18n="faq.reminder">国内厂商对后台限制较严。打开「设置 › 上课通知 › 通知弹出引导」，按清单逐项放行（通知、悬浮横幅、悬浮窗、后台弹出等）即可。</p>
       </details>
       <details>
-        <summary>我的学校还不支持，怎么办？</summary>
-        <p>可以先手动添加、用二维码或 AI 识图导入。如果你会一点 JavaScript，欢迎参考<a href="https://github.com/cursimple/cursimple-app/blob/main/docs/plugin-system.md" target="_blank" rel="noopener">插件开发指南</a>为自己的学校写一个插件。</p>
+        <summary data-i18n="faq.schoolTitle">我的学校还不支持，怎么办？</summary>
+        <p><span data-i18n="faq.schoolIntro">可以先手动添加、用二维码或 AI 识图导入。如果你会一点 JavaScript，欢迎参考</span><a href="https://github.com/cursimple/cursimple-app/blob/main/docs/plugin-system.md" target="_blank" rel="noopener" data-i18n="faq.pluginGuide">插件开发指南</a><span data-i18n="faq.schoolEnd">为自己的学校写一个插件。</span></p>
       </details>
     </div>
   </div>
@@ -469,13 +461,13 @@
 
 <footer class="foot">
   <div class="wrap foot-in">
-    <div class="brand"><img src="assets/icon.png" alt="" width="28" height="28"><span>课简</span><em>CurSimple</em></div>
-    <p>开源于 GitHub · MIT License</p>
+    <div class="brand"><img src="assets/icon.png" alt="" width="28" height="28"><span data-i18n="brand.name">课简</span><em>CurSimple</em></div>
+    <p data-i18n="footer.openSource">开源于 GitHub · MIT License</p>
     <nav>
       <a href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/cursimple/cursimple-plugins" target="_blank" rel="noopener">插件注册表</a>
-      <a href="https://github.com/cursimple/cursimple-app/blob/main/docs/plugin-system.md" target="_blank" rel="noopener">插件开发</a>
-      <a href="https://github.com/cursimple/cursimple-app/issues" target="_blank" rel="noopener">反馈问题</a>
+      <a href="https://github.com/cursimple/cursimple-plugins" target="_blank" rel="noopener" data-i18n="footer.registry">插件注册表</a>
+      <a href="https://github.com/cursimple/cursimple-app/blob/main/docs/plugin-system.md" target="_blank" rel="noopener" data-i18n="footer.development">插件开发</a>
+      <a href="https://github.com/cursimple/cursimple-app/issues" target="_blank" rel="noopener" data-i18n="footer.feedback">反馈问题</a>
     </nav>
   </div>
 </footer>
@@ -486,25 +478,25 @@
     <header class="sheet-head">
       <img src="assets/icon.png" alt="" width="46" height="46">
       <div>
-        <h3 id="clTitle"><span data-ver>v0.7.5</span> 更新公告</h3>
-        <p id="clMeta">最新测试版</p>
+        <h3 id="clTitle"><span data-ver>v0.7.6</span> <span data-i18n="notes.title">更新公告</span></h3>
+        <p id="clMeta" data-i18n="channel.beta">最新测试版</p>
       </div>
-      <button class="icon-btn sheet-x" data-close aria-label="关闭"><svg><use href="#i-close"/></svg></button>
+      <button class="icon-btn sheet-x" data-close aria-label="关闭" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
     </header>
     <div class="sheet-body">
       <div class="slides" id="clSlides">
-        <div class="slide cl-loading"><i class="spin"></i><p>正在加载更新内容…</p></div>
+        <div class="slide cl-loading"><i class="spin"></i><p data-i18n="notes.loading">正在加载更新内容…</p></div>
       </div>
     </div>
     <footer class="sheet-foot">
       <div class="pager">
-        <button class="nav-arrow" id="clPrev" aria-label="上一页"><svg><use href="#i-left"/></svg></button>
+        <button class="nav-arrow" id="clPrev" aria-label="上一页" data-i18n-aria-label="notes.previous"><svg><use href="#i-left"/></svg></button>
         <div class="dots" id="clDots"></div>
-        <button class="nav-arrow" id="clNext" aria-label="下一页"><svg><use href="#i-right"/></svg></button>
+        <button class="nav-arrow" id="clNext" aria-label="下一页" data-i18n-aria-label="notes.next"><svg><use href="#i-right"/></svg></button>
       </div>
       <div class="sheet-act">
-        <a class="btn btn-ghost btn-md" id="clGithub" data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.5" target="_blank" rel="noopener">完整说明<svg><use href="#i-ext"/></svg></a>
-        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.5/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg>立即下载</a>
+        <a class="btn btn-ghost btn-md" id="clGithub" data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.6" target="_blank" rel="noopener"><span data-i18n="notes.full">完整说明</span><svg><use href="#i-ext"/></svg></a>
+        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.6/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg><span data-i18n="download.now">立即下载</span></a>
       </div>
     </footer>
   </div>
@@ -512,9 +504,10 @@
 
 <div class="lightbox" id="lightbox" hidden>
   <img alt="">
-  <button class="icon-btn sheet-x" data-close aria-label="关闭"><svg><use href="#i-close"/></svg></button>
+  <button class="icon-btn sheet-x" data-close aria-label="关闭" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
 </div>
 
+<script src="i18n.js" defer></script>
 <script src="releases.js" defer></script>
 <script src="main.js" defer></script>
 </body>

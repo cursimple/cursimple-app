@@ -21,12 +21,9 @@ import java.time.YearMonth
 
 internal data class CalendarWidgetData(
     val mode: CalendarWidgetMode,
-    /** 翻了几周 / 几个月；0 表示本周 / 本月 */
     val offset: Int,
     val today: LocalDate,
-    /** 周视图：这一周的周一；月视图：这个月的 1 号 */
     val anchor: LocalDate,
-    /** 周视图那一周（月视图则是本月 1 号所在周）的教学周；没设开学日期为 null */
     val weekIndex: Int?,
     val termStartMissing: Boolean,
     val week: CalendarWeekData?,
@@ -50,7 +47,6 @@ internal object CalendarWidgetDataSource {
         val termStart = resolveWidgetTermStartDate(termProfiles, timingProfile, userPrefs.termStartDate)
         val schedule = DataStoreScheduleRepository(appContext, termProfiles).scheduleFlow.first()
         val manual = DataStoreManualCourseRepository(appContext, termProfiles).manualCoursesFlow.first()
-        // 改过的插件课以同 id 手动课落库，删掉的留墓碑：合并后才不会显示两遍或复活
         val allCourses = schedule.allCoursesWith(manual)
         val events = DataStoreScheduleEventRepository(appContext).eventsFlow.first()
 
@@ -89,7 +85,7 @@ internal object CalendarWidgetDataSource {
                     week = CalendarWeekData(
                         days = days,
                         blocks = days.map(::calendarBlocksOf),
-                        // 名字按应用语言取：传进来的 context 带着语言包装，applicationContext 没有
+                        // Use the locale-wrapped Context, not applicationContext.
                         rows = calendarRows(
                             profileSlots = timingProfile?.slotTimes.orEmpty(),
                             days = days,

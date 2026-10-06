@@ -15,10 +15,9 @@ class WidgetProviderMetadataTest {
     fun `daily schedule provider spans a full home row by default`() {
         val provider = providerXml("schedule_widget_info.xml")
 
-        // 桌面一行常见是 4 格，装上就铺满整行
         assertEquals("4", provider.androidAttribute("targetCellWidth"))
         assertEquals("2", provider.androidAttribute("targetCellHeight"))
-        // 最小尺寸压到两格宽：鸿蒙、EMUI 这些按 minWidth 过滤的启动器才愿意把它列进选择器
+        // Minimum dimensions remain compatible with launcher picker filters.
         assertEquals("180dp", provider.androidAttribute("minWidth"))
         assertEquals("110dp", provider.androidAttribute("minResizeWidth"))
         assertEquals("80dp", provider.androidAttribute("minResizeHeight"))
@@ -28,7 +27,7 @@ class WidgetProviderMetadataTest {
     fun `next course and reminder providers span a full home row too`() {
         val next = providerXml("next_course_widget_info.xml")
         assertEquals("4", next.androidAttribute("targetCellWidth"))
-        // 默认两行：一行只放得下状态和课名，时间与地点会被截掉
+        // Default two-row height preserves both title/status and time/location.
         assertEquals("2", next.androidAttribute("targetCellHeight"))
         assertEquals("110dp", next.androidAttribute("minHeight"))
         assertEquals("180dp", next.androidAttribute("minWidth"))
@@ -41,8 +40,7 @@ class WidgetProviderMetadataTest {
 
     @Test
     fun `previews are bitmaps so vendor pickers can render them`() {
-        // EMUI / 鸿蒙 的小组件选择器按位图处理 previewImage，遇到矢量图会把整项过滤掉，
-        // 表现就是「应用装了，桌面却找不到这个小组件」
+        // Use bitmap previews because some launchers reject vector previewImage resources.
         listOf("today", "next", "reminder", "calendar", "tasks").forEach { id ->
             assertTrue(
                 "widget_preview_$id 必须是位图",
@@ -66,10 +64,10 @@ class WidgetProviderMetadataTest {
         val receivers = doc.getElementsByTagName("receiver")
         val enabled = (0 until receivers.length).map { receivers.item(it) as Element }
             .associate { it.androidAttribute("name") to (it.androidAttribute("enabled") != "false") }
-        // 待完成的内容来自组件：没装组件时不能出现在桌面的小组件列表里
+        // Component task providers stay hidden without an installed enabled extension.
         assertFalse(enabled.getValue(".PendingTaskWidgetReceiver"))
         assertFalse(enabled.getValue(".PendingTaskWidgetReceiverMIUI"))
-        // 课程日历只用课简自己的课表与事务，是系统小组件
+        // Course calendars depend only on app-owned timetable and event data.
         assertTrue(enabled.getValue(".CalendarWidgetReceiver"))
         assertTrue(enabled.getValue(".ScheduleGlanceWidgetReceiver"))
     }

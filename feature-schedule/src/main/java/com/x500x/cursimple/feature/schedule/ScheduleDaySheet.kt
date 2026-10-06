@@ -31,38 +31,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
 
-/** 用户给某一天定下的状态。[Default] 表示不插手，跟着节假日日历走。 */
 internal enum class ScheduleDayChoice { Default, Workday, Holiday }
 
 /**
- * 双击日期栏打开的「这一天」设置。
- *
- * 内置或同步来的放假安排未必合用——调休、院系单独放假、临时停课都对不上，
- * 这里让用户就地推翻当天的判定：照常上课，或者整天停课。
+ * Day settings override unsuitable calendar declarations with normal classes or whole-day
+ * cancellation.
  */
 
-/**
- * 面板里要列出的状态，与表头上那行小字一一对应。
- *
- * 表头一列就那么宽，节日名、「按10/10」这些多半显示不全，双击进来必须看得到完整的。
- * 所以这张表是「表头能出现什么」的镜像，少一项就意味着有信息只在表头里被截断着。
- */
+/** Mirror every header status with complete text in the expanded day sheet. */
 internal enum class ScheduleDayStatus {
     Today,
     Holiday,
     MakeUpWorkday,
     FollowsOtherDay,
 
-    /** 什么特殊情况都没有。 */
     Normal,
 }
 
-/**
- * 按当前情况排出要列的状态。
- *
- * 「今天」只是个位置标记、不是课表状态，所以它单独存在时仍要补上「照常上课」，
- * 否则双击今天会只看到「当前：今天」，看不出这天到底上不上课。
- */
+/** Today is a position marker; also report the day's actual class status. */
 internal fun scheduleDayStatuses(
     isToday: Boolean,
     hasHoliday: Boolean,
@@ -81,15 +67,10 @@ internal fun scheduleDayStatuses(
 internal fun ScheduleDaySheet(
     date: LocalDate,
     weekdayLabel: String,
-    /** 当前生效的节日名，没有节日时为 null。 */
     effectiveHolidayName: String?,
-    /** 这天是调休补班日（本该休息却要上课）。 */
     makeUpWorkday: Boolean = false,
-    /** 临时调课时这天实际按哪一天的课上；与本日相同或没有调课时为 null。 */
     sourceDate: LocalDate? = null,
-    /** [sourceDate] 那天的星期名。 */
     sourceWeekdayLabel: String? = null,
-    /** 这天就是今天（表头上是那个高亮胶囊）。 */
     isToday: Boolean = false,
     initialChoice: ScheduleDayChoice,
     initialHolidayName: String,
@@ -121,8 +102,7 @@ internal fun ScheduleDaySheet(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            // 表头那一列太窄，节日名和「按哪天上课」多半显示不全。
-            // 表头上能出现的每一项，这里都要能看到完整的——这正是用户双击进来的目的
+            // Expose full holiday and source-day labels that narrow headers truncate.
             val statusLines = scheduleDayStatuses(
                 isToday = isToday,
                 hasHoliday = effectiveHolidayName != null,

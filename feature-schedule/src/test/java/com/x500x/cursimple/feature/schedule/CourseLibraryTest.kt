@@ -50,7 +50,6 @@ class CourseLibraryTest {
     fun `only self-added manual courses can be deleted`() {
         val library = buildCourseLibrary(listOf(course("p1")), listOf(course("m1")))
 
-        // 插件原件删不掉，下次同步还会回来
         assertFalse(library.first { it.course.id == "p1" }.removable)
         assertTrue(library.first { it.course.id == "m1" }.removable)
         assertFalse(library.first { it.course.id == "m1" }.restorable)
@@ -66,7 +65,7 @@ class CourseLibraryTest {
         val entry = library.single()
         assertTrue(entry.overridesPlugin)
         assertTrue(entry.editable)
-        // 删掉的只是那份手动覆盖，插件原件会重新露出来，所以这里给的是"还原"而不是"删除"
+        // Deleting an override restores the plugin original.
         assertFalse(entry.removable)
         assertTrue(entry.restorable)
     }
@@ -158,7 +157,7 @@ class CourseLibraryTest {
             listOf(course("mon", dayOfWeek = 1), course("sun", dayOfWeek = 7)),
         )
 
-        // 周日起时课程库也要先列周日，否则两处显示的星期顺序对不上
+        // Course-library weekday ordering follows the timetable's display start.
         assertEquals(
             listOf(7, 1),
             groupCourseLibraryByWeekday(entries, listOf(7, 1, 2, 3, 4, 5, 6)).map { it.first },

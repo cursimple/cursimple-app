@@ -38,11 +38,28 @@ import java.util.Locale
 import java.util.TimeZone
 import java.time.ZoneId
 
-/**
- * 测试版更新开关。
- *
- * 默认关闭，开启前弹窗二次确认；关闭时不确认。
- */
+@Composable
+internal fun BetaUpdatesConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_beta_updates_confirm_title)) },
+        text = { Text(stringResource(R.string.settings_beta_updates_confirm_body)) },
+        confirmButton = {
+            AppOutlinedButton(onClick = onConfirm) {
+                Text(stringResource(R.string.settings_beta_updates_confirm_ok))
+            }
+        },
+        dismissButton = {
+            AppOutlinedButton(onClick = onDismiss) {
+                Text(stringResource(R.string.settings_cancel))
+            }
+        },
+    )
+}
+
 @Composable
 internal fun BetaUpdatesRow(
     enabled: Boolean,
@@ -51,21 +68,12 @@ internal fun BetaUpdatesRow(
     var showConfirm by rememberSaveable { mutableStateOf(false) }
 
     if (showConfirm) {
-        AlertDialog(
-            onDismissRequest = { showConfirm = false },
-            title = { Text(stringResource(R.string.settings_beta_updates_confirm_title)) },
-            text = { Text(stringResource(R.string.settings_beta_updates_confirm_body)) },
-            confirmButton = {
-                AppOutlinedButton(onClick = {
-                    showConfirm = false
-                    onEnabledChange(true)
-                }) { Text(stringResource(R.string.settings_beta_updates_confirm_ok)) }
+        BetaUpdatesConfirmDialog(
+            onConfirm = {
+                showConfirm = false
+                onEnabledChange(true)
             },
-            dismissButton = {
-                AppOutlinedButton(onClick = { showConfirm = false }) {
-                    Text(stringResource(R.string.settings_cancel))
-                }
-            },
+            onDismiss = { showConfirm = false },
         )
     }
 
@@ -84,7 +92,6 @@ internal fun BetaUpdatesRow(
     )
 }
 
-/** 时区选择。为空表示跟随设备。 */
 @Composable
 internal fun TimeZoneRow(
     zoneId: String?,
@@ -112,12 +119,7 @@ internal fun TimeZoneRow(
     )
 }
 
-/**
- * 一个可选时区。
- *
- * [cityName] 是按当前语言的城市名，中文下是「上海」这类写法，比时区标准名更好认也更好搜；
- * [displayName] 是时区的标准名，取不到城市名时用它顶上。
- */
+/** Localized [cityName] is searchable; [displayName] is the fallback zone label. */
 internal data class ZoneChoice(
     val id: String,
     val cityName: String,
@@ -128,7 +130,6 @@ internal data class ZoneChoice(
     val label: String get() = cityName.ifBlank { displayName }
 }
 
-/** 城市名、时区名、id 或偏移任一命中即算命中；查询为空时全部命中。 */
 internal fun matchesZoneQuery(choice: ZoneChoice, query: String): Boolean {
     val needle = query.trim().lowercase(Locale.ROOT)
     if (needle.isEmpty()) return true
@@ -136,10 +137,7 @@ internal fun matchesZoneQuery(choice: ZoneChoice, query: String): Boolean {
         .any { it.lowercase(Locale.ROOT).contains(needle) }
 }
 
-/**
- * 按与 UTC 的偏移排序，同偏移内按名称，便于按地理位置找。
- * 名称比较交给 [nameComparator]，中文按字符码排出来的顺序读起来是乱的。
- */
+/** Sort by UTC offset, then localized name using [nameComparator]. */
 internal fun sortZoneChoices(
     choices: List<ZoneChoice>,
     nameComparator: Comparator<String> = naturalOrder(),
@@ -157,7 +155,6 @@ private fun buildZoneChoices(locale: Locale, now: Instant): List<ZoneChoice> {
         ZoneChoice(
             id = id,
             cityName = runCatching { timeZoneNames?.getExemplarLocationName(id) }.getOrNull().orEmpty(),
-            // 取不到本地化名称时退回 id，不留空行
             displayName = TimeZone.getTimeZone(id)
                 .getDisplayName(false, TimeZone.LONG, locale)
                 .takeIf { it.isNotBlank() } ?: id,

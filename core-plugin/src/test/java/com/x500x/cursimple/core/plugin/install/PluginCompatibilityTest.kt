@@ -53,4 +53,33 @@ class PluginCompatibilityTest {
             assertEquals(PluginCompatibilityStatus.Compatible, resolvePluginCompatibility(older).status)
         }
     }
+
+    @Test fun `a newer minimum host version is blocked with the actual APK version`() {
+        val result = resolveHostVersionCompatibility("0.7.6", "0.7.5-ci")
+        assertEquals(PluginCompatibilityStatus.Incompatible, result.status)
+        assertEquals(R.string.plugin_error_compatibility_host_too_old, result.messageRes)
+        assertEquals(listOf("0.7.6", "0.7.5-ci"), result.messageArgs)
+    }
+
+    @Test fun `host versions compare numerically and preserve prerelease ordering`() {
+        for ((minimum, current) in listOf("0.7.5" to "0.7.5-ci", "0.9.0" to "0.10.0",
+            "0.7.5-beta.9" to "v0.7.5-beta.10+build.2", "0.7.5-beta.10" to "0.7.5", "0.7" to "0.7.0")) {
+            assertEquals("$current must satisfy $minimum", PluginCompatibilityStatus.Compatible,
+                resolveHostVersionCompatibility(minimum, current).status)
+        }
+        for ((minimum, current) in listOf("0.10.0" to "0.9.0", "0.7.5" to "0.7.5-beta.10",
+            "0.7.5-beta.10" to "0.7.5-beta.9", "0.7.5-beta" to "0.7.5-alpha")) {
+            assertEquals("$current must not satisfy $minimum", PluginCompatibilityStatus.Incompatible,
+                resolveHostVersionCompatibility(minimum, current).status)
+        }
+    }
+
+    @Test fun `malformed requirements and unverified APK versions fail closed`() {
+        for (minimum in listOf("", "latest", "0.7.invalid", "999999999999999999999999.0.0")) {
+            assertEquals(R.string.plugin_error_compatibility_host_invalid,
+                resolveHostVersionCompatibility(minimum, "0.7.5").messageRes)
+        }
+        assertEquals(R.string.plugin_error_compatibility_host_unknown,
+            resolveHostVersionCompatibility("0.1.0", "").messageRes)
+    }
 }

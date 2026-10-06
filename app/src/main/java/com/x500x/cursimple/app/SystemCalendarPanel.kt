@@ -63,10 +63,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/**
- * 把课表写进系统日历账户，并保留一键撤销。
- * 写入的事件 id 记在本机，撤销按 id 删除，不影响用户自己建的日程。
- */
+/** Record exported calendar event IDs locally; undo removes only app-created events. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SystemCalendarPanel(
@@ -94,7 +91,6 @@ internal fun SystemCalendarPanel(
     val permissionDeniedText = stringResource(R.string.calendar_toast_permission_denied)
     val nothingToUndoText = stringResource(R.string.calendar_toast_nothing_to_undo)
     val failedUnknownText = stringResource(R.string.calendar_toast_failed_unknown)
-    // 带占位符的先取原文，写入结果出来后再填数
     val exportedFormat = stringResource(R.string.calendar_toast_exported)
     val failedFormat = stringResource(R.string.calendar_toast_failed)
 

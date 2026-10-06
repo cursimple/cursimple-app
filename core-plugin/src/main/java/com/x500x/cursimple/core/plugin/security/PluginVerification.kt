@@ -31,15 +31,11 @@ data class PluginSignatureInfo(
     @SerialName("signedFile") val signedFile: String = PluginPackageLayout.CHECKSUMS_FILE,
 )
 
-/** 插件包中 signature.json 的校验结论。 */
 enum class PluginSignatureStatus {
-    /** 包内没有 signature.json。 */
     Absent,
 
-    /** signature.json 存在，且对 checksums.json 的签名验证通过。 */
     Valid,
 
-    /** signature.json 存在，但无法解析或验证不通过。 */
     Invalid,
 }
 
@@ -82,7 +78,7 @@ class PluginChecksumVerifier {
         }
     }
 
-    /** 缺少与多余两段都是可选的，四种组合各有一条文案，避免占位符对不上参数。 */
+    /** Separate optional missing and excess sections to keep localization arguments aligned. */
     private fun coverageError(missing: List<String>, extra: List<String>): PluginArgumentException = when {
         missing.isNotEmpty() && extra.isNotEmpty() -> PluginArgumentException(
             R.string.plugin_error_checksum_coverage_missing_extra,
@@ -114,8 +110,8 @@ class PluginChecksumVerifier {
 
 class PluginSignatureVerifier {
     /**
-     * 读取包内 signature.json 并对 checksums.json 验签。包内没有该文件时返回 [PluginSignatureStatus.Absent]，
-     * 解析失败或验签不通过返回 [PluginSignatureStatus.Invalid]。
+     * Verify optional signature.json against checksums.json; missing is Absent, invalid content
+     * is Invalid.
      */
     fun resolve(layout: PluginPackageLayout, json: Json): PluginSignatureResult {
         if (PluginPackageLayout.SIGNATURE_FILE !in layout.files) {
@@ -205,7 +201,7 @@ class PluginSignatureVerifier {
         return publicKey
     }
 
-    /** 公钥 DER 编码的 SHA-256 前 16 字节，按字节分组，供用户比对同一发布者的不同版本。 */
+    /** Grouped first 16 bytes of the public key's SHA-256 fingerprint. */
     private fun fingerprintOf(publicKey: PublicKey): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(publicKey.encoded)
         return digest.take(FINGERPRINT_BYTES).joinToString(":") { "%02X".format(it) }
@@ -218,9 +214,6 @@ class PluginSignatureVerifier {
     }
 }
 
-/**
- * 标准字母表的 Base64 解码，忽略空白字符。
- */
 internal fun decodeBase64(value: String): ByteArray {
     val output = ByteArrayOutputStream(value.length / 4 * 3 + 3)
     var buffer = 0

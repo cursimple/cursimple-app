@@ -10,6 +10,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
+import android.os.Build
+import android.util.SizeF
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -17,6 +19,8 @@ import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.view.View
 import android.widget.RemoteViews
+import android.widget.FrameLayout
+import kotlinx.coroutines.withContext
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import kotlinx.coroutines.CoroutineScope
@@ -26,19 +30,15 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.TextStyle
 
-/**
- * 课程日历：周课表与月历两种视图，标题栏切换、左右翻页，点某一天打开 App 的日视图。
- */
+/** Week/month calendar widget with date navigation into the app's day view. */
 open class CalendarWidgetReceiver : AppWidgetProvider() {
     override fun onReceive(context: Context, intent: Intent) {
-        // 厂商启动器的刷新广播不会变成 onUpdate，这里单独接一次
         if (handleVendorWidgetUpdate(context, intent) { updateWidgets(it) }) return
         super.onReceive(context, intent)
     }
 
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
-        // 有的启动器加完小组件不发 onUpdate，会一直停在「加载中」
         launchAsync { updateWidgets(context.applicationContext) }
     }
 
@@ -54,7 +54,6 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
         newOptions: Bundle,
     ) {
         super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
-        // 尺寸变了网格图要按新尺寸重画，不然会被拉伸
         launchAsync { updateWidgets(context.applicationContext, intArrayOf(appWidgetId)) }
     }
 
@@ -83,7 +82,7 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
             ids.forEach { appWidgetId ->
                 runCatching {
                     val data = CalendarWidgetDataSource.load(appContext, appWidgetId)
-                    manager.updateAppWidget(appWidgetId, buildViews(appContext, manager, appWidgetId, data))
+                    manager.updateAppWidget(appWidgetId, sizedViews(appContext, manager, appWidgetId, data))
                 }.onFailure { error ->
                     ReminderLogger.warn("widget.calendar.update.failure", mapOf("id" to appWidgetId), error)
                 }
@@ -92,11 +91,31 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
 
         internal const val CATALOG_ID = "calendar"
 
-        private fun buildViews(
+        private suspend fun sizedViews(context: Context, manager: AppWidgetManager, id: Int, data: CalendarWidgetData): RemoteViews {
+            val options = manager.getAppWidgetOptions(id)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                @Suppress("DEPRECATION")
+                val sizes = options.getParcelableArrayList<SizeF>(AppWidgetManager.OPTION_APPWIDGET_SIZES)
+                    .orEmpty().filter { it.width > 0 && it.height > 0 }.distinct().take(4)
+                if (sizes.isNotEmpty()) return RemoteViews(sizes.associateWith { size ->
+                    buildViews(context, id, data, calendarBodySizeDp(size.width, size.height))
+                })
+            }
+            // Render orientation bounds separately for older launchers rather than stretching one bitmap.
+            val minW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, DEFAULT_WIDTH_DP).takeIf { it > 0 } ?: DEFAULT_WIDTH_DP
+            val maxW = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, minW).coerceAtLeast(minW)
+            val minH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, DEFAULT_HEIGHT_DP).takeIf { it > 0 } ?: DEFAULT_HEIGHT_DP
+            val maxH = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, minH).coerceAtLeast(minH)
+            val portrait = buildViews(context, id, data, calendarBodySizeDp(minW.toFloat(), maxH.toFloat()))
+            val landscape = buildViews(context, id, data, calendarBodySizeDp(maxW.toFloat(), minH.toFloat()))
+            return RemoteViews(landscape, portrait)
+        }
+
+        private suspend fun buildViews(
             context: Context,
-            manager: AppWidgetManager,
             appWidgetId: Int,
             data: CalendarWidgetData,
+            bodySize: Pair<Float, Float>,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_calendar)
             val theme = data.widgetTheme
@@ -105,8 +124,8 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
 
             val week = data.mode == CalendarWidgetMode.Week
             views.setTextViewText(R.id.calendar_title, calendarTitle(context, data))
-            val (widthDp, heightDp) = calendarBodySizeDp(manager, appWidgetId)
-            // 图例放标题栏右侧的空白；窄的时候那里放不下，改占副标题那一行，别把「第 N 周」挤成省略号
+            val (widthDp, heightDp) = bodySize
+            // Move the legend to the subtitle on narrow widgets so week labels remain readable.
             val legend = data.week?.legend()?.takeUnless { it.isEmpty }?.let { calendarLegendText(context, it, theme, compact = widthDp < WIDE_HEADER_MIN_DP) }
             val legendInHeader = legend != null && widthDp >= WIDE_HEADER_MIN_DP
             views.setTextViewText(R.id.calendar_legend, if (legendInHeader) legend else "")
@@ -131,10 +150,17 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.calendar_mode, actionIntent(context, appWidgetId, CalendarWidgetActionReceiver.ACTION_TOGGLE))
 
             val density = context.resources.displayMetrics.density
+            val measuredBody = withContext(Dispatchers.Main) {
+                val root = views.apply(context, FrameLayout(context))
+                val widthPixels = ((widthDp + BODY_HORIZONTAL_INSET_DP) * density).toInt()
+                root.measure(View.MeasureSpec.makeMeasureSpec(widthPixels, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                widthDp to (heightDp + BODY_VERTICAL_INSET_DP - root.measuredHeight / density).coerceAtLeast(1f)
+            }
             val bitmap = CalendarWidgetRenderer.render(
                 data = data,
-                widthDp = widthDp,
-                heightDp = heightDp,
+                widthDp = measuredBody.first,
+                heightDp = measuredBody.second,
                 density = density,
                 labels = renderLabels(context, data),
             )
@@ -143,7 +169,6 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
             return views
         }
 
-        /** 透明格子盖在图上：周视图每列一天，月视图每格一天；关了「点按打开应用」就整层收起 */
         private fun bindHitArea(context: Context, views: RemoteViews, appWidgetId: Int, data: CalendarWidgetData, density: Float) {
             if (!data.widgetTheme.openAppOnDoubleClickEnabled) {
                 views.setViewVisibility(R.id.calendar_hit_area, View.GONE)
@@ -233,7 +258,6 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
             else -> null
         }
 
-        /** 图例：彩色记号 + 说明，两项一行，和网格里画出来的记号同色 */
         private fun calendarLegendText(context: Context, legend: CalendarWeekLegend, theme: WidgetThemePreferences, compact: Boolean): CharSequence {
             val items = buildList {
                 if (legend.events) add("●" to CalendarWidgetRenderer.EVENT_ORANGE to R.string.widget_calendar_legend_event)
@@ -244,13 +268,12 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
             val text = SpannableStringBuilder()
             items.forEachIndexed { index, (markAndColor, label) ->
                 val (mark, color) = markAndColor
-                // 放副标题时只有一行，全排一行；标题栏里两项一行
+                // Use one subtitle row or two-column title-area legend as space permits.
                 if (index > 0) text.append(if (!compact && index % 2 == 0) "\n" else "  ")
                 val start = text.length
                 text.append(mark)
                 text.setSpan(ForegroundColorSpan(color), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 text.setSpan(StyleSpan(Typeface.BOLD), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                // 实心圆在这个字号下比网格里的圆点大一圈，缩一点对上
                 if (mark == "●") text.setSpan(RelativeSizeSpan(0.7f), start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 text.append(" ").append(context.getString(label))
             }
@@ -272,7 +295,6 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
                     ?: context.getString(R.string.widget_calendar_empty_week)
             }
             return CalendarRenderLabels(
-                // 系统的窄写法在中文下是「星」（星期X 的第一个字），所以用自己的一组短称
                 weekdays = context.resources.getStringArray(R.array.widget_calendar_weekdays).toList(),
                 holidayTag = context.getString(R.string.widget_calendar_tag_holiday),
                 makeUpTag = context.getString(R.string.widget_calendar_tag_makeup),
@@ -284,24 +306,18 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
         }
 
         /**
-         * 网格那块图的尺寸（dp）：小组件尺寸减去外边距与标题栏。
-         * 竖屏下桌面按「最小宽 × 最大高」摆放，取这一对；读不到时按 4×4 估算。
+         * Grid dimensions exclude padding and header; portrait uses minimum width and maximum
+         * height, defaulting to a four-column size.
          */
-        private fun calendarBodySizeDp(manager: AppWidgetManager, appWidgetId: Int): Pair<Float, Float> {
-            val options = runCatching { manager.getAppWidgetOptions(appWidgetId) }.getOrNull()
-            val width = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0)?.takeIf { it > 0 } ?: DEFAULT_WIDTH_DP
-            val height = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0)?.takeIf { it > 0 } ?: DEFAULT_HEIGHT_DP
-            return (width - BODY_HORIZONTAL_INSET_DP).coerceAtLeast(60).toFloat() to
-                (height - BODY_VERTICAL_INSET_DP).coerceAtLeast(60).toFloat()
+        private fun calendarBodySizeDp(width: Float, height: Float): Pair<Float, Float> {
+            return (width - BODY_HORIZONTAL_INSET_DP).coerceAtLeast(60f) to
+                (height - BODY_VERTICAL_INSET_DP).coerceAtLeast(60f)
         }
 
-        /** 网格宽度到这个数，标题栏右侧才放得下图例 */
         private const val WIDE_HEADER_MIN_DP = 290
         private const val DEFAULT_WIDTH_DP = 300
         private const val DEFAULT_HEIGHT_DP = 300
-        /** 与 widget_calendar.xml 对应：左右各 8dp 内边距 */
         private const val BODY_HORIZONTAL_INSET_DP = 16
-        /** 上下各 8dp 内边距、34dp 标题栏、4dp 间距 */
         private const val BODY_VERTICAL_INSET_DP = 16 + 34 + 4
 
         private const val ACTION_REQUEST_BASE = 610000
@@ -323,10 +339,9 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
     }
 }
 
-/** [CalendarWidgetReceiver] 的厂商适配副本，带 MIUI / vivo 的元数据单独注册。 */
+/** Vendor provider copy with separate launcher metadata. */
 class CalendarWidgetReceiverMIUI : CalendarWidgetReceiver()
 
-/** 课程日历标题栏上的翻页、回本周、切换视图 */
 class CalendarWidgetActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
@@ -361,7 +376,6 @@ class CalendarWidgetActionReceiver : BroadcastReceiver() {
     }
 }
 
-/** 某个小组件在桌面上的全部实例，通用版和厂商副本一起算 */
 internal fun catalogWidgetIds(context: Context, manager: AppWidgetManager, catalogId: String): IntArray =
     WidgetCatalog.entries(context)
         .firstOrNull { it.id == catalogId }

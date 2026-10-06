@@ -4,34 +4,56 @@ import android.content.Context
 import java.net.URI
 
 /**
- * 记住每类下载上次走通的镜像，跨进程与跨实例共享。
- *
- * 记住的是镜像的名字而不是具体地址：更新检查这类请求的地址随版本号变化，
- * 按地址记就永远命中不了。只在两种情况下重新试全部镜像：从来没有记录（首次），
- * 或记住的镜像失效（下载失败时清除）。探测延迟按镜像域名缓存，有效期内不重复测速。
+ * Persist preferred mirrors by source name and download purpose, not version-specific URLs.
+ * Cache probe latency by host.
  */
 interface MirrorPreferenceStore {
-    /** 上次走通的镜像名；没有或刚失效时为 null。 */
     fun preferred(cacheKey: String): String?
 
     fun recordSuccess(cacheKey: String, sourceName: String)
 
-    /** 记住的镜像下载失败时调用，清除记录让下次重新竞速。 */
+    /** Clear a failed preferred source before the next race. */
     fun recordFailure(cacheKey: String, sourceName: String)
 
-    /** 缓存的探测延迟；超出有效期或从未探测时为 null。 */
+    /** Null for missing or expired probe measurements. */
     fun probeLatency(mirrorHost: String): Long?
 
-    /** latencyMillis 为 null 表示探测失败。 */
+    /** Null latency marks a failed probe. */
     fun recordProbe(mirrorHost: String, latencyMillis: Long?)
 
-    /** 下载失败时连探测缓存一并清掉，避免按陈旧延迟再选中坏镜像。 */
+    /** Clear latency with download failure to avoid selecting a stale result. */
     fun invalidate(mirrorHost: String)
+    /** Temporarily downgrade failed text hosts. */
+    fun textFailureUntil(mirrorHost: String): Long = 0L
+    fun recordTextFailure(mirrorHost: String) = Unit
+
+    /**
+     * Smoothed throughput in KiB/s; null when unknown or stale. Throughput guides selection
+     * independently of header latency.
+     */
+    fun speedKBps(mirrorHost: String): Long? = null
+    fun recordSpeed(mirrorHost: String, kBps: Long) = Unit
+
+    /** File-transfer failure cooldown deadline. */
+    fun downloadFailureUntil(mirrorHost: String): Long = 0L
+    fun recordDownloadFailure(mirrorHost: String) = Unit
 
     companion object {
         const val PROBE_CACHE_TTL_MILLIS = 24L * 60 * 60 * 1000
 
-        /** 按用途加原始地址的域名区分：同为 GitHub 下载，API、raw 与安装包各自可用的镜像不同。 */
+        /** Expire measurements as network conditions change. */
+        const val SPEED_TTL_MILLIS = 7L * 24 * 60 * 60 * 1000
+
+        /** Weight new samples without letting transient jitter dominate ranking. */
+        const val SPEED_SMOOTHING = 0.5
+
+        const val DOWNLOAD_COOLDOWN_MILLIS = 5L * 60 * 1000
+
+        fun smoothSpeed(previous: Long?, measured: Long): Long =
+            if (previous == null || previous <= 0L) measured
+            else (previous * (1 - SPEED_SMOOTHING) + measured * SPEED_SMOOTHING).toLong().coerceAtLeast(1L)
+
+        /** Key preferences by purpose and origin host; API, raw and release routes differ. */
         fun cacheKeyOf(request: DownloadRequest): String {
             val host = hostOf(request.url)
             return "${request.purpose}:$host"
@@ -86,5 +108,26 @@ class SharedPrefsMirrorPreferenceStore(context: Context) : MirrorPreferenceStore
             .remove("probeMs:$mirrorHost")
             .remove("probeAt:$mirrorHost")
             .apply()
+    }
+    override fun speedKBps(mirrorHost: String): Long? {
+        val at = prefs.getLong("speedAt:$mirrorHost", 0L)
+        if (System.currentTimeMillis() - at !in 0 until MirrorPreferenceStore.SPEED_TTL_MILLIS) return null
+        return prefs.getLong("speedKBps:$mirrorHost", 0L).takeIf { it > 0L }
+    }
+
+    override fun recordSpeed(mirrorHost: String, kBps: Long) {
+        if (mirrorHost.isBlank() || kBps <= 0L) return
+        val merged = MirrorPreferenceStore.smoothSpeed(speedKBps(mirrorHost), kBps)
+        prefs.edit().putLong("speedKBps:$mirrorHost", merged).putLong("speedAt:$mirrorHost", System.currentTimeMillis()).apply()
+    }
+
+    override fun downloadFailureUntil(mirrorHost: String): Long = prefs.getLong("downloadFailedUntil:$mirrorHost", 0L)
+    override fun recordDownloadFailure(mirrorHost: String) {
+        prefs.edit().putLong("downloadFailedUntil:$mirrorHost", System.currentTimeMillis() + MirrorPreferenceStore.DOWNLOAD_COOLDOWN_MILLIS).apply()
+    }
+
+    override fun textFailureUntil(mirrorHost: String): Long = prefs.getLong("textFailedUntil:$mirrorHost", 0L)
+    override fun recordTextFailure(mirrorHost: String) {
+        prefs.edit().putLong("textFailedUntil:$mirrorHost", System.currentTimeMillis() + 5 * 60_000L).apply()
     }
 }

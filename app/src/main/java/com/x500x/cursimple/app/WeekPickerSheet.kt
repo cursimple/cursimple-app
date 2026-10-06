@@ -1,7 +1,6 @@
 package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +44,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -60,7 +58,6 @@ fun WeekPickerSheet(
     currentWeek: Int,
     selectedWeek: Int,
     totalWeeks: Int = DefaultWeekPickerTotalWeeks,
-    /** 课程推出来的周数；超出这条线的都是用户自己加的空白周，可以删。 */
     derivedWeeks: Int = totalWeeks,
     onSelectWeek: (Int) -> Unit,
     onSetSelectedAsCurrent: (Int) -> Unit,
@@ -113,7 +110,6 @@ fun WeekPickerSheet(
                 )
             }
 
-            // 末尾多摆一格加号，和周次格同样大小，翻到底就能接着加
             val cells: List<Int?> = (1..totalWeeks).toList<Int?>() + listOf<Int?>(null)
             val rows = cells.chunked(5)
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -131,7 +127,7 @@ fun WeekPickerSheet(
                                     isCurrent = isCurrentTermWeek(termStart, week, currentWeek),
                                     isSelected = week == selectedWeek,
                                     onClick = { onSelectWeek(week) },
-                                    // 只有自己加出来的空白周能删；课程推出来的那些删了也会被算回来
+                                    // Only user-added blank weeks are removable.
                                     onDelete = if (week > derivedWeeks) {
                                         { pendingDeleteWeek = week }
                                     } else {
@@ -163,20 +159,15 @@ fun WeekPickerSheet(
 }
 
 /**
- * 按开学日期所在周的周一起算 [date] 落在第几周。
- * 开学前返回 0 或负数；未设置开学日期时回退到第 1 周。
+ * Count from the Monday of the term's first week; pre-term weeks are nonpositive, and unset
+ * terms use week one.
  */
 internal fun resolveWeekIndexForDate(termStart: LocalDate?, date: LocalDate): Int {
     if (termStart == null) return 1
     return resolveTermWeekNumber(termStart, date)
 }
 
-/**
- * 课程本身推出来的周数，不含用户自己加的空白周。
- *
- * 这条线同时也是「哪些周能删」的分界：它以内的周由课程决定，删不掉；
- * 超出去的都是用户自己加的空白周，可以一周周撤掉。
- */
+/** Course-derived weeks define the nonremovable range; extra blank weeks are user-managed. */
 internal fun derivedWeekCount(
     schedule: TermSchedule?,
     manualCourses: List<CourseItem>,
@@ -190,13 +181,7 @@ internal fun derivedWeekCount(
     return maxOf(1, baseWeeks, currentWeek)
 }
 
-/**
- * 周次面板要铺到第几周。
- *
- * 注意这里**不能**把「正在看的那一周」算进去。总周数一旦跟着当前页走，
- * 再叠上用户自己加的空白周就成了自增循环：翻到最后一周 → 总周数变大 → 又多出一页
- * → 再翻又变大，周数一路涨下去。总周数只取决于课表本身与用户显式加的周。
- */
+/** Derive totals only from courses and explicit extra weeks, never the viewed week. */
 internal fun resolveWeekPickerTotalWeeks(
     schedule: TermSchedule?,
     manualCourses: List<CourseItem>,
@@ -215,8 +200,6 @@ internal fun deriveTermStartForCurrentWeek(today: LocalDate, currentWeek: Int): 
     return currentMonday.minusWeeks((currentWeek.coerceAtLeast(1) - 1).toLong())
 }
 
-
-/** 周次网格末尾那一格加号，点了就接上一个空白周。 */
 @Composable
 private fun AddWeekCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
@@ -237,7 +220,6 @@ private fun AddWeekCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** 删除某一周的确认框：一次二次确认就够，不必再打字。 */
 @Composable
 private fun DeleteWeekConfirmDialog(
     week: Int,
@@ -263,10 +245,8 @@ private fun DeleteWeekConfirmDialog(
 }
 
 /**
- * 周次格。
- *
- * [onDelete] 非空表示这一周是用户自己加的、可以删：右上角摆一个叉。
- * 删除入口只靠长按的话没人会去试，索性画出来；长按同样保留，两条路都通到二次确认。
+ * Non-null [onDelete] exposes removal for user-added weeks; both entry points require
+ * confirmation.
  */
 @Composable
 private fun WeekCell(
@@ -311,7 +291,6 @@ private fun WeekCell(
                 color = MaterialTheme.colorScheme.errorContainer,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    // 往外顶一点，压在圆角上，看着是挂在格子上的角标而不是格子里的内容
                     .offset(x = 6.dp, y = (-6).dp)
                     .size(22.dp)
                     .clip(CircleShape)

@@ -95,7 +95,6 @@ class ExamReminderRuleTest {
 
         val plans = expand(listOf(examRule(morningExam)), schedule)
 
-        // 第 8 周周三：2026-03-02 起第 8 周的周一是 2026-04-20
         assertEquals(1, plans.size)
         assertEquals(
             LocalDate.of(2026, 4, 22),

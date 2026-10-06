@@ -872,7 +872,7 @@ class ReminderPlannerTest {
                 ),
             ),
         )
-        // 插件/恢复数据可能写入非法时间串（"8:00" 非 ISO、"24:10" 越界），不能让它掀翻整轮同步
+        // Invalid imported times must not abort the whole reminder sync.
         val profile = TermTimingProfile(
             termStartDate = "2026-02-23",
             slotTimes = listOf(
@@ -889,7 +889,6 @@ class ReminderPlannerTest {
             updatedAt = "2026-02-23T00:00:00+08:00",
         )
 
-        // 坏节次的课被跳过、好节次的课正常生成，且不抛异常
         val plans = planner.expandRule(
             rule = rule.copy(courseId = "bad"),
             schedule = schedule,
@@ -932,7 +931,6 @@ class ReminderPlannerTest {
         ),
     )
 
-    /** 目标日 9 月 3 日落在开学前一周，调休来源是那一周的周一。 */
     private fun preTermMakeUpOverride(): TemporaryScheduleOverride = TemporaryScheduleOverride(
         id = "pre-term-makeup",
         startDate = "2026-09-03",

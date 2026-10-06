@@ -111,4 +111,7 @@
     <string name="plugin_error_unknown_kind">不认识的插件种类：%1$s，可能需要更新应用</string>
     <string name="plugin_error_extension_not_schedule">这是扩展组件，不能用来导入课表</string>
     <string name="plugin_error_package_missing_ui_file">插件包缺少组件界面文件: %1$s</string>
+    <string name="plugin_error_compatibility_host_invalid">此包声明的最低软件版本无效，无法安装</string>
+    <string name="plugin_error_compatibility_host_unknown">无法确认当前软件版本，已阻止安装</string>
+    <string name="plugin_error_compatibility_host_too_old">此包需要课简 %1$s 或更高版本，当前版本为 %2$s，请先更新软件</string>
 </resources>

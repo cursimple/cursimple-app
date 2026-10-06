@@ -38,7 +38,7 @@ jobs:
           CLASS_VIEWER_KEY_PASSWORD: ${{ secrets.CLASS_VIEWER_KEY_PASSWORD }}
         run: ./scripts/load-signing-env.ps1 -OutputDir $env:RUNNER_TEMP
 
-      # 全模块跑：以前只跑 core-kernel，其余模块的用例在 CI 里等于没跑
+      # Run tests in every module.
       - name: Unit tests
         run: ./gradlew testDebugUnitTest
 
@@ -56,7 +56,7 @@ jobs:
       - name: Build CI debug package
         run: ./gradlew assembleDebug
 
-      # 只编译本次 opt-in QA 测试；独立模拟器运行时再显式传入各测试的 Qa=true 参数。
+      # Compile opt-in QA tests; execution requires the corresponding Qa=true argument.
       - name: Build gated QA test packages
         run: ./gradlew :app:assembleDebugAndroidTest :feature-plugin:assembleDebugAndroidTest
 

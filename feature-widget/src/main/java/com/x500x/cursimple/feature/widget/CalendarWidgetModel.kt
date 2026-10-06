@@ -9,10 +9,8 @@ import java.time.LocalTime
 import java.time.YearMonth
 import java.time.temporal.TemporalAdjusters
 
-/** 课程日历小组件的两种视图，标题栏上的按钮来回切换 */
 internal enum class CalendarWidgetMode { Week, Month }
 
-/** 周视图里的一块课程，按节次占格 */
 internal data class CalendarCourseBlock(
     val id: String,
     val title: String,
@@ -20,22 +18,16 @@ internal data class CalendarCourseBlock(
     val startNode: Int,
     val endNode: Int,
     val isExam: Boolean,
-    /** 与课表网格同一个取色：按课名在调色板里挑 */
     val colorSeed: String,
-    /** 放假当天照常画出，按不可用态显示 */
     val inactive: Boolean,
-    /** 同一时段有几门课并排时，它在第几列、一共几列 */
     val lane: Int = 0,
     val laneCount: Int = 1,
 )
 
-/** 一天：周视图里是一列，月视图里是一格 */
 internal data class CalendarDay(
     val date: LocalDate,
     val isToday: Boolean,
-    /** 放假（且没有调课推翻） */
     val onHoliday: Boolean,
-    /** 调休补班日 */
     val makeUpWorkday: Boolean,
     val courses: List<CourseItem>,
     val eventCount: Int,
@@ -44,12 +36,11 @@ internal data class CalendarDay(
     val classCount: Int get() = if (onHoliday) 0 else courses.count { it.category != CourseCategory.Exam }
 }
 
-/** 周视图左侧的一行：作息表里的一个时段，名字跟 App 课表左栏一致（用户改过名就显示改后的） */
+/** One timing-profile row with its current localized or user-defined label. */
 internal data class CalendarRow(
     val startNode: Int,
     val endNode: Int,
     val label: String,
-    /** 开始时间，如「08:00」；作息表以外补出来的行为空 */
     val startTime: String,
 )
 
@@ -59,8 +50,7 @@ internal data class CalendarWeekData(
     val rows: List<CalendarRow>,
 ) {
     /**
-     * 课程块占哪几行：从包含开始节的那一行到包含结束节的那一行。
-     * 作息表时段之间有空档时，开始节落到它之后的第一行、结束节落到它之前的最后一行。
+     * Resolve span rows around timing gaps by the nearest containing start and end boundaries.
      */
     fun rowSpanOf(block: CalendarCourseBlock): IntRange? {
         val top = rows.indexOfFirst { it.endNode >= block.startNode }.takeIf { it >= 0 } ?: return null
@@ -71,7 +61,6 @@ internal data class CalendarWeekData(
 
 internal data class CalendarMonthData(
     val month: YearMonth,
-    /** 从包含 1 号那一周的周一起，整周排满；5 或 6 行 */
     val days: List<CalendarDay>,
 ) {
     val rows: Int get() = days.size / 7
@@ -80,17 +69,13 @@ internal data class CalendarMonthData(
 
 internal fun weekStartOf(date: LocalDate): LocalDate = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
 
-/** [anchor] 所在月份的格子日期：整周对齐，周一开头 */
 internal fun monthGridDates(month: YearMonth): List<LocalDate> {
     val first = weekStartOf(month.atDay(1))
     val last = month.atEndOfMonth().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY))
     return generateSequence(first) { it.plusDays(1) }.takeWhile { !it.isAfter(last) }.toList()
 }
 
-/**
- * 周视图要画几列：周末没课且设置里隐藏了周末时只画周一到周五。
- * 有周末课（或周末有事务、调休补班）时照画，免得课被藏掉。
- */
+/** Hide empty weekends only when no classes, events or workday overrides require them. */
 internal fun visibleWeekDays(days: List<CalendarDay>, weekendVisible: Boolean): List<CalendarDay> {
     if (weekendVisible) return days
     val weekendBusy = days.drop(5).any { it.courses.isNotEmpty() || it.eventCount > 0 || it.makeUpWorkday }
@@ -98,12 +83,8 @@ internal fun visibleWeekDays(days: List<CalendarDay>, weekendVisible: Boolean): 
 }
 
 /**
- * 周视图左侧的行，与 App 课表左栏同一个来源：作息表里的时段按开始时间排好，名字用作息表里的
- * （[labelOf] 给出，带当前语言）；课排到作息表以外的节次时，逐节补行，课不会被藏掉。
- * 没有作息表时按节号逐行。
- *
- * 行数：至少画到这周最后一门课所在的那一行；作息表更长时多画几行，但不超过 [maxDefaultRows]，
- * 免得只有上午课的一周被十几行空格压扁。
+ * Use sorted timing rows and localized labels; pad uncovered course periods and limit empty
+ * default rows.
  */
 internal fun calendarRows(
     profileSlots: List<ClassSlotTime>,
@@ -113,7 +94,6 @@ internal fun calendarRows(
     maxDefaultRows: Int = 10,
 ): List<CalendarRow> {
     val lastCourseNode = days.flatMap { it.courses }.maxOfOrNull { it.time.endNode } ?: 0
-    // 与 App 课表左栏同样按开始时间排：直接比字符串会把「10:00」排到「8:00」前面
     val sorted = profileSlots.sortedWith(
         compareBy({ looseClock(it.startTime) ?: LocalTime.MAX }, { it.startNode }, { it.endNode }),
     )
@@ -131,7 +111,6 @@ internal fun calendarRows(
 
 private const val MIN_CALENDAR_ROWS = 4
 
-/** 一天里的课程块：节次重叠的并排分列，互不遮挡 */
 internal fun calendarBlocksOf(day: CalendarDay): List<CalendarCourseBlock> {
     val sorted = day.courses
         .filter { it.time.startNode >= 1 && it.time.endNode >= it.time.startNode }
@@ -142,7 +121,7 @@ internal fun calendarBlocksOf(day: CalendarDay): List<CalendarCourseBlock> {
         if (lane == laneEnds.size) laneEnds += course.time.endNode else laneEnds[lane] = course.time.endNode
         course to lane
     }
-    // 只有真正互相重叠的那一簇才分列，同一天别的时段照样占满整列
+    // Split lanes only within overlapping clusters, preserving full width elsewhere.
     return assigned.map { (course, lane) ->
         val overlapping = assigned.filter { (other, _) ->
             other.time.startNode <= course.time.endNode && course.time.startNode <= other.time.endNode
@@ -162,7 +141,7 @@ internal fun calendarBlocksOf(day: CalendarDay): List<CalendarCourseBlock> {
     }
 }
 
-/** 周视图标题栏上的图例要列哪几项：只列这周真的出现的记号 */
+/** Show only markers present in the displayed week. */
 internal data class CalendarWeekLegend(
     val events: Boolean,
     val exam: Boolean,
@@ -179,7 +158,6 @@ internal fun CalendarWeekData.legend(): CalendarWeekLegend = CalendarWeekLegend(
     makeUp = days.any { it.makeUpWorkday },
 )
 
-/** 「8:00」「 08:00 」都认：导入的作息表不一定补零、前后可能带空格 */
 internal fun looseClock(raw: String): LocalTime? {
     val parts = raw.trim().split(':')
     if (parts.size != 2) return null

@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** 笔记、插件和仓库移除共用的确认框，操作按钮保持应用统一样式。 */
 @Composable
 fun AppConfirmationDialog(
     title: String,

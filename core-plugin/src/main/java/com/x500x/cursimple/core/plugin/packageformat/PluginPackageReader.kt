@@ -97,10 +97,7 @@ internal fun requireSafePluginId(id: String): String {
 private val WINDOWS_DRIVE_PATH = Regex("^[A-Za-z]:.*")
 private val SAFE_PLUGIN_ID = Regex("[A-Za-z0-9._-]+")
 
-/**
- * 种类与声明对得上：扩展组件得带 extension 段、声明够新的接口版本；认不出的种类直接拒，
- * 免得新种类的包被当成导课插件跑。
- */
+/** Reject unknown kinds and extensions without the required manifest section or API version. */
 internal fun validateKind(manifest: com.x500x.cursimple.core.plugin.manifest.PluginManifest) {
     when (manifest.kind) {
         com.x500x.cursimple.core.plugin.manifest.PluginManifest.KIND_SCHEDULE -> Unit
@@ -113,6 +110,18 @@ internal fun validateKind(manifest: com.x500x.cursimple.core.plugin.manifest.Plu
                 com.x500x.cursimple.core.plugin.PluginApiVersion.EXTENSION_MIN,
             )
             pluginRequire(manifest.allowedHosts.isNotEmpty(), R.string.plugin_error_extension_missing_hosts)
+            if (spec != null && spec.widgets.isNotEmpty()) {
+                pluginRequire((manifest.apiVersion ?: 0) >= com.x500x.cursimple.core.plugin.PluginApiVersion.WIDGET_MIN,
+                    R.string.plugin_error_extension_api_too_old, com.x500x.cursimple.core.plugin.PluginApiVersion.WIDGET_MIN)
+                pluginRequire(spec.widgets.size <= 8 && spec.widgets.map { it.id }.distinct().size == spec.widgets.size,
+                    R.string.plugin_error_package_illegal_path, "widgets")
+                spec.widgets.forEach { widget ->
+                    requireSafePluginId(widget.id)
+                    val path = normalizePluginPackagePath(widget.entry)
+                    pluginRequire(widget.entry == path && path.endsWith(".html") && widget.title.isNotBlank() &&
+                        widget.columns in 1..5 && widget.rows in 1..6, R.string.plugin_error_package_illegal_path, widget.entry)
+                }
+            }
         }
         else -> pluginRequire(false, R.string.plugin_error_unknown_kind, manifest.kind)
     }

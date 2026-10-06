@@ -19,6 +19,7 @@ import java.time.OffsetDateTime
 class PluginInstaller(
     private val registryRepository: PluginRegistryRepository,
     private val fileStore: PluginFileStore,
+    private val hostVersion: String,
     private val json: Json = Json { ignoreUnknownKeys = true; encodeDefaults = true },
     private val packageReader: PluginPackageReader = PluginPackageReader(json),
     private val checksumVerifier: PluginChecksumVerifier = PluginChecksumVerifier(),
@@ -109,11 +110,8 @@ class PluginInstaller(
     }
 
     /**
-     * 升级后删掉旧版本的目录。
-     *
-     * 目录名带着版本号，新版装在新目录里、记录也指过去了，旧目录就再也用不上；
-     * 不删的话每升级一次就多留一份。只删和新目录同在插件根目录下的那个，
-     * 内置插件与路径对不上的一概不碰。删不掉也不影响这次安装。
+     * Best-effort removal of the previous version directory, restricted to the same plugin
+     * root.
      */
     private fun removeReplacedVersion(previous: InstalledPluginRecord?, targetDir: java.io.File) {
         if (previous == null || previous.isBundled) return
@@ -132,6 +130,7 @@ class PluginInstaller(
 
     private fun verifyLayout(layout: PluginPackageLayout, source: PluginInstallSource): PluginInstallPreview {
         val preview = previewPackageFromLayout(layout, source)
+        requirePluginCompatibility(preview.compatibility)
         pluginRequire(preview.checksumVerified, R.string.plugin_error_install_checksum_rejected)
         if (preview.signatureStatus == PluginSignatureStatus.Invalid) {
             throw signatureRejected(preview.signatureError)
@@ -150,10 +149,10 @@ class PluginInstaller(
             signatureStatus = signature.status,
             signerFingerprint = signature.signerFingerprint,
             signatureError = signature.error,
+            compatibility = resolvePluginCompatibility(manifest, hostVersion),
         )
     }
 
-    /** 拿不到具体原因时用不带占位符的那条文案。 */
     private fun signatureRejected(detail: Throwable?): PluginArgumentException {
         val reason = detail ?: return PluginArgumentException(R.string.plugin_error_install_signature_rejected)
         return PluginArgumentException(
@@ -167,7 +166,7 @@ class PluginInstaller(
         storagePath: String,
         bundled: Boolean,
     ): InstalledPluginRecord {
-        val compatibility = resolvePluginCompatibility(apiVersion)
+        val compatibility = resolvePluginCompatibility(this, hostVersion)
         return InstalledPluginRecord(
             pluginId = pluginId,
             name = name,

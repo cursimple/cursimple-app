@@ -7,20 +7,14 @@ import android.content.pm.PackageManager
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 
 /**
- * 厂商副本 receiver 的可见性。
- *
- * 每个小组件都注册了两份：通用的一份，以及带 MIUI / vivo / 荣耀 元数据的厂商副本。
- * 厂商副本只有在对应系统上才有意义，可在别的手机上它同样会进小组件选择器，
- * 于是列表里每个小组件都出现两遍。这里在非厂商机型上把副本禁用掉。
- *
- * 已经放到桌面上的副本不动：禁用组件会让那个小组件直接消失。
+ * Hide unsupported duplicate providers while preserving copies already placed on the home
+ * screen.
  */
 internal object WidgetProviderVisibility {
 
     fun apply(context: Context) {
         val appContext = context.applicationContext
-        // 只有小米、vivo 的桌面真认副本上的元数据。华为 / 荣耀 / OPPO 上副本只是重复的一份，
-        // 荣耀的 honorcard 标记没在荣耀那边登记过时还会把副本藏起来，所以这几家都收起副本
+        // Enable vendor copies only where their metadata is supported; unregistered markers can hide providers elsewhere.
         val keepVendorCopies = when (WidgetCatalog.detectLauncherVendor(appContext)) {
             WidgetCatalog.LauncherVendor.Miui,
             WidgetCatalog.LauncherVendor.Vivo -> true
@@ -33,7 +27,6 @@ internal object WidgetProviderVisibility {
         val packageManager = appContext.packageManager
         val componentsReady = ComponentWidgetAvailability.isAvailable(appContext)
         WidgetCatalog.entries(appContext).forEach { entry ->
-            // 组件小组件：没有组件时通用版和副本一起下架，桌面上已放的也随之移除
             if (entry.fromComponents) {
                 setEnabled(packageManager, entry.provider, componentsReady)
                 if (!componentsReady) {
@@ -71,7 +64,6 @@ internal object WidgetProviderVisibility {
     }
 }
 
-/** 应用启动时对齐一次厂商副本的可见性。 */
 fun applyWidgetProviderVisibility(context: Context) {
     runCatching { WidgetProviderVisibility.apply(context) }
         .onFailure { error ->

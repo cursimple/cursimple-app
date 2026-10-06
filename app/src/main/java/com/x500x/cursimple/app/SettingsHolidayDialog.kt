@@ -40,9 +40,6 @@ import com.x500x.cursimple.core.kernel.model.sortedUserEntries
 import com.x500x.cursimple.core.kernel.model.userEntryOn
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import java.time.LocalDate
-import com.x500x.cursimple.core.kernel.time.toDatePickerMillis
-
-/** 节假日与调休的查看与编辑。 */
 
 @Composable
 internal fun HolidayCalendarDialog(

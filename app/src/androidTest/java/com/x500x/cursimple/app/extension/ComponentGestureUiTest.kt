@@ -28,7 +28,7 @@ import java.time.LocalDate
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-/** 在真实 MainActivity 抽屉和组件页中注入触摸事件；只在独立 QA 模拟器运行。 */
+/** Touch injection through MainActivity; dedicated QA emulator only. */
 class ComponentGestureUiTest {
     private val compose = createAndroidComposeRule<MainActivity>()
     private val inst get() = InstrumentationRegistry.getInstrumentation()
@@ -78,7 +78,6 @@ class ComponentGestureUiTest {
         val nodes=compose.onAllNodesWithText("换主题")
         return nodes.fetchSemanticsNodes().indices.any { nodes[it].isDisplayed() }
     }
-    /** 比较斜的向右上方滑动：旧代码会在页面内部直接拉出抽屉。 */
     private fun swipe(x1: Float=.12f,y1: Float=.75f,x2: Float=.82f,y2: Float=.48f) {
         compose.waitForIdle()
         val bounds=IntArray(4)
@@ -105,14 +104,13 @@ class ComponentGestureUiTest {
         awaitJs("document.querySelector('.list-scroll').scrollTop>100")
         val before=js("document.querySelector('.list-scroll').scrollTop").toDouble()
         val pushesBeforeNavigation=js("qaPushes")
-        // 打开/关闭宿主菜单不能重建组件列表或把滚动位置跳回顶部。
+        // Drawer changes must preserve component state and scroll position.
         compose.onNodeWithContentDescription("打开侧边栏").performClick()
         assertTrue("菜单按钮无法打开抽屉",drawerVisible())
         swipe(.52f,.45f,.05f,.45f)
         assertFalse("已打开的抽屉不能滑动关闭",drawerVisible())
         assertTrue(js("document.querySelector('.list-scroll').scrollTop").toDouble()>=before-2)
         assertEquals("无关导航导致组件重画", pushesBeforeNavigation, js("qaPushes"))
-        // 长正文在自身面板里滚动，仍不应被抽屉抢手势。
         js("document.querySelector('[data-item=qa-1]').click()")
         awaitJs("!!document.querySelector('.sheet-body .body')")
         swipe(.2f,.82f,.8f,.52f); swipe(.5f,.82f,.52f,.42f)
@@ -123,7 +121,6 @@ class ComponentGestureUiTest {
         js("document.querySelector('[data-panel=schedule]').click()")
         awaitJs("!!document.querySelector('[data-host=addToSchedule]')")
         swipe();assertFalse(drawerVisible())
-        // 离开组件后，原来普通页面的抽屉手势应恢复。
         js("document.getElementById('sheet-close').click();document.getElementById('back').click()")
         compose.waitUntil(10_000) {
             var absent=false

@@ -12,7 +12,6 @@ import kotlin.math.abs
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 
-/** 锁定拖动方向，按帧更新整个卡片；松手后从当前位置退场或平滑回位。 */
 internal class SwipeToDismiss(
     private val mover: Mover,
     private val touchSlop: Int,
@@ -66,7 +65,7 @@ internal class SwipeToDismiss(
             onHold()
             view.parent?.requestDisallowInterceptTouchEvent(true)
         }
-        // 窗口自己也在移动，局部坐标会变化；速度必须用屏幕坐标计算。
+        // Use screen coordinates for velocity because the window moves during dragging.
         val sample = MotionEvent.obtain(event)
         sample.offsetLocation(event.rawX - event.x, event.rawY - event.y)
         tracker?.addMovement(sample)
@@ -140,7 +139,6 @@ internal class SwipeToDismiss(
     private fun slideOut(view: View, direction: NoticeSwipePolicy.Direction, velocityX: Float, velocityY: Float) {
         dismissing = true
         mover.prepareDismiss()
-        // 横向整个窗口移出屏幕；上滑越过顶部。毛玻璃底和文字始终一起移动。
         val travel = (view.resources.displayMetrics.widthPixels.toFloat() + view.width) / 2f
         val targetX = when (direction) {
             NoticeSwipePolicy.Direction.Left -> homeX - travel
@@ -224,7 +222,7 @@ internal class SwipeToDismiss(
             runCatching { window.attributes = attributes }
         }
 
-        // 手势已播退场动画，摘窗口时不要再叠一次系统向上退出动画。
+        // Do not add a system exit animation after the gesture's own dismissal animation.
         override fun prepareDismiss() = window.setWindowAnimations(0)
     }
 

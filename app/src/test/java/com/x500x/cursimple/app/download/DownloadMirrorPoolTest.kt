@@ -8,6 +8,15 @@ import org.junit.Test
 class DownloadMirrorPoolTest {
     private val pool = DownloadMirrorPool()
 
+    @Test fun `verified new release mirrors replace broken candidates`() {
+        val candidates = pool.candidates(DownloadRequest(DownloadPurpose.GithubRelease, "https://github.com/example/plugin/releases/latest/download/manifest.json"))
+        assertTrue(candidates.any { it.sourceName == "gh.dpik.top" })
+        assertTrue(candidates.any { it.sourceName == "ghfile.geekertao.top" })
+        assertFalse(candidates.any { it.sourceName == "ghproxy.monkeyray.net" })
+        assertFalse(candidates.any { it.sourceName == "gh.jasonzeng.dev" })
+        assertTrue(fastTextCandidates(candidates).take(4).any { it.sourceName == DownloadSourceIds.GITHUB_ORIGIN })
+    }
+
     @Test
     fun `github release candidates do not include jsdelivr`() {
         val candidates = pool.candidates(
@@ -34,7 +43,7 @@ class DownloadMirrorPoolTest {
             ),
         )
 
-        // ghfast.top 与 ghproxy.net 对 API 一律 403，gh.llkk.cc 撞共享 IP 限流，都不能进 API 候选
+        // Exclude API proxies that suppress upstream status or share exhausted rate limits.
         assertFalse(candidates.any { it.url.contains("ghfast.top") })
         assertFalse(candidates.any { it.url.contains("ghproxy.net") })
         assertFalse(candidates.any { it.url.contains("gh.llkk.cc") })
@@ -52,9 +61,8 @@ class DownloadMirrorPoolTest {
             ),
         )
 
-        // raw.ihtw.moe 已失联（TLS 握手失败），不再出现在候选里
+        // Exclude unavailable raw proxy routes.
         assertFalse(candidates.any { it.url.contains("raw.ihtw.moe") })
-        // 境内 CDN 节点实测 0.1-0.4s，远快于其它镜像，排在最前
         assertEquals(
             "https://cdn.jsdmirror.com/gh/cursimple/cursimple-plugins@main/manifest.json",
             candidates.first().url,
@@ -91,7 +99,7 @@ class DownloadMirrorPoolTest {
             ),
         )
 
-        // xget 的 raw 文件路径必须带 /raw/ 段，裸路径会被上游 404
+        // The xget raw route requires its raw path segment.
         assertTrue(candidates.any { it.url == "https://xget.xi-xu.me/gh/cursimple/cursimple-plugins/raw/main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
     }

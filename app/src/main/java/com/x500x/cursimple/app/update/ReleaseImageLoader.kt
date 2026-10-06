@@ -15,17 +15,16 @@ import com.x500x.cursimple.app.download.MirrorDownloader
 import com.x500x.cursimple.app.download.SharedPrefsMirrorPreferenceStore
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
 import com.x500x.cursimple.BuildConfig
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 更新公告里的图。
- *
- * 图放在仓库里、按 raw.githubusercontent 地址引用，GitHub 网页上能直接看；
- * App 里走和检查更新同一套镜像池，国内直连 GitHub 取不到时换镜像。下过的存进缓存目录，
- * 同一份公告再打开不重下。[localDir] 或 [localAssetBytes] 非空时只读取对应的本地图片。
+ * Cache announcement images through the mirror pool. [localDir] and [localAssetBytes] restrict
+ * preview loading to local content.
  */
 class ReleaseImageLoader(
     private val cacheDir: File,
@@ -38,12 +37,35 @@ class ReleaseImageLoader(
     suspend fun load(url: String): ImageBitmap? = withContext(Dispatchers.IO) {
         memory.get(url)?.let { return@withContext it }
         val bytes = if (localDir != null || localAssetBytes != null) {
-            // 本地公告只读本地图片，缺图时也不会到镜像或远端下载。
+            // Local previews never fetch missing images remotely.
             localBytes(url) ?: localAssetBytes?.invoke(imageFileName(url))
         } else {
-            cachedBytes(url) ?: downloadBytes(url)
+            cachedBytes(url) ?: downloadOnce(url)
         } ?: return@withContext null
         decode(bytes)?.also { memory.put(url, it) }
+    }
+
+    /**
+     * Prefetch encoded bytes into disk cache without decoding; cached entries return
+     * immediately.
+     */
+    suspend fun prefetch(url: String): Boolean = withContext(Dispatchers.IO) {
+        if (localDir != null || localAssetBytes != null) return@withContext false
+        cachedBytes(url) != null || downloadOnce(url) != null
+    }
+
+    /** Share in-flight downloads between prefetch and visible image loaders. */
+    private suspend fun downloadOnce(url: String): ByteArray? {
+        val mine = CompletableDeferred<ByteArray?>()
+        inFlight.putIfAbsent(url, mine)?.let { return it.await() }
+        return try {
+            downloadBytes(url).also { mine.complete(it) }
+        } catch (error: Throwable) {
+            mine.complete(null)
+            throw error
+        } finally {
+            inFlight.remove(url, mine)
+        }
     }
 
     private fun localBytes(url: String): ByteArray? {
@@ -62,7 +84,7 @@ class ReleaseImageLoader(
 
     private suspend fun downloadBytes(url: String): ByteArray? {
         val result = downloader.downloadBytes(releaseImageRequest(url)) { bytes ->
-            // 镜像偶尔回一张错误页，解不出图就当这个源失败，换下一个
+            // Treat undecodable mirror responses as failures and try another source.
             require(boundsOf(bytes) != null) { "not an image" }
         }
         val bytes = (result as? MirrorDownloadResult.Success)?.value ?: return null
@@ -75,7 +97,6 @@ class ReleaseImageLoader(
 
     private fun decode(bytes: ByteArray): ImageBitmap? {
         val (width, _) = boundsOf(bytes) ?: return null
-        // 公告里最宽也就占满一个弹窗，按 1080 宽取样，省得整张原图进内存
         var sample = 1
         while (width / (sample * 2) >= MAX_DECODE_WIDTH) sample *= 2
         val options = BitmapFactory.Options().apply { inSampleSize = sample }
@@ -91,17 +112,13 @@ class ReleaseImageLoader(
     }
 
     private companion object {
+        val inFlight = ConcurrentHashMap<String, CompletableDeferred<ByteArray?>>()
         const val MEMORY_CACHE_SIZE = 8
         const val MAX_DECODE_WIDTH = 1080
     }
 }
 
-/**
- * 图片地址对应的下载请求。
- *
- * 仓库文件（raw.githubusercontent.com/<owner>/<repo>/<ref>/<path>）拆出仓库、分支与路径交给镜像池；
- * 其他地址原样直连。
- */
+/** Convert repository raw URLs into mirror requests; other URLs remain direct. */
 internal fun releaseImageRequest(url: String): DownloadRequest {
     val match = RAW_GITHUB_FILE.matchEntire(url)
     return if (match != null) {
@@ -120,7 +137,6 @@ internal fun releaseImageRequest(url: String): DownloadRequest {
 
 private val RAW_GITHUB_FILE = Regex("^https://raw\\.githubusercontent\\.com/([^/]+)/([^/]+)/([^/]+)/(.+)$")
 
-/** 共用公告图片加载器，可选择私有目录或安装包内的本地预览素材。 */
 @Composable
 fun rememberReleaseImageLoader(localDir: File? = null, localAssetDir: String? = null): ReleaseImageLoader {
     val context = LocalContext.current.applicationContext

@@ -1,15 +1,8 @@
 package com.x500x.cursimple.feature.schedule
 
-/**
- * 笔记编辑器背后的纯逻辑，全是对「一行行的内容 + 光标」的变换，方便单测。
- *
- * 编辑时一行就是一块：复选框、列表、编号、标题、引用各画成自己的样子，
- * 输入框里只放这一行的文字，不放 `- [ ] ` 这类记号；存的时候再拼回 Markdown，
- * 卡片、备份和以前的数据都还是同一种格式。
- */
+/** Pure block and cursor transformations serialize back to the existing Markdown format. */
 internal data class MemoTextState(val text: String, val selectionStart: Int, val selectionEnd: Int = selectionStart)
 
-/** 选中的文字两边加上 [marker]（比如 `**`）；没选中就插一对，光标放中间。 */
 internal fun wrapSelection(state: MemoTextState, marker: String): MemoTextState {
     val start = minOf(state.selectionStart, state.selectionEnd).coerceIn(0, state.text.length)
     val end = maxOf(state.selectionStart, state.selectionEnd).coerceIn(0, state.text.length)
@@ -24,7 +17,6 @@ internal fun wrapSelection(state: MemoTextState, marker: String): MemoTextState 
 
 internal enum class MemoLineKind { Plain, Check, Bullet, Numbered, Heading, Quote }
 
-/** 编辑器里的一行。[indent] 是行首空格数，两个空格算缩进一级。 */
 internal data class MemoLine(
     val id: Long,
     val kind: MemoLineKind = MemoLineKind.Plain,
@@ -34,14 +26,12 @@ internal data class MemoLine(
     val headingLevel: Int = 1,
 )
 
-/** 一次编辑之后的样子，外加光标该落在哪一行的第几个字 */
 internal data class MemoEditResult(val lines: List<MemoLine>, val focusId: Long, val cursor: Int)
 
 private val BULLET_TO_CHECK = Regex("""^\[([ xX])] """)
 
 private val MEMO_LINE_PREFIX = Regex("""^( *)(?:- \[([ xX])] |([-*•]) |(\d{1,3})[.)] |(#{1,3}) |(>) ?)""")
 
-/** 认出一行开头的记号，拆成「什么格式 + 纯文字」 */
 internal fun parseMemoLine(raw: String, id: Long): MemoLine {
     val match = MEMO_LINE_PREFIX.find(raw) ?: return MemoLine(id, content = raw)
     val indent = match.groupValues[1].length
@@ -59,7 +49,7 @@ internal fun parseMemoLine(raw: String, id: Long): MemoLine {
 internal fun parseMemoLines(body: String, newId: () -> Long): List<MemoLine> =
     body.split('\n').map { parseMemoLine(it, newId()) }
 
-/** 每一行显示的编号：连着的编号行按 1、2、3 往下数，中间隔了别的行就重新数；不是编号行是 0 */
+/** Number contiguous ordered items from one; nonordered blocks receive zero. */
 internal fun memoLineNumbers(lines: List<MemoLine>): IntArray {
     val numbers = IntArray(lines.size)
     lines.forEachIndexed { index, line ->
@@ -90,13 +80,8 @@ internal fun serializeMemoLines(lines: List<MemoLine>): String {
 }
 
 /**
- * 一行里出现了换行：按回车，或者粘贴了好几行。
- *
- * 按回车（只多了一个换行）：新的一行接着用这一行的格式——复选框续一个没勾的，列表续列表，标题后面是普通文字；
- * 在空的列表项上按回车就是不要列表了，这一行变回普通文字，不再多出一行。
- * 粘贴好几行：每行按自己开头的记号认格式，粘进来的 `- [ ] ` 也会变成复选框。
- *
- * [content] 是这一行编辑后的全部文字（带换行），[cursor] 是光标在其中的位置。
+ * Enter continues the current format, ends empty lists or leaves headings. Multiline paste
+ * recognizes each line's markers; [content] and [cursor] describe edited input.
  */
 internal fun memoInsertLineBreaks(
     lines: List<MemoLine>,
@@ -128,8 +113,8 @@ private fun continuedLine(line: MemoLine, id: Long): MemoLine = when (line.kind)
 }
 
 /**
- * 光标在一行最前面按了删除：带格式的先去掉格式（复选框变回普通文字），
- * 已经是普通文字就接到上一行后面。第一行的普通文字没有可删的，返回 null。
+ * Line-start Backspace removes formatting, then joins plain text upward; first plain line
+ * returns null.
  */
 internal fun memoBackspaceAtStart(lines: List<MemoLine>, index: Int): MemoEditResult? {
     val line = lines[index]
@@ -146,7 +131,6 @@ internal fun memoBackspaceAtStart(lines: List<MemoLine>, index: Int): MemoEditRe
     return MemoEditResult(out, previous.id, previous.content.length)
 }
 
-/** 工具栏按钮：已经是这个格式就去掉，是别的格式就换成这个 */
 internal fun memoToggleKind(line: MemoLine, kind: MemoLineKind): MemoLine =
     if (line.kind == kind) {
         line.copy(kind = MemoLineKind.Plain, checked = false)
@@ -154,12 +138,8 @@ internal fun memoToggleKind(line: MemoLine, kind: MemoLineKind): MemoLine =
         line.copy(kind = kind, checked = false, headingLevel = if (kind == MemoLineKind.Heading) 1 else line.headingLevel)
     }
 
-/**
- * 普通文字行里手敲了 `- [ ] `、`- `、`1. `、`# `、`> ` 这样的开头：直接变成对应格式，记号从文字里拿掉。
- * 返回变好的行和拿掉了几个字（光标要往前挪这么多），没敲这种开头就返回 null。
- */
+/** Recognize typed Markdown prefixes and report removed characters for cursor adjustment. */
 internal fun memoApplyShortcut(line: MemoLine): Pair<MemoLine, Int>? {
-    // 敲「- 」时已经先变成列表了，接着再敲「[ ] 」就是想要复选框
     if (line.kind == MemoLineKind.Bullet) {
         val box = BULLET_TO_CHECK.find(line.content) ?: return null
         val check = line.copy(
@@ -172,7 +152,6 @@ internal fun memoApplyShortcut(line: MemoLine): Pair<MemoLine, Int>? {
     if (line.kind != MemoLineKind.Plain) return null
     val parsed = parseMemoLine(" ".repeat(line.indent) + line.content, line.id)
     if (parsed.kind == MemoLineKind.Plain) return null
-    // 「>」后面还没打空格就先别变，不然想打「>=」都打不出来
     if (parsed.kind == MemoLineKind.Quote && !line.content.startsWith("> ")) return null
     val removed = line.content.length - parsed.content.length
     return parsed to removed

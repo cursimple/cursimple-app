@@ -21,7 +21,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.File
 
-/** 只在 QA 模拟器上显式启用（alarmUiQa=true）：看新的响铃界面，并验证滑动关闭。 */
+/** Requires alarmUiQa=true on a dedicated QA emulator. */
 class AlarmRingingUiQaTest {
     @get:Rule val compose = createEmptyComposeRule()
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -51,13 +51,11 @@ class AlarmRingingUiQaTest {
             compose.waitForIdle()
             Thread.sleep(900)
             save("alarm-ringing.png")
-            // 拖一小段松手：不算关闭，滑块弹回去
             compose.onNodeWithTag("alarm_slide_thumb").performTouchInput { swipeRight(startX = centerX, endX = centerX + 60f, durationMillis = 250) }
             compose.waitForIdle()
             Thread.sleep(600)
             assertEquals(Lifecycle.State.RESUMED, scenario.state)
             save("alarm-ringing-partial.png")
-            // 滑到底：关闭并退出界面
             compose.onNodeWithTag("alarm_slide_thumb").performTouchInput { swipeRight(startX = centerX, endX = centerX + 2000f, durationMillis = 400) }
             Thread.sleep(300)
             save("alarm-ringing-after-slide.png")

@@ -69,7 +69,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.YearMonth
 
-/** 通用扩展内容页：类型来自 manifest，日期按截止、开始、发布时间依次取值。 */
 @Composable
 fun ExtensionFeedScreen(
     record: InstalledPluginRecord,
@@ -92,6 +91,7 @@ fun ExtensionFeedScreen(
     var syncing by remember(record.installKey) { mutableStateOf(false) }
     var detail by remember(record.installKey) { mutableStateOf<ExtensionFeedItem?>(null) }
     var syncMessage by remember(record.installKey) { mutableStateOf<String?>(null) }
+    var showIgnored by rememberSaveable(record.installKey) { mutableStateOf(false) }
 
     LaunchedEffect(record.packageRevision) {
         store.ensureLoaded()
@@ -104,7 +104,6 @@ fun ExtensionFeedScreen(
         uiLoaded = true
     }
 
-    // 页面停留到下一天时，统计和倒计时也随应用时区更新。
     val now by produceState(initialValue = BeijingTime.nowMillis(BeijingTime.zone), record.installKey) {
         while (true) {
             value = BeijingTime.nowMillis(BeijingTime.zone)
@@ -137,10 +136,9 @@ fun ExtensionFeedScreen(
     val palette = remember(shownTypes, colors) {
         FeedPalette(shownTypes, listOf(colors.primary, colors.secondary, colors.tertiary))
     }
-    // manifest 刷新或声明缺失时仍能查看全部缓存；未知类型不会从“全部”中丢失。
     val activeType = selectedType?.takeIf { id -> shownTypes.any { it.id == id } }
-    val visibleItems = remember(data.items, feedSettings, activeType, now) {
-        val filtered = extensionFeedItems(data, now, zone)
+    val visibleItems = remember(data, feedSettings, activeType, now, showIgnored) {
+        val filtered = if (showIgnored) data.items.filter { data.isIgnored(it, now) } else extensionFeedItems(data, now, zone)
         if (activeType == null) filtered else filtered.filter { it.type == activeType }
     }
 
@@ -166,6 +164,10 @@ fun ExtensionFeedScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Spacer(modifier = Modifier.weight(1f))
+            TextButton(onClick = { showIgnored = !showIgnored }) {
+                Text(stringResource(if (showIgnored) R.string.extension_show_active else R.string.extension_show_ignored,
+                    data.items.count { data.isIgnored(it, now) }))
+            }
             IconButton(onClick = ::sync, enabled = data.loggedIn && !syncing) {
                 if (syncing) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -212,36 +214,46 @@ fun ExtensionFeedScreen(
             onSelect = { selectedType = it },
         )
 
-
-        val month = YearMonth.from(today).plusMonths(monthOffset.toLong())
-        val byDay = remember(visibleItems, month, feedSettings.dateSource, zone) {
-            extensionMonthItems(visibleItems, month, feedSettings.dateSource, zone)
-        }
-        val day = selectedDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-            ?.takeIf { YearMonth.from(it) == month }
-            ?: if (YearMonth.from(today) == month) today else byDay.keys.minOrNull() ?: month.atDay(1)
-        MonthHeader(
-            month = month,
-            isCurrent = monthOffset == 0,
-            onPrevious = { monthOffset--; selectedDate = null },
-            onNext = { monthOffset++; selectedDate = null },
-            onToday = { monthOffset = 0; selectedDate = today.toString() },
-        )
-        key(record.installKey, month) {
-            MonthAgenda(
-                month = month, today = today, selectedDay = day, byDay = byDay,
-                now = now, palette = palette,
-                onSelectDay = { selectedDate = it.toString() },
-                onOpen = { detail = it },
+        if (showIgnored) {
+            LazyColumn(
+                modifier = Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { Text(stringResource(R.string.extension_ignored_hint), style = MaterialTheme.typography.bodySmall) }
+                items(visibleItems.sortedByDescending { it.anchorAt }, key = { it.id }) { item ->
+                    FeedListCard(item, now, palette, onClick = { detail = item })
+                }
+            }
+        } else {
+            val month = YearMonth.from(today).plusMonths(monthOffset.toLong())
+            val byDay = remember(visibleItems, month, feedSettings.dateSource, zone) {
+                extensionMonthItems(visibleItems, month, feedSettings.dateSource, zone)
+            }
+            val day = selectedDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                ?.takeIf { YearMonth.from(it) == month }
+                ?: if (YearMonth.from(today) == month) today else byDay.keys.minOrNull() ?: month.atDay(1)
+            MonthHeader(
+                month = month,
+                isCurrent = monthOffset == 0,
+                onPrevious = { monthOffset--; selectedDate = null },
+                onNext = { monthOffset++; selectedDate = null },
+                onToday = { monthOffset = 0; selectedDate = today.toString() },
             )
+            key(record.installKey, month) {
+                MonthAgenda(
+                    month = month, today = today, selectedDay = day, byDay = byDay,
+                    now = now, palette = palette,
+                    onSelectDay = { selectedDate = it.toString() },
+                    onOpen = { detail = it },
+                )
+            }
         }
     }
 
     detail?.let { opened ->
-        // 同步后显示最新版本，阅读中的条目即使被删除，也保留此次打开的内容。
         val item = data.items.firstOrNull { it.id == opened.id } ?: opened
         key(record.installKey, item.id) {
-            FeedItemDetailSheet(item = item, sourceName = record.name, palette = palette, now = now, onDismiss = { detail = null })
+            ActionableFeedItemDetailSheet(record, item, actions, palette, now, onDismiss = { detail = null })
         }
     }
 }
@@ -372,60 +384,6 @@ private fun MonthAgenda(
     }
 }
 
-@Composable
-private fun FeedList(
-    items: List<ExtensionFeedItem>,
-    today: LocalDate,
-    now: Long,
-    palette: FeedPalette,
-    onOpen: (ExtensionFeedItem) -> Unit,
-) {
-    val zone = BeijingTime.zone
-    val groups = remember(items, today, now, zone) { groupFeed(items, today, now, zone) }
-    if (groups.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(R.string.extension_feed_list_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        return
-    }
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        groups.forEach { (group, list) ->
-            item(key = "h-$group") {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp, start = 4.dp, end = 4.dp).semantics { heading() },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(
-                            if (group == FeedGroup.Later && list.any { it.dueAt == null }) {
-                                R.string.extension_item_pending
-                            } else if (group == FeedGroup.Done && list.all { it.isNotice() }) {
-                                R.string.extension_feed_group_read
-                            } else if (group == FeedGroup.Done && list.any { it.isNotice() }) {
-                                R.string.extension_feed_group_completed_read
-                            } else {
-                                group.labelRes
-                            },
-                        ),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (group == FeedGroup.Overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(list.size.toString(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            items(list, key = { "${group.name}-${it.id}" }) { item ->
-                FeedListCard(item = item, now = now, palette = palette, onClick = { onOpen(item) })
-            }
-        }
-    }
-}
-
 internal enum class FeedGroup(val labelRes: Int) {
     Overdue(R.string.extension_group_overdue),
     Today(R.string.extension_group_today),
@@ -466,7 +424,7 @@ internal fun groupFeed(
     }
 }
 
-/** 组件声明的颜色仅用于标记；缺省颜色取当前主题，正文保持主题对比度。 */
+/** Component colors mark categories; body text retains theme contrast. */
 internal class FeedPalette(val types: List<PluginFeedTypeSpec>, private val fallback: List<Color>) {
     private val byId = types.associateBy { it.id }
 

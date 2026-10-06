@@ -12,7 +12,6 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** 开学前返回 0 或负数；未设开学日期时返回 null。 */
 internal fun resolveWeekIndex(
     targetDate: LocalDate,
     termStartDate: LocalDate?,
@@ -21,30 +20,22 @@ internal fun resolveWeekIndex(
     return resolveTermWeekNumber(termStart, targetDate)
 }
 
-/** 已知开学日期且周次小于 1，即尚未开学。 */
 internal fun isBeforeTermStart(weekIndex: Int?): Boolean =
     weekIndex != null && !isTermWeekNumberStarted(weekIndex)
 
-/** 未设开学日期（周次为 null）时不显示任何课程。 */
 internal fun CourseItem.activeOnWeek(weekIndex: Int?): Boolean =
     weekIndex != null && isActiveInTermWeekNumber(weekIndex)
 
-/** 课程相对当前时刻的状态。 */
 internal enum class CourseStatus {
-    /** 已经下课。 */
     Past,
 
-    /** 正在上。 */
     Live,
 
-    /** 快开始了，[SOON_THRESHOLD_MINUTES] 分钟以内。 */
     Soon,
 
-    /** 今天晚些时候或以后的课。 */
     Upcoming,
 }
 
-/** 距开课多少分钟以内算即将开始。 */
 internal const val SOON_THRESHOLD_MINUTES: Long = 30
 
 internal data class NextCourseEntry(
@@ -119,8 +110,8 @@ internal fun TermTimingProfile.courseClockRange(course: CourseItem, separator: S
 }
 
 /**
- * 到达 [advanceTime] 且当天课程全部结束时返回 true，表示改为展示次日安排。
- * [advanceTime] 为 null 表示关闭提前切换，日期只在零点自然翻页。
+ * Switch to tomorrow after [advanceTime] only once today's courses end; null disables early
+ * switching.
  */
 internal fun shouldShowNextDayAtNight(
     now: LocalTime,
@@ -136,5 +127,4 @@ internal fun shouldShowNextDayAtNight(
     }
 }
 
-/** 夜间提前切到次日的时刻；null 表示不提前切换。 */
 private val NIGHT_ADVANCE_TIME: LocalTime? = null

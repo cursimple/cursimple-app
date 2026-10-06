@@ -837,7 +837,7 @@ class ReminderCoordinator(
                 mapOf("alarmKey" to alarmKey, "ruleId" to ruleId, "planId" to planId),
                 error,
             )
-        // 校验本身失败时按“未注册”处理：闹钟用 FLAG_UPDATE_CURRENT，重复下发无副作用，漏响的代价大得多
+        // Treat inspection errors as missing registrations; FLAG_UPDATE_CURRENT permits safe resubmission.
         }.getOrDefault(false).also { registered ->
             if (!registered) {
                 ReminderLogger.warn(
@@ -1120,7 +1120,7 @@ private fun ReminderPlan.canBeRepresentedBySystemClock(
     }
 }
 
-/** 周期性规则响铃后保留，只有一次性规则才随响铃一起删除。 */
+/** Preserve recurring rules after ringing; delete one-shot rules only. */
 private fun ReminderRule.shouldDeleteAfterAppAlarmRing(): Boolean =
     scopeType != ReminderScopeType.LabelRule &&
         scopeType != ReminderScopeType.FirstCourseOfPeriod &&

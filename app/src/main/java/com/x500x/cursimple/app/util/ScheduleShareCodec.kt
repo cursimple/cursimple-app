@@ -7,18 +7,13 @@ import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 
-/**
- * 把 [ScheduleSharePayload] 编码成适合嵌入二维码的紧凑字符串，并支持反向解码。
- *
- * 格式为 `CSV1:<base64(gzip(json))>`。前缀用于快速排除无关文本，也为编码格式提供版本标识。
- */
+/** QR payload format: CSV1 followed by Base64-encoded gzip JSON; prefix versions the codec. */
 
-/** 分享码解不开的原因；文字由界面层按当前语言渲染，这里只给类型。 */
+/** Typed decoding failures for localized UI messages. */
 enum class ScheduleShareDecodeReason {
-    /** 扫到的内容根本不是课表分享码。 */
     NotShareData,
 
-    /** 解压后超出上限，多半是构造出来的数据。 */
+    /** Decompressed content exceeds the accepted size. */
     TooLarge,
 }
 
@@ -49,7 +44,7 @@ object ScheduleShareCodec {
         }
         val body = trimmed.removePrefix(ScheduleSharePayload.MAGIC_PREFIX)
         val gzipped = Base64.decode(body, Base64.NO_WRAP or Base64.URL_SAFE)
-        // 解压封顶，防止构造出的「gzip 炸弹」把内存撑爆（正常分享码解压后也就几十 KB）
+        // Bound decompression to prevent oversized gzip payloads.
         val raw = ByteArrayInputStream(gzipped).use { source ->
             GZIPInputStream(source).use { it.readAtMost(MAX_DECODED_BYTES) }
         }

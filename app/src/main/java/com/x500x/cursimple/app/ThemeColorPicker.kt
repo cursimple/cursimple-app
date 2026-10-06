@@ -37,7 +37,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
@@ -54,13 +53,7 @@ import com.x500x.cursimple.app.theme.appColorScheme
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 
-/**
- * 自选主题色的调色板。
- *
- * 上面一块按饱和度、明度拖着选，下面一条选色相；也可以点常用色，或者直接输 #RRGGBB、
- * 分别填 R/G/B。底部按这个颜色实际推出来的配色预览按钮和容器，挑的时候就能看到效果。
- * 不带透明度：主题色要铺满各处，半透明没有意义。
- */
+/** Opaque theme-color picker with HSV, presets, RGB input and derived palette preview. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ThemeColorPickerDialog(
@@ -78,7 +71,6 @@ internal fun ThemeColorPickerDialog(
     var greenText by rememberSaveable(initialArgb) { mutableStateOf(channel(initialArgb, 8).toString()) }
     var blueText by rememberSaveable(initialArgb) { mutableStateOf(channel(initialArgb, 0).toString()) }
 
-    /** 从调色板、色条、常用色改了颜色：输入框跟着改成新值。 */
     fun syncFields(color: Int) {
         hexText = formatRgbHex(color)
         redText = channel(color, 16).toString()
@@ -86,7 +78,7 @@ internal fun ThemeColorPickerDialog(
         blueText = channel(color, 0).toString()
     }
 
-    /** 从输入框改了颜色：只动调色板，不回写正在输入的那个框，免得光标乱跳。 */
+    /** Do not rewrite the active text field while updating the color preview. */
     fun applyColor(color: Int) {
         val hsv = argbToHsv(color)
         hue = hsv[0]
@@ -204,7 +196,6 @@ internal fun ThemeColorPickerDialog(
     )
 }
 
-/** 饱和度（横）× 明度（竖）的方块，拖动或点一下选色。 */
 @Composable
 internal fun SaturationValuePanel(
     hue: Float,
@@ -239,7 +230,6 @@ internal fun SaturationValuePanel(
     }
 }
 
-/** 色相条，从红绕一圈回到红。 */
 @Composable
 internal fun HueBar(hue: Float, onChange: (Float) -> Unit) {
     val colors = remember { (0..6).map { Color(hsvToArgb(it * 60f, 1f, 1f)) } }
@@ -263,7 +253,6 @@ internal fun HueBar(hue: Float, onChange: (Float) -> Unit) {
     }
 }
 
-/** 用这个颜色实际推出来的配色画一个小样：主按钮、容器块、正文色，浅色深色各一份。 */
 @Composable
 private fun ThemeColorPreview(argb: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -319,7 +308,6 @@ private fun channel(argb: Int, shift: Int): Int = (argb shr shift) and 0xFF
 
 internal fun formatRgbHex(argb: Int): String = "#%06X".format(argb and 0xFFFFFF)
 
-/** 认 #RRGGBB、RRGGBB 和 #RGB 三种写法，都按不透明处理。 */
 internal fun parseRgbHex(input: String): Int? {
     val raw = input.trim().removePrefix("#").removePrefix("0x").removePrefix("0X")
     val expanded = when (raw.length) {

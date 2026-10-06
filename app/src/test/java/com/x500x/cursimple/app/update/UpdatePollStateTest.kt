@@ -4,7 +4,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** 自动检查更新该不该查：每次启动先查一次，之后查成的隔半小时、没查成的隔五分钟。 */
 class UpdatePollStateTest {
 
     private val minute = 60 * 1000L

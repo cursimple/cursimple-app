@@ -65,21 +65,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 
-/**
- * 每行输入框最前面垫一个看不见的字符。光标在行首按删除时删掉的就是它，
- * 这样才知道「在行首按了删除」——空输入框里按删除，软键盘不会告诉我们。
- */
+/** An invisible prefix makes line-start Backspace observable to the soft keyboard. */
 private const val LINE_START = '\u200B'
 
 private fun lineField(content: String, cursor: Int = content.length, end: Int = cursor): TextFieldValue =
     TextFieldValue(LINE_START + content, TextRange(cursor + 1, end + 1))
 
 /**
- * 笔记正文的编辑器：写的时候就是卡片上看到的样子。
- *
- * 复选框是真的方框、能直接勾，列表前面是圆点，编号自动往下数，标题是大字，引用左边一道竖线；
- * 输入框里只有这一行的文字。回车续上同样的格式，空项上回车结束列表，行首按删除先去掉格式再并到上一行；
- * 手敲 `- [ ] `、`- `、`1. `、`# `、`> ` 开头也会直接变成对应格式。存下来的还是 Markdown。
+ * Block editor stores Markdown while rendering checkboxes, lists, headings and quotes. Enter
+ * continues or ends formatting; Backspace removes formatting before merging lines.
  */
 @Composable
 internal fun MemoBlockEditor(
@@ -95,7 +89,6 @@ internal fun MemoBlockEditor(
     }
     val requesters = remember { mutableMapOf<Long, FocusRequester>() }
     var focusedId by remember { mutableStateOf<Long?>(null) }
-    // 换了行结构以后要把焦点送到哪一行；那一行可能刚加出来，等排好版再请求
     var pendingFocus by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(pendingFocus) {
         val id = pendingFocus ?: return@LaunchedEffect
@@ -128,7 +121,7 @@ internal fun MemoBlockEditor(
         val raw = value.text
         val content = raw.replace(LINE_START.toString(), "")
         if (!raw.startsWith(LINE_START) && content == line.content) {
-            // 删掉的只有行首那个看不见的字符：在行首按了删除
+            // Removing only the invisible prefix denotes line-start Backspace.
             val result = memoBackspaceAtStart(lines, index)
             if (result != null) commit(result.lines, result.focusId, result.cursor) else fields[id] = lineField(line.content, 0)
             return
@@ -147,7 +140,7 @@ internal fun MemoBlockEditor(
             commit(lines.toMutableList().also { it[index] = converted }, id, (cursor - removed).coerceAtLeast(0))
             return
         }
-        // 普通打字：原样收下输入法给的值（带着拼音组字状态），只是别让光标跑到那个看不见的字符前面
+        // Preserve IME composition and prevent the cursor moving before the sentinel.
         fields[id] = if (shift == 1) {
             val start = value.selection.start.coerceAtLeast(1)
             val end = value.selection.end.coerceAtLeast(1)
@@ -215,7 +208,6 @@ internal fun MemoBlockEditor(
                     if (focusedId != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
                     RoundedCornerShape(14.dp),
                 )
-                // 点在行与行下面的空白处：接着最后一行往下写
                 .pointerInput(Unit) {
                     detectTapGestures {
                         val last = lines.last()
@@ -361,10 +353,7 @@ private data class MemoInlineStyle(val markerColor: Color)
 
 private val INLINE_MARKS = Regex("""\*\*(.+?)\*\*|~~(.+?)~~|`([^`]+)`""")
 
-/**
- * 行内的粗体、删除线、代码边写边显示效果；`**`、`~~` 这些记号还留在字里（好删好改），只是画淡一点。
- * 只改样式不改字，光标位置一一对应。
- */
+/** Apply inline styling without changing text so cursor offsets remain exact. */
 private class MemoInlineTransformation(
     private val style: MemoInlineStyle,
     private val codeBackground: Color,

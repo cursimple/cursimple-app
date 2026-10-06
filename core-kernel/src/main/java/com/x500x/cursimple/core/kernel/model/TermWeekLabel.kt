@@ -4,15 +4,10 @@ import android.content.Context
 import com.x500x.cursimple.core.kernel.R
 import java.time.LocalDate
 
-/**
- * 教学周在界面上的三种状态。
- * 逻辑层只判定处于哪一种，文字由界面层按当前语言渲染，纯逻辑因此不依赖 Context。
- */
+/** Typed teaching-week state, localized outside pure logic. */
 sealed interface TermWeekLabel {
-    /** 没有开学日期，算不出周次。 */
     data object TermStartMissing : TermWeekLabel
 
-    /** 有开学日期，但还没到第 1 周。 */
     data object NotStarted : TermWeekLabel
 
     data class Week(val index: Int) : TermWeekLabel
@@ -24,7 +19,7 @@ fun termWeekLabel(termStart: LocalDate?, weekIndex: Int): TermWeekLabel = when {
     else -> TermWeekLabel.Week(weekIndex)
 }
 
-/** 只按周次判定，供已经确认存在开学日期的调用方使用。 */
+/** Week-only classification for callers with a known term date. */
 fun termWeekLabel(weekIndex: Int): TermWeekLabel =
     if (isTermWeekNumberStarted(weekIndex)) TermWeekLabel.Week(weekIndex) else TermWeekLabel.NotStarted
 
@@ -34,7 +29,6 @@ fun Context.termWeekText(label: TermWeekLabel): String = when (label) {
     is TermWeekLabel.Week -> getString(R.string.kernel_week_index, label.index)
 }
 
-/** 星期几的文案资源 id。取值超出 1..7 时返回通用的未知文案。 */
 fun weekdayNameRes(dayOfWeek: Int): Int = when (dayOfWeek) {
     1 -> R.string.kernel_weekday_monday
     2 -> R.string.kernel_weekday_tuesday
@@ -49,8 +43,7 @@ fun weekdayNameRes(dayOfWeek: Int): Int = when (dayOfWeek) {
 fun Context.weekdayName(dayOfWeek: Int): String = getString(weekdayNameRes(dayOfWeek))
 
 /**
- * 星期几的单字文案资源 id，用在日历表头这种一列只放得下一个字的地方。
- * 不走系统的 narrow 名字：中文下取到的是"星"，七列全一样，等于没标。
+ * Use explicit short weekday resources; system narrow labels can be identical in some locales.
  */
 fun weekdayNarrowRes(dayOfWeek: Int): Int = when (dayOfWeek) {
     1 -> R.string.kernel_weekday_narrow_monday

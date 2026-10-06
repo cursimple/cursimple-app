@@ -34,9 +34,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         appInfo = context.applicationInfo
         dataDir = requireNotNull(context.filesDir.parentFile)
         val dataPath = dataDir.path
-        // lint 的 SdCardPath 在这里是误报：这两个不是外置存储路径，而是多用户下
-        // 私有目录的固定布局（/data/user/<id>/<pkg> 对应 /data/user_de/<id>/<pkg>）。
-        // 设备保护存储没有对应的公开 API 能反推出来，只能按这个布局拼。
+        // These are private multi-user storage paths, not shared storage; device-protected paths have no reverse lookup API.
         if (dataPath.startsWith("/data/user/")) {
             userDeDataDir = File("/data/user_de/${dataPath.substringAfter("/data/user/")}")
         }
@@ -393,9 +391,7 @@ class PrivateFilesDocumentsProvider : DocumentsProvider() {
         const val METHOD_CREATE_SYMLINK = "mt:createSymlink"
         const val SYMLINK_MODE_MASK = 0xF000
         const val SYMLINK_MODE = 0xA000
-        
-
-        const val PRIVATE_FILES_PROVIDER_PREFS = "private_files_provider"
+         const val PRIVATE_FILES_PROVIDER_PREFS = "private_files_provider"
         const val KEY_PRIVATE_FILES_PROVIDER_ENABLED = "private_files_provider_enabled"
         val DEFAULT_ROOT_PROJECTION = arrayOf(
             Root.COLUMN_ROOT_ID,

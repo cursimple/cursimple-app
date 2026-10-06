@@ -1,16 +1,18 @@
 (() => {
-  const { REPO, CHANNEL_METADATA, selectChannels, releaseUrl, downloadUrl } = SiteReleases;
+  const { REPO, selectChannels, releaseUrl, downloadUrl } = SiteReleases;
+  const { t, formatDate } = SiteI18n;
+  SiteI18n.init();
   const CDN = `https://cdn.jsdelivr.net/gh/${REPO}`;
-  // App 检查更新也读这两份清单：走 jsDelivr，国内一般零点几秒就能拿到
   const FEED_STABLE = `${CDN}@update-feed/stable.json`;
   const FEED_BETA = `${CDN}@update-feed/beta.json`;
   const API = `https://api.github.com/repos/${REPO}/releases`;
-  // 与 App 内 DownloadMirrorPool 的下载镜像同源，按 2026-09 实测速度排序
+  // Release mirrors share app sources and verified fallback routes.
   const MIRRORS = [
-    'https://ghproxy.monkeyray.net/',
     'https://gh-proxy.com/',
     'https://gh.llkk.cc/',
     'https://gh-proxy.org/',
+    'https://gh.dpik.top/',
+    'https://ghfile.geekertao.top/',
   ];
 
   const $ = (s, el = document) => el.querySelector(s);
@@ -18,16 +20,14 @@
   const modal = $('#changelog');
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem(k, v); } catch { /* 隐私模式 */ } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {   } },
   };
   const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-  /* ================= 顶栏 ================= */
   const nav = $('#nav');
   const onScroll = () => nav.classList.toggle('scrolled', scrollY > 8 || !menu.hidden);
   addEventListener('scroll', onScroll, { passive: true });
 
-  // 手机端菜单
   const menu = $('#mMenu');
   const menuBtn = $('#menuBtn');
   const setMenu = (open) => {
@@ -41,7 +41,6 @@
   document.addEventListener('click', (e) => { if (!menu.hidden && !nav.contains(e.target)) setMenu(false); });
   onScroll();
 
-  // 滚动时高亮当前栏目
   const spyLinks = $$('.nav-links a[href^="#"]:not([data-changelog])');
   const spyTargets = spyLinks.map((a) => $(a.getAttribute('href'))).filter(Boolean);
   if ('IntersectionObserver' in window && spyTargets.length) {
@@ -54,7 +53,6 @@
     spyTargets.forEach((t) => spy.observe(t));
   }
 
-  /* ================= 进场动画 ================= */
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
@@ -66,7 +64,6 @@
     $$('.reveal').forEach((el) => el.classList.add('in'));
   }
 
-  /* ================= 课表截图切换 ================= */
   const shot = $('#scheduleShot');
   $$('.tabs button').forEach((btn) => btn.addEventListener('click', () => {
     if (btn.classList.contains('on')) return;
@@ -76,10 +73,8 @@
     next.onload = () => { shot.src = next.src; shot.alt = btn.textContent; shot.classList.remove('fade'); };
     next.src = btn.dataset.shot;
   }));
-  // 预加载，切换时不闪
   addEventListener('load', () => $$('.tabs button').forEach((b) => { new Image().src = b.dataset.shot; }));
 
-  /* ================= 看大图 ================= */
   const lightbox = $('#lightbox');
   const lbImg = $('img', lightbox);
   $$('.phone img, .card-img img, .t-wide img, .desktop .w').forEach((img) => { img.dataset.zoom = ''; });
@@ -97,20 +92,17 @@
   };
   lightbox.addEventListener('click', closeLightbox);
 
-  /* ================= 微信 / QQ 内置浏览器提示 ================= */
   if (/MicroMessenger|QQ\/|\bQQBrowser\/.*MQQBrowser|WeiBo/i.test(navigator.userAgent)) {
     $('#wxTip').hidden = false;
   }
 
-  /* ================= 下载 ================= */
   let channels = selectChannels();
   let release = channels.recommended;
-  let assets = release.assets;   // 同一 tag 的 abi -> { url, size, sha256 }
+  let assets = release.assets;
   let route = 'github';
   let mirror = MIRRORS[0];
 
   const fmtSize = (n) => `${(n / 1048576).toFixed(1)} MB`;
-  const fmtDate = (d) => `${d.getFullYear()} 年 ${d.getMonth() + 1} 月 ${d.getDate()} 日`;
   const fallbackUrl = (abi) => downloadUrl(release.tag, abi);
   const withRoute = (url) => (route === 'mirror' ? mirror + url : url);
 
@@ -122,29 +114,29 @@
     });
     $$('[data-size]').forEach((el) => {
       const size = assets[el.dataset.size]?.size;
-      el.textContent = size ? fmtSize(size) : '大小待获取';
+      el.textContent = size ? fmtSize(size) : t('download.sizePending');
     });
     const arm = assets['arm64-v8a'];
     $$('[data-dl-meta]').forEach((el, i) => {
-      const base = i === 0 ? 'arm64 · 适合绝大多数手机' : '推荐 · 绝大多数手机选这个';
+      const base = t(i === 0 ? 'hero.downloadMeta' : 'download.arm64Meta');
       el.textContent = arm?.size ? `${base} · ${fmtSize(arm.size)}` : base;
     });
   }
 
   function applyVersion() {
-    const label = release.prerelease ? '最新测试版' : '最新正式版';
+    const label = t(release.prerelease ? 'channel.beta' : 'channel.stable');
     $$('[data-ver]').forEach((el) => { el.textContent = release.tag; });
     $$('[data-channel-label]').forEach((el) => { el.textContent = label; });
-    $('[data-date]').textContent = release.date ? `${fmtDate(release.date)}发布` : '';
+    $('[data-date]').textContent = release.date ? t('channel.published', { date: formatDate(release.date) }) : '';
     $$('[data-release-link]').forEach((el) => { el.href = releaseUrl(release.tag); });
-    $('#clMeta').textContent = [label, release.date && `${fmtDate(release.date)}发布`].filter(Boolean).join(' · ');
+    $('#clMeta').textContent = [label, release.date && t('channel.published', { date: formatDate(release.date) })].filter(Boolean).join(' · ');
     for (const key of ['stable', 'beta']) {
       const item = channels[key];
-      const name = key === 'stable' ? '最新正式版' : '最新测试版';
+      const name = t(`channel.${key}`);
       const line = $(`[data-channel="${key}"]`);
-      line.innerHTML = item ? `${name}：<a href="${esc(releaseUrl(item.tag))}" target="_blank" rel="noopener">${esc(item.tag)}</a>` : `${name}：暂无${key === 'stable' ? '正式' : '测试'}版`;
+      const value = item ? `<a href="${esc(releaseUrl(item.tag))}" target="_blank" rel="noopener">${esc(item.tag)}</a>` : esc(t(key === 'stable' ? 'channel.noStable' : 'channel.noBeta'));
+      line.innerHTML = t('channel.line', { name: esc(name), value });
     }
-    // 没看过这一版的更新公告就挂个小红点；弹窗开着时版本号才到，也算看过
     if (!modal.hidden && release.tag) store.set('seen-ver', release.tag);
     const unseen = release.tag && store.get('seen-ver') !== release.tag;
     $$('.dot').forEach((d) => { d.hidden = !unseen; });
@@ -178,25 +170,23 @@
     assets = release.assets;
     applyVersion();
     applyLinks();
+    ensureNotes();
   }
-  applyChannels();
 
-  // 并行读取两个渠道；beta.json 含测试版在内，prerelease 字段决定归属。
-  const feedReady = Promise.allSettled([
+  Promise.allSettled([
     ['stable', FEED_STABLE], ['beta', FEED_BETA],
   ].map(async ([key, url]) => {
-    try { feeds[key] = await getJson(url); applyChannels(); } catch { /* 使用其他渠道或固定 tag 兜底 */ }
+    try { feeds[key] = await getJson(url); applyChannels(); } catch {   }
   }));
 
-  // /releases 列表包含测试版；只合并相同 tag 的大小、日期和公告。
-  const apiReady = (async () => {
+  // Merge metadata only for the same tag, including prerelease entries.
+  (async () => {
     try {
       apiReleases = await getJson(`${API}?per_page=100`, 10000);
       applyChannels();
     } catch { /* ignore */ }
   })();
 
-  // 同时探测几个镜像，谁先有响应就用谁
   async function pickMirror() {
     const probe = `https://github.com/${REPO}/releases/download/${encodeURIComponent(release.tag)}/update.json`;
     const race = MIRRORS.map((m) => new Promise((resolve, reject) => {
@@ -222,9 +212,8 @@
   const inMainland = /^Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)$/.test(tz);
   setRoute(store.get('dl-route') || (inMainland ? 'mirror' : 'github'), false);
 
-  /* ================= 更新公告：Markdown ================= */
   let notesBase = document.baseURI;
-  // 发版说明里的图都挂在 raw.githubusercontent.com，国内经常打不开，换成 jsDelivr
+  // Rewrite repository raw image URLs through jsDelivr.
   function assetUrl(url) {
     const raw = /^https:\/\/raw\.githubusercontent\.com\/([^/]+\/[^/]+)\/([^/]+)\/(.+)$/.exec(url);
     if (raw) return `https://cdn.jsdelivr.net/gh/${raw[1]}@${raw[2]}/${raw[3]}`;
@@ -243,15 +232,13 @@
     return t.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${esc(codes[i])}</code>`);
   }
 
-  // 中文断行接起来不加空格，英文之间补一个
   const CJK = /[　-鿿＀-￯]/;
   const joinLine = (a, b) => (CJK.test(a.slice(-1)) || CJK.test(b[0]) ? a + b : `${a} ${b}`);
 
   function parseNotes(md) {
-    // GitHub 自动生成的变更列表不属于公告正文
     md = md.replace(/\r/g, '').split(/\n##\s+What's Changed|\n\*\*Full Changelog\*\*/)[0];
     const doc = { intro: [], sections: [] };
-    let cur = null;          // 当前 ## 小节
+    let cur = null;
     let list = null;         // { tag, items }
     let para = null;
     let fence = null;
@@ -294,34 +281,71 @@
   }
 
   let notes = null;
-  // 本次图文公告随官网发布，预取可避免依赖尚未缓存的 tag 文档。
-  const bundledNotes = getText(`release-notes/${CHANNEL_METADATA.beta.tagName}.md`).catch(() => null);
-  const notesReady = (async () => {
-    await Promise.all([feedReady, apiReady]);
-    let md = null;
-    if (release.tag === CHANNEL_METADATA.beta.tagName) {
-      md = await bundledNotes;
-      if (md) notesBase = new URL(`release-notes/${release.tag}.md`, document.baseURI).href;
-    }
-    if (!md) {
-      const path = `docs/release-notes/${release.tag}.md`;
-      for (const url of [`${CDN}@${release.tag}/${path}`, `https://raw.githubusercontent.com/${REPO}/${release.tag}/${path}`]) {
-        try { md = await getText(url); notesBase = url; break; } catch { /* 换下一个 */ }
-      }
-    }
-    if (!md) { md = release.body || null; notesBase = `${CDN}@${release.tag}/docs/release-notes/`; }
-    if (!md) throw new Error('no notes');
-    notes = parseNotes(md);
-    // 首屏胶囊换成这一版前三个亮点
-    if (notes.sections.length) {
-      $('[data-highlights]').textContent = notes.sections.slice(0, 3).map((s) => s.title).join(' · ');
-    }
-    if (!modal.hidden) renderNotes();
-    return notes;
-  })();
-  notesReady.catch(() => { if (!modal.hidden) renderError(); });
+  let notesOriginal = false;
+  let notesLoading = false;
+  let notesKey = '';
+  let notesGeneration = 0;
+  const notesCache = new Map();
 
-  /* ================= 更新公告：弹窗 ================= */
+  async function fetchNotes(tag, language) {
+    const suffix = language === 'zh-CN' ? '' : `.${language}`;
+    const local = `release-notes/${encodeURIComponent(tag)}${suffix}.md`;
+    try {
+      const md = await getText(local, 3000);
+      if (!/^#\s/m.test(md)) throw new Error('invalid notes');
+      return { md, base: new URL(local, document.baseURI).href, original: false };
+    } catch {   }
+    const path = `docs/release-notes/${encodeURIComponent(tag)}${suffix}.md`;
+    for (const url of [`${CDN}@${encodeURIComponent(tag)}/${path}`, `https://raw.githubusercontent.com/${REPO}/${encodeURIComponent(tag)}/${path}`]) {
+      try {
+        const md = await getText(url, 4000);
+        if (!/^#\s/m.test(md)) throw new Error('invalid notes');
+        return { md, base: url, original: false };
+      } catch {   }
+    }
+    if (language !== 'zh-CN') {
+      const original = await cachedNotes(tag, 'zh-CN');
+      return { ...original, original: true };
+    }
+    if (release.tag === tag && release.body) return { md: release.body, base: `${CDN}@${encodeURIComponent(tag)}/docs/release-notes/`, original: true };
+    throw new Error('no notes');
+  }
+
+  function cachedNotes(tag, language) {
+    const key = `${tag}:${language}`;
+    if (!notesCache.has(key)) {
+      const request = fetchNotes(tag, language).catch((error) => { notesCache.delete(key); throw error; });
+      notesCache.set(key, request);
+    }
+    return notesCache.get(key);
+  }
+
+  function ensureNotes() {
+    const language = SiteI18n.language;
+    const key = `${release.tag}:${language}`;
+    if (notesKey === key) return;
+    notesKey = key;
+    const generation = ++notesGeneration;
+    notes = null;
+    notesLoading = true;
+    $('[data-highlights]').textContent = t('hero.highlights');
+    if (!modal.hidden) renderLoading();
+    cachedNotes(release.tag, language).then((result) => {
+      if (generation !== notesGeneration) return;
+      notesBase = result.base;
+      notesOriginal = result.original && language !== 'zh-CN';
+      notes = parseNotes(result.md);
+      notesLoading = false;
+      if (notes.sections.length && !notesOriginal) $('[data-highlights]').textContent = notes.sections.slice(0, 3).map((s) => s.title).join(' · ');
+      if (!modal.hidden) renderNotes();
+    }).catch(() => {
+      if (generation !== notesGeneration) return;
+      notesLoading = false;
+      notesKey = '';
+      if (!modal.hidden) renderError();
+    });
+  }
+
   const slides = $('#clSlides');
   const dots = $('#clDots');
   const prev = $('#clPrev');
@@ -331,13 +355,14 @@
   let lastFocus = null;
 
   function renderNotes() {
-    const intro = notes.intro.join('') || '<p>这一版的更新内容如下。</p>';
+    const intro = notes.intro.join('') || `<p>${esc(t('notes.intro'))}</p>`;
     const toc = notes.sections.map((s, i) => `<button data-go="${i + 1}">${inline(s.title)}</button>`).join('');
     slides.innerHTML = `
       <section class="slide intro">
         <div class="big">${esc(release.tag || '')}</div>
+        ${notesOriginal ? `<p class="quote">${esc(t('notes.original'))}</p>` : ''}
         <div class="lead2">${intro}</div>
-        ${toc ? `<div class="toc">${toc}</div><p class="swipe">左右滑动或点上面的标题翻页</p>` : ''}
+        ${toc ? `<div class="toc">${toc}</div><p class="swipe">${esc(t('notes.swipe'))}</p>` : ''}
       </section>
       ${notes.sections.map((s, i) => `
         <section class="slide">
@@ -345,14 +370,22 @@
           <h4>${inline(s.title)}</h4>
           ${s.blocks.join('')}
         </section>`).join('')}`;
-    dots.innerHTML = [...slides.children].map((_, i) => `<button aria-label="第 ${i + 1} 页" data-go="${i}"></button>`).join('');
-    go(0, false);
+    dots.innerHTML = [...slides.children].map((_, i) => `<button aria-label="${esc(t('notes.page', { page: i + 1 }))}" data-go="${i}"></button>`).join('');
+    go(0);
+  }
+
+  function renderLoading() {
+    slides.innerHTML = `<div class="slide cl-loading"><i class="spin"></i><p>${esc(t('notes.loading'))}</p></div>`;
+    dots.innerHTML = '';
+    page = 0;
+    updateArrows();
   }
 
   function renderError() {
-    slides.innerHTML = `<div class="slide cl-loading"><p>更新内容暂时没加载出来</p>
-      <a class="btn btn-ghost btn-md" href="${esc(releaseUrl(release.tag))}" target="_blank" rel="noopener">去 GitHub 查看<svg><use href="#i-ext"/></svg></a></div>`;
+    slides.innerHTML = `<div class="slide cl-loading"><p>${esc(t('notes.error'))}</p>
+      <a class="btn btn-ghost btn-md" href="${esc(releaseUrl(release.tag))}" target="_blank" rel="noopener">${esc(t('notes.github'))}<svg><use href="#i-ext"/></svg></a></div>`;
     dots.innerHTML = '';
+    page = 0;
     updateArrows();
   }
 
@@ -363,22 +396,19 @@
     [...dots.children].forEach((d, i) => d.classList.toggle('on', i === page));
   }
 
-  function go(i, smooth = true) {
+  function go(i) {
     const n = slides.children.length;
     page = Math.max(0, Math.min(n - 1, i));
-    slides.scrollTo({ left: page * slides.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+    slides.scrollTo({ left: page * slides.clientWidth, behavior: 'instant' });
     updateArrows();
   }
 
-  let scrollTimer;
   slides.addEventListener('scroll', () => {
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-      const i = Math.round(slides.scrollLeft / slides.clientWidth);
-      if (i !== page) { page = i; updateArrows(); }
-    }, 60);
+    if (!slides.clientWidth) return;
+    const i = Math.max(0, Math.min(slides.children.length - 1, Math.round(slides.scrollLeft / slides.clientWidth)));
+    if (i !== page) { page = i; updateArrows(); }
   }, { passive: true });
-  addEventListener('resize', () => { if (!modal.hidden) go(page, false); });
+  addEventListener('resize', () => { if (!modal.hidden) go(page); });
 
   modal.addEventListener('click', (e) => {
     const t = e.target.closest('[data-go]');
@@ -395,9 +425,9 @@
     modal.classList.remove('closing');
     document.body.classList.add('lock');
     if (notes) renderNotes();
-    else notesReady.then(null, renderError);
+    else if (notesLoading) renderLoading();
+    else renderError();
     if (release.tag) { store.set('seen-ver', release.tag); $$('.dot').forEach((d) => { d.hidden = true; }); }
-    // 手机上按返回键关掉弹窗，而不是离开页面
     if (!fromHash) { history.pushState({ changelog: true }, '', '#changelog'); pushed = true; }
     $('.sheet', modal).focus({ preventScroll: true });
   }
@@ -436,5 +466,18 @@
     if (e.key === 'ArrowRight') go(page + 1);
   });
 
+  document.addEventListener('site-language-change', () => {
+    applyVersion();
+    applyLinks();
+    // Active screenshot labels also follow the language after a screenshot switch.
+    const activeShot = $('.tabs button.on');
+    if (activeShot) shot.alt = activeShot.textContent;
+    if (!lightbox.hidden) {
+      const source = $$('[data-zoom]').find((image) => (image.currentSrc || image.src) === lbImg.src);
+      if (source) lbImg.alt = source.alt;
+    }
+    ensureNotes();
+  });
+  applyChannels();
   if (location.hash === '#changelog') open(true);
 })();

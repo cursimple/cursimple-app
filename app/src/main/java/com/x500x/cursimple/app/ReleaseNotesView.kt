@@ -55,7 +55,6 @@ import com.x500x.cursimple.app.update.ReleaseNoteBlock
 import com.x500x.cursimple.app.update.ReleaseNoteSpan
 import com.x500x.cursimple.app.update.parseReleaseNotes
 
-/** 把发布说明按 Markdown 渲染进一个可滚动的方框里。 */
 @Composable
 fun ReleaseNotesCard(
     markdown: String,
@@ -80,17 +79,13 @@ fun ReleaseNotesCard(
     }
 }
 
-/** 逐块渲染发布说明。 */
 @Composable
 fun ReleaseNotesBody(markdown: String) {
     val blocks = remember(markdown) { parseReleaseNotes(markdown) }
     ReleaseNotesBlocks(blocks)
 }
 
-/**
- * 逐块渲染已经解析好的发布说明；翻页公告也用它。
- * [large] 给全屏公告用：正文大一号，弹窗里的小方框用默认的小字。
- */
+/** Render parsed notes; [large] selects the full-screen body style. */
 @Composable
 fun ReleaseNotesBlocks(blocks: List<ReleaseNoteBlock>, large: Boolean = false) {
     val imageLoader = rememberReleaseImageLoader()
@@ -136,7 +131,6 @@ fun ReleaseNotesBlocks(blocks: List<ReleaseNoteBlock>, large: Boolean = false) {
                 color = MaterialTheme.colorScheme.outlineVariant,
             )
 
-            // 不翻页的地方（更新提示、更新历史）图就按顺序往下排
             is ReleaseNoteBlock.Gallery -> block.images.forEach { image ->
                 ReleaseImage(
                     image = image,
@@ -150,17 +144,13 @@ fun ReleaseNotesBlocks(blocks: List<ReleaseNoteBlock>, large: Boolean = false) {
     }
 }
 
-/**
- * 公告里的一张图：加载中转圈，失败时给一行说明，点一下重试。
- * 图按原比例缩进给定的框里，不裁，截图的边角都看得到。
- */
+/** Fit images without cropping; show loading and retry states. */
 @Composable
 fun ReleaseImage(
     image: ReleaseNoteImage,
     loader: ReleaseImageLoader,
     modifier: Modifier = Modifier,
     cornerRadius: Dp = 14.dp,
-    /** 加载好之后点图做什么，比如全屏放大；为空时点图没有反应。 */
     onClick: (() -> Unit)? = null,
 ) {
     var attempt by remember(image.url) { mutableIntStateOf(0) }
@@ -171,7 +161,6 @@ fun ReleaseImage(
     val shape = RoundedCornerShape(cornerRadius)
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         when (val current = state) {
-            // 按图自己的比例摆，框多出来的地方留白而不是垫一块灰底，截图四周才不会有灰边
             is ReleaseImageState.Loaded -> Image(
                 bitmap = current.bitmap,
                 contentDescription = image.caption.ifBlank { null },

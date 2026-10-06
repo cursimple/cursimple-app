@@ -10,24 +10,15 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 
-/** 引导要圈出来的界面元素。 */
 enum class GuideAnchor {
-    /** 顶栏左侧打开侧边栏的按钮。 */
     Drawer,
 
-    /** 顶栏右侧添加课程的按钮。 */
     Add,
 
-    /** 顶栏中间显示周次、点开切换周次的区域。 */
     WeekTitle,
 }
 
-/**
- * 各元素在屏幕上的实际位置。
- *
- * 按屏幕比例估位置在不同机型、字号和系统栏高度下都会偏，
- * 改由元素自己在布局完成后上报，圈出来的框才落在它身上。
- */
+/** Collect actual layout bounds rather than estimating positions from screen proportions. */
 class GuideAnchorBounds {
     private val bounds = mutableStateMapOf<GuideAnchor, Rect>()
 
@@ -43,7 +34,6 @@ val LocalGuideAnchors = staticCompositionLocalOf { GuideAnchorBounds() }
 @Composable
 fun rememberGuideAnchorBounds(): GuideAnchorBounds = remember { GuideAnchorBounds() }
 
-/** 把这个元素的位置报给引导。 */
 fun Modifier.guideAnchor(anchor: GuideAnchor): Modifier = composed {
     val anchors = LocalGuideAnchors.current
     onGloballyPositioned { coordinates ->

@@ -3,19 +3,13 @@ package com.x500x.cursimple.app.util
 import android.content.Context
 import android.content.SharedPreferences
 
-/** 上一次写进系统日历的记录。 */
 data class SystemCalendarExportRecord(
     val calendarId: Long,
     val eventIds: List<Long>,
     val exportedAt: Long,
 )
 
-/**
- * 记住写进系统日历的事件 id，撤销时照着删。
- *
- * 只在本机有意义，换机或清数据后这份记录消失，此时不再提供撤销，
- * 也不去按标题之类的特征猜测哪些事件该删。
- */
+/** Undo uses device-local exported IDs only; never infer ownership from event titles. */
 object SystemCalendarExportStore {
 
     private const val FILE = "system_calendar_export"

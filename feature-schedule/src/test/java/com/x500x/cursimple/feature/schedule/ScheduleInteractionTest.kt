@@ -54,7 +54,6 @@ class ScheduleInteractionTest {
 
     @Test
     fun `detail dialog week number follows the tapped date`() {
-        // 第 5 周周三与第 6 周周三，弹窗都应按格子自身的日期判断
         assertEquals(5, detailWeekNumber(LocalDate.of(2026, 4, 1), termStart, emptyList()))
         assertEquals(6, detailWeekNumber(LocalDate.of(2026, 4, 8), termStart, emptyList()))
     }

@@ -6,10 +6,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicLong
 
-/**
- * 保存近期插件日志的内存环形缓冲。通过单例 [PluginLogBuffer.instance] 在任意位置访问，
- * 应用内的诊断查看器订阅 [snapshots]。
- */
+/** Bounded recent-log buffer; [snapshots] feeds the diagnostic viewer. */
 class PluginLogBuffer(private val capacity: Int = DEFAULT_CAPACITY) {
     private val lock = Any()
     private val entries = ArrayDeque<PluginLogEntry>(capacity)

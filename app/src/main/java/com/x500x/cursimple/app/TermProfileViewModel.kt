@@ -36,7 +36,6 @@ class TermProfileViewModel(
     fun createTerm(name: String, startDate: LocalDate?) {
         viewModelScope.launch {
             val term = termRepo.createTerm(name = name, termStartDateIso = startDate?.toString())
-            // 新建的学期直接切换为活动学期。
             termRepo.setActiveTerm(term.id)
             userPrefs.setTermStartDate(startDate)
             onActiveTermChanged()
@@ -51,8 +50,7 @@ class TermProfileViewModel(
         viewModelScope.launch {
             termRepo.setTermStartDate(id, date?.toString())
             if (id == state.value.activeTermId) {
-                // 用户在学期管理里改动/清空活动学期开学日期，与主课表入口一样算一次明确决定，
-                // 否则清空后会被下一次插件同步按插件学期起始悄悄写回
+                // Treat date clearing as an explicit user choice so plugin sync cannot restore it.
                 userPrefs.setTermStartUserDecided(true)
                 userPrefs.setTermStartDate(date)
             }
@@ -67,7 +65,6 @@ class TermProfileViewModel(
                     state.value.terms.firstOrNull { t -> t.id == id }
                 }
             }
-            // 把活动学期的开学日期镜像到用户偏好，课表界面与小组件统一从这里读取。
             val iso = newActive?.termStartDate
             userPrefs.setTermStartDate(iso?.let { runCatching { LocalDate.parse(it) }.getOrNull() })
             onActiveTermChanged()
@@ -77,7 +74,6 @@ class TermProfileViewModel(
     fun delete(id: String) {
         viewModelScope.launch {
             termRepo.deleteTerm(id)
-            // 删除后以仓库里实际的活动学期为准镜像开学日期，删除非活动学期不会改动当前学期。
             val activeId = termRepo.activeTermIdFlow.first()
             val iso = termRepo.termsFlow.first().termStartDateIsoOf(activeId)
             userPrefs.setTermStartDate(iso?.let { runCatching { LocalDate.parse(it) }.getOrNull() })

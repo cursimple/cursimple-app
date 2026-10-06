@@ -35,7 +35,6 @@ class SettingsTimeZoneChoiceTest {
 
     @Test
     fun `names inside one offset follow the given comparator`() {
-        // 中文按字符码排出来的顺序读起来是乱的，实际使用 Collator 按拼音排
         val sorted = sortZoneChoices(
             listOf(
                 choice("Asia/Shanghai", "中国标准时间", 8 * 3600),
@@ -88,7 +87,6 @@ class SettingsTimeZoneChoiceTest {
 
     @Test
     fun `the query matches the localized city name`() {
-        // 中文用户搜的是城市名，它既不等于时区标准名也不在 id 里
         val target = choice("Asia/Shanghai", "中国标准时间", 8 * 3600, cityName = "上海")
 
         assertTrue(matchesZoneQuery(target, "上海"))

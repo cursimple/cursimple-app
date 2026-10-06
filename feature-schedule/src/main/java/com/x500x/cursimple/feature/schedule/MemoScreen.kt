@@ -20,9 +20,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,25 +82,24 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-/** 一个笔记本：一门课，或者不属于哪门课的「其他」（[key] 为空）。 */
 internal data class MemoNotebook(
     val key: String?,
     val title: String,
     val subtitle: String,
-    /** 课已经不在当前课表里了，笔记还留着 */
     val orphan: Boolean,
 )
 
-/** 选择条上选中的是哪一项：全部，或某一个笔记本 */
 private sealed interface MemoSelection {
     data object All : MemoSelection
     data class Notebook(val key: String?) : MemoSelection
 }
 
-/** 总览顶上三个数字，点一下只看那一类 */
+/** Overview counters filter their corresponding note category. */
 private enum class MemoQuickFilter { Todo, Today, Overdue }
 
-/** 当前课表的每门课一本（同名的合成一本），加上笔记里提到、课表里已经没有的，最后是「其他」。 */
+/**
+ * One notebook per course name, including archived note associations and a general notebook.
+ */
 internal fun buildMemoNotebooks(courses: List<CourseItem>, memos: List<MemoNote>, otherTitle: String): List<MemoNotebook> {
     val fromCourses = courses
         .groupBy { memoCourseKey(it.title) }
@@ -114,7 +112,6 @@ internal fun buildMemoNotebooks(courses: List<CourseItem>, memos: List<MemoNote>
                 orphan = false,
             )
         }
-        // 有待办的课排前面，待办越多越靠前；都没有的按笔记多少，再按课名
         .sortedWith(
             compareByDescending<MemoNotebook> { nb -> memos.count { it.courseKey == nb.key && !it.completed } }
                 .thenByDescending { nb -> memos.count { it.courseKey == nb.key } }
@@ -131,7 +128,6 @@ internal fun buildMemoNotebooks(courses: List<CourseItem>, memos: List<MemoNote>
 @Composable
 internal fun memoNotebookColor(notebook: MemoNotebook?): CoursePaletteEntry? {
     if (notebook?.key == null) return null
-    // 和课表里这门课的颜色一致：课表按课名在同一个色板里取色
     return courseColor(notebook.title, LocalScheduleAccents.current.coursePalette)
 }
 
@@ -153,13 +149,15 @@ internal fun memoPriorityLabel(priority: MemoPriority): String = stringResource(
     },
 )
 
-/** 侧边栏「备忘录」和 ScheduleViewModel 的接线：课程从课表里来，笔记单独存。 */
+/** Timetable courses and independently persisted notes feed the drawer Notes page. */
 @Composable
 fun MemoRoute(
     viewModel: ScheduleViewModel,
     modifier: Modifier = Modifier,
     searchOpen: Boolean = false,
     onCloseSearch: () -> Unit = {},
+    openNoteId: String? = null,
+    onNoteOpened: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val courses = remember(state.schedule, state.manualCourses) {
@@ -173,6 +171,8 @@ fun MemoRoute(
         modifier = modifier,
         searchOpen = searchOpen,
         onCloseSearch = onCloseSearch,
+        openNoteId = openNoteId,
+        onNoteOpened = onNoteOpened,
     )
 }
 
@@ -185,6 +185,8 @@ internal fun MemoScreen(
     modifier: Modifier = Modifier,
     searchOpen: Boolean = false,
     onCloseSearch: () -> Unit = {},
+    openNoteId: String? = null,
+    onNoteOpened: () -> Unit = {},
 ) {
     val zone = LocalAppZone.current
     val now = remember(memos, zone) { BeijingTime.nowDateTimeIn(zone) }
@@ -194,9 +196,13 @@ internal fun MemoScreen(
     var quickFilter by rememberSaveable { mutableStateOf<MemoQuickFilter?>(null) }
     var searchQuery by rememberSaveable(searchOpen) { mutableStateOf("") }
     val searching = searchOpen && searchQuery.isNotBlank()
-    // 编辑中的笔记；新建时是一条只填了所属课程的草稿
+    // Editable note or new draft initialized with its course association.
     var editing by remember { mutableStateOf<MemoNote?>(null) }
     var pendingDelete by remember { mutableStateOf<MemoNote?>(null) }
+    LaunchedEffect(openNoteId, memos) {
+        val id = openNoteId ?: return@LaunchedEffect
+        memos.firstOrNull { it.id == id }?.let { editing = it; onNoteOpened() }
+    }
 
     val selectedKey = (selection as? MemoSelection.Notebook)?.key
     val inAll = selection == MemoSelection.All
@@ -593,7 +599,7 @@ private fun MemoCard(
             .alpha(if (note.completed) 0.6f else 1f),
     ) {
         Row(modifier = Modifier.height(IntrinsicSize.Min)) {
-            // 左边一条优先级色带；没设优先级就不画
+            // Show a priority stripe only when priority is assigned.
             Box(
                 modifier = Modifier
                     .width(5.dp)
@@ -711,7 +717,6 @@ private fun MemoCard(
     }
 }
 
-/** 标题左边的圆圈：点一下整条完成 */
 @Composable
 private fun MemoDoneToggle(done: Boolean, onClick: () -> Unit) {
     val primary = MaterialTheme.colorScheme.primary
@@ -801,7 +806,6 @@ private fun MemoDueTag(note: MemoNote, now: LocalDateTime) {
     }
 }
 
-/** 「10月1日 23:59」；今年以外的带上年份 */
 @Composable
 internal fun memoDueText(due: LocalDateTime, now: LocalDateTime): String {
     val pattern = if (due.year == now.year) {
@@ -809,11 +813,9 @@ internal fun memoDueText(due: LocalDateTime, now: LocalDateTime): String {
     } else {
         stringResource(R.string.memo_due_pattern_year)
     }
-    // 跟着界面语言走：Locale.getDefault() 在切换应用语言后不会触发重组
     return due.format(DateTimeFormatter.ofPattern(pattern, LocalConfiguration.current.locales[0]))
 }
 
-/** 「3 天」「5 小时」「20 分钟」：取最大的那一级，够看出紧不紧急就行 */
 @Composable
 private fun memoDurationText(duration: Duration): String {
     val minutes = duration.toMinutes().coerceAtLeast(1)
