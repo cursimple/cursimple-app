@@ -10,8 +10,8 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
 [![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![Latest beta 0.7.8](https://img.shields.io/badge/Latest%20beta-0.7.8-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8)
-[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8)
+[![Latest beta 0.7.9](https://img.shields.io/badge/Latest%20beta-0.7.9-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)
+[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
 
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
@@ -21,7 +21,7 @@ An open-source Android timetable app built on a microkernel architecture. Each s
 
 [Website](https://cursimple.github.io/cursimple-app/) · [Download](#download) · [Features](#features) · [Plugins](#plugin-system) · [Build from source](#build-from-source) · [中文](README.md)
 
-Latest beta: [0.7.8](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8) (`beta` / Pre-release).
+Latest beta: [0.7.9](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9) (`beta` / Pre-release).
 
 </div>
 
@@ -138,7 +138,7 @@ The search box at the top finds any setting by name, page or keyword. **Quick se
 
 ## Download
 
-The latest beta is [0.7.8](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.8). Download the APK for your device from that version's page; the [website](https://cursimple.github.io/cursimple-app/#download) also offers download mirrors and QR codes.
+The latest beta is [0.7.9](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9). Download the APK for your device from that version's page; the [website](https://cursimple.github.io/cursimple-app/#download) also offers download mirrors and QR codes.
 
 | File | Device |
 |---|---|
@@ -148,7 +148,7 @@ The latest beta is [0.7.8](https://github.com/cursimple/cursimple-app/releases/t
 | `CurSimple-x86.apk` | 32-bit Intel devices |
 | `CurSimple-universal.apk` | Works everywhere, at a larger size |
 
-The release channel is set by `app.releaseChannel` in `gradle.properties`. Version 0.7.8 uses `beta`, keeps the tag `v0.7.8`, and sets `prerelease=true` on its GitHub Release; the older `v0.7.4` is also marked Pre-release. A version without a `-beta` suffix can still be a beta, so check the channel and Pre-release label. Enable beta updates in the app to receive this channel.
+The release channel is set by `app.releaseChannel` in `gradle.properties`. Version 0.7.9 uses `beta`, keeps the tag `v0.7.9`, and sets `prerelease=true` on its GitHub Release; the older `v0.7.4` is also marked Pre-release. A version without a `-beta` suffix can still be a beta, so check the channel and Pre-release label. Enable beta updates in the app to receive this channel.
 
 After installing:
 
@@ -224,7 +224,7 @@ The version and release channel are maintained in `gradle.properties`:
 
 ```properties
 app.versionCode=31
-app.versionName=0.7.8
+app.versionName=0.7.9
 app.releaseChannel=beta
 ```
 
