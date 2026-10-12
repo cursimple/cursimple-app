@@ -16,10 +16,7 @@ import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.util.Date
-import java.util.Locale
 
 data class ScheduleImageExportOutcome(
     val intent: Intent?,
@@ -119,11 +116,11 @@ object ScheduleImageExporter {
 
     private fun writePng(context: Context, termName: String?, weekNumber: Int?, bitmap: Bitmap): File? = runCatching {
         val dir = File(context.cacheDir, "images").apply { mkdirs() }
-        val timestamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
         val slug = termName?.let { sanitizeFileName(it) }?.takeIf { it.isNotBlank() }
         val prefix = if (slug != null) "cursimple-$slug" else "cursimple-schedule"
         val scope = weekNumber?.let { "week$it" } ?: "all-weeks"
-        val target = File(dir, "$prefix-$scope-$timestamp.png")
+        // Each preview keeps an immutable file, even when rapid week changes overlap renders.
+        val target = File.createTempFile("$prefix-$scope-", ".png", dir)
         target.outputStream().use { stream ->
             if (!bitmap.compress(Bitmap.CompressFormat.PNG, PNG_QUALITY, stream)) {
                 throw IllegalStateException("compress failed")

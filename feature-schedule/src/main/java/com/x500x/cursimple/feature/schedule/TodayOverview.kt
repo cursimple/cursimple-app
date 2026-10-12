@@ -108,7 +108,7 @@ internal fun clockText(clock: LocalTime?): String = clock?.format(overviewClock)
 internal fun occurrenceInfo(occurrence: ScheduledCourseOccurrence, display: ScheduleDisplayPreferences): String = listOfNotNull(
     if (occurrence.hasTime) "${clockText(occurrence.start)}–${clockText(occurrence.end)}" else stringResource(R.string.schedule_today_time_missing),
     occurrence.location.takeIf { display.locationVisible && it.isNotBlank() },
-    occurrence.course.teacher.takeIf { display.teacherVisible && it.isNotBlank() },
+    occurrence.teacher.takeIf { display.teacherVisible && it.isNotBlank() },
 ).joinToString(" · ")
 
 /** Empty-state messages require known day state and no active or upcoming classes. */

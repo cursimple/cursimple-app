@@ -1,6 +1,8 @@
 package com.x500x.cursimple.feature.plugin.extension
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.content.ContextWrapper
 import android.graphics.Bitmap
 import android.util.Base64
 import android.webkit.CookieManager
@@ -11,15 +13,12 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.luminance
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.serialization.json.booleanOrNull
@@ -32,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -64,7 +62,7 @@ import java.util.UUID
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-internal fun ExtensionOwnedPage(
+internal fun ExtensionOwnedDocument(
     record: InstalledPluginRecord,
     manifest: PluginManifest,
     data: ExtensionData,
@@ -72,7 +70,11 @@ internal fun ExtensionOwnedPage(
     page: PluginExtensionUiPage,
     actions: ExtensionHostActions,
     onBack: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onNavigate: (PluginExtensionUiPage, Boolean) -> Unit,
+    interactive: Boolean,
+    presented: Boolean,
+    onReady: () -> Unit,
+    onLoadFailure: (String) -> Unit,
     onRemove: () -> Unit = {},
     openWidgetAbout: Boolean = false,
     modifier: Modifier = Modifier,
@@ -87,19 +89,29 @@ internal fun ExtensionOwnedPage(
     val currentActions by rememberUpdatedState(actions)
     val colors = MaterialTheme.colorScheme
     val fontScale = LocalDensity.current.fontScale
-    var activePage by remember(record.packageRevision, page) { mutableStateOf(page) }
-    var source by remember(record.packageRevision, page, html) { mutableStateOf<String?>(html) }
-    var ready by remember(record.packageRevision, activePage, source) { mutableStateOf(false) }
-    var loadError by remember(record.packageRevision, activePage) { mutableStateOf<String?>(null) }
+    val source = html
+    var ready by remember(record.packageRevision, page, html) { mutableStateOf(false) }
+    val currentInteractive by rememberUpdatedState(interactive)
+    val activity = remember(context) {
+        var candidate = context
+        while (candidate is ContextWrapper && candidate !is Activity) candidate = candidate.baseContext
+        candidate as? Activity
+    }
+    val orientation = remember(activity) {
+        activity?.let { owner -> ComponentOrientation({ owner.requestedOrientation }, { owner.requestedOrientation = it }) }
+    }
+    DisposableEffect(orientation) { onDispose { orientation?.restore() } }
+    LaunchedEffect(interactive) { if (!interactive) orientation?.restore() }
+    val currentNavigate by rememberUpdatedState(onNavigate)
+    val currentBack by rememberUpdatedState(onBack)
+    val currentReady by rememberUpdatedState(onReady)
+    val currentLoadFailure by rememberUpdatedState(onLoadFailure)
+    var pdfPreview by remember(record.packageRevision) { mutableStateOf<java.io.File?>(null) }
+    fun openMedia(file: java.io.File, mime: String) {
+        if (isExtensionPdf(file, mime)) pdfPreview = file else openExtensionFile(context, file, mime)
+    }
     var removing by remember(record.packageRevision) { mutableStateOf(false) }
     var removeConfirmation by remember(record.packageRevision) { mutableStateOf(false) }
-    LaunchedEffect(record.packageRevision, activePage, html) {
-        if (!actions.isCurrent(record)) { loadError = "组件已更新或移除"; return@LaunchedEffect }
-        store.update(record.pluginId) { it }
-        source = if (activePage == page) html else actions.loadUi(record, activePage)
-        if (source == null) loadError = "组件未提供此页面"
-    }
-    BackHandler(enabled = activePage != page) { activePage = page }
     val spec = requireNotNull(manifest.extension)
     val settings = ExtensionUrls.effectiveSettings(spec, data.settings)
     val loginUrl = ExtensionUrls.resolve(spec.loginUrl, settings)
@@ -108,11 +120,22 @@ internal fun ExtensionOwnedPage(
         "${uri.scheme}://${uri.rawAuthority}"
     } else "https://cursimple-extension.invalid"
     val currentOrigin by rememberUpdatedState(origin)
-    val entry = spec.ui?.entryFor(activePage) ?: "ui/index.html"
+    val sessionNetwork = remember(record.packageRevision, origin) {
+        ComponentSessionNetwork(origin, manifest.allowedHosts, manifest.permissions.toSet(), manifest.userAgent)
+    }
+    val currentSessionNetwork by rememberUpdatedState(sessionNetwork)
+    DisposableEffect(sessionNetwork) { onDispose { sessionNetwork.close() } }
+    val entry = spec.ui?.entryFor(page) ?: "ui/index.html"
     val baseUrl = "$origin$ASSET_PREFIX$entry"
-    val token = remember(record.packageRevision, activePage, source, origin) { UUID.randomUUID().toString() }
-    // Reuse one WebView through page changes so AndroidView never points at a discarded instance.
+    val token = remember(record.packageRevision, page, source, origin) { UUID.randomUUID().toString() }
+    // Keep the document instance stable while its route is cached.
     val webView = remember(record.packageRevision) { ExtensionWebViewPool.acquire(context) }
+    BackHandler(enabled = interactive) {
+        webView.evaluateJavascript("window.__CurSimpleComponentHasBack === true") { handled ->
+            if (handled == "true") webView.evaluateJavascript("window.dispatchEvent(new Event('cursimple-back'));", null)
+            else currentBack()
+        }
+    }
     val bridge: ComponentPageBridge = remember(webView) {
         ComponentPageBridge(webView) { callToken, id, command, payload ->
             scope.launch(Dispatchers.Main.immediate) {
@@ -120,6 +143,26 @@ internal fun ExtensionOwnedPage(
                     check(!removing) { "组件正在移除" }
                     check(bridgeActive(webView) && currentActions.isCurrent(record)) { "组件已更新或移除" }
                     val value: JsonElement = when (command) {
+                        "network.session.fetch" -> {
+                            check(currentInteractive) { "已离开组件页面" }
+                            currentSessionNetwork.fetch(payload)
+                        }
+                        "network.session.cancel" -> { currentSessionNetwork.cancelRequest(payload.fieldText("requestId")); JsonPrimitive(true) }
+                        "network.socket.open" -> {
+                            check(currentInteractive) { "已离开组件页面" }
+                            JsonPrimitive(currentSessionNetwork.openSocket(payload.fieldText("url")))
+                        }
+                        "network.socket.send" -> { currentSessionNetwork.sendSocket(payload.fieldText("socketId"), payload.fieldText("text")); JsonPrimitive(true) }
+                        "network.socket.poll" -> currentSessionNetwork.pollSocket(payload.fieldText("socketId"))
+                        "network.socket.close" -> { currentSessionNetwork.closeSocket(payload.fieldText("socketId")); JsonPrimitive(true) }
+                        "ui.navigation" -> {
+                            JsonPrimitive(true)
+                        }
+                        "ui.orientation" -> {
+                            check(currentInteractive) { "已离开组件页面" }
+                            checkNotNull(orientation) { "当前窗口无法切换方向" }.request(payload.fieldText("mode"))
+                            JsonPrimitive(true)
+                        }
                         "notification.config.get", "notification.config.save", "notification.history",
                         "notification.test", "notification.retry", "notification.fetch" -> {
                             require(spec.notificationReceiver && PluginPermission.NotificationReceive in manifest.permissions) { "组件未声明通知出口能力" }
@@ -130,7 +173,7 @@ internal fun ExtensionOwnedPage(
                         "debug.advancedTools" -> {
                             val enabled = (payload["enabled"] as? JsonPrimitive)?.booleanOrNull
                                 ?: error("高级工具参数无效")
-                            currentActions.setAdvancedToolsEnabled(enabled)
+                            store.update(record.pluginId) { it.copy(diagnosticsEnabled = enabled) }
                             JsonPrimitive(enabled)
                         }
                         "settings.update" -> {
@@ -158,8 +201,12 @@ internal fun ExtensionOwnedPage(
                             currentActions.setItemIgnored(record, (payload["itemId"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
                                 (payload["ignored"] as? JsonPrimitive)?.booleanOrNull ?: error("忽略状态无效")))
                         "login.check" -> {
+                            check(currentInteractive) { "已离开登录页面，请重新打开组件" }
                             CookieManager.getInstance().flush()
-                            val before = store.get(record.pluginId)
+                            val before = store.initializeIfMissing(record.pluginId) {
+                                !removing && currentInteractive && webView.tag == callToken && currentActions.isCurrent(record)
+                            } ?: error("组件已更新或移除")
+                            val expectedAccountId = (payload["expectedAccountId"] as? JsonPrimitive)?.contentOrNull
                             val (_, script) = currentActions.loadPackage(record)
                             val request = ExtensionRunRequest.from(manifest, script, before, ExtensionRunMode.CheckLogin).copy(
                                 url = ExtensionUrls.resolve(spec.runUrl, ExtensionUrls.effectiveSettings(spec, before.settings)),
@@ -171,16 +218,19 @@ internal fun ExtensionOwnedPage(
                             }
                             if (run is ExtensionRunResult.Failed) error(run.message)
                             run as ExtensionRunResult.Completed
-                            check(!removing && webView.tag == callToken && currentActions.isCurrent(record)) { "组件已更新或移除" }
+                            check(!removing && currentInteractive && webView.tag == callToken && currentActions.isCurrent(record)) { "登录页面已关闭或组件已变更" }
                             val saved = store.updateIfPresent(record.pluginId) {
-                                if (it.sessionRevision != before.sessionRevision) null else acceptComponentLogin(it, run.result)
+                                commitComponentLogin(before, it, run.result, expectedAccountId)
                             } ?: error("登录上下文已变更，请重新登录")
                             currentActions.onDataChanged(record.pluginId)
-                            if ((payload["navigate"] as? JsonPrimitive)?.booleanOrNull != false) activePage = PluginExtensionUiPage.Settings
-                            scope.launch { runCatching { currentActions.syncNow(record) } }
+                            if (!currentActions.syncAfterLogin(record, saved.sessionRevision)) {
+                                scope.launch { runCatching { currentActions.syncNow(record) } }
+                            }
+                            if ((payload["navigate"] as? JsonPrimitive)?.booleanOrNull != false) currentNavigate(PluginExtensionUiPage.Settings, true)
                             extensionJson.encodeToJsonElement(ExtensionData.serializer(), saved)
                         }
                         "logout" -> {
+                            currentSessionNetwork.closeConnections()
                             clearExtensionCookies(manifest.allowedHosts)
                             val saved = store.update(record.pluginId, ::loggedOutComponent)
                             currentActions.onDataChanged(record.pluginId)
@@ -205,11 +255,11 @@ internal fun ExtensionOwnedPage(
                                 ?: error("附件不属于当前组件内容")
                             val saved = downloads.find(url)?.let { downloads.file(it.id) }
                             if (saved != null) {
-                                openExtensionFile(context, saved.second, saved.first.mime)
+                                openMedia(saved.second, saved.first.mime)
                             } else {
                                 val file = ExtensionMediaLoader(context).fetch(url, attachment.name, attachment.type, userAgent = manifest.userAgent)
                                 check(!removing && bridgeActive(webView)) { "组件已关闭" }
-                                openExtensionFile(context, file.file, file.mime)
+                                openMedia(file.file, file.mime)
                             }
                             JsonPrimitive(true)
                         }
@@ -225,7 +275,7 @@ internal fun ExtensionOwnedPage(
                         )
                         "media.openSaved" -> {
                             val (entry, file) = downloads.file((payload["id"] as? JsonPrimitive)?.contentOrNull.orEmpty())
-                            openExtensionFile(context, file, entry.mime)
+                            openMedia(file, entry.mime)
                             JsonPrimitive(true)
                         }
                         "media.delete" -> JsonPrimitive(downloads.delete((payload["id"] as? JsonPrimitive)?.contentOrNull.orEmpty()))
@@ -239,10 +289,14 @@ internal fun ExtensionOwnedPage(
                             val name = file.name.takeIf { '.' in it } ?: "${file.name}.${file.mime.substringAfter('/', "jpg").substringBefore('+')}"
                             JsonPrimitive(saveExtensionImage(context, file.file, name, file.mime))
                         }
-                        "ui.login" -> { activePage = PluginExtensionUiPage.Login; JsonPrimitive(true) }
-                        "ui.settings" -> { if (page == PluginExtensionUiPage.Feed) onOpenSettings() else activePage = PluginExtensionUiPage.Settings; JsonPrimitive(true) }
-                        "ui.feed" -> { if (page == PluginExtensionUiPage.Feed) activePage = PluginExtensionUiPage.Feed else currentActions.openFeed(record); JsonPrimitive(true) }
-                        "ui.close" -> { if (activePage != page) activePage = page else onBack(); JsonPrimitive(true) }
+                        "ui.login" -> { if (currentInteractive) currentNavigate(PluginExtensionUiPage.Login, false); JsonPrimitive(true) }
+                        "ui.settings" -> { if (currentInteractive) currentNavigate(PluginExtensionUiPage.Settings, false); JsonPrimitive(true) }
+                        "ui.feed" -> { if (!currentInteractive) JsonPrimitive(false) else {
+                            currentNavigate(PluginExtensionUiPage.Feed,
+                                (payload["replace"] as? JsonPrimitive)?.booleanOrNull == true)
+                            JsonPrimitive(true)
+                        } }
+                        "ui.close" -> { if (currentInteractive) currentBack(); JsonPrimitive(true) }
                         "ui.openExternal" -> {
                             val url = (payload["url"] as? JsonPrimitive)?.contentOrNull.orEmpty()
                             val declaredExternal = setOfNotNull(manifest.homepage, manifest.supportUrl).contains(url)
@@ -267,25 +321,22 @@ internal fun ExtensionOwnedPage(
         }
     }
     // Sample time belongs to the snapshot; unrelated recompositions must not rebuild component DOM or interrupt scrolling.
-    val snapshot = remember(activePage, data, manifest, colors, fontScale, openWidgetAbout) { buildJsonObject {
+    val snapshot = remember(page, data, manifest, colors, fontScale, openWidgetAbout) { buildJsonObject {
         put("version", com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT)
-        put("page", activePage.name.lowercase())
+        put("page", page.name.lowercase())
         put("context", buildJsonObject {
             put("fontScale", fontScale)
-            put("theme", buildJsonObject {
-                fun color(key: String, value: androidx.compose.ui.graphics.Color) = put(key, "#%06x".format(value.toArgb() and 0xffffff))
-                put("dark", colors.background.luminance() < 0.5f)
-                color("background", colors.background); color("surface", colors.surface)
-                color("surfaceVariant", colors.surfaceVariant); color("surfaceContainerLow", colors.surfaceContainerLow)
-                color("onSurface", colors.onSurface); color("onSurfaceVariant", colors.onSurfaceVariant)
-                color("outlineVariant", colors.outlineVariant); color("primary", colors.primary)
-                color("onPrimary", colors.onPrimary); color("primaryContainer", colors.primaryContainer)
-                color("onPrimaryContainer", colors.onPrimaryContainer); color("error", colors.error)
-                color("errorContainer", colors.errorContainer)
-            })
+            put("theme", componentTheme(colors))
             put("timeZone", com.x500x.cursimple.core.kernel.time.BeijingTime.zone.id)
             put("nowMillis", com.x500x.cursimple.core.kernel.time.BeijingTime.nowMillis(com.x500x.cursimple.core.kernel.time.BeijingTime.zone))
             put("widgetAbout", openWidgetAbout)
+            put("pageTransitions", true)
+            put("diagnostics", buildJsonObject {
+                put("enabled", currentData.diagnosticsEnabled)
+                put("activationTaps", com.x500x.cursimple.core.kernel.HiddenToolsActivation.TAP_TARGET)
+                put("resetAfterMillis", com.x500x.cursimple.core.kernel.HiddenToolsActivation.TAP_RESET_MS)
+                put("testContentSupported", true)
+            })
         })
         put("data", extensionJson.encodeToJsonElement(ExtensionData.serializer(), currentData))
         put("manifest", extensionJson.encodeToJsonElement(PluginManifest.serializer(), manifest))
@@ -295,6 +346,7 @@ internal fun ExtensionOwnedPage(
         webView.settings.apply { javaScriptEnabled = true; domStorageEnabled = true; textZoom = 100; manifest.userAgent?.let { userAgentString = it } }
         CookieManager.getInstance().setAcceptCookie(true)
         bridge.attachToView()
+        webView.setBackgroundColor(colors.background.toArgb())
         webView.webChromeClient = WebChromeClient()
         onDispose {
             bridge.close()
@@ -308,7 +360,17 @@ internal fun ExtensionOwnedPage(
         webView.tag = token
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = true
-            override fun onPageFinished(view: WebView?, url: String?) { ready = true }
+            override fun onPageFinished(view: WebView?, url: String?) {
+                if (webView.tag != token) return
+                webView.postVisualStateCallback(0, object : WebView.VisualStateCallback() {
+                    override fun onComplete(requestId: Long) {
+                        if (webView.tag == token) { ready = true; currentReady() }
+                    }
+                })
+            }
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                if (request?.isForMainFrame == true && webView.tag == token) currentLoadFailure("组件页面加载失败，请重试")
+            }
             override fun shouldInterceptRequest(view: WebView?, request: WebResourceRequest?): WebResourceResponse? {
                 val uri = request?.url ?: return null
                 if ("${uri.scheme}://${uri.encodedAuthority}" != origin || !uri.path.orEmpty().startsWith(ASSET_PREFIX)) return null
@@ -325,17 +387,22 @@ internal fun ExtensionOwnedPage(
                 }.getOrElse { WebResourceResponse("text/plain", "UTF-8", 404, "Not Found", emptyMap(), "".byteInputStream()) }
             }
         }
-        source?.let { pageHtml -> webView.loadDataWithBaseURL(baseUrl, componentUiHtml(pageHtml, snapshot, token, manifest), "text/html", "UTF-8", null) }
+        source.let { pageHtml -> webView.loadDataWithBaseURL(baseUrl, componentUiHtml(pageHtml, snapshot, token, manifest), "text/html", "UTF-8", null) }
         onDispose { ready = false }
     }
     LaunchedEffect(snapshot, ready, webView) {
         if (ready) webView.evaluateJavascript("window.__CurSimpleComponentPush && window.__CurSimpleComponentPush(${componentUiJsonForScript(snapshot.toString())});", null)
     }
-    Box(modifier.fillMaxSize()) {
-        AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
-        if (!ready && loadError == null) CircularProgressIndicator(Modifier.align(Alignment.Center))
-        loadError?.let { Text(it, modifier = Modifier.align(Alignment.Center)) }
+    LaunchedEffect(presented, ready) {
+        if (!presented) sessionNetwork.closeConnections()
+        if (ready) webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('cursimple-visibility',{detail:{visible:$presented}}));", null)
     }
+    AndroidView(factory = { webView }, modifier = modifier.fillMaxSize(), update = {
+        it.visibility = if (presented) android.view.View.VISIBLE else android.view.View.INVISIBLE
+        it.importantForAccessibility = if (interactive) android.view.View.IMPORTANT_FOR_ACCESSIBILITY_AUTO else android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        it.setBackgroundColor(colors.background.toArgb())
+    })
+    pdfPreview?.let { ExtensionPdfPreview(it, onDismiss = { pdfPreview = null }) }
     if (removeConfirmation) AlertDialog(
         onDismissRequest = { removeConfirmation = false },
         title = { Text("移除 ${record.name}？") },
@@ -385,9 +452,10 @@ internal fun componentUiHtml(html: String, snapshot: JsonObject, token: String, 
 (function(){
  const token=${JsonPrimitive(token)}, pending=new Map(), listeners=new Set(); let seq=0;
  let state=${componentUiJsonForScript(snapshot.toString())};
+ window.__CurSimpleComponentHasBack=false;
  window.__CurSimpleComponentReply=function(id,response){if(id==='legacy-sync'&&window.CurSimpleExtensionUiSetSyncing)window.CurSimpleExtensionUiSetSyncing(false);const p=pending.get(id);if(!p)return;pending.delete(id);clearTimeout(p.timer);response.ok?p.resolve(response.value):p.reject(new Error(response.error||'组件调用失败'));};
  window.__CurSimpleComponentPush=function(value){state=value;listeners.forEach(fn=>fn(state));if(window.CurSimpleExtensionUiSetData)window.CurSimpleExtensionUiSetData(state.data);};
- window.CurSimpleComponent=Object.freeze({version:${com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT},get state(){return state;},subscribe(fn){listeners.add(fn);fn(state);return()=>listeners.delete(fn);},request(command,payload){return new Promise((resolve,reject)=>{const id=String(++seq);const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作超时，请重试'));},(command==='sync'||command==='item.markRead'||command==='notification.test')?185000:45000);pending.set(id,{resolve,reject,timer});window.CurSimpleExtensionUi.request(token,id,command,JSON.stringify(payload||{}));});}});
+ window.CurSimpleComponent=Object.freeze({capabilities:Object.freeze({sessionFetch:true,nativeWebSocket:true,orientation:true}),version:${com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT},get state(){return state;},subscribe(fn){listeners.add(fn);fn(state);return()=>listeners.delete(fn);},request(command,payload){if(command==='ui.navigation')window.__CurSimpleComponentHasBack=payload?.canGoBack===true;return new Promise((resolve,reject)=>{const id=String(++seq);const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作超时，请重试'));},(command==='sync'||command==='item.markRead'||command==='notification.test')?185000:(command==='network.session.fetch'?Math.min(60000,Math.max(1000,Number(payload?.timeoutMs)||20000))+5000:45000));pending.set(id,{resolve,reject,timer});window.CurSimpleExtensionUi.request(token,id,command,JSON.stringify(payload||{}));});}});
  const nativeFetch=window.fetch.bind(window), hosts=${extensionJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<String>()), manifest.allowedHosts)}, network=${PluginPermission.NetworkFetch in manifest.permissions};
  const allowed=h=>hosts.some(x=>h===x||h.endsWith('.'+x));
  window.fetch=function(url,init){const u=new URL(typeof url==='string'?url:url.url,location.href),local=u.origin===location.origin&&u.pathname.startsWith('$ASSET_PREFIX');if(!local&&(!network||u.protocol!=='https:'||!allowed(u.hostname)))return Promise.reject(new Error('请求地址不在组件声明的站点内'));return nativeFetch(url,init);};

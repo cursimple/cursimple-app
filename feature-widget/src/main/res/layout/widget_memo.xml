@@ -21,12 +21,14 @@
         android:visibility="gone" />
 
     <LinearLayout
+        android:id="@+id/memo_content"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="vertical"
         android:padding="12dp">
 
         <LinearLayout
+            android:id="@+id/memo_header"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="28dp"
@@ -48,6 +50,10 @@
                 android:layout_weight="1"
                 android:ellipsize="end"
                 android:maxLines="1"
+                android:autoSizeTextType="uniform"
+                android:autoSizeMinTextSize="12sp"
+                android:autoSizeMaxTextSize="16sp"
+                android:autoSizeStepGranularity="1sp"
                 android:text="@string/widget_label_memo"
                 android:textColor="#20242A"
                 android:textSize="16sp"
@@ -61,6 +67,16 @@
                 android:maxLines="1"
                 android:textColor="#66707F"
                 android:textSize="11sp" />
+
+            <ImageView
+                android:id="@+id/memo_add"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="8dp"
+                android:padding="12dp"
+                android:background="@drawable/widget_memo_check_button"
+                android:contentDescription="@string/widget_memo_add_action"
+                android:src="@drawable/widget_ic_add" />
         </LinearLayout>
 
         <TextView
@@ -81,17 +97,12 @@
             android:layout_marginTop="7dp"
             android:background="#263FA277" />
 
-        <ListView
+        <LinearLayout
             android:id="@+id/memo_list"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:cacheColorHint="@android:color/transparent"
-            android:drawSelectorOnTop="false"
-            android:listSelector="@android:color/transparent"
-            android:divider="@null"
-            android:dividerHeight="0dp"
-            android:scrollbars="none" />
+            android:orientation="vertical" />
 
         <LinearLayout
             android:id="@+id/memo_empty"
@@ -120,6 +131,18 @@
                 android:textSize="12sp" />
         </LinearLayout>
     </LinearLayout>
+
+    <ImageView
+        android:id="@+id/memo_add_small"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="end|center_vertical"
+        android:layout_marginEnd="8dp"
+        android:padding="12dp"
+        android:background="@drawable/widget_memo_check_button"
+        android:contentDescription="@string/widget_memo_add_action"
+        android:src="@drawable/widget_ic_add"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/widget_background_error"

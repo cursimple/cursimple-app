@@ -1,8 +1,16 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.annotation.StringRes
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -22,7 +30,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -31,6 +38,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,6 +79,7 @@ internal fun AppAlarmEditorDialog(
     onPickLocalAudio: ((String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onSave: (EditableAppAlarmSettings) -> Unit,
+    onDelete: (() -> Unit)? = null,
 ) {
     val zone = LocalAppZone.current
     val trigger = Instant.ofEpochMilli(record.triggerAtMillis).atZone(zone).toLocalDateTime()
@@ -89,6 +98,8 @@ internal fun AppAlarmEditorDialog(
         onPickLocalAudio = onPickLocalAudio,
         onDismiss = onDismiss,
         onConfirm = { millis, _, _, settings -> onSave(settings.copy(triggerAtMillis = millis)) },
+        onDelete = onDelete,
+        deleteName = LocalContext.current.systemAlarmRecordTitle(record),
     )
 }
 
@@ -136,6 +147,8 @@ private fun AlarmEditor(
     onConfirm: (Long, String, String, EditableAppAlarmSettings) -> Unit,
     editableContent: Boolean = false,
     initialAllowOnHoliday: Boolean = false,
+    onDelete: (() -> Unit)? = null,
+    deleteName: String = "",
 ) {
     val editorZone = LocalAppZone.current
     val timeState = rememberTimePickerState(
@@ -157,6 +170,19 @@ private fun AlarmEditor(
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showRingtoneChooser by rememberSaveable { mutableStateOf(false) }
     var showAlertModeChooser by rememberSaveable { mutableStateOf(false) }
+    var moreExpanded by rememberSaveable { mutableStateOf(false) }
+    var confirmDelete by rememberSaveable { mutableStateOf(false) }
+
+    if (confirmDelete && onDelete != null) {
+        ReminderDeleteConfirmDialog(
+            name = deleteName,
+            onConfirm = {
+                confirmDelete = false
+                onDelete()
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
 
     if (showDatePicker) {
         AlarmDatePickerDialog(
@@ -205,7 +231,7 @@ private fun AlarmEditor(
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 AlarmEditorSection(stringResource(R.string.schedule_alarm_section_when)) {
                     TimeInput(state = timeState, modifier = Modifier.fillMaxWidth())
@@ -236,17 +262,6 @@ private fun AlarmEditor(
                 }
 
                 AlarmEditorSection(stringResource(R.string.schedule_alarm_section_ring)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(stringResource(R.string.schedule_alarm_allow_holiday), fontWeight = FontWeight.SemiBold)
-                            Text(
-                                stringResource(R.string.schedule_alarm_allow_holiday_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Switch(checked = allowOnHoliday, onCheckedChange = { allowOnHoliday = it })
-                    }
                     AlarmValueRow(
                         label = stringResource(R.string.schedule_ringtone_section),
                         value = stringResource(alarmRingtoneLabelRes(ringtone)),
@@ -257,6 +272,46 @@ private fun AlarmEditor(
                         value = stringResource(alarmAlertModeLabelRes(alertMode)),
                         onClick = { showAlertModeChooser = true },
                     )
+                }
+
+                // Rarely changed options; the summary keeps current values visible while folded.
+                val moreSummary = buildList {
+                    add(ringTimingSummary(duration, interval, count))
+                    if (allowOnHoliday) add(stringResource(R.string.schedule_alarm_allow_holiday))
+                }.joinToString(stringResource(R.string.schedule_summary_separator))
+                ReminderExpandableSection(
+                    title = stringResource(R.string.schedule_alarm_more_options),
+                    summary = moreSummary,
+                    expanded = moreExpanded,
+                    onExpandedChange = { moreExpanded = it },
+                ) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .toggleable(
+                                value = allowOnHoliday,
+                                role = Role.Switch,
+                                onValueChange = { allowOnHoliday = it },
+                            ),
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(stringResource(R.string.schedule_alarm_allow_holiday), fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    stringResource(R.string.schedule_alarm_allow_holiday_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(checked = allowOnHoliday, onCheckedChange = null)
+                        }
+                    }
                     AlarmStepperRow(
                         label = stringResource(R.string.schedule_alarm_duration_row),
                         value = stringResource(R.string.schedule_alarm_unit_seconds, duration),
@@ -282,6 +337,13 @@ private fun AlarmEditor(
                         onIncrease = { count = (count + 1).coerceAtMost(RING_COUNT_RANGE.last) },
                     )
                 }
+
+                if (onDelete != null) {
+                    ReminderDeleteButton(
+                        label = stringResource(R.string.schedule_cd_delete_alarm),
+                        onClick = { confirmDelete = true },
+                    )
+                }
             }
         },
         confirmButton = {
@@ -304,7 +366,7 @@ private fun AlarmEditor(
                 },
             ) { Text(confirmLabel) }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -324,19 +386,18 @@ internal fun AlarmEditorSection(title: String, content: @Composable () -> Unit) 
 @Composable
 internal fun AlarmValueRow(label: String, value: String, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(10.dp),
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(text = label, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.weight(1f))
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
@@ -347,9 +408,9 @@ internal fun AlarmValueRow(label: String, value: String, onClick: () -> Unit) {
     }
 }
 
-/** Compact value row with increment/decrement icon controls. */
+/** Value row with 48dp step buttons; label and value stack so narrow widths keep both readable. */
 @Composable
-private fun AlarmStepperRow(
+internal fun AlarmStepperRow(
     label: String,
     value: String,
     canDecrease: Boolean,
@@ -359,36 +420,76 @@ private fun AlarmStepperRow(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Text(text = label, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-            IconButton(onClick = onDecrease, enabled = canDecrease, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    imageVector = Icons.Rounded.Remove,
-                    contentDescription = stringResource(R.string.schedule_alarm_decrease),
-                    modifier = Modifier.size(18.dp),
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = label, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
-            IconButton(onClick = onIncrease, enabled = canIncrease, modifier = Modifier.size(36.dp)) {
+            AppCircleIconButton(onClick = onDecrease, enabled = canDecrease) {
+                Icon(
+                    imageVector = Icons.Rounded.Remove,
+                    contentDescription = stringResource(R.string.schedule_alarm_decrease_item, label),
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            AppCircleIconButton(onClick = onIncrease, enabled = canIncrease) {
                 Icon(
                     imageVector = Icons.Rounded.Add,
-                    contentDescription = stringResource(R.string.schedule_alarm_increase),
-                    modifier = Modifier.size(18.dp),
+                    contentDescription = stringResource(R.string.schedule_alarm_increase_item, label),
+                    modifier = Modifier.size(22.dp),
                 )
             }
         }
     }
+}
+
+/** Destructive action inside editors; deletion itself is confirmed separately. */
+@Composable
+internal fun ReminderDeleteButton(label: String, onClick: () -> Unit) {
+    AppOutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+    ) {
+        Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label)
+    }
+}
+
+@Composable
+internal fun ReminderDeleteConfirmDialog(
+    name: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.schedule_delete_confirm_title, name)) },
+        text = { Text(stringResource(R.string.schedule_delete_confirm_body)) },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                ),
+            ) { AppAtomicText(stringResource(R.string.schedule_action_delete)) }
+        },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
+    )
 }
 
 @Composable
@@ -422,7 +523,7 @@ private fun AlarmRingtoneChooserDialog(
                 )
             }
         },
-        confirmButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        confirmButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -450,7 +551,7 @@ private fun AlarmAlertModeChooserDialog(
                 }
             }
         },
-        confirmButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        confirmButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -459,12 +560,13 @@ private fun AlarmChoiceRow(label: String, selected: Boolean, onClick: () -> Unit
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 10.dp),
+            .heightIn(min = 48.dp)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Text(text = label, style = MaterialTheme.typography.bodyLarge)
     }
 }
@@ -501,20 +603,19 @@ internal fun AlarmAlertModeSelector(
             },
             confirmButton = {
                 AppOutlinedButton(onClick = { showChooser = false }) {
-                    Text(stringResource(R.string.schedule_action_cancel))
+                    AppAtomicText(stringResource(R.string.schedule_action_cancel))
                 }
             },
         )
     }
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { showChooser = true },
-        shape = RoundedCornerShape(10.dp),
+        onClick = { showChooser = true },
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -560,14 +661,13 @@ internal fun AlarmRingtoneSelector(
         )
     }
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { showChooser = true },
-        shape = RoundedCornerShape(10.dp),
+        onClick = { showChooser = true },
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -629,11 +729,11 @@ internal fun AlarmDatePickerDialog(
         },
         confirmButton = {
             AppOutlinedButton(onClick = { onPick(selected) }) {
-                Text(stringResource(R.string.schedule_action_save))
+                AppAtomicText(stringResource(R.string.schedule_action_save))
             }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }

@@ -87,7 +87,8 @@ class TodayOverviewTest {
     }
 
     @Test fun `moving from another week uses original week's location and creates real day conflict`() {
-        val old = course("moved", weeks = listOf(1)).copy(weekLocations = mapOf(1 to "原周教室", 2 to "目标周教室"))
+        val old = course("moved", weeks = listOf(1)).copy(weekLocations = mapOf(1 to "原周教室", 2 to "目标周教室"),
+            weekTeachers = mapOf(1 to "原周教师", 2 to "目标周教师"))
         val move = TemporaryScheduleOverride(
             "move", TemporaryScheduleOverrideType.MoveCourse, sourceDate = "2026-09-07", targetDate = "2026-09-14",
             moveCourseId = "moved", moveToStartNode = 3, moveToEndNode = 4,
@@ -95,6 +96,7 @@ class TodayOverviewTest {
         val state = overview(at = "2026-09-14T07:00", courses = listOf(old, course("target", 3, listOf(2))), overrides = listOf(move))
         assertEquals(2, state.total)
         assertEquals("原周教室", state.courses.first { it.course.id == "moved" }.location)
+        assertEquals("原周教师", state.courses.first { it.course.id == "moved" }.teacher)
         assertEquals(1, state.conflicts.size)
     }
 

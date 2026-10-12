@@ -3,7 +3,9 @@ package com.x500x.cursimple.feature.widget
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
-import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
+import com.x500x.cursimple.core.kernel.model.locationForWeek
+import com.x500x.cursimple.core.kernel.model.teacherForWeek
 import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
@@ -40,12 +42,15 @@ internal fun resolveWidgetScheduleDay(
     val candidates = (coursesOfDayOfWeek(sourceDate.dayOfWeek.value) + coursesOfDayOfWeek(targetDate.dayOfWeek.value))
         .distinct()
         .filterNot { isCourseMovedAwayFrom(targetDate, it, temporaryScheduleOverrides) }
-    val movedIn = coursesMovedTo(
+    val movedIn = coursesMovedToWithOrigin(
         date = targetDate,
         overrides = temporaryScheduleOverrides,
         courseById = { id -> (1..7).flatMap(coursesOfDayOfWeek).firstOrNull { it.id == id } },
         isOriginallyActive = { course, from -> course.activeOnWeek(resolveWeekIndex(from, termStart)) },
-    ).visibleScheduleCourses()
+    ).map { (course, origin) ->
+        val week = resolveWeekIndex(origin, termStart)
+        course.copy(location = course.locationForWeek(week), teacher = course.teacherForWeek(week))
+    }.visibleScheduleCourses()
     val courses = filterTemporaryCancelledCourses(
         date = targetDate,
         courses = candidates,
@@ -60,6 +65,10 @@ internal fun resolveWidgetScheduleDay(
                 overrides = temporaryScheduleOverrides,
             ) ?: return@mapNotNull null
             course.takeIf { it.activeOnWeek(resolveWeekIndex(courseSource, termStart)) }
+                ?.let {
+                    val week = resolveWeekIndex(courseSource, termStart)
+                    it.copy(location = it.locationForWeek(week), teacher = it.teacherForWeek(week))
+                }
         }
         .plus(movedIn)
         .sortedBy { it.time.startNode }

@@ -1,31 +1,128 @@
 <div align="center">
 
-<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" width="112" alt="课简">
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" width="104" alt="课简">
 
 # 课简 · CurSimple
 
-**课表、提醒与桌面小组件，一个应用装下整个学期。**
+**课表、笔记、提醒与扩展组件，一个应用管理整个学期。**
 
-微内核架构的开源 Android 课表应用。学校教务系统由独立插件适配，插件可单独更新，不必等应用发版。
+开源、免费、无广告的 Android 课表应用。用学校插件导入课表，用扩展组件接入学习平台和通知渠道，在手机与桌面管理课程、事务和待办。
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
-[![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![最新测试版 0.7.9](https://img.shields.io/badge/Latest%20beta-0.7.9-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)
-[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)
+[![最新测试版 0.7.10](https://img.shields.io/badge/Latest%20beta-0.7.10-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.10)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
-
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![API](https://img.shields.io/badge/Android-7.0%2B%20(API%2024--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
+[![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
-[官网](https://cursimple.github.io/cursimple-app/) · [下载安装](#下载安装) · [功能特性](#功能特性) · [插件系统](#插件系统) · [从源码构建](#从源码构建) · [English](README_en.md)
-
-最新测试版：[0.7.9](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)（`beta` / Pre-release）。
+[官网](https://cursimple.github.io/cursimple-app/) · [下载](https://github.com/cursimple/cursimple-app/releases) · [插件收录](https://cursimple.github.io/cursimple-plugins/) · [组件收录](https://cursimple.github.io/cursimple-components/) · [English](README_en.md)
 
 </div>
 
----
+当前发布渠道为 **测试版（beta / Pre-release）**。下文介绍当前代码能力；本地新增功能仍在测试，公开安装包请以对应 Release 公告为准。
+
+## 先认识课简
+
+| 部分 | 用途 | 入口 |
+|---|---|---|
+| 课简主体 | 课表、课程笔记、事务、提醒、备份与桌面小组件 | [应用下载](https://github.com/cursimple/cursimple-app/releases) |
+| 学校导课插件 | 登录学校教务系统，获取并导入课表；学校适配独立更新 | [插件收录网页](https://cursimple.github.io/cursimple-plugins/) · [注册表](https://github.com/cursimple/cursimple-plugins) |
+| 扩展组件 | 同步学习任务与公告，接入通知渠道，提供组件主页和可声明的桌面卡片 | [组件收录网页](https://cursimple.github.io/cursimple-components/) · [注册表](https://github.com/cursimple/cursimple-components) |
+
+桌面小组件是课程、笔记或扩展组件在桌面的展示入口。扩展组件按需安装与启用；提供了桌面卡片的组件会显示对应添加入口，卸载或停用后移除。
+
+## 下载安装与开始使用
+
+在 [Releases](https://github.com/cursimple/cursimple-app/releases) 选择对应版本，或从[官网的下载区](https://cursimple.github.io/cursimple-app/#download)下载安装包。测试版需要在应用更新设置中开启对应渠道，是否为测试版以发布渠道和 GitHub 的 Pre-release 标记为准。
+
+| APK | 适用设备 |
+|---|---|
+| `CurSimple-arm64-v8a.apk` | 常见的 64 位 ARM 手机 |
+| `CurSimple-armeabi-v7a.apk` | 较旧的 32 位 ARM 设备 |
+| `CurSimple-x86_64.apk` / `CurSimple-x86.apk` | 对应 Intel 架构设备或模拟器 |
+| `CurSimple-universal.apk` | 不确定架构时选择通用包 |
+
+1. 设置学期和开学日期。
+2. 打开「插件」市场，安装学校插件并按提示登录、同步课表；也可以手动添加、导入课表分享码、扫码或用 AI 识图导入。
+3. 在备忘录记录课程笔记与待办，在课表添加课程以外的事务。
+4. 设置上课通知和闹钟，检查系统通知、精确闹钟及后台权限。
+5. 按需安装扩展组件、完成账号或通知渠道绑定，再把需要的小组件加到桌面。
+
+## 功能特性
+
+### 课表与事务
+
+- **周视图与日视图**：连堂课合并展示，支持单双周、自选周次、考试、临时停课与调课。
+- **今日概览**：查看当前课程、下一节课、倒计时和全天时间线，点开检查冲突与课程详情。
+- **真实时间事务**：组会、社团和个人安排按起止时间排入课表，重叠时并排展示或折叠。
+- **便捷编辑**：长按课程可调课，也能在相同星期和节次位置快速添加另一门课程；教师和地点支持按周设置。
+- **外观与缩放**：自定义课表文字、颜色、卡片、网格和背景图，支持双指放大与拖动。
+- **学期管理**：多个学期分别保存课表、作息与周数；支持节假日、调休和临时安排。
+
+### 课程笔记与备忘录
+
+| 能力 | 用法 |
+|---|---|
+| 课程笔记本 | 按课程归类，也能记录通用笔记；搜索覆盖标题、正文、课程与已完成笔记 |
+| 清单与待办 | 清单复选框、优先级、置顶、截止时间和完成状态，支持今天到期与逾期筛选 |
+| 安心阅读 | 已保存笔记默认只读，点击编辑进入编写；修改保存与放弃草稿有确认 |
+| 图文编辑 | 插入本地图片，缩略图点开可放大、缩放与拖动；图片复制到应用存储中 |
+| 常用工具 | 清单、列表、序号、标题、粗体、斜体、引用、删除线、行内代码、链接和分隔线；工具栏横向滑动，右上角撤销与重做 |
+| 输入方式 | 按回车正常换行，列表续号由工具按钮控制；非当前输入位置渲染行内格式 |
+| 分享与导入 | 全部或单篇笔记可选课简笔记文件、分享码、二维码、长图、Word、Markdown 或纯文本；粘贴分享码、扫码、相册识别与文件导入共用预览和确认 |
+| 课程匹配 | 接收笔记按同名课程归类，保留正文、清单、优先级和置顶；重复导入保留本地编辑 |
+
+图片随课简笔记文件与备份携带，Word 和图片导出包含图片；含图片的 Markdown 打包为 ZIP。图文内容较多时请选择笔记文件，分享码和单张二维码有容量限制。
+
+### 提醒与闹钟
+
+上课通知、手动闹钟、自动节次规则和单课提醒分别管理。可设置提前时间、铃声、震动、响铃次数、节假日例外，以及响铃前预告；支持手动向系统时钟发送可写入的闹钟。
+
+默认使用系统通知；悬浮提醒、状态栏实时通知和锁屏呈现依设备能力及系统权限提供。后台巡检可补挂被清理的计划，仍需允许系统后台运行。系统时钟接收的是创建请求，写入后请到时钟核对，后续调课变化需自行调整已写入的闹钟。
+
+日期选择器支持左右滑动换月，也可使用箭头和日期点选。
+
+### 桌面小组件
+
+| 入口 | 内容与操作 |
+|---|---|
+| 今日课表 / 下一节课 | 查看课程时间、教室与当前或下一节课程 |
+| 提醒 | 查看即将响铃的课程闹钟 |
+| 课程日历 | 周课表与月历切换，查看课程、考试、事务和休 / 班标记；点日期打开课表 |
+| 笔记待办 | 在桌面直接勾选，通过迷你编辑窗口编写或新增待办、选择课程；显示优先级、课程颜色与置顶状态 |
+| 组件自带卡片 | 由独立组件声明布局与内容，安装启用后添加，点击进入对应组件主页 |
+
+小组件在系统、后台任务和课时边界刷新，实际更新及时性受桌面与后台限制影响。鸿蒙原生服务卡片仍在接入测试；支持 Android 小工具的华为桌面可从「服务卡片」底部的「窗口小工具」查看。
+
+### 导入、分享与备份
+
+- 课表支持二维码、分享字符、图片、系统日历写入和 `.ics` 导出；二维码可保存，分享图片可先预览。
+- AI 识图支持选图和拍照，需要自行配置识别 API。
+- 本地备份与 WebDAV 备份包含课表、事务、备忘录及笔记图片，账号密码、令牌和通知绑定凭据不随普通备份迁移。
+- 支持简体中文、繁體中文与 English；更新公告随应用语言切换，应用时区可独立设置。
+- 设置搜索可直达分项，常用项目与课表外观可按习惯调整。
+
+## 扩展组件
+
+组件有独立的主页、设置、登录与数据获取逻辑，安装和更新在课简的「组件」市场完成。可以按名称、用途、别名或来源搜索，在详情查看仓库、兼容要求与安装状态。
+
+| 组件 | 作用 | 跳转 |
+|---|---|---|
+| 雨课堂通知 | 同步作业、考试、课件任务和课程公告，提供新内容与截止提醒、日历、课表事务以及组件声明的桌面卡片；学习与提交操作到雨课堂完成 | [组件仓库](https://github.com/cursimple/YuKeTang_notice_plugin) · [版本与下载](https://github.com/cursimple/YuKeTang_notice_plugin/releases) |
+| 多平台通知 | 将课简上课提醒、笔记到期和组件消息发送到微信、QQ、飞书、企业微信、钉钉、邮箱、Server酱、PushPlus、WxPusher、PushDeer、Bark 等；按目标设置消息类型并查看发送回执 | [组件仓库](https://github.com/cursimple/cursimple-notify-component) · [版本与下载](https://github.com/cursimple/cursimple-notify-component/releases) |
+
+[浏览组件收录网页](https://cursimple.github.io/cursimple-components/) · [查看组件注册表](https://github.com/cursimple/cursimple-components) · [提交组件](https://github.com/cursimple/cursimple-components#contribute)
+
+**安装方式**：在应用市场安装，或从组件 Release 下载 ZIP，再选择「导入 ZIP」。完成登录或渠道绑定后启用所需同步与通知；平台授权可能过期，首次绑定后先发送测试并核对真实结果。可用功能与最低宿主版本以该组件版本的清单为准。
+
+## 学校插件与市场来源
+
+学校插件负责登录教务系统和导入课表。目前默认注册表收录[长江大学教务插件](https://github.com/cursimple/YangtzU_course_plugin)，支持完整教学周、教师、地点和节次信息。
+
+[浏览学校插件](https://cursimple.github.io/cursimple-plugins/) · [插件注册表](https://github.com/cursimple/cursimple-plugins) · [插件版本与下载](https://github.com/cursimple/YangtzU_course_plugin/releases)
+
+插件与组件使用独立来源列表。默认来源是 `cursimple/cursimple-plugins` 和 `cursimple/cursimple-components`，也可在设置中添加其他注册表或单个包的 Release 仓库；一个来源加载失败不影响其他来源。
+
+公有来源可直接读取。私有仓库使用具有目标仓库只读权限的 GitHub 令牌，在应用内加密保存；退出或更换 GitHub 账号后清理账号市场缓存。学校账号和学习平台账号在对应插件或组件中管理。
 
 ## 界面预览
 
@@ -58,233 +155,77 @@
 
 </div>
 
-0.7.5 新截图使用演示数据。
-
-## 功能特性
-
-### 课表
-
-| 能力 | 说明 |
-|---|---|
-| 周视图 / 日视图 | 周视图默认把全部节次平铺进一屏；日视图分页滑动，可见相邻日 |
-| 今日概览与时间线 | 今天的日视图默认显示概览：当前 / 下一节课、课程进度与上下课倒计时；点开查看全天课程时间线、冲突明细和课程详情，可在「设置 → 显示 → 显示今日概览」关闭 |
-| 事务 | 组会、社团、约球这类事按真实起止时间排进课表；和课撞上时并排显示，几件叠在一起合成「⋯」点开看；落在课间或早晚时自动插出一段，删掉后恢复原排版 |
-| 双指缩放 | 在设置里打开后可放大到 300%，放大后任意方向拖动，表头与节次栏冻结在边上 |
-| 跨节与单双周 | 连堂课渲染成整块，支持单周 / 双周 / 任意周次组合 |
-| 临时调课与停课 | 指定某天改上另一天的课、整天调休，或只停某一门课 |
-| 拖动调课 | 长按课程卡片拖到别的日子或节次，松手前二次确认，拖回原位即撤销 |
-| 节假日与调休 | 放假安排每次打开 App 联网时静默更新，也可手动增补调休日 |
-| 外观定制 | 文字、表头、卡片、网格线、背景图（可裁切）；所有颜色都用调色盘选 |
-| 长课名自动缩小 | 按格子实际剩下的空间缩字号，课名和地点尽量都显示完整 |
-
-### 备忘录
-
-侧边栏的「备忘录」为每门课准备一个笔记本，也能记不属于任何课的事。支持复选框清单（卡片上直接勾选、显示进度）、优先级、置顶和截止时间；总览里一眼看到待办、今天到期与已逾期。编辑时所见即所得，列表、标题、引用、粗体直接渲染。
-
-右上角搜索可跨笔记本检索标题、完整正文与课程信息，包括已完成笔记；清空或关闭搜索后恢复原筛选。顶部统计改为紧凑横排。
-
-### 提醒
-
-| 能力 | 说明 |
-|---|---|
-| 上课提醒 | 快上课时弹出课名、节次、时间与地点。样式有系统原生、品牌卡片、悬浮窗三种，悬浮窗支持毛玻璃与动效，可滑动收起 |
-| 状态栏胶囊 | 支持实时活动的系统（Android 16、ColorOS 16、One UI 8.5 起等）在状态栏挂上课胶囊，通知栏单独置顶；小米澎湃 OS 走焦点通知 |
-| 不漏提醒 | 提醒点错过了但还没上课，打开 App 时补发；分钟数按真实时间现算 |
-| 静默守护 | 不常驻「正在守护」通知，退出 App 后定时巡检，被系统清掉的提醒与闹钟自动重新挂上 |
-| 通知弹出引导 | 按这台手机列出需要放行的几项（通知、悬浮横幅、悬浮窗、胶囊、后台弹出），点一项直达系统设置 |
-| 闹钟 | 精确闹钟，按「节次 + 条件 + 动作」规则生成；可选系统铃声或本地音频，响铃、震动或两者；闹钟响前可先弹一条预告 |
-| 响铃界面 | 大时钟、日期与课程信息，配色跟随应用主题；滑动关闭，或点按钮延后 |
-| 假日跳过与例外 | 默认跳过节假日闹钟；单个闹钟可开启「节假日也响」，手动静音日期仍优先，调休上课日照常提醒；被跳过的闹钟不发响铃预告，可在列表中取消日期静音 |
-| 手动写入系统时钟 | 从闹钟页发送明天可写入的应用内闹钟，同一分钟合并；尚不能写入的项目提示稍后再来，全部请求送出且无待写项目时可选择静音课简明天的闹钟 |
-| 上课自动静音 | 按作息时间进出静音，下课自动恢复原有铃声模式 |
-
-系统时钟只接收创建请求，请打开手机时钟核对是否成功。写入后，调课、停课或假日变化不会自动修改已写入的闹钟，需要在系统时钟中自行调整。
-
-### 桌面小组件
-
-| 小组件 | 说明 |
-|---|---|
-| 今日课表 | 查看所选日期的课程，可切换日期并回到今天 |
-| 下一节课 | 当前与下一节课程信息 |
-| 提醒 | 即将触发的课程闹钟清单 |
-| 课程日历 | 切换周课表 / 月历，查看课程、考试、事务与休 / 班标记；支持翻页、回到当前日期，点日期打开对应课表 |
-| 笔记待办 | 展示本地笔记中的未勾选清单，独立于扩展组件；点击打开对应笔记 |
-| 组件自带小组件 | 由已安装并启用的组件自行声明，名称、界面和内容规则随组件提供及更新；软件提供数据、渲染、桌面绑定和跳转接口 |
-
-点卡片空白处也能打开 App。刷新有四层保障：系统周期、WorkManager 周期、闹钟守护链，以及按节次边界（课前 5 分钟 / 上课 / 下课）对齐的精确刷新。无课、假日、下课或空任务时显示当天保持稳定的情境提示。
-
-### 设置
-
-顶部搜索框按名称、页面和关键词直达任意设置；「常用」单独一块，点「＋」挑选或把下面任意一项长按拖进来，格子长按可换位置；首页可在列表与网格视图之间切换。
-
-### 数据
-
-| 能力 | 说明 |
-|---|---|
-| 导入导出 | 本地 JSON 备份（含事务与备忘录）、二维码 / 口令交换课表、导出课表图片、导出 `.ics` |
-| WebDAV | 备份与恢复到自建或第三方 WebDAV |
-| AI 识图导入 | 从课表截图或拍照识别课程，需自行配置 API |
-| 系统日历 | 把整学期写入手机日历，可一键撤销 |
-| 学期档案 | 多学期并存，各自独立的课表、作息与周数 |
-
-### 其他
-
-- **多语言**：简体中文、繁體中文、English，应用内即时切换，不依赖系统语言
-- **时区**：可脱离设备时区独立设置，跨时区上网课不用改系统设置
-- **检查更新**：查到新版后直接点「更新」下载安装；默认只检查正式版，打开测试版更新后可收到预发布版
-- **更新公告**：装完新版本首次进入时翻页展示本版亮点
-- **界面细节**：市场与备忘录的搜索框、顶部按钮、信息卡片和确认弹窗风格统一，长事务正文可滚动查看
-- **架构分包**：`armeabi-v7a`、`arm64-v8a`、`x86`、`x86_64` 单架构包与 `universal` 通用包
-
-## 下载安装
-
-最新测试版为 [0.7.9（beta）](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)，请在该版本页下载对应架构的 APK；[官网](https://cursimple.github.io/cursimple-app/#download)也提供国内加速和扫码下载入口。
-
-| 文件 | 适用设备 |
-|---|---|
-| `CurSimple-arm64-v8a.apk` | 现代 64 位 ARM 手机（绝大多数设备选这个） |
-| `CurSimple-armeabi-v7a.apk` | 较旧的 32 位 ARM 设备 |
-| `CurSimple-x86_64.apk` | Intel 架构设备与模拟器 |
-| `CurSimple-x86.apk` | 32 位 Intel 设备 |
-| `CurSimple-universal.apk` | 不确定架构时选这个，体积较大 |
-
-发布渠道由 `gradle.properties` 的 `app.releaseChannel` 指定。0.7.9 使用 `beta`，标签保持 `v0.7.9`，GitHub Release 标记为 `prerelease=true`；旧版 `v0.7.4` 同样标记为 Pre-release。版本号没有 `-beta` 后缀仍可能是测试版，请以发布渠道与 Pre-release 标记为准。应用内需开启测试版更新才能接收此渠道。
-
-安装后首次启动：
-
-1. 设置开学日期（课表页顶部提示按钮，或侧边栏进入）
-2. 到**插件**页从插件市场安装对应学校的插件
-3. 按插件说明登录教务系统并同步课表
-4. 到**设置 → 上课通知 → 通知弹出引导**，按清单放行通知，提醒才能准时弹出
-
-没有对应插件时，也可以在「管理列表」里手动添加课程和事务，或用二维码 / 图片识别导入。
-
-## 插件系统
-
-学校教务系统千差万别，课简把采集逻辑放在插件里：插件是一份 `manifest.json` 加一个 JS 包，在应用内的 WebView 会话中运行，负责登录、抓取与解析，最终吐出统一的课表模型。插件独立发版，学校改版只需更新插件。
-
-### 安装插件
-
-1. 进入**插件**或**组件**页，在「已安装 / 市场」间切换；直接搜索名称、描述、学校别名与来源
-2. 卡片显示名称、作者、星标数、描述、来源、版本和安装 / 更新状态
-3. 点开详情，查看简介和仓库信息，选择「安装」或「在 GitHub 查看」；安装前重新检查版本，弹窗固定大小、内容内部滚动，优先显示简介、来源与实际包大小，权限及校验信息可展开；包大小达到 **5 MiB** 时显示实际下载字节数，总大小已知时显示百分比
-4. 也可以用「导入 ZIP」从本地安装
-
-插件和组件各有独立来源列表，默认分别为 [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 与 [cursimple/cursimple-components](https://github.com/cursimple/cursimple-components)。在**设置 → 插件**中可添加 / 移除来源，支持 `owner/repo`、GitHub 仓库链接和单个插件 / 组件的 Release 仓库。各来源独立加载，单个来源失败仍可查看其他结果。
-
-公有来源无需登录；读取私有仓库时，可在同页粘贴细粒度 GitHub 令牌（PAT），选择所需仓库并授予 `Contents: Read-only`。令牌使用 Android Keystore 加密，仅保存在当前手机并排除备份；私有内容和附件直接经 GitHub API 获取，退出或更换账号会清理账号市场缓存。网页设备码登录仅在构建时配置 OAuth Client ID 后提供。
-
-### 扩展组件
-
-开发版宿主支持扩展接口 **API 9**，提供组件自带页面、官方确认的已读操作、忽略与恢复、加密通知绑定及异步发送状态查询。组件独立安装和更新；APK 在写入前校验接口版本和最低软件版本，不兼容时禁止安装并显示原因，升级失败会保留原有版本。后台运行受系统调度与网络影响。
-
-[雨课堂通知](https://github.com/cursimple/YuKeTang_notice_plugin)和[多平台通知](https://github.com/cursimple/cursimple-notify-component)需独立安装。首次绑定后需核对真实账号的已读同步或消息到账情况。
-
-### 插件包要求
-
-每个插件仓库至少要有一个 Release，并上传：
-
-- `manifest.json`：声明插件元信息，其中 `filename` 指向插件包
-- `manifest.json` 里 `filename` 所指的插件包文件
-
-应用先读取插件 / 组件仓库最新 Release 的 `manifest.json` 附件，再按 `filename` 下载包；私有仓库通过已登录账号的 GitHub API 读取附件。GitHub 自动生成的 Source code 压缩包不会被当作插件包。
-
-开发自己的插件请看 [插件开发指南](docs/plugin-system.md)。
+截图使用演示数据，部分界面来自已公开版本。
 
 ## 从源码构建
 
-### 环境要求
-
-- JDK 17
-- Android SDK，含 `platforms;android-36`
-
-### 构建
+使用 **JDK 17** 和含 `platforms;android-36` 的 Android SDK：
 
 ```bash
-# Debug（applicationId 为 com.x500x.cursimple.ci，可与正式版共存）
-./gradlew assembleDebug
-
-# Release（四种 ABI 分包 + universal）
-./gradlew assembleRelease
-
-# 单元测试与静态检查
+./gradlew assembleDebug       # com.x500x.cursimple.ci，可与正式安装包共存
+./gradlew assembleRelease     # 各架构包与通用包，需要本地签名配置
 ./gradlew testDebugUnitTest lintDebug
 ```
 
-Release 签名通过 `keystore.properties` 配置，模板见 `keystore.example.properties`：
+版本在 `gradle.properties` 中维护：
 
 ```properties
-CLASS_VIEWER_KEYSTORE_FILE=.signing/class-viewer.jks
-CLASS_VIEWER_KEYSTORE_PASSWORD=替换为仓库密码
-CLASS_VIEWER_KEY_ALIAS=替换为密钥别名
-CLASS_VIEWER_KEY_PASSWORD=替换为密钥密码
-```
-
-版本号与发布渠道在 `gradle.properties` 里维护：
-
-```properties
-app.versionCode=31
-app.versionName=0.7.9
+app.versionCode=35
+app.versionName=0.7.10
 app.releaseChannel=beta
 ```
 
-### 模块结构
+Release 签名配置参考 [keystore.example.properties](keystore.example.properties)，详细步骤见 [开发说明](README_dev.md)。当前源码的宿主组件接口为 **API 11**，安装前会校验接口与最低版本要求。
 
-```
-app              应用壳、依赖组装、入口页面、更新检查与下载镜像
-core-kernel      统一课表模型与核心协议
-core-plugin      插件 manifest、安装、组件、Web 会话模型与 GitHub 注册表
-core-data        DataStore 仓储
-core-reminder    提醒规则、计划与派发后端
-feature-schedule 课表页面与同步逻辑
-feature-plugin   插件与组件市场、共享界面控件与 WebView 会话
-feature-widget   桌面小组件与定时刷新
-```
+| 模块 | 职责 |
+|---|---|
+| `app` | 入口、依赖组装、设置、更新、通知与通用组件宿主 |
+| `core-kernel` | 统一模型与核心协议 |
+| `core-plugin` | 包清单、安装、Web 会话与注册表接口 |
+| `core-data` | 数据仓储、配置、笔记图片与分享协议 |
+| `core-reminder` | 提醒规则、计划和派发 |
+| `feature-schedule` | 课表、事务、笔记和编辑界面 |
+| `feature-plugin` | 插件与组件市场、组件页面和共用界面 |
+| `feature-widget` | 桌面展示、操作与刷新 |
 
-### 持续集成
-
-| 工作流 | 触发 | 内容 |
-|---|---|---|
-| `android-ci.yml` | PR 与推送到 `main` | 编译、单元测试、Lint |
-| `android-release.yml` | 推送 `v*` 标签 | 校验标签与 `app.versionName` 一致，构建全部 ABI，生成 `update.json`，根据 `app.releaseChannel` 生成发布与更新渠道状态；`beta` 标记为 Pre-release |
-
-更详细的开发说明见 [高级文档](README_dev.md)。
+编写或适配插件、组件请看[开发指南](docs/plugin-system.md)。组件的业务、页面与平台协议由组件维护，主体提供通用主题、通知、存储和课表能力。
 
 ## 常见问题
 
 <details>
-<summary><b>闹钟不响 / 提醒不准</b></summary>
+<summary>通知没弹出或闹钟不响</summary>
 
-先到**设置 → 上课通知 → 通知弹出引导**，按清单把没放行的几项打开；再到**设置 → 提醒与权限 → 权限**检查闹钟权限，里面有按手机品牌列出的「自启动」「后台弹出界面」「省电策略」入口。部分国产系统从`最近任务`划掉应用等同于强制停止，会连同闹钟一起清掉，这时只能等重新打开应用补回，可以在最近任务里把课简锁住。
-
-</details>
-
-<details>
-<summary><b>插件安装失败</b></summary>
-
-先确认网络可用，再检查插件仓库是否有有效 Release 以及 `manifest.json` 与其指向的插件包。私有来源还需确认已登录的 GitHub 令牌有目标仓库的只读权限。公有下载会并发竞速多个镜像，若全部失败可尝试切换 Wi-Fi 与移动数据。
+在提醒页面检查系统通知、渠道重要性、精确闹钟和后台权限，再检查勿扰模式、电池限制与机型设置。强制停止应用会清理计划，需要重新打开应用；系统时钟中的闹钟请单独核对。
 
 </details>
 
 <details>
-<summary><b>课表不显示 / 周数不对</b></summary>
+<summary>找不到组件或安装失败</summary>
 
-课表页顶部会显示当前周与学期。周数为空说明还没设置开学日期，点顶部提示按钮设置即可。插件同步后没有课程，先确认插件已启用，并到插件详情里重新触发同步。
+检查对应来源是否启用、网络是否可用、仓库是否包含 Release 的组件 ZIP 和下载清单。私有来源需要正确的只读权限；提示版本不兼容时先检查宿主和组件的版本要求。
 
 </details>
 
 <details>
-<summary><b>小组件不刷新</b></summary>
+<summary>笔记分享码或二维码装不下</summary>
 
-允许应用后台运行；再到**设置 → 常用 → 小组件**确认配置。若仍不刷新，移除小组件后重新添加。
+图文笔记和大量笔记请选择课简笔记文件。接收方从「导入课简笔记」选择文件，预览确认后归入同名课程；已有内容不会被覆盖。
+
+</details>
+
+<details>
+<summary>桌面小组件没有刷新</summary>
+
+检查组件是否安装并启用、是否提供了桌面卡片，以及应用的后台运行权限；也可移除后重新添加。华为桌面注意区分原生服务卡片与 Android 窗口小工具入口。
 
 </details>
 
 ## 反馈与参与
 
-- 缺陷与功能建议：[GitHub Issues](https://github.com/cursimple/cursimple-app/issues)
-- 使用交流：[GitHub Discussions](https://github.com/cursimple/cursimple-app/discussions)
-- 插件收录：向 [cursimple-plugins](https://github.com/cursimple/cursimple-plugins) 提交
+- [反馈缺陷或建议](https://github.com/cursimple/cursimple-app/issues)
+- [使用交流](https://github.com/cursimple/cursimple-app/discussions)
+- [贡献学校插件](https://github.com/cursimple/cursimple-plugins)
+- [贡献扩展组件](https://github.com/cursimple/cursimple-components#contribute)
 
 ## 开源许可
 

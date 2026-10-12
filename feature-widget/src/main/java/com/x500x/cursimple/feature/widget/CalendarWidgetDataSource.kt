@@ -29,6 +29,7 @@ internal data class CalendarWidgetData(
     val week: CalendarWeekData?,
     val month: CalendarMonthData?,
     val widgetTheme: WidgetThemePreferences,
+    val termId: String = "",
 )
 
 internal object CalendarWidgetDataSource {
@@ -43,7 +44,8 @@ internal object CalendarWidgetDataSource {
             .resolveAccent(userPrefs.themeAccent, userPrefs.themeCustomColorArgb)
         BeijingTime.setForcedNow(userPrefs.debugForcedDateTime)
         val zone = BeijingTime.zone
-        val today = BeijingTime.todayIn(zone)
+        val now = BeijingTime.nowDateTimeIn(zone)
+        val today = now.toLocalDate()
         val termStart = resolveWidgetTermStartDate(termProfiles, timingProfile, userPrefs.termStartDate)
         val schedule = DataStoreScheduleRepository(appContext, termProfiles).scheduleFlow.first()
         val manual = DataStoreManualCourseRepository(appContext, termProfiles).manualCoursesFlow.first()
@@ -75,6 +77,12 @@ internal object CalendarWidgetDataSource {
                 val weekStart = weekStartOf(today).plusWeeks(offset.toLong())
                 val allDays = (0L until 7L).map { dayOf(weekStart.plusDays(it)) }
                 val days = visibleWeekDays(allDays, userPrefs.scheduleDisplay.weekendVisible)
+                val rows = calendarRows(
+                    profileSlots = timingProfile?.slotTimes.orEmpty(),
+                    days = days,
+                    labelOf = { slot, index -> context.classSlotLabelText(slot, index) },
+                    fallbackLabel = { node -> context.classSlotLabelOfIndex(node) },
+                )
                 CalendarWidgetData(
                     mode = mode,
                     offset = offset,
@@ -86,15 +94,12 @@ internal object CalendarWidgetDataSource {
                         days = days,
                         blocks = days.map(::calendarBlocksOf),
                         // Use the locale-wrapped Context, not applicationContext.
-                        rows = calendarRows(
-                            profileSlots = timingProfile?.slotTimes.orEmpty(),
-                            days = days,
-                            labelOf = { slot, index -> context.classSlotLabelText(slot, index) },
-                            fallbackLabel = { node -> context.classSlotLabelOfIndex(node) },
-                        ),
+                        rows = rows,
+                        currentRows = calendarCurrentRows(rows, days, now.toLocalTime()),
                     ),
                     month = null,
                     widgetTheme = widgetTheme,
+                    termId = termProfiles.activeTermId(),
                 )
             }
             CalendarWidgetMode.Month -> {

@@ -46,7 +46,7 @@ async function runPage({ stable, beta, api, order = [], language = 'zh-CN', note
   const mockFetch = (url) => {
     requests.push(url);
     if (notesFetch && /release-notes\//.test(url)) return notesFetch(url);
-    if (/^release-notes\/v0\.7\.9(?:\.en|\.zh-TW)?\.md$/.test(url)) return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '..', url), 'utf8') });
+    if (/^release-notes\/v0\.7\.10(?:\.en|\.zh-TW)?\.md$/.test(url)) return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '..', url), 'utf8') });
     const key = url.includes('stable.json') ? 'stable' : url.includes('beta.json') ? 'beta' : url.startsWith('https://api.github.com/') ? 'api' : null;
     if (!key) return Promise.reject(new Error('offline'));
     return new Promise((resolve, reject) => pending.set(key, () => {
@@ -72,16 +72,16 @@ async function runPage({ stable, beta, api, order = [], language = 'zh-CN', note
   return { get, lists, requests, i18n: context.SiteI18n, document };
 }
 
-test('真实页面脚本在 feed/API 断网时仍显示测试版并加载十张本地公告图', async () => {
+test('真实页面脚本在 feed/API 断网时仍显示测试版并加载本地公告图', async () => {
   const page = await runPage({});
-  assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.7.9');
+  assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.7.10');
   assert.equal(page.lists['[data-channel-label]'][0].textContent, '最新测试版');
   assert.equal(page.get('[data-channel="stable"]').innerHTML, '最新正式版：暂无正式版');
   assert.equal(page.get('[data-date]').textContent, '');
-  for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.7.9/'));
+  for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.7.10/'));
   const slides = page.get('#clSlides').innerHTML;
-  assert.equal((slides.match(/http:\/\/localhost\/cursimple-app\/assets\/shots\//g) || []).length, 10);
-  assert.ok(slides.includes('雨课堂 v1.2.0'));
+  assert.equal((slides.match(/http:\/\/localhost\/cursimple-app\/assets\/shots\//g) || []).length, 5);
+  assert.ok(slides.includes('桌面待办'));
   assert.ok(!page.requests.some((url) => url.includes('/releases/latest')));
 });
 
@@ -89,16 +89,16 @@ test('API 与 feed 不同到达顺序都不混用 0.7.4 的日期、包大小和
   for (const order of [['api', 'stable', 'beta'], ['beta', 'stable', 'api']]) {
     const page = await runPage({
       stable: { tagName: 'v0.7.4', versionCode: 30, prerelease: false },
-      beta: { tagName: 'v0.7.9', versionCode: 35, prerelease: true },
+      beta: { tagName: 'v0.7.10', versionCode: 36, prerelease: true },
       api: [{ tag_name: 'v0.7.4', prerelease: false, published_at: '2026-09-01T00:00:00Z', body: '这是旧公告', assets: [{ name: 'CurSimple-arm64-v8a.apk', size: 1000000, browser_download_url: 'old.apk' }] }],
       order,
     });
-    assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.7.9');
+    assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.7.10');
     assert.equal(page.get('[data-channel="stable"]').innerHTML, '最新正式版：暂无正式版');
     assert.equal(page.get('[data-date]').textContent, '');
     assert.equal(page.lists['[data-size]'][0].textContent, '大小待获取');
     assert.ok(!page.get('#clSlides').innerHTML.includes('这是旧公告'));
-    for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.7.9/'));
+    for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.7.10/'));
   }
 });
 
@@ -106,14 +106,14 @@ test('英文和繁体公告离线仍能加载，日期与下载文案使用所�
   for (const language of ['en', 'zh-TW']) {
     const page = await runPage({
       language,
-      api: [{ tag_name: 'v0.7.9', prerelease: true, published_at: '2026-10-01T00:00:00Z', assets: [] }],
+      api: [{ tag_name: 'v0.7.10', prerelease: true, published_at: '2026-10-01T00:00:00Z', assets: [] }],
     });
     assert.equal(page.document.documentElement.lang, language);
     assert.equal(page.lists['[data-channel-label]'][0].textContent, language === 'en' ? 'Latest beta' : '最新測試版');
     assert.ok(page.get('[data-date]').textContent.includes(language === 'en' ? 'October' : '10月'));
     const slides = page.get('#clSlides').innerHTML;
-    assert.ok(slides.includes(language === 'en' ? "See today's schedule clearly" : '把今日安排看清楚'));
-    assert.equal((slides.match(/http:\/\/localhost\/cursimple-app\/assets\/shots\//g) || []).length, 10);
+    assert.ok(slides.includes(language === 'en' ? 'Home screen tasks' : '桌面待辦'));
+    assert.equal((slides.match(/http:\/\/localhost\/cursimple-app\/assets\/shots\//g) || []).length, 5);
     assert.equal(page.lists['[data-size]'][0].textContent, language === 'en' ? 'Size unavailable' : '大小待取得');
   }
 });
@@ -121,7 +121,7 @@ test('英文和繁体公告离线仍能加载，日期与下载文案使用所�
 test('快速切换语言时，迟到的英文公告不会覆盖繁体公告', async () => {
   let resolveEnglish;
   const page = await runPage({ notesFetch: (url) => {
-    if (url === 'release-notes/v0.7.9.en.md') return new Promise((resolve) => { resolveEnglish = resolve; });
+    if (url === 'release-notes/v0.7.10.en.md') return new Promise((resolve) => { resolveEnglish = resolve; });
     return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '..', url), 'utf8') });
   } });
   page.i18n.setLanguage('en');
@@ -137,7 +137,7 @@ test('快速切换语言时，迟到的英文公告不会覆盖繁体公告', as
 
 test('公告缺少翻译时显示原文提示，语言切回中文后提示消失', async () => {
   const page = await runPage({ language: 'en', notesFetch: (url) => {
-    if (url === 'release-notes/v0.7.9.md') return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '../release-notes/v0.7.9.md'), 'utf8') });
+    if (url === 'release-notes/v0.7.10.md') return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '../release-notes/v0.7.10.md'), 'utf8') });
     return Promise.reject(new Error('missing translation'));
   } });
   assert.ok(page.get('#clSlides').innerHTML.includes('The original text is shown below.'));

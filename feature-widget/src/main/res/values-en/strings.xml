@@ -118,9 +118,9 @@
     <string name="widget_diag_pin_ignored">Declared supported, but this launcher ignores it (manual add is used instead)</string>
 
     <string name="calendar_widget_description">CurSimple · Course calendar</string>
-    <string name="tasks_widget_description">UI and content provided by installed, enabled components</string>
     <string name="widget_label_calendar">Course calendar</string>
     <string name="widget_label_tasks">Component widgets</string>
+    <string name="component_widget_slot_label">CurSimple component</string>
     <string name="widget_catalog_calendar_description">Week timetable and month calendar; tap a day to open its classes</string>
     <string name="widget_catalog_tasks_description">Choose a declared widget with UI and content managed by its component</string>
     <string name="widget_background_image_error">Background image unavailable</string>
@@ -157,13 +157,27 @@
     <string name="widget_page_prev">Previous</string>
     <string name="widget_page_next">Next</string>
     <string name="widget_label_memo">Note to-dos</string>
-    <string name="widget_catalog_memo_description">Show unfinished note checklists on your home screen; tap to open the note</string>
+    <string name="widget_catalog_memo_description">Complete tasks on the home screen. Tap the checkbox to finish or the text to edit.</string>
     <string name="widget_memo_empty">All to-dos complete
 Add your next task in Notes</string>
     <string name="widget_memo_notebook_other">Other notes</string>
     <string name="widget_memo_pending">To-do</string>
-    <string name="widget_memo_subtitle">Unfinished items from your notes</string>
+    <string name="widget_memo_subtitle">Check to finish · Tap text to edit</string>
     <string name="widget_memo_count">%1$d to-dos</string>
+    <string name="widget_memo_pinned">Pinned</string>
+    <string name="widget_memo_priority_badge_high">High</string>
+    <string name="widget_memo_priority_badge_medium">Medium</string>
+    <string name="widget_memo_priority_badge_low">Low</string>
+    <string name="widget_memo_priority_high">High priority</string>
+    <string name="widget_memo_priority_medium">Medium priority</string>
+    <string name="widget_memo_priority_low">Low priority</string>
     <string name="component_widget_unavailable">Component widget unavailable. Open CurSimple to check its owner.</string>
-    <string name="component_widget_choose">Choose a component widget</string>
+    <string name="widget_location_unset">Location not set</string>
+    <string name="widget_teacher_unset">Teacher not set</string>
+    <string name="widget_memo_complete_action">Complete task: %1$s</string>
+    <string name="widget_memo_edit_action">Edit note: %1$s</string>
+    <string name="widget_memo_changed">This task has changed. Refreshed; please try again.</string>
+    <string name="widget_memo_save_failed">Could not save. Please try again.</string>
+    <string name="widget_memo_add_action">Add task</string>
+    <string name="widget_memo_empty_compact">Tap + to add a task</string>
 </resources>

@@ -15,10 +15,8 @@ import androidx.core.content.ContextCompat
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.MainActivity
 import com.x500x.cursimple.app.notice.ClassNoticeGateway
-import com.x500x.cursimple.app.notice.ClassNoticeLockActivity
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.app.notice.ClassNoticeOverlay
-import com.x500x.cursimple.app.notice.SelfDrawnNotice
 import com.x500x.cursimple.core.data.ClassNoticeSkin
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem
@@ -188,7 +186,7 @@ object ExtensionNotifier {
         action: ClassNoticeOverlay.NoticeAction? = null,
     ): Boolean {
         val preferences = ClassNoticeGateway.preferences(context)
-        if (preferences.skin != ClassNoticeSkin.Overlay && !SelfDrawnNotice.only()) return false
+        if (preferences.skin != ClassNoticeSkin.Overlay) return false
         if (!ClassNoticeOverlay.canDraw(context)) return false
         if (!preferences.headsUpEnabled) return false
         val theme = ClassNoticeGateway.theme(context)
@@ -196,9 +194,8 @@ object ExtensionNotifier {
         if (screenOn && ClassNoticeOverlay.canShowNow(context)) {
             ClassNoticeOverlay.show(context, content, preferences, theme, onTap = onTap, action = action)
             return ClassNoticeOverlay.awaitShown()
-        } else {
-            return ClassNoticeLockActivity.show(context, content, preferences, theme, onTap = onTap, action = action)
         }
+        return false
     }
 
     private fun openFeed(context: Context, pluginId: String): () -> Unit = {
@@ -244,7 +241,7 @@ object ExtensionNotifier {
     }
 
     private fun base(context: Context, channel: String, pluginId: String, bannerShown: Boolean): NotificationCompat.Builder =
-        NotificationCompat.Builder(context, notificationChannel(context, channel, bannerShown))
+        NotificationCompat.Builder(context, notificationChannel(channel, bannerShown))
             .setSmallIcon(R.drawable.ic_notification)
             .setAutoCancel(true)
             .setContentIntent(openFeedIntent(context, pluginId))
@@ -252,7 +249,7 @@ object ExtensionNotifier {
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .addExtras(android.os.Bundle().apply { putString(EXTRA_PLUGIN, pluginId) })
 
-    private fun notificationChannel(context: Context, channel: String, bannerShown: Boolean): String = channel
+    internal fun notificationChannel(channel: String, bannerShown: Boolean): String = if (bannerShown) "$channel.overlay_quiet" else channel
 
     private fun openFeedIntent(context: Context, pluginId: String): PendingIntent = PendingIntent.getActivity(
         context,
@@ -305,18 +302,21 @@ object ExtensionNotifier {
                 manager.createNotificationChannel(
                     NotificationChannel(id, context.getString(name), importance).apply {
                         description = context.getString(R.string.extension_channel_desc)
+                        enableVibration(false)
                     },
                 )
             }
-            val quietId = "$id.enhanced"
+            val quietId = "$id.overlay_quiet"
             if (manager.getNotificationChannel(quietId) == null) {
                 manager.createNotificationChannel(
                     NotificationChannel(
                         quietId,
                         context.getString(R.string.extension_channel_enhanced, context.getString(name)),
-                        NotificationManager.IMPORTANCE_HIGH,
+                        NotificationManager.IMPORTANCE_DEFAULT,
                     ).apply {
+                        setSound(null, null)
                         description = context.getString(R.string.extension_channel_desc)
+                        enableVibration(false)
                     },
                 )
             }

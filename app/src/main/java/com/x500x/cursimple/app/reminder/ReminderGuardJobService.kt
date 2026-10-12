@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 
 /**
  * Persistent 15-minute JobScheduler inspection supplements less frequent WorkManager sync.
@@ -25,23 +26,31 @@ import kotlinx.coroutines.launch
 class ReminderGuardJobService : JobService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    private val running = java.util.concurrent.ConcurrentHashMap<Int, kotlinx.coroutines.Job>()
     override fun onStartJob(params: JobParameters): Boolean {
-        scope.launch {
+        running.remove(params.jobId)?.cancel()
+        val task = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            var retry = false
             try {
-                runCatching { ClassNoticeGateway.reschedule(applicationContext) }
-                    .onFailure { ReminderLogger.warn("reminder.guard_job.class_notice.failure", emptyMap(), it) }
-                runCatching {
-                    AlarmRegistrationRepair.repairIfMissing(applicationContext, reason = "guard_job")
-                    AlarmPreNoticeScheduler.reschedule(applicationContext)
-                }.onFailure { ReminderLogger.warn("reminder.guard_job.alarm_repair.failure", emptyMap(), it) }
+                ReminderGuardMaintenance.run(applicationContext, "guard_job")
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                retry = true
+                ReminderLogger.warn("reminder.guard_job.failure", emptyMap(), failure)
             } finally {
-                jobFinished(params, false)
+                val current = kotlinx.coroutines.currentCoroutineContext()
+                if (running.remove(params.jobId, current[kotlinx.coroutines.Job]) && current.isActive) jobFinished(params, retry)
             }
         }
+        running[params.jobId] = task
+        task.start()
         return true
     }
 
-    override fun onStopJob(params: JobParameters): Boolean = true
+    override fun onStopJob(params: JobParameters): Boolean {
+        running.remove(params.jobId)?.cancel()
+        return true
+    }
 
     override fun onDestroy() {
         scope.cancel()

@@ -12,6 +12,8 @@ import com.x500x.cursimple.core.data.exportSnapshot
 import com.x500x.cursimple.core.data.restoreSnapshot
 import com.x500x.cursimple.core.data.term.TermProfileRepository
 import com.x500x.cursimple.core.kernel.model.TermSchedule
+import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.plugin.ui.PluginUiSchema
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
@@ -41,6 +43,13 @@ class DataStoreScheduleRepository(
         preferences[KEY_PLUGIN_ID] ?: DEFAULT_PLUGIN_ID
     }
 
+    /** Read-only catalog follows registered terms, excluding orphaned storage after deletion. */
+    val savedSchedulesFlow: Flow<Map<String, TermSchedule?>> = if (termProfileRepository != null) {
+        combine(store.data, termProfileRepository.termsFlow) { prefs, terms ->
+            terms.associate { term -> term.id to decodeSchedule(prefs, term.id) }
+        }
+    } else store.data.map { mapOf("" to decodeSchedule(it, "")) }
+
     override val lastUsernameFlow: Flow<String> = store.data.map { preferences ->
         preferences[KEY_USERNAME].orEmpty()
     }
@@ -54,6 +63,20 @@ class DataStoreScheduleRepository(
         store.edit { preferences ->
             preferences[scheduleKey(termId)] = json.encodeToString(schedule)
         }
+    }
+
+    /** Bind the explicitly reviewed term only; concurrent imports cannot be overwritten. */
+    suspend fun setLegacyTimetableDisplayPlugin(termId: String, expected: TermSchedule, pluginId: String,
+        schema: PluginUiSchema, profile: TermTimingProfile?, enabled: Boolean): Boolean {
+        if (termProfileRepository != null && termProfileRepository.activeTermId() != termId) return false
+        var saved = false
+        store.edit { preferences ->
+            val next = legacyTimetableDisplayBinding(decodeSchedule(preferences, termId), expected, pluginId, schema, profile, enabled)
+                ?: return@edit
+            preferences[scheduleKey(termId)] = json.encodeToString(next)
+            saved = true
+        }
+        return saved
     }
 
     override suspend fun saveLastInput(pluginId: String, username: String, termId: String) {

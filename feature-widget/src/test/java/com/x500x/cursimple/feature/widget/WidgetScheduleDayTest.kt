@@ -21,6 +21,27 @@ class WidgetScheduleDayTest {
     private val nationalDay = LocalDate.of(2026, 10, 1)
     private val monday = LocalDate.of(2026, 9, 28)
 
+    @Test fun `week locations and teachers remain tied to each course after a move`() {
+        val course = CourseItem("lab", "Lab", teacher = "Teacher A", location = "Default room",
+            weekLocations = mapOf(4 to "Lab 204", 5 to "Lab 305"), weekTeachers = mapOf(4 to "Teacher 4", 5 to "Teacher 5"),
+            weeks = listOf(4, 5), time = CourseTimeSlot(1, 1, 2))
+        val source = LocalDate.of(2026, 9, 28)
+        val target = source.plusWeeks(1).plusDays(1)
+        fun read(date: LocalDate, overrides: List<TemporaryScheduleOverride>) = resolveWidgetScheduleDay(
+            date, termStart, overrides, HolidayCalendarSettings.NONE,
+        ) { if (it == 1) listOf(course) else emptyList() }
+        assertEquals("Lab 204", read(source, emptyList()).courses.single().location)
+        assertEquals("Lab 305", read(source.plusWeeks(1), emptyList()).courses.single().location)
+        assertEquals("Teacher 4", read(source, emptyList()).courses.single().teacher)
+        assertEquals("Teacher 5", read(source.plusWeeks(1), emptyList()).courses.single().teacher)
+        val moved = read(target, listOf(TemporaryScheduleOverride(id = "move", type = TemporaryScheduleOverrideType.MoveCourse,
+            targetDate = target.toString(), sourceDate = source.toString(), moveCourseId = course.id, moveToStartNode = 3, moveToEndNode = 4))).courses.single()
+        assertEquals("Lab 204", moved.location)
+        assertEquals("Teacher 4", moved.teacher)
+        assertEquals("Teacher A", course.teacher)
+        assertEquals("Default room", course.location)
+    }
+
     @Test
     fun `a built-in holiday keeps the courses, marks them and names the day`() {
         val day = resolveDay(nationalDay, holidayCalendar = HolidayCalendarSettings())

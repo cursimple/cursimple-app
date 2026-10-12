@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app.util
 
 import android.util.Base64
+import com.x500x.cursimple.core.kernel.model.asExternalImport
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -28,7 +29,8 @@ object ScheduleShareCodec {
     }
 
     fun encode(payload: ScheduleSharePayload): String {
-        val raw = json.encodeToString(ScheduleSharePayload.serializer(), payload).toByteArray(Charsets.UTF_8)
+        val shared = payload.copy(schedule = payload.schedule?.asExternalImport())
+        val raw = json.encodeToString(ScheduleSharePayload.serializer(), shared).toByteArray(Charsets.UTF_8)
         val gzipped = ByteArrayOutputStream().use { sink ->
             GZIPOutputStream(sink).use { it.write(raw) }
             sink.toByteArray()
@@ -38,7 +40,11 @@ object ScheduleShareCodec {
     }
 
     fun decode(text: String): Result<ScheduleSharePayload> = runCatching {
-        val trimmed = text.trim()
+        if (text.length > MAX_ENCODED_CHARS) {
+            throw ScheduleShareDecodeException(ScheduleShareDecodeReason.TooLarge)
+        }
+        // Messaging apps can insert line breaks into a long code. The alphabet has no whitespace.
+        val trimmed = text.filterNot(Char::isWhitespace)
         if (!trimmed.startsWith(ScheduleSharePayload.MAGIC_PREFIX)) {
             throw ScheduleShareDecodeException(ScheduleShareDecodeReason.NotShareData)
         }
@@ -48,10 +54,15 @@ object ScheduleShareCodec {
         val raw = ByteArrayInputStream(gzipped).use { source ->
             GZIPInputStream(source).use { it.readAtMost(MAX_DECODED_BYTES) }
         }
-        json.decodeFromString(ScheduleSharePayload.serializer(), raw.toString(Charsets.UTF_8))
+        json.decodeFromString(ScheduleSharePayload.serializer(), raw.toString(Charsets.UTF_8)).also {
+            if (it.v != ScheduleSharePayload.CURRENT_VERSION) {
+                throw ScheduleShareDecodeException(ScheduleShareDecodeReason.NotShareData)
+            }
+        }.let { it.copy(schedule = it.schedule?.asExternalImport()) }
     }
 
     private const val MAX_DECODED_BYTES = 4 * 1024 * 1024
+    private const val MAX_ENCODED_CHARS = 6 * 1024 * 1024
 
     private fun java.io.InputStream.readAtMost(limit: Int): ByteArray {
         val out = ByteArrayOutputStream()

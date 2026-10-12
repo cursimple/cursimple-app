@@ -7,21 +7,25 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -63,10 +68,13 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** Record exported calendar event IDs locally; undo removes only app-created events. */
+/**
+ * Calendar export: write to the system calendar or share an .ics file. Exported event IDs are
+ * recorded locally so undo removes only app-created events.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun SystemCalendarPanel(
+internal fun SystemCalendarExportDialog(
     canExport: Boolean,
     termStartDate: LocalDate?,
     schedule: TermSchedule?,
@@ -74,6 +82,9 @@ internal fun SystemCalendarPanel(
     timingProfile: TermTimingProfile?,
     overrides: List<TemporaryScheduleOverride>,
     holidayCalendar: HolidayCalendarSettings,
+    icsBusy: Boolean,
+    onExportIcs: () -> Unit,
+    onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -194,10 +205,16 @@ internal fun SystemCalendarPanel(
                 Text(pluralStringResource(R.plurals.calendar_export_overwrite_body, lastRecordEventCount, lastRecordEventCount))
             },
             confirmButton = {
-                AppOutlinedButton(onClick = {
-                    pendingOverwrite = false
-                    selectedId?.let(::runWrite)
-                }) { Text(stringResource(R.string.calendar_export_overwrite_confirm)) }
+                Button(
+                    onClick = {
+                        pendingOverwrite = false
+                        selectedId?.let(::runWrite)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) { Text(stringResource(R.string.calendar_export_overwrite_confirm)) }
             },
             dismissButton = {
                 AppOutlinedButton(onClick = { pendingOverwrite = false }) {
@@ -207,120 +224,161 @@ internal fun SystemCalendarPanel(
         )
     }
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Rounded.EventAvailable,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.calendar_export_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = stringResource(R.string.calendar_export_subtitle),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            if (!granted) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = stringResource(R.string.calendar_export_permission_body),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Button(
-                    onClick = {
-                        permissionLauncher.launch(
-                            arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.calendar_export_permission_grant)) }
-                return@Card
-            }
-
-            if (accounts.isEmpty()) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = stringResource(R.string.calendar_export_no_account),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                return@Card
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = stringResource(R.string.calendar_export_pick_account),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text(stringResource(R.string.ie_calendar_row_title)) },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                accounts.forEach { account ->
-                    AppFilterChip(
-                        selected = account.id == selectedId,
-                        onClick = { selectedId = account.id },
-                        label = {
+                if (!canExport) {
+                    Text(
+                        text = stringResource(R.string.ie_no_schedule_body),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                CalendarSectionTitle(
+                    icon = Icons.Rounded.EventAvailable,
+                    title = stringResource(R.string.calendar_export_title),
+                    body = stringResource(R.string.calendar_export_subtitle),
+                )
+                when {
+                    !granted -> {
+                        Text(
+                            text = stringResource(R.string.calendar_export_permission_body),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Button(
+                            onClick = {
+                                permissionLauncher.launch(
+                                    arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
+                                )
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                        ) { Text(stringResource(R.string.calendar_export_permission_grant)) }
+                    }
+                    accounts.isEmpty() -> Text(
+                        text = stringResource(R.string.calendar_export_no_account),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    else -> {
+                        Text(
+                            text = stringResource(R.string.calendar_export_pick_account),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            accounts.forEach { account ->
+                                AppFilterChip(
+                                    selected = account.id == selectedId,
+                                    onClick = { selectedId = account.id },
+                                    enabled = !busy,
+                                    label = {
+                                        Text(
+                                            text = account.displayName.ifBlank { account.accountName },
+                                            maxLines = 2,
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                        if (lastRecordEventCount > 0) {
                             Text(
-                                text = account.displayName.ifBlank { account.accountName },
-                                maxLines = 2,
+                                text = pluralStringResource(
+                                    R.plurals.calendar_export_last,
+                                    lastRecordEventCount,
+                                    formatExportTime(lastRecordAt, zone),
+                                    lastRecordEventCount,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick = {
+                                    val id = selectedId ?: return@Button
+                                    if (lastRecordEventCount > 0) pendingOverwrite = true else runWrite(id)
+                                },
+                                enabled = canExport && !busy && selectedId != null,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text(stringResource(R.string.calendar_export_action), maxLines = 1) }
+                            AppOutlinedButton(
+                                onClick = { runUndo() },
+                                enabled = !busy && lastRecordEventCount > 0,
+                                modifier = Modifier.heightIn(min = 48.dp),
+                            ) { Text(stringResource(R.string.calendar_export_undo), maxLines = 1) }
+                        }
+                    }
+                }
+                HorizontalDivider(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                )
+                CalendarSectionTitle(
+                    icon = Icons.Rounded.CalendarMonth,
+                    title = stringResource(R.string.ie_ics_title),
+                    body = stringResource(R.string.ie_ics_body),
+                )
+                AppOutlinedButton(
+                    onClick = onExportIcs,
+                    enabled = canExport && !icsBusy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp),
+                ) {
+                    Text(
+                        if (icsBusy) {
+                            stringResource(R.string.ie_generating)
+                        } else {
+                            stringResource(R.string.ie_ics_generate_action)
                         },
                     )
                 }
             }
+        },
+        confirmButton = {
+            AppOutlinedButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.ie_close)) }
+        },
+    )
+}
 
-            if (lastRecordEventCount > 0) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = pluralStringResource(
-                        R.plurals.calendar_export_last,
-                        lastRecordEventCount,
-                        formatExportTime(lastRecordAt, zone),
-                        lastRecordEventCount,
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Button(
-                    onClick = {
-                        val id = selectedId ?: return@Button
-                        if (lastRecordEventCount > 0) pendingOverwrite = true else runWrite(id)
-                    },
-                    enabled = canExport && !busy && selectedId != null,
-                ) { Text(stringResource(R.string.calendar_export_action), maxLines = 1) }
-                AppOutlinedButton(
-                    onClick = { runUndo() },
-                    enabled = !busy && lastRecordEventCount > 0,
-                ) { Text(stringResource(R.string.calendar_export_undo), maxLines = 1) }
-            }
+@Composable
+private fun CalendarSectionTitle(icon: ImageVector, title: String, body: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
         }
+        Text(
+            text = body,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

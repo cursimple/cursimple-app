@@ -1,5 +1,7 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
+
 import com.x500x.cursimple.feature.plugin.ui.AppToolbarIconButton
 import com.x500x.cursimple.feature.widget.WidgetDeepLinks
 import com.x500x.cursimple.core.plugin.logging.PluginLogBuffer
@@ -59,6 +61,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
@@ -189,6 +192,8 @@ class MainActivity : ComponentActivity() {
     private val scheduleDateRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
 
     private val memoRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
+    private val memoImportRequest = androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null)
+    private val memoCodeImportRequest = androidx.compose.runtime.mutableStateOf<String?>(null)
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLocale.wrap(newBase))
@@ -196,11 +201,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        memoTransferUri(intent)?.let { memoImportRequest.value = it; memoCodeImportRequest.value = null }
+        memoTransferCode(intent)?.let { memoCodeImportRequest.value = it; memoImportRequest.value = null }
         intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO)?.let { memoRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
         intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_ABOUT)?.let { componentAboutRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
         intent.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
+        com.x500x.cursimple.app.vendor.vendorScheduleDate(intent.dataString, packageName)?.let { scheduleDateRequest.value = it }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -209,11 +217,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val container = (application as ClassScheduleApplication).appContainer
         if (savedInstanceState == null) {
+            memoTransferUri(intent)?.let { memoImportRequest.value = it; memoCodeImportRequest.value = null }
+            memoTransferCode(intent)?.let { memoCodeImportRequest.value = it; memoImportRequest.value = null }
             intent?.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO)?.let { memoRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_EXTENSION_FEED)?.let { extensionFeedRequest.value = it }
             intent?.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_COMPONENT_ABOUT)?.let { componentAboutRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_EXTENSION_SETTINGS)?.let { openExtensionSettingsRequest.value = it }
             intent?.getStringExtra(EXTRA_OPEN_SCHEDULE_DATE)?.let { scheduleDateRequest.value = it }
+            com.x500x.cursimple.app.vendor.vendorScheduleDate(intent?.dataString, packageName)?.let { scheduleDateRequest.value = it }
         }
         setContent {
             val prefsViewModel: AppPreferencesViewModel = viewModel(
@@ -267,13 +278,19 @@ class MainActivity : ComponentActivity() {
                     val appZone = remember { BeijingTime.zone }
                     val embeddedPageGestures = remember { com.x500x.cursimple.feature.plugin.ui.EmbeddedPageGestures() }
                     val guideAnchors = rememberGuideAnchorBounds()
+                    val reusableCourses by rememberCourseReuseCatalog(container.termProfileRepository)
+                    val timetableRowDefinitions by rememberPluginTimetableRowDefinitions(container.pluginManager)
                     androidx.compose.runtime.CompositionLocalProvider(
                         LocalAppZone provides appZone,
                         LocalGuideAnchors provides guideAnchors,
+                        com.x500x.cursimple.feature.schedule.LocalCourseReuseCatalog provides reusableCourses,
+                        com.x500x.cursimple.feature.schedule.LocalPluginTimetableRowPreferences provides prefs.pluginTimetableRowVisibility,
+                        com.x500x.cursimple.feature.schedule.LocalPluginTimetableRowDefinitions provides timetableRowDefinitions,
                         com.x500x.cursimple.feature.plugin.ui.LocalEmbeddedPageGestures provides embeddedPageGestures,
                     ) {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     var memoSearchOpen by rememberSaveable { mutableStateOf(false) }
+                    var memoShareOpen by remember { mutableStateOf(false) }
                     var currentExtension by rememberSaveable { mutableStateOf<String?>(null) }
                     var linkedExtensionContent by remember {
                         mutableStateOf<Triple<com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem, com.x500x.cursimple.core.kernel.model.ScheduleEvent>?>(null)
@@ -310,6 +327,14 @@ class MainActivity : ComponentActivity() {
                         lastScreen = currentScreen
                     }
                     val pendingMemo by memoRequest
+                    val pendingMemoImport by memoImportRequest
+                    val pendingMemoCodeImport by memoCodeImportRequest
+                    LaunchedEffect(pendingMemoImport, pendingMemoCodeImport) {
+                        if (pendingMemoImport != null || pendingMemoCodeImport != null) {
+                            currentExtension = null
+                            currentScreen = AppScreen.Memos
+                        }
+                    }
                     LaunchedEffect(pendingMemo) {
                         if (pendingMemo != null) {
                             currentExtension = null
@@ -348,6 +373,11 @@ class MainActivity : ComponentActivity() {
                             override suspend fun syncNow(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) =
                                 container.extensionCoordinator.syncNow(record)
 
+                            override fun syncAfterLogin(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, sessionRevision: Long): Boolean {
+                                container.extensionCoordinator.syncAfterLogin(record, sessionRevision)
+                                return true
+                            }
+
                             override fun onDataChanged(pluginId: String) =
                                 container.extensionCoordinator.onDataChanged(pluginId)
 
@@ -380,10 +410,6 @@ class MainActivity : ComponentActivity() {
                                 container.extensionCoordinator.onDataChanged(record.pluginId)
                             }
 
-                            override fun setAdvancedToolsEnabled(enabled: Boolean) {
-                                prefsViewModel.setAdvancedToolsEnabled(enabled)
-                            }
-
                             override fun openFeed(pluginId: String) {
                                 currentExtension = pluginId
                             }
@@ -405,6 +431,7 @@ class MainActivity : ComponentActivity() {
                     }
                     val onScheduleScreen = currentScreen == AppScreen.Schedule && currentExtension == null
                     var subScreen by rememberSaveable { mutableStateOf<MainActivity.SubScreen?>(null) }
+                    LaunchedEffect(pendingMemoImport) { if (pendingMemoImport != null) subScreen = null }
                     var swapTargetDate by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
                     var swapSourceDate by rememberSaveable { mutableStateOf<java.time.LocalDate?>(null) }
                     var openSettingsDestination by rememberSaveable { mutableStateOf<SettingsDestinationKey?>(null) }
@@ -882,14 +909,13 @@ class MainActivity : ComponentActivity() {
                                                             vertical = if (isCurrentWeek) 2.dp else 0.dp,
                                                         ),
                                                     ) {
-                                                        Text(
+                                                        AppAtomicText(
                                                             // Missing term dates use week one; the warning icon provides the date hint.
                                                             text = LocalContext.current.termWeekText(
                                                                 if (effectiveTermStart == null) termWeekLabel(displayedWeekIndex)
                                                                 else termWeekLabel(effectiveTermStart, displayedWeekIndex),
                                                             ),
-                                                            style = MaterialTheme.typography.titleMedium,
-                                                            fontWeight = FontWeight.SemiBold,
+                                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                                                             color = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
                                                             else MaterialTheme.colorScheme.onBackground,
                                                         )
@@ -899,7 +925,7 @@ class MainActivity : ComponentActivity() {
                                                                 color = MaterialTheme.colorScheme.primary,
                                                                 shape = RoundedCornerShape(50),
                                                             ) {
-                                                                Text(
+                                                                AppAtomicText(
                                                                     text = stringResource(R.string.main_this_week),
                                                                     style = MaterialTheme.typography.labelSmall,
                                                                     color = MaterialTheme.colorScheme.onPrimary,
@@ -958,6 +984,13 @@ class MainActivity : ComponentActivity() {
                                     },
                                     actions = {
                                         if (currentExtension == null && currentScreen == AppScreen.Memos) {
+                                            AppToolbarIconButton(
+                                                icon = Icons.Rounded.Share,
+                                                contentDescription = stringResource(R.string.main_memo_share),
+                                                onClick = { memoShareOpen = true },
+                                                selected = memoShareOpen,
+                                                modifier = Modifier.testTag("memo-share-action"),
+                                            )
                                             AppToolbarIconButton(
                                                 icon = Icons.Rounded.Search,
                                                 contentDescription = stringResource(R.string.main_memo_search),
@@ -1111,6 +1144,11 @@ class MainActivity : ComponentActivity() {
                                         actions = extensionActions,
                                         openWidgetAbout = componentAboutRequest.value == extensionRecord.installKey ||
                                             componentAboutRequest.value == extensionRecord.pluginId,
+                                        onRemove = {
+                                            pluginMarketViewModel.removePlugin(extensionRecord.installKey)
+                                            currentExtension = null
+                                            currentScreen = AppScreen.Plugins
+                                        },
                                         onOpenSettings = {
                                             openExtensionSettings = extensionRecord.installKey
                                             currentScreen = AppScreen.Plugins
@@ -1126,6 +1164,7 @@ class MainActivity : ComponentActivity() {
                                         // Bound backward navigation by the current pre-term week or week one.
                                         minWeekOffset = (1 - currentWeekIndex).coerceAtMost(0),
                                         maxWeekOffset = weekPickerTotalWeeks - currentWeekIndex,
+                                        termWeekCount = weekPickerTotalWeeks,
                                         onAddWeek = addWeek,
                                         onPrevWeek = { weekOffset -= 1 },
                                         onNextWeek = { weekOffset += 1 },
@@ -1201,6 +1240,11 @@ class MainActivity : ComponentActivity() {
                                         onCloseSearch = { memoSearchOpen = false },
                                         openNoteId = pendingMemo?.takeIf { it.isNotBlank() },
                                         onNoteOpened = { memoRequest.value = null },
+                                        shareOpen = memoShareOpen,
+                                        onCloseShare = { memoShareOpen = false },
+                                        importUri = pendingMemoImport,
+                                        importCode = pendingMemoCodeImport,
+                                        onCloseImport = { memoImportRequest.value = null; memoCodeImportRequest.value = null },
                                     )
 
                                     AppScreen.Reminders -> RemindersScreen(
@@ -1342,6 +1386,7 @@ class MainActivity : ComponentActivity() {
                                         onSchedulePinchZoomEnabledChange =
                                             prefsViewModel::setSchedulePinchZoomEnabled,
                                         onTodayOverviewEnabledChange = prefsViewModel::setTodayOverviewEnabled,
+                                        onCourseSessionCountIncludeHolidaysChange = prefsViewModel::setCourseSessionCountIncludeHolidays,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,

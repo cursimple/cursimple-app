@@ -1,5 +1,3 @@
-@file:OptIn(androidx.glance.ExperimentalGlanceApi::class)
-
 package com.x500x.cursimple.feature.widget
 
 import android.appwidget.AppWidgetManager
@@ -13,7 +11,6 @@ import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.RequiresApi
-import androidx.glance.layout.size
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.widget.WidgetBackgroundMode
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences

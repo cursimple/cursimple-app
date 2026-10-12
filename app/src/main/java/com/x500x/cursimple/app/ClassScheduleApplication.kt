@@ -53,12 +53,22 @@ class ClassScheduleApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        initializeAfterUnlock()
+    }
+
+    @Synchronized
+    fun initializeAfterUnlock() {
+        if (::appContainer.isInitialized || getSystemService(android.os.UserManager::class.java)?.isUserUnlocked == false) return
+        if (runCatching { androidx.work.WorkManager.getInstance(this) }.isFailure) {
+            androidx.work.WorkManager.initialize(this, androidx.work.Configuration.Builder().build())
+        }
         // Catch up missed notices only while the class has not started.
         var startedActivities = 0
         registerActivityLifecycleCallbacks(object : android.app.Application.ActivityLifecycleCallbacks {
             override fun onActivityStarted(activity: android.app.Activity) {
                 val becameForeground = ++startedActivities == 1
                 if (becameForeground) {
+                    com.x500x.cursimple.app.reminder.ReminderGuardForegroundService.startIfEnabled(activity)
                     appScope.launch {
                         runCatching {
                             com.x500x.cursimple.app.notice.ClassNoticeGateway.catchUpIfMissed(activity.applicationContext)
@@ -153,6 +163,7 @@ class ClassScheduleApplication : Application() {
                 .distinctUntilChanged()
                 .collect { enabled ->
                     ReminderGuardJobService.applyPreference(this@ClassScheduleApplication)
+                    if (!enabled) com.x500x.cursimple.app.reminder.ReminderGuardForegroundService.setEnabled(this@ClassScheduleApplication, false)
                     if (enabled) {
                         runCatching { AlarmRuntimeMaintenance.onAlarmStarted(this@ClassScheduleApplication) }
                             .onFailure { ReminderLogger.warn("reminder.silent_guard.resync.failure", emptyMap(), it) }

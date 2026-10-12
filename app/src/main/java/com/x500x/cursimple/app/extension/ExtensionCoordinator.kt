@@ -17,8 +17,12 @@ import com.x500x.cursimple.feature.plugin.extension.ExtensionSyncEngine
 import com.x500x.cursimple.feature.plugin.extension.ExtensionSyncOutcome
 import com.x500x.cursimple.feature.plugin.extension.isIgnored
 import com.x500x.cursimple.feature.plugin.extension.withItemIgnored
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.delay
+import com.x500x.cursimple.feature.plugin.extension.nextIgnoredDeadline
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -39,6 +43,7 @@ class ExtensionCoordinator(
     private val engine = ExtensionSyncEngine(context, pluginManager, store)
     private val outputsLock = Mutex()
     private val syncDueLock = Mutex()
+    private val loginSync = com.x500x.cursimple.feature.plugin.extension.ComponentLoginSync(scope)
     private var knownOwners = emptySet<String>()
 
     init {
@@ -46,7 +51,7 @@ class ExtensionCoordinator(
             store.ensureLoaded()
             combine(
                 pluginManager.installedPluginsFlow,
-                preferences.preferencesFlow.map { it.enabledPluginIds }.distinctUntilChanged(),
+                preferences.preferencesFlow.map { listOf(it.enabledPluginIds, it.themeAccent, it.themeMode, it.themeCustomColorArgb) }.distinctUntilChanged(),
                 store.all,
             ) { records, _, data -> records.filter { it.isExtension }.map { it.pluginId }.toSet() to data.keys }
                 .collect { (installed, saved) ->
@@ -61,6 +66,34 @@ class ExtensionCoordinator(
                             .onFailure { ReminderLogger.warn("extension.lifecycle.outputs_failed", mapOf("pluginId" to id), it) }
                     }
                 }
+        }
+        scope.launch {
+            combine(pluginManager.installedPluginsFlow,
+                preferences.preferencesFlow.map { it.enabledPluginIds }.distinctUntilChanged(), store.all) { records, enabled, data ->
+                activeExtensionRecords(records, enabled).mapNotNull { data[it.pluginId] }
+            }.collectLatest { data ->
+                var now = System.currentTimeMillis()
+                while (true) {
+                    val deadline = nextIgnoredDeadline(data, now) ?: break
+                    delay((deadline - System.currentTimeMillis()).coerceAtLeast(1L))
+                    now = System.currentTimeMillis()
+                    refreshExpiredContent(now)
+                }
+            }
+        }
+    }
+
+    fun syncAfterLogin(record: InstalledPluginRecord, sessionRevision: Long) {
+        loginSync.start(record.pluginId, "${record.packageRevision}:$sessionRevision") {
+            val data = store.get(record.pluginId)
+            if (!data.loggedIn || data.sessionRevision != sessionRevision) return@start
+            try {
+                syncNow(record)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                ReminderLogger.warn("extension.sync.after_login_failed", mapOf("pluginId" to record.pluginId), failure)
+            }
         }
     }
 
@@ -96,11 +129,13 @@ class ExtensionCoordinator(
         return saved
     }
 
-    /** Launch due sync asynchronously when online without holding the guard broadcast open. */
+    /** Refresh local visibility offline; synchronize remotely only when connected. */
     fun syncDueInBackground(reason: String) {
-        if (!hasInternet()) return
         scope.launch {
-            runCatching { syncDue() }
+            runCatching {
+                refreshExpiredContent()
+                if (hasInternet()) syncDue()
+            }
                 .onFailure { ReminderLogger.warn("extension.sync.guard_failed", mapOf("reason" to reason), it) }
         }
     }
@@ -148,7 +183,17 @@ class ExtensionCoordinator(
         }
     }
 
+    suspend fun refreshExpiredContent(now: Long = System.currentTimeMillis()) {
+        store.ensureLoaded()
+        activeData().filterValues { it.host.ignoreOverdue }.keys.forEach { id ->
+            try { applyOutputs(id, now) }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { ReminderLogger.warn("extension.expiry.refresh_failed", mapOf("pluginId" to id), failure) }
+        }
+    }
+
     suspend fun fireDueReminders(now: Long = System.currentTimeMillis()) {
+        refreshExpiredContent(now)
         store.ensureLoaded()
         val titles = extensionTitles()
         for ((pluginId, data) in activeData()) {
@@ -186,7 +231,7 @@ class ExtensionCoordinator(
         }
     }
 
-    private suspend fun applyOutputs(pluginId: String) = outputsLock.withLock {
+    private suspend fun applyOutputs(pluginId: String, now: Long = System.currentTimeMillis()) = outputsLock.withLock {
         store.ensureLoaded()
         val data = store.all.value[pluginId]
         val record = enabledExtensions().firstOrNull { it.pluginId == pluginId }
@@ -194,7 +239,7 @@ class ExtensionCoordinator(
         val keep = data != null && record != null &&
             (data.loggedIn || data.loginState == ExtensionLoginState.Expired)
         val feedTypes = record?.let { runCatching { pluginManager.loadExtensionPackage(it).first.extension?.feedTypes }.getOrNull() }.orEmpty()
-        data?.items?.filter { it.done || data.isIgnored(it, System.currentTimeMillis()) }?.forEach {
+        data?.items?.filter { it.done || data.isIgnored(it, now) }?.forEach {
             ExtensionNotifier.cancelItem(context, pluginId, it.id)
             com.x500x.cursimple.core.data.notification.NotificationOutbox.get(context).cancelSource(pluginId, it.id)
         }
@@ -202,11 +247,11 @@ class ExtensionCoordinator(
             events = events,
             pluginId = pluginId,
             data = data?.takeIf { keep && it.host.addToSchedule },
-            now = System.currentTimeMillis(),
+            now = now,
             feedTypes = feedTypes,
         )
         if (data == null || record == null || data.loginState == ExtensionLoginState.LoggedOut || data.loginState == ExtensionLoginState.Never) ExtensionNotifier.cancelAll(context, pluginId)
-        ExtensionDueScheduler.reschedule(context, activeData().values, System.currentTimeMillis())
+        ExtensionDueScheduler.reschedule(context, activeData().values, now)
         // Data arriving after install must paint every component-backed surface, including ones
         // not yet bound so an auto-bind can succeed on the first paint.
         refreshOwnedWidgets(pluginId, allInstances = true)
@@ -220,13 +265,18 @@ class ExtensionCoordinator(
             }
         }
         val changed = com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.write(context, definitions)
-        ComponentWidgetAvailability.update(context, definitions.isNotEmpty())
-        if (changed) {
+        val slotsChanged = ComponentWidgetAvailability.update(context, definitions.map { it.key })
+        if (changed || slotsChanged) {
             com.x500x.cursimple.feature.widget.WidgetCatalog.notifyInstalledChanged(context)
             com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context)
             // Render again after data settles so a newly installed component paints its desktop
             // surface without requiring the user to re-add the widget.
             launchUpdateWidgetsLater()
+        }
+        // Rate-limited internally; picker previews follow owner, data and theme changes.
+        scope.launch {
+            runCatching { com.x500x.cursimple.feature.widget.ComponentWidgetPreviews.refresh(context) }
+                .onFailure { ReminderLogger.warn("extension.component_widgets.preview_failed", emptyMap(), it) }
         }
     }
 
@@ -253,8 +303,7 @@ class ExtensionCoordinator(
 
     private suspend fun refreshOwnedWidgets(pluginId: String, allInstances: Boolean = false) {
         val manager = android.appwidget.AppWidgetManager.getInstance(context)
-        val entry = com.x500x.cursimple.feature.widget.WidgetCatalog.entries(context).first { it.fromComponents }
-        val ids = (listOf(entry.provider) + entry.vendorProviders).flatMap { manager.getAppWidgetIds(it).toList() }
+        val ids = com.x500x.cursimple.feature.widget.WidgetCatalog.componentProviders(context).flatMap { manager.getAppWidgetIds(it).toList() }
             .filter { allInstances || com.x500x.cursimple.core.data.widget.ComponentWidgetBindings.get(context, it)?.startsWith("$pluginId/") == true }
         if (ids.isNotEmpty()) com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, ids.toIntArray())
     }

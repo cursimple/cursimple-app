@@ -31,6 +31,21 @@ import org.junit.Test
 class ReminderPlannerTest {
     private val planner = ReminderPlanner()
 
+    @Test fun weeklyLocationIsUsedByBothReminderRuleTypes() {
+        val original = labelSchedule()
+        val schedule = original.copy(dailySchedules = original.dailySchedules.map { day ->
+            day.copy(courses = day.courses.map { it.copy(location = "Default", weekLocations = mapOf(1 to "Lab 204")) })
+        })
+        val first = ReminderRule(ruleId = "first", pluginId = "qa", scopeType = ReminderScopeType.FirstCourseOfPeriod,
+            period = ReminderDayPeriod.Morning, periodStartNode = 1, periodEndNode = 4, advanceMinutes = 15,
+            createdAt = "2026-02-23T00:00:00Z", updatedAt = "2026-02-23T00:00:00Z")
+        for (rule in listOf(labelRule(), first)) {
+            val plans = planner.expandRule(rule, schedule, labelProfile(), java.time.LocalDate.of(2026, 2, 23))
+            org.junit.Assert.assertTrue(plans.isNotEmpty())
+            plans.forEach { assertEquals("Lab 204", it.messageContent?.location) }
+        }
+    }
+
     @Test
     fun labelRuleRunsActionsWhenAllConditionsMatch() {
         val plans = planner.expandRule(

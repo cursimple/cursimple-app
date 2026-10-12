@@ -1,5 +1,15 @@
 package com.x500x.cursimple.app
 
+import androidx.activity.compose.setContent
+import androidx.test.core.app.ActivityScenario
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.assertTextContains
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.isDialog
 import android.app.Activity
 import android.appwidget.AppWidgetHost
 import android.appwidget.AppWidgetHostView
@@ -13,6 +23,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ListView
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.graphics.Rect
 import androidx.test.platform.app.InstrumentationRegistry
@@ -26,6 +37,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.graphics.asAndroidBitmap
 import com.x500x.cursimple.core.data.AppLanguage
+import com.x500x.cursimple.R
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
@@ -72,6 +84,7 @@ class WidgetQaTest {
     @Before fun setUp() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("widgetQa") == "true")
         seed()
+        if (android.os.Build.VERSION.SDK_INT >= 33) instrumentation.runOnMainSync { android.graphics.HardwareRenderer.setDrawingEnabled(true) }
         host = AppWidgetHost(context, HOST_ID)
         instrumentation.runOnMainSync { host.startListening() }
     }
@@ -116,6 +129,58 @@ class WidgetQaTest {
         activity.finishAndWait()
     }
 
+    @Test fun calendarCurrentTimeCrosshairFollowsSlotsAndWeekNavigation() = runBlocking {
+        val container = (context.applicationContext as ClassScheduleApplication).appContainer
+        val prefs = container.userPreferencesRepository
+        val widgetPrefs = container.widgetPreferencesRepository
+        widgetPrefs.setWidgetThemeAccent(com.x500x.cursimple.core.data.ThemeAccent.Pink)
+        val profile = InstrumentationRegistry.getArguments().getString("widgetQaProfile", "normal")
+        val (id, view) = bind(CalendarWidgetReceiver::class.java, 320, 600)
+        fun rowBandPresent(): Boolean {
+            var found = false
+            instrumentation.runOnMainSync {
+                val bitmap = (view.findViewById<android.widget.ImageView>(WidgetR.id.calendar_grid).drawable as android.graphics.drawable.BitmapDrawable).bitmap
+                found = (0 until bitmap.height).any { y -> android.graphics.Color.alpha(bitmap.getPixel(1, y)) > 0 }
+            }
+            return found
+        }
+        suspend fun at(hour: Int, minute: Int, label: String, active: Boolean) {
+            prefs.setDebugForcedDateTime(LocalDateTime.of(2026, 9, 14, hour, minute))
+            refresh { CalendarWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            assertEquals("Incorrect time band at $hour:$minute", active, rowBandPresent())
+            capture(view, 320, 600, "widget-crosshair-$profile-$label.png")
+        }
+        try {
+            at(8, 20, "first-period", true)
+            at(8, 45, "break", false)
+            at(8, 50, "second-period", true)
+            click(view, WidgetR.id.calendar_next)
+            assertFalse("Other weeks must not show the current-time row", rowBandPresent())
+            capture(view, 320, 600, "widget-crosshair-$profile-other-week.png")
+            click(view, WidgetR.id.calendar_reset)
+            assertTrue(rowBandPresent())
+            widgetPrefs.setWidgetThemeAccent(com.x500x.cursimple.core.data.ThemeAccent.Blue)
+            refresh { CalendarWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            capture(view, 320, 600, "widget-crosshair-$profile-blue.png")
+            val (smallId, small) = bind(CalendarWidgetReceiver::class.java, 180, 140)
+            refresh { CalendarWidgetReceiver.updateWidgets(context, intArrayOf(smallId)) }
+            instrumentation.runOnMainSync {
+                val bitmap = (small.findViewById<android.widget.ImageView>(WidgetR.id.calendar_grid).drawable as android.graphics.drawable.BitmapDrawable).bitmap
+                assertTrue("Compact timetable collapsed below its weekday header", bitmap.height > 32 * context.resources.displayMetrics.density)
+            }
+            capture(small, 180, 140, "widget-crosshair-$profile-small.png")
+            prefs.setDebugForcedDateTime(LocalDateTime.of(2026, 9, 18, 11, 40))
+            refresh { CalendarWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+            assertTrue(rowBandPresent())
+            capture(view, 320, 600, "widget-crosshair-$profile-exam.png")
+            at(20, 0, "night", true)
+            at(20, 35, "after-night", false)
+        } finally {
+            widgetPrefs.followAppThemeAccent()
+            prefs.setDebugForcedDateTime(null)
+        }
+    }
+
     @Test fun guardAlarmAlsoChecksComponentSync() {
         val appHook = WidgetGuardHooks.onGuardTick
         assertNotNull("App 没有把组件同步挂到守护闹钟上", appHook)
@@ -132,51 +197,138 @@ class WidgetQaTest {
         }
     }
 
-    @Test fun memoTodosWorkWithoutComponentsAndOpenTheirSourceNote() = runBlocking {
-        ComponentWidgetAvailability.update(context, false)
+    @Test fun memoTodosCompleteAndEditOnTheDesktop() = runBlocking {
+        ComponentWidgetAvailability.update(context, emptyList())
         assertTrue(WidgetCatalog.pickerEntries(context).any { it.id == "memo" && !it.fromComponents })
         val repo = com.x500x.cursimple.core.data.memo.DataStoreMemoRepository(context)
         val previous = repo.notesFlow.first()
         previous.forEach { repo.remove(it.id) }
+        val mainMonitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
         try {
-            repo.upsert(MemoNote("memo-widget-qa", courseTitle = "数据结构", title = "第三次实验",
+            repo.upsert(MemoNote("memo-widget-qa", courseTitle = "数据结构", courseKey = com.x500x.cursimple.core.kernel.model.memoCourseKey("数据结构"),
+                priority = com.x500x.cursimple.core.kernel.model.MemoPriority.High, title = "第三次实验",
                 body = "- [x] 整理代码\n- [ ] 整理实验报告\n- [ ] 提交附件", pinned = true))
-            repo.upsert(MemoNote("memo-widget-complete", title = "已完成", body = "- [x] 完成"))
+            repo.upsert(MemoNote("memo-widget-plain", title = "准备参考资料", body = "带上实验讲义"))
             val (id, view) = bind(MemoTodoWidgetReceiver::class.java, 330, 230)
             refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
             capture(view, 330, 230, "widget-memo-todos.png")
-            val (smallId, small) = bind(MemoTodoWidgetReceiver::class.java, 330, 148)
+            val (smallId, small) = bind(MemoTodoWidgetReceiver::class.java, 180, 110)
             refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(smallId)) }
-            capture(small, 330, 148, "widget-memo-compact.png")
+            capture(small, 180, 110, "widget-memo-compact.png")
             instrumentation.runOnMainSync {
-                val list = small.findViewById<ListView>(WidgetR.id.memo_list)
+                val list = small.findViewById<LinearLayout>(WidgetR.id.memo_list)
                 assertTrue("Compact checklist rendered no rows", list.childCount > 0)
-                assertEquals(list.adapter.count, list.childCount)
-                if (context.resources.configuration.fontScale <= 1.05f) assertEquals(2, list.childCount)
                 assertTrue("Compact checklist clipped its final row", list.getChildAt(list.childCount - 1).bottom <= list.height)
+                assertTrue(list.getChildAt(0).findViewById<View>(WidgetR.id.memo_checkbox).height >= 48 * context.resources.displayMetrics.density)
             }
-            // Mount widget views without unrelated Activity startup work.
             if (InstrumentationRegistry.getArguments().getString("memoLayoutOnly") == "true") return@runBlocking
-            val monitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
-            instrumentation.runOnMainSync {
-                val list = view.findViewById<ListView>(WidgetR.id.memo_list)
-                assertEquals(2, list.adapter.count)
-                val row = list.getChildAt(0)
-                assertNotNull(row)
-                list.performItemClick(row, 0, list.adapter.getItemId(0))
+            suspend fun confirmWidgetTask(cancelFirst: Boolean = false) {
+                val before = repo.notesFlow.first()
+                fun openConfirmation(): android.app.Activity {
+                    val confirmationMonitor = instrumentation.addMonitor(MemoTodoQuickEditActivity::class.java.name, null, false)
+                    val confirming = try {
+                        click(view, WidgetR.id.memo_checkbox, waitMs = 0)
+                        instrumentation.waitForMonitorWithTimeout(confirmationMonitor, 10_000)
+                    } finally { instrumentation.removeMonitor(confirmationMonitor) }
+                    assertNotNull(confirming)
+                    compose.waitUntil(10_000) {
+                        compose.onAllNodesWithTag("memo-complete-confirmation").fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty()
+                    }
+                    compose.onNodeWithTag("memo-quick-editor").assertDoesNotExist()
+                    assertEquals(0, mainMonitor.hits)
+                    return confirming!!
+                }
+                if (cancelFirst) {
+                    val cancelled = openConfirmation()
+                    assertEquals(before, repo.notesFlow.first())
+                    captureActivity(cancelled, "widget-memo-completion-confirmation.png")
+                    compose.onNodeWithTag("memo-complete-cancel").performClick()
+                    compose.waitUntil(10_000) { cancelled.isFinishing || cancelled.isDestroyed }
+                    assertEquals(before, repo.notesFlow.first())
+                }
+                val confirming = openConfirmation()
+                assertEquals(before, repo.notesFlow.first())
+                compose.onNodeWithTag("memo-complete-confirm").performClick()
+                compose.waitUntil(10_000) { confirming.isFinishing || confirming.isDestroyed }
+                refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
             }
+            confirmWidgetTask(cancelFirst = true)
+            assertEquals("- [x] 整理代码\n- [x] 整理实验报告\n- [ ] 提交附件", repo.notesFlow.first().first { it.id == "memo-widget-qa" }.body)
+            assertEquals(0, mainMonitor.hits)
+            capture(view, 330, 230, "widget-memo-completed-item.png")
+            val monitor = instrumentation.addMonitor(MemoTodoQuickEditActivity::class.java.name, null, false)
+            click(view, WidgetR.id.memo_row_edit, waitMs = 0)
             val activity = instrumentation.waitForMonitorWithTimeout(monitor, 10_000)
             assertNotNull(activity)
-            assertEquals("memo-widget-qa", activity!!.intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO))
-            val editorTitle = AppLocale.wrap(context).getString(com.x500x.cursimple.feature.schedule.R.string.memo_editor_edit)
-            compose.waitUntil(30_000) { compose.onAllNodesWithText(editorTitle).fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty() }
-            compose.onNodeWithText(editorTitle).assertIsDisplayed()
-            saveBitmap(compose.onNode(isRoot() and hasAnyDescendant(hasText(editorTitle)))
-                .captureToImage().asAndroidBitmap(), "widget-memo-open-note.png")
-            activity.finishAndWait()
+            compose.waitUntil(30_000) { compose.onAllNodesWithTag("memo-quick-editor").fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty() }
+            assertEquals(0, mainMonitor.hits)
+            assertTrue("Quick edit must stay in a floating window", activity!!.window.decorView.height < context.resources.displayMetrics.heightPixels)
+            captureActivity(activity!!, "widget-memo-quick-editor.png")
+            compose.onNodeWithTag("memo-quick-text").performClick()
+            compose.onNodeWithTag("memo-quick-save").assertIsDisplayed()
+            compose.onNodeWithTag("memo-quick-body-1").performTextReplacement("提交附件和实验截图")
+            compose.onNodeWithTag("memo-quick-more").performClick()
+            compose.onNodeWithText(AppLocale.wrap(context).getString(R.string.memo_quick_priority)).performScrollTo().assertIsDisplayed()
+            captureActivity(activity, "widget-memo-quick-options.png")
+            compose.onNodeWithTag("memo-quick-save").performClick()
+            val localized = AppLocale.wrap(context)
+            compose.onNodeWithText(localized.getString(R.string.memo_quick_confirm_title)).assertIsDisplayed()
+            compose.onNode(hasText(localized.getString(R.string.memo_quick_cancel)) and hasAnyAncestor(isDialog())).performClick()
+            assertFalse(repo.notesFlow.first().first { it.id == "memo-widget-qa" }.body.contains("实验截图"))
+            compose.onNodeWithTag("memo-quick-save").performClick()
+            compose.onNode(hasText(localized.getString(R.string.memo_quick_save)) and hasAnyAncestor(isDialog())).performClick()
+            compose.waitUntil(10_000) { activity.isFinishing || activity.isDestroyed }
+            assertTrue(repo.notesFlow.first().first { it.id == "memo-widget-qa" }.body.contains("- [ ] 提交附件和实验截图"))
+            assertEquals(0, mainMonitor.hits)
+            Thread.sleep(600)
+            capture(view, 330, 230, "widget-memo-after-edit.png")
+            val cancelMonitor = instrumentation.addMonitor(MemoTodoQuickEditActivity::class.java.name, null, false)
+            click(view, WidgetR.id.memo_row_edit, waitMs = 0)
+            val cancelled = instrumentation.waitForMonitorWithTimeout(cancelMonitor, 10_000)
+            assertNotNull(cancelled)
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("memo-quick-editor").fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty() }
+            compose.onNodeWithTag("memo-quick-body-1").performTextReplacement("不应保存的修改")
+            compose.onNodeWithTag("memo-quick-close").performClick()
+            compose.onNodeWithText(localized.getString(R.string.memo_quick_discard_title)).assertIsDisplayed()
+            compose.onNodeWithText(localized.getString(R.string.memo_quick_discard)).performClick()
+            compose.waitUntil(10_000) { cancelled!!.isFinishing || cancelled.isDestroyed }
+            assertFalse(repo.notesFlow.first().first { it.id == "memo-widget-qa" }.body.contains("不应保存"))
+            confirmWidgetTask()
+            assertEquals(3, repo.notesFlow.first().first { it.id == "memo-widget-qa" }.checklist.done)
+            // The remaining plain task uses note completion, not Markdown mutation.
+            confirmWidgetTask()
+            assertTrue(repo.notesFlow.first().first { it.id == "memo-widget-plain" }.completed)
+            assertEquals(0, mainMonitor.hits)
+            capture(view, 330, 230, "widget-memo-all-done.png")
+            // Add from the compact widget and choose a current timetable course.
+            val addMonitor = instrumentation.addMonitor(MemoTodoQuickEditActivity::class.java.name, null, false)
+            click(small, WidgetR.id.memo_add_small, waitMs = 0)
+            val adding = instrumentation.waitForMonitorWithTimeout(addMonitor, 10_000)
+            assertNotNull(adding)
+            compose.waitUntil(10_000) { compose.onAllNodesWithTag("memo-quick-editor").fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty() }
+            compose.onNodeWithTag("memo-quick-course").performClick()
+            val englishKey = com.x500x.cursimple.core.kernel.model.memoCourseKey("大学英语")
+            compose.onNodeWithText("大学英语").performScrollTo().performClick()
+            compose.onNodeWithTag("memo-quick-text").performTextReplacement("桌面新增待办")
+            compose.onNodeWithTag("memo-quick-body").performTextReplacement("周五带上学习资料")
+            compose.onNodeWithTag("memo-quick-body").assertTextContains("周五带上学习资料")
+            captureActivity(adding!!, "widget-memo-add-course.png")
+            compose.onNodeWithTag("memo-quick-save").performClick()
+            compose.onNode(hasText(localized.getString(R.string.memo_quick_save)) and hasAnyAncestor(isDialog())).performClick()
+            compose.waitUntil(10_000) { adding.isFinishing || adding.isDestroyed }
+            val created = repo.notesFlow.first().single { it.title == "桌面新增待办" }
+            assertEquals(englishKey, created.courseKey)
+            assertEquals("大学英语", created.courseTitle)
+            assertEquals("周五带上学习资料", created.body)
+            assertEquals(0, mainMonitor.hits)
+            Thread.sleep(700)
+            capture(view, 330, 230, "widget-memo-added.png")
+            repo.remove(created.id)
+            instrumentation.removeMonitor(monitor)
         } finally {
-            repo.remove("memo-widget-qa")
-            repo.remove("memo-widget-complete")
+            instrumentation.removeMonitor(mainMonitor)
+            val previousIds = previous.map { it.id }.toSet()
+            repo.notesFlow.first().filter { it.id !in previousIds }.forEach { repo.remove(it.id) }
             previous.forEach { repo.upsert(it) }
         }
     }
@@ -184,8 +336,13 @@ class WidgetQaTest {
     @Test fun componentWidgetsOnlyAppearWithComponents() {
         val pm = context.packageManager
         val provider = ComponentName(context, PendingTaskWidgetReceiver::class.java)
-        ComponentWidgetAvailability.update(context, false)
+        ComponentWidgetAvailability.update(context, emptyList())
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, pm.getComponentEnabledSetting(provider))
+        for (slot in 0 until com.x500x.cursimple.feature.widget.ComponentWidgetSlots.COUNT) {
+            com.x500x.cursimple.feature.widget.ComponentWidgetSlots.providers(context, slot).forEach {
+                assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, pm.getComponentEnabledSetting(it))
+            }
+        }
         assertFalse(WidgetCatalog.pickerEntries(context).any { it.fromComponents })
         assertTrue(WidgetCatalog.pickerEntries(context).any { it.id == "calendar" })
         assertFalse(WidgetCatalog.pickerEntries(context).any { it.fromComponents })
@@ -322,6 +479,37 @@ class WidgetQaTest {
         }
     }
 
+    @Test fun overdueEventsExpireLocallyAndCanBeRestored() = runBlocking {
+        val container = (context.applicationContext as ClassScheduleApplication).appContainer
+        container.userPreferencesRepository.setDebugForcedDateTime(null)
+        com.x500x.cursimple.core.kernel.time.BeijingTime.setForcedNow(null)
+        val manager = container.pluginManager
+        val zip = File(context.filesDir, "qa-component.zip")
+        assumeTrue(zip.isFile)
+        val installed = manager.installPackage(zip.readBytes(), com.x500x.cursimple.core.plugin.install.PluginInstallSource.Local)
+        assertTrue(installed.toString(), installed is com.x500x.cursimple.core.plugin.install.PluginInstallResult.Success)
+        val record = (installed as com.x500x.cursimple.core.plugin.install.PluginInstallResult.Success).record
+        container.userPreferencesRepository.setPluginEnabled(record.installKey, true)
+        val due = System.currentTimeMillis() + 8_000L
+        val store = com.x500x.cursimple.feature.plugin.extension.ExtensionStore.get(context)
+        try {
+            store.update(record.pluginId) { it.copy(
+                loginState = com.x500x.cursimple.feature.plugin.extension.ExtensionLoginState.Expired,
+                host = it.host.copy(ignoreOverdue = true, dueReminderHours = 0, addToSchedule = true,
+                    schedule = it.host.schedule.copy(includeCompleted = true)),
+                items = listOf(
+                    com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem("qa-pending", "homework", "Report", kind = "task", dueAt = due),
+                    com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem("qa-complete", "exam", "Exam", kind = "task", dueAt = due, done = true),
+                )) }
+            kotlinx.coroutines.withTimeout(7_000) { container.scheduleEventRepository.eventsFlow.first { events -> events.count { it.source?.componentId == record.pluginId } == 2 } }
+            kotlinx.coroutines.withTimeout(15_000) { container.scheduleEventRepository.eventsFlow.first { events -> events.none { it.source?.componentId == record.pluginId } } }
+            assertEquals(2, store.get(record.pluginId).items.size)
+            container.extensionCoordinator.setItemIgnored(record, "qa-pending", false)
+            kotlinx.coroutines.withTimeout(5_000) { container.scheduleEventRepository.eventsFlow.first { events -> events.count { it.source?.componentId == record.pluginId } == 1 } }
+        } finally { manager.removePlugin(record.installKey) }
+        Unit
+    }
+
     @Test fun componentOwnedWidgetsInstallRenderNavigateAndDisappear() = runBlocking {
         val app = context.applicationContext as ClassScheduleApplication
         val manager = app.appContainer.pluginManager
@@ -336,6 +524,7 @@ class WidgetQaTest {
         val store = com.x500x.cursimple.feature.plugin.extension.ExtensionStore.get(context)
         store.update(record.pluginId) { it.copy(
             loginState = com.x500x.cursimple.feature.plugin.extension.ExtensionLoginState.Expired,
+            notificationTargets = listOf(com.x500x.cursimple.core.data.notification.NotificationTarget("qa-target", "学习群")),
             items = listOf(
                 com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem("widget-task-1", "homework", "整理实验报告", course = "程序设计", dueAt = com.x500x.cursimple.core.kernel.time.BeijingTime.nowMillis(com.x500x.cursimple.core.kernel.time.BeijingTime.zone) + 3_600_000),
                 com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem("widget-task-2", "exam", "章节测验", course = "高等数学"),
@@ -345,13 +534,33 @@ class WidgetQaTest {
             awaitWidgetCondition { com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.read(context).any { it.componentId == record.pluginId } }
             val entry = WidgetCatalog.pickerEntries(context).first { it.componentWidgetKey == "${record.pluginId}/${widgets.first().id}" }
             assertEquals(widgets.first().title, entry.title)
-            awaitProvider(PendingTaskWidgetReceiver::class.java)
+            val slotProvider = Class.forName(entry.provider.className)
+            awaitProvider(slotProvider)
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                // The system picker shows the owner's render, not a host placeholder.
+                val widgetManager = AppWidgetManager.getInstance(context)
+                awaitWidgetCondition(30_000) {
+                    widgetManager.getWidgetPreview(entry.provider, null, android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) != null
+                }
+                val preview = requireNotNull(widgetManager.getWidgetPreview(entry.provider, null, android.appwidget.AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN))
+                instrumentation.runOnMainSync {
+                    val density = context.resources.displayMetrics.density
+                    val w = (330 * density).toInt(); val h = (148 * density).toInt()
+                    val view = preview.apply(context, android.widget.FrameLayout(context))
+                    view.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY))
+                    view.layout(0, 0, w, h)
+                    val image = view.findViewById<android.widget.ImageView>(WidgetR.id.component_widget_image)
+                    assertNotNull("System preview carries no owner render", (image.drawable as? android.graphics.drawable.BitmapDrawable)?.bitmap)
+                    saveBitmap(Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { view.draw(android.graphics.Canvas(it)) }, "widget-system-preview.png")
+                }
+            }
             var last: AppWidgetHostView? = null
             val profile = InstrumentationRegistry.getArguments().getString("widgetQaProfile", "default").replace(Regex("[^A-Za-z0-9_-]"), "_")
             for ((width, height) in listOf(180 to 110, 330 to 148, 330 to 230)) {
-                val (id, view) = bind(PendingTaskWidgetReceiver::class.java, width, height)
-                com.x500x.cursimple.core.data.widget.ComponentWidgetBindings.set(context, id, requireNotNull(entry.componentWidgetKey))
+                // A slot placement binds to its owner without a chooser.
+                val (id, view) = bind(slotProvider, width, height)
                 refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+                assertEquals(entry.componentWidgetKey, com.x500x.cursimple.core.data.widget.ComponentWidgetBindings.get(context, id))
                 capture(view, width, height, "widget-owned-$profile-$width-$height.png")
                 instrumentation.runOnMainSync {
                     assertEquals(View.GONE, view.findViewById<View>(WidgetR.id.component_widget_error).visibility)
@@ -363,6 +572,17 @@ class WidgetQaTest {
                     assertTrue("Owned widget image is blank", colors.size > 8 && colors.any { android.graphics.Color.alpha(it) > 0 })
                 }
                 last = view
+            }
+            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
+                scenario.onActivity { activity -> activity.setContent {
+                    com.x500x.cursimple.app.theme.ClassScheduleTheme(themeMode = ThemeMode.Light) {
+                        WidgetPickerSheet(onDismiss = {}, onShowMessage = {})
+                    }
+                } }
+                val tag = "widget-preview-${entry.componentWidgetKey}"
+                compose.waitUntil(20_000) { compose.onAllNodesWithTag(tag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+                compose.onNodeWithTag(tag, useUnmergedTree = true).performScrollTo().assertIsDisplayed()
+                saveBitmap(compose.onNodeWithTag(tag, useUnmergedTree = true).captureToImage().asAndroidBitmap(), "widget-picker-$profile.png")
             }
             val monitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
             instrumentation.runOnMainSync {
@@ -403,8 +623,12 @@ class WidgetQaTest {
             awaitWidgetCondition { registry.read(context).size == 2 }
             assertEquals(setOf("qa.board", "qa.weather"), registry.read(context).map { it.componentId }.toSet())
             assertFalse(WidgetCatalog.pickerEntries(context).any { it.componentWidgetKey?.startsWith("qa.no-widget/") == true })
-            awaitProvider(PendingTaskWidgetReceiver::class.java)
-            val (id, view) = bind(PendingTaskWidgetReceiver::class.java, 330, 148)
+            // Each declared widget is its own launcher entry.
+            val owned = WidgetCatalog.pickerEntries(context).filter { it.componentWidgetKey != null }
+            assertEquals(2, owned.map { it.provider }.toSet().size)
+            val boardProvider = Class.forName(owned.first { it.componentWidgetKey == "qa.board/surface" }.provider.className)
+            awaitProvider(boardProvider)
+            val (id, view) = bind(boardProvider, 330, 148)
             fun assertColor(hex: String) = instrumentation.runOnMainSync {
                 assertEquals(View.GONE, view.findViewById<View>(WidgetR.id.component_widget_error).visibility)
                 val bitmap = (view.findViewById<android.widget.ImageView>(WidgetR.id.component_widget_image).drawable as android.graphics.drawable.BitmapDrawable).bitmap
@@ -415,39 +639,42 @@ class WidgetQaTest {
             assertColor("#b82b8a")
             capture(view, 330, 148, "widget-independent-board.png")
             val board = installed.first { it.pluginId == "qa.board" }
+            val pm = context.packageManager
+            val boardSlot = ComponentName(context, boardProvider)
+            // Disabling the owner frees its slot, so the system drops its placements and picker entry.
             container.userPreferencesRepository.setPluginEnabled(board.installKey, false)
             awaitWidgetCondition { registry.read(context).none { it.componentId == "qa.board" } }
-            refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
-            instrumentation.runOnMainSync {
-                assertEquals(View.VISIBLE, view.findViewById<View>(WidgetR.id.component_widget_error).visibility)
-                assertEquals(0, view.findViewById<ViewGroup>(WidgetR.id.component_widget_hits).childCount)
-            }
-            assertEquals("qa.board/surface", bindings.get(context, id))
+            awaitWidgetCondition { pm.getComponentEnabledSetting(boardSlot) == PackageManager.COMPONENT_ENABLED_STATE_DISABLED }
+            awaitWidgetCondition { AppWidgetManager.getInstance(context).getAppWidgetInfo(id) == null }
+            assertFalse(WidgetCatalog.pickerEntries(context).any { it.componentWidgetKey == "qa.board/surface" })
+            // Re-enabling reclaims the same slot.
             container.userPreferencesRepository.setPluginEnabled(board.installKey, true)
-            awaitWidgetCondition { registry.read(context).any { it.componentId == "qa.board" } }
-            refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
-            assertColor("#b82b8a")
-            bindings.set(context, id, "qa.weather/surface")
-            refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
-            assertColor("#0b7357")
-            capture(view, 330, 148, "widget-independent-weather.png")
+            awaitWidgetCondition { WidgetCatalog.pickerEntries(context).any { it.componentWidgetKey == "qa.board/surface" && it.provider == boardSlot } }
+            val weatherProvider = Class.forName(WidgetCatalog.pickerEntries(context).first { it.componentWidgetKey == "qa.weather/surface" }.provider.className)
+            val (weatherId, weatherView) = bind(weatherProvider, 330, 148)
+            refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(weatherId)) }
+            assertEquals("qa.weather/surface", bindings.get(context, weatherId))
+            fun assertWeather(hex: String) = instrumentation.runOnMainSync {
+                val bitmap = (weatherView.findViewById<android.widget.ImageView>(WidgetR.id.component_widget_image).drawable as android.graphics.drawable.BitmapDrawable).bitmap
+                assertEquals("Pixels came from the wrong owner", android.graphics.Color.parseColor(hex), bitmap.getPixel(bitmap.width / 2, bitmap.height / 2))
+            }
+            assertWeather("#0b7357")
+            capture(weatherView, 330, 148, "widget-independent-weather.png")
             install("qa.weather", "#152aba", version = 2)
             awaitWidgetCondition { registry.read(context).any { it.componentId == "qa.weather" && it.revision == installed.last().packageRevision } }
-            refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
-            assertColor("#152aba")
+            refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(weatherId)) }
+            assertWeather("#152aba")
             install("qa.weather", "#152aba", hasWidget = false, version = 3)
             awaitWidgetCondition { registry.read(context).none { it.componentId == "qa.weather" } }
-            refresh { com.x500x.cursimple.feature.widget.ComponentWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
-            instrumentation.runOnMainSync { assertEquals(View.VISIBLE, view.findViewById<View>(WidgetR.id.component_widget_error).visibility) }
-            assertEquals("qa.weather/surface", bindings.get(context, id))
+            awaitWidgetCondition { AppWidgetManager.getInstance(context).getAppWidgetInfo(weatherId) == null }
         } finally {
             installed.forEach { manager.removePlugin(it.installKey) }
             awaitWidgetCondition { registry.read(context).isEmpty() }
         }
     }
 
-    private fun awaitWidgetCondition(condition: () -> Boolean) {
-        val until = android.os.SystemClock.uptimeMillis() + 10_000
+    private fun awaitWidgetCondition(timeoutMillis: Long = 10_000, condition: () -> Boolean) {
+        val until = android.os.SystemClock.uptimeMillis() + timeoutMillis
         while (!condition() && android.os.SystemClock.uptimeMillis() < until) Thread.sleep(100)
         assertTrue("Widget lifecycle did not settle", condition())
     }
@@ -557,6 +784,9 @@ class WidgetQaTest {
 
     /** Capture only the test window without competing for UiAutomation. */
     private fun captureActivity(activity: Activity, name: String) {
+        compose.waitForIdle()
+        instrumentation.waitForIdleSync()
+        Thread.sleep(350)
         val ready = java.util.concurrent.CountDownLatch(1)
         var result = android.view.PixelCopy.ERROR_UNKNOWN
         lateinit var bitmap: Bitmap
@@ -567,8 +797,11 @@ class WidgetQaTest {
                 android.os.Handler(android.os.Looper.getMainLooper()))
         }
         assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS))
-        assertEquals(android.view.PixelCopy.SUCCESS, result)
-        saveBitmap(bitmap, name)
+        if (result == android.view.PixelCopy.SUCCESS) saveBitmap(bitmap, name)
+        else {
+            bitmap.recycle()
+            saveBitmap(compose.onNode(isRoot()).captureToImage().asAndroidBitmap(), name)
+        }
     }
 
     private fun Activity.finishAndWait() {
@@ -602,6 +835,9 @@ class WidgetQaTest {
         preferences.setAlarmKeepAliveEnabled(false)
         preferences.setClassNoticeEnabled(false)
         preferences.setThemeMode(if (InstrumentationRegistry.getArguments().getString("widgetQaTheme") == "dark") ThemeMode.Dark else ThemeMode.Light)
+        com.x500x.cursimple.core.data.ThemeAccent.entries.firstOrNull {
+            it.name == InstrumentationRegistry.getArguments().getString("widgetQaAccent")
+        }?.let { preferences.setThemeAccent(it) }
         preferences.setDebugForcedDateTime(LocalDateTime.of(2026, 9, 15, 10, 0))
         preferences.resetScheduleAppearanceAndDisplay()
         preferences.setHolidayCalendarBuiltInEnabled(false)
@@ -623,7 +859,7 @@ class WidgetQaTest {
             course("qa-w-sport", "体育", 1, 7, 8, "体育馆"),
             course("qa-w-algebra", "线性代数", 2, 1, 2, "A203"),
             course("qa-w-program", "程序设计", 2, 5, 5, "机房 3"),
-            course("qa-w-lab", "物理实验", 2, 5, 7, "实验楼"),
+            course("qa-w-lab", "物理实验", 2, 5, 7, "").copy(teacher = "李老师", weekLocations = mapOf(2 to "实验楼 204", 3 to "实验楼 305")),
             course("qa-w-history", "近代史纲要", 3, 3, 4, "C301"),
             course("qa-w-math-thu", "高等数学", 4, 3, 4, "A101"),
             course("qa-w-circuit", "电路分析", 4, 7, 9, "D105"),

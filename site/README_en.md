@@ -4,6 +4,12 @@
 
 The static site is deployed from `site/` by `.github/workflows/pages.yml`, independently of Android builds.
 
+## Plugin and component entry points
+
+The market section and footer link to the plugin and component catalogs. The Components section describes YuKeTang notices and multi-platform notifications and links to their repositories and Releases. The component registry is `cursimple/cursimple-components`, with its site at `https://cursimple.github.io/cursimple-components/`; initial Pages enablement and deployment belong to that repository's workflow.
+
+Compatibility and platform capabilities follow component documentation. Avoid hard-coding a particular local ZIP version, and update all three languages for new copy.
+
 ## Languages
 
 Support `zh-CN`, `zh-TW` and `en` with identical semantic dictionary keys in `i18n.js`. Language selection takes effect immediately and is stored in the browser. Initial selection defaults to Simplified Chinese, regardless of browser language. A `?lang=` link overrides saved preference and can include an anchor such as `#download`.

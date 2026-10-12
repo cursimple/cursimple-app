@@ -32,6 +32,7 @@ import java.security.MessageDigest
 class AppUpdateChecker(
     downloaderLabels: MirrorDownloaderLabels,
     private val repository: String = DEFAULT_REPOSITORY,
+    private val notesLanguageTag: String = "zh-CN",
     private val mirrorPool: DownloadMirrorPool = DownloadMirrorPool(),
     private val mirrorStore: MirrorPreferenceStore? = null,
     private val downloader: MirrorDownloader = MirrorDownloader(
@@ -71,7 +72,9 @@ class AppUpdateChecker(
             is AppUpdateCheckResult.Rollback -> result.info
             else -> return result
         }
-        val notes = info.releaseNotes.ifBlank { releaseNotesFromRepo(tagName).orEmpty() }
+        val notes = if (releaseNotesLanguage(notesLanguageTag) != "zh-CN" || info.releaseNotes.isBlank()) {
+            releaseNotesFromRepo(tagName) ?: info.releaseNotes
+        } else info.releaseNotes
         val withNotes = info.copy(releaseNotes = notes)
         return if (result is AppUpdateCheckResult.Rollback) {
             AppUpdateCheckResult.Rollback(withNotes)
@@ -119,7 +122,17 @@ class AppUpdateChecker(
                 ?: return@runCatching AppUpdateCheckResult.ManifestMissing
 
             val manifest = JSONObject(downloadUpdateManifest(manifestUrl, tagName))
-            evaluateManifest(manifest, tagName, htmlUrl, releaseBody, includePrerelease)
+            val result = evaluateManifest(manifest, tagName, htmlUrl, releaseBody, includePrerelease)
+            val info = when (result) {
+                is AppUpdateCheckResult.Available -> result.info
+                is AppUpdateCheckResult.Rollback -> result.info
+                else -> return@runCatching result
+            }
+            val notes = if (releaseNotesLanguage(notesLanguageTag) != "zh-CN" || info.releaseNotes.isBlank()) {
+                releaseNotesFromRepo(tagName) ?: info.releaseNotes
+            } else info.releaseNotes
+            if (result is AppUpdateCheckResult.Rollback) AppUpdateCheckResult.Rollback(info.copy(releaseNotes = notes))
+            else AppUpdateCheckResult.Available(info.copy(releaseNotes = notes))
         }.getOrElse { error ->
             AppUpdateCheckResult.Failure(UpdateStatusReason.CheckError(describeUpdateError(error)))
         }
@@ -256,9 +269,9 @@ class AppUpdateChecker(
     }
 
     /** Fetch immutable tag-specific notes through repository CDNs; return null on failure. */
-    private suspend fun releaseNotesFromRepo(tagName: String): String? {
+    private suspend fun releaseNotesFromRepo(tagName: String, language: String = notesLanguageTag): String? {
         if (tagName.isBlank()) return null
-        val path = "docs/release-notes/$tagName.md"
+        for (path in localizedReleasePaths(tagName, language)) {
         val result = downloader.downloadText(
             request = DownloadRequest(
                 purpose = DownloadPurpose.GithubRepoFile,
@@ -270,7 +283,9 @@ class AppUpdateChecker(
             accept = "text/plain",
             validate = { require(it.trimStart().startsWith("#")) },
         )
-        return (result as? MirrorDownloadResult.Success)?.value?.trim()?.takeIf { it.isNotBlank() }
+        (result as? MirrorDownloadResult.Success)?.value?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        }
+        return null
     }
 
     /** Release history follows [includePrerelease], matching the user's update channel. */
@@ -287,8 +302,8 @@ class AppUpdateChecker(
             }.getOrNull()
         }
 
-    suspend fun releaseNotes(tagName: String): String? = withContext(Dispatchers.IO) {
-        releaseNotesFromRepo(tagName)?.let { return@withContext it }
+    suspend fun releaseNotes(tagName: String, language: String = notesLanguageTag): String? = withContext(Dispatchers.IO) {
+        releaseNotesFromRepo(tagName, language)?.let { return@withContext it }
         runCatching {
             val selection = selectReleaseSource(
                 "https://api.github.com/repos/$repository/releases/tags/$tagName",

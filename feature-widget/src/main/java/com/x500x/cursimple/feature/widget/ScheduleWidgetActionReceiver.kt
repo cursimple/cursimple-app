@@ -4,8 +4,6 @@ import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import androidx.glance.action.Action
-import androidx.glance.appwidget.action.actionSendBroadcast
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -110,13 +108,5 @@ class ScheduleWidgetActionReceiver : BroadcastReceiver() {
         const val EXTRA_ACTION = "schedule_widget_action"
         const val EXTRA_CURRENT_OFFSET = "schedule_widget_current_offset"
         const val EXTRA_RENDERED_DATE = "schedule_widget_rendered_date"
-
-        fun action(context: Context, action: String): Action {
-            val intent = Intent(context, ScheduleWidgetActionReceiver::class.java).apply {
-                setPackage(context.packageName)
-                putExtra(EXTRA_ACTION, action)
-            }
-            return actionSendBroadcast(intent)
-        }
     }
 }

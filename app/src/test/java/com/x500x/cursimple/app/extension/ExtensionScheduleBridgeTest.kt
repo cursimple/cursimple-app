@@ -33,7 +33,7 @@ class ExtensionScheduleBridgeTest {
         val types = listOf(com.x500x.cursimple.core.plugin.manifest.PluginFeedTypeSpec("announcement", "公告", "#D97706"))
         val event = ExtensionScheduleBridge.desiredEvents("yuketang-notice", data, ms("2026-10-01T12:00"), zone, types).single()
         assertEquals("2026-09-28", event.date)
-        assertEquals("09:00", event.startTime)
+        assertEquals("16:00", event.startTime)
         assertEquals("公告：调课通知", event.title)
         assertEquals(0xFFD97706L, event.colorArgb)
         assertEquals(item.content, event.note)

@@ -21,6 +21,15 @@ class ScheduleTimelineTest {
 
     private fun ev(start: String, end: String) = MinuteRange(m(start), m(end))
 
+    @Test fun eveningNoticeOutsideCoursesGetsItsOwnRow() {
+        val timeline = GridTimeline.build(day, listOf(ev("18:49", "19:19")))
+        val row = timeline.rows.filterIsInstance<TimelineRow.Gap>().single()
+        assertEquals(m("18:49"), row.startMinute)
+        assertEquals(m("19:19"), row.endMinute)
+        assertTrue(row.top >= timeline.slotTop(day.lastIndex) + 1f)
+        assertEquals(row.top, timeline.yOf(m("18:49")), 0.001f)
+    }
+
     @Test
     fun noEvents_isTheOriginalGrid() {
         val t = GridTimeline.build(day, emptyList())

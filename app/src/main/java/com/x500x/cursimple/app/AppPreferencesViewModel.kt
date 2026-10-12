@@ -251,6 +251,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setCourseDragEnabled(enabled) }
     }
 
+    fun setCourseSessionCountIncludeHolidays(include: Boolean) {
+        viewModelScope.launch { repository.setCourseSessionCountIncludeHolidays(include) }
+    }
+
     fun setSchedulePinchZoomEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setSchedulePinchZoomEnabled(enabled) }
     }

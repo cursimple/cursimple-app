@@ -54,7 +54,7 @@ internal fun acceptComponentLogin(data: ExtensionData, result: JsonObject): Exte
     val account = (result["account"] as? JsonObject)?.let { extensionJson.decodeFromJsonElement(ExtensionAccount.serializer(), it) }
     val changed = account != null && account.id != data.account?.id
     return data.copy(
-        sessionRevision = data.sessionRevision + 1,
+        sessionRevision = if (data.loggedIn && !changed) data.sessionRevision else data.sessionRevision + 1,
         loginState = ExtensionLoginState.LoggedIn,
         account = account ?: data.account,
         items = if (changed) emptyList() else data.items,
@@ -68,6 +68,26 @@ internal fun acceptComponentLogin(data: ExtensionData, result: JsonObject): Exte
         lastMessage = if (changed) null else data.lastMessage,
         expiredNotified = false, lastError = null,
     )
+}
+
+/** Duplicate confirmation of the same account may finish after its first successful commit. */
+internal fun commitComponentLogin(
+    before: ExtensionData,
+    current: ExtensionData,
+    result: JsonObject,
+    expectedAccountId: String? = null,
+): ExtensionData? {
+    require((result["loggedIn"] as? JsonPrimitive)?.booleanOrNull == true) { "登录状态尚未确认" }
+    val verified = (result["account"] as? JsonObject)?.let {
+        extensionJson.decodeFromJsonElement(ExtensionAccount.serializer(), it)
+    }
+    require(expectedAccountId.isNullOrBlank() || verified?.id == expectedAccountId) { "登录账号与本次确认不一致，请重新登录" }
+    if (current.sessionRevision == before.sessionRevision) return acceptComponentLogin(current, result)
+    // Logout, a site change and account replacement must still invalidate an old result.
+    return current.takeIf {
+        current.loggedIn && current.sessionRevision == before.sessionRevision + 1 &&
+            !verified?.id.isNullOrBlank() && current.account?.id == verified?.id && current.settings == before.settings
+    }
 }
 
 internal fun loggedOutComponent(data: ExtensionData): ExtensionData = data.copy(

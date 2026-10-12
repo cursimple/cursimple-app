@@ -10,6 +10,29 @@ class ExtensionItemActionsTest {
     private val task = ExtensionFeedItem("task-1", title = "Report", kind = "task", dueAt = 100L)
     private val notice = ExtensionFeedItem("notice-1", title = "Notice", kind = "notice")
 
+    @Test fun `completed expired tasks are hidden consistently and explicit restores survive`() {
+        val completed = task.copy(id = "completed", done = true)
+        val future = task.copy(id = "future", dueAt = 300L)
+        val unknown = task.copy(id = "unknown", dueAt = null, startAt = 100L)
+        val data = ExtensionData("component", host = ExtensionHostSettings(ignoreOverdue = true,
+            addToSchedule = true, schedule = ExtensionScheduleSettings(includeCompleted = true)), items = listOf(completed, task, future, unknown, notice))
+        assertTrue(data.isIgnored(completed, 200L))
+        assertFalse(data.isIgnored(unknown, 200L))
+        val feed = extensionFeedItems(data, 200L, java.time.ZoneOffset.UTC)
+        assertEquals(setOf("future", "unknown", "notice-1"), feed.map { it.id }.toSet())
+        assertFalse(extensionScheduleItems(data, 200L, java.time.ZoneOffset.UTC).any { it.first.id == "completed" || it.first.id == task.id })
+        assertFalse(data.withItemIgnored(completed.id, false).isIgnored(completed, 200L))
+    }
+
+    @Test fun `expiry boundary includes completed tasks and expired sessions but not restored items`() {
+        val data = ExtensionData("component", loginState = ExtensionLoginState.Expired,
+            host = ExtensionHostSettings(ignoreOverdue = true), items = listOf(task.copy(done = true)))
+        assertEquals(100L, nextIgnoredDeadline(listOf(data), 99L))
+        assertNull(nextIgnoredDeadline(listOf(data), 100L))
+        assertNull(nextIgnoredDeadline(listOf(data.withItemIgnored(task.id, false)), 99L))
+        assertNull(nextIgnoredDeadline(listOf(data.copy(loginState = ExtensionLoginState.LoggedOut)), 99L))
+    }
+
     @Test fun `automatic overdue ignoring defaults off and restores survive later checks`() {
         val data = ExtensionData("component", items = listOf(task, notice))
         assertFalse(data.isIgnored(task, 200L))

@@ -40,7 +40,7 @@
               * a vendor-aware receiver that also responds to miui.appwidget.action.APPWIDGET_UPDATE
                 and carries miui/vivo/HONOR meta-data so those launchers list us in their
                 widget pickers (where the standard pinAppWidget API is often blocked).
-            Both run in the main process so Glance's DataStore-backed state stays consistent.
+            Both use the main process and share the same persisted widget preferences.
         -->
 
         <!-- Daily schedule -->
@@ -211,12 +211,11 @@
                 android:resource="@string/calendar_widget_description" />
         </receiver>
 
-        <!-- Pending tasks from components: a component widget, enabled only while a component is installed -->
+        <!-- Legacy shared component provider: hidden from pickers, kept only for existing placements -->
         <receiver
             android:name=".PendingTaskWidgetReceiver"
             android:enabled="false"
             android:exported="true"
-            android:icon="@drawable/widget_preview_tasks"
             android:label="@string/widget_label_tasks">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -231,7 +230,6 @@
             android:name=".PendingTaskWidgetReceiverMIUI"
             android:enabled="false"
             android:exported="true"
-            android:icon="@drawable/widget_preview_tasks"
             android:label="@string/widget_label_tasks">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -250,9 +248,6 @@
             <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
             <meta-data android:name="vivo_widget" android:value="true" />
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
-            <meta-data
-                android:name="vivo.widget.description"
-                android:resource="@string/tasks_widget_description" />
         </receiver>
 
         <receiver android:name=".MemoTodoWidgetReceiver" android:exported="true"
@@ -278,17 +273,219 @@
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
             <meta-data android:name="vivo.widget.description" android:resource="@string/widget_catalog_memo_description" />
         </receiver>
-        <service android:name=".MemoTodoRemoteViewsService" android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <receiver android:name=".MemoTodoActionReceiver" android:exported="false" />
 
         <receiver
             android:name=".CalendarWidgetActionReceiver"
             android:exported="false" />
 
 
-        <activity android:name=".ComponentWidgetConfigureActivity" android:exported="true">
-            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" /></intent-filter>
-        </activity>
+
+        <!-- Component widget slots: one launcher entry per component-declared widget, enabled only while assigned -->
+        <receiver
+            android:name=".ComponentWidgetSlot0Receiver"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot0ReceiverMIUI"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot1Receiver"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot1ReceiverMIUI"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot2Receiver"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot2ReceiverMIUI"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot3Receiver"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot3ReceiverMIUI"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot4Receiver"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot4ReceiverMIUI"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot5Receiver"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+        </receiver>
+        <receiver
+            android:name=".ComponentWidgetSlot5ReceiverMIUI"
+            android:enabled="false"
+            android:exported="true"
+            android:label="@string/component_widget_slot_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="miui.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.vivo.widget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.huawei.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.hihonor.android.launcher.action.APPWIDGET_UPDATE" />
+                <action android:name="com.oppo.launcher.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/component_widget_slot_info" />
+            <meta-data android:name="miuiWidget" android:value="true" />
+            <meta-data android:name="miuiWidgetRefresh" android:value="exposure" />
+            <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
+            <meta-data android:name="vivo_widget" android:value="true" />
+            <meta-data android:name="vivoWidgetVersion" android:value="1" />
+        </receiver>
     </application>
 
 </manifest>

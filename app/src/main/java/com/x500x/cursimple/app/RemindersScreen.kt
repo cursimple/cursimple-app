@@ -1,7 +1,9 @@
 package com.x500x.cursimple.app
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,12 +27,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -66,7 +72,8 @@ internal fun RemindersScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 18.dp, vertical = 12.dp),
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp)
+                .selectableGroup(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             RemindersTab.entries.forEach { tab ->
@@ -85,14 +92,9 @@ internal fun RemindersScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 18.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                 ) {
-                    Text(
-                        text = stringResource(R.string.reminders_notice_tab_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                     ClassNoticeSettingsSection(
                         preferences = classNotice,
                         onEnabledChange = onClassNoticeEnabledChange,
@@ -107,7 +109,7 @@ internal fun RemindersScreen(
                         onBlurStrengthChange = onClassNoticeBlurStrengthChange,
                         onBannerDurationChange = onClassNoticeBannerDurationChange,
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -119,6 +121,7 @@ private enum class RemindersTab(val labelRes: Int, val icon: ImageVector) {
     Notice(R.string.reminders_tab_notice, Icons.Rounded.NotificationsActive),
 }
 
+/** Segmented tab: 48dp pill whose container is the selectable target. */
 @Composable
 private fun RemindersTabChip(
     tab: RemindersTab,
@@ -136,15 +139,18 @@ private fun RemindersTabChip(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val shape = RoundedCornerShape(50)
     Surface(
         modifier = modifier
-            .height(42.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .selectable(selected = selected, role = Role.Tab, onClick = onClick),
+        shape = shape,
         color = containerColor,
+        border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
@@ -152,14 +158,14 @@ private fun RemindersTabChip(
                 imageVector = tab.icon,
                 contentDescription = null,
                 tint = contentColor,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(20.dp),
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
+            AppAtomicText(
                 text = stringResource(tab.labelRes),
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = contentColor,
-                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f, fill = false),
             )
         }
     }

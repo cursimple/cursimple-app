@@ -41,7 +41,7 @@ class WidgetProviderMetadataTest {
     @Test
     fun `previews are bitmaps so vendor pickers can render them`() {
         // Use bitmap previews because some launchers reject vector previewImage resources.
-        listOf("today", "next", "reminder", "calendar", "tasks").forEach { id ->
+        listOf("today", "next", "reminder", "calendar").forEach { id ->
             assertTrue(
                 "widget_preview_$id 必须是位图",
                 resCandidates("drawable-nodpi/widget_preview_$id.png").any(Files::isRegularFile),
@@ -67,9 +67,23 @@ class WidgetProviderMetadataTest {
         // Component task providers stay hidden without an installed enabled extension.
         assertFalse(enabled.getValue(".PendingTaskWidgetReceiver"))
         assertFalse(enabled.getValue(".PendingTaskWidgetReceiverMIUI"))
+        // Slots appear only once a component widget is assigned to them.
+        (0 until ComponentWidgetSlots.COUNT).forEach { slot ->
+            assertFalse(enabled.getValue(".ComponentWidgetSlot${slot}Receiver"))
+            assertFalse(enabled.getValue(".ComponentWidgetSlot${slot}ReceiverMIUI"))
+        }
         // Course calendars depend only on app-owned timetable and event data.
         assertTrue(enabled.getValue(".CalendarWidgetReceiver"))
         assertTrue(enabled.getValue(".ScheduleGlanceWidgetReceiver"))
+    }
+
+    @Test
+    fun `component slots ship no host placeholder or chooser`() {
+        val slot = providerXml("component_widget_slot_info.xml")
+        assertEquals("", slot.androidAttribute("configure"))
+        assertEquals("", slot.androidAttribute("previewImage"))
+        assertEquals("", slot.androidAttribute("previewLayout"))
+        assertEquals("hide_from_picker", providerXml("tasks_widget_info.xml").androidAttribute("widgetFeatures"))
     }
 
     private fun resCandidates(relative: String): Sequence<Path> {

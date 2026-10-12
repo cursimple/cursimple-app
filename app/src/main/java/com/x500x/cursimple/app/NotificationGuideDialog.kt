@@ -39,7 +39,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.app.notice.ClassNoticeOverlay
-import com.x500x.cursimple.app.notice.SelfDrawnNotice
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
 import com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents
@@ -203,9 +202,8 @@ internal fun buildNotificationGuideSteps(
                 },
             ),
         )
-        // Overlay-only devices and overlay skins require draw-over-apps permission.
-        if (preferences.skin == ClassNoticeSkin.Overlay ||
-            (preferences.headsUpEnabled && SelfDrawnNotice.only())
+        // Only an explicitly selected overlay requires draw-over-apps permission.
+        if (preferences.skin == ClassNoticeSkin.Overlay
         ) {
             add(
                 NotificationGuideStep(

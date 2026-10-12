@@ -378,8 +378,8 @@ internal fun buildExtensionScript(request: ExtensionRunRequest, token: String, u
     notifications: Object.freeze(CONFIG.notifications || []),
     notification: Object.freeze({ session: function(targetId,value) {
       need("storage.secure"); return nativeRequest("notification.session", {targetId:targetId,value:value});
-    }, receipt: function(messageId,targetId,status,error) {
-      need("notification.receive"); return nativeRequest("notification.receipt", {messageId:messageId,targetId:targetId,status:status,error:error||""});
+    }, receipt: function(messageId,targetId,status,error,retryAt) {
+      need("notification.receive"); return nativeRequest("notification.receipt", {messageId:messageId,targetId:targetId,status:status,error:error||"",retryAt:retryAt||0});
     }}),
     secureSessions: Object.freeze(CONFIG.secureSessions || {}),
     mail: Object.freeze({ send: function(payload) { need("network.proxy"); return nativeRequest("mail.send",payload); } }),

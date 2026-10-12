@@ -10,7 +10,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -103,55 +108,57 @@ internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
 
     if (!state.visible) return
 
+    fun openPermission(permission: AlarmPermission) {
+        if (
+            permission == AlarmPermission.Notifications &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        ) {
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            val opened = launchFirstAvailableSetting(
+                context,
+                AlarmSettingsIntents.forPermission(context, permission),
+            )
+            if (!opened) {
+                showOpenSettingsFailedToast(context)
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = { state.dismiss() },
         title = { Text(stringResource(R.string.schedule_alarm_permission_gate_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text(
                     text = stringResource(R.string.schedule_alarm_permission_gate_body),
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                state.missing.forEach { permission ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(permission.titleRes()),
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Text(
-                                text = stringResource(permission.reasonRes()),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        AppOutlinedButton(
-                            onClick = {
-                                if (
-                                    permission == AlarmPermission.Notifications &&
-                                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-                                ) {
-                                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                                } else {
-                                    val opened = launchFirstAvailableSetting(
-                                        context,
-                                        AlarmSettingsIntents.forPermission(context, permission),
-                                    )
-                                    if (!opened) {
-                                        showOpenSettingsFailedToast(context)
-                                    }
-                                }
-                            },
-                        ) { Text(stringResource(R.string.schedule_alarm_permission_gate_grant)) }
+                // Required access first; reliability-only access is labelled as recommended.
+                val required = state.missing.filter { it in AlarmPermission.blocking }
+                val recommended = state.missing - required.toSet()
+                required.forEach { permission ->
+                    PermissionRow(permission) { openPermission(permission) }
+                }
+                if (recommended.isNotEmpty()) {
+                    Text(
+                        text = stringResource(R.string.schedule_alarm_permission_gate_recommended),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    recommended.forEach { permission ->
+                        PermissionRow(permission) { openPermission(permission) }
                     }
                 }
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = { state.refresh(context) }) {
+            Button(onClick = { state.refresh(context) }) {
                 Text(stringResource(R.string.schedule_alarm_permission_gate_recheck))
             }
         },
@@ -161,6 +168,31 @@ internal fun AlarmPermissionGateHost(state: AlarmPermissionGateState) {
             }
         },
     )
+}
+
+@Composable
+private fun PermissionRow(permission: AlarmPermission, onGrant: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = stringResource(permission.titleRes()),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = stringResource(permission.reasonRes()),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AppOutlinedButton(onClick = onGrant) {
+            Text(stringResource(R.string.schedule_alarm_permission_gate_grant))
+        }
+    }
 }
 
 private fun showOpenSettingsFailedToast(context: Context) {

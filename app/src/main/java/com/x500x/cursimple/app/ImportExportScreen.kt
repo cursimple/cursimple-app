@@ -2,7 +2,8 @@
 
 package com.x500x.cursimple.app
 
-import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.content.pm.PackageManager
@@ -14,48 +15,40 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.CalendarMonth
-import androidx.compose.material.icons.rounded.ChevronLeft
-import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
-import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ImageSearch
-import androidx.compose.material.icons.rounded.PhotoLibrary
-import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.automirrored.rounded.TextSnippet
+import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.QrCodeScanner
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -69,18 +62,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
-import com.x500x.cursimple.app.util.QrCodeCodec
-import com.x500x.cursimple.app.util.QrScannerView
+import com.x500x.cursimple.feature.schedule.sharing.QrCodeCodec
+import com.x500x.cursimple.app.util.launchScheduleShare
 import com.x500x.cursimple.app.util.ScheduleShareCodec
 import com.x500x.cursimple.app.util.ScheduleSharePayload
 import com.x500x.cursimple.app.ai.AiImportConfig
@@ -139,6 +136,7 @@ fun ImportExportScreen(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
+    val localeTags = LocalConfiguration.current.locales.toLanguageTags()
     val scope = rememberCoroutineScope()
 
     var qrBitmap by remember { mutableStateOf<Bitmap?>(null) }
@@ -146,12 +144,18 @@ fun ImportExportScreen(
     var pendingImport by remember { mutableStateOf<ScheduleSharePayload?>(null) }
     var importing by remember { mutableStateOf(false) }
     var showScanner by remember { mutableStateOf(false) }
-    var webDavBusy by remember { mutableStateOf(false) }
+    var webDavTask by remember { mutableStateOf<WebDavTask?>(null) }
+    val webDavBusy = webDavTask != null
     var remoteBackups by remember { mutableStateOf<List<WebDavBackupFile>>(emptyList()) }
+    var backupsLoaded by remember { mutableStateOf(false) }
+    var showImageDialog by rememberSaveable { mutableStateOf(false) }
+    var showCalendarDialog by rememberSaveable { mutableStateOf(false) }
     var pendingRestore by remember { mutableStateOf<WebDavBackupFile?>(null) }
     var aiBusy by remember { mutableStateOf(false) }
     var icsBusy by remember { mutableStateOf(false) }
-    var imageBusy by remember { mutableStateOf(false) }
+    var qrBusy by remember { mutableStateOf(false) }
+    var showTextShare by rememberSaveable { mutableStateOf(false) }
+    var showTextImport by rememberSaveable { mutableStateOf(false) }
     val maxImageWeek = remember(schedule, manualCourses) {
         ScheduleImageLayout.maxWeekNumber(schedule, manualCourses)
     }
@@ -225,46 +229,6 @@ fun ImportExportScreen(
             ).show()
             runCatching {
                 val chooser = android.content.Intent.createChooser(intent, context.getString(R.string.ie_ics_chooser_title)).apply {
-                    clipData = intent.clipData
-                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(chooser)
-            }.onFailure {
-                Toast.makeText(context, context.getString(R.string.ie_share_launch_failed, it.message), Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-
-    fun exportScheduleImage() {
-        if (imageBusy) return
-        imageBusy = true
-        scope.launch {
-            val outcome = ScheduleImageExporter.export(
-                context = context,
-                termName = termName,
-                termStartDate = termStartDate,
-                weekNumber = imageWeek,
-                schedule = schedule,
-                manualCourses = manualCourses,
-                timingProfile = timingProfile,
-                overrides = temporaryScheduleOverrides,
-                holidayCalendar = holidayCalendar,
-                weekStartDay = weekStartDay,
-                allWeeks = imageAllWeeks,
-            )
-            imageBusy = false
-            val intent = outcome.intent
-            if (intent == null) {
-                Toast.makeText(
-                    context,
-                    outcome.failureReason ?: context.getString(R.string.ie_export_failed_retry),
-                    Toast.LENGTH_LONG,
-                ).show()
-                return@launch
-            }
-            runCatching {
-                val chooser = android.content.Intent.createChooser(intent, context.getString(R.string.ie_image_chooser_title)).apply {
                     clipData = intent.clipData
                     addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -368,7 +332,7 @@ fun ImportExportScreen(
     }
 
     fun restoreRemoteBackup(backup: WebDavBackupFile) {
-        webDavBusy = true
+        webDavTask = WebDavTask.Restore
         scope.launch {
             withContext(Dispatchers.IO) {
                 runCatching {
@@ -402,7 +366,7 @@ fun ImportExportScreen(
                     Toast.LENGTH_SHORT,
                 ).show()
             }
-            webDavBusy = false
+            webDavTask = null
             pendingRestore = null
         }
     }
@@ -452,19 +416,110 @@ fun ImportExportScreen(
 
     val canExport = schedule != null || manualCourses.isNotEmpty()
 
+    fun uploadBackup() {
+        if (!webDavConfig.isComplete) {
+            onOpenWebDavSettings()
+            return
+        }
+        val fileName = "cursimple-backup-${DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now())}${AppBackupPayload.FILE_EXTENSION}"
+        webDavTask = WebDavTask.Upload
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val payload = onCreateAppBackup()
+                    val encoded = appBackupJson.encodeToString(AppBackupPayload.serializer(), payload)
+                        .toByteArray(Charsets.UTF_8)
+                    webDavClient.uploadBackup(webDavConfig, fileName, encoded)
+                }
+            }.onSuccess {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.ie_webdav_upload_success, it.name),
+                    Toast.LENGTH_SHORT,
+                ).show()
+                if (backupsLoaded) {
+                    remoteBackups = withContext(Dispatchers.IO) {
+                        runCatching { webDavClient.listBackups(webDavConfig) }.getOrDefault(remoteBackups)
+                    }
+                }
+            }.onFailure {
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.ie_upload_failed,
+                        context.webDavErrorText(it)
+                            ?: it.message
+                            ?: context.getString(R.string.ie_unknown_error),
+                    ),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            webDavTask = null
+        }
+    }
+
+    fun refreshBackups() {
+        if (!webDavConfig.isComplete) {
+            onOpenWebDavSettings()
+            return
+        }
+        webDavTask = WebDavTask.List
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { webDavClient.listBackups(webDavConfig) }
+            }.onSuccess {
+                remoteBackups = it
+                backupsLoaded = true
+                if (it.isEmpty()) {
+                    Toast.makeText(
+                        context,
+                        context.resources.getQuantityString(R.plurals.ie_backups_found, 0, 0),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }.onFailure {
+                Toast.makeText(
+                    context,
+                    context.getString(
+                        R.string.ie_list_backups_failed,
+                        context.webDavErrorText(it)
+                            ?: it.message
+                            ?: context.getString(R.string.ie_unknown_error),
+                    ),
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+            webDavTask = null
+        }
+    }
+
+    val sharePayload = remember(termName, termStartDate, schedule, manualCourses) {
+        ScheduleSharePayload(termName = termName, termStartDate = termStartDate?.toString(),
+            schedule = schedule, manualCourses = manualCourses)
+    }
+    fun generateQr() {
+        if (qrBusy) return
+        qrBusy = true
+        scope.launch {
+            val result = withContext(Dispatchers.Default) {
+                runCatching { QrCodeCodec.encodeToBitmap(ScheduleShareCodec.encode(sharePayload), size = 720) }
+            }
+            qrBusy = false
+            result.onSuccess { qrBitmap = it; qrError = null }
+                .onFailure { qrError = context.getString(R.string.ie_qr_too_large) }
+        }
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        stringResource(R.string.ie_screen_title),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    AppAtomicText(stringResource(R.string.ie_screen_title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold))
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    AppCircleIconButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp)) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.ie_back))
                     }
                 },
@@ -481,226 +536,229 @@ fun ImportExportScreen(
                 .padding(padding)
                 .verticalScroll(contentScrollState)
                 .padding(horizontal = 16.dp)
-                .padding(top = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(top = 8.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Panel(
-                icon = Icons.Rounded.Upload,
-                title = stringResource(R.string.ie_qr_export_title),
-                body = if (canExport) {
-                    stringResource(R.string.ie_qr_export_body)
-                } else {
-                    stringResource(R.string.ie_no_schedule_body)
-                },
-                actionLabel = stringResource(R.string.ie_qr_generate_action),
-                actionEnabled = canExport,
-                onAction = {
-                    val payload = ScheduleSharePayload(
-                        termName = termName,
-                        termStartDate = termStartDate?.toString(),
-                        schedule = schedule,
-                        manualCourses = manualCourses,
-                    )
-                    val encoded = ScheduleShareCodec.encode(payload)
-                    runCatching { QrCodeCodec.encodeToBitmap(encoded, size = 720) }
-                        .onSuccess {
-                            qrBitmap = it
-                            qrError = null
-                        }
-                        .onFailure {
-                            qrError = context.getString(R.string.ie_qr_too_large)
-                        }
-                },
-            )
-
-            Panel(
-                icon = Icons.Rounded.CalendarMonth,
-                title = stringResource(R.string.ie_ics_title),
-                body = if (canExport) {
-                    stringResource(R.string.ie_ics_body)
-                } else {
-                    stringResource(R.string.ie_no_schedule_body)
-                },
-                actionLabel = if (icsBusy) {
-                    stringResource(R.string.ie_generating)
-                } else {
-                    stringResource(R.string.ie_ics_generate_action)
-                },
-                actionEnabled = canExport && !icsBusy,
-                onAction = { exportIcs() },
-            )
-
-            SystemCalendarPanel(
-                canExport = canExport,
-                termStartDate = termStartDate,
-                schedule = schedule,
-                manualCourses = manualCourses,
-                timingProfile = timingProfile,
-                overrides = temporaryScheduleOverrides,
-                holidayCalendar = holidayCalendar,
-            )
-
-            ScheduleImagePanel(
-                weekNumber = imageWeek,
-                maxWeekNumber = maxImageWeek,
-                allWeeks = imageAllWeeks,
-                canExport = canExport,
-                busy = imageBusy,
-                onAllWeeksChange = { imageAllWeeks = it },
-                onWeekChange = { imageWeek = it.coerceIn(1, maxImageWeek) },
-                onExport = { exportScheduleImage() },
-            )
-
-            ImportPanel(
-                enabled = !importing,
-                onScan = { openScanner() },
-                onPickImage = {
-                    pickImageLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                    )
-                },
-            )
-
-            WebDavPanel(
-                enabled = !webDavBusy,
-                configured = webDavConfig.isComplete,
-                backupCount = remoteBackups.size,
-                onUpload = {
-                    if (!webDavConfig.isComplete) {
-                        Toast.makeText(context, context.getString(R.string.ie_webdav_configure_first), Toast.LENGTH_SHORT).show()
-                        onOpenWebDavSettings()
-                        return@WebDavPanel
-                    }
-                    val fileName = "cursimple-backup-${DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").format(LocalDateTime.now())}${AppBackupPayload.FILE_EXTENSION}"
-                    webDavBusy = true
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            runCatching {
-                                val payload = onCreateAppBackup()
-                                val encoded = appBackupJson.encodeToString(AppBackupPayload.serializer(), payload)
-                                    .toByteArray(Charsets.UTF_8)
-                                webDavClient.uploadBackup(webDavConfig, fileName, encoded)
-                            }
-                        }.onSuccess {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.ie_webdav_upload_success, it.name),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                            remoteBackups = withContext(Dispatchers.IO) {
-                                runCatching { webDavClient.listBackups(webDavConfig) }.getOrDefault(remoteBackups)
-                            }
-                        }.onFailure {
-                            Toast.makeText(
-                                context,
-                                context.getString(
-                                    R.string.ie_upload_failed,
-                                    context.webDavErrorText(it)
-                                        ?: it.message
-                                        ?: context.getString(R.string.ie_unknown_error),
-                                ),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                        webDavBusy = false
-                    }
-                },
-                onRefresh = {
-                    if (!webDavConfig.isComplete) {
-                        Toast.makeText(context, context.getString(R.string.ie_webdav_configure_first), Toast.LENGTH_SHORT).show()
-                        onOpenWebDavSettings()
-                        return@WebDavPanel
-                    }
-                    webDavBusy = true
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            runCatching { webDavClient.listBackups(webDavConfig) }
-                        }.onSuccess {
-                            remoteBackups = it
-                            Toast.makeText(
-                                context,
-                                context.resources.getQuantityString(R.plurals.ie_backups_found, it.size, it.size),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }.onFailure {
-                            Toast.makeText(
-                                context,
-                                context.getString(
-                                    R.string.ie_list_backups_failed,
-                                    context.webDavErrorText(it)
-                                        ?: it.message
-                                        ?: context.getString(R.string.ie_unknown_error),
-                                ),
-                                Toast.LENGTH_SHORT,
-                            ).show()
-                        }
-                        webDavBusy = false
-                    }
-                },
-                backups = remoteBackups,
-                onRestore = { backup -> pendingRestore = backup },
-            )
-
-            AiImportPanel(
-                enabled = !aiBusy,
-                configured = aiImportConfig.isComplete,
-                onPickImage = {
-                    if (!aiImportConfig.isComplete) {
-                        Toast.makeText(context, context.getString(R.string.ie_ai_configure_first), Toast.LENGTH_SHORT).show()
-                        onOpenAiImportSettings()
-                    } else {
-                        aiImagePickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-                        )
-                    }
-                },
-                onTakePhoto = { openAiCamera() },
-            )
-
-            Spacer(Modifier.height(4.dp))
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.ie_local_notice),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(14.dp),
+            SettingsCardGroup(title = stringResource(R.string.ie_section_import)) {
+                ImportBlock(
+                    icon = Icons.Rounded.QrCodeScanner,
+                    title = stringResource(R.string.ie_import_panel_title),
+                    body = stringResource(R.string.ie_import_panel_body),
+                ) {
+                    Button(
+                        onClick = { openScanner() },
+                        enabled = !importing,
+                        contentPadding = BlockButtonPadding,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
+                    ) { BlockButtonText(stringResource(R.string.ie_scan)) }
+                    AppOutlinedButton(
+                        onClick = {
+                            pickImageLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        },
+                        enabled = !importing,
+                        contentPadding = BlockButtonPadding,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 48.dp),
+                    ) { BlockButtonText(stringResource(R.string.ie_pick_from_gallery)) }
+                }
+                ImportExportRow(
+                    icon = Icons.Rounded.ContentPaste,
+                    title = stringResource(R.string.ie_text_import_title),
+                    subtitle = stringResource(R.string.ie_text_import_body),
+                    enabled = !importing,
+                    onClick = { showTextImport = true },
                 )
+                ImportBlock(
+                    icon = Icons.Rounded.ImageSearch,
+                    title = stringResource(R.string.ie_ai_panel_title),
+                    body = if (aiImportConfig.isComplete) {
+                        stringResource(R.string.ie_ai_panel_body)
+                    } else {
+                        stringResource(R.string.ie_ai_panel_unconfigured)
+                    },
+                ) {
+                    if (!aiImportConfig.isComplete) {
+                        AppOutlinedButton(
+                            onClick = onOpenAiImportSettings,
+                            contentPadding = BlockButtonPadding,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                        ) { BlockButtonText(stringResource(R.string.ie_go_configure)) }
+                    } else {
+                        AppOutlinedButton(
+                            onClick = {
+                                aiImagePickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                                )
+                            },
+                            enabled = !aiBusy,
+                            contentPadding = BlockButtonPadding,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                        ) {
+                            BlockButtonText(
+                                if (aiBusy) {
+                                    stringResource(R.string.ie_ai_recognizing)
+                                } else {
+                                    stringResource(R.string.ie_ai_pick_image)
+                                },
+                            )
+                        }
+                        AppOutlinedButton(
+                            onClick = { openAiCamera() },
+                            enabled = !aiBusy,
+                            contentPadding = BlockButtonPadding,
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
+                        ) { BlockButtonText(stringResource(R.string.ie_ai_take_photo)) }
+                    }
+                }
             }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SettingsCardGroup(title = stringResource(R.string.ie_section_export)) {
+                    ImportExportRow(
+                        icon = Icons.Rounded.QrCode2,
+                        title = stringResource(R.string.ie_qr_export_title),
+                        subtitle = stringResource(if (qrBusy) R.string.ie_generating else R.string.ie_qr_export_body),
+                        enabled = canExport && !qrBusy,
+                        onClick = { generateQr() },
+                    )
+                    ImportExportRow(
+                        icon = Icons.AutoMirrored.Rounded.TextSnippet,
+                        title = stringResource(R.string.ie_text_share_title),
+                        subtitle = stringResource(R.string.ie_text_share_body),
+                        enabled = canExport,
+                        onClick = { showTextShare = true },
+                    )
+                    ImportExportRow(
+                        icon = Icons.Rounded.Image,
+                        title = stringResource(R.string.ie_image_panel_title),
+                        subtitle = stringResource(R.string.ie_image_row_body),
+                        enabled = canExport,
+                        onClick = { showImageDialog = true },
+                    )
+                    // Stays enabled without data so a previous calendar write can still be undone.
+                    ImportExportRow(
+                        icon = Icons.Rounded.EventAvailable,
+                        title = stringResource(R.string.ie_calendar_row_title),
+                        subtitle = stringResource(R.string.ie_calendar_row_body),
+                        onClick = { showCalendarDialog = true },
+                    )
+                }
+                if (!canExport) FootnoteText(stringResource(R.string.ie_no_schedule_body))
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                SettingsCardGroup(title = stringResource(R.string.ie_section_backup)) {
+                    if (!webDavConfig.isComplete) {
+                        ImportExportRow(
+                            icon = Icons.Rounded.CloudUpload,
+                            title = stringResource(R.string.ie_webdav_panel_title),
+                            subtitle = stringResource(R.string.ie_webdav_panel_unconfigured),
+                            onClick = onOpenWebDavSettings,
+                        )
+                    } else {
+                        ImportExportRow(
+                            icon = Icons.Rounded.CloudUpload,
+                            title = stringResource(R.string.ie_webdav_upload_action),
+                            subtitle = if (webDavTask == WebDavTask.Upload) {
+                                stringResource(R.string.ie_processing)
+                            } else {
+                                stringResource(R.string.ie_webdav_upload_body)
+                            },
+                            enabled = webDavTask == null,
+                            onClick = { uploadBackup() },
+                        )
+                        ImportExportRow(
+                            icon = Icons.Rounded.CloudDownload,
+                            title = stringResource(R.string.ie_webdav_remote_backups),
+                            subtitle = when {
+                                webDavTask == WebDavTask.List -> stringResource(R.string.ie_processing)
+                                backupsLoaded -> pluralStringResource(
+                                    R.plurals.ie_webdav_panel_body,
+                                    remoteBackups.size,
+                                    remoteBackups.size,
+                                )
+                                else -> stringResource(R.string.ie_webdav_restore_body)
+                            },
+                            enabled = webDavTask == null,
+                            onClick = { refreshBackups() },
+                        )
+                        remoteBackups.take(5).forEach { backup ->
+                            ImportExportRow(
+                                icon = Icons.Rounded.History,
+                                title = backup.name,
+                                atomicTitle = false,
+                                subtitle = backup.lastModified ?: "${backup.size} bytes",
+                                enabled = webDavTask == null,
+                                onClick = { pendingRestore = backup },
+                            )
+                        }
+                    }
+                }
+                if (webDavConfig.isComplete) FootnoteText(stringResource(R.string.ie_webdav_note))
+            }
+
+            FootnoteText(stringResource(R.string.ie_local_notice))
         }
     }
 
-    qrBitmap?.let { bitmap ->
-        AlertDialog(
-            onDismissRequest = { qrBitmap = null },
-            title = { Text(stringResource(R.string.ie_qr_dialog_title)) },
-            text = {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = stringResource(R.string.ie_qr_dialog_title),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                    )
-                    Text(
-                        text = stringResource(R.string.ie_qr_dialog_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+    if (showImageDialog) {
+        ScheduleImageDialog(
+            weekNumber = imageWeek,
+            maxWeekNumber = maxImageWeek,
+            allWeeks = imageAllWeeks,
+            generationKey = listOf(schedule, manualCourses, termName, termStartDate, timingProfile,
+                temporaryScheduleOverrides, holidayCalendar, weekStartDay, localeTags),
+            generateImage = {
+                ScheduleImageExporter.export(context = context, termName = termName, termStartDate = termStartDate,
+                    weekNumber = imageWeek, schedule = schedule, manualCourses = manualCourses,
+                    timingProfile = timingProfile, overrides = temporaryScheduleOverrides,
+                    holidayCalendar = holidayCalendar, weekStartDay = weekStartDay, allWeeks = imageAllWeeks)
             },
-            confirmButton = {
-                AppOutlinedButton(onClick = { qrBitmap = null }) { Text(stringResource(R.string.ie_close)) }
+            onAllWeeksChange = { imageAllWeeks = it },
+            onWeekChange = { imageWeek = it.coerceIn(1, maxImageWeek) },
+            onShare = { intent ->
+                runCatching { launchScheduleShare(context, intent, context.getString(R.string.ie_image_chooser_title)) }
+                    .onSuccess { showImageDialog = false }
+                    .onFailure { Toast.makeText(context, context.getString(R.string.ie_share_launch_failed, it.message), Toast.LENGTH_SHORT).show() }
             },
+            onDismiss = { showImageDialog = false },
         )
+    }
+
+    if (showCalendarDialog) {
+        SystemCalendarExportDialog(
+            canExport = canExport,
+            termStartDate = termStartDate,
+            schedule = schedule,
+            manualCourses = manualCourses,
+            timingProfile = timingProfile,
+            overrides = temporaryScheduleOverrides,
+            holidayCalendar = holidayCalendar,
+            icsBusy = icsBusy,
+            onExportIcs = { exportIcs() },
+            onDismiss = { showCalendarDialog = false },
+        )
+    }
+
+    if (showTextShare) ScheduleTextShareDialog(sharePayload, onDismiss = { showTextShare = false })
+    if (showTextImport) ScheduleTextImportDialog(onDecoded = {
+        showTextImport = false
+        pendingImport = it
+    }, onDismiss = { showTextImport = false })
+
+    qrBitmap?.let { bitmap ->
+        ScheduleQrShareDialog(bitmap, onDismiss = { qrBitmap = null })
     }
 
     qrError?.let { message ->
@@ -708,9 +766,10 @@ fun ImportExportScreen(
             onDismissRequest = { qrError = null },
             title = { Text(stringResource(R.string.ie_qr_error_title)) },
             text = { Text(message) },
-            confirmButton = {
-                AppOutlinedButton(onClick = { qrError = null }) { Text(stringResource(R.string.ie_got_it)) }
-            },
+            confirmButton = { Button(onClick = { qrError = null; showTextShare = true }) {
+                AppAtomicText(stringResource(R.string.ie_text_share_title))
+            } },
+            dismissButton = { AppOutlinedButton(onClick = { qrError = null }) { AppAtomicText(stringResource(R.string.ie_close)) } },
         )
     }
 
@@ -924,554 +983,119 @@ fun ImportExportScreen(
     }
 }
 
-@Composable
-private fun AiImportPanel(
-    enabled: Boolean,
-    configured: Boolean,
-    onPickImage: () -> Unit,
-    onTakePhoto: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp)),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ImageSearch,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    text = stringResource(R.string.ie_ai_panel_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Text(
-                text = if (configured) {
-                    stringResource(R.string.ie_ai_panel_body)
-                } else {
-                    stringResource(R.string.ie_ai_panel_unconfigured)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!configured) {
-                    Button(
-                        onClick = onPickImage,
-                        enabled = enabled,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp),
-                    ) {
-                        Text(stringResource(R.string.ie_go_configure))
-                    }
-                } else {
-                    AiImportActionCard(
-                        icon = Icons.Rounded.PhotoLibrary,
-                        title = if (enabled) {
-                            stringResource(R.string.ie_ai_pick_image)
-                        } else {
-                            stringResource(R.string.ie_ai_recognizing)
-                        },
-                        body = stringResource(R.string.ie_ai_pick_image_desc),
-                        enabled = enabled,
-                        onClick = onPickImage,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 118.dp),
-                    )
-                    AiImportActionCard(
-                        icon = Icons.Rounded.PhotoCamera,
-                        title = stringResource(R.string.ie_ai_take_photo),
-                        body = stringResource(R.string.ie_ai_take_photo_desc),
-                        enabled = enabled,
-                        onClick = onTakePhoto,
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 118.dp),
-                    )
-                }
-            }
-        }
-    }
-}
+private enum class WebDavTask { Upload, List, Restore }
+
+private val BlockButtonPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
 
 @Composable
-private fun AiImportActionCard(
+private fun BlockButtonText(text: String) {
+    AppAtomicText(text = text, style = MaterialTheme.typography.labelLarge.copy(textAlign = TextAlign.Center))
+}
+
+/** Titled card section with a row of actions spanning the card width. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ImportBlock(
     icon: ImageVector,
     title: String,
     body: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
+    actions: @Composable RowScope.() -> Unit,
 ) {
-    Surface(
-        modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(enabled = enabled, onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(14.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 118.dp)
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(19.dp),
-                )
-            }
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = if (enabled) {
-                    MaterialTheme.colorScheme.onSurface
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                },
-            )
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
-}
-
-@Composable
-private fun WebDavPanel(
-    enabled: Boolean,
-    configured: Boolean,
-    backupCount: Int,
-    backups: List<WebDavBackupFile>,
-    onUpload: () -> Unit,
-    onRefresh: () -> Unit,
-    onRestore: (WebDavBackupFile) -> Unit,
-) {
-    Surface(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp)),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.CloudUpload,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    text = stringResource(R.string.ie_webdav_panel_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Text(
-                text = if (configured) {
-                    pluralStringResource(R.plurals.ie_webdav_panel_body, backupCount, backupCount)
-                } else {
-                    stringResource(R.string.ie_webdav_panel_unconfigured)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!configured) {
-                    Button(
-                        onClick = onUpload,
-                        enabled = enabled,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Text(stringResource(R.string.ie_go_configure))
-                    }
-                } else {
-                    Button(
-                        onClick = onUpload,
-                        enabled = enabled,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(Icons.Rounded.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.size(6.dp))
-                        Text(
-                            if (enabled) {
-                                stringResource(R.string.ie_webdav_upload_action)
-                            } else {
-                                stringResource(R.string.ie_processing)
-                            },
-                        )
-                    }
-                    AppOutlinedButton(
-                        onClick = onRefresh,
-                        enabled = enabled,
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Icon(Icons.Rounded.CloudDownload, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.size(6.dp))
-                        Text(stringResource(R.string.ie_webdav_remote_backups))
-                    }
-                }
-            }
-            backups.take(5).forEach { backup ->
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable(enabled = enabled) { onRestore(backup) },
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
-                        Text(
-                            text = backup.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = backup.lastModified ?: "${backup.size} bytes",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ImportPanel(
-    enabled: Boolean,
-    onScan: () -> Unit,
-    onPickImage: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp)),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Download,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    text = stringResource(R.string.ie_import_panel_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = stringResource(R.string.ie_import_panel_body),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = onScan,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.QrCodeScanner,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                    )
-                    Spacer(Modifier.size(6.dp))
-                    Text(stringResource(R.string.ie_scan))
-                }
-                AppOutlinedButton(
-                    onClick = onPickImage,
-                    enabled = enabled,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.ie_pick_from_gallery))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ScannerOverlay(
-    onScanned: (String) -> Unit,
-    onCancel: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(androidx.compose.ui.graphics.Color.Black),
-    ) {
-        QrScannerView(
-            onScanned = onScanned,
-            modifier = Modifier.fillMaxSize(),
-        )
-        androidx.compose.material3.Surface(
-            modifier = Modifier
-                .padding(16.dp)
-                .align(Alignment.TopStart),
-            shape = CircleShape,
-            color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.5f),
-        ) {
-            IconButton(onClick = onCancel) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = stringResource(R.string.ie_back),
-                    tint = androidx.compose.ui.graphics.Color.White,
-                )
-            }
-        }
-        androidx.compose.material3.Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .padding(24.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.55f),
-        ) {
-            Text(
-                text = stringResource(R.string.ie_scanner_hint),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                color = androidx.compose.ui.graphics.Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-}
-
-@Composable
-private fun ScheduleImagePanel(
-    weekNumber: Int,
-    maxWeekNumber: Int,
-    allWeeks: Boolean,
-    canExport: Boolean,
-    busy: Boolean,
-    onAllWeeksChange: (Boolean) -> Unit,
-    onWeekChange: (Int) -> Unit,
-    onExport: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp)),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Share,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.size(12.dp))
-                Text(
-                    text = stringResource(R.string.ie_image_panel_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = when {
-                    !canExport -> stringResource(R.string.ie_no_schedule_body)
-                    allWeeks -> stringResource(R.string.ie_image_panel_body_all_weeks)
-                    else -> stringResource(R.string.ie_image_panel_body)
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                AppFilterChip(
-                    selected = allWeeks,
-                    onClick = { onAllWeeksChange(true) },
-                    enabled = canExport && !busy,
-                    label = { Text(stringResource(R.string.ie_image_scope_all_weeks)) },
-                )
-                AppFilterChip(
-                    selected = !allWeeks,
-                    onClick = { onAllWeeksChange(false) },
-                    enabled = canExport && !busy,
-                    label = { Text(stringResource(R.string.ie_image_scope_single_week)) },
-                )
-            }
-            if (!allWeeks) {
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(
-                        onClick = { onWeekChange(weekNumber - 1) },
-                        enabled = canExport && !busy && weekNumber > 1,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronLeft,
-                            contentDescription = stringResource(R.string.ie_previous_week),
-                        )
-                    }
-                    Text(
-                        text = stringResource(R.string.ie_week_label, weekNumber),
-                        modifier = Modifier.weight(1f),
-                        textAlign = TextAlign.Center,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    IconButton(
-                        onClick = { onWeekChange(weekNumber + 1) },
-                        enabled = canExport && !busy && weekNumber < maxWeekNumber,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ChevronRight,
-                            contentDescription = stringResource(R.string.ie_next_week),
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            AppOutlinedButton(
-                onClick = onExport,
-                enabled = canExport && !busy,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    if (busy) {
-                        stringResource(R.string.ie_generating)
-                    } else {
-                        stringResource(R.string.ie_image_generate_action)
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun Panel(
-    icon: ImageVector,
-    title: String,
-    body: String,
-    actionLabel: String,
-    actionEnabled: Boolean,
-    onAction: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp)),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(20.dp),
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-                Spacer(Modifier.size(12.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = body,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(12.dp))
-            AppOutlinedButton(
-                onClick = onAction,
-                enabled = actionEnabled,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(actionLabel)
+                Text(
+                    text = body,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
+        val fontScale = LocalDensity.current.fontScale
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            FlowRow(modifier = Modifier.fillMaxWidth(),
+                maxItemsInEachRow = if (maxWidth >= (280 * fontScale).dp) 2 else 1,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) { actions() }
+        }
     }
+}
+
+/** Mirrors SettingsActionRow insets so SettingsCardGroup dividers line up, with a disabled state. */
+@Composable
+private fun ImportExportRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    atomicTitle: Boolean = true,
+) {
+    val alpha = if (enabled) 1f else 0.38f
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            if (atomicTitle) {
+                AppAtomicText(text = title, style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+            } else {
+                Text(text = title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+            }
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+            modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+private fun FootnoteText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 4.dp),
+    )
 }
 
 internal fun parseImportedTermStartDate(iso: String?): LocalDate? {
@@ -1507,12 +1131,12 @@ private fun createAiCameraUri(context: android.content.Context): Uri {
     )
 }
 
-private fun android.content.Context.shareDecodeMessage(error: Throwable): String = when {
+internal fun android.content.Context.shareDecodeMessage(error: Throwable): String = when {
     error is ScheduleShareDecodeException -> getString(
         when (error.reason) {
             ScheduleShareDecodeReason.NotShareData -> R.string.share_decode_not_share_data
             ScheduleShareDecodeReason.TooLarge -> R.string.share_decode_too_large
         },
     )
-    else -> getString(R.string.ie_qr_unrecognized)
+    else -> getString(R.string.share_decode_not_share_data)
 }

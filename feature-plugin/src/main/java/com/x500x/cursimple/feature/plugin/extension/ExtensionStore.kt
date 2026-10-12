@@ -54,6 +54,19 @@ class ExtensionStore internal constructor(private val dir: File) {
         }
     }
 
+    /** First login needs an archive even when the user has kept every default setting. */
+    internal suspend fun initializeIfMissing(pluginId: String, isCurrent: suspend () -> Boolean): ExtensionData? {
+        ensureLoaded()
+        return mutex.withLock {
+            if (!isCurrent()) return@withLock null
+            state.value[pluginId]?.let { return@withLock it }
+            val initial = ExtensionData(pluginId)
+            withContext(Dispatchers.IO) { fileOf(pluginId).writeText(json.encodeToString(ExtensionData.serializer(), initial)) }
+            state.value = state.value + (pluginId to initial)
+            initial
+        }
+    }
+
     /** Running tasks may update existing archives only; never recreate data after uninstall. */
     suspend fun updateIfPresent(pluginId: String, transform: (ExtensionData) -> ExtensionData?): ExtensionData? {
         ensureLoaded()

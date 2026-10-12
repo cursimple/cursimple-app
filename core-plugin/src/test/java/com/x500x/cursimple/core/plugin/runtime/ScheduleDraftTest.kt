@@ -5,10 +5,19 @@ import com.x500x.cursimple.core.plugin.R
 import com.x500x.cursimple.core.plugin.assertPluginError
 import com.x500x.cursimple.core.plugin.manifest.PluginRuntimeLimits
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ScheduleDraftTest {
+    @Test
+    fun `web draft cannot claim another importer`() {
+        val draft = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }.decodeFromString<ScheduleDraft>(
+            """{"termId":"term","courses":[],"sourcePluginId":"yangtzeu-eams-js-v1"}""",
+        )
+        assertNull(draft.toTermSchedule().sourcePluginId)
+    }
+
     @Test
     fun `draft converts courses into grouped term schedule`() {
         val schedule = ScheduleDraft(

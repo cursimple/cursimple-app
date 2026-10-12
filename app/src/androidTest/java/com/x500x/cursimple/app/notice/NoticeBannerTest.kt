@@ -33,15 +33,52 @@ class NoticeBannerTest {
 
     @Before fun prepare() {
         assumeTrue(InstrumentationRegistry.getArguments().getString("noticeBannerQa") == "true")
+        shell("input keyevent KEYCODE_WAKEUP")
+        shell("wm dismiss-keyguard")
+        waitFor { ClassNoticeOverlay.canShowNow(context) }
         assertTrue("Grant overlay permission on the isolated QA device", ClassNoticeOverlay.canDraw(context))
         instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
-        instrumentation.runOnMainSync { ClassNoticeOverlay.dismiss(); ClassNoticeNotifier.cancel(context) }
+        instrumentation.runOnMainSync { ClassNoticeOverlay.dismiss(); ClassNoticeNotifier.cancel(context); ClassNoticeNotifier.cancel(context, ClassNoticeNotifier.PREVIEW_NOTIFICATION_ID) }
         waitFor { card() == null }
     }
 
     @After fun cleanup() {
         if (InstrumentationRegistry.getArguments().getString("noticeBannerQa") != "true") return
-        instrumentation.runOnMainSync { ClassNoticeOverlay.dismiss(); ClassNoticeNotifier.cancel(context) }
+        instrumentation.runOnMainSync { ClassNoticeOverlay.dismiss(); ClassNoticeNotifier.cancel(context); ClassNoticeNotifier.cancel(context, ClassNoticeNotifier.PREVIEW_NOTIFICATION_ID) }
+    }
+
+    @Test fun systemDeliveryMatchesPreviewAndNewCoursesCanAlertAgain() {
+        val preferences = ClassNoticePreferences(focusNotificationEnabled = false)
+        val theme = NoticeTheme.of(ThemeAccent.Green, false)
+        assertEquals(ClassNoticeSkin.System, preferences.skin)
+        instrumentation.runOnMainSync { ClassNoticeNotifier.notifyPreview(context, preferences, theme) }
+        waitFor { manager.activeNotifications.any { it.id == ClassNoticeNotifier.PREVIEW_NOTIFICATION_ID } }
+        val preview = manager.activeNotifications.first { it.id == ClassNoticeNotifier.PREVIEW_NOTIFICATION_ID }.notification
+        instrumentation.runOnMainSync {
+            ClassNoticeNotifier.notify(context, ClassNoticeNotifier.Content("Normal scheduled course", "Lab 204", "18:49-19:19", 15), preferences, theme)
+        }
+        waitFor { manager.activeNotifications.any { it.notification.extras.getString(android.app.Notification.EXTRA_TITLE) == "Normal scheduled course" } }
+        val normal = manager.activeNotifications.first { it.id == ClassNoticeNotifier.NOTIFICATION_ID }.notification
+        assertEquals(preview.channelId, normal.channelId)
+        assertEquals(NotificationManager.IMPORTANCE_HIGH, manager.getNotificationChannel(normal.channelId).importance)
+        assertEquals(0, normal.flags and android.app.Notification.FLAG_ONLY_ALERT_ONCE)
+        assertNull(card())
+    }
+
+    @Test fun lockingDismissesOverlayAndLockedDeliveryNeverStartsAnActivity() {
+        show(seconds = 15)
+        try {
+            shell("input keyevent KEYCODE_SLEEP")
+            waitFor { card() == null }
+            instrumentation.runOnMainSync {
+                ClassNoticeNotifier.notify(context, ClassNoticeNotifier.Content("Locked reminder", "Lab 204", "18:49-19:19", 15),
+                    ClassNoticePreferences(skin = ClassNoticeSkin.Overlay, focusNotificationEnabled = false), NoticeTheme.of(ThemeAccent.Green, false))
+            }
+            waitFor { manager.activeNotifications.any { it.notification.extras.getString(android.app.Notification.EXTRA_TITLE) == "Locked reminder" } }
+            assertNull(card())
+            val notice = manager.activeNotifications.first { it.id == ClassNoticeNotifier.NOTIFICATION_ID }.notification
+            assertEquals(NotificationManager.IMPORTANCE_HIGH, manager.getNotificationChannel(notice.channelId).importance)
+        } finally { shell("input keyevent KEYCODE_WAKEUP"); shell("wm dismiss-keyguard") }
     }
 
     @Test fun defaultBannerLastsFifteenSecondsAndSystemNotificationSurvivesTimeout() {
@@ -195,16 +232,20 @@ class NoticeBannerTest {
         input(MotionEvent.ACTION_DOWN, down, x, y)
         for (step in 1..5) {
             SystemClock.sleep(duration / 5)
-            input(MotionEvent.ACTION_MOVE, down, x + dxDp * density * step / 5, y + dyDp * density * step / 5)
+            input(MotionEvent.ACTION_MOVE, down, x + dxDp * density * step / 5, y + dyDp * density * step / 5, eventTime = down + duration * step / 5)
         }
-        input(MotionEvent.ACTION_UP, down, x + dxDp * density, y + dyDp * density)
+        input(MotionEvent.ACTION_UP, down, x + dxDp * density, y + dyDp * density, eventTime = down + duration + 1)
     }
 
-    private fun input(action: Int, down: Long, x: Float, y: Float) {
-        val event = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
+    private fun input(action: Int, down: Long, x: Float, y: Float, eventTime: Long = SystemClock.uptimeMillis()) {
+        val event = MotionEvent.obtain(down, eventTime, action, x, y, 0)
         event.source = InputDevice.SOURCE_TOUCHSCREEN
         assertTrue(instrumentation.uiAutomation.injectInputEvent(event, true))
         event.recycle()
+    }
+
+    private fun shell(command: String) {
+        android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).use { it.readBytes() }
     }
 
     private fun assertSystemNotice() {

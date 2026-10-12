@@ -1,6 +1,9 @@
 package com.x500x.cursimple.feature.schedule
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,20 +22,35 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.LayoutDirection
 import com.x500x.cursimple.core.kernel.model.weekdayNarrowRes
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlinx.coroutines.launch
+
+private const val MONTH_PAGE_ORIGIN = Int.MAX_VALUE / 2
+
+internal fun calendarMonthAtPage(origin: YearMonth, page: Int): YearMonth =
+    origin.plusMonths(page.toLong() - MONTH_PAGE_ORIGIN)
+
+internal fun calendarPageOfMonth(origin: YearMonth, month: YearMonth): Int =
+    (MONTH_PAGE_ORIGIN.toLong() + java.time.temporal.ChronoUnit.MONTHS.between(origin, month))
+        .coerceIn(0, Int.MAX_VALUE.toLong() - 1).toInt()
 
 /** Custom calendar labels support localized weekdays and Monday- or Sunday-first display. */
 @Composable
@@ -45,13 +63,41 @@ fun CalendarMonthPicker(
     headline: (@Composable () -> Unit)? = null,
 ) {
     // Paging months does not change the selected date.
-    var visibleMonth by remember(selected) { mutableStateOf(YearMonth.from(selected)) }
+    val originMonth = rememberSaveable { YearMonth.from(selected).toString() }
+    val origin = remember(originMonth) { YearMonth.parse(originMonth) }
+    val pager = rememberPagerState(initialPage = MONTH_PAGE_ORIGIN, pageCount = { Int.MAX_VALUE })
+    val visibleMonth = calendarMonthAtPage(origin, pager.currentPage)
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(selected) {
+        val page = calendarPageOfMonth(origin, YearMonth.from(selected))
+        if (pager.currentPage != page) pager.scrollToPage(page)
+    }
+    fun moveMonth(delta: Int) {
+        val page = (pager.currentPage.toLong() + delta).coerceIn(0, Int.MAX_VALUE.toLong() - 1).toInt()
+        scope.launch { pager.animateScrollToPage(page) }
+    }
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val columnDays = remember(weekStartDayOfWeek) {
         val start = weekStartDayOfWeek.coerceIn(1, 7)
         (0 until 7).map { (start - 1 + it) % 7 + 1 }
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(modifier = modifier.fillMaxWidth().testTag("calendar-month-picker")) {
+        Column(Modifier.fillMaxWidth()
+        .pointerInput(selected, rtl) {
+            var distance = 0f
+            val threshold = 48.dp.toPx()
+            detectHorizontalDragGestures(
+                onDragStart = { distance = 0f },
+                onHorizontalDrag = { change, amount -> change.consume(); distance += amount },
+                onDragCancel = { distance = 0f },
+                onDragEnd = {
+                    val delta = calendarMonthSwipeDelta(distance, threshold, rtl)
+                    if (delta != 0) moveMonth(delta)
+                    distance = 0f
+                },
+            )
+        }) {
         if (title != null || headline != null) {
             Column(modifier = Modifier.padding(bottom = 12.dp)) {
                 title?.invoke()
@@ -93,16 +139,16 @@ fun CalendarMonthPicker(
                 ),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).testTag("calendar-visible-month"),
             )
-            IconButton(onClick = { visibleMonth = visibleMonth.minusMonths(1) }) {
+            IconButton(onClick = { moveMonth(-1) }, modifier = Modifier.testTag("calendar-prev-month")) {
                 Icon(
                     imageVector = Icons.Rounded.ChevronLeft,
                     contentDescription = stringResource(R.string.schedule_date_picker_prev_month),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = { visibleMonth = visibleMonth.plusMonths(1) }) {
+            IconButton(onClick = { moveMonth(1) }, modifier = Modifier.testTag("calendar-next-month")) {
                 Icon(
                     imageVector = Icons.Rounded.ChevronRight,
                     contentDescription = stringResource(R.string.schedule_date_picker_next_month),
@@ -124,22 +170,36 @@ fun CalendarMonthPicker(
                 )
             }
         }
+        }
 
-        val cells = remember(visibleMonth, columnDays) { monthGridCells(visibleMonth, columnDays.first()) }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-        ) {
-            cells.chunked(7).forEach { week ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    week.forEach { date ->
-                        DayCell(
-                            date = date,
-                            selected = date == selected,
-                            onClick = { date?.let(onSelect) },
-                            modifier = Modifier.weight(1f),
-                        )
+        // A native pager owns drags starting on day cells, preventing a swipe from becoming a tap.
+        HorizontalPager(
+            state = pager,
+            modifier = Modifier.fillMaxWidth().clipToBounds().testTag("calendar-month-grid"),
+            verticalAlignment = Alignment.Top,
+            key = { it },
+        ) { page ->
+            val month = calendarMonthAtPage(origin, page)
+            val cells = remember(month, columnDays) {
+                val days = monthGridCells(month, columnDays.first())
+                days + List(42 - days.size) { null }
+            }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+            ) {
+                cells.chunked(7).forEach { week ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        week.forEach { date ->
+                            DayCell(
+                                date = date,
+                                selected = date == selected,
+                                enabled = !pager.isScrollInProgress,
+                                onClick = { date?.let(onSelect) },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
             }
@@ -151,6 +211,7 @@ fun CalendarMonthPicker(
 private fun DayCell(
     date: LocalDate?,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -166,7 +227,8 @@ private fun DayCell(
                 .size(40.dp)
                 .clip(CircleShape)
                 .background(if (selected) MaterialTheme.colorScheme.primary else androidx.compose.ui.graphics.Color.Transparent)
-                .selectable(selected = selected, onClick = onClick),
+                .testTag("calendar-day-$date")
+                .selectable(selected = selected, enabled = enabled, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
             Text(
@@ -181,6 +243,13 @@ private fun DayCell(
             )
         }
     }
+}
+
+/** A completed drag pages once; short/cancelled drags keep the date and month intact. */
+internal fun calendarMonthSwipeDelta(distance: Float, threshold: Float, rtl: Boolean = false): Int {
+    if (!distance.isFinite() || !threshold.isFinite() || threshold <= 0f || kotlin.math.abs(distance) < threshold) return 0
+    val delta = if (distance < 0f) 1 else -1
+    return if (rtl) -delta else delta
 }
 
 /** Pad a month into week-aligned cells using [weekStartDayOfWeek]. */

@@ -118,6 +118,7 @@ import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.occurrencesOn
@@ -141,6 +142,8 @@ import com.x500x.cursimple.core.kernel.model.coursesMovedTo
 import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.isCourseMovedTo
 import com.x500x.cursimple.core.kernel.model.locationForWeek
+import com.x500x.cursimple.core.kernel.model.teacherForWeek
+import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
 import com.x500x.cursimple.core.kernel.model.startLocalTime
@@ -179,6 +182,7 @@ fun ScheduleRoute(
     minWeekOffset: Int,
     maxWeekOffset: Int,
     onAddWeek: (() -> Unit)? = null,
+    termWeekCount: Int? = null,
     onPrevWeek: () -> Unit,
     onNextWeek: () -> Unit,
     onWeekOffsetChange: (Int) -> Unit,
@@ -224,6 +228,7 @@ fun ScheduleRoute(
         minWeekOffset = minWeekOffset,
         maxWeekOffset = maxWeekOffset,
         onAddWeek = onAddWeek,
+        termWeekCount = termWeekCount,
         overrideTermStart = overrideTermStart,
         viewMode = viewMode,
         dayOffset = dayOffset,
@@ -299,6 +304,7 @@ fun ScheduleScreen(
     minWeekOffset: Int = Int.MIN_VALUE / 2,
     maxWeekOffset: Int = Int.MAX_VALUE / 2,
     onAddWeek: (() -> Unit)? = null,
+    termWeekCount: Int? = null,
     overrideTermStart: LocalDate? = null,
     viewMode: ScheduleViewMode = ScheduleViewMode.Week,
     dayOffset: Int = 0,
@@ -318,6 +324,18 @@ fun ScheduleScreen(
     onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
+    val rowPreferences = LocalPluginTimetableRowPreferences.current
+    val rowDefinitions = LocalPluginTimetableRowDefinitions.current
+    val rowOwner = state.schedule?.let { it.sourcePluginId ?: it.legacyDisplayPluginId }
+    val hiddenRows = remember(rowDefinitions, rowPreferences, rowOwner,
+        state.schedule, state.manualCourses, state.timingProfile, temporaryScheduleOverrides, overrideTermStart, termWeekCount) {
+        val schema = rowDefinitions[rowOwner]
+        if (rowOwner == null || schema == null) emptySet()
+        else com.x500x.cursimple.core.data.hiddenPluginTimetableRows(rowOwner, schema,
+            rowPreferences[rowOwner].orEmpty(), state.schedule, state.timingProfile,
+            state.schedule.allCoursesWith(state.manualCourses), temporaryScheduleOverrides,
+            overrideTermStart, termWeekCount ?: DEFAULT_TERM_WEEK_COUNT)
+    }
     var eventDetail by remember { mutableStateOf<Pair<ScheduleEvent, LocalDate>?>(null) }
     var eventEditing by remember { mutableStateOf<ScheduleEvent?>(null) }
     var eventGroup by remember { mutableStateOf<Pair<List<ScheduleEvent>, LocalDate>?>(null) }
@@ -371,7 +389,8 @@ fun ScheduleScreen(
     var multiSelectMode by rememberSaveable { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
-    var actionSheetCourse by remember { mutableStateOf<CourseItem?>(null) }
+    var actionSheetRequest by remember { mutableStateOf<CourseActionRequest?>(null) }
+    var quickAddRequest by remember { mutableStateOf<CourseTimeSlot?>(null) }
     var editRequest by remember { mutableStateOf<CourseItem?>(null) }
     var moveRequest by remember { mutableStateOf<CourseItem?>(null) }
     var daySheetDate by remember { mutableStateOf<LocalDate?>(null) }
@@ -461,7 +480,8 @@ fun ScheduleScreen(
                     }
                 }
                 // Long-press adds to active multiselection, otherwise opens course actions.
-                val onLongClickHandler: (String) -> Unit = { id ->
+                val onLongClickHandler: (CourseItem, LocalDate) -> Unit = { displayedCourse, displayedDate ->
+                    val id = displayedCourse.id
                     if (multiSelectMode) {
                         selectedIds = selectedIds + id
                     } else {
@@ -470,7 +490,8 @@ fun ScheduleScreen(
                             multiSelectMode = true
                             selectedIds = selectedIds + id
                         } else {
-                            actionSheetCourse = target
+                            actionSheetRequest = CourseActionRequest(target,
+                                quickAddPosition(displayedCourse, displayedDate, temporaryScheduleOverrides, holidayCalendar))
                         }
                     }
                 }
@@ -486,6 +507,7 @@ fun ScheduleScreen(
 
                 CompositionLocalProvider(
                     LocalScheduleLocationSuffix provides locationSuffix,
+                    LocalHiddenTimetableRows provides hiddenRows,
                 ) {
                     when (viewMode) {
                         ScheduleViewMode.Week -> WeeklyScheduleSection(
@@ -640,6 +662,8 @@ fun ScheduleScreen(
                     holidayCalendar,
                 ),
                 currentWeekNumber = computeWeekNumberForDate(overrideTermStart, zone.today()),
+                sourceWeekOf = { selected -> detailCourseWeekNumber(request.targetDate, selected, overrideTermStart,
+                    temporaryScheduleOverrides, holidayCalendar) },
                 isManual = { c -> state.manualCourses.any { it.id == c.id } },
                 examReminderEnabled = examRules.isNotEmpty(),
                 mutedExamCourseIds = examRules.flatMap { it.mutedCourseIds }.toSet(),
@@ -657,6 +681,11 @@ fun ScheduleScreen(
                 existingCourses = allVisibleCourses,
                 maxNodeCount = maxNodeCount,
                 maxWeekCount = editableMaxWeek,
+                sessionWeekCount = termWeekCount ?: editableMaxWeek,
+                termStartDate = overrideTermStart,
+                temporaryScheduleOverrides = temporaryScheduleOverrides,
+                holidayCalendar = holidayCalendar,
+                countHolidays = scheduleDisplay.courseSessionCountIncludeHolidays,
                 onSaveNote = onSaveCourseNote,
                 onSaveCourse = { c ->
                     onSaveCourse(c)
@@ -727,36 +756,60 @@ fun ScheduleScreen(
             )
         }
 
-        actionSheetCourse?.let { course ->
+        actionSheetRequest?.let { request ->
+            val course = request.course
             CourseActionSheet(
                 course = course,
                 manual = state.manualCourses.any { it.id == course.id },
                 pluginOverride = state.manualCourses.any { it.id == course.id } && course.id in pluginCourseIds,
-                onDismiss = { actionSheetCourse = null },
+                position = request.position,
+                onAddAtPosition = {
+                    actionSheetRequest = null
+                    quickAddRequest = request.position
+                },
+                onDismiss = { actionSheetRequest = null },
                 onEdit = {
-                    actionSheetCourse = null
+                    actionSheetRequest = null
                     editRequest = course
                 },
                 onMove = {
-                    actionSheetCourse = null
+                    actionSheetRequest = null
                     moveRequest = course
                 },
                 onSetReminder = {
-                    actionSheetCourse = null
+                    actionSheetRequest = null
                     alarmPermissionGate.require(context) { pendingReminderCourse = course }
                 },
                 onMultiSelect = {
-                    actionSheetCourse = null
+                    actionSheetRequest = null
                     multiSelectMode = true
                     selectedIds = selectedIds + course.id
                 },
                 onDelete = {
-                    actionSheetCourse = null
+                    actionSheetRequest = null
                     onRemoveManualCourse(course.id)
                 },
                 onRestorePlugin = {
-                    actionSheetCourse = null
+                    actionSheetRequest = null
                     onRemoveManualCourse(course.id)
+                },
+            )
+        }
+
+        quickAddRequest?.let { position ->
+            QuickAddCourseDialog(
+                dayOfWeek = position.dayOfWeek,
+                startNode = position.startNode,
+                endNode = position.endNode,
+                maxWeekCount = editableMaxWeek,
+                existingCourses = allVisibleCourses,
+                slotLabel = state.timingProfile?.slotTimes?.firstOrNull {
+                    it.startNode == position.startNode && it.endNode == position.endNode
+                }?.label?.takeIf { it.isNotBlank() },
+                onDismiss = { quickAddRequest = null },
+                onConfirm = { added ->
+                    onAddManualCourse(added)
+                    quickAddRequest = null
                 },
             )
         }
@@ -1057,7 +1110,7 @@ private fun WeeklyScheduleSection(
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>, LocalDate) -> Unit,
-    onCourseLongClick: (String) -> Unit,
+    onCourseLongClick: (CourseItem, LocalDate) -> Unit,
     onWeekOffsetChange: (Int) -> Unit,
     onAddManualCourse: (CourseItem) -> Unit = {},
     movableCourseIds: Set<String> = emptySet(),
@@ -1079,8 +1132,9 @@ private fun WeeklyScheduleSection(
     modifier: Modifier = Modifier,
 ) {
     val slotContext = LocalContext.current
-    val slots = remember(slotContext, schedule, timingProfile, manualCourses) {
-        displaySlots(slotContext, schedule, timingProfile, manualCourses)
+    val hiddenRows = LocalHiddenTimetableRows.current
+    val slots = remember(slotContext, schedule, timingProfile, manualCourses, hiddenRows) {
+        visibleTimetableSlots(displaySlots(slotContext, schedule, timingProfile, manualCourses), hiddenRows)
     }
     var zoom by rememberSaveable { mutableStateOf(1f) }
     if (!scheduleDisplay.pinchZoomEnabled && zoom != 1f) zoom = 1f
@@ -1384,7 +1438,7 @@ private fun DailyScheduleSection(
     dayOffset: Int,
     onDayOffsetChange: (Int) -> Unit,
     onCellClick: (List<CourseItem>, LocalDate) -> Unit,
-    onCourseLongClick: (String) -> Unit,
+    onCourseLongClick: (CourseItem, LocalDate) -> Unit,
     onPrevDay: () -> Unit,
     onNextDay: () -> Unit,
     scheduleTextStyle: ScheduleTextStylePreferences,
@@ -1398,8 +1452,9 @@ private fun DailyScheduleSection(
     modifier: Modifier = Modifier,
 ) {
     val slotContext = LocalContext.current
-    val slots = remember(slotContext, schedule, timingProfile, manualCourses) {
-        displaySlots(slotContext, schedule, timingProfile, manualCourses)
+    val hiddenRows = LocalHiddenTimetableRows.current
+    val slots = remember(slotContext, schedule, timingProfile, manualCourses, hiddenRows) {
+        visibleTimetableSlots(displaySlots(slotContext, schedule, timingProfile, manualCourses), hiddenRows)
     }
     val allCourses = remember(schedule, manualCourses) {
         schedule.allCoursesWith(manualCourses).visibleScheduleCourses()
@@ -1661,7 +1716,7 @@ private fun DayList(
     selectedCourseId: String?,
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>, LocalDate) -> Unit,
-    onCourseLongClick: (String) -> Unit,
+    onCourseLongClick: (CourseItem, LocalDate) -> Unit,
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
@@ -1757,7 +1812,7 @@ private fun DayRow(
     selectedCourseId: String?,
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>, LocalDate) -> Unit,
-    onCourseLongClick: (String) -> Unit,
+    onCourseLongClick: (CourseItem, LocalDate) -> Unit,
     scheduleTextStyle: ScheduleTextStylePreferences,
     scheduleCardStyle: ScheduleCardStylePreferences,
     scheduleDisplay: ScheduleDisplayPreferences,
@@ -1887,7 +1942,7 @@ private fun DayRow(
                         }
                         .combinedClickable(
                             onClick = { onCellClick(listOf(course), targetDate) },
-                            onLongClick = { onCourseLongClick(course.id) },
+                            onLongClick = { onCourseLongClick(course, targetDate) },
                         ),
                 ) {
                     Box(
@@ -1949,9 +2004,10 @@ private fun DayRow(
                                 overflow = textOverflow,
                             )
                         }
-                        if (scheduleDisplay.teacherVisible && course.teacher.isNotBlank()) {
+                        val rowTeacher = course.teacherForWeek(displayWeek)
+                        if (scheduleDisplay.teacherVisible && rowTeacher.isNotBlank()) {
                             Text(
-                                text = course.teacher,
+                                text = rowTeacher,
                                 color = onColor.copy(alpha = 0.82f),
                                 fontSize = 12.sp,
                                 maxLines = 1,
@@ -2146,6 +2202,21 @@ internal fun detailWeekNumber(
     resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar).sourceDate,
 )
 
+/** Individual moves and partial make-ups retain each course's original teaching week. */
+internal fun detailCourseWeekNumber(
+    targetDate: LocalDate,
+    course: CourseItem,
+    termStart: LocalDate?,
+    overrides: List<TemporaryScheduleOverride>,
+    holidays: HolidayCalendarSettings,
+): Int? {
+    val movedFrom = coursesMovedToWithOrigin(targetDate, overrides,
+        courseById = { id -> course.takeIf { it.id == id } }).lastOrNull()?.second
+    val source = movedFrom ?: temporaryScheduleCourseSourceDate(targetDate, course,
+        resolveScheduleDay(targetDate, overrides, holidays).sourceDate, overrides) ?: targetDate
+    return computeWeekNumberForDate(termStart, source)
+}
+
 internal sealed interface HolidayLabel {
     data class Named(val name: String) : HolidayLabel
 
@@ -2327,7 +2398,7 @@ private fun ScheduleGrid(
     multiSelectMode: Boolean,
     multiSelectedIds: Set<String>,
     onCellClick: (List<CourseItem>, LocalDate) -> Unit,
-    onCourseLongClick: (String) -> Unit,
+    onCourseLongClick: (CourseItem, LocalDate) -> Unit,
     currentWeekIndex: Int = 1,
     onAddManualCourse: (CourseItem) -> Unit = {},
     existingCourses: List<CourseItem> = emptyList(),
@@ -2374,7 +2445,7 @@ private fun ScheduleGrid(
     // Keep quick-add hint state at grid scope; expire it after 2.5 seconds.
     var hintCell by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<Int, Int>?>(null) }
     var longPressPick by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf<List<CourseItem>?>(null)
+        androidx.compose.runtime.mutableStateOf<Pair<List<CourseItem>, LocalDate>?>(null)
     }
     var addRequest by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<Triple<Int, Int, Int>?>(null)
@@ -2761,6 +2832,7 @@ private fun ScheduleGrid(
                         cellGroups.forEach { (mainEntry, sortedCourses, count) ->
                             val placement = mainEntry.placement
                             val course = mainEntry.course
+                            val columnDate = visibleDays.getOrNull(placement.dayIndex)?.date ?: week.weekStart
                             val isMultiSelected = course.id in multiSelectedIds
                             val courseTop = timeline.slotTop(placement.rowIndex)
                             val courseBottom = timeline.slotBottom(placement.rowIndex + placement.rowSpan - 1)
@@ -2796,16 +2868,14 @@ private fun ScheduleGrid(
                                 offsetX = columnX(placement.dayIndex) + colWidth * laneStart + 1.dp,
                                 offsetY = slotHeight * courseTop + 1.dp,
                                 onClick = {
-                                    val columnDate = visibleDays.getOrNull(placement.dayIndex)?.date
-                                        ?: week.weekStart
                                     onCellClick(sortedCourses, columnDate)
                                 },
                                 onLongClick = {
                                     // Select among overlapping courses before editing.
                                     if (sortedCourses.size > 1) {
-                                        longPressPick = sortedCourses
+                                        longPressPick = sortedCourses to columnDate
                                     } else {
-                                        onCourseLongClick(course.id)
+                                        onCourseLongClick(course, columnDate)
                                     }
                                 },
                                 dragEnabled = course.id in movableCourseIds &&
@@ -2873,7 +2943,7 @@ private fun ScheduleGrid(
                                     val movedFar = kotlin.math.abs(settled.x) > dayWidthPx / 2f ||
                                         kotlin.math.abs(settled.y) > slotHeightPx / 2f
                                     when {
-                                        !movedFar -> onCourseLongClick(course.id)
+                                        !movedFar -> onCourseLongClick(course, columnDate)
                                         !target.isValid -> onMoveBlocked()
                                         !target.isMoveFrom(placement.dayIndex, placement.rowIndex) -> Unit
                                         else -> movedCourseTime(
@@ -2996,12 +3066,12 @@ private fun ScheduleGrid(
             )
         }
 
-        longPressPick?.let { courses ->
+        longPressPick?.let { (courses, date) ->
             OverlappingCoursePickerDialog(
                 courses = courses,
                 onPick = { picked ->
                     longPressPick = null
-                    onCourseLongClick(picked.id)
+                    onCourseLongClick(picked, date)
                 },
                 onDismiss = { longPressPick = null },
             )

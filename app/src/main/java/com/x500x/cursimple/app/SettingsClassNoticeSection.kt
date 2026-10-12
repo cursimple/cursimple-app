@@ -55,10 +55,10 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.notice.ClassNoticeGateway
 import com.x500x.cursimple.app.notice.ClassNoticeNotifier
 import com.x500x.cursimple.app.notice.ClassNoticeOverlay
-import com.x500x.cursimple.app.notice.SelfDrawnNotice
 import com.x500x.cursimple.core.data.ClassNoticeAnimation
 import com.x500x.cursimple.core.data.ClassNoticePreferences
 import com.x500x.cursimple.core.data.ClassNoticeSkin
+import com.x500x.cursimple.feature.schedule.ReminderExpandableSection
 
 @Composable
 internal fun classNoticeSubtitle(preferences: ClassNoticePreferences): String =
@@ -87,16 +87,17 @@ internal fun ClassNoticeSettingsSection(
     val context = LocalContext.current
     // Create the notification channel before opening its system settings page.
     LaunchedEffect(Unit) { ClassNoticeNotifier.ensureChannel(context) }
+    LaunchedEffect(preferences.skin) {
+        if (preferences.skin != ClassNoticeSkin.Overlay) ClassNoticeOverlay.dismiss()
+    }
     var blocked by remember { mutableStateOf(ClassNoticeNotifier.systemBlocked(context, preferences)) }
     var islandBlocked by remember { mutableStateOf(ClassNoticeNotifier.islandBlocked(context)) }
-    var canDrawOverlay by remember { mutableStateOf(ClassNoticeOverlay.canDraw(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 blocked = ClassNoticeNotifier.systemBlocked(context, preferences)
                 islandBlocked = ClassNoticeNotifier.islandBlocked(context)
-                canDrawOverlay = ClassNoticeOverlay.canDraw(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -106,207 +107,136 @@ internal fun ClassNoticeSettingsSection(
     var showGuide by remember { mutableStateOf(false) }
     var guideAutoShown by rememberSaveable { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
+    var advancedExpanded by rememberSaveable { mutableStateOf(false) }
 
-    SettingsSwitchRow(
-        icon = Icons.Rounded.NotificationsActive,
-        title = stringResource(R.string.settings_class_notice_enable_title),
-        subtitle = stringResource(R.string.settings_class_notice_enable_subtitle),
-        checked = preferences.enabled,
-        onCheckedChange = { enabled ->
-            onEnabledChange(enabled)
-            if (enabled && !guideAutoShown &&
-                hasPendingNoticeGuideStep(context.applicationContext, preferences)
-            ) {
-                guideAutoShown = true
-                showGuide = true
-            }
-        },
-    )
-    if (showGuide) {
-        NotificationGuideDialog(preferences = preferences, onDismiss = { showGuide = false })
-    }
-    SettingsActionRow(
-        icon = Icons.Rounded.NotificationsActive,
-        title = stringResource(R.string.settings_dev_notice_diagnostics_title),
-        subtitle = stringResource(R.string.settings_dev_notice_diagnostics_subtitle),
-        onClick = { showDiagnostics = true },
-    )
-    if (showDiagnostics) {
-        ClassNoticeDiagnosticsDialog(preferences, onDismiss = { showDiagnostics = false })
-    }
-
-    if (preferences.enabled) {
-        if (blocked) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.errorContainer,
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_class_notice_blocked_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_class_notice_blocked_body),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                    )
-                }
+    // Blocked delivery is the most important status; keep it above all controls.
+    if (preferences.enabled && blocked) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.errorContainer,
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = stringResource(R.string.settings_class_notice_blocked_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+                Text(
+                    text = stringResource(R.string.settings_class_notice_blocked_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
             }
         }
-        // Explain vendor registration requirements even when system permissions appear granted.
-        val selfDrawnReason = SelfDrawnNotice.reason()
-        if (!blocked && selfDrawnReason != null) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.tertiaryContainer,
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = stringResource(R.string.settings_class_notice_self_drawn_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
-                    Text(
-                        text = stringResource(selfDrawnReason.bodyRes()),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                    )
+    }
+
+    SettingsCardGroup(stringResource(R.string.settings_class_notice_group_basic)) {
+        SettingsSwitchRow(
+            icon = Icons.Rounded.NotificationsActive,
+            title = stringResource(R.string.settings_class_notice_enable_title),
+            subtitle = stringResource(R.string.settings_class_notice_enable_subtitle),
+            checked = preferences.enabled,
+            onCheckedChange = { enabled ->
+                onEnabledChange(enabled)
+                if (enabled && !guideAutoShown &&
+                    hasPendingNoticeGuideStep(context.applicationContext, preferences)
+                ) {
+                    guideAutoShown = true
+                    showGuide = true
                 }
-            }
+            },
+        )
+        if (preferences.enabled) {
+            // Show notification permission status before the dependent controls.
             SettingsActionRow(
-                icon = Icons.Rounded.Layers,
-                title = stringResource(
-                    if (canDrawOverlay) {
-                        R.string.settings_class_notice_overlay_granted
-                    } else {
-                        R.string.settings_class_notice_overlay_permission
-                    },
-                ),
-                subtitle = stringResource(
-                    if (canDrawOverlay) {
-                        R.string.settings_class_notice_self_drawn_overlay_on
-                    } else {
-                        R.string.settings_class_notice_self_drawn_overlay_off
-                    },
-                ),
-                onClick = { context.openOverlayPermissionSettings() },
+                icon = Icons.Rounded.OpenInNew,
+                title = stringResource(R.string.settings_class_notice_open_system),
+                subtitle = if (blocked) {
+                    stringResource(R.string.settings_class_notice_permission_off)
+                } else {
+                    stringResource(R.string.settings_class_notice_permission_on)
+                },
+                onClick = { context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(preferences)) },
                 trailing = {
                     Text(
-                        text = stringResource(
-                            if (canDrawOverlay) {
-                                R.string.settings_class_notice_permission_badge_on
-                            } else {
-                                R.string.settings_class_notice_permission_badge_off
-                            },
-                        ),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (canDrawOverlay) {
-                            MaterialTheme.colorScheme.primary
+                        text = if (blocked) {
+                            stringResource(R.string.settings_class_notice_permission_badge_off)
                         } else {
+                            stringResource(R.string.settings_class_notice_permission_badge_on)
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (blocked) {
                             MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.primary
                         },
                     )
                 },
             )
-            // Offer direct settings links for vendor permissions whose state cannot be queried.
+            AlarmNumberSettingRow(
+                title = stringResource(R.string.settings_class_notice_advance),
+                value = preferences.advanceMinutes,
+                unit = stringResource(R.string.settings_class_notice_minute_unit),
+                min = ClassNoticePreferences.MIN_ADVANCE_MINUTES,
+                max = ClassNoticePreferences.MAX_ADVANCE_MINUTES,
+                step = 1,
+                onValueChange = onAdvanceMinutesChange,
+                // Allow direct minute entry alongside step controls.
+                editable = true,
+            )
+            // Open the device-specific setup checklist.
             SettingsActionRow(
-                icon = Icons.Rounded.Lock,
-                title = stringResource(R.string.settings_class_notice_self_drawn_lock_title),
-                subtitle = stringResource(selfDrawnReason.lockSubtitleRes()),
-                onClick = {
-                    launchSettingsIntents(
-                        context,
-                        com.x500x.cursimple.core.reminder.permission.AlarmSettingsIntents.backgroundPopup(context),
-                    )
-                },
+                icon = Icons.Rounded.Route,
+                title = stringResource(R.string.settings_class_notice_guide_row_title),
+                subtitle = stringResource(R.string.settings_class_notice_guide_row_subtitle),
+                onClick = { showGuide = true },
             )
         }
-        // Show notification permission status before the dependent controls.
-        SettingsActionRow(
-            icon = Icons.Rounded.OpenInNew,
-            title = stringResource(R.string.settings_class_notice_open_system),
-            subtitle = if (blocked) {
-                stringResource(R.string.settings_class_notice_permission_off)
-            } else {
-                stringResource(R.string.settings_class_notice_permission_on)
-            },
-            onClick = { context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(preferences)) },
-            trailing = {
-                Text(
-                    text = if (blocked) {
-                        stringResource(R.string.settings_class_notice_permission_badge_off)
-                    } else {
-                        stringResource(R.string.settings_class_notice_permission_badge_on)
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = if (blocked) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                )
-            },
-        )
-        // Open the device-specific setup checklist.
-        SettingsActionRow(
-            icon = Icons.Rounded.Route,
-            title = stringResource(R.string.settings_class_notice_guide_row_title),
-            subtitle = stringResource(R.string.settings_class_notice_guide_row_subtitle),
-            onClick = { showGuide = true },
-        )
+    }
+    if (showGuide) {
+        NotificationGuideDialog(preferences = preferences, onDismiss = { showGuide = false })
+    }
 
-        AlarmNumberSettingRow(
-            title = stringResource(R.string.settings_class_notice_advance),
-            value = preferences.advanceMinutes,
-            unit = stringResource(R.string.settings_class_notice_minute_unit),
-            min = ClassNoticePreferences.MIN_ADVANCE_MINUTES,
-            max = ClassNoticePreferences.MAX_ADVANCE_MINUTES,
-            step = 1,
-            onValueChange = onAdvanceMinutesChange,
-            // Allow direct minute entry alongside step controls.
-            editable = true,
-        )
-
-        SettingsSwitchRow(
-            icon = Icons.Rounded.VerticalAlignTop,
-            title = stringResource(R.string.settings_class_notice_heads_up_title),
-            subtitle = stringResource(R.string.settings_class_notice_heads_up_subtitle),
-            checked = preferences.headsUpEnabled,
-            onCheckedChange = onHeadsUpChange,
-        )
-        SettingsSwitchRow(
-            icon = Icons.Rounded.NotificationsActive,
-            title = stringResource(R.string.settings_class_notice_vibration_title),
-            subtitle = stringResource(R.string.settings_class_notice_vibration_subtitle),
-            checked = preferences.vibrationEnabled,
-            onCheckedChange = onVibrationChange,
-        )
-        SettingsSwitchRow(
-            icon = Icons.Rounded.Lock,
-            title = stringResource(R.string.settings_class_notice_lock_title),
-            subtitle = stringResource(R.string.settings_class_notice_lock_subtitle),
-            checked = preferences.lockScreenEnabled,
-            onCheckedChange = onLockScreenChange,
-        )
-        SettingsSwitchRow(
-            icon = Icons.Rounded.Star,
-            title = stringResource(R.string.settings_class_notice_focus_title),
-            subtitle = stringResource(R.string.settings_class_notice_focus_subtitle),
-            checked = preferences.focusNotificationEnabled,
-            onCheckedChange = onFocusChange,
-        )
-        // System approval is required independently of the in-app chip switch.
-        if (preferences.focusNotificationEnabled && islandBlocked) {
-            SettingsActionRow(
-                icon = Icons.Rounded.OpenInNew,
-                title = stringResource(R.string.settings_class_notice_open_system),
-                subtitle = stringResource(R.string.settings_class_notice_focus_blocked),
-                onClick = { context.openIslandSettings(ClassNoticeNotifier.channelIdFor(preferences)) },
+    if (preferences.enabled) {
+        SettingsCardGroup(stringResource(R.string.settings_class_notice_group_display)) {
+            SettingsSwitchRow(
+                icon = Icons.Rounded.VerticalAlignTop,
+                title = stringResource(R.string.settings_class_notice_heads_up_title),
+                subtitle = stringResource(R.string.settings_class_notice_heads_up_subtitle),
+                checked = preferences.headsUpEnabled,
+                onCheckedChange = onHeadsUpChange,
             )
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Lock,
+                title = stringResource(R.string.settings_class_notice_lock_title),
+                subtitle = stringResource(R.string.settings_class_notice_lock_subtitle),
+                checked = preferences.lockScreenEnabled,
+                onCheckedChange = onLockScreenChange,
+            )
+            SettingsSwitchRow(
+                icon = Icons.Rounded.NotificationsActive,
+                title = stringResource(R.string.settings_class_notice_vibration_title),
+                subtitle = stringResource(R.string.settings_class_notice_vibration_subtitle),
+                checked = preferences.vibrationEnabled,
+                onCheckedChange = onVibrationChange,
+            )
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Star,
+                title = stringResource(R.string.settings_class_notice_focus_title),
+                subtitle = stringResource(R.string.settings_class_notice_focus_subtitle),
+                checked = preferences.focusNotificationEnabled,
+                onCheckedChange = onFocusChange,
+            )
+            // System approval is required independently of the in-app chip switch.
+            if (preferences.focusNotificationEnabled && islandBlocked) {
+                SettingsActionRow(
+                    icon = Icons.Rounded.OpenInNew,
+                    title = stringResource(R.string.settings_class_notice_open_system),
+                    subtitle = stringResource(R.string.settings_class_notice_focus_blocked),
+                    onClick = { context.openIslandSettings(ClassNoticeNotifier.channelIdFor(preferences)) },
+                )
+            }
         }
 
         ClassNoticeSkinSettings(
@@ -319,23 +249,40 @@ internal fun ClassNoticeSettingsSection(
         )
     }
 
-    // Guard and pre-alarm settings are independent of class-notice enablement.
-    ReminderGuardAndAlarmPreNoticeSettings(noticePreferences = preferences)
+    // Pre-alarm notices are independent of class-notice enablement.
+    AlarmPreNoticeSettings(noticePreferences = preferences)
+
+    // Guards, vendor surfaces and diagnostics are rarely needed; keep them folded.
+    ReminderExpandableSection(
+        title = stringResource(R.string.settings_class_notice_advanced_title),
+        summary = stringResource(R.string.settings_class_notice_advanced_summary),
+        expanded = advancedExpanded,
+        onExpandedChange = { advancedExpanded = it },
+    ) {
+        AlarmKeepAliveRow()
+        VendorCourseSettingsSection()
+        SettingsActionRow(
+            icon = Icons.Rounded.NotificationsActive,
+            title = stringResource(R.string.settings_dev_notice_diagnostics_title),
+            subtitle = stringResource(R.string.settings_dev_notice_diagnostics_subtitle),
+            onClick = { showDiagnostics = true },
+        )
+    }
+    if (showDiagnostics) {
+        ClassNoticeDiagnosticsDialog(preferences, onDismiss = { showDiagnostics = false })
+    }
 }
 
 /** Read preferences directly because this section is shared by Settings and Reminders. */
 @Composable
-private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
+private fun AlarmKeepAliveRow() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember(context) {
         com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository(context.applicationContext)
     }
     val userPreferences by repository.preferencesFlow.collectAsState(initial = null)
-    val current = userPreferences ?: return
-    val keepAliveEnabled = current.alarmKeepAliveEnabled
-    val preNotice = current.alarmPreNotice
-    val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
+    val keepAliveEnabled = userPreferences?.alarmKeepAliveEnabled ?: return
 
     // Silent guard alarms and jobs recover registrations without a persistent service notification.
     SettingsSwitchRow(
@@ -351,43 +298,56 @@ private fun ReminderGuardAndAlarmPreNoticeSettings(noticePreferences: ClassNotic
         checked = keepAliveEnabled,
         onCheckedChange = { enabled -> scope.launch { repository.setAlarmKeepAliveEnabled(enabled) } },
     )
+}
 
-    SettingsSectionHeader(stringResource(R.string.settings_alarm_pre_notice_section))
-    SettingsSwitchRow(
-        icon = Icons.Rounded.Alarm,
-        title = stringResource(R.string.settings_alarm_pre_notice_title),
-        subtitle = stringResource(R.string.settings_alarm_pre_notice_subtitle),
-        checked = preNotice.enabled,
-        onCheckedChange = { enabled -> scope.launch { repository.setAlarmPreNoticeEnabled(enabled) } },
-    )
-    if (preNotice.enabled) {
-        AlarmNumberSettingRow(
-            title = stringResource(R.string.settings_alarm_pre_notice_advance),
-            value = preNotice.advanceMinutes,
-            unit = stringResource(R.string.settings_class_notice_minute_unit),
-            min = com.x500x.cursimple.core.data.AlarmPreNoticePreferences.MIN_ADVANCE_MINUTES,
-            max = com.x500x.cursimple.core.data.AlarmPreNoticePreferences.MAX_ADVANCE_MINUTES,
-            step = 1,
-            onValueChange = { minutes -> scope.launch { repository.setAlarmPreNoticeAdvanceMinutes(minutes) } },
-            editable = true,
+@Composable
+private fun AlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repository = remember(context) {
+        com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository(context.applicationContext)
+    }
+    val userPreferences by repository.preferencesFlow.collectAsState(initial = null)
+    val preNotice = userPreferences?.alarmPreNotice ?: return
+    val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
+
+    SettingsCardGroup(stringResource(R.string.settings_alarm_pre_notice_section)) {
+        SettingsSwitchRow(
+            icon = Icons.Rounded.Alarm,
+            title = stringResource(R.string.settings_alarm_pre_notice_title),
+            subtitle = stringResource(R.string.settings_alarm_pre_notice_subtitle),
+            checked = preNotice.enabled,
+            onCheckedChange = { enabled -> scope.launch { repository.setAlarmPreNoticeEnabled(enabled) } },
         )
-        SettingsActionRow(
-            icon = Icons.Rounded.Visibility,
-            title = stringResource(R.string.settings_alarm_pre_notice_preview),
-            subtitle = stringResource(R.string.settings_alarm_pre_notice_preview_subtitle),
-            onClick = {
-                val app = context.applicationContext
-                if (!warnIfPreviewBlocked(context, noticePreferences)) {
-                    ClassNoticeNotifier.cancelAlarmPreview(app)
-                    ClassNoticeNotifier.notify(
-                        app,
-                        ClassNoticeNotifier.alarmPreviewSample(app, preNotice.advanceMinutes),
-                        noticePreferences,
-                        noticeTheme,
-                    )
-                }
-            },
-        )
+        if (preNotice.enabled) {
+            AlarmNumberSettingRow(
+                title = stringResource(R.string.settings_alarm_pre_notice_advance),
+                value = preNotice.advanceMinutes,
+                unit = stringResource(R.string.settings_class_notice_minute_unit),
+                min = com.x500x.cursimple.core.data.AlarmPreNoticePreferences.MIN_ADVANCE_MINUTES,
+                max = com.x500x.cursimple.core.data.AlarmPreNoticePreferences.MAX_ADVANCE_MINUTES,
+                step = 1,
+                onValueChange = { minutes -> scope.launch { repository.setAlarmPreNoticeAdvanceMinutes(minutes) } },
+                editable = true,
+            )
+            SettingsActionRow(
+                icon = Icons.Rounded.Visibility,
+                title = stringResource(R.string.settings_alarm_pre_notice_preview),
+                subtitle = stringResource(R.string.settings_alarm_pre_notice_preview_subtitle),
+                onClick = {
+                    val app = context.applicationContext
+                    if (!warnIfPreviewBlocked(context, noticePreferences)) {
+                        ClassNoticeNotifier.cancelAlarmPreview(app)
+                        ClassNoticeNotifier.notify(
+                            app,
+                            ClassNoticeNotifier.alarmPreviewSample(app, preNotice.advanceMinutes),
+                            noticePreferences,
+                            noticeTheme,
+                        )
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -406,12 +366,10 @@ private fun ClassNoticeSkinSettings(
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
     SettingsSectionHeader(stringResource(R.string.settings_class_notice_skin_header))
 
-    // Vendor enhancements supplement the system notification.
-    val selfDrawnOnly = SelfDrawnNotice.only()
     ClassNoticeSkinOptions(preferences, onSkinChange)
 
-    if (preferences.skin == ClassNoticeSkin.Overlay || selfDrawnOnly) {
-        if (!selfDrawnOnly) OverlayPermissionRow()
+    if (preferences.skin == ClassNoticeSkin.Overlay) {
+        OverlayPermissionRow()
 
         AlarmNumberSettingRow(
             title = stringResource(R.string.settings_class_notice_banner_duration),
@@ -663,14 +621,6 @@ private fun warnIfPreviewBlocked(
         context.openOverlayPermissionSettings()
         return true
     }
-    // Explain unavailable system banners on overlay-only devices before previewing.
-    if (preferences.headsUpEnabled && SelfDrawnNotice.only() && !ClassNoticeOverlay.canDraw(context)) {
-        Toast.makeText(
-            context,
-            context.getString(R.string.settings_toast_preview_self_drawn_no_overlay),
-            Toast.LENGTH_LONG,
-        ).show()
-    }
     return false
 }
 
@@ -729,14 +679,4 @@ private fun OverlayPermissionRow() {
             onClick = { context.openOverlayPermissionSettings() },
         )
     }
-}
-
-private fun SelfDrawnNotice.Reason.bodyRes(): Int = when (this) {
-    SelfDrawnNotice.Reason.Vivo -> R.string.settings_class_notice_self_drawn_body_vivo
-    SelfDrawnNotice.Reason.Huawei -> R.string.settings_class_notice_self_drawn_body_huawei
-}
-
-private fun SelfDrawnNotice.Reason.lockSubtitleRes(): Int = when (this) {
-    SelfDrawnNotice.Reason.Vivo -> R.string.settings_class_notice_self_drawn_lock_subtitle_vivo
-    SelfDrawnNotice.Reason.Huawei -> R.string.settings_class_notice_self_drawn_lock_subtitle_other
 }

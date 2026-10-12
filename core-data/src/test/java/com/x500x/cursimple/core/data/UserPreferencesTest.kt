@@ -7,6 +7,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class UserPreferencesTest {
+    @Test fun courseSessionCountIncludesHolidaysWithoutChangingReminderPolicy() {
+        val defaults = UserPreferences()
+        assertTrue(defaults.scheduleDisplay.courseSessionCountIncludeHolidays)
+        val display = defaults.scheduleDisplay.copy(courseSessionCountIncludeHolidays = false)
+        val changed = defaults.copy(scheduleDisplay = display)
+        assertEquals(false, changed.scheduleDisplay.courseSessionCountIncludeHolidays)
+        assertEquals(defaults.reminderDayPolicy(), changed.reminderDayPolicy())
+    }
     @Test
     fun `today overview card is on by default and only lives in day view without changing grid display`() {
         val display = ScheduleDisplayPreferences()
@@ -23,9 +31,9 @@ class UserPreferencesTest {
         assertEquals(false, UserPreferences(skipRemindersOnHoliday = false).reminderDayPolicy().skipOnHoliday)
     }
     @Test
-    fun `notification defaults to enhanced banner for fifteen seconds`() {
+    fun `notification defaults to system delivery with optional fifteen second banner`() {
         val preferences = UserPreferences().classNotice
-        assertEquals(ClassNoticeSkin.Overlay, preferences.skin)
+        assertEquals(ClassNoticeSkin.System, preferences.skin)
         assertEquals(15_000L, preferences.bannerDurationMillis)
         assertTrue(preferences.headsUpEnabled)
         assertEquals(false, preferences.vibrationEnabled)

@@ -22,6 +22,7 @@ import com.x500x.cursimple.core.kernel.model.allCoursesWith
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.TermSchedule
+import com.x500x.cursimple.core.kernel.model.asExternalImport
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
@@ -459,6 +460,9 @@ class ScheduleViewModel(
         viewModelScope.launch(ioDispatcher) { repository.upsert(note) }
     }
 
+    suspend fun importMemos(notes: List<MemoNote>): Int =
+        memoRepository?.importNotes(notes) ?: error("memo_repository_unavailable")
+
     fun removeMemo(noteId: String) {
         val repository = memoRepository ?: return
         viewModelScope.launch(ioDispatcher) { repository.remove(noteId) }
@@ -744,7 +748,7 @@ class ScheduleViewModel(
                 if (!asNewTermNamed.isNullOrBlank()) {
                     createTermAndActivate(asNewTermNamed)
                 }
-                writeImportedSchedule(schedule, manualCourses)
+                writeImportedSchedule(schedule?.asExternalImport(), manualCourses)
             }.let(onComplete)
         }
     }
@@ -1682,6 +1686,8 @@ private const val LEGACY_COURSE_RULE_PREFIX = "提醒 "
 
 internal fun courseReminderCandidateScope(course: CourseItem): FirstCourseCandidateScope =
     FirstCourseCandidateScope(
+        daysOfWeek = listOf(course.time.dayOfWeek),
+        weeks = course.weeks,
         nodeRange = ReminderNodeRange(course.time.startNode, course.time.endNode).normalized(),
         categories = listOf(course.category),
         titleContains = course.title.takeIf { it.isNotBlank() },
@@ -1732,6 +1738,7 @@ private fun buildCourseScopedReminderRule(
         pluginId = pluginId,
         scopeType = ReminderScopeType.FirstCourseOfPeriod,
         courseId = course.id,
+        dayOfWeek = course.time.dayOfWeek,
         displayName = displayName,
         firstCourseCandidate = candidate,
         periodStartNode = candidate.nodeRange?.startNode,

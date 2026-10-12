@@ -71,6 +71,10 @@ def _px(value: float) -> int:
     return int(round(value * SCALE))
 
 
+def _square_bounds(x: float, y: float, side: float) -> tuple[int, int, int, int]:
+    return (_px(x), _px(y), _px(x + side), _px(y + side))
+
+
 def _font(size_sp: float) -> ImageFont.FreeTypeFont:
     for path, index in FONT_CANDIDATES:
         try:
@@ -196,8 +200,16 @@ def reminder_preview(t: dict) -> Image.Image:
     return image
 
 
+def _pin(draw: ImageDraw.ImageDraw, x: float, y: float, size: float, fill) -> None:
+    """Rounded push pin outline from widget_ic_pin, sampled on its 24-unit grid."""
+    points = [(7, 2), (17, 2), (17, 4), (16, 4), (16, 9), (19, 12), (19, 14), (13, 14), (13, 21),
+              (12, 22), (11, 21), (11, 14), (5, 14), (5, 12), (8, 9), (8, 4), (7, 4)]
+    k = size / 24
+    draw.polygon([(_px(x + px * k), _px(y + py * k)) for px, py in points], fill=fill)
+
+
 def memo_preview(locale: str) -> Image.Image:
-    """Notebook checklist preview, distinct from component task cards."""
+    """Notebook checklist preview with pin, priority marker and notebook color like the live rows."""
     width, height = 300, 148
     image, draw = _card(width, height)
     texts = {
@@ -208,18 +220,39 @@ def memo_preview(locale: str) -> Image.Image:
     heading, task1, meta1, task2, meta2, count = texts
     accent = (63, 162, 119, 255)
     rule = (194, 216, 204, 255)
-    draw.rounded_rectangle((_px(13), _px(16), _px(29), _px(34)), radius=_px(2), outline=accent, width=_px(1.5))
-    draw.line((_px(18), _px(16), _px(18), _px(34)), fill=accent, width=_px(1))
-    for y in (22, 27):
+    high = (186, 26, 26, 255)        # MEMO_PRIORITY_HIGH
+    notebook = (44, 85, 135, 255)    # course palette onContainer
+    draw.rounded_rectangle((_px(13), _px(27), _px(29), _px(45)), radius=_px(2), outline=accent, width=_px(1.5))
+    draw.line((_px(18), _px(27), _px(18), _px(45)), fill=accent, width=_px(1))
+    for y in (33, 38):
         draw.line((_px(22), _px(y), _px(26), _px(y)), fill=accent, width=_px(1))
-    _text(draw, 41, 14, heading, 16, INK)
+    _text(draw, 41, 27, heading, 16, INK)
     count_width = draw.textlength(count, font=_font(11)) / SCALE
-    _text(draw, width - 12 - count_width, 18, count, 11, accent)
-    for y, title, meta in ((42, task1, meta1), (78, task2, meta2)):
-        draw.rounded_rectangle((_px(14), _px(y+10), _px(29), _px(y+25)), radius=_px(2), outline=accent, width=_px(1.5))
-        _text(draw, 42, y+3, title, 13, INK)
-        _text(draw, 42, y+20, meta, 10, MUTED)
-        draw.line((_px(42), _px(y+36), _px(width-12), _px(y+36)), fill=rule, width=_px(.7))
+    _text(draw, width - 68 - count_width, 30, count, 11, accent)
+    draw.ellipse((_px(width-60), _px(12), _px(width-12), _px(60)), fill=(243, 244, 244, 255))
+    draw.line((_px(width-43), _px(36), _px(width-29), _px(36)), fill=accent, width=_px(2))
+    draw.line((_px(width-36), _px(29), _px(width-36), _px(43)), fill=accent, width=_px(2))
+    rows = ((64, task1, meta1, high, True, "High" if locale == "en" else "高", notebook),)
+    for y, title, meta, box, pinned, marker, dot in rows:
+        draw.ellipse(_square_bounds(26, y + 14, 20), outline=accent, width=_px(1.5))
+        draw.rounded_rectangle((_px(5), _px(y + 6), _px(8), _px(y + 42)), radius=_px(1.5), fill=box)
+        x = 68
+        if pinned:
+            _pin(draw, x, y + 8, 12, accent)
+            x += 15
+        _text(draw, x, y+7, title, 13, INK)
+        meta_x = 68
+        if marker:
+            badge_width = draw.textlength(marker, font=_font(10)) / SCALE + 12
+            draw.rounded_rectangle((_px(meta_x), _px(y + 22), _px(meta_x + badge_width), _px(y + 38)),
+                radius=_px(8), fill=(206, 223, 214, 255))
+            _text(draw, meta_x + 6, y + 24, marker, 10, box)
+            meta_x += badge_width + 6
+        if dot:
+            draw.ellipse(_square_bounds(meta_x, y + 27, 7), fill=dot)
+            meta_x += 12
+        _text(draw, meta_x, y+24, meta, 10, MUTED)
+        draw.line((_px(42), _px(y+76), _px(width-12), _px(y+76)), fill=rule, width=_px(.7))
     return image
 
 

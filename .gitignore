@@ -22,3 +22,7 @@ captures/
 __pycache__/
 *.py[cod]
 .venv/
+
+# Workspace-only instructions and device research.
+/AGENTS.md
+/docs/*.local.md

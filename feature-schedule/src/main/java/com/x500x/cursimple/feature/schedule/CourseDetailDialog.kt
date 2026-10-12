@@ -3,6 +3,19 @@ package com.x500x.cursimple.feature.schedule
 import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.input.pointer.pointerInput
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,7 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -41,7 +53,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -59,6 +71,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -78,12 +91,12 @@ import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.ExamCountdown
 import com.x500x.cursimple.core.kernel.model.locationForWeek
+import com.x500x.cursimple.core.kernel.model.teacherForWeek
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.examCountdownOrNull
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import com.x500x.cursimple.feature.schedule.time.today
 import java.time.LocalDate
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 
@@ -91,99 +104,19 @@ import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 
 /** Page through overlapping courses individually with position indicators. */
 @Composable
-private fun SameSlotPager(
-    courses: List<CourseItem>,
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.schedule_course_detail_same_slot, courses.size),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.weight(1f),
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                courses.indices.forEach { index ->
-                    val active = index == selectedIndex
-                    Box(
-                        modifier = Modifier
-                            .size(if (active) 8.dp else 6.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (active) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant
-                                },
-                            )
-                            .clickable { onSelect(index) },
-                    )
-                }
-            }
+private fun SameSlotPager(courses: List<CourseItem>, selectedIndex: Int, onSelect: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        AppCircleIconButton(onClick = { onSelect((selectedIndex - 1 + courses.size) % courses.size) }) {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, stringResource(R.string.schedule_same_slot_prev))
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(
-                onClick = { onSelect((selectedIndex - 1 + courses.size) % courses.size) },
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowLeft,
-                    contentDescription = stringResource(R.string.schedule_same_slot_prev),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-            Surface(
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.secondaryContainer,
-            ) {
-                Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = courses[selectedIndex].title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        textAlign = TextAlign.Center,
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.schedule_same_slot_position,
-                            selectedIndex + 1,
-                            courses.size,
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
-                    )
-                }
-            }
-            IconButton(
-                onClick = { onSelect((selectedIndex + 1) % courses.size) },
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                    contentDescription = stringResource(R.string.schedule_same_slot_next),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
+        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(stringResource(R.string.schedule_course_detail_same_slot, courses.size), style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AppAtomicText(stringResource(R.string.schedule_same_slot_position, selectedIndex + 1, courses.size),
+                style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+        }
+        AppCircleIconButton(onClick = { onSelect((selectedIndex + 1) % courses.size) }) {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, stringResource(R.string.schedule_same_slot_next))
         }
     }
 }
@@ -207,8 +140,14 @@ fun CourseDetailDialog(
     existingCourses: List<CourseItem> = emptyList(),
     maxNodeCount: Int = 12,
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
+    sessionWeekCount: Int = maxWeekCount,
+    termStartDate: LocalDate? = null,
+    temporaryScheduleOverrides: List<com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride> = emptyList(),
+    holidayCalendar: com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings = com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings.NONE,
+    countHolidays: Boolean = true,
     onSaveNote: (CourseItem, String) -> Unit = { _, _ -> },
     onSaveCourse: (CourseItem) -> Unit = {},
+    sourceWeekOf: (CourseItem) -> Int? = { visibleWeekNumber },
     onRestorePluginCourse: (CourseItem) -> Unit = {},
     onDismiss: () -> Unit,
     onTemporaryCancel: (CourseItem) -> Unit = {},
@@ -219,12 +158,19 @@ fun CourseDetailDialog(
     onMuteExamReminder: (CourseItem) -> Unit = {},
     onRestoreExamReminder: (CourseItem) -> Unit = {},
     onDelete: (CourseItem) -> Unit,
+    readOnly: Boolean = false,
 ) {
     if (courses.isEmpty()) return
     // Reset selection when course IDs change so an old index cannot select another cell's course.
     val courseIdsKey = remember(courses) { courses.joinToString("|") { it.id } }
     var selectedIndex by rememberSaveable(courseIdsKey) { mutableIntStateOf(0) }
     val course = courses[selectedIndex.coerceIn(0, courses.size - 1)]
+    val progress = remember(course, targetDate, existingCourses, termStartDate, sessionWeekCount,
+        temporaryScheduleOverrides, holidayCalendar, countHolidays) {
+        targetDate?.let { date -> courseSessionProgress(course, date, existingCourses.ifEmpty { listOf(course) },
+            termStartDate, sessionWeekCount, temporaryScheduleOverrides, holidayCalendar, countHolidays) }
+    }
+    val sourceWeekNumber = sourceWeekOf(course)
     var editing by remember(course.id) { mutableStateOf(false) }
     var confirmRestore by remember(course.id) { mutableStateOf(false) }
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
@@ -239,7 +185,7 @@ fun CourseDetailDialog(
     } else {
         palette.onContainer
     }
-    val isThisWeek = visibleWeekNumber?.let { course.isActiveInWeek(it) }
+    val isThisWeek = sourceWeekNumber?.let { course.isActiveInWeek(it) }
     val manual = isManual(course)
     val pluginOverride = manual && isPluginOverride(course)
     val weekday = if (course.time.dayOfWeek in 1..7) {
@@ -273,7 +219,7 @@ fun CourseDetailDialog(
         }
     }
 
-    if (confirmRestore) {
+    if (!readOnly && confirmRestore) {
         AlertDialog(
             onDismissRequest = { confirmRestore = false },
             title = { Text(stringResource(R.string.schedule_course_detail_restore_plugin_title)) },
@@ -294,159 +240,175 @@ fun CourseDetailDialog(
 
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false),
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 24.dp)
-                .wrapContentHeight(),
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp,
-        ) {
-            Column(
-                modifier = Modifier
-                    .heightIn(max = 640.dp)
-                    .verticalScroll(rememberScrollState()),
+        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.matchParentSize().clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss))
+            Surface(
+                // Wrap short content instead of always filling a fixed height.
+                modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().heightIn(max = minOf(maxHeight, 640.dp))
+                    .pointerInput(Unit) { detectTapGestures {} }.testTag("course-detail-card"),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(headerContainer)
-                        .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 14.dp),
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = course.title,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = headerContent,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            StatusChip(
-                                activeInVisibleWeek = isThisWeek,
-                                visibleWeekNumber = visibleWeekNumber,
-                                viewingCurrentWeek = visibleWeekNumber != null &&
-                                    visibleWeekNumber == currentWeekNumber,
-                                manual = manual,
-                                // Whole-day holiday state takes priority over per-course cancellation.
-                                notOccurringLabel = when {
-                                    dayIsHoliday -> stringResource(R.string.schedule_status_on_holiday)
-                                    targetDate != null && isTemporarilyCancelled(course) ->
-                                        stringResource(R.string.schedule_status_cancelled)
-                                    else -> null
-                                },
-                            )
-                            IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Close,
-                                    contentDescription = stringResource(R.string.schedule_action_close),
-                                    tint = headerContent,
-                                    modifier = Modifier.size(20.dp),
+                Column(Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(headerContainer)
+                            .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 14.dp),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = course.title,
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = headerContent,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
                                 )
+                                Spacer(Modifier.width(8.dp))
+                                StatusChip(
+                                    activeInVisibleWeek = isThisWeek,
+                                    visibleWeekNumber = visibleWeekNumber,
+                                    viewingCurrentWeek = visibleWeekNumber != null &&
+                                        visibleWeekNumber == currentWeekNumber,
+                                    manual = manual,
+                                    // Whole-day holiday state takes priority over per-course cancellation.
+                                    notOccurringLabel = when {
+                                        dayIsHoliday -> stringResource(R.string.schedule_status_on_holiday)
+                                        targetDate != null && isTemporarilyCancelled(course) ->
+                                            stringResource(R.string.schedule_status_cancelled)
+                                        else -> null
+                                    },
+                                )
+                                AppCircleIconButton(onClick = onDismiss) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Close,
+                                        contentDescription = stringResource(R.string.schedule_action_close),
+                                        tint = headerContent,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
                             }
-                        }
-                        Text(
-                            text = stringResource(
-                                R.string.schedule_course_detail_header,
-                                if (course.category == CourseCategory.Exam) {
-                                    stringResource(R.string.schedule_course_detail_exam_prefix)
-                                } else {
-                                    ""
+                            Text(
+                                text = stringResource(
+                                    R.string.schedule_course_detail_header,
+                                    if (course.category == CourseCategory.Exam) {
+                                        stringResource(R.string.schedule_course_detail_exam_prefix)
+                                    } else {
+                                        ""
+                                    },
+                                    weekday,
+                                    nodeRange,
+                                ) + headerTimeText.orEmpty().let { if (it.isBlank()) "" else " · $it" },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = headerContent.copy(alpha = 0.85f),
+                            )
+                            Text(
+                                text = when {
+                                    progress == null -> stringResource(R.string.schedule_course_session_needs_start)
+                                    progress.current == null -> stringResource(R.string.schedule_course_session_not_scheduled, progress.total)
+                                    else -> stringResource(R.string.schedule_course_session_progress, progress.current, progress.total)
                                 },
-                                weekday,
-                                nodeRange,
-                            ) + headerTimeText.orEmpty().let { if (it.isBlank()) "" else " · $it" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = headerContent.copy(alpha = 0.85f),
-                        )
+                                style = MaterialTheme.typography.labelMedium,
+                                color = headerContent.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.testTag("course-session-progress"),
+                            )
+                        }
                     }
-                }
 
-                if (courses.size > 1) {
-                    SameSlotPager(
-                        courses = courses,
-                        selectedIndex = selectedIndex,
-                        onSelect = {
-                            selectedIndex = it
-                            editing = false
-                        },
-                    )
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                }
-
-                Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (editing) {
-                        CourseEditSection(
-                            course = course,
-                            existingCourses = remember(existingCourses, course.id) {
-                                existingCourses.filterNot { it.id == course.id }
-                            },
-                            maxNodeCount = maxNodeCount,
-                            maxWeekCount = maxWeekCount,
-                            convertsToManual = !manual,
-                            onCancel = { editing = false },
-                            onSave = {
-                                onSaveCourse(it)
+                    if (courses.size > 1) {
+                        SameSlotPager(
+                            courses = courses,
+                            selectedIndex = selectedIndex,
+                            onSelect = {
+                                selectedIndex = it
                                 editing = false
                             },
                         )
-                    } else {
-                        CourseFactsCard(
-                            classTimeText = classTimeText,
-                            weeksText = weeksText,
-                            examCountdown = examCountdown,
-                            location = course.locationForWeek(visibleWeekNumber),
-                            teacher = course.teacher,
-                            details = course.details,
-                            manual = manual,
-                            pluginOverride = pluginOverride,
-                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
 
-                        CourseNoteSection(
-                            courseKey = course.id,
-                            savedNote = noteTextOf(course),
-                            maxLength = noteMaxLength,
-                            onSave = { text -> onSaveNote(course, text) },
-                        )
+                    Column(
+                        // fill = false lets short details wrap instead of stretching to the height cap.
+                        modifier = Modifier.weight(1f, fill = false).fillMaxWidth().verticalScroll(androidx.compose.runtime.key(course.id) { rememberScrollState() })
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (!readOnly && editing) {
+                            CourseEditSection(
+                                course = course,
+                                existingCourses = remember(existingCourses, course.id) {
+                                    existingCourses.filterNot { it.id == course.id }
+                                },
+                                maxNodeCount = maxNodeCount,
+                                maxWeekCount = maxWeekCount,
+                                convertsToManual = !manual,
+                                onCancel = { editing = false },
+                                onSave = {
+                                    onSaveCourse(it)
+                                    editing = false
+                                },
+                            )
+                        } else {
+                            Crossfade(targetState = CourseFactsSnapshot(course, classTimeText, weeksText, examCountdown, sourceWeekNumber, manual, pluginOverride),
+                                animationSpec = tween(180), label = "course-detail-facts") { shown ->
+                                CourseFactsCard(classTimeText = shown.time, weeksText = shown.weeks, examCountdown = shown.countdown,
+                                    location = shown.course.locationForWeek(shown.sourceWeek), teacher = shown.course.teacherForWeek(shown.sourceWeek),
+                                    details = shown.course.details, manual = shown.manual, pluginOverride = shown.pluginOverride)
+                            }
 
-                        if (course.category == CourseCategory.Exam) {
-                            ExamReminderMuteRow(
-                                enabled = examReminderEnabled,
-                                muted = course.id in mutedExamCourseIds,
-                                onMute = { onMuteExamReminder(course) },
-                                onRestore = { onRestoreExamReminder(course) },
+                            CourseNoteSection(
+                                courseKey = course.id,
+                                savedNote = noteTextOf(course),
+                                maxLength = noteMaxLength,
+                                onSave = { text -> onSaveNote(course, text) },
+                                readOnly = readOnly,
+                            )
+
+                            if (!readOnly && course.category == CourseCategory.Exam) {
+                                ExamReminderMuteRow(
+                                    enabled = examReminderEnabled,
+                                    muted = course.id in mutedExamCourseIds,
+                                    onMute = { onMuteExamReminder(course) },
+                                    onRestore = { onRestoreExamReminder(course) },
+                                )
+                            }
+                        }
+                    }
+                    if (!readOnly && !editing) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                        Box(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).testTag("course-detail-actions")) {
+                            CourseActionBar(
+                                temporarilyCancelled = targetDate != null && isTemporarilyCancelled(course),
+                                showTemporaryCancel = targetDate != null,
+                                showDelete = manual && !pluginOverride,
+                                showRestorePlugin = pluginOverride,
+                                onEdit = { editing = true },
+                                hasReminder = hasCancellableReminder(course),
+                                onSetReminder = { onSetReminder(course) },
+                                onCancelReminder = { onCancelReminder(course) },
+                                onTemporaryCancel = { onTemporaryCancel(course) },
+                                onRestoreTemporaryCancel = { onRestoreTemporaryCancel(course) },
+                                onDelete = { onDelete(course) },
+                                onRestorePlugin = { confirmRestore = true },
                             )
                         }
-
-                        CourseActionBar(
-                            temporarilyCancelled = targetDate != null && isTemporarilyCancelled(course),
-                            showTemporaryCancel = targetDate != null,
-                            showDelete = manual && !pluginOverride,
-                            showRestorePlugin = pluginOverride,
-                            onEdit = { editing = true },
-                            hasReminder = hasCancellableReminder(course),
-                            onSetReminder = { onSetReminder(course) },
-                            onCancelReminder = { onCancelReminder(course) },
-                            onTemporaryCancel = { onTemporaryCancel(course) },
-                            onRestoreTemporaryCancel = { onRestoreTemporaryCancel(course) },
-                            onDelete = { onDelete(course) },
-                            onRestorePlugin = { confirmRestore = true },
-                        )
                     }
                 }
             }
         }
     }
 }
+
+private data class CourseFactsSnapshot(val course: CourseItem, val time: String, val weeks: String,
+    val countdown: ExamCountdown?, val sourceWeek: Int?, val manual: Boolean, val pluginOverride: Boolean)
 
 @Composable
 private fun CourseEditSection(
@@ -549,20 +511,8 @@ private fun CourseFactsCard(
                     ),
                 )
             }
-            if (location.isNotBlank()) {
-                DetailRow(
-                    icon = Icons.Rounded.LocationOn,
-                    title = stringResource(R.string.schedule_course_detail_location),
-                    body = location,
-                )
-            }
-            if (teacher.isNotBlank()) {
-                DetailRow(
-                    icon = Icons.Rounded.Person,
-                    title = stringResource(R.string.schedule_course_detail_teacher),
-                    body = teacher,
-                )
-            }
+            DetailRow(Icons.Rounded.LocationOn, stringResource(R.string.schedule_course_detail_location), location.ifBlank { stringResource(R.string.schedule_metadata_unset) })
+            DetailRow(Icons.Rounded.Person, stringResource(R.string.schedule_course_detail_teacher), teacher.ifBlank { stringResource(R.string.schedule_metadata_unset) })
             details.forEach { field ->
                 DetailRow(
                     icon = Icons.Rounded.Info,
@@ -677,7 +627,9 @@ private fun RowScope.DetailAction(
     Column(
         modifier = Modifier
             .weight(1f)
+            .padding(horizontal = 4.dp)
             .clip(RoundedCornerShape(14.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 2.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -689,14 +641,8 @@ private fun RowScope.DetailAction(
             tint = tint,
             modifier = Modifier.size(20.dp),
         )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = tint,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-        )
+        AppAtomicText(text = label, modifier = Modifier.fillMaxWidth(),
+            style = MaterialTheme.typography.labelSmall.copy(textAlign = TextAlign.Center), color = tint)
     }
 }
 
@@ -706,6 +652,7 @@ private fun CourseNoteSection(
     savedNote: String,
     maxLength: Int,
     onSave: (String) -> Unit,
+    readOnly: Boolean = false,
 ) {
     var editing by remember(courseKey) { mutableStateOf(false) }
     var draft by remember(courseKey, savedNote) { mutableStateOf(savedNote) }
@@ -730,7 +677,7 @@ private fun CourseNoteSection(
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
             )
-            if (!editing) {
+            if (!readOnly && !editing) {
                 AppOutlinedButton(
                     onClick = { editing = true },
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
@@ -740,7 +687,7 @@ private fun CourseNoteSection(
             }
         }
 
-        if (editing) {
+        if (!readOnly && editing) {
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },

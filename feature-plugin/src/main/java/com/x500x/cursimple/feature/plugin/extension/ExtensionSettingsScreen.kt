@@ -97,6 +97,9 @@ interface ExtensionHostActions {
 
     suspend fun syncNow(record: InstalledPluginRecord): ExtensionSyncOutcome
 
+    /** Schedule login synchronization outside the document's navigation lifetime. */
+    fun syncAfterLogin(record: InstalledPluginRecord, sessionRevision: Long): Boolean = false
+
     suspend fun markRead(record: InstalledPluginRecord, itemId: String): ExtensionData = error("请更新应用以支持已读同步")
 
     suspend fun setItemIgnored(record: InstalledPluginRecord, itemId: String, ignored: Boolean): ExtensionData =
@@ -109,8 +112,6 @@ interface ExtensionHostActions {
         error("请更新应用以支持组件调试")
 
     fun refreshWidget(record: InstalledPluginRecord) {}
-
-    fun setAdvancedToolsEnabled(enabled: Boolean) {}
 
     /** Reconcile reminders and events after host or login changes without fetching again. */
     fun onDataChanged(pluginId: String)

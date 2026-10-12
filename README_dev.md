@@ -33,7 +33,7 @@ python3 -m unittest discover -s scripts/tests
 | `feature-plugin` | 市场、组件页面与受限 WebView 运行时 |
 | `feature-widget` | 桌面小组件、绘制与定时刷新 |
 
-开发版插件接口为 **API 9**。兼容性由 `PluginApiVersion` 和组件清单决定，与软件版本名分开。平台协议保留在独立组件中，接口详见[插件开发指南](docs/plugin-system.md)。
+开发版插件接口为 **API 11**。兼容性由 `PluginApiVersion` 和组件清单决定，与软件版本名分开。平台协议保留在独立组件中，接口详见[插件开发指南](docs/plugin-system.md)。
 
 ## 签名与发布
 
@@ -62,7 +62,7 @@ properties 路径使用正斜杠。`scripts/load-signing-env.ps1` 可从环境�
 
 版本公告放在 `docs/release-notes/v<version>.md`，图片在对应 `images/v<version>/`。带图片的二级标题拆成亮点页，其余文字进入最后一页。
 
-隐藏入口优先读私有 `release-preview` 稿件，也支持 Debug 专用的 `app/src/debug/assets/release-preview/next-local.md`；正式包不包含这些调试素材。更新检查静默运行、用红点提示；测试版在检查弹窗或设置中选择。公告和符合网络条件的图片会预加载，计费网络只预取正文。详见[网络与缓存](docs/networking.md)。
+本地公告素材位于 Debug 专用的 `app/src/debug/assets/release-preview/`，不进入正式包。更新检查静默运行、用红点提示；测试版在检查弹窗或设置中选择。公告和符合网络条件的图片会预加载，计费网络只预取正文。详见[网络与缓存](docs/networking.md)。
 
 日期数据前台刷新间隔一小时，失败沿用缓存；放假数据覆盖已发布的当年和往后两年。节日数据可重新生成：
 
@@ -78,5 +78,9 @@ python3 scripts/gen_cn_calendar.py 2024 2060
 代码注释使用精简英文，解释约束和不直观的行为，不记录“修改了什么”。修改经过写提交说明，用户变化写公告。示例使用通用机构和账号；本地化产品文案和时区等技术标识保留正确语义。
 
 删除代码前核对调用、反射、清单注册、持久化格式和组件桥接。仍用于旧数据的兼容逻辑保留。缓存、临时报表和构建产物不进入仓库。
+
+桌面小组件使用原生 `RemoteViews`，广播接收器的历史类名保留以兼容已添加的小组件。共享二维码逻辑位于 `feature-schedule/sharing`；导课与笔记入口使用同一份编码、相机和扫描区域实现。
+
+包体积比较使用相同构建类型与 ABI。Debug 不启用压缩，正式包使用现有 R8 代码与资源压缩；不能将两种配置的体积差当作一次清理的收益。
 
 其他说明：[官网](site/README.md)、[今日概览](docs/today-overview.md)、[假日闹钟策略](docs/holiday-alarm-policy.md)。

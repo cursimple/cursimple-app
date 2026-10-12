@@ -2,6 +2,7 @@ package com.x500x.cursimple.feature.schedule
 
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,10 +25,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
@@ -36,7 +37,6 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.EditCalendar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.AlertDialog
@@ -46,7 +46,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.mutableStateListOf
@@ -154,6 +153,7 @@ internal fun CourseEditFormFields(
     modifier: Modifier = Modifier,
     spacing: Dp = 12.dp,
 ) {
+    val reuse = rememberCourseReuseValues(existingCourses, initial)
     var title by rememberSaveable(initial) { mutableStateOf(initial?.title.orEmpty()) }
     var teacher by rememberSaveable(initial) { mutableStateOf(initial?.teacher.orEmpty()) }
     var location by rememberSaveable(initial) { mutableStateOf(initial?.location.orEmpty()) }
@@ -183,6 +183,10 @@ internal fun CourseEditFormFields(
     var weekLocationsRaw by rememberSaveable(initial) {
         mutableStateOf(encodeWeekLocations(initial?.weekLocations.orEmpty()))
     }
+    var pickingWeekTeachers by rememberSaveable(initial) { mutableStateOf(false) }
+    var weekTeachersRaw by rememberSaveable(initial) {
+        mutableStateOf(encodeWeekLocations(initial?.weekTeachers.orEmpty()))
+    }
 
     val titleTrimmed = title.trim()
     val startNode = startNodeText.toIntOrNull()
@@ -206,6 +210,7 @@ internal fun CourseEditFormFields(
     val nodesValid = startNode != null && endNode != null &&
         startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount
     val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
+    val weekTeachersMap = remember(weekTeachersRaw) { decodeWeekLocations(weekTeachersRaw) }
     // Retain nonblank locations in selected weeks only; disabling clears overrides.
     val effectiveWeekLocations = if (weeks != null) {
         weekLocationsMap.filterKeys { it in weeks }.mapValues { it.value.trim() }.filterValues { it.isNotBlank() }
@@ -223,6 +228,8 @@ internal fun CourseEditFormFields(
             weeks = weeks,
             category = category,
             weekLocations = effectiveWeekLocations,
+            weekTeachers = weekTeachersMap.filterKeys { weeks != null && it in weeks }
+                .mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
             existing = initial,
         )
     } else {
@@ -252,20 +259,18 @@ internal fun CourseEditFormFields(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(spacing),
     ) {
-        OutlinedTextField(
-            value = title,
-            onValueChange = { title = it },
-            label = { Text(stringResource(R.string.schedule_course_name_label)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        CourseTitleField(title, onChange = { title = it }, courses = reuse.courses, onReuse = { course ->
+            title = course.title.trim()
+            teacher = course.teacher.trim()
+            location = course.location.trim()
+        })
 
-        OutlinedTextField(
-            value = teacher,
-            onValueChange = { teacher = it },
-            label = { Text(stringResource(R.string.schedule_course_teacher_label)) },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
+        CourseTeacherField(
+            teacher = teacher,
+            onTeacherChange = { teacher = it },
+            weekTeachers = weekTeachersMap,
+            onPickWeekTeachers = { pickingWeekTeachers = true },
+            suggestions = reuse.teachers,
         )
 
         CourseLocationField(
@@ -273,6 +278,7 @@ internal fun CourseEditFormFields(
             onLocationChange = { location = it },
             weekLocations = weekLocationsMap,
             onPickWeekLocations = { pickingWeekLocations = true },
+            suggestions = reuse.locations,
         )
 
         CourseFormLabel(stringResource(R.string.schedule_course_category_label))
@@ -373,20 +379,32 @@ internal fun CourseEditFormFields(
             }
         }
 
+        if (pickingWeekTeachers) {
+            WeekTeacherDialog(
+                weeks = weeks?.takeIf { it.isNotEmpty() } ?: (1..weekLimit).toList(),
+                courseTitle = titleTrimmed,
+                baseTeacher = teacher.trim(),
+                weekTeachers = weekTeachersMap,
+                suggestions = reuse.teachers,
+                onConfirm = { values ->
+                    weekTeachersRaw = encodeWeekLocations(values)
+                    pickingWeekTeachers = false
+                },
+                onDismiss = { pickingWeekTeachers = false },
+            )
+        }
+
         if (pickingWeekLocations) {
             WeekLocationDialog(
                 weeks = weeks?.takeIf { it.isNotEmpty() } ?: (1..weekLimit).toList(),
                 courseTitle = titleTrimmed,
                 baseLocation = location.trim(),
                 weekLocations = weekLocationsMap,
-                onChange = { week, value ->
-                    weekLocationsRaw = encodeWeekLocations(
-                        weekLocationsMap.toMutableMap().apply {
-                            if (value.isBlank()) remove(week) else put(week, value)
-                        },
-                    )
+                suggestions = reuse.locations,
+                onConfirm = { values ->
+                    weekLocationsRaw = encodeWeekLocations(values)
+                    pickingWeekLocations = false
                 },
-                onClearAll = { weekLocationsRaw = "" },
                 onDismiss = { pickingWeekLocations = false },
             )
         }
@@ -486,44 +504,10 @@ private fun WeekMatrixDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 320.dp)
-                        .verticalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    (1..maxWeekCount).forEach { week ->
-                        val isPicked = week in picked
-                        Surface(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable {
-                                    if (isPicked) picked.remove(week) else picked.add(week)
-                                },
-                            color = if (isPicked) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = week.toString(),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = if (isPicked) {
-                                        MaterialTheme.colorScheme.onPrimary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            }
-                        }
-                    }
-                }
+                WeekSelectionGrid((1..maxWeekCount).toList(), picked.toSet(), onChange = { selected ->
+                    picked.clear()
+                    picked.addAll(selected.sorted())
+                }, modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     AppOutlinedButton(onClick = {
                         picked.clear()
@@ -547,11 +531,7 @@ private fun WeekMatrixDialog(
     )
 }
 
-/** Select one week to edit its location without creating a long row for every week. */
-/**
- * Shared location input exposes per-week editing even before weeks are chosen; saving filters
- * to the final week set.
- */
+/** Shared metadata fields keep weekly settings beside the editable value. */
 @Composable
 internal fun CourseLocationField(
     location: String,
@@ -559,174 +539,149 @@ internal fun CourseLocationField(
     weekLocations: Map<Int, String>,
     onPickWeekLocations: () -> Unit,
     modifier: Modifier = Modifier,
+    suggestions: List<String> = emptyList(),
 ) {
-    OutlinedTextField(
-        value = location,
-        onValueChange = onLocationChange,
-        label = { Text(stringResource(R.string.schedule_course_location_label)) },
-        singleLine = true,
-        trailingIcon = {
-            IconButton(onClick = onPickWeekLocations) {
-                Icon(
-                    imageVector = Icons.Rounded.EditCalendar,
-                    contentDescription = stringResource(R.string.schedule_week_location_title),
-                    tint = if (weekLocations.isNotEmpty()) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                )
+    CourseWeeklyField(location, onLocationChange, weekLocations, onPickWeekLocations,
+        R.string.schedule_course_location_label, R.string.schedule_week_location_title,
+        R.string.schedule_week_location_summary, "course-location", modifier, suggestions)
+}
+
+@Composable
+internal fun CourseTeacherField(
+    teacher: String,
+    onTeacherChange: (String) -> Unit,
+    weekTeachers: Map<Int, String>,
+    onPickWeekTeachers: () -> Unit,
+    modifier: Modifier = Modifier,
+    suggestions: List<String> = emptyList(),
+) {
+    CourseWeeklyField(teacher, onTeacherChange, weekTeachers, onPickWeekTeachers,
+        R.string.schedule_course_teacher_label, R.string.schedule_week_teacher_title,
+        R.string.schedule_week_teacher_summary, "course-teacher", modifier, suggestions)
+}
+
+@Composable
+private fun CourseWeeklyField(
+    value: String,
+    onChange: (String) -> Unit,
+    overrides: Map<Int, String>,
+    onPickWeeks: () -> Unit,
+    @StringRes labelRes: Int,
+    @StringRes titleRes: Int,
+    @StringRes summaryRes: Int,
+    tag: String,
+    modifier: Modifier,
+    suggestions: List<String>,
+) {
+    val options = remember(suggestions) { suggestions.map { CourseReuseOption(it) } }
+    CourseReuseTextField(value, onChange, stringResource(labelRes), options, modifier = modifier, tag = tag,
+        extraAction = {
+            AppCircleIconButton(onClick = onPickWeeks, modifier = Modifier.testTag("$tag-weeks")) {
+                Icon(Icons.Rounded.EditCalendar, stringResource(titleRes),
+                    tint = if (overrides.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
-        supportingText = weekLocations.size.takeIf { it > 0 }?.let { count ->
-            {
-                Text(
-                    text = stringResource(R.string.schedule_week_location_summary, count),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-        },
-        modifier = modifier.fillMaxWidth(),
+        supportingText = overrides.size.takeIf { it > 0 }?.let { count -> {
+            Text(stringResource(summaryRes, count), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        } },
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun WeekLocationDialog(
-    weeks: List<Int>,
-    courseTitle: String,
-    baseLocation: String,
-    weekLocations: Map<Int, String>,
-    onChange: (Int, String) -> Unit,
-    onClearAll: () -> Unit,
-    onDismiss: () -> Unit,
+    weeks: List<Int>, courseTitle: String, baseLocation: String, weekLocations: Map<Int, String>,
+    onConfirm: (Map<Int, String>) -> Unit, onDismiss: () -> Unit, suggestions: List<String> = emptyList(),
 ) {
-    val sorted = remember(weeks) { weeks.distinct().sorted() }
-    var focused by rememberSaveable(sorted) { mutableStateOf(sorted.firstOrNull()) }
+    WeekCourseValueDialog(weeks, courseTitle, baseLocation, weekLocations, onConfirm, onDismiss, suggestions,
+        R.string.schedule_week_location_title, R.string.schedule_week_location_default,
+        R.string.schedule_week_location_no_default, R.string.schedule_week_location_counts,
+        R.string.schedule_week_location_placeholder_empty)
+}
+
+@Composable
+internal fun WeekTeacherDialog(
+    weeks: List<Int>, courseTitle: String, baseTeacher: String, weekTeachers: Map<Int, String>,
+    onConfirm: (Map<Int, String>) -> Unit, onDismiss: () -> Unit, suggestions: List<String> = emptyList(),
+) {
+    WeekCourseValueDialog(weeks, courseTitle, baseTeacher, weekTeachers, onConfirm, onDismiss, suggestions,
+        R.string.schedule_week_teacher_title, R.string.schedule_week_teacher_default,
+        R.string.schedule_week_teacher_no_default, R.string.schedule_week_teacher_counts,
+        R.string.schedule_week_teacher_placeholder_empty)
+}
+
+/** Changes stay local until Save; cancelling never edits the parent course draft. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WeekCourseValueDialog(
+    weeks: List<Int>, courseTitle: String, defaultValue: String, overrides: Map<Int, String>,
+    onConfirm: (Map<Int, String>) -> Unit, onDismiss: () -> Unit, suggestions: List<String>,
+    @StringRes titleRes: Int, @StringRes defaultRes: Int, @StringRes noDefaultRes: Int,
+    @StringRes countsRes: Int, @StringRes placeholderRes: Int,
+) {
+    val sorted = remember(weeks) { weeks.filter { it > 0 }.distinct().sorted() }
+    var selectedRaw by rememberSaveable { mutableStateOf("") }
+    val selected = remember(selectedRaw) { decodeCustomWeeks(selectedRaw, sorted.maxOrNull() ?: 1).filter { it in sorted }.toSet() }
+    var draftRaw by rememberSaveable { mutableStateOf(encodeWeekLocations(overrides)) }
+    val draft = remember(draftRaw) { decodeWeekLocations(draftRaw) }
+    var value by rememberSaveable { mutableStateOf("") }
+    val options = remember(suggestions, defaultValue, draft) {
+        (suggestions + defaultValue + draft.values).map(String::trim).filter(String::isNotEmpty).distinct().map { CourseReuseOption(it) }
+    }
+    fun select(next: Set<Int>) {
+        selectedRaw = encodeCustomWeeks(next)
+        value = next.map { draft[it].orEmpty() }.distinct().singleOrNull().orEmpty()
+    }
+    fun applyValue(newValue: String) {
+        draftRaw = encodeWeekLocations(batchWeekValues(draft, sorted, selected, newValue))
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.schedule_week_location_title)) },
+        modifier = Modifier.testTag("course-week-values-dialog"),
+        title = { Text(stringResource(titleRes)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(10.dp),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = courseTitle.ifBlank {
-                                stringResource(R.string.schedule_week_location_untitled_course)
-                            },
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = if (baseLocation.isBlank()) {
-                                stringResource(R.string.schedule_week_location_no_default)
-                            } else {
-                                stringResource(R.string.schedule_week_location_default, baseLocation)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = stringResource(
-                                R.string.schedule_week_location_counts,
-                                weeks.size,
-                                weekLocations.count { it.value.isNotBlank() },
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+            Column(Modifier.fillMaxWidth().heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(courseTitle.ifBlank { stringResource(R.string.schedule_week_location_untitled_course) },
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(if (defaultValue.isBlank()) stringResource(noDefaultRes) else stringResource(defaultRes, defaultValue),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(countsRes, sorted.size, draft.count { it.key in sorted && it.value.isNotBlank() }),
+                    style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.schedule_week_batch_hint), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                WeekSelectionGrid(sorted, selected, ::select, customized = draft.keys)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    AppOutlinedButton(onClick = { select(sorted.toSet()) }, modifier = Modifier.testTag("week-select-all")) {
+                        Text(stringResource(R.string.schedule_week_custom_all))
+                    }
+                    AppOutlinedButton(onClick = { select(emptySet()) }, enabled = selected.isNotEmpty()) {
+                        Text(stringResource(R.string.schedule_week_batch_clear_selection))
                     }
                 }
-                FlowRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 220.dp)
-                        .verticalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    sorted.forEach { week ->
-                        val customized = weekLocations[week]?.isNotBlank() == true
-                        val isFocused = week == focused
-                        Surface(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { focused = week },
-                            color = when {
-                                isFocused -> MaterialTheme.colorScheme.primary
-                                customized -> MaterialTheme.colorScheme.primaryContainer
-                                else -> MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            shape = RoundedCornerShape(10.dp),
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = week.toString(),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = if (customized) FontWeight.Bold else FontWeight.Normal,
-                                    color = when {
-                                        isFocused -> MaterialTheme.colorScheme.onPrimary
-                                        customized -> MaterialTheme.colorScheme.onPrimaryContainer
-                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                )
-                            }
-                        }
+                CourseReuseTextField(value, { value = it }, stringResource(R.string.schedule_week_batch_selected, selected.size),
+                    options, tag = "week-batch-value", enabled = selected.isNotEmpty(),
+                    placeholder = defaultValue.ifBlank { stringResource(placeholderRes) })
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    androidx.compose.material3.Button(onClick = { applyValue(value) }, enabled = selected.isNotEmpty() && value.isNotBlank(),
+                        modifier = Modifier.testTag("week-batch-apply")) {
+                        Text(stringResource(R.string.schedule_week_batch_apply))
                     }
-                }
-
-                focused?.let { week ->
-                    OutlinedTextField(
-                        value = weekLocations[week].orEmpty(),
-                        onValueChange = { onChange(week, it) },
-                        label = { Text(stringResource(R.string.schedule_week_location_week, week)) },
-                        placeholder = {
-                            Text(
-                                text = baseLocation.ifBlank {
-                                    stringResource(R.string.schedule_week_location_placeholder_empty)
-                                },
-                                maxLines = 1,
-                            )
-                        },
-                        singleLine = true,
-                        trailingIcon = weekLocations[week]?.takeIf { it.isNotBlank() }?.let {
-                            {
-                                IconButton(onClick = { onChange(week, "") }) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Close,
-                                        contentDescription = stringResource(R.string.schedule_action_clear),
-                                    )
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    AppOutlinedButton(onClick = { value = ""; applyValue("") }, enabled = selected.isNotEmpty(),
+                        modifier = Modifier.testTag("week-batch-default")) {
+                        Text(stringResource(R.string.schedule_week_batch_default))
+                    }
                 }
             }
         },
         confirmButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_save)) }
-        },
-        dismissButton = if (weekLocations.isNotEmpty()) {
-            {
-                AppOutlinedButton(onClick = onClearAll) { Text(stringResource(R.string.schedule_action_clear)) }
+            AppOutlinedButton(onClick = {
+                val values = if (selected.isNotEmpty() && value.isNotBlank()) batchWeekValues(draft, sorted, selected, value) else draft
+                onConfirm(values)
+            }, modifier = Modifier.testTag("week-batch-save")) {
+                Text(stringResource(R.string.schedule_action_save))
             }
-        } else {
-            null
         },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
     )
 }
 
@@ -761,6 +716,7 @@ private fun buildCourse(
     weeks: List<Int>,
     category: CourseCategory,
     weekLocations: Map<Int, String> = emptyMap(),
+    weekTeachers: Map<Int, String> = emptyMap(),
     existing: CourseItem? = null,
 ): CourseItem {
     val time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode)
@@ -774,6 +730,7 @@ private fun buildCourse(
             category = category,
             time = time,
             weekLocations = weekLocations,
+            weekTeachers = weekTeachers,
         )
     }
     return CourseItem(
@@ -785,6 +742,7 @@ private fun buildCourse(
         category = category,
         time = time,
         weekLocations = weekLocations,
+        weekTeachers = weekTeachers,
     )
 }
 

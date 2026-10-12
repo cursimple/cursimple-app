@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.core.plugin.market.github.MarketSourceCheck
 
@@ -127,14 +128,12 @@ internal fun MarketCatalogControls(
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.plugin_market_action_import_zip))
             }
-            AppOutlinedButton(
+            AppCircleIconButton(
                 onClick = onRefresh,
                 enabled = !isLoading && !isRefreshingReleases,
                 modifier = Modifier.testTag("catalog-refresh"),
             ) {
-                Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text(stringResource(if (isLoading) R.string.plugin_market_action_loading else R.string.plugin_market_action_refresh))
+                Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.plugin_market_action_refresh), modifier = Modifier.size(24.dp))
             }
         }
         if (isLoading || isRefreshingReleases) {

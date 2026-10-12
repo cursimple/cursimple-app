@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 
 class CalendarWidgetModelTest {
@@ -56,6 +57,44 @@ class CalendarWidgetModelTest {
     private fun slot(start: Int, end: Int, time: String, label: String = "") = ClassSlotTime(start, end, time, time, label = label)
     private val labelOf: (ClassSlotTime, Int) -> String = { slot, index -> slot.label.ifBlank { "第${index}节" } }
     private val fallback: (Int) -> String = { node -> "第${node}节" }
+
+    @Test fun `current row uses slot start inclusive and end exclusive with unhighlighted breaks`() {
+        val rows = listOf(
+            CalendarRow(1, 2, "第一节", "08:00", "09:40"),
+            CalendarRow(3, 4, "第二节", "10:05", "11:45"),
+            CalendarRow(5, 6, "夜课", "20:45", "22:20"),
+        )
+        val days = week().mapIndexed { index, d -> d.copy(isToday = index == 1) }
+        fun at(time: String) = calendarCurrentRows(rows, days, LocalTime.parse(time))
+        assertTrue(at("07:59").isEmpty())
+        assertEquals(setOf(0), at("08:00"))
+        assertEquals(setOf(0), at("09:39"))
+        assertTrue(at("09:40").isEmpty())
+        assertTrue(at("10:04").isEmpty())
+        assertEquals(setOf(1), at("10:05"))
+        assertEquals(setOf(2), at("21:30"))
+        assertTrue(at("22:20").isEmpty())
+    }
+
+    @Test fun `other weeks holidays and incomplete times never get a current row`() {
+        val rows = listOf(CalendarRow(1, 2, "第一节", "08:00", "09:40"))
+        assertTrue(calendarCurrentRows(rows, week(), LocalTime.of(8, 30)).isEmpty())
+        val days = week().mapIndexed { i, d -> d.copy(isToday = i == 0, onHoliday = i == 0) }
+        assertTrue(calendarCurrentRows(rows, days, LocalTime.of(8, 30)).isEmpty())
+        val invalid = listOf(CalendarRow(1, 1, "缺少结束时间", "08:00"), CalendarRow(2, 2, "无效", "abc", "09:40"),
+            CalendarRow(3, 3, "相等", "08:00", "08:00"), CalendarRow(4, 4, "倒序", "10:00", "09:00"))
+        assertTrue(calendarCurrentRows(invalid, days.map { it.copy(onHoliday = false) }, LocalTime.of(8, 30)).isEmpty())
+    }
+
+    @Test fun `current row follows sorted merged timetable slots rather than node or fixed hours`() {
+        val days = week().mapIndexed { i, d -> d.copy(isToday = i == 0) }
+        val slots = listOf(ClassSlotTime(3, 4, "10:05", "11:45"), ClassSlotTime(1, 2, "8:10", "09:50"))
+        val rows = calendarRows(slots, days, labelOf, fallback)
+        assertEquals("09:50", rows[0].endTime)
+        assertEquals(setOf(0), calendarCurrentRows(rows, days, LocalTime.of(9, 45)))
+        assertTrue(calendarCurrentRows(rows, days, LocalTime.of(10, 0)).isEmpty())
+        assertEquals(setOf(1), calendarCurrentRows(rows, days, LocalTime.of(10, 10)))
+    }
 
     @Test fun `rows follow the timetable names and merge multi node slots`() {
         val slots = listOf(

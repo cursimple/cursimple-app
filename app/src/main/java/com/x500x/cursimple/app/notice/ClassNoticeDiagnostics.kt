@@ -74,6 +74,26 @@ object ClassNoticeDiagnostics {
             add("build.id" to Build.ID.orEmpty())
             ROM_PROPS.forEach { key -> StatusBarChipSupport.prop(key)?.let { add(key to it) } }
             add("vendor" to VendorRom.current().name)
+            add("app.package" to app.packageName)
+            val guard = app.getSharedPreferences("reminder_guard_health", Context.MODE_PRIVATE)
+            add("guard.foreground_enabled" to com.x500x.cursimple.app.reminder.ReminderGuardForegroundService.isEnabled(app).toString())
+            add("guard.foreground_state" to com.x500x.cursimple.app.reminder.ReminderGuardForegroundService.state.value)
+            add("guard.last_success" to guard.getLong("last_success", 0).toString())
+            add("guard.next_elapsed" to guard.getLong("next_elapsed", 0).toString())
+            addAll(com.x500x.cursimple.app.vendor.VendorCourseStore.statuses(app).map { "vendor_service.${it.first}" to it.second })
+            addAll(com.x500x.cursimple.app.vendor.VendorCourseStore.diagnosticDetails(app).map { "vendor_service.${it.first}" to it.second })
+            val vendorConfig = com.x500x.cursimple.app.vendor.VendorCourseStore.config(app)
+            add("vendor_service.enabled" to vendorConfig.enabled.toString())
+            add("vendor_service.aod" to vendorConfig.aodEnabled.toString())
+            runCatching {
+                val signatures = if (Build.VERSION.SDK_INT >= 28) app.packageManager.getPackageInfo(app.packageName, PackageManager.GET_SIGNING_CERTIFICATES).signingInfo?.apkContentsSigners.orEmpty()
+                    else { @Suppress("DEPRECATION") app.packageManager.getPackageInfo(app.packageName, PackageManager.GET_SIGNATURES).signatures.orEmpty() }
+                signatures.forEachIndexed { index, signature ->
+                    val digest = java.security.MessageDigest.getInstance("SHA-256").digest(signature.toByteArray()).joinToString("") { "%02X".format(it) }
+                    add("app.certificate_sha256.$index" to digest)
+                }
+            }
+
 
             add("notifications.enabled" to NotificationManagerCompat.from(app).areNotificationsEnabled().toString())
             add("permission.post_notifications" to postPermissionState(app))
@@ -99,7 +119,6 @@ object ClassNoticeDiagnostics {
             add("island.blocked" to ClassNoticeNotifier.islandBlocked(app).toString())
 
             add("overlay.can_draw" to Settings.canDrawOverlays(app).toString())
-            add("self_drawn.reason" to (SelfDrawnNotice.reason()?.name ?: "none"))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && VendorRom.current() == VendorRom.Vivo) {
                 // Include raw vendor channel fields when public importance alone cannot explain suppression.
                 listOf(ClassNoticeNotifier.CHANNEL_ID, ClassNoticeNotifier.CHANNEL_ID_QUIET).forEach { id ->
@@ -133,17 +152,54 @@ object ClassNoticeDiagnostics {
             findActive(manager, ClassNoticeNotifier.ALARM_NOTIFICATION_ID)?.let { alarm ->
                 summarize(alarm).forEach { (key, value) -> add("active.alarm_preview.$key" to value) }
             }
+            NoticeDisplayTarget.entries.forEach { target ->
+                val observation = NoticeDisplayTests.observe(app, target)
+                val prefix = "test.${target.name.lowercase()}"
+                add("$prefix.state" to (observation.run?.phase?.name ?: "idle"))
+                observation.run?.let { run ->
+                    add("$prefix.style" to run.style.name)
+                    add("$prefix.step" to run.step.name)
+                    add("$prefix.user_observed" to run.feedback.name)
+                    add("$prefix.request.vivo_atomic" to run.requestedVivo.toString())
+                    add("$prefix.request.native_live" to run.requestedNative.toString())
+                    add("$prefix.system.first_seen" to run.firstRegisteredAt.toString())
+                    run.receipt?.let { receipt ->
+                        add("$prefix.last_receipt" to "at=${receipt.checkedAt},active=${receipt.active},promoted=${receipt.promoted},vivo_fields=${receipt.vivoExtrasPresent},vivo_tag=${receipt.vivoTagged},identity=${receipt.identityPresent}")
+                    }
+                    add("$prefix.sent_at" to run.sentAt.toString())
+                    add("$prefix.interactive_at_send" to run.interactive.toString())
+                    add("$prefix.locked_at_send" to run.locked.toString())
+                    add("$prefix.exact" to run.exact.toString())
+                }
+                findActive(manager, target.notificationId)?.let { notification ->
+                    summarize(notification).forEach { (key, value) -> add("$prefix.active.$key" to value) }
+                }
+            }
+            NoticeDisplayTests.history(app).forEachIndexed { index, run ->
+                add("test.history.$index" to "${run.target}/${run.style}/${run.sentAt}/user:${run.feedback}")
+            }
         }
     }
 
     fun asText(lines: List<Pair<String, String>>): String =
         lines.joinToString("\n") { (key, value) -> "$key: $value" }
 
-    /**
-     * Inspect activeNotifications after delivery; notify returning normally does not confirm
-     * visible registration.
-     */
-    fun logPosted(context: Context, notificationId: Int, extra: Map<String, Any?>) {
+    /** Capture request fields before system normalization. */
+    fun requestFields(notification: Notification): Map<String, Any?> {
+        val extra = notification.extras
+        return mapOf(
+            "request.native_live" to extra.getBoolean(EXTRA_REQUEST_PROMOTED_ONGOING),
+            "request.vivo_atomic" to extra.containsKey(VivoAtomicNotice.OPERATION),
+            "request.vivo_small_card" to (extra.getBundle(VivoAtomicNotice.SHORT_INFO) != null),
+            "request.vivo_island" to (extra.getBundle(VivoAtomicNotice.ISLAND) != null),
+            "request.vivo_capsule" to (extra.getBundle(VivoAtomicNotice.CAPSULE) != null),
+            "request.vivo_displays" to "0x${Integer.toHexString(extra.getInt(VivoAtomicNotice.DISPLAYS))}",
+            "request.course_identity" to (extra.containsKey(ClassNoticeNotifier.EXTRA_COURSE_START) && extra.containsKey(ClassNoticeNotifier.EXTRA_COURSE_TITLE)),
+        )
+    }
+
+    /** Inspect the actual system record separately from the request. */
+    fun logPosted(context: Context, notificationId: Int, extra: Map<String, Any?>, ownerStartAt: Long) {
         val app = context.applicationContext
         val postedAt = System.currentTimeMillis()
         // Capture screen, lock and foreground state at send time for diagnostics.
@@ -166,7 +222,21 @@ object ClassNoticeDiagnostics {
                         "canPostPromoted" to canPostPromoted(manager),
                     )
                     val posted = findActive(manager, notificationId)
-                    if (posted == null || posted.postTime < postedAt - STALE_SLACK_MS) {
+                    val stale = posted != null && (posted.postTime < postedAt - STALE_SLACK_MS ||
+                        (posted.notification.extras.containsKey(ClassNoticeNotifier.EXTRA_COURSE_START) &&
+                            posted.notification.extras.getLong(ClassNoticeNotifier.EXTRA_COURSE_START) != ownerStartAt))
+                    val accepted = posted?.takeUnless { stale }
+                    val notification = accepted?.notification
+                    NoticeDisplayTests.recordReceipt(app, notificationId, ownerStartAt,
+                        extra["request.vivo_atomic"] == true, extra["request.native_live"] == true,
+                        NoticeSystemReceipt(System.currentTimeMillis(), accepted != null,
+                            Build.VERSION.SDK_INT >= 36 && notification != null && notification.flags and Notification.FLAG_PROMOTED_ONGOING != 0,
+                            notification?.extras?.containsKey(VivoAtomicNotice.OPERATION) == true,
+                            accepted?.tag == VivoAtomicNotice.TAG,
+                            notification?.extras?.getString(Notification.EXTRA_TEMPLATE).orEmpty(),
+                            notification?.extras?.containsKey(ClassNoticeNotifier.EXTRA_COURSE_START) == true &&
+                                notification.extras.containsKey(ClassNoticeNotifier.EXTRA_COURSE_TITLE)))
+                    if (posted == null || stale) {
                         ReminderLogger.warn("class_notice.post.missing", common + mapOf("stale" to (posted != null)))
                     } else {
                         val summary = summarize(posted).associate { (key, value) -> "active.$key" to value }
@@ -193,6 +263,18 @@ object ClassNoticeDiagnostics {
         val notification = sbn.notification
         val flags = notification.flags
         return buildList {
+            add("tag" to sbn.tag.orEmpty().ifBlank { "none" })
+            add("course_identity_retained" to (notification.extras.containsKey(ClassNoticeNotifier.EXTRA_COURSE_START) && notification.extras.containsKey(ClassNoticeNotifier.EXTRA_COURSE_TITLE)).toString())
+            add("vivo.atomic_tag" to (sbn.tag == VivoAtomicNotice.TAG).toString())
+            if (notification.extras.containsKey(VivoAtomicNotice.OPERATION)) {
+                add("vivo.atomic_operation" to notification.extras.getInt(VivoAtomicNotice.OPERATION).toString())
+                add("vivo.atomic_displays" to "0x${Integer.toHexString(notification.extras.getInt(VivoAtomicNotice.DISPLAYS))}")
+                add("vivo.atomic_scene" to notification.extras.getString("notification.superx.scene").orEmpty())
+                val short = notification.extras.getBundle(VivoAtomicNotice.SHORT_INFO)
+                add("vivo.aod_has_course" to (!short?.getString("notification.superx.shortInfos.coreInfoShort").isNullOrBlank()).toString())
+                add("vivo.has_island" to (notification.extras.getBundle(VivoAtomicNotice.ISLAND) != null).toString())
+                add("vivo.has_capsule" to (notification.extras.getBundle(VivoAtomicNotice.CAPSULE) != null).toString())
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 add("channel" to notification.channelId.orEmpty())
             }

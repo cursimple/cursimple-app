@@ -63,7 +63,11 @@ object LogExporter {
             writer.appendLine("# pid=$pid time=$timestamp")
             writer.appendLine("# device=${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
             writer.appendLine("# android=${android.os.Build.VERSION.RELEASE} (sdk=${android.os.Build.VERSION.SDK_INT})")
+            writer.appendLine("# app=${context.packageName} version=${com.x500x.cursimple.BuildConfig.VERSION_NAME} (${com.x500x.cursimple.BuildConfig.VERSION_CODE})")
+            writer.appendLine("# notice_diagnostics=receipt-v2")
             writer.appendLine("# includes app and plugin diagnostics")
+            writer.appendLine("# Scope: app process and app-owned notification records; SystemUI logs are not included.")
+            appendNoticeTests(writer, context)
             appendAppDiagnostics(writer, AppDiagnosticsFileSink.appDiagnosticsFile(context))
             appendPluginDiagnostics(writer, PluginFileLogSink.pluginDiagnosticsFile(context))
             writer.appendLine()
@@ -88,6 +92,16 @@ object LogExporter {
             "-v",
             "time",
         )
+    }
+
+    internal fun appendNoticeTests(writer: Writer, context: Context) {
+        writer.appendLine()
+        writer.appendLine("# Notification display snapshot at ${System.currentTimeMillis()}")
+        com.x500x.cursimple.app.notice.NoticeDisplayTarget.entries.forEach { target ->
+            runCatching { writer.appendLine(com.x500x.cursimple.app.notice.NoticeDisplayTests.report(context, target)) }
+                .onFailure { writer.appendLine("# $target snapshot unavailable: ${it.javaClass.simpleName}") }
+            writer.appendLine()
+        }
     }
 
     internal fun appendAppDiagnostics(writer: Writer, appLogFile: File) {

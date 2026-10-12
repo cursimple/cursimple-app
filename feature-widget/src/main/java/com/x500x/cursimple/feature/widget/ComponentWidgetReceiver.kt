@@ -45,12 +45,17 @@ open class ComponentWidgetReceiver : AppWidgetProvider() {
         suspend fun updateWidgets(baseContext: Context, ids: IntArray? = null) = updateLock.withLock {
             val context = AppLocale.wrap(baseContext)
             val manager = AppWidgetManager.getInstance(context)
-            val targets = ids ?: catalogWidgetIds(context, manager, "tasks")
+            val targets = ids ?: WidgetCatalog.componentProviders(context).flatMap { component ->
+                runCatching { manager.getAppWidgetIds(component).toList() }.getOrDefault(emptyList())
+            }.toIntArray()
             val registry = ComponentWidgetRegistry.read(context)
             for (id in targets) {
                 val bound = ComponentWidgetBindings.get(context, id)
-                val definition = if (bound == null) registry.singleOrNull()?.also { ComponentWidgetBindings.set(context, id, it.key) }
-                    else registry.firstOrNull { it.key == bound }
+                // A slot placement belongs to the slot's owner; the legacy provider only auto-binds a sole owner.
+                val slot = manager.getAppWidgetInfo(id)?.provider?.let(ComponentWidgetSlots::slotOf)
+                val definition = if (bound != null) registry.firstOrNull { it.key == bound }
+                    else (if (slot != null) registry.firstOrNull { it.key == ComponentWidgetSlots.assignedKey(context, slot) } else registry.singleOrNull())
+                        ?.also { ComponentWidgetBindings.set(context, id, it.key) }
                 val views = RemoteViews(context.packageName, R.layout.widget_component)
                 val options = manager.getAppWidgetOptions(id)
                 val width = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 300).coerceAtLeast(1).toFloat()

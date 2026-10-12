@@ -1,13 +1,13 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,11 +23,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.annotation.StringRes
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,6 +53,7 @@ internal fun ReminderRuleEditorDialog(
     onPickLocalAudio: ((String?) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String?, String, Boolean, Int, String?, List<ReminderLabelCondition>, List<ReminderLabelAction>) -> Unit,
+    onDelete: (() -> Unit)? = null,
 ) {
     val labels = slotLabels.ifEmpty { listOf("") }
     val defaultRuleName = stringResource(
@@ -63,7 +63,9 @@ internal fun ReminderRuleEditorDialog(
     var name by rememberSaveable(rule?.ruleId) {
         mutableStateOf(rule?.displayName ?: defaultRuleName)
     }
-    var enabled by rememberSaveable(rule?.ruleId) { mutableStateOf(rule?.enabled ?: true) }
+    // Enablement is toggled from the list row; the editor keeps the current value.
+    val enabled = rule?.enabled ?: true
+    var confirmDelete by rememberSaveable(rule?.ruleId) { mutableStateOf(false) }
     var advanceText by rememberSaveable(rule?.ruleId) { mutableStateOf((rule?.advanceMinutes ?: 20).toString()) }
     var ringtoneUri by rememberSaveable(rule?.ruleId) { mutableStateOf(rule?.ringtoneUri) }
     var conditions by remember(rule?.ruleId) {
@@ -95,68 +97,87 @@ internal fun ReminderRuleEditorDialog(
                     .fillMaxWidth()
                     .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(40) },
                     label = { Text(stringResource(R.string.schedule_reminder_rule_name_label)) },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.schedule_reminder_rule_enabled), modifier = Modifier.weight(1f))
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
-                }
-                OutlinedTextField(
-                    value = advanceText,
-                    onValueChange = { advanceText = it.filter(Char::isDigit).take(4) },
-                    label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                    isError = advanceText.isNotBlank() && (advance == null || advance !in 0..720),
-                )
-                AlarmRingtoneSelector(
-                    ringtoneUri = ringtoneUri,
-                    onUseDefault = { ringtoneUri = null },
-                    onPickSystem = { onPickSystemRingtone { ringtoneUri = it } },
-                    onPickLocal = { onPickLocalAudio { ringtoneUri = it } },
-                )
 
-                conditions.forEachIndexed { index, condition ->
-                    ConditionRow(
-                        condition = condition,
-                        labels = labels,
-                        onChange = { next ->
-                            conditions = conditions.toMutableList().also { it[index] = next }
+                AlarmEditorSection(stringResource(R.string.schedule_reminder_rule_section_when)) {
+                    conditions.forEachIndexed { index, condition ->
+                        ConditionRow(
+                            condition = condition,
+                            labels = labels,
+                            onChange = { next ->
+                                conditions = conditions.toMutableList().also { it[index] = next }
+                            },
+                            onDelete = { conditions = conditions.filterIndexed { i, _ -> i != index } },
+                        )
+                    }
+                    AppOutlinedButton(
+                        onClick = {
+                            conditions += ReminderLabelCondition(labels.first(), ReminderLabelPresence.Exists)
                         },
-                        onDelete = { conditions = conditions.filterIndexed { i, _ -> i != index } },
-                    )
-                }
-                AppOutlinedButton(
-                    onClick = {
-                        conditions += ReminderLabelCondition(labels.first(), ReminderLabelPresence.Exists)
-                    },
-                ) {
-                    Text(stringResource(R.string.schedule_reminder_rule_add_condition))
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) {
+                        Text(stringResource(R.string.schedule_reminder_rule_add_condition))
+                    }
                 }
 
-                Spacer(Modifier.height(4.dp))
-                actions.forEachIndexed { index, action ->
-                    ActionRow(
-                        action = action,
-                        labels = labels,
-                        onChange = { next ->
-                            actions = actions.toMutableList().also { it[index] = next }
+                AlarmEditorSection(stringResource(R.string.schedule_reminder_rule_section_then)) {
+                    actions.forEachIndexed { index, action ->
+                        ActionRow(
+                            action = action,
+                            labels = labels,
+                            onChange = { next ->
+                                actions = actions.toMutableList().also { it[index] = next }
+                            },
+                            onDelete = { actions = actions.filterIndexed { i, _ -> i != index } },
+                        )
+                    }
+                    AppOutlinedButton(
+                        onClick = {
+                            actions += ReminderLabelAction(labels.first(), ReminderLabelActionType.Remind)
                         },
-                        onDelete = { actions = actions.filterIndexed { i, _ -> i != index } },
+                        modifier = Modifier.heightIn(min = 48.dp),
+                    ) {
+                        Text(stringResource(R.string.schedule_reminder_rule_add_action))
+                    }
+                }
+
+                AlarmEditorSection(stringResource(R.string.schedule_alarm_section_ring)) {
+                    val advanceInvalid = advanceText.isNotBlank() && (advance == null || advance !in 0..720)
+                    OutlinedTextField(
+                        value = advanceText,
+                        onValueChange = { advanceText = it.filter(Char::isDigit).take(4) },
+                        label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = advanceInvalid,
+                        supportingText = if (advanceInvalid) {
+                            { Text(stringResource(R.string.schedule_advance_minutes_error)) }
+                        } else {
+                            null
+                        },
+                    )
+                    AlarmRingtoneSelector(
+                        ringtoneUri = ringtoneUri,
+                        onUseDefault = { ringtoneUri = null },
+                        onPickSystem = { onPickSystemRingtone { ringtoneUri = it } },
+                        onPickLocal = { onPickLocalAudio { ringtoneUri = it } },
                     )
                 }
-                AppOutlinedButton(
-                    onClick = {
-                        actions += ReminderLabelAction(labels.first(), ReminderLabelActionType.Remind)
-                    },
-                ) {
-                    Text(stringResource(R.string.schedule_reminder_rule_add_action))
+
+                if (onDelete != null) {
+                    ReminderDeleteButton(
+                        label = stringResource(R.string.schedule_cd_delete_rule),
+                        onClick = { confirmDelete = true },
+                    )
                 }
             }
         },
@@ -175,11 +196,22 @@ internal fun ReminderRuleEditorDialog(
                 },
                 enabled = canSave,
             ) {
-                Text(stringResource(R.string.schedule_action_save))
+                AppAtomicText(stringResource(R.string.schedule_action_save))
             }
         },
-        dismissButton = { AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) } },
+        dismissButton = { AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) } },
     )
+
+    if (confirmDelete && onDelete != null) {
+        ReminderDeleteConfirmDialog(
+            name = name.ifBlank { rule?.displayName.orEmpty() },
+            onConfirm = {
+                confirmDelete = false
+                onDelete()
+            },
+            onDismiss = { confirmDelete = false },
+        )
+    }
 }
 
 internal fun canSaveReminderLabelRule(
@@ -304,8 +336,13 @@ private fun RuleClauseLayout(
 
 @Composable
 private fun ClauseDeleteButton(description: String, onDelete: () -> Unit) {
-    IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
-        Icon(Icons.Rounded.Delete, contentDescription = description)
+    AppCircleIconButton(onClick = onDelete) {
+        Icon(
+            Icons.Rounded.Delete,
+            contentDescription = description,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(22.dp),
+        )
     }
 }
 

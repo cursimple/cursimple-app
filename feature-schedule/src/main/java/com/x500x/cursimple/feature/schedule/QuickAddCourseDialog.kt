@@ -5,12 +5,17 @@ import com.x500x.cursimple.feature.plugin.ui.AppAssistChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AssistChipDefaults
@@ -30,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -41,7 +47,7 @@ import java.util.UUID
 /**
  * Quick-add fixes the tapped day and period span while asking for course metadata and weeks.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun QuickAddCourseDialog(
     dayOfWeek: Int,
@@ -53,11 +59,14 @@ fun QuickAddCourseDialog(
     onDismiss: () -> Unit,
     onConfirm: (CourseItem) -> Unit,
 ) {
+    val reuse = rememberCourseReuseValues(existingCourses)
     var title by rememberSaveable { mutableStateOf("") }
     var location by rememberSaveable { mutableStateOf("") }
     var weekLocationsRaw by rememberSaveable { mutableStateOf("") }
     var pickingWeekLocations by rememberSaveable { mutableStateOf(false) }
     var teacher by rememberSaveable { mutableStateOf("") }
+    var weekTeachersRaw by rememberSaveable { mutableStateOf("") }
+    var pickingWeekTeachers by rememberSaveable { mutableStateOf(false) }
     // Leave new-course weeks unset rather than assuming current-to-term-end coverage.
     var startWeekText by rememberSaveable { mutableStateOf("") }
     var endWeekText by rememberSaveable { mutableStateOf("") }
@@ -65,6 +74,7 @@ fun QuickAddCourseDialog(
 
     val titleTrimmed = title.trim()
     val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
+    val weekTeachersMap = remember(weekTeachersRaw) { decodeWeekLocations(weekTeachersRaw) }
     val startWeek = startWeekText.toIntOrNull()
     val endWeek = endWeekText.toIntOrNull()
     val weeksValid = startWeek != null && endWeek != null &&
@@ -93,7 +103,8 @@ fun QuickAddCourseDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
+                .padding(horizontal = 20.dp, vertical = 24.dp)
+                .heightIn(max = 640.dp),
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 4.dp,
@@ -108,7 +119,10 @@ fun QuickAddCourseDialog(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 // Show fixed day and periods as read-only destination chips.
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     AppAssistChip(
                         onClick = {},
                         enabled = false,
@@ -137,26 +151,28 @@ fun QuickAddCourseDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = title,
-                        onValueChange = { title = it },
-                        label = { Text(stringResource(R.string.schedule_course_name_label)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                Column(
+                    modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    CourseTitleField(title, onChange = { title = it }, courses = reuse.courses, onReuse = { course ->
+                        title = course.title.trim()
+                        teacher = course.teacher.trim()
+                        location = course.location.trim()
+                    })
                     CourseLocationField(
                         location = location,
                         onLocationChange = { location = it },
                         weekLocations = weekLocationsMap,
                         onPickWeekLocations = { pickingWeekLocations = true },
+                        suggestions = reuse.locations,
                     )
-                    OutlinedTextField(
-                        value = teacher,
-                        onValueChange = { teacher = it },
-                        label = { Text(stringResource(R.string.schedule_course_teacher_label)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                    CourseTeacherField(
+                        teacher = teacher,
+                        onTeacherChange = { teacher = it },
+                        weekTeachers = weekTeachersMap,
+                        onPickWeekTeachers = { pickingWeekTeachers = true },
+                        suggestions = reuse.teachers,
                     )
 
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -200,7 +216,7 @@ fun QuickAddCourseDialog(
                             onValueChange = { startWeekText = it.filter(Char::isDigit).take(2) },
                             label = { Text(stringResource(R.string.schedule_week_start_label)) },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                             modifier = Modifier.weight(1f),
                         )
                         OutlinedTextField(
@@ -208,7 +224,7 @@ fun QuickAddCourseDialog(
                             onValueChange = { endWeekText = it.filter(Char::isDigit).take(2) },
                             label = { Text(stringResource(R.string.schedule_week_end_label)) },
                             singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -232,6 +248,8 @@ fun QuickAddCourseDialog(
                                 id = "manual-" + UUID.randomUUID().toString().take(12),
                                 title = titleTrimmed,
                                 teacher = teacher.trim(),
+                                weekTeachers = weekTeachersMap.filterKeys { it in weeks }
+                                    .mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
                                 location = location.trim(),
                                 // Retain nonblank locations for selected weeks only.
                                 weekLocations = weekLocationsMap
@@ -254,6 +272,21 @@ fun QuickAddCourseDialog(
         }
     }
 
+    if (pickingWeekTeachers) {
+        WeekTeacherDialog(
+            weeks = if (weeksValid) (startWeek!!..endWeek!!).toList() else (1..maxWeekCount).toList(),
+            courseTitle = title.trim(),
+            baseTeacher = teacher.trim(),
+            weekTeachers = weekTeachersMap,
+            suggestions = reuse.teachers,
+            onConfirm = { values ->
+                weekTeachersRaw = encodeWeekLocations(values)
+                pickingWeekTeachers = false
+            },
+            onDismiss = { pickingWeekTeachers = false },
+        )
+    }
+
     if (pickingWeekLocations) {
         val startWeek = startWeekText.toIntOrNull()
         val endWeek = endWeekText.toIntOrNull()
@@ -266,14 +299,11 @@ fun QuickAddCourseDialog(
             courseTitle = title.trim(),
             baseLocation = location.trim(),
             weekLocations = weekLocationsMap,
-            onChange = { week, value ->
-                weekLocationsRaw = encodeWeekLocations(
-                    weekLocationsMap.toMutableMap().apply {
-                        if (value.isBlank()) remove(week) else put(week, value)
-                    },
-                )
+            suggestions = reuse.locations,
+            onConfirm = { values ->
+                weekLocationsRaw = encodeWeekLocations(values)
+                pickingWeekLocations = false
             },
-            onClearAll = { weekLocationsRaw = "" },
             onDismiss = { pickingWeekLocations = false },
         )
     }
