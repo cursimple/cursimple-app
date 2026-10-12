@@ -6,7 +6,15 @@ import kotlinx.serialization.json.contentOrNull
 
 fun ExtensionData.isIgnored(item: ExtensionFeedItem, now: Long): Boolean =
     item.id in ignoredItemIds || (host.ignoreOverdue && item.id !in restoredItemIds &&
-        !item.done && !item.isNotice() && item.dueAt?.let { it <= now } == true)
+        !item.isNotice() && item.dueAt?.let { it <= now } == true)
+
+/** Completion does not extend a task's deadline; explicit restorations remain visible. */
+fun nextIgnoredDeadline(all: Collection<ExtensionData>, now: Long): Long? = all.asSequence()
+    .filter { it.host.ignoreOverdue && (it.loggedIn || it.loginState == ExtensionLoginState.Expired) }
+    .flatMap { data -> data.items.asSequence().filter {
+        !it.isNotice() && it.id !in data.ignoredItemIds && it.id !in data.restoredItemIds
+    }.mapNotNull { it.dueAt?.takeIf { due -> due > now } } }
+    .minOrNull()
 
 fun ExtensionData.withItemIgnored(itemId: String, ignored: Boolean): ExtensionData {
     require(items.any { it.id == itemId }) { "内容已删除，请刷新列表" }

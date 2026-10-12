@@ -419,7 +419,7 @@ class PluginManager(
                 draft
             }
             WorkflowExecutionResult.Success(
-                schedule = effectiveDraft.toTermSchedule(session.manifest.limits),
+                schedule = effectiveDraft.toTermSchedule(session.manifest.limits).copy(sourcePluginId = session.record.pluginId),
                 uiSchema = session.uiSchema,
                 timingProfile = session.timingProfile,
                 messages = session.messages,
@@ -621,6 +621,9 @@ internal fun buildWebSessionRequest(
         userAgent = manifest.userAgent,
         completionStableDelayMs = manifest.webSession.completionStableDelayMs,
         autoCompleteOnScheduleDraft = manifest.webSession.autoCompleteOnScheduleDraft,
+        manualUploadHintDelayMs = manifest.webSession.manualUploadHintDelayMs?.coerceIn(1_000, 60_000),
+        retryIncompleteAfterMs = manifest.webSession.retryIncompleteAfterMs?.coerceIn(1_000, 60_000),
+        logoutUrls = manifest.webSession.logoutUrls,
         networkCaptures = if (PluginPermission.WebCapturePacket in manifest.permissions) {
             manifest.networkCaptures
         } else {

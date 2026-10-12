@@ -70,6 +70,7 @@ class SystemAlarmEnvironmentReceiver : BroadcastReceiver() {
                         ReminderWatchdogAlarm.cancel(app)
                     }
                     ReminderGuardJobService.applyPreference(app)
+                    ReminderGuardForegroundService.startIfEnabled(app)
                 }
                 Intent.ACTION_TIME_CHANGED,
                 Intent.ACTION_TIMEZONE_CHANGED,
@@ -91,6 +92,8 @@ private fun BroadcastReceiver.runAlarmMaintenance(
     eventName: String,
     block: suspend (ClassScheduleApplication, String?) -> Unit,
 ) {
+    if (context.getSystemService(android.os.UserManager::class.java)?.isUserUnlocked == false) return
+    (context.applicationContext as? ClassScheduleApplication)?.initializeAfterUnlock()
     val pendingResult = goAsync()
     CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
         try {

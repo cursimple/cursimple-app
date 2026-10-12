@@ -1,31 +1,128 @@
 <div align="center">
 
-<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" width="112" alt="CurSimple">
+<img src="app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" width="104" alt="CurSimple">
 
-# CurSimple
+# CurSimple · 课简
 
-**Timetable, reminders and home screen widgets for the whole term.**
+**Timetables, notes, reminders and independent components for your whole semester.**
 
-An open-source Android timetable app built on a microkernel architecture. Each school portal is handled by its own plugin, updated independently of the app.
+An open-source, free Android timetable app without ads. Import courses with school plugins, connect learning platforms and notification services with components, and manage courses, events and tasks on your phone and home screen.
 
 [![CI](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-ci.yml)
-[![Release](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml/badge.svg)](https://github.com/cursimple/cursimple-app/actions/workflows/android-release.yml)
-[![Latest beta 0.7.9](https://img.shields.io/badge/Latest%20beta-0.7.9-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)
-[![Release channel](https://img.shields.io/badge/channel-beta-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9)
+[![Latest beta 0.7.10](https://img.shields.io/badge/Latest%20beta-0.7.10-orange)](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.10)
 [![Downloads](https://img.shields.io/github/downloads/cursimple/cursimple-app/total)](https://github.com/cursimple/cursimple-app/releases)
-
 [![License](https://img.shields.io/github/license/cursimple/cursimple-app)](LICENSE)
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
-[![API](https://img.shields.io/badge/Android-7.0%2B%20(API%2024--36)-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
+[![Android](https://img.shields.io/badge/Android-7.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com)
 
-[Website](https://cursimple.github.io/cursimple-app/) · [Download](#download) · [Features](#features) · [Plugins](#plugin-system) · [Build from source](#build-from-source) · [中文](README.md)
-
-Latest beta: [0.7.9](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9) (`beta` / Pre-release).
+[Website](https://cursimple.github.io/cursimple-app/) · [Download](https://github.com/cursimple/cursimple-app/releases) · [Plugin catalog](https://cursimple.github.io/cursimple-plugins/) · [Component catalog](https://cursimple.github.io/cursimple-components/) · [简体中文](README.md)
 
 </div>
 
----
+The current release channel is **beta / Pre-release**. This README describes the current code; locally added features are still being tested. Check each Release announcement for the capabilities of its published APK.
+
+## How CurSimple fits together
+
+| Part | Purpose | Links |
+|---|---|---|
+| CurSimple app | Timetables, course notes, events, reminders, backups and home screen widgets | [Download the app](https://github.com/cursimple/cursimple-app/releases) |
+| School import plugins | Sign in to a school's academic system and import courses; each school adapter updates independently | [Plugin catalog](https://cursimple.github.io/cursimple-plugins/) · [Registry](https://github.com/cursimple/cursimple-plugins) |
+| Extension components | Sync learning tasks and announcements, connect notification services, and provide their own pages and declared widgets | [Component catalog](https://cursimple.github.io/cursimple-components/) · [Registry](https://github.com/cursimple/cursimple-components) |
+
+Home screen widgets display courses, notes or component content. Components are installed and enabled as needed; components that declare widgets expose their own entries, which disappear when disabled or removed.
+
+## Download and get started
+
+Choose an APK from [Releases](https://github.com/cursimple/cursimple-app/releases) or the [website download section](https://cursimple.github.io/cursimple-app/#download). Enable the beta update channel to receive test releases. The channel and GitHub Pre-release flag determine whether a build is a beta.
+
+| APK | Device |
+|---|---|
+| `CurSimple-arm64-v8a.apk` | Common 64-bit ARM phones |
+| `CurSimple-armeabi-v7a.apk` | Older 32-bit ARM devices |
+| `CurSimple-x86_64.apk` / `CurSimple-x86.apk` | Matching Intel devices or emulators |
+| `CurSimple-universal.apk` | Universal package when unsure |
+
+1. Set your semester and starting date.
+2. Install a school plugin from the Plugins market, sign in and sync. Manual entry, timetable codes, QR scanning and AI screenshot import are also available.
+3. Keep course notes and tasks in Notes, and add personal events to the timetable.
+4. Configure class notices and alarms, then check notification, exact-alarm and background permissions.
+5. Install any components you need, sign in or bind notification recipients, and add widgets to your home screen.
+
+## Features
+
+### Timetables and events
+
+- **Week and day views:** merged multi-period courses, odd/even/custom weeks, exams, cancellations and rescheduling.
+- **Today overview:** current and next class, countdowns, a full-day timeline and conflict details.
+- **Real-time events:** meetings, clubs and personal events use actual start/end times and appear beside overlapping classes or in folded groups.
+- **Course editing:** long-press to reschedule or add another course at the same day and period; teachers and rooms can vary by week.
+- **Appearance and zoom:** customize text, colours, cards, grids and background images, with pinch zoom and panning.
+- **Semesters:** independent timetables, daily schedules and week counts; holiday, make-up day and temporary overrides.
+
+### Course notes and memos
+
+| Capability | What it does |
+|---|---|
+| Course notebooks | Course-specific and general notes; search titles, full text, course information and completed notes |
+| Tasks | Checklists, priorities, pins, deadlines and completion; filter due-today and overdue items |
+| Read safely | Saved notes open read-only; enter edit mode explicitly and confirm changes or discarded drafts |
+| Images | Insert local images, open thumbnails for zoom and panning; images are copied into app storage |
+| Tools | Checklists, bullets, numbers, headings, bold, italic, quotes, strike, inline code, links and dividers; a scrolling toolbar with undo/redo in the upper right |
+| Typing | Enter makes a normal line break; use list tools to continue numbering. Inline formatting renders away from the active caret |
+| Share/import | All notes or a single note as a CurSimple file, code, QR, long image, Word, Markdown or plain text; paste, scan, read a QR image or select a file, then preview and confirm |
+| Course matching | Imported notes map to course names, preserve text and metadata, and keep local edits on repeated imports |
+
+Images travel with CurSimple notes files and backups and appear in Word/image exports. Markdown with images exports as a ZIP. Choose a notes file for larger image notes: share codes and one QR have capacity limits.
+
+### Reminders and alarms
+
+Manage class notices, manual alarms, automatic period rules and single-course reminders separately. Configure lead time, ringtones, vibration, repeat count, holiday exceptions and pre-alarm notices, or send eligible alarms to the system Clock.
+
+System notifications are the default. Overlay, live status bar and lock-screen presentation depend on device capabilities and permissions. Background checks can re-register cleared plans, subject to system limits. Clock exports are creation requests: verify them in Clock, and adjust exported alarms separately after schedule changes.
+
+Date pickers support month swipes, arrows and date taps.
+
+### Home screen widgets
+
+| Widget | Content and actions |
+|---|---|
+| Today's timetable / Next class | Class times, rooms, current and next courses |
+| Reminders | Upcoming course alarms |
+| Course calendar | Week/month views with courses, exams, events and holiday/workday markers; tap dates to open the timetable |
+| Note tasks | Tick tasks on the desktop, edit/add through the mini editor and choose a course; priority, notebook colour and pins are shown |
+| Component widgets | Independent components declare their UI and content; add after installation/enabling and tap to open the source component |
+
+Widgets refresh through system scheduling, background jobs and period boundaries. Timing depends on launcher and background restrictions. Native HarmonyOS service widgets remain in integration testing; Huawei launchers supporting Android widgets expose them under Widgets at the bottom of Service widgets.
+
+### Import, sharing and backups
+
+- Timetable QR/code sharing, image export, system calendar writes and `.ics`; save QR images and preview images before sending.
+- AI screenshot/camera import with your own recognition API configuration.
+- Local and WebDAV backups include courses, events, notes and note images. Passwords, tokens and notification credentials are excluded from ordinary backup migration.
+- Simplified Chinese, Traditional Chinese and English, including localized announcements; independently configurable app timezone.
+- Settings search, customizable favourites and timetable appearance.
+
+## Extension components
+
+Components own their home pages, settings, sign-in and data fetching. Install/update them in the Components market, search names, features, aliases or sources, and inspect repository and compatibility details before installing.
+
+| Component | Purpose | Links |
+|---|---|---|
+| YuKeTang notices | Assignments, exams, courseware tasks and course announcements; new-item/deadline reminders, calendars, timetable events and declared widgets. Complete learning/submission in YuKeTang | [Repository](https://github.com/cursimple/YuKeTang_notice_plugin) · [Releases](https://github.com/cursimple/YuKeTang_notice_plugin/releases) |
+| Multi-platform notifications | Send class notices, note deadlines and component messages to WeChat, QQ, Feishu, WeCom, DingTalk, email, ServerChan, PushPlus, WxPusher, PushDeer, Bark and other services; configure each target and inspect receipts | [Repository](https://github.com/cursimple/cursimple-notify-component) · [Releases](https://github.com/cursimple/cursimple-notify-component/releases) |
+
+[Browse components](https://cursimple.github.io/cursimple-components/) · [Component registry](https://github.com/cursimple/cursimple-components) · [Contribute a component](https://github.com/cursimple/cursimple-components#contribute)
+
+**Installation:** use the market or download a component ZIP from its Release and choose Import ZIP. Sign in or bind recipients, then enable the desired sync/notifications. Platform authorization can expire; test a newly bound target and verify its real result. Features and minimum host versions depend on each component's manifest.
+
+## School plugins and market sources
+
+School plugins sign in to academic systems and import courses. The default registry currently lists the [Yangtze University plugin](https://github.com/cursimple/YangtzU_course_plugin), which fetches full teaching weeks, teachers, rooms and periods.
+
+[Browse school plugins](https://cursimple.github.io/cursimple-plugins/) · [Plugin registry](https://github.com/cursimple/cursimple-plugins) · [Plugin releases](https://github.com/cursimple/YangtzU_course_plugin/releases)
+
+Plugins and components have separate source lists, defaulting to `cursimple/cursimple-plugins` and `cursimple/cursimple-components`. Add other registries or individual Release repositories in settings; an unavailable source does not block the others.
+
+Public sources work directly. Private repositories use a token with read permission to the target repository, encrypted on the device; signing out or switching GitHub accounts clears account-specific market caches. School and learning-platform accounts belong to their respective plugins/components.
 
 ## Screenshots
 
@@ -58,234 +155,78 @@ Latest beta: [0.7.9](https://github.com/cursimple/cursimple-app/releases/tag/v0.
 
 </div>
 
-The new 0.7.5 screenshots use demo data.
-
-## Features
-
-### Timetable
-
-| Feature | Details |
-|---|---|
-| Week / day view | The week view fits every period on one screen by default; the day view pages sideways and peeks at neighbouring days |
-| Today's overview and timeline | Today's day view shows an overview by default: current / next class, class progress and countdowns to class start or end. Tap it for the full-day course timeline, conflict details and course details; turn it off under **Settings → Display → Show today overview** |
-| Events | Meetings, clubs or a game of badminton go straight onto the timetable at their real start and end times. When they overlap a class they sit beside it, several overlapping events fold into a "⋯" you can open, and events outside class hours get their own band that disappears when the event is deleted |
-| Pinch to zoom | Once enabled in settings, zoom up to 300% and drag in any direction; the day header and period column stay pinned |
-| Multi-period and alternating weeks | Back-to-back periods render as one block; odd, even and arbitrary week patterns are supported |
-| Make-up days and cancellations | Swap a day's classes for another day's, take a whole day off, or cancel a single course |
-| Drag to reschedule | Long-press a course card and drop it on another day or period, confirm before it moves; drag it back to undo |
-| Holidays and make-up workdays | The public holiday schedule refreshes silently whenever the app opens with a connection; extra make-up days can be added by hand |
-| Appearance | Text, header, cards, grid lines and a croppable background image; every colour is picked from a palette |
-| Shrink long titles | Font size follows the space actually left in the cell, so the title and room fit whenever they can |
-
-### Notes
-
-The **Notes** page in the drawer gives every course its own notebook, plus one for anything else. Notes support checklists you can tick right on the card (with progress), priorities, pinning and due dates; the overview shows what's open, due today and overdue at a glance. Editing is what-you-see-is-what-you-get: lists, headings, quotes and bold render as you type.
-
-Search at the top right covers titles, the full body and course information across notebooks, including completed notes. Clearing or closing search restores your previous filters. The statistics at the top now fit in a compact row.
-
-### Reminders
-
-| Feature | Details |
-|---|---|
-| Class notices | A notice with the course, period, time and room just before class. Three styles: system, branded card and overlay; the overlay supports blur and animation and can be swiped away |
-| Status bar chip | On systems with Live Updates (Android 16, ColorOS 16, One UI 8.5 and later, among others) a class chip sits in the status bar and the notice is pinned to the top of the shade; Xiaomi HyperOS uses focus notifications |
-| No missed notices | If the reminder time was missed but class hasn't started, the notice is posted when you open the app; minutes are counted from the real clock |
-| Silent guard | No persistent "guarding" notification: after you leave the app, periodic checks re-register any notices or alarms the system cleared |
-| Setup guide | Lists exactly what this phone needs allowed (notifications, heads-up, overlay, chip, background pop-ups) and opens each system page directly |
-| Alarms | Exact alarms generated from "period + condition + action" rules; system ringtones or local audio, ring, vibrate or both, with an optional heads-up before the alarm rings |
-| Alarm screen | Large clock, date and course information in the app's theme colours; slide to dismiss or tap the snooze button |
-| Holiday skipping and exceptions | Holiday alarms are skipped by default. Each alarm can allow ringing on holidays, while manually muted dates take priority; make-up class days still receive reminders. Skipped alarms send no pre-alarm notice, and date muting can be cancelled from the list |
-| Manual system Clock export | Send tomorrow's eligible in-app alarms from the alarms page, merging items in the same minute. Items that cannot be written yet prompt you to return later; once all requests are sent and no items remain waiting, you can choose to mute CurSimple's alarms for tomorrow |
-| Silence during class | Enters silent mode on schedule and restores the previous ringer mode after class |
-
-The system Clock receives creation requests; open your phone's Clock app to verify that they succeeded. Exported alarms do not automatically follow rescheduling, cancellations or holiday changes and must be adjusted in Clock.
-
-### Home screen widgets
-
-| Widget | Details |
-|---|---|
-| Today's timetable | Courses for the selected date; switch dates or return to today |
-| Next class | Current and next class information |
-| Reminders | Upcoming course alarms |
-| Course calendar | Switch between a week timetable and month calendar with courses, exams, events and holiday / workday markers. Page forwards or backwards, return to the current date, or tap a date to open its timetable |
-| Notes checklist | Unchecked items from local notes, independent of extension components; tap an item to open its note |
-| Component-owned widgets | Installed, enabled components explicitly declare their own widgets and ship their names, UI and content rules. The app supplies data, rendering, desktop binding and navigation interfaces |
-
-Tapping empty space opens the app too. Refresh is layered four ways: the system period, a WorkManager period, the alarm guard chain, and exact refreshes aligned to period boundaries (5 minutes before class, class start, class end). Contextual messages for no classes, holidays, finished classes or empty task lists stay consistent throughout the day.
-
-### Settings
-
-The search box at the top finds any setting by name, page or keyword. **Quick settings** is its own block: tap + to choose what goes in, or long-press any item below and drag it up; long-press a tile to reorder it. The home page switches between list and grid layouts.
-
-### Data
-
-| Feature | Details |
-|---|---|
-| Import and export | Local JSON backup (including events and notes), timetable exchange by QR code or passphrase, timetable image export, `.ics` export |
-| WebDAV | Back up to and restore from a self-hosted or third-party WebDAV server |
-| AI screenshot import | Recognise courses from a screenshot or photo of a timetable; bring your own API |
-| System calendar | Write the whole term into the phone's calendar, undoable in one tap |
-| Term profiles | Several terms side by side, each with its own timetable, periods and week count |
-
-### Elsewhere
-
-- **Languages**: Simplified Chinese, Traditional Chinese and English, switched instantly inside the app, independent of the system language
-- **Time zone**: Can be set independently of the device, so online classes across time zones don't need a system change
-- **Updates**: Once a new version is found, tap **Update** to download and install it; only stable releases by default, prereleases after opting in to beta updates
-- **Release notes**: The first launch after an update pages through the highlights of that version
-- **Interface details**: Search fields, toolbar buttons, information cards and confirmation dialogs share a consistent style across the marketplace and Notes; long event text can be scrolled
-- **Per-ABI builds**: `armeabi-v7a`, `arm64-v8a`, `x86`, `x86_64` and a `universal` APK
-
-## Download
-
-The latest beta is [0.7.9](https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9). Download the APK for your device from that version's page; the [website](https://cursimple.github.io/cursimple-app/#download) also offers download mirrors and QR codes.
-
-| File | Device |
-|---|---|
-| `CurSimple-arm64-v8a.apk` | Modern 64-bit ARM phones — pick this one unless you know otherwise |
-| `CurSimple-armeabi-v7a.apk` | Older 32-bit ARM devices |
-| `CurSimple-x86_64.apk` | Intel devices and emulators |
-| `CurSimple-x86.apk` | 32-bit Intel devices |
-| `CurSimple-universal.apk` | Works everywhere, at a larger size |
-
-The release channel is set by `app.releaseChannel` in `gradle.properties`. Version 0.7.9 uses `beta`, keeps the tag `v0.7.9`, and sets `prerelease=true` on its GitHub Release; the older `v0.7.4` is also marked Pre-release. A version without a `-beta` suffix can still be a beta, so check the channel and Pre-release label. Enable beta updates in the app to receive this channel.
-
-After installing:
-
-1. Set the term start date (the hint button on the timetable screen, or the drawer)
-2. Open **Plugins** and install the plugin for your school from the marketplace
-3. Sign in to the school portal through the plugin and sync your timetable
-4. Open **Settings → Class notice → Notification setup guide** and allow what it lists, so notices show up on time
-
-If no plugin covers your school, add courses and events by hand in **Manage list**, or import them from a QR code or an image.
-
-## Plugin system
-
-School portals differ wildly, so CurSimple keeps the scraping logic in plugins. A plugin is a `manifest.json` plus a JS bundle that runs inside an in-app WebView session, handling sign-in, fetching and parsing, and finally emitting the shared timetable model. Plugins ship on their own schedule, so a portal redesign only needs a plugin update.
-
-### Installing a plugin
-
-1. Open **Plugins** or **Components**, switch between **Installed / Marketplace**, and search names, descriptions, school aliases and sources
-2. Each card shows the name, author, star count, description, source, version and installation / update status
-3. Open the description and repository details, then choose Install or View on GitHub. The version is checked again before installation; the dialog keeps a fixed size and scrolls internally, showing the description, source and actual package size first, with expandable permissions and verification details. Packages of **5 MiB** or more show actual downloaded bytes and a percentage when the total size is known
-4. Local bundles can be installed with Import ZIP
-
-Plugins and components have separate source lists, defaulting to [cursimple/cursimple-plugins](https://github.com/cursimple/cursimple-plugins) and [cursimple/cursimple-components](https://github.com/cursimple/cursimple-components). Under **Settings → Plugins**, add or remove sources using `owner/repo`, a GitHub repository link, or an individual plugin / component's Release repository. Sources load independently, so results from other sources remain visible if one fails.
-
-Public sources need no login. For private repositories, paste a fine-grained GitHub personal access token (PAT) on the same settings page, select the required repositories and grant `Contents: Read-only`. Android Keystore encrypts the token on the current phone and it is excluded from backups. Private content and assets are fetched directly through the GitHub API; signing out or switching accounts clears account marketplace caches. Web device-code login is available only in builds configured with an OAuth Client ID.
-
-### Extension components
-
-The development host supports extension **API 9**: owned pages, confirmed read actions, ignore/restore, encrypted notification targets, restricted transport and resumable delivery status. Components install and update independently. The APK checks each bundle's API and minimum app version before writing files or records. Incompatible installs are blocked with a reason, and rejected upgrades preserve the existing version.
-
-[YuKeTang notices](https://github.com/cursimple/YuKeTang_notice_plugin) and [multi-platform notifications](https://github.com/cursimple/cursimple-notify-component) are separate components. Real-account read synchronization and message receipt require end-to-end verification after binding.
-
-### Bundle requirements
-
-Every plugin repository needs at least one Release carrying:
-
-- `manifest.json`, declaring the plugin metadata, whose `filename` points at the bundle
-- the bundle file that `filename` names
-
-The app reads the `manifest.json` asset from the plugin / component repository's latest Release, then downloads the bundle named by `filename`. Private repository assets are read through the signed-in account's GitHub API access. GitHub's generated Source code archives are never treated as bundles.
-
-To write your own, see the [plugin guide](docs/plugin-system.md).
+Screenshots use demo data; some show previously published versions.
 
 ## Build from source
 
-### Requirements
-
-- JDK 17
-- Android SDK with `platforms;android-36`
-
-### Commands
+Use **JDK 17** and an Android SDK containing `platforms;android-36`:
 
 ```bash
-# Debug (applicationId com.x500x.cursimple.ci, installs alongside release)
-./gradlew assembleDebug
-
-# Release (four ABI splits plus universal)
-./gradlew assembleRelease
-
-# Unit tests and static analysis
+./gradlew assembleDebug       # com.x500x.cursimple.ci; coexists with the normal app
+./gradlew assembleRelease     # ABI-specific and universal APKs; signing required
 ./gradlew testDebugUnitTest lintDebug
 ```
 
-Release signing is configured through `keystore.properties`; see `keystore.example.properties`:
+Maintain the version in `gradle.properties`:
 
 ```properties
-CLASS_VIEWER_KEYSTORE_FILE=.signing/class-viewer.jks
-CLASS_VIEWER_KEYSTORE_PASSWORD=replace with the keystore password
-CLASS_VIEWER_KEY_ALIAS=replace with the key alias
-CLASS_VIEWER_KEY_PASSWORD=replace with the key password
-```
-
-The version and release channel are maintained in `gradle.properties`:
-
-```properties
-app.versionCode=31
-app.versionName=0.7.9
+app.versionCode=35
+app.versionName=0.7.10
 app.releaseChannel=beta
 ```
 
-### Modules
+See [keystore.example.properties](keystore.example.properties) and [development notes](README_dev.md) for release signing. The current source supports component host **API 11**, with compatibility checks before installation.
 
-```
-app              App shell, dependency wiring, entry screens, update checks and download mirrors
-core-kernel      Shared timetable model and core contracts
-core-plugin      Plugin manifest, installation, components, web session model and GitHub registry
-core-data        DataStore repositories
-core-reminder    Reminder rules, planning and dispatch backends
-feature-schedule Timetable screens and sync logic
-feature-plugin   Plugin and component marketplaces, shared UI controls and WebView sessions
-feature-widget   Home screen widgets and scheduled refresh
-```
+| Module | Responsibility |
+|---|---|
+| `app` | Entry points, assembly, settings, updates, notices and generic component hosting |
+| `core-kernel` | Shared models and protocols |
+| `core-plugin` | Manifests, installation, web sessions and registry APIs |
+| `core-data` | Repositories, preferences, note images and sharing |
+| `core-reminder` | Rules, planning and delivery |
+| `feature-schedule` | Timetable, events, notes and editors |
+| `feature-plugin` | Markets, component pages and shared UI |
+| `feature-widget` | Home screen presentation, actions and refresh |
 
-### Continuous integration
-
-| Workflow | Trigger | What it does |
-|---|---|---|
-| `android-ci.yml` | Pull requests and pushes to `main` | Compile, unit tests, Lint |
-| `android-release.yml` | Pushing a `v*` tag | Verifies the tag matches `app.versionName`, builds every ABI, generates `update.json`, and derives release and update channel status from `app.releaseChannel`; `beta` is marked Pre-release |
-
-Deeper development notes live in the [developer documentation](README_dev.md).
+Use the [plugin/component development guide](docs/plugin-system.md) for adapters and components. Components own their business logic, pages and platform protocols; the host supplies generic theme, notifications, storage and timetable capabilities.
 
 ## Troubleshooting
 
 <details>
-<summary><b>Alarms do not ring, or reminders are late</b></summary>
+<summary>Missing notifications or alarms</summary>
 
-Start with **Settings → Class notice → Notification setup guide** and allow whatever it lists as missing. Then check alarm access under **Settings → Reminders and permissions → Permissions**, which also has per-brand shortcuts for autostart, background pop-ups and battery policy. On some Chinese OEM systems, swiping the app away from Recents is the same as a force stop and clears its alarms until the app is opened again; locking CurSimple in Recents avoids that.
-
-</details>
-
-<details>
-<summary><b>A plugin fails to install</b></summary>
-
-Check connectivity first, then confirm the plugin repository has a valid Release with both `manifest.json` and the bundle it names. For private sources, also check that the signed-in GitHub token has read access to the repository. Public downloads race several mirrors in parallel; if all of them fail, try switching between Wi-Fi and mobile data.
+Check notification permissions, channel importance, exact alarms, background access, Do Not Disturb, battery limits and device settings. Force-stopping clears scheduled plans; reopen the app. Verify exported alarms separately in Clock.
 
 </details>
 
 <details>
-<summary><b>The timetable is empty, or week numbers look wrong</b></summary>
+<summary>A component is missing or will not install</summary>
 
-The current week and term appear at the top of the timetable screen. A blank week number means the term start date is not set yet — use the hint button to set it. If a plugin synced but no courses appeared, confirm the plugin is enabled and trigger the sync again from its detail screen.
+Check source settings, connectivity and the repository's Release ZIP/download manifest. Private sources require the correct read permissions. Check host/component compatibility if installation is rejected.
 
 </details>
 
 <details>
-<summary><b>Widgets do not refresh</b></summary>
+<summary>Notes are too large for a code or QR</summary>
 
-Allow the app to run in the background, then check **Settings → Quick settings → Widgets**. If it still lags, remove the widget and add it again.
+Choose a CurSimple notes file for image notes or larger collections. The recipient selects the file from Import notes, previews it and confirms; notes map to course names and do not overwrite existing content.
+
+</details>
+
+<details>
+<summary>A home screen widget is not refreshing</summary>
+
+Check whether its component is installed, enabled and declares widgets, as well as background permissions. Remove and re-add if needed. On Huawei launchers, check the Android Widgets entry under Service widgets.
 
 </details>
 
 ## Feedback and contributing
 
-- Bugs and feature requests: [GitHub Issues](https://github.com/cursimple/cursimple-app/issues)
-- Questions and discussion: [GitHub Discussions](https://github.com/cursimple/cursimple-app/discussions)
-- Plugin submissions: open a request on [cursimple-plugins](https://github.com/cursimple/cursimple-plugins)
+- [Bugs and suggestions](https://github.com/cursimple/cursimple-app/issues)
+- [Discussions](https://github.com/cursimple/cursimple-app/discussions)
+- [School plugins](https://github.com/cursimple/cursimple-plugins)
+- [Extension components](https://github.com/cursimple/cursimple-components#contribute)
 
 ## License
 
-[MIT License](LICENSE) · Copyright © 2026 the CurSimple Team
+[MIT License](LICENSE) · Copyright © 2026 CurSimple contributors

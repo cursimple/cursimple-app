@@ -85,19 +85,29 @@ object WidgetCatalog {
         )
     }
 
-    /** List all app-owned widgets plus available component-backed providers. */
+    /** List all app-owned widgets plus each component widget that holds a provider slot. */
     fun pickerEntries(context: Context): List<WidgetCatalogEntry> {
         val base = entries(context)
         val container = base.first { it.fromComponents }
-        return base.filterNot { it.fromComponents } + com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.read(context).map { definition ->
+        return base.filterNot { it.fromComponents } + com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.read(context).mapNotNull { definition ->
+            val slot = ComponentWidgetSlots.slotFor(context, definition.key) ?: return@mapNotNull null
             container.copy(id = "owned:${definition.key}", title = definition.spec.title, description = definition.spec.description,
+                provider = ComponentWidgetSlots.provider(context, slot),
+                vendorProviders = listOf(ComponentWidgetSlots.vendorProvider(context, slot)),
                 componentWidgetKey = definition.key)
         }
     }
 
+    /** Legacy shared provider plus every slot; placements are told apart by their binding. */
+    fun componentProviders(context: Context): List<ComponentName> {
+        val legacy = entries(context).first { it.fromComponents }
+        return listOf(legacy.provider) + legacy.vendorProviders +
+            (0 until ComponentWidgetSlots.COUNT).flatMap { ComponentWidgetSlots.providers(context, it) }
+    }
+
     fun installedCount(context: Context, entry: WidgetCatalogEntry): Int {
         val manager = AppWidgetManager.getInstance(context)
-        val all = listOf(entry.provider) + entry.vendorProviders
+        val all = if (entry.componentWidgetKey != null) componentProviders(context) else listOf(entry.provider) + entry.vendorProviders
         return all.sumOf { component ->
             runCatching { manager.getAppWidgetIds(component).count { id -> entry.componentWidgetKey == null || com.x500x.cursimple.core.data.widget.ComponentWidgetBindings.get(context, id) == entry.componentWidgetKey } }.getOrDefault(0)
         }

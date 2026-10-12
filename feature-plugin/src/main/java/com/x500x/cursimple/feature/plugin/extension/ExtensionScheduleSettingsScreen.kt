@@ -30,7 +30,7 @@ import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -82,7 +82,7 @@ internal fun ExtensionScheduleSettingsScreen(
     BackHandler(onBack = onBack)
     Column(modifier = modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.plugin_action_back)) }
+            AppCircleIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.plugin_action_back)) }
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.extension_schedule_details), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 Text(stringResource(R.string.extension_schedule_independent), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -206,7 +206,7 @@ private fun ScheduleTypeCard(type: PluginFeedTypeSpec, checked: Boolean, rule: E
                 Text(if (checked) dateSourceLabel(rule.dateSource) else stringResource(R.string.extension_schedule_hidden), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked, onCheckedChange = onChecked)
-            IconButton(onClick = { expanded = !expanded }) {
+            AppCircleIconButton(onClick = { expanded = !expanded }) {
                 Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, stringResource(R.string.extension_schedule_expand))
             }
         }
@@ -219,9 +219,9 @@ private fun ScheduleTypeCard(type: PluginFeedTypeSpec, checked: Boolean, rule: E
                         Text(stringResource(R.string.extension_schedule_offset), style = MaterialTheme.typography.bodyLarge)
                         Text(when { rule.dayOffset < 0 -> stringResource(R.string.extension_schedule_days_before, -rule.dayOffset); rule.dayOffset > 0 -> stringResource(R.string.extension_schedule_days_after, rule.dayOffset); else -> stringResource(R.string.extension_schedule_same_day) }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                     }
-                    IconButton(onClick = { onRule(rule.copy(dayOffset = (rule.dayOffset - 1).coerceAtLeast(-30))) }, enabled = rule.dayOffset > -30) { Icon(Icons.Rounded.Remove, stringResource(R.string.extension_schedule_earlier)) }
+                    AppCircleIconButton(onClick = { onRule(rule.copy(dayOffset = (rule.dayOffset - 1).coerceAtLeast(-30))) }, enabled = rule.dayOffset > -30) { Icon(Icons.Rounded.Remove, stringResource(R.string.extension_schedule_earlier)) }
                     Text(rule.dayOffset.toString(), style = MaterialTheme.typography.titleSmall)
-                    IconButton(onClick = { onRule(rule.copy(dayOffset = (rule.dayOffset + 1).coerceAtMost(30))) }, enabled = rule.dayOffset < 30) { Icon(Icons.Rounded.Add, stringResource(R.string.extension_schedule_later)) }
+                    AppCircleIconButton(onClick = { onRule(rule.copy(dayOffset = (rule.dayOffset + 1).coerceAtMost(30))) }, enabled = rule.dayOffset < 30) { Icon(Icons.Rounded.Add, stringResource(R.string.extension_schedule_later)) }
                 }
                 ChoiceRow(title = stringResource(R.string.extension_schedule_time_mode), value = rule.timeMode, choices = ExtensionScheduleTimeMode.entries, label = { stringResource(if (it == ExtensionScheduleTimeMode.Source) R.string.extension_schedule_source_time else R.string.extension_schedule_fixed_time) }, onSelect = { onRule(rule.copy(timeMode = it)) })
             }

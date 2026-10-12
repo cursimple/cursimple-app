@@ -19,13 +19,18 @@ internal data class LocalReleasePreview(
 /** Private preview drafts take precedence over bundled debug announcements. */
 internal suspend fun loadLocalReleasePreview(context: Context): LocalReleasePreview? = withContext(Dispatchers.IO) {
     val dir = File(context.filesDir, RELEASE_PREVIEW_DIR)
-    val custom = dir.listFiles { file -> file.isFile && file.extension.equals("md", ignoreCase = true) }
+    val language = announcementLocale(context)
+    val suffix = when (language) { "en" -> ".en"; "zh-TW" -> ".zh-TW"; else -> "" }
+    val newest = dir.listFiles { file -> file.isFile && file.extension.equals("md", ignoreCase = true) }
         ?.maxByOrNull { it.lastModified() }
+    val basename = newest?.nameWithoutExtension?.removeSuffix(".en")?.removeSuffix(".zh-TW")
+    val custom = basename?.let { name -> listOf(File(dir, "$name$suffix.md"), File(dir, "$name.md")).firstOrNull(File::isFile) }
     try {
         if (custom != null) {
-            LocalReleasePreview(custom.nameWithoutExtension.removePrefix("v"), custom.readText(), localDir = dir)
+            LocalReleasePreview(basename.orEmpty().removePrefix("v"), custom.readText(), localDir = dir)
         } else {
-            val markdown = context.assets.open("$RELEASE_PREVIEW_DIR/next-local.md").bufferedReader().use { it.readText() }
+            val markdown = runCatching { context.assets.open("$RELEASE_PREVIEW_DIR/next-local$suffix.md") }
+                .getOrElse { context.assets.open("$RELEASE_PREVIEW_DIR/next-local.md") }.bufferedReader().use { it.readText() }
             LocalReleasePreview(
                 versionName = context.getString(R.string.settings_dev_release_preview_local_version),
                 markdown = markdown,

@@ -21,6 +21,8 @@ import java.time.LocalDateTime
 object ClassNoticeScheduler {
 
     private const val ACTION_NOTICE = "com.x500x.cursimple.action.CLASS_NOTICE"
+    internal const val ACTION_ENDED = "com.x500x.cursimple.action.CLASS_NOTICE_ENDED"
+    private const val REQUEST_CODE_ENDED = 0x0C22
     internal const val ACTION_STARTED = "com.x500x.cursimple.action.CLASS_NOTICE_STARTED"
     internal const val ACTION_DISMISS = "com.x500x.cursimple.action.CLASS_NOTICE_DISMISS"
     internal const val ACTION_SNOOZE = "com.x500x.cursimple.action.CLASS_NOTICE_SNOOZE"
@@ -98,23 +100,21 @@ object ClassNoticeScheduler {
         setAlarm(app, triggerAt, pendingIntent)
     }
 
-    /** Update the existing notice at class start; do nothing if it was dismissed. */
-    fun scheduleStartedUpdate(context: Context, noticeIntent: Intent) {
+    /** Keep transition alarms independent of the next class's reminder registration. */
+    fun scheduleTransitions(context: Context, content: ClassNoticeNotifier.Content) {
         val app = context.applicationContext
-        val startAt = noticeIntent.getLongExtra(EXTRA_START_AT, 0L)
-        if (startAt <= System.currentTimeMillis()) return
-        val intent = Intent(noticeIntent).apply {
-            action = ACTION_STARTED
-            setClass(app, ClassNoticeReceiver::class.java)
-            setPackage(app.packageName)
+        listOf(ACTION_STARTED to (REQUEST_CODE_STARTED to content.startAtMillis),
+            ACTION_ENDED to (REQUEST_CODE_ENDED to content.endAtMillis)).forEach { (action, slot) ->
+            if (slot.second > System.currentTimeMillis()) {
+                val intent = Intent(app, ClassNoticeReceiver::class.java).setAction(action).setPackage(app.packageName)
+                    .putExtra(EXTRA_TITLE, content.courseTitle).putExtra(EXTRA_LOCATION, content.location)
+                    .putExtra(EXTRA_TIME_RANGE, content.timeRange).putExtra(EXTRA_SLOT_LABEL, content.slotLabel)
+                    .putExtra(EXTRA_START_AT, content.startAtMillis).putExtra(EXTRA_END_AT, content.endAtMillis)
+                    .putExtra(EXTRA_MINUTES, 0)
+                val pending = PendingIntent.getBroadcast(app, slot.first, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+                setAlarm(app, slot.second, pending)
+            }
         }
-        val pendingIntent = PendingIntent.getBroadcast(
-            app,
-            REQUEST_CODE_STARTED,
-            intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        setAlarm(app, startAt, pendingIntent)
     }
 
     fun dismissIntent(context: Context, notificationId: Int): PendingIntent {
@@ -213,6 +213,16 @@ object ClassNoticeScheduler {
         }
     }
 
+    fun cancelAll(context: Context) {
+        cancel(context)
+        val app = context.applicationContext
+        listOf(ACTION_STARTED to REQUEST_CODE_STARTED, ACTION_ENDED to REQUEST_CODE_ENDED, ACTION_SNOOZE to REQUEST_CODE_SNOOZE).forEach { (action, request) ->
+            val pending = PendingIntent.getBroadcast(app, request, Intent(app, ClassNoticeReceiver::class.java).setAction(action).setPackage(app.packageName), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE)
+            if (pending != null) { app.getSystemService(AlarmManager::class.java)?.cancel(pending); pending.cancel() }
+        }
+        ClassNoticeNotifier.cancel(app)
+    }
+
     internal fun contentFrom(intent: Intent): ClassNoticeNotifier.Content? {
         val title = intent.getStringExtra(EXTRA_TITLE)?.takeIf { it.isNotBlank() } ?: return null
         return ClassNoticeNotifier.Content(
@@ -257,6 +267,10 @@ class ClassNoticeReceiver : BroadcastReceiver() {
             return
         }
         val scheduled = ClassNoticeScheduler.contentFrom(intent) ?: return
+        if (intent.action == ClassNoticeScheduler.ACTION_ENDED) {
+            ClassNoticeNotifier.cancelIfCurrent(context, scheduled)
+            return
+        }
         val app = context.applicationContext
         val now = System.currentTimeMillis()
         // Recalculate remaining minutes from the actual delivery clock, rounding up.
@@ -285,7 +299,7 @@ class ClassNoticeReceiver : BroadcastReceiver() {
                     ClassNoticeScheduler.recordLastPosted(app, key)
                 }
                 if (content.inProgress) return@launch
-                ClassNoticeScheduler.scheduleStartedUpdate(app, intent)
+                ClassNoticeScheduler.scheduleTransitions(app, content)
                 // Continue the one-alarm chain immediately after delivery.
                 ClassNoticeGateway.reschedule(app)
                 // Release the broadcast after overlay attachment; window timing is independent.

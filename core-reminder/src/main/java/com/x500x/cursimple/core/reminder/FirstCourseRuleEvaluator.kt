@@ -1,6 +1,7 @@
 package com.x500x.cursimple.core.reminder
 
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
+import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
@@ -42,6 +43,7 @@ internal class FirstCourseRuleEvaluator {
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val occurrences = schedule.dailySchedules
             .flatMap { it.courses }
+            .filter { rule.courseId.isNullOrBlank() || it.id == rule.courseId }
             .flatMap { course ->
                 val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode)
                     ?: return@flatMap emptyList()
@@ -59,11 +61,12 @@ internal class FirstCourseRuleEvaluator {
                         holidayCalendar,
                     ).sourceDate
                     // Moved courses use their original source week; partial swaps resolve each course separately.
-                    val movedFrom = coursesMovedToWithOrigin(
+                    val moved = coursesMovedToWithOrigin(
                         date = courseDate,
                         overrides = temporaryScheduleOverrides,
                         courseById = { id -> course.takeIf { it.id == id } },
-                    ).firstOrNull()?.second
+                    ).firstOrNull()
+                    val movedFrom = moved?.second
                     val sourceDate = movedFrom ?: temporaryScheduleCourseSourceDate(
                         date = courseDate,
                         course = course,
@@ -71,10 +74,11 @@ internal class FirstCourseRuleEvaluator {
                         overrides = temporaryScheduleOverrides,
                     ) ?: daySource
                     CourseOccurrence(
-                        course = course,
+                        course = (moved?.first ?: course).copy(location = course.locationForWeek(resolveTermWeek(termStart, sourceDate))),
                         courseDate = courseDate,
                         termWeek = resolveTermWeek(termStart, sourceDate),
-                        slot = slot,
+                        slot = moved?.first?.let { timingProfile.findSlot(it.time.startNode, it.time.endNode) } ?: slot,
+                        sourceCourse = course,
                     )
                 }
             }
@@ -139,7 +143,7 @@ internal class FirstCourseRuleEvaluator {
                     date = date,
                     termWeek = resolveTermWeek(termStart, date),
                     dayOccurrences = dayOccurrences,
-                    candidateOccurrences = dayOccurrences.filter { it.matchesScope(baseScope, date) },
+                    candidateOccurrences = dayOccurrences.filter { it.matchesScope(baseScope, date, !rule.courseId.isNullOrBlank()) },
                     activeOccupancies = activeOccupancies,
                 )
                 if (!context.conditionsMatch()) return@mapNotNull null
@@ -182,7 +186,7 @@ internal class FirstCourseRuleEvaluator {
                 ReminderActionType.UseCandidateScope -> {
                     val nextScope = action.candidateScope ?: baseScope
                     dayOccurrences
-                        .filter { it.matchesScope(nextScope, date) }
+                        .filter { it.matchesScope(nextScope, date, !rule.courseId.isNullOrBlank()) }
                         .earliest()
                         ?.let { return it }
                 }
@@ -233,13 +237,16 @@ internal class FirstCourseRuleEvaluator {
     private fun CourseOccurrence.matchesScope(
         scope: FirstCourseCandidateScope,
         date: LocalDate,
+        courseBound: Boolean = false,
     ): Boolean {
         if (!isTermWeekStarted(termWeek)) return false
-        if (scope.daysOfWeek.isNotEmpty() && date.dayOfWeek.value !in scope.daysOfWeek) return false
+        val selectedCourse = if (courseBound) sourceCourse else course
+        val scopeDay = if (courseBound) selectedCourse.time.dayOfWeek else date.dayOfWeek.value
+        if (scope.daysOfWeek.isNotEmpty() && scopeDay !in scope.daysOfWeek) return false
         if (scope.weeks.isNotEmpty() && termWeek !in scope.weeks) return false
         if (scope.includeDates.isNotEmpty() && date.toString() !in scope.includeDates) return false
         if (date.toString() in scope.excludeDates) return false
-        scope.nodeRange?.let { if (!course.overlaps(it)) return false }
+        scope.nodeRange?.let { if (!selectedCourse.overlaps(it)) return false }
         scope.timeRange?.let { if (!slot.overlaps(it)) return false }
         if (scope.categories.isNotEmpty() && course.category !in scope.categories) return false
         scope.titleContains?.takeIf { it.isNotBlank() }?.let {
@@ -351,6 +358,7 @@ internal class FirstCourseRuleEvaluator {
         val courseDate: LocalDate,
         val termWeek: Int,
         val slot: ClassSlotTime,
+        val sourceCourse: CourseItem = course,
     )
 
     private companion object {

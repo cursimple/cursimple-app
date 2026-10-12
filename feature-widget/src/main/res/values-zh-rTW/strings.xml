@@ -118,9 +118,9 @@
     <string name="widget_diag_pin_ignored">系統宣告支援，但這家桌面不回應（已改為手動新增）</string>
 
     <string name="calendar_widget_description">課簡 · 課程日曆</string>
-    <string name="tasks_widget_description">由已安裝並啟用的組件提供介面和內容</string>
     <string name="widget_label_calendar">課程日曆</string>
     <string name="widget_label_tasks">組件提供的小組件</string>
+    <string name="component_widget_slot_label">課簡組件</string>
     <string name="widget_catalog_calendar_description">週課表與月曆兩種檢視，點某一天直接打開那天的課程</string>
     <string name="widget_catalog_tasks_description">選擇組件宣告的小組件，介面和內容由組件管理</string>
     <string name="widget_background_image_error">背景圖片無法讀取</string>
@@ -157,13 +157,27 @@
     <string name="widget_page_prev">往前翻</string>
     <string name="widget_page_next">往後翻</string>
     <string name="widget_label_memo">筆記待辦</string>
-    <string name="widget_catalog_memo_description">把筆記中的未完成待辦放到桌面，點開直接查看對應筆記</string>
+    <string name="widget_catalog_memo_description">筆記待辦放到桌面，點勾選框完成，點內容直接編輯</string>
     <string name="widget_memo_empty">待辦都完成了
 在備忘錄裡記下下一件事</string>
     <string name="widget_memo_notebook_other">其他筆記</string>
     <string name="widget_memo_pending">待辦</string>
-    <string name="widget_memo_subtitle">筆記裡的未完成事項</string>
+    <string name="widget_memo_subtitle">點勾選框完成 · 點內容編輯</string>
     <string name="widget_memo_count">%1$d 項待辦</string>
+    <string name="widget_memo_pinned">已置頂</string>
+    <string name="widget_memo_priority_badge_high">高</string>
+    <string name="widget_memo_priority_badge_medium">中</string>
+    <string name="widget_memo_priority_badge_low">低</string>
+    <string name="widget_memo_priority_high">高優先級</string>
+    <string name="widget_memo_priority_medium">中優先級</string>
+    <string name="widget_memo_priority_low">低優先級</string>
     <string name="component_widget_unavailable">組件小組件暫不可用，請開啟課簡檢查組件</string>
-    <string name="component_widget_choose">選擇組件的小組件</string>
+    <string name="widget_location_unset">地點未設定</string>
+    <string name="widget_teacher_unset">教師未設定</string>
+    <string name="widget_memo_complete_action">完成待辦：%1$s</string>
+    <string name="widget_memo_edit_action">編輯筆記：%1$s</string>
+    <string name="widget_memo_changed">待辦內容已變更，已重新整理，請重試</string>
+    <string name="widget_memo_save_failed">儲存失敗，請稍後重試</string>
+    <string name="widget_memo_add_action">新增待辦</string>
+    <string name="widget_memo_empty_compact">點＋新增待辦</string>
 </resources>

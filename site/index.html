@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title data-i18n="meta.title">课简 CurSimple · 开源 Android 课表</title>
-<meta name="description" content="课简是一款开源免费、无广告的 Android 课表应用。0.7.9 测试版新增今日概览、备忘录全文检索、课程日历与待完成小组件，插件和组件支持多来源市场。" data-i18n-content="meta.description">
+<meta name="description" content="课简是一款开源免费、无广告的 Android 应用，管理课表、课程笔记、提醒与桌面小组件。学校插件导课，雨课堂通知与多平台通知等独立组件按需安装。" data-i18n-content="meta.description">
 <meta name="theme-color" content="#3FA277">
 <meta property="og:title" content="课简 CurSimple · 开源 Android 课表" data-i18n-content="meta.title">
-<meta property="og:description" content="课表、提醒与桌面小组件，一个应用装下整个学期。" data-i18n-content="meta.socialDescription">
+<meta property="og:description" content="课表、课程笔记、提醒与独立扩展组件，一个应用管理整个学期。" data-i18n-content="meta.socialDescription">
 <meta property="og:image" content="https://cursimple.github.io/cursimple-app/assets/icon.png">
 <meta property="og:locale" content="zh_CN">
 <meta property="og:url" content="https://cursimple.github.io/cursimple-app/">
@@ -55,6 +55,7 @@
       <a href="#reminder" data-i18n="nav.reminder">提醒</a>
       <a href="#widget" data-i18n="nav.widget">小组件</a>
       <a href="#schools" data-i18n="nav.schools">学校</a>
+      <a href="#components" data-i18n="nav.components">组件</a>
       <a href="#more" data-i18n="nav.more">更多</a>
       <a href="#changelog" class="nav-news" data-changelog><svg><use href="#i-megaphone"/></svg><span data-i18n="notes.title">更新公告</span><i class="dot" hidden></i></a>
     </nav>
@@ -70,13 +71,14 @@
     </div>
   </div>
   <nav class="m-menu" id="mMenu" hidden>
-    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span><span data-i18n="notes.title">更新公告</span><small><span data-ver>v0.7.9</span> · <span data-channel-label data-i18n="channel.beta">最新测试版</span></small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
+    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span><span data-i18n="notes.title">更新公告</span><small><span data-ver>v0.7.10</span> · <span data-channel-label data-i18n="channel.beta">最新测试版</span></small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
     <div class="m-grid">
       <a href="#schedule" data-i18n="nav.schedule">课表</a>
       <a href="#memo" data-i18n="nav.memo">备忘录</a>
       <a href="#reminder" data-i18n="nav.reminder">提醒</a>
       <a href="#widget" data-i18n="nav.widget">小组件</a>
       <a href="#schools" data-i18n="nav.schools">学校</a>
+      <a href="#components" data-i18n="nav.components">组件</a>
       <a href="#more" data-i18n="nav.moreFeatures">更多功能</a>
     </div>
   </nav>
@@ -89,12 +91,12 @@
   <div class="wrap hero-in">
     <div class="hero-text">
       <a class="pill" href="#changelog" data-changelog>
-        <b><i class="dot" hidden></i><span data-ver>v0.7.9</span></b><span class="pill-text" data-highlights data-i18n="hero.highlights">今日概览 · 备忘录全文检索 · 新桌面小组件</span><svg><use href="#i-arrow"/></svg>
+        <b><i class="dot" hidden></i><span data-ver>v0.7.10</span></b><span class="pill-text" data-highlights data-i18n="hero.highlights">今日概览 · 备忘录全文检索 · 新桌面小组件</span><svg><use href="#i-arrow"/></svg>
       </a>
       <h1><span data-i18n="hero.title">课表、提醒与小组件</span><br><span class="grad" data-i18n="hero.tagline">一个应用装下整个学期</span></h1>
-      <p class="lead" data-i18n="hero.description">课简是一款开源免费、没有广告的 Android 课表。登录教务一键导课，快上课时准时提醒，桌面小组件随手看下一节。</p>
+      <p class="lead" data-i18n="hero.description">课简是一款开源免费、没有广告的 Android 课表。用学校插件导入课程，记录课程笔记和待办，通过雨课堂、多平台通知等独立组件接入学习平台与通知渠道。</p>
       <div class="hero-cta">
-        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.9/CurSimple-arm64-v8a.apk">
+        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.10/CurSimple-arm64-v8a.apk">
           <svg><use href="#i-download"/></svg><span><span data-i18n="hero.download">下载安装包</span><small data-dl-meta data-i18n="hero.downloadMeta">arm64 · 适合绝大多数手机</small></span>
         </a>
         <a class="btn btn-lg btn-ghost" href="#download" data-i18n="hero.otherDownloads">其他版本与扫码下载</a>
@@ -209,9 +211,9 @@
       <p class="sub" data-i18n="reminder.description">课名、时间、教室一起弹出来，锁屏和状态栏上都看得到。</p>
       <ul class="points">
         <li><b data-i18n="reminder.stylesTitle">三种提醒样式</b><span data-i18n="reminder.styles">系统原生、品牌卡片、毛玻璃悬浮窗，滑一下就收起</span></li>
-        <li><b data-i18n="reminder.liveTitle">状态栏上课胶囊</b><span data-i18n="reminder.live">支持实时活动的手机在时钟旁挂上「10:00 上课」，小米走焦点通知</span></li>
-        <li><b data-i18n="reminder.missedTitle">不漏一节</b><span data-i18n="reminder.missed">提醒点错过但还没上课，打开 App 立即补发</span></li>
-        <li><b data-i18n="reminder.recoveryTitle">静默守护</b><span data-i18n="reminder.recovery">不常驻通知，被系统清掉的提醒与闹钟自动重新挂上</span></li>
+        <li><b data-i18n="reminder.liveTitle">状态栏上课胶囊</b><span data-i18n="reminder.live">支持的系统可展示状态栏实时提醒或焦点通知，效果由设备能力、通知权限与渠道设置决定</span></li>
+        <li><b data-i18n="reminder.missedTitle">课前补发</b><span data-i18n="reminder.missed">打开 App 时可补发尚未开始课程的漏过提醒</span></li>
+        <li><b data-i18n="reminder.recoveryTitle">后台巡检</b><span data-i18n="reminder.recovery">按系统允许的后台策略检查并补挂提醒与闹钟，可在设置中调整守护方式</span></li>
         <li><b data-i18n="reminder.rulesTitle">按节次定闹钟</b><span data-i18n="reminder.rules">「节次 + 条件 + 动作」规则生成闹钟，早八不再睡过</span></li>
         <li><b data-i18n="reminder.holidaysTitle">假日闹钟按规则跳过</b><span data-i18n="reminder.holidays">单个闹钟可选择「节假日也响」，手动静音日期仍优先</span></li>
         <li><b data-i18n="reminder.silenceTitle">上课自动静音</b><span data-i18n="reminder.silence">按作息进出静音，下课恢复原来的铃声模式</span></li>
@@ -261,8 +263,8 @@
       <ul class="points">
         <li><b data-i18n="widget.calendarTitle">课程日历</b><span data-i18n="widget.calendar">周课表与月历随时切换，查看课程、考试、事务和休息日；点日期打开对应课表</span></li>
         <li><b data-i18n="widget.pendingTitle">组件自带小组件</b><span data-i18n="widget.pending">安装并启用声明了小组件的组件后即可添加；名称、界面和内容规则由对应组件管理，点开回到来源组件</span></li>
-        <li><b data-i18n="widget.refreshTitle">准点刷新</b><span data-i18n="widget.refresh">课前 5 分钟、上课、下课这些节点精确刷新，不会显示过期的课</span></li>
-        <li><b data-i18n="widget.recoveryTitle">四层保障</b><span data-i18n="widget.recovery">系统周期、WorkManager、闹钟守护链与节次对齐刷新</span></li>
+        <li><b data-i18n="widget.refreshTitle">课时刷新</b><span data-i18n="widget.refresh">按课前、上课、下课等边界更新，实际及时性受桌面和后台限制影响</span></li>
+        <li><b data-i18n="widget.recoveryTitle">多种刷新机制</b><span data-i18n="widget.recovery">系统周期、WorkManager、闹钟守护链与节次对齐刷新</span></li>
         <li><b data-i18n="widget.openTitle">点哪都能进</b><span data-i18n="widget.open">点卡片空白处也能直接打开 App</span></li>
       </ul>
     </div>
@@ -284,8 +286,34 @@
         <li><b data-i18n="market.installTitle">详情与安装先看重点</b><span data-i18n="market.install">简介、版本、来源和实际包大小更清楚，权限与技术信息按需展开，大包显示真实下载进度</span></li>
         <li><b data-i18n="market.versionTitle">版本重新核对</b><span data-i18n="market.version">卡片直接显示更新状态，手动刷新与安装前重新检查版本</span></li>
       </ul>
-      <p class="shot-note" data-i18n="market.localNotice">雨课堂 v1.2.0 仍是未公开发布的本地 ZIP，需另行导入；公有市场尚未提供该版本。</p>
+      <div class="catalog-links"><a class="btn btn-md btn-ghost" href="https://cursimple.github.io/cursimple-plugins/" data-i18n="market.browsePlugins">浏览导课插件</a><a class="btn btn-md btn-ghost" href="https://cursimple.github.io/cursimple-components/" data-i18n="market.browseComponents">浏览扩展组件</a></div>
+      <p class="shot-note" data-i18n="market.localNotice">插件与组件独立安装和更新，兼容版本、授权状态与支持的功能在各自详情中查看。</p>
     </div>
+  </div>
+</section>
+
+<section class="components-sec" id="components">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <span class="kicker k-green"><svg><use href="#i-plug"/></svg><span data-i18n="components.label">扩展组件</span></span>
+      <h2 data-i18n="components.title">把学习平台和通知接进课简</h2>
+      <p class="sub" data-i18n="components.description">按需要安装独立功能包。组件有自己的主页、设置与登录，和课简的提醒、日历、事务及桌面卡片一起使用。</p>
+    </div>
+    <div class="component-cards">
+      <article class="component-card reveal">
+        <span class="component-symbol"><svg><use href="#i-note"/></svg></span>
+        <h3 data-i18n="components.rainTitle">雨课堂通知</h3>
+        <p data-i18n="components.rainDescription">在课简查看雨课堂作业、考试与课程公告，设置新内容和截止提醒，查看组件日历和支持的桌面卡片。</p>
+        <div class="catalog-links"><a class="btn btn-md btn-ghost" href="https://github.com/cursimple/YuKeTang_notice_plugin" target="_blank" rel="noopener" data-i18n="components.repo">查看组件仓库</a><a class="btn btn-md btn-ghost" href="https://github.com/cursimple/YuKeTang_notice_plugin/releases" target="_blank" rel="noopener" data-i18n="components.releases">版本与下载</a></div>
+      </article>
+      <article class="component-card reveal">
+        <span class="component-symbol"><svg><use href="#i-bell"/></svg></span>
+        <h3 data-i18n="components.notifyTitle">多平台通知</h3>
+        <p data-i18n="components.notifyDescription">把上课提醒、笔记到期和组件消息发送到微信、QQ、飞书、企业微信、钉钉、邮箱等渠道，在组件内管理收件目标与发送结果。</p>
+        <div class="catalog-links"><a class="btn btn-md btn-ghost" href="https://github.com/cursimple/cursimple-notify-component" target="_blank" rel="noopener" data-i18n="components.repo">查看组件仓库</a><a class="btn btn-md btn-ghost" href="https://github.com/cursimple/cursimple-notify-component/releases" target="_blank" rel="noopener" data-i18n="components.releases">版本与下载</a></div>
+      </article>
+    </div>
+    <div class="component-bottom reveal"><p data-i18n="components.install">在课简的「组件」市场搜索并安装，或从组件 Release 下载 ZIP 后导入。按提示登录或绑定通知目标，首次使用先核对同步或测试消息的真实结果。</p><a class="btn btn-md btn-primary" href="https://cursimple.github.io/cursimple-components/" data-i18n="components.browse">浏览组件收录</a></div>
   </div>
 </section>
 
@@ -398,9 +426,9 @@
       <div class="dl-main">
         <img class="dl-icon" src="assets/icon.png" alt="" width="84" height="84">
         <h2 data-i18n="download.title">下载课简</h2>
-        <p class="dl-ver"><b data-ver>v0.7.9</b><span data-channel-label data-i18n="channel.beta">最新测试版</span><span data-date></span><a href="#changelog" class="dl-notes" data-changelog><span data-i18n="download.notes">更新内容</span><svg><use href="#i-right"/></svg></a></p>
+        <p class="dl-ver"><b data-ver>v0.7.10</b><span data-channel-label data-i18n="channel.beta">最新测试版</span><span data-date></span><a href="#changelog" class="dl-notes" data-changelog><span data-i18n="download.notes">更新内容</span><svg><use href="#i-right"/></svg></a></p>
         <p class="beta-line" data-channel="stable" data-i18n="channel.stableEmptyLine">最新正式版：暂无正式版</p>
-        <p class="beta-line" id="betaLine" data-channel="beta"><span data-i18n="channel.betaPrefix">最新测试版：</span><a href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9" target="_blank" rel="noopener">v0.7.9</a></p>
+        <p class="beta-line" id="betaLine" data-channel="beta"><span data-i18n="channel.betaPrefix">最新测试版：</span><a href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.10" target="_blank" rel="noopener">v0.7.10</a></p>
         <p class="beta-line" data-i18n="download.betaNotice">0.7.4 与 0.7.9 均为测试版。</p>
 
         <div class="route" role="radiogroup" aria-label="下载线路" data-i18n-aria-label="download.route">
@@ -408,7 +436,7 @@
           <button data-route="mirror" data-i18n="download.mirror">国内加速</button>
         </div>
 
-        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.9/CurSimple-arm64-v8a.apk">
+        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.10/CurSimple-arm64-v8a.apk">
           <svg><use href="#i-download"/></svg><span><span data-i18n="download.arm64">下载 arm64 版</span><small data-dl-meta data-i18n="download.arm64Meta">推荐 · 绝大多数手机选这个</small></span>
         </a>
 
@@ -417,16 +445,16 @@
         <details class="abis">
           <summary data-i18n="download.architectures">其他架构安装包</summary>
           <ul id="abiList">
-            <li><a data-dl="universal" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.9/CurSimple-universal.apk"><b data-i18n="download.universal">通用版 universal</b><span data-i18n="download.universalDescription">不确定手机架构时选这个</span><em data-size="universal" data-i18n="download.sizePending">大小待获取</em></a></li>
-            <li><a data-dl="armeabi-v7a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.9/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span data-i18n="download.arm32Description">较旧的 32 位手机</span><em data-size="armeabi-v7a" data-i18n="download.sizePending">大小待获取</em></a></li>
-            <li><a data-dl="x86_64" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.9/CurSimple-x86_64.apk"><b>x86_64</b><span data-i18n="download.intelDescription">Intel 设备与模拟器</span><em data-size="x86_64" data-i18n="download.sizePending">大小待获取</em></a></li>
-            <li><a data-dl="x86" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.9/CurSimple-x86.apk"><b>x86</b><span data-i18n="download.intel32Description">32 位 Intel 设备</span><em data-size="x86" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="universal" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.10/CurSimple-universal.apk"><b data-i18n="download.universal">通用版 universal</b><span data-i18n="download.universalDescription">不确定手机架构时选这个</span><em data-size="universal" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="armeabi-v7a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.10/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span data-i18n="download.arm32Description">较旧的 32 位手机</span><em data-size="armeabi-v7a" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="x86_64" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.10/CurSimple-x86_64.apk"><b>x86_64</b><span data-i18n="download.intelDescription">Intel 设备与模拟器</span><em data-size="x86_64" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="x86" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.10/CurSimple-x86.apk"><b>x86</b><span data-i18n="download.intel32Description">32 位 Intel 设备</span><em data-size="x86" data-i18n="download.sizePending">大小待获取</em></a></li>
           </ul>
         </details>
 
         <p class="dl-links">
           <a href="https://github.com/cursimple/cursimple-app/releases" target="_blank" rel="noopener" data-i18n="download.history">历史版本与测试版</a>
-          <a data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9" target="_blank" rel="noopener" data-i18n="download.changelog">更新日志</a>
+          <a data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.10" target="_blank" rel="noopener" data-i18n="download.changelog">更新日志</a>
           <a href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener" data-i18n="download.source">源代码</a>
         </p>
       </div>
@@ -465,7 +493,8 @@
     <p data-i18n="footer.openSource">开源于 GitHub · MIT License</p>
     <nav>
       <a href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener">GitHub</a>
-      <a href="https://github.com/cursimple/cursimple-plugins" target="_blank" rel="noopener" data-i18n="footer.registry">插件注册表</a>
+      <a href="https://cursimple.github.io/cursimple-plugins/" data-i18n="footer.registry">插件收录</a>
+      <a href="https://cursimple.github.io/cursimple-components/" data-i18n="footer.components">组件收录</a>
       <a href="https://github.com/cursimple/cursimple-app/blob/main/docs/plugin-system.md" target="_blank" rel="noopener" data-i18n="footer.development">插件开发</a>
       <a href="https://github.com/cursimple/cursimple-app/issues" target="_blank" rel="noopener" data-i18n="footer.feedback">反馈问题</a>
     </nav>
@@ -478,7 +507,7 @@
     <header class="sheet-head">
       <img src="assets/icon.png" alt="" width="46" height="46">
       <div>
-        <h3 id="clTitle"><span data-ver>v0.7.9</span> <span data-i18n="notes.title">更新公告</span></h3>
+        <h3 id="clTitle"><span data-ver>v0.7.10</span> <span data-i18n="notes.title">更新公告</span></h3>
         <p id="clMeta" data-i18n="channel.beta">最新测试版</p>
       </div>
       <button class="icon-btn sheet-x" data-close aria-label="关闭" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
@@ -495,8 +524,8 @@
         <button class="nav-arrow" id="clNext" aria-label="下一页" data-i18n-aria-label="notes.next"><svg><use href="#i-right"/></svg></button>
       </div>
       <div class="sheet-act">
-        <a class="btn btn-ghost btn-md" id="clGithub" data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.9" target="_blank" rel="noopener"><span data-i18n="notes.full">完整说明</span><svg><use href="#i-ext"/></svg></a>
-        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.9/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg><span data-i18n="download.now">立即下载</span></a>
+        <a class="btn btn-ghost btn-md" id="clGithub" data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.10" target="_blank" rel="noopener"><span data-i18n="notes.full">完整说明</span><svg><use href="#i-ext"/></svg></a>
+        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://github.com/cursimple/cursimple-app/releases/download/v0.7.10/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg><span data-i18n="download.now">立即下载</span></a>
       </div>
     </footer>
   </div>

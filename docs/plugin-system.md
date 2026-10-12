@@ -4,7 +4,7 @@ Plugins are independent ZIP bundles executed through a restricted WebView. The h
 
 ## API compatibility
 
-The development host supports API **9**. Bundles declaring supported older APIs remain compatible; undeclared, invalid or newer APIs are rejected by the APK before package files or install records are written. The same check runs during local imports, market installs and upgrades; it cannot be bypassed by invoking installation directly. Failed compatibility checks preserve an existing installation.
+The development host supports API **11**. Bundles declaring supported older APIs remain compatible; undeclared, invalid or newer APIs are rejected by the APK before package files or install records are written. The same check runs during local imports, market installs and upgrades; it cannot be bypassed by invoking installation directly. Failed compatibility checks preserve an existing installation.
 
 | API | Capability |
 |---|---|
@@ -117,7 +117,21 @@ export async function run(ctx) {
 }
 ```
 
-The host injects entry code after an allowed page loads. `ctx` exposes controlled JavaScript operations, not arbitrary Android objects. Committed drafts are validated for course count, titles, weekdays, periods and weeks before becoming `TermSchedule`.
+The host injects entry code after an allowed page loads. `ctx` exposes controlled JavaScript operations, not arbitrary Android objects. Committed drafts are validated for course count, titles, weekdays, periods and weeks before becoming `TermSchedule`. The host records the executing installation's plugin ID on each imported timetable. Drafts cannot supply this origin; external timetable imports discard claimed origin metadata. Legacy timetables without an origin remain unclassified. A user can confirm their legacy importer for display settings only; this separate per-timetable binding does not invent recorded plugin execution. External imports clear both kinds of ownership and are marked as external.
+
+### Import fallback
+
+`webSession.manualUploadHintDelayMs` optionally offers manual upload after the configured delay on declared capture paths; login pages are excluded. `webSession.retryIncompleteAfterMs` opts a schedule importer into throttled retries after an incomplete run. Active runs remain exclusive, manual retry clears a previous completed draft, and upload waits for the new draft. Both options default to absent and are clamped to 1–60 seconds by the host.
+
+An entry script may return `{ hold: true }` when it cannot finish without the user, for example a page that offers several curricula to choose from. The host then stops automatic retries for that page instead of looping, and keeps the manual upload action available. `ctx.manual` is `true` only on a run the user started, so an entry script can branch on it. Pressing upload releases the hold and runs the entry script again.
+
+### Optional timetable rows
+
+Schedule bundles can declare `timetableRows` and `timetableRowFormat` in `ui/schedule.json` to expose a separate native Plugin settings page. Each row has `id`, `title`, optional locale-keyed `titles`, `startNode`, `endNode`, `slotLabel`, `startTime`, `endTime` and `defaultVisible` (default `true`). `timetableRowFormat` contains the complete expected `ClassSlotTime` list using the same fields as `datapack/timing.json`'s `slotTimes`.
+
+A display setting applies only when the active timetable's recorded importer or explicitly confirmed legacy display binding matches the declaring plugin and every period range, label and clock time matches the complete format. Missing, additional or changed slots prevent hiding; every optional row must belong to that format. Settings update the local display immediately without altering schedule or timing data. Actual courses, including manual edits and rescheduled meetings, keep their rows visible. Installing a plugin or selecting it for a future import does not assign it ownership of an existing timetable.
+
+Legacy confirmation is offered only for unclassified local data with a complete matching format. It writes a reversible display binding to the reviewed term, checks the stored timetable against the reviewed snapshot to reject concurrent replacements, and does not change courses or timing. Imported shared codes, QR and AI data cannot acquire this binding.
 
 Required runtime dependencies may use `engine_chromium`, `opencv_native`, `onnx_runtime`, `onnx_model` or `generic_asset`. Missing dependencies produce `NeedsComponents`; they do not silently select another engine. The integrated execution engine is system WebView.
 
@@ -221,7 +235,7 @@ HTML, CSS, JavaScript and assets ship inside the ZIP. The host loads declared en
 | `settings.update` / `host.update` | Save declared or shared host settings |
 | `ui.login/settings/feed/close` | Navigate or close owned pages |
 | `web.cookie` / `qr.encode` | Read allowed cookies or encode component-provided QR text |
-| `login.check` | Validate through the component entry; `navigate:false` returns data without leaving |
+| `login.check` | Validate through the component entry; `navigate:false` returns data without leaving; optional `expectedAccountId` verifies the confirmed identity. First login creates its archive, while duplicate confirmation preserves the accepted session |
 | `sync` / `logout` | Synchronize or invalidate the session |
 | `component.remove` | Request host-owned removal |
 | `media.open` | Open an attachment in the current archive |
@@ -260,7 +274,7 @@ Events include `id, kind, title, body, sourceId, sourceName, itemId, createdAt, 
 
 The isolated runtime invokes `deliverNotifications(ctx)` with `secureConfiguration`, target-scoped `secureSessions` and delivery records in `notifications`. `ctx.notification.session(targetId,value)` persists encrypted session updates; false means the current binding is stale. `ctx.crypto.hmacSha256` returns Base64. `ctx.network.fetch` permits authorized HTTPS GET/POST, omits WebView cookies and rejects redirects and credential URLs. Binding call timeouts are bounded to 1–40 seconds.
 
-Persist `sending` through `ctx.notification.receipt` before sending. False means the source or target changed and transmission must stop. Report `sent` only for explicit confirmation, `accepted` for platform acceptance without final confirmation, and `queued` for a resumable status check. `querying` resumes as `queued` after interruption; interrupted `sending` becomes `unknown`. Failed and unknown outcomes are separate; unknown delivery stops automatic resend until the user checks and requests retry. Queued checks query the existing operation rather than sending it again.
+Persist `sending` through `ctx.notification.receipt` before sending. False means the source or target changed and transmission must stop. Report `sent` only for explicit confirmation, `accepted` for platform acceptance without final confirmation, and `queued` for a resumable status check. `querying` resumes as `queued` after interruption; interrupted `sending` becomes `unknown`. Failed and unknown outcomes are separate; unknown delivery stops automatic resend until the user checks and requests retry. Queued checks query the existing operation rather than sending it again. A failed receipt may include an optional fifth argument `retryAt` (epoch milliseconds) in `ctx.notification.receipt(messageId, targetId, "failed", error, retryAt)`. The host bounds it to the next hour, persists it per target, and waits until that time without exhausting the normal retry limit. Expired events still stop delivery; a deferred receipt never implies platform acceptance.
 
 `ctx.mail.send({host, port:465, username, password, from, to, subject, text, messageId})` implements generic SMTP over TLS with certificate verification, authorized hosts, UTF-8 MIME text and header-injection rejection. Sender must match the authenticated account. Final SMTP 250 confirms server acceptance, not reading or inbox placement. Disconnect after body submission is ambiguous and must not trigger automatic resend.
 
@@ -272,4 +286,25 @@ A component declares `extension.widgets`, with `id`, `title`, `description`, loc
 
 `window.CurSimpleWidget.state` contains the owner's normal archive, settings, manifest and rendering context (width, height, fontScale, language, timeZone and nowMillis). Secure channel configurations are excluded. The component filters and lays out its own content, then calls `ready([{x,y,width,height,action}])`; actions may open its feed or settings. Use a viewport meta tag (`width=device-width, initial-scale=1`), size the page to the supplied viewport, and call `ready` once layout is complete. Use timers or direct layout measurement rather than waiting for an animation frame in an offscreen WebView. Coordinates are CSS pixels, with at most 12 bounded regions. Rendering uses local package assets only, without a network or credential bridge.
 
-The app picker lists declarations from installed, enabled owners. Each desktop instance binds one definition; the launcher configuration screen chooses among installed declarations. Package changes invalidate render ownership. Removal deletes the entry and stops its content; removing the last owner disables the shared desktop provider. The Android provider is a generic host surface and does not contain platform UI. In the system picker, add the component container and choose a declaration; the app picker lists each owned widget by its declared name. The shared provider defaults to four columns and two rows; launchers control the final cell placement, and components receive the actual content dimensions after launcher padding.
+The app picker lists declarations from installed, enabled owners. Each declaration takes its own generic provider slot, so every component widget is a separate entry in the system picker and binds to its owner when placed, with no chooser. On Android 15 and later the host publishes the owner's render as the picker preview; older launchers, or launchers without generated previews, show the app icon instead of a host placeholder. Slots are disabled until assigned, and removing or disabling the owner frees its slot. Package changes invalidate render ownership. The provider label is fixed in the app and cannot carry the component's name. Providers default to four columns and two rows; launchers control the final cell placement, and components receive the actual content dimensions after launcher padding.
+
+### Native session networking (API 10)
+
+Owned pages can use `CurSimpleComponent.capabilities.sessionFetch` and `nativeWebSocket`. Authentication protocols remain inside each component; these commands provide generic transport only.
+
+| Command | Payload and result |
+|---|---|
+| `network.session.fetch` | `{requestId,url,method,headers,body,referrer,timeoutMs}` returns `{status,body,contentType}`. GET/POST, HTTPS, current origin only, declared `network.fetch` and `web.read_cookies`. Same-origin redirects are checked; response cookies are persisted before reply. |
+| `network.session.cancel` | `{requestId}` cancels the matching request. |
+| `network.socket.open` | `{url}` returns an opaque `socketId`. WSS and declared hosts only; the host supplies the page origin and user agent. Same-origin cookies require `web.read_cookies`. |
+| `network.socket.send` | `{socketId,text}` sends a bounded text frame. |
+| `network.socket.poll` | `{socketId}` returns `{events:[...]}`. Events are `open`, `message` with `data`, `close`, or `error`. The host waits up to 25 seconds for frames, so receiving messages does not depend on page timers. |
+| `network.socket.close` | `{socketId}` closes the connection and clears buffered frames. |
+
+Sockets use native 20-second ping/pong, bounded queues, at most three connections per page and a five-minute lifetime. Leaving a page, changing its origin or removing the component closes its connections. Session request/response data and socket frames are not diagnostic log content. Components must verify account identity and request `login.check` before claiming a saved login. API 3–9 packages remain compatible with API 10 hosts.
+
+### Reader orientation (API 11)
+
+Owned pages may check `CurSimpleComponent.capabilities.orientation` and call `ui.orientation` with `{mode:"portrait"}`, `{mode:"landscape"}` or `{mode:"restore"}`. The host requests sensor portrait/landscape orientation and restores the Activity's previous request when the page leaves or closes. Requests are temporary and do not change user preferences. The Activity handles orientation and size changes in place so owned readers retain page and gesture state. Windowing policies may override an orientation request. API 3–10 packages remain compatible.
+
+A successful `login.check` schedules one synchronization per saved session in the application scope, before optional navigation. Repeated confirmation does not repeat that synchronization, and leaving the login document does not cancel it. Results continue to reach active owned pages through the normal archive subscription.

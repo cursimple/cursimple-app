@@ -1,5 +1,9 @@
 package com.x500x.cursimple.feature.schedule
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
 import com.x500x.cursimple.feature.plugin.ui.AppSearchField
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
 import androidx.compose.foundation.background
@@ -31,6 +35,7 @@ import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -41,6 +46,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,6 +78,7 @@ import com.x500x.cursimple.core.kernel.model.dueState
 import com.x500x.cursimple.core.kernel.model.memoComparator
 import com.x500x.cursimple.core.kernel.model.memoCourseKey
 import com.x500x.cursimple.core.kernel.model.toggleChecklistLine
+import com.x500x.cursimple.core.kernel.model.parseChecklistLine
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
@@ -82,7 +89,7 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-internal data class MemoNotebook(
+data class MemoNotebook(
     val key: String?,
     val title: String,
     val subtitle: String,
@@ -100,7 +107,7 @@ private enum class MemoQuickFilter { Todo, Today, Overdue }
 /**
  * One notebook per course name, including archived note associations and a general notebook.
  */
-internal fun buildMemoNotebooks(courses: List<CourseItem>, memos: List<MemoNote>, otherTitle: String): List<MemoNotebook> {
+fun buildMemoNotebooks(courses: List<CourseItem>, memos: List<MemoNote>, otherTitle: String): List<MemoNotebook> {
     val fromCourses = courses
         .groupBy { memoCourseKey(it.title) }
         .map { (key, same) ->
@@ -158,6 +165,11 @@ fun MemoRoute(
     onCloseSearch: () -> Unit = {},
     openNoteId: String? = null,
     onNoteOpened: () -> Unit = {},
+    shareOpen: Boolean = false,
+    onCloseShare: () -> Unit = {},
+    importUri: Uri? = null,
+    importCode: String? = null,
+    onCloseImport: () -> Unit = {},
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val courses = remember(state.schedule, state.manualCourses) {
@@ -173,6 +185,12 @@ fun MemoRoute(
         onCloseSearch = onCloseSearch,
         openNoteId = openNoteId,
         onNoteOpened = onNoteOpened,
+        shareOpen = shareOpen,
+        onCloseShare = onCloseShare,
+        importUri = importUri,
+        importCode = importCode,
+        onCloseImport = onCloseImport,
+        onImportNotes = viewModel::importMemos,
     )
 }
 
@@ -187,6 +205,12 @@ internal fun MemoScreen(
     onCloseSearch: () -> Unit = {},
     openNoteId: String? = null,
     onNoteOpened: () -> Unit = {},
+    shareOpen: Boolean = false,
+    onCloseShare: () -> Unit = {},
+    importUri: Uri? = null,
+    importCode: String? = null,
+    onCloseImport: () -> Unit = {},
+    onImportNotes: suspend (List<MemoNote>) -> Int = { notes -> notes.forEach(onSave); notes.size },
 ) {
     val zone = LocalAppZone.current
     val now = remember(memos, zone) { BeijingTime.nowDateTimeIn(zone) }
@@ -199,6 +223,38 @@ internal fun MemoScreen(
     // Editable note or new draft initialized with its course association.
     var editing by remember { mutableStateOf<MemoNote?>(null) }
     var pendingDelete by remember { mutableStateOf<MemoNote?>(null) }
+    var pendingCompletion by remember { mutableStateOf<MemoCompletionRequest?>(null) }
+    var sharingNote by remember { mutableStateOf<MemoNote?>(null) }
+    var pickedImport by remember { mutableStateOf<Uri?>(null) }
+    var importOptions by rememberSaveable { mutableStateOf(false) }
+    var pickedCode by rememberSaveable { mutableStateOf<String?>(null) }
+    val importPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { pickedImport = it }
+    val activeImport = importUri ?: pickedImport
+    val activeCode = importCode ?: pickedCode
+    if (importOptions) MemoImportOptionsSheet(
+        onCode = { pickedCode = it; importOptions = false },
+        onFile = {
+            importOptions = false
+            importPicker.launch(arrayOf(com.x500x.cursimple.core.data.memo.MemoTransferCodec.MIME, "application/json", "application/octet-stream", "text/plain"))
+        }, onDismiss = { importOptions = false },
+    )
+    if (activeImport != null || activeCode != null) MemoImportSheet(
+        uri = activeImport,
+        code = activeCode,
+        courses = courses,
+        existing = memos,
+        onImport = { notes ->
+            val added = onImportNotes(notes)
+            if (added > 0) {
+                val groups = notes.map { it.courseKey }.distinct()
+                selection = if (groups.size == 1) MemoSelection.Notebook(groups.single()) else MemoSelection.All
+                quickFilter = null
+                onCloseSearch()
+            }
+            added
+        },
+        onDismiss = { pickedImport = null; pickedCode = null; onCloseImport() },
+    )
     LaunchedEffect(openNoteId, memos) {
         val id = openNoteId ?: return@LaunchedEffect
         memos.firstOrNull { it.id == id }?.let { editing = it; onNoteOpened() }
@@ -232,6 +288,25 @@ internal fun MemoScreen(
     }
     val (active, done) = visible.partition { !it.completed }
 
+    // The global action always includes all notebooks and completed notes.
+    if (shareOpen) {
+        MemoShareSheet(
+            notes = memos.sortedWith(memoComparator(now)),
+            notebookOf = notebookOf,
+            scopeLabel = stringResource(R.string.memo_share_scope_all),
+            onDismiss = onCloseShare,
+            onImport = { importOptions = true },
+        )
+    }
+    sharingNote?.let { note ->
+        MemoShareSheet(
+            notes = listOf(memos.firstOrNull { it.id == note.id } ?: note),
+            notebookOf = notebookOf,
+            scopeLabel = null,
+            onDismiss = { sharingNote = null },
+        )
+    }
+
     editing?.let { draft ->
         MemoEditorDialog(
             initial = draft,
@@ -247,6 +322,7 @@ internal fun MemoScreen(
                 editing = null
                 pendingDelete = draft
             },
+            onUpdate = onSave,
         )
     }
     pendingDelete?.let { target ->
@@ -273,6 +349,13 @@ internal fun MemoScreen(
     }
 
     fun update(note: MemoNote) = onSave(note.copy(updatedAt = System.currentTimeMillis()))
+
+    pendingCompletion?.let { request ->
+        MemoCompletionDialog(request.label, onConfirm = {
+            pendingCompletion = null
+            memos.firstOrNull { it.id == request.noteId }?.let(request::completedNote)?.let(::update)
+        }, onDismiss = { pendingCompletion = null })
+    }
 
     MemoTapShieldHost(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -339,9 +422,14 @@ internal fun MemoScreen(
                         notebook = notebookOf[note.courseKey],
                         showNotebook = inAll || searching,
                         onOpen = { editing = note },
-                        onToggleLine = { line -> update(note.copy(body = toggleChecklistLine(note.body, line))) },
-                        onToggleCompleted = { update(note.copy(completed = !note.completed)) },
+                        onToggleLine = { line ->
+                            if (note.body.lines().getOrNull(line)?.let(::parseChecklistLine)?.first == true) {
+                                update(note.copy(body = toggleChecklistLine(note.body, line)))
+                            } else pendingCompletion = MemoCompletionRequest.from(note, line)
+                        },
+                        onToggleCompleted = { pendingCompletion = MemoCompletionRequest.from(note) },
                         onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
+                        onShare = { sharingNote = note },
                         onDelete = { pendingDelete = note },
                     )
                 }
@@ -364,6 +452,7 @@ internal fun MemoScreen(
                             onToggleLine = null,
                             onToggleCompleted = { update(note.copy(completed = !note.completed)) },
                             onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
+                            onShare = { sharingNote = note },
                             onDelete = { pendingDelete = note },
                         )
                     }
@@ -497,23 +586,19 @@ private fun MemoStatCard(
         ),
         modifier = modifier,
     ) {
-        Row(
-            modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        Column(
+            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
         ) {
-            Text(
+            AppAtomicText(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
             )
-            Text(
+            AppAtomicText(
                 text = value.toString(),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = if (value > 0) accent else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -578,6 +663,7 @@ private fun MemoCard(
     onToggleLine: ((Int) -> Unit)?,
     onToggleCompleted: () -> Unit,
     onTogglePinned: () -> Unit,
+    onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val priorityColor = memoPriorityColor(note.priority)
@@ -656,6 +742,15 @@ private fun MemoCard(
                                     menu = false
                                     onToggleCompleted()
                                 },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.memo_share)) },
+                                leadingIcon = { Icon(Icons.Rounded.Share, contentDescription = null) },
+                                onClick = {
+                                    menu = false
+                                    onShare()
+                                },
+                                modifier = Modifier.testTag("memo-share-note"),
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.schedule_action_delete)) },

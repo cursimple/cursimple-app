@@ -75,8 +75,8 @@ private const val GITHUB_URL = "https://github.com/cursimple/cursimple-app"
 private const val ISSUES_URL = "$GITHUB_URL/issues"
 private const val RELEASES_URL = "$GITHUB_URL/releases"
 private const val PLUGIN_REGISTRY_URL = "https://github.com/cursimple/cursimple-plugins"
-private const val DEV_MODE_TAP_TARGET = 5
-private const val DEV_MODE_TAP_RESET_MS = 3000L
+private const val DEV_MODE_TAP_TARGET = com.x500x.cursimple.core.kernel.HiddenToolsActivation.TAP_TARGET
+private const val DEV_MODE_TAP_RESET_MS = com.x500x.cursimple.core.kernel.HiddenToolsActivation.TAP_RESET_MS
 
 @Composable
 fun AboutScreen(
@@ -493,13 +493,13 @@ private fun RuntimeCard(versionName: String) {
 @Composable
 private fun TechStackCard() {
     val items = listOf(
-        "Kotlin" to "2.2.21",
+        "Kotlin" to "2.3.21",
         "Jetpack Compose" to "BOM 2026.04.01",
         "Material 3" to "Compose M3",
-        "AndroidX Glance" to stringResource(R.string.about_tech_glance),
+        "RemoteViews" to stringResource(R.string.about_tech_widgets),
         "WorkManager" to stringResource(R.string.about_tech_workmanager),
         "DataStore" to stringResource(R.string.about_tech_datastore),
-        "Kotlinx Coroutines" to "1.10.2",
+        "Kotlinx Coroutines" to "1.11.0",
         "Kotlinx Serialization" to "1.11.0",
         "Android WebView" to stringResource(R.string.about_tech_webview),
         "OkHttp" to stringResource(R.string.about_tech_okhttp),
@@ -586,7 +586,12 @@ private fun LinkRow(
     }
 }
 
-private fun releaseChannelLabel(): Int = if (BuildConfig.VERSION_NAME.contains('-')) {
+internal fun releaseChannelLabel(
+    versionName: String = BuildConfig.VERSION_NAME,
+    releaseChannel: String? = BuildConfig.RELEASE_CHANNEL,
+): Int = if (
+    com.x500x.cursimple.app.update.isPrereleaseBuild(versionName, releaseChannel)
+) {
     R.string.about_channel_beta
 } else {
     R.string.about_channel_stable

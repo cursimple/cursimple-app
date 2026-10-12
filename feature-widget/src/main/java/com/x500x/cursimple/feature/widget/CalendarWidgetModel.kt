@@ -42,12 +42,14 @@ internal data class CalendarRow(
     val endNode: Int,
     val label: String,
     val startTime: String,
+    val endTime: String = "",
 )
 
 internal data class CalendarWeekData(
     val days: List<CalendarDay>,
     val blocks: List<List<CalendarCourseBlock>>,
     val rows: List<CalendarRow>,
+    val currentRows: Set<Int> = emptySet(),
 ) {
     /**
      * Resolve span rows around timing gaps by the nearest containing start and end boundaries.
@@ -98,7 +100,7 @@ internal fun calendarRows(
         compareBy({ looseClock(it.startTime) ?: LocalTime.MAX }, { it.startNode }, { it.endNode }),
     )
     val base = sorted.mapIndexed { index, slot ->
-        CalendarRow(slot.startNode, slot.endNode, labelOf(slot, index + 1), slot.startTime.trim())
+        CalendarRow(slot.startNode, slot.endNode, labelOf(slot, index + 1), slot.startTime.trim(), slot.endTime.trim())
     }
     val coveredMax = sorted.maxOfOrNull { it.endNode } ?: 0
     val extraUntil = if (base.isEmpty()) maxOf(lastCourseNode, maxDefaultRows) else lastCourseNode
@@ -110,6 +112,17 @@ internal fun calendarRows(
 }
 
 private const val MIN_CALENDAR_ROWS = 4
+
+/** Highlight only actual timing intervals in the current week; class breaks remain unmarked. */
+internal fun calendarCurrentRows(rows: List<CalendarRow>, days: List<CalendarDay>, now: LocalTime): Set<Int> {
+    val today = days.firstOrNull { it.isToday } ?: return emptySet()
+    if (today.onHoliday) return emptySet()
+    return rows.indices.filterTo(linkedSetOf()) { index ->
+        val start = looseClock(rows[index].startTime)
+        val end = looseClock(rows[index].endTime)
+        start != null && end != null && end.isAfter(start) && !now.isBefore(start) && now.isBefore(end)
+    }
+}
 
 internal fun calendarBlocksOf(day: CalendarDay): List<CalendarCourseBlock> {
     val sorted = day.courses

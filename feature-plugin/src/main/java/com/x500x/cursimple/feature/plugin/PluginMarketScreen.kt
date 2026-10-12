@@ -355,7 +355,7 @@ internal fun PluginListContent(
         uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
     }
     val settingsPlugin = settingsPluginKey?.let { key ->
-        uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key && it.isExtension }
+        uiState.installedPlugins.firstOrNull { installedPluginKey(it) == key }
     }
     val detailRepo = detailRepoSlug?.let { slug -> catalogRepos.firstOrNull { it.fullName == slug } }
     SideEffect { onDetailVisibilityChange(detailPlugin != null || detailRepo != null || settingsPlugin != null) }
@@ -372,6 +372,10 @@ internal fun PluginListContent(
         }
     }
 
+    if (settingsPlugin != null && !settingsPlugin.isExtension) {
+        SchedulePluginSettingsScreen(settingsPlugin, onBack = { settingsPluginKey = null }, modifier = modifier)
+        return
+    }
     if (settingsPlugin != null && extensionActions != null) {
         com.x500x.cursimple.feature.plugin.extension.ExtensionSettingsScreen(
             record = settingsPlugin,
@@ -404,9 +408,10 @@ internal fun PluginListContent(
                 } else onUpgradePlugin(detailPlugin, latest)
             },
             onOpenRepo = onOpenRepo,
-            onOpenSettings = if (detailPlugin.isExtension && extensionActions != null) {
-                { settingsPluginKey = installedPluginKey(detailPlugin) }
+            onOpenComponent = if (detailPlugin.isExtension) {
+                extensionActions?.let { actions -> { actions.openFeed(detailPlugin) } }
             } else null,
+            onOpenScheduleSettings = if (!detailPlugin.isExtension) ({ settingsPluginKey = installedPluginKey(detailPlugin) }) else null,
             onRemove = {
                 onRemovePlugin(detailPlugin.installKey)
                 detailPluginKey = null
@@ -564,7 +569,8 @@ internal fun PluginListContent(
                     onUpgrade = { latest -> onUpgradePlugin(plugin, latest) },
                     onInstallUpgrade = { latest -> onInstallFromGitHub(latest) },
                     onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
-                    onOpenSettings = { settingsPluginKey = installedPluginKey(plugin) },
+                    onOpenComponent = extensionActions?.let { actions -> { actions.openFeed(plugin) } },
+                    onOpenScheduleSettings = if (!plugin.isExtension) ({ settingsPluginKey = installedPluginKey(plugin) }) else null,
                     onRemove = { onRemovePlugin(plugin.installKey) },
                 )
             }
@@ -885,9 +891,17 @@ private fun PluginCard(
     onUpgrade: (GitHubRepoSummary) -> Unit,
     onInstallUpgrade: (GitHubRepoSummary) -> Unit,
     onOpenDetail: () -> Unit,
-    onOpenSettings: () -> Unit,
+    onOpenComponent: (() -> Unit)?,
+    onOpenScheduleSettings: (() -> Unit)? = null,
     onRemove: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val declaredRows by produceState<List<com.x500x.cursimple.core.plugin.ui.PluginTimetableRowSetting>>(emptyList(), plugin.packageRevision) {
+        if (!plugin.isExtension) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.x500x.cursimple.core.data.validPluginTimetableRows(
+                com.x500x.cursimple.core.plugin.storage.PluginFileStore(context).loadUiSchema(plugin).timetableRows) }.getOrDefault(emptyList())
+        }
+    }
     var showRemoveConfirm by rememberSaveable(plugin.installKey) { mutableStateOf(false) }
     if (showRemoveConfirm) {
         AppConfirmationDialog(
@@ -945,10 +959,22 @@ private fun PluginCard(
             }
         }
         val hasPrimary = plugin.isExtension || isEnabled
+        if (declaredRows.isNotEmpty() && onOpenScheduleSettings != null) {
+            AppOutlinedButton(onClick = onOpenScheduleSettings,
+                modifier = Modifier.fillMaxWidth().testTag("plugin-settings:${plugin.installKey}")) {
+                Icon(Icons.Rounded.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.plugin_timetable_settings_title), maxLines = 1, softWrap = false)
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (plugin.isExtension) {
-                Button(onClick = onOpenSettings, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.plugin_card_action_extension_settings))
+                Button(
+                    onClick = { onOpenComponent?.invoke() },
+                    enabled = onOpenComponent != null,
+                    modifier = Modifier.weight(1f).testTag("component-open:${plugin.installKey}"),
+                ) {
+                    Text(stringResource(R.string.plugin_card_action_extension_open))
                 }
             } else if (isEnabled) {
                 Box(Modifier.weight(1f)) {
@@ -1046,7 +1072,8 @@ private fun PluginDetailScreen(
     onSync: () -> Unit,
     onUpgrade: (GitHubRepoSummary) -> Unit,
     onOpenRepo: (String) -> Unit,
-    onOpenSettings: (() -> Unit)? = null,
+    onOpenComponent: (() -> Unit)? = null,
+    onOpenScheduleSettings: (() -> Unit)? = null,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1054,6 +1081,12 @@ private fun PluginDetailScreen(
     var technicalExpanded by rememberSaveable(plugin.installKey) { mutableStateOf(false) }
     val context = LocalContext.current
     val credentialStore = remember { WebLoginCredentialStore(context) }
+    val declaredRows by produceState<List<com.x500x.cursimple.core.plugin.ui.PluginTimetableRowSetting>>(emptyList(), plugin.packageRevision) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { com.x500x.cursimple.core.data.validPluginTimetableRows(
+                com.x500x.cursimple.core.plugin.storage.PluginFileStore(context).loadUiSchema(plugin).timetableRows) }.getOrDefault(emptyList())
+        }
+    }
     var hasSavedPasswords by remember(plugin.pluginId) { mutableStateOf(credentialStore.hasAny(plugin.pluginId)) }
     val compatibilityMessage = plugin.compatibilityMessage?.takeIf { it.isNotBlank() }
         ?: context.pluginCompatibilityText(resolvePluginCompatibility(plugin.apiVersion))
@@ -1103,9 +1136,14 @@ private fun PluginDetailScreen(
                                     Text(stringResource(R.string.plugin_repo_action_update, displayVersion(upgrade.latestRelease!!.tagName)))
                                 }
                             }
-                            onOpenSettings?.let { open ->
-                                Button(onClick = open, modifier = Modifier.testTag("detail-open-settings")) {
-                                    Text(stringResource(R.string.plugin_card_action_extension_settings))
+                            onOpenComponent?.let { open ->
+                                Button(onClick = open, modifier = Modifier.testTag("detail-open-component")) {
+                                    Text(stringResource(R.string.plugin_card_action_extension_open))
+                                }
+                            }
+                            if (declaredRows.isNotEmpty()) onOpenScheduleSettings?.let { open ->
+                                AppOutlinedButton(onClick = open, modifier = Modifier.testTag("detail-schedule-settings")) {
+                                    Text(stringResource(R.string.plugin_timetable_settings_title))
                                 }
                             }
                             AppOutlinedButton(

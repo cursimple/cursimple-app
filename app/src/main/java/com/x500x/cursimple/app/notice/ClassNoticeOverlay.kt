@@ -2,6 +2,9 @@ package com.x500x.cursimple.app.notice
 
 import android.app.Dialog
 import android.app.KeyguardManager
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
+import androidx.core.content.ContextCompat
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -45,6 +48,7 @@ object ClassNoticeOverlay {
     /** Only one banner is mounted; a new one replaces it. */
     private var current: Dialog? = null
     private var currentGesture: SwipeToDismiss? = null
+    private var screenReceiver: Pair<Context, BroadcastReceiver>? = null
     private val dismissRunnable = Runnable { dismiss() }
 
     /** Whether the latest [show] attachment attempt has finished. */
@@ -57,6 +61,7 @@ object ClassNoticeOverlay {
     /** Reject overlays while locked so callers can choose a visible fallback. */
     fun canShowNow(context: Context): Boolean {
         if (!canDraw(context)) return false
+        if (context.getSystemService(android.os.PowerManager::class.java)?.isInteractive == false) return false
         val keyguard = context.getSystemService(KeyguardManager::class.java) ?: return true
         return !keyguard.isKeyguardLocked
     }
@@ -84,6 +89,7 @@ object ClassNoticeOverlay {
         theme: NoticeTheme,
         onTap: (() -> Unit)?,
         action: NoticeAction?,
+        onShown: ((Boolean) -> Unit)? = null,
     ) {
         val app = context.applicationContext
         val done = CompletableDeferred<Boolean>()
@@ -96,7 +102,9 @@ object ClassNoticeOverlay {
                         ReminderLogger.warn("class_notice.overlay.show_failed", emptyMap(), it)
                     }
             } finally {
-                done.complete(current != null)
+                val shown = current != null
+                done.complete(shown)
+                onShown?.invoke(shown)
             }
         }
     }
@@ -115,7 +123,8 @@ object ClassNoticeOverlay {
         onTap: (() -> Unit)?,
         action: NoticeAction?,
     ) {
-        dismiss()
+        dismissNow()
+        if (!canShowNow(context)) return
         val visibleMillis = preferences.bannerDurationMillis
         val themed = android.view.ContextThemeWrapper(context, R.style.ClassNoticeOverlayDialog)
         val view = LayoutInflater.from(themed).inflate(R.layout.overlay_class_notice, null)
@@ -206,6 +215,11 @@ object ClassNoticeOverlay {
         }
         current = dialog
         currentGesture = gesture
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) { dismissNow() }
+        }
+        ContextCompat.registerReceiver(context, receiver, IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED)
+        screenReceiver = context to receiver
         mainHandler.postDelayed(dismissRunnable, visibleMillis)
     }
 
@@ -305,6 +319,8 @@ object ClassNoticeOverlay {
     }
 
     private fun dismissNow() {
+        screenReceiver?.let { (context, receiver) -> runCatching { context.unregisterReceiver(receiver) } }
+        screenReceiver = null
         val dialog = current ?: return
         current = null
         currentGesture?.dispose()

@@ -169,6 +169,7 @@ enum class ExtensionScheduleTimeMode {
 @Serializable
 data class ExtensionData(
     @SerialName("pluginId") val pluginId: String,
+    val diagnosticsEnabled: Boolean = false,
     @SerialName("loginState") val loginState: ExtensionLoginState = ExtensionLoginState.Never,
     @SerialName("account") val account: ExtensionAccount? = null,
     @SerialName("settings") val settings: Map<String, JsonElement> = emptyMap(),

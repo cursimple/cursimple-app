@@ -2,6 +2,8 @@
 
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.app.update.announcementLocale
+
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,6 +102,7 @@ fun UpdateHistorySection(
     val context = LocalContext.current
     val checker = remember {
         AppUpdateChecker(
+            notesLanguageTag = announcementLocale(context),
             downloaderLabels = context.mirrorDownloaderLabels(),
             mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
         )
@@ -282,6 +285,7 @@ fun UpdateCheckSection(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val checker = remember { AppUpdateChecker(
+            notesLanguageTag = announcementLocale(context),
                 downloaderLabels = context.mirrorDownloaderLabels(),
                 mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
             ) }
@@ -515,6 +519,7 @@ fun AutomaticUpdateCheck(
 ) {
     val context = LocalContext.current
     val checker = remember { AppUpdateChecker(
+            notesLanguageTag = announcementLocale(context),
                 downloaderLabels = context.mirrorDownloaderLabels(),
                 mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
             ) }
@@ -577,6 +582,7 @@ fun ReleaseAnnouncementGate(
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val checker = remember { AppUpdateChecker(
+            notesLanguageTag = announcementLocale(context),
                 downloaderLabels = context.mirrorDownloaderLabels(),
                 mirrorStore = SharedPrefsMirrorPreferenceStore(context.applicationContext),
             ) }

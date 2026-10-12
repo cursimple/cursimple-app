@@ -44,9 +44,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +62,7 @@ import com.x500x.cursimple.core.plugin.web.WebSessionCaptureSpec
 import com.x500x.cursimple.core.plugin.web.WebSessionPacket
 import com.x500x.cursimple.core.plugin.web.WebSessionRequest
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.security.MessageDigest
@@ -78,6 +81,7 @@ private const val MAX_NETWORK_BODY_BYTES = 262144
 private const val MAX_PLUGIN_USER_AGENT_LENGTH = 512
 private const val DEFAULT_COMPLETION_STABLE_DELAY_MS = 1200L
 private const val MAX_COMPLETION_STABLE_DELAY_MS = 10000L
+private const val MAX_OBSERVED_SCOPES = 64
 
 private enum class UploadStage(
     @param:StringRes val labelRes: Int,
@@ -126,20 +130,59 @@ fun PluginWebSessionScreen(
         )
     }
     val uploadStage = remember(request.token) { mutableStateOf<UploadStage?>(null) }
+    val manualUploadRequested = remember(request.token) { mutableStateOf(false) }
     val credentialStore = remember { WebLoginCredentialStore(context) }
+    val sessionReset = remember { PluginWebSessionReset(context) }
+    val resetScope = androidx.compose.runtime.rememberCoroutineScope()
     val pendingCredential = remember(request.token) { mutableStateOf<WebLoginCredential?>(null) }
+    val showSwitchAccountConfirm = remember(request.token) { mutableStateOf(false) }
+    val switchingAccount = remember(request.token) { mutableStateOf(false) }
+    val browserGeneration = remember(request.token) { mutableStateOf(0L) }
+    val captureGeneration = remember(request.token) { mutableStateOf(0L) }
+    val autoNavigatedUrls = remember(request.token) { mutableStateOf<Set<String>>(emptySet()) }
+    val pendingCompletion = remember(request.token) {
+        mutableStateOf<WebSessionCompletionCandidate?>(null)
+    }
+
+    fun knownScopeUrls(): List<String> =
+        (networkPacketStore.visitedScopes() + request.startUrl + request.networkCaptures.flatMap { spec ->
+            captureScopeUrls(
+                hosts = listOfNotNull(spec.urlHost).ifEmpty { request.allowedHosts },
+                pathParts = listOfNotNull(spec.urlPathContains),
+            )
+        }).toList()
+
+    // Never hand the plugin packets captured under the previous account.
+    fun forgetCapturedData() {
+        captureGeneration.value += 1
+        networkPacketStore.reset()
+        capturedPackets.value = emptyMap()
+        pendingCompletion.value = null
+        isCapturing.value = false
+        autoNavigatedUrls.value = emptySet()
+    }
+
     val loginAssist = remember(request.token) {
         WebLoginAssist(
             pluginId = request.pluginId,
             allowedHosts = request.allowedHosts,
             store = credentialStore,
             onCaptured = { pendingCredential.value = it },
+            onAccountChanged = { loginHost ->
+                // A different account is signing in: drop the old account's sessions on every other
+                // allowed host (app sessions and SSO tickets) while keeping the login page's own.
+                forgetCapturedData()
+                resetScope.launch {
+                    sessionReset.reset(
+                        pluginId = request.pluginId,
+                        allowedHosts = request.allowedHosts,
+                        extraScopeUrls = knownScopeUrls(),
+                        keepHosts = setOf(loginHost),
+                    )
+                }
+            },
         )
     }
-    val pendingCompletion = remember(request.token) {
-        mutableStateOf<WebSessionCompletionCandidate?>(null)
-    }
-    val autoNavigatedUrls = remember(request.token) { mutableStateOf<Set<String>>(emptySet()) }
     val pageNavigationVersion = remember(request.token) { mutableStateOf(0L) }
     val webViewInitFailed = remember(request.token) { mutableStateOf(false) }
     val requiredPacketCount = remember(request) { requiredCapturePacketCount(request) }
@@ -238,12 +281,13 @@ fun PluginWebSessionScreen(
     }
 
     fun finishWithPacket(packet: WebSessionPacket, packets: Map<String, WebCapturedPacket>) {
-        if (isFinishing.value) {
+        if (isFinishing.value || switchingAccount.value) {
             return
         }
         pendingCompletion.value = null
         isFinishing.value = true
         uploadStage.value = UploadStage.Packing
+        sessionReset.rememberScopes(request.pluginId, knownScopeUrls())
         val finalPacket = aggregateWebSessionPacket(
             request = request,
             latestPacket = packet,
@@ -299,7 +343,9 @@ fun PluginWebSessionScreen(
                 ),
             )
         }
-        if (forceFinish) {
+        if (forceFinish || manualUploadRequested.value) {
+            if (request.autoCompleteOnScheduleDraft && request.entryScript.isNotBlank() && packet.scheduleDraftJson.isNullOrBlank()) return
+            manualUploadRequested.value = false
             finishWithPacket(packet, updatedPackets)
         } else if (request.autoCompleteOnScheduleDraft && !packet.scheduleDraftJson.isNullOrBlank()) {
             requestStableCompletion(
@@ -329,10 +375,11 @@ fun PluginWebSessionScreen(
         if (!forceFinish && hasAllRequiredCapturePackets(request, capturedPackets.value)) {
             return
         }
-        if (isFinishing.value || isCapturing.value || !isForegroundWebView(webView)) {
+        if (isFinishing.value || switchingAccount.value || isCapturing.value || !isForegroundWebView(webView)) {
             return
         }
         isCapturing.value = true
+        val generation = captureGeneration.value
         PluginLogger.info(
             "plugin.web_session.capture.probe",
             mapOf(
@@ -343,14 +390,22 @@ fun PluginWebSessionScreen(
                 "requiredPacketCount" to requiredCapturePacketCount(request),
             ),
         )
-        captureWebSessionPacket(
+        fun capture() = captureWebSessionPacket(
             webView = webView,
             request = request,
             currentUrl = target,
         ) { packet ->
+            if (generation != captureGeneration.value || switchingAccount.value || !isForegroundWebView(webView)) {
+                return@captureWebSessionPacket
+            }
             isCapturing.value = false
             handleCapturedSnapshot(packet, forceFinish)
         }
+        if (request.retryIncompleteAfterMs != null && !forceFinish) {
+            injectPluginRuntime(webView, request, target, networkPacketStore.snapshot()) {
+                if (generation == captureGeneration.value && !switchingAccount.value && isForegroundWebView(webView)) capture()
+            }
+        } else capture()
     }
 
     fun handleAutoNavigation(view: WebView?, target: String): Boolean {
@@ -372,9 +427,11 @@ fun PluginWebSessionScreen(
 
     fun uploadCurrentSession() {
         val webView = foregroundWebView() ?: return
-        if (isFinishing.value || isCapturing.value) {
+        if (isFinishing.value || switchingAccount.value) {
             return
         }
+        manualUploadRequested.value = true
+        pendingCompletion.value = null
         uploadStage.value = UploadStage.Capturing
         PluginLogger.info(
             "plugin.web_session.manual_complete.start",
@@ -443,8 +500,7 @@ fun PluginWebSessionScreen(
 
     DisposableEffect(request.token) {
         onDispose {
-            webViewState.value?.destroy()
-            webViewState.value = null
+            sessionReset.rememberScopes(request.pluginId, knownScopeUrls())
         }
     }
 
@@ -460,8 +516,22 @@ fun PluginWebSessionScreen(
         (tickNow.value - pageReadyAtMs.value) >= 300L
     // Keep progress visible through capture, parsing and timetable persistence.
     val uploading = uploadStage.value != null || isFinishing.value
+    val hintUrl = popupWebViewState.value?.url ?: currentUrl.value
+    val hintStartedAt = remember(request.token, hintUrl, browserGeneration.value) { System.currentTimeMillis() }
+    val showManualHint = shouldShowManualUploadHint(request, hintUrl, hintStartedAt, tickNow.value,
+        busy = uploading || pendingCompletion.value != null || switchingAccount.value)
+    LaunchedEffect(manualUploadRequested.value) {
+        if (manualUploadRequested.value) {
+            delay(request.limits.timeoutMs.coerceAtLeast(5_000))
+            if (manualUploadRequested.value && !isFinishing.value) {
+                manualUploadRequested.value = false
+                uploadStage.value = null
+                pageError.value = context.getString(R.string.plugin_web_manual_upload_not_ready)
+            }
+        }
+    }
     val waitingStable = pendingCompletion.value?.requiresUserConfirmation == false
-    val rawShowWorkingOverlay = uploading || waitingStable || browsingForCapture
+    val rawShowWorkingOverlay = uploading || waitingStable || (browsingForCapture && !showManualHint)
     val showWorkingOverlay = remember(request.token) { mutableStateOf(false) }
     val lastWorkingOverlayChangeMs = remember(request.token) { mutableStateOf(0L) }
     androidx.compose.runtime.LaunchedEffect(rawShowWorkingOverlay) {
@@ -487,8 +557,14 @@ fun PluginWebSessionScreen(
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(request.title, style = MaterialTheme.typography.titleMedium)
-        val uploadInProgress = uploadStage.value != null || isFinishing.value
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(request.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            AppOutlinedButton(
+                onClick = { showSwitchAccountConfirm.value = true },
+                enabled = !isFinishing.value && !switchingAccount.value,
+            ) { Text(stringResource(R.string.plugin_web_switch_account)) }
+        }
+        val uploadInProgress = uploadStage.value != null || isFinishing.value || switchingAccount.value
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
@@ -612,7 +688,10 @@ fun PluginWebSessionScreen(
                 }
             }
         }
-        if (effectiveCaptureSpecs(request).isNotEmpty()) {
+        if (showManualHint) {
+            Text(stringResource(R.string.plugin_web_manual_upload_hint), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("manual-upload-hint"))
+        } else if (effectiveCaptureSpecs(request).isNotEmpty()) {
             Text(
                 text = stringResource(R.string.plugin_web_capture_hint),
                 style = MaterialTheme.typography.bodySmall,
@@ -693,7 +772,7 @@ fun PluginWebSessionScreen(
                 .weight(1f)
                 .padding(top = 2.dp),
         ) {
-            PluginWebViewHost(
+            if (!switchingAccount.value) key(browserGeneration.value) { PluginWebViewHost(
                 request = request,
                 webViewState = webViewState,
                 popupWebViewState = popupWebViewState,
@@ -714,11 +793,60 @@ fun PluginWebSessionScreen(
                 onPageNavigation = ::markNavigationChanged,
                 probeWebSession = { view, target -> probeWebSession(view, target) },
                 modifier = Modifier.fillMaxSize(),
-            )
-            if (showWorkingOverlay.value) {
+            ) }
+            if (switchingAccount.value) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (showWorkingOverlay.value) {
                 PluginWorkingOverlay(stageLabel = uploadStage.value?.let { stringResource(it.labelRes) })
             }
         }
+    }
+
+    if (showSwitchAccountConfirm.value) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showSwitchAccountConfirm.value = false },
+            title = { Text(stringResource(R.string.plugin_web_switch_account)) },
+            text = { Text(stringResource(R.string.plugin_web_switch_account_message)) },
+            confirmButton = {
+                Button(onClick = {
+                    showSwitchAccountConfirm.value = false
+                    switchingAccount.value = true
+                    foregroundWebView()?.apply {
+                        stopLoading()
+                        clearCache(true)
+                    }
+                    forgetCapturedData()
+                    pendingCredential.value = null
+                    uploadStage.value = null
+                    manualUploadRequested.value = false
+                    autoNavigatedUrls.value = emptySet()
+                    markNavigationChanged()
+                    loginAssist.suppressAutofill = true
+                    resetScope.launch {
+                        try {
+                            sessionReset.reset(request.pluginId, request.allowedHosts, request.logoutUrls, knownScopeUrls())
+                            credentialStore.forgetAccounts(request.pluginId)
+                            currentUrl.value = request.startUrl
+                            pageTitle.value = ""
+                            loadProgress.value = 0
+                            pageError.value = null
+                            consoleError.value = null
+                            blockedUrl.value = null
+                            popupUrl.value = null
+                            webViewInitFailed.value = false
+                        } finally {
+                            browserGeneration.value += 1
+                            switchingAccount.value = false
+                        }
+                    }
+                }) { Text(stringResource(R.string.plugin_web_switch_account)) }
+            },
+            dismissButton = {
+                AppOutlinedButton(onClick = { showSwitchAccountConfirm.value = false }) {
+                    Text(stringResource(R.string.plugin_action_cancel))
+                }
+            },
+        )
     }
 
     pendingCompletion.value?.takeIf { it.requiresUserConfirmation }?.let { candidate ->
@@ -944,6 +1072,10 @@ private fun PluginWebViewHost(
     DisposableEffect(request.token) {
         onDispose {
             val host = webViewHostState.value
+            webViewState.value?.stopLoading()
+            webViewState.value?.destroy()
+            webViewState.value = null
+            popupWebViewState.value = null
             host?.removeAllViews()
             webViewHostState.value = null
         }
@@ -1148,6 +1280,7 @@ private fun WebView.configurePluginWebView(
             if (webRequest == null) {
                 return null
             }
+            networkPacketStore.observe(webRequest.url?.toString().orEmpty())
             if (webRequest.isForMainFrame) {
                 return legacySiteCompat.interceptDocument(webRequest)
                     ?: super.shouldInterceptRequest(view, webRequest)
@@ -1269,7 +1402,7 @@ private fun WebView.applyPluginBrowserSettings(userAgent: String) {
     settings.setSupportMultipleWindows(true)
     settings.loadsImagesAutomatically = true
     settings.blockNetworkImage = false
-    settings.cacheMode = WebSettings.LOAD_DEFAULT
+    settings.cacheMode = WebSettings.LOAD_NO_CACHE
     settings.defaultTextEncodingName = "UTF-8"
     settings.textZoom = 100
     settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
@@ -1561,8 +1694,26 @@ class WebNetworkPacketStore(
     private val allowedHosts: List<String>,
 ) {
     private val packetsByCaptureId = linkedMapOf<String, MutableList<WebNetworkPacket>>()
+    private val visitedScopes = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private var generation = 0L
+
+    /** Note cookie path scopes of allowlisted requests so an account reset can reach them later. */
+    fun observe(url: String) {
+        if (visitedScopes.size >= MAX_OBSERVED_SCOPES || !isAllowedHost(url, allowedHosts)) return
+        cookieScopeOf(url)?.let(visitedScopes::add)
+    }
+
+    fun visitedScopes(): Set<String> = visitedScopes.toSet()
+
+    /** Drop packets captured before an account switch so they never reach the plugin. */
+    @Synchronized
+    fun reset() {
+        generation += 1
+        packetsByCaptureId.clear()
+    }
 
     fun capture(request: WebResourceRequest): WebResourceResponse? {
+        val startedGeneration = synchronized(this) { generation }
         if (captures.isEmpty()) {
             return null
         }
@@ -1581,6 +1732,7 @@ class WebNetworkPacketStore(
         return runCatching<WebResourceResponse?> {
             response.applyNetworkCaptureTimeouts()
             response.instanceFollowRedirects = false
+            response.useCaches = false
             response.requestMethod = method
             request.requestHeaders.forEach { (key, value) ->
                 if (!key.equals("host", ignoreCase = true)) {
@@ -1624,7 +1776,7 @@ class WebNetworkPacketStore(
                 },
                 timestamp = OffsetDateTime.now().toString(),
             )
-            record(spec, packet)
+            record(spec, packet, startedGeneration)
             val webResponse = WebResourceResponse(
                 mimeType.ifBlank { "application/octet-stream" },
                 encoding,
@@ -1647,7 +1799,8 @@ class WebNetworkPacketStore(
     }
 
     @Synchronized
-    private fun record(spec: PluginNetworkCaptureSpec, packet: WebNetworkPacket) {
+    private fun record(spec: PluginNetworkCaptureSpec, packet: WebNetworkPacket, startedGeneration: Long) {
+        if (startedGeneration != generation) return
         val maxPackets = spec.maxPackets.coerceIn(1, 32)
         val packets = packetsByCaptureId.getOrPut(spec.id) { mutableListOf() }
         packets += packet
@@ -1801,9 +1954,13 @@ internal fun buildPluginRuntimeScript(
           const networkCaptures = $networkCaptureLiteral;
           const networkPackets = $networkPacketLiteral;
           const forceRun = $force;
+          const retryIncompleteAfterMs = ${request.retryIncompleteAfterMs?.coerceIn(1_000, 60_000) ?: 0};
           const maxOutputBytes = $maxOutputBytes;
           const runKey = sessionId + "@" + currentUrl;
           window.__CURSIMPLE_PLUGIN_RUN_KEYS = window.__CURSIMPLE_PLUGIN_RUN_KEYS || {};
+          window.__CURSIMPLE_PLUGIN_RUNNING_KEYS = window.__CURSIMPLE_PLUGIN_RUNNING_KEYS || {};
+          window.__CURSIMPLE_PLUGIN_RETRY_AT = window.__CURSIMPLE_PLUGIN_RETRY_AT || {};
+          window.__CURSIMPLE_PLUGIN_HOLD_KEYS = window.__CURSIMPLE_PLUGIN_HOLD_KEYS || {};
           const byteLength = (value) => {
             const text = (value ?? "") + "";
             try {
@@ -2121,6 +2278,8 @@ internal fun buildPluginRuntimeScript(
           const ctx = {
             token,
             term: { id: termId || "" },
+            // true only when the user explicitly triggered this run, such as pressing upload.
+            manual: forceRun,
             permissions: Array.from(permissions),
             allowedHosts,
             web: webApi,
@@ -2167,6 +2326,13 @@ internal fun buildPluginRuntimeScript(
             }
           };
           try {
+            if (!forceRun && window.__CURSIMPLE_PLUGIN_HOLD_KEYS[runKey]) {
+              return JSON.stringify({ok:true,skipped:true,held:true,committed:!!window.__CURSIMPLE_SCHEDULE_DRAFT_JSON});
+            }
+            if (retryIncompleteAfterMs > 0 && (window.__CURSIMPLE_PLUGIN_RUNNING_KEYS[runKey] ||
+                (!forceRun && Date.now() < (window.__CURSIMPLE_PLUGIN_RETRY_AT[runKey] || 0)))) {
+              return JSON.stringify({ok:true,skipped:true,committed:!!window.__CURSIMPLE_SCHEDULE_DRAFT_JSON});
+            }
             if (!forceRun && window.__CURSIMPLE_PLUGIN_RUN_KEYS[runKey]) {
               return JSON.stringify({
                 ok: true,
@@ -2175,6 +2341,11 @@ internal fun buildPluginRuntimeScript(
               });
             }
             window.__CURSIMPLE_PLUGIN_RUN_KEYS[runKey] = true;
+            if (retryIncompleteAfterMs > 0) window.__CURSIMPLE_PLUGIN_RUNNING_KEYS[runKey] = true;
+            if (forceRun && retryIncompleteAfterMs > 0) delete window.__CURSIMPLE_SCHEDULE_DRAFT_JSON;
+            // A manual run releases any hold the plugin asked for.
+            if (forceRun) delete window.__CURSIMPLE_PLUGIN_HOLD_KEYS[runKey];
+            window.__CURSIMPLE_PLUGIN_RUNTIME_ERROR = "";
             const runFactory = new Function(pluginSource + "\n; return (typeof run === 'function' ? run : null);");
             const run = runFactory();
             if (typeof run !== "function") {
@@ -2185,12 +2356,32 @@ internal fun buildPluginRuntimeScript(
                 if (result && typeof result === "object" && Array.isArray(result.courses)) {
                   scheduleApi.commit(result);
                 }
+                // The plugin reports it cannot finish unattended; stop retrying until the user uploads.
+                if (result && typeof result === "object" && result.hold === true) {
+                  window.__CURSIMPLE_PLUGIN_HOLD_KEYS[runKey] = true;
+                }
               })
               .catch((error) => {
                 window.__CURSIMPLE_PLUGIN_RUNTIME_ERROR = (error && error.message) ? error.message : String(error);
+              })
+              .finally(() => {
+                if (retryIncompleteAfterMs > 0) {
+                  delete window.__CURSIMPLE_PLUGIN_RUNNING_KEYS[runKey];
+                  if (!window.__CURSIMPLE_SCHEDULE_DRAFT_JSON) {
+                    delete window.__CURSIMPLE_PLUGIN_RUN_KEYS[runKey];
+                    if (!window.__CURSIMPLE_PLUGIN_HOLD_KEYS[runKey]) {
+                      window.__CURSIMPLE_PLUGIN_RETRY_AT[runKey] = Date.now() + retryIncompleteAfterMs;
+                    }
+                  }
+                }
               });
             return JSON.stringify({ ok: true, started: true, committed: !!window.__CURSIMPLE_SCHEDULE_DRAFT_JSON });
           } catch (error) {
+            if (retryIncompleteAfterMs > 0) {
+              delete window.__CURSIMPLE_PLUGIN_RUNNING_KEYS[runKey];
+              delete window.__CURSIMPLE_PLUGIN_RUN_KEYS[runKey];
+              window.__CURSIMPLE_PLUGIN_RETRY_AT[runKey] = Date.now() + retryIncompleteAfterMs;
+            }
             return JSON.stringify({ ok: false, error: (error && error.message) ? error.message : String(error) });
           }
         })();

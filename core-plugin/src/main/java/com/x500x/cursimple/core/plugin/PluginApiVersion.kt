@@ -2,7 +2,7 @@ package com.x500x.cursimple.core.plugin
 
 object PluginApiVersion {
     /** Highest supported host API; older declared versions remain compatible. */
-    const val CURRENT = 9
+    const val CURRENT = 11
 
     /** Minimum API for extension manifests. */
     const val EXTENSION_MIN = 3

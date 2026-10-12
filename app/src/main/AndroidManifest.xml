@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="com.hihonor.brain.permission.KIT_SERVICE_ACCESS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
     <!-- Custom overlays require user permission; fall back to system notifications when unavailable. -->
@@ -43,6 +44,15 @@
         <package android:name="com.coloros.safecenter" />
         <package android:name="com.oplus.battery" />
         <package android:name="com.oppo.safe" />
+        <package android:name="com.vivo.aiengine" />
+        <package android:name="com.vivo.assistant" />
+        <package android:name="com.oplus.metis" />
+        <package android:name="com.oplus.pantanal.ums" />
+        <package android:name="com.hihonor.brain" />
+        <provider android:authorities="miui.statusbar.notification.public" />
+        <provider android:authorities="com.vivo.awarecontext.awareeventprovider" />
+        <provider android:authorities="com.vivo.assistant.donate.donateDataProvider" />
+        <provider android:authorities="com.hihonor.brain.kitservice.provider.KitProvider" />
         <package android:name="com.vivo.permissionmanager" />
         <package android:name="com.vivo.abe" />
         <package android:name="com.iqoo.secure" />
@@ -76,30 +86,73 @@
         <meta-data android:name="vivoWidgetVersion" android:value="1" />
         <!-- Allows vendor system cards to query app data; does not upload data itself. -->
         <meta-data android:name="sync_data_to_system_service" android:value="true" />
+        <meta-data android:name="com.hihonor.intelligence.suggestion-kit.enableFlag" android:value="true" />
+        <provider android:name=".app.vendor.VivoCourseProvider" android:authorities="${applicationId}.provider.vivodonateprovider" android:exported="true" />
+        <provider android:name=".app.vendor.OppoCourseProvider" android:authorities="${applicationId}.provider.oppodonateprovider" android:exported="true" />
+        <provider android:name=".app.vendor.HonorCourseProvider" android:authorities="${applicationId}.provider.honordonateprovider" android:exported="true" />
         <activity
             android:name=".app.MainActivity"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
             android:exported="true">
             <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.cursimple.notes+json" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" />
+                <data android:scheme="file" />
+                <data android:mimeType="application/vnd.cursimple.notes+json" />
+            </intent-filter>
+            <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:pathPattern=".*\\.csnotes" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="text/plain" />
+
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="cursimple" android:host="${applicationId}" android:path="/schedule" />
             </intent-filter>
         </activity>
 
+        <activity android:name=".app.MemoTodoQuickEditActivity" android:exported="false"
+            android:excludeFromRecents="true" android:taskAffinity="${applicationId}.widget.quickedit"
+            android:theme="@style/Theme.CurSimple.WidgetQuickEdit" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".app.WidgetCourseDetailActivity" android:exported="false"
+            android:excludeFromRecents="true" android:taskAffinity="${applicationId}.widget.coursedetail"
+            android:theme="@style/Theme.CurSimple.WidgetCourseDetail" />
+
+        <service android:name=".app.reminder.ReminderGuardForegroundService" android:exported="false" android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="User-enabled local timetable reminder guard with a persistent notification and stop action" />
+        </service>
+        <receiver
+            android:name=".app.notice.NativeNoticeExpiryReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".app.notice.NoticeDisplayTestReceiver"
+            android:exported="false" />
         <receiver
             android:name=".app.extension.ExtensionDueReceiver"
             android:exported="false" />
-
-        <!-- Separate lock-screen task; keeps the timetable off the lock screen without waking it. -->
-        <activity
-            android:name=".app.notice.ClassNoticeLockActivity"
-            android:excludeFromRecents="true"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:noHistory="false"
-            android:showWhenLocked="true"
-            android:taskAffinity=""
-            android:theme="@style/ClassNoticeLockBanner" />
 
         <activity
             android:name=".app.reminder.AlarmRingingActivity"

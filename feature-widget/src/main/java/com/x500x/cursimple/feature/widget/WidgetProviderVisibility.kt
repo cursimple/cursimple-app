@@ -7,8 +7,8 @@ import android.content.pm.PackageManager
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 
 /**
- * Hide unsupported duplicate providers while preserving copies already placed on the home
- * screen.
+ * Hide unsupported duplicate providers and unassigned component slots while preserving copies
+ * already placed on the home screen.
  */
 internal object WidgetProviderVisibility {
 
@@ -26,20 +26,25 @@ internal object WidgetProviderVisibility {
         val manager = AppWidgetManager.getInstance(appContext)
         val packageManager = appContext.packageManager
         val componentsReady = ComponentWidgetAvailability.isAvailable(appContext)
+        fun inUse(component: ComponentName) = runCatching { manager.getAppWidgetIds(component).isNotEmpty() }
+            .getOrDefault(true)
         WidgetCatalog.entries(appContext).forEach { entry ->
             if (entry.fromComponents) {
-                setEnabled(packageManager, entry.provider, componentsReady)
-                if (!componentsReady) {
-                    entry.vendorProviders.forEach { setEnabled(packageManager, it, false) }
-                    return@forEach
+                // The shared legacy provider only keeps existing placements; new ones use slots.
+                (listOf(entry.provider) + entry.vendorProviders).forEach {
+                    setEnabled(packageManager, it, componentsReady && inUse(it))
                 }
+                return@forEach
             }
             entry.vendorProviders.forEach { component ->
-                val inUse = runCatching { manager.getAppWidgetIds(component).isNotEmpty() }
-                    .getOrDefault(true)
-                val enabled = keepVendorCopies || inUse
-                setEnabled(packageManager, component, enabled)
+                setEnabled(packageManager, component, keepVendorCopies || inUse(component))
             }
+        }
+        for (slot in 0 until ComponentWidgetSlots.COUNT) {
+            val assigned = componentsReady && ComponentWidgetSlots.assignedKey(appContext, slot) != null
+            setEnabled(packageManager, ComponentWidgetSlots.provider(appContext, slot), assigned)
+            val vendor = ComponentWidgetSlots.vendorProvider(appContext, slot)
+            setEnabled(packageManager, vendor, assigned && (keepVendorCopies || inUse(vendor)))
         }
     }
 

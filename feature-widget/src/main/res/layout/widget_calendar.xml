@@ -58,6 +58,10 @@
                     android:id="@+id/calendar_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:autoSizeTextType="uniform"
+                    android:autoSizeMinTextSize="8sp"
+                    android:autoSizeMaxTextSize="14sp"
+                    android:autoSizeStepGranularity="0.5sp"
                     android:ellipsize="end"
                     android:maxLines="1"
                     android:textColor="#20242A"
@@ -138,6 +142,13 @@
                 android:layout_height="match_parent"
                 android:contentDescription="@null"
                 android:scaleType="fitCenter" />
+
+            <LinearLayout
+                android:id="@+id/calendar_week_hit_area"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:visibility="gone" />
 
             <LinearLayout
                 android:id="@+id/calendar_hit_area"

@@ -44,6 +44,8 @@ data class CourseItem(
      * defaults empty.
      */
     @SerialName("details") val details: List<CourseDetailField> = emptyList(),
+    /** Sparse per-week teachers override [teacher]; legacy data keeps the default. */
+    @SerialName("weekTeachers") val weekTeachers: Map<Int, String> = emptyMap(),
 )
 
 @Serializable
@@ -63,7 +65,14 @@ data class TermSchedule(
     @SerialName("termId") val termId: String,
     @SerialName("updatedAt") val updatedAt: String,
     @SerialName("dailySchedules") val dailySchedules: List<DailySchedule> = emptyList(),
+    /** Assigned by the host after plugin execution, never inherited from shared imports. */
+    @SerialName("sourcePluginId") val sourcePluginId: String? = null,
+    /** User-confirmed legacy display binding; it does not claim recorded plugin execution. */
+    @SerialName("legacyDisplayPluginId") val legacyDisplayPluginId: String? = null,
+    @SerialName("externalImport") val externalImport: Boolean = false,
 )
+
+fun TermSchedule.asExternalImport(): TermSchedule = copy(sourcePluginId = null, legacyDisplayPluginId = null, externalImport = true)
 
 fun TermSchedule.coursesOfDay(dayOfWeek: Int): List<CourseItem> {
     return dailySchedules.firstOrNull { it.dayOfWeek == dayOfWeek }?.courses.orEmpty()
@@ -74,6 +83,9 @@ fun CourseItem.isReminderOnly(): Boolean = reminderOnly
 /** Use a nonblank per-week location, otherwise default [location]. */
 fun CourseItem.locationForWeek(week: Int?): String =
     week?.let { weekLocations[it] }?.takeIf { it.isNotBlank() } ?: location
+
+fun CourseItem.teacherForWeek(week: Int?): String =
+    week?.let { weekTeachers[it] }?.takeIf { it.isNotBlank() } ?: teacher
 
 fun List<CourseItem>.visibleScheduleCourses(): List<CourseItem> =
     filterNot { it.reminderOnly }

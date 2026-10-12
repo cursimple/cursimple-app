@@ -1,5 +1,6 @@
 package com.x500x.cursimple.feature.widget
 
+import android.app.ActivityOptions
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -10,7 +11,7 @@ import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 /** Use direct Activity PendingIntent for launcher click feedback and opening transitions. */
 private fun openAppPendingIntent(context: Context, appWidgetId: Int, fillInTemplate: Boolean, extraIntent: Intent? = null): PendingIntent? {
     val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) }
+        ?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION) }
         ?: return null
     extraIntent?.extras?.let { launchIntent.putExtras(it) }
     var flags = PendingIntent.FLAG_UPDATE_CURRENT
@@ -20,7 +21,7 @@ private fun openAppPendingIntent(context: Context, appWidgetId: Int, fillInTempl
         flags or PendingIntent.FLAG_IMMUTABLE
     }
     val requestCode = (if (fillInTemplate) REQUEST_CODE_TEMPLATE_BASE else REQUEST_CODE_BASE) + appWidgetId
-    return PendingIntent.getActivity(context, requestCode, launchIntent, flags)
+    return PendingIntent.getActivity(context, requestCode, launchIntent, flags, ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle())
 }
 
 private const val REQUEST_CODE_BASE = 9400

@@ -134,6 +134,36 @@ class CourseReminderRuleTest {
         assertTrue(plans.all { it.courseId == math.id })
     }
 
+    @Test fun `Tuesday eight am alarm never includes the same named Friday course`() {
+        val tuesday = math.copy(id = "tuesday-math", time = math.time.copy(dayOfWeek = 2))
+        val friday = tuesday.copy(id = "friday-math", time = tuesday.time.copy(dayOfWeek = 5))
+        val plans = expand(listOf(courseRule(tuesday)), scheduleOf(tuesday, friday))
+        assertEquals(tuesday.weeks.size, plans.size)
+        assertTrue(plans.all { it.courseId == tuesday.id && it.titleContent?.dayOfWeek == 2 })
+    }
+
+    @Test fun `old course rule without weekday fields still uses its course identity`() {
+        val friday = math.copy(id = "friday-math", time = math.time.copy(dayOfWeek = 5))
+        val current = courseRule(math)
+        val old = current.copy(dayOfWeek = null, firstCourseCandidate = current.firstCourseCandidate?.copy(daysOfWeek = emptyList(), weeks = emptyList()))
+        assertTrue(expand(listOf(old), scheduleOf(math, friday)).all { it.courseId == math.id })
+    }
+
+    @Test fun `the bound Tuesday class still rings when it is explicitly moved to Friday`() {
+        val tuesday = math.copy(id = "tuesday-math", weeks = listOf(1), time = math.time.copy(dayOfWeek = 2))
+        val friday = tuesday.copy(id = "friday-math", time = tuesday.time.copy(dayOfWeek = 5))
+        val moved = com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride(
+            id = "move", type = com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = "2026-03-03", targetDate = "2026-03-06", moveCourseId = tuesday.id,
+            moveToStartNode = 3, moveToEndNode = 4,
+        )
+        val plans = ReminderPlanner().expandRules(listOf(courseRule(tuesday)), scheduleOf(tuesday, friday), timingProfile, termStart, listOf(moved))
+        assertEquals(1, plans.size)
+        assertEquals(tuesday.id, plans.single().courseId)
+        assertEquals(5, plans.single().titleContent?.dayOfWeek)
+        assertEquals("10:00", plans.single().titleContent?.startTime)
+    }
+
     @Test
     fun `course reminder fires on every week the course occurs`() {
         val schedule = scheduleOf(math, physics)
@@ -161,8 +191,8 @@ class CourseReminderRuleTest {
         assertTrue(rule.isCourseReminderRule())
         assertFalse(rule.isExamReminderRule())
         assertFalse(examReminderEnabled(listOf(rule)))
-        assertTrue(rule.firstCourseCandidate?.daysOfWeek.orEmpty().isEmpty())
-        assertTrue(rule.firstCourseCandidate?.weeks.orEmpty().isEmpty())
+        assertEquals(listOf(math.time.dayOfWeek), rule.firstCourseCandidate?.daysOfWeek)
+        assertEquals(math.weeks, rule.firstCourseCandidate?.weeks)
     }
 
     @Test

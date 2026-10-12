@@ -4,6 +4,10 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
+import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
+import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.coursesScheduledOn
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -70,6 +74,57 @@ class ScheduleInteractionTest {
         )
 
         assertEquals(5, detailWeekNumber(LocalDate.of(2026, 4, 8), termStart, overrides))
+    }
+
+    @Test
+    fun `adding at a make-up class remains in the same visible cell under the day swap`() {
+        val source = course("original").copy(time = CourseTimeSlot(2, 3, 5))
+        val sunday = LocalDate.of(2026, 4, 12)
+        val override = TemporaryScheduleOverride(id = "makeup", targetDate = sunday.toString(), sourceDate = "2026-04-07")
+        assertEquals(LocalDate.of(2026, 4, 7), resolveScheduleDay(sunday, listOf(override), HolidayCalendarSettings.NONE).sourceDate)
+
+        val position = quickAddPosition(source, sunday, listOf(override))
+        val added = CourseItem("new", "New", time = position)
+        assertEquals(CourseTimeSlot(2, 3, 5), position)
+        assertEquals(setOf(source.id, added.id), coursesScheduledOn(sunday, listOf(source, added), listOf(override),
+            HolidayCalendarSettings.NONE, null).map { it.id }.toSet())
+        assertEquals(CourseTimeSlot(2, 3, 5), source.time)
+    }
+
+    @Test
+    fun `adding beside a moved class retains destination periods rather than original ones`() {
+        val source = course("original")
+        val destination = LocalDate.of(2026, 4, 10)
+        val move = TemporaryScheduleOverride(id = "move", type = TemporaryScheduleOverrideType.MoveCourse,
+            sourceDate = "2026-04-06", targetDate = destination.toString(), moveCourseId = source.id,
+            moveToStartNode = 5, moveToEndNode = 7)
+        val displayed = coursesMovedTo(destination, listOf(move), { source }).single()
+
+        assertEquals(CourseTimeSlot(5, 5, 7), quickAddPosition(displayed, destination))
+        val added = CourseItem("new", "New", time = quickAddPosition(displayed, destination, listOf(move)))
+        assertEquals(setOf(source.id, added.id), coursesScheduledOn(destination, listOf(source, added), listOf(move),
+            HolidayCalendarSettings.NONE, null).map { it.id }.toSet())
+        assertEquals(CourseTimeSlot(1, 1, 2), source.time)
+    }
+
+    @Test
+    fun `partial day swaps use the source weekday inside the interval and actual weekday outside`() {
+        val date = LocalDate.of(2026, 4, 10)
+        val swap = TemporaryScheduleOverride(id = "partial", sourceDate = "2026-04-07", targetDate = date.toString(),
+            makeUpStartNode = 1, makeUpEndNode = 2)
+        val early = course("early").copy(time = CourseTimeSlot(2, 1, 2))
+        val late = course("late").copy(time = CourseTimeSlot(5, 5, 7))
+        assertEquals(CourseTimeSlot(2, 1, 2), quickAddPosition(early, date, listOf(swap)))
+        assertEquals(CourseTimeSlot(5, 5, 7), quickAddPosition(late, date, listOf(swap)))
+    }
+
+    @Test
+    fun `overlapping courses keep their individual full spans when choosing an add position`() {
+        val date = LocalDate.of(2026, 4, 7)
+        val short = course("short").copy(time = CourseTimeSlot(2, 1, 2))
+        val long = course("long").copy(time = CourseTimeSlot(2, 1, 4))
+        assertEquals(CourseTimeSlot(2, 1, 2), quickAddPosition(short, date))
+        assertEquals(CourseTimeSlot(2, 1, 4), quickAddPosition(long, date))
     }
 
     @Test

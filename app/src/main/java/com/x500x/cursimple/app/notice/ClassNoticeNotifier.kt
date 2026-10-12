@@ -17,7 +17,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.widget.RemoteViews
-import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -47,8 +46,14 @@ object ClassNoticeNotifier {
     internal const val NOTIFICATION_ID = 0x0C1A
 
     internal const val ALARM_NOTIFICATION_ID = 0x0C20
+    internal const val PREVIEW_NOTIFICATION_ID = 0x0D44
+
+    internal const val EXTRA_COURSE_START = "cursimple.course.startAt"
+    internal const val EXTRA_COURSE_TITLE = "cursimple.course.title"
 
     private const val SAMSUNG_AUTOMATION_EXTRA = "android.ongoingActivityNoti.automation"
+
+    private val postedOwners = java.util.concurrent.ConcurrentHashMap<Int, Pair<String, Long>>()
 
     private val CLOCK_PATTERN = Regex("\\d{1,2}:\\d{2}")
 
@@ -74,9 +79,10 @@ object ClassNoticeNotifier {
          */
         val headline: String = "",
         val kind: Kind = Kind.Class,
+        val notificationIdOverride: Int? = null,
     ) {
         val notificationId: Int
-            get() = if (kind == Kind.AlarmPreview) ALARM_NOTIFICATION_ID else NOTIFICATION_ID
+            get() = notificationIdOverride ?: if (kind == Kind.AlarmPreview) ALARM_NOTIFICATION_ID else NOTIFICATION_ID
 
         fun subText(context: Context): String = when {
             headline.isNotBlank() -> headline
@@ -94,6 +100,7 @@ object ClassNoticeNotifier {
     }
 
     /** @param plain Developer preview without ongoing or promoted flags. */
+    @Synchronized
     fun notify(
         context: Context,
         content: Content,
@@ -102,7 +109,13 @@ object ClassNoticeNotifier {
         plain: Boolean = false,
         channelOverride: String? = null,
         forward: Boolean = false,
+        aodContent: Boolean = com.x500x.cursimple.app.vendor.VendorCourseStore.config(context).aodEnabled,
+        liveStyle: NoticeLiveStyle = NoticeLiveStyle.Automatic,
     ) {
+        if (content.endAtMillis > 0 && content.endAtMillis <= System.currentTimeMillis()) {
+            cancelIfCurrent(context, content)
+            return
+        }
         if (forward && !plain && channelOverride == null && !content.inProgress && content.headline.isBlank() && content.startAtMillis > 0 && content.kind == Kind.Class) {
             com.x500x.cursimple.core.data.notification.OutboundNotificationHooks.emit(
                 com.x500x.cursimple.core.data.notification.OutboundNotification(
@@ -116,21 +129,18 @@ object ClassNoticeNotifier {
         }
         ensureChannel(context)
         val manager = NotificationManagerCompat.from(context)
-        // Enhanced overlays supplement the ordinary system notification.
-        val overlayFallback = preferences.headsUpEnabled && SelfDrawnNotice.only() &&
-            !plain && channelOverride == null
         // Only use overlays while the screen is on to avoid expiring unseen banners.
         val screenOn = context.getSystemService(PowerManager::class.java)?.isInteractive != false
         val overlayTakesOver = !content.inProgress &&
             preferences.headsUpEnabled && !plain && channelOverride == null &&
-            (preferences.skin == ClassNoticeSkin.Overlay || overlayFallback) &&
+            preferences.skin == ClassNoticeSkin.Overlay &&
             screenOn &&
             ClassNoticeOverlay.canShowNow(context)
         if (overlayTakesOver) {
-            ClassNoticeOverlay.show(context, content, preferences, theme)
-        } else if (overlayFallback && !content.inProgress && ClassNoticeOverlay.canDraw(context)) {
-            // Use the lock-screen Activity when overlays cannot be seen.
-            ClassNoticeLockActivity.show(context, content, preferences, theme)
+            ClassNoticeOverlay.show(context, content, preferences, theme, onTap = null, action = null, onShown = { shown ->
+                if (!shown) notify(context, content, preferences.copy(skin = ClassNoticeSkin.System), theme,
+                    aodContent = aodContent, liveStyle = liveStyle)
+            })
         }
 
         // Log delivery suppression with its cause.
@@ -144,7 +154,7 @@ object ClassNoticeNotifier {
         }
         // In-progress updates modify only an existing notification; never resurrect a dismissed one.
         val activeChannel = if (content.inProgress) {
-            activeNoticeChannel(context) ?: run {
+            activeNoticeChannel(context, content) ?: run {
                 skip("in_progress_dismissed")
                 return
             }
@@ -196,10 +206,15 @@ object ClassNoticeNotifier {
             .setSubText(subText)
             // Ticker text supports older vendor banners and accessibility announcements.
             .setTicker(title)
+            .addExtras(Bundle().apply {
+                putLong(EXTRA_COURSE_START, content.startAtMillis)
+                putString(EXTRA_COURSE_TITLE, content.courseTitle)
+            })
             .setContentTitle(content.courseTitle)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(expanded))
             .setContentIntent(openApp)
+            .setDeleteIntent(ClassNoticeScheduler.dismissIntent(context, content.notificationId))
             .addAction(
                 R.drawable.ic_notification,
                 context.getString(R.string.class_notice_action_open),
@@ -211,7 +226,7 @@ object ClassNoticeNotifier {
                 ClassNoticeScheduler.dismissIntent(context, content.notificationId),
             )
             .apply {
-                if (content.kind == Kind.Class) {
+                if (content.kind == Kind.Class && content.notificationIdOverride == null) {
                     addAction(
                         R.drawable.ic_notification,
                         context.getString(R.string.class_notice_action_snooze),
@@ -225,7 +240,7 @@ object ClassNoticeNotifier {
                 }
             }
             .setAutoCancel(false)
-            .setOnlyAlertOnce(true)
+            .setOnlyAlertOnce(content.inProgress)
             .setCategory(NotificationCompat.CATEGORY_EVENT)
             // Pre-Android-8 priority; newer systems use channel importance.
             .setPriority(
@@ -251,23 +266,35 @@ object ClassNoticeNotifier {
             builder.setWhen(content.startAtMillis)
         }
         // Expire class notices at class end and pre-alarm notices at ring time.
-        val expireAt = content.endAtMillis.takeIf { it > 0L && content.kind == Kind.Class }
+        val expireAt = content.endAtMillis.takeIf { it > 0L && (content.kind == Kind.Class || content.notificationIdOverride != null) }
             ?: content.startAtMillis
         if (expireAt > 0L) {
             val remaining = expireAt - System.currentTimeMillis()
             if (remaining > 0L) builder.setTimeoutAfter(remaining)
         }
-        // Use ongoing only where dismissible and supported; overlay-only vendor systems may suppress ongoing banners.
-        val selfDrawn = SelfDrawnNotice.only()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !plain && !selfDrawn) {
-            builder.setOngoing(true)
+        val automaticStyle = liveStyle == NoticeLiveStyle.Automatic
+        // The vendor payload rides alongside the native request rather than replacing it, so a
+        // system that ignores the undocumented keys still shows the standard live notification.
+        val vivoAtomic = VivoAtomicNotice.usesProtocol(
+            com.x500x.cursimple.core.reminder.permission.VendorRom.current(),
+            preferences.focusNotificationEnabled,
+            plain,
+        )
+        if (vivoAtomic) VivoAtomicNotice.registerScene(context)
+        if (!vivoAtomic) {
+            NativeNoticeExpiry.cancel(context, content.notificationId)
+            manager.cancel(VivoAtomicNotice.TAG, content.notificationId)
         }
-
-        // Promotion requires system templates, taking priority over custom branded layouts.
-        val promoted = preferences.focusNotificationEnabled && StatusBarChipSupport.allowed(context)
+        // Ask for the native live notification on vivo too: if the vendor keys are ignored, the
+        // standard live-update request is still what carries the course to the status bar.
+        val nativePromotion = preferences.focusNotificationEnabled && !plain && Build.VERSION.SDK_INT >= 36 &&
+            liveNoticeEligible(content.startAtMillis, content.endAtMillis, System.currentTimeMillis())
+        val vendorFocus = automaticStyle && preferences.focusNotificationEnabled && !plain && miuiFocusProtocol(context) > 0
+        val promoted = nativePromotion || vendorFocus
+        builder.setOngoing(promoted)
 
         // Android 12+ wraps custom notification content in a system header; blur and animation require overlays.
-        if (preferences.skin == ClassNoticeSkin.Card && !promoted) {
+        if (preferences.skin == ClassNoticeSkin.Card && !promoted && !vivoAtomic) {
             // Use a compact layout within the heads-up height budget.
             val compact = compactCardRemoteViews(
                 context = context,
@@ -283,26 +310,29 @@ object ClassNoticeNotifier {
                 )
         }
 
-        // Skip promotion fields on overlay-only devices.
-        if (preferences.focusNotificationEnabled && !plain && !selfDrawn) {
-            val chipText = chipText(context, content)
-            // Request live-update promotion even when disabled so later permission changes apply on refresh.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                builder.setRequestPromotedOngoing(true)
-                    .setShortCriticalText(chipText)
-                // Use Samsung's standard promotion marker; its private style field selects a different, non-promoted path.
+        if (nativePromotion) {
+            if (liveStyle == NoticeLiveStyle.NativeProgress) {
+                builder.setStyle(NotificationCompat.ProgressStyle()
+                    .addProgressSegment(NotificationCompat.ProgressStyle.Segment(1_000).setColor(theme.primary))
+                    .setProgress(noticeProgress(content.startAtMillis, content.endAtMillis, content.minutesUntilStart.coerceAtLeast(1), System.currentTimeMillis()))
+                    .setStyledByProgress(true))
+            }
+            builder.setRequestPromotedOngoing(true).setShortCriticalText(chipText(context, content))
+            if (automaticStyle && com.x500x.cursimple.core.reminder.permission.VendorRom.current() == com.x500x.cursimple.core.reminder.permission.VendorRom.Samsung) {
                 builder.addExtras(Bundle().apply { putBoolean(SAMSUNG_AUTOMATION_EXTRA, true) })
             }
-            builder.addExtras(
-                miuiFocusExtras(
-                    context = context,
-                    ticker = "$chipText ${content.courseTitle}",
-                    frontTitle = if (content.inProgress) chipText else subText,
-                    content = content,
-                    body = body,
-                    float = preferences.headsUpEnabled && !overlayTakesOver && !content.inProgress,
-                ),
-            )
+        }
+        val atomicDeadline = expireAt.takeIf { it > System.currentTimeMillis() } ?: System.currentTimeMillis() + 120_000
+        if (vivoAtomic) {
+            builder.setTimeoutAfter(atomicDeadline - System.currentTimeMillis())
+                .addExtras(VivoAtomicNotice.extras(context, content, theme, openApp,
+                    preferences.lockScreenEnabled, aodContent, atomicDeadline))
+        }
+        if (vendorFocus) {
+            val chipText = chipText(context, content)
+            builder.addExtras(miuiFocusExtras(context, "$chipText ${content.courseTitle}",
+                if (content.inProgress) chipText else subText, content, body,
+                preferences.headsUpEnabled && !overlayTakesOver && !content.inProgress))
         }
 
         // Compare requested delivery characteristics with the post-delivery system result.
@@ -311,15 +341,31 @@ object ClassNoticeNotifier {
             "inProgress" to content.inProgress,
             "channel" to channelId,
             "overlayTakesOver" to overlayTakesOver,
-            "overlayFallback" to overlayFallback,
             "promoted" to promoted,
+            "vivoAtomic" to vivoAtomic,
+            "liveStyle" to liveStyle,
             "skin" to preferences.skin,
             "headsUp" to preferences.headsUpEnabled,
         )
-        ReminderLogger.info("class_notice.post.request", request)
-        val notification = builder.build()
+        var notification = builder.build()
+        if (nativePromotion) {
+            notification = builder.setColorized(false).build()
+            // Early Android 16 uses the original colorized eligibility rules; QPR2 reverses them.
+            // Probe the framework locally and post only the final, accepted notification.
+            if (Build.VERSION.SDK_INT == 36 && !notification.hasPromotableCharacteristics()) {
+                val legacy = builder.setColorized(true).build()
+                notification = if (legacy.hasPromotableCharacteristics()) legacy else builder.setColorized(false).build()
+            }
+        }
+        val emittedRequest = request + ClassNoticeDiagnostics.requestFields(notification)
+        ReminderLogger.info("class_notice.post.request", emittedRequest)
         runCatching { manager.notify(content.notificationId, notification) }
-            .onSuccess { ClassNoticeDiagnostics.logPosted(context, content.notificationId, request) }
+            .onSuccess {
+                postedOwners[content.notificationId] = content.courseTitle to content.startAtMillis
+                if (vivoAtomic || content.notificationIdOverride != null || expireAt > System.currentTimeMillis()) runCatching { NativeNoticeExpiry.register(context, content, atomicDeadline) }
+                    .onFailure { ReminderLogger.warn("class_notice.vendor_expiry.failed", request, it) }
+                ClassNoticeDiagnostics.logPosted(context, content.notificationId, emittedRequest, content.startAtMillis)
+            }
             .onFailure { ReminderLogger.warn("class_notice.post.failure", request, it) }
     }
 
@@ -334,8 +380,8 @@ object ClassNoticeNotifier {
     }
 
     fun notifyPlainTest(context: Context, preferences: ClassNoticePreferences, theme: NoticeTheme) {
-        cancel(context)
-        notify(context, previewContent(context, preferences), preferences, theme, plain = true)
+        NoticeDisplayTests.clearAll(context)
+        notify(context, previewContent(context), preferences, theme, plain = true)
     }
 
     /**
@@ -355,10 +401,10 @@ object ClassNoticeNotifier {
                 )
             }
         }
-        cancel(context)
+        NoticeDisplayTests.clearAll(context)
         notify(
             context,
-            previewContent(context, preferences),
+            previewContent(context),
             preferences,
             theme,
             plain = true,
@@ -366,25 +412,31 @@ object ClassNoticeNotifier {
         )
     }
 
-    fun previewContent(context: Context, preferences: ClassNoticePreferences): Content = Content(
-        courseTitle = context.getString(R.string.class_notice_preview_course),
-        location = context.getString(R.string.class_notice_preview_location),
-        timeRange = "19:00-20:35",
-        minutesUntilStart = preferences.advanceMinutes,
-        slotLabel = context.getString(R.string.class_notice_preview_slot),
-    )
+    fun previewContent(context: Context): Content {
+        val now = System.currentTimeMillis()
+        val start = now + 60_000
+        val end = now + 120_000
+        val clock = java.time.format.DateTimeFormatter.ofPattern("HH:mm").withZone(java.time.ZoneId.systemDefault())
+        return Content(
+            courseTitle = context.getString(R.string.class_notice_preview_course),
+            location = context.getString(R.string.class_notice_preview_location),
+            timeRange = "${clock.format(java.time.Instant.ofEpochMilli(start))}–${clock.format(java.time.Instant.ofEpochMilli(end))}",
+            minutesUntilStart = 1, startAtMillis = start, endAtMillis = end,
+            notificationIdOverride = PREVIEW_NOTIFICATION_ID,
+            headline = context.getString(R.string.notice_test_sample),
+        )
+    }
 
-    /** Preview through the real delivery path; zero start time disables immediate expiry. */
+    /** Preview through the real delivery path with an isolated, finite record. */
     fun notifyPreview(context: Context, preferences: ClassNoticePreferences, theme: NoticeTheme) {
         // Remove the previous preview so repeated taps can alert again.
-        cancel(context)
+        NoticeDisplayTests.clearAll(context)
         notify(
             context = context,
-            content = previewContent(context, preferences),
+            content = previewContent(context),
             preferences = preferences,
             theme = theme,
         )
-        hintChipHiddenInForeground(context, preferences)
     }
 
     fun notifyPreview(
@@ -393,25 +445,30 @@ object ClassNoticeNotifier {
         preferences: ClassNoticePreferences,
         theme: NoticeTheme,
     ) {
-        cancel(context)
-        notify(context = context, content = content, preferences = preferences, theme = theme)
-        hintChipHiddenInForeground(context, preferences)
+        NoticeDisplayTests.clearAll(context)
+        notify(context = context, content = content.copy(notificationIdOverride = PREVIEW_NOTIFICATION_ID,
+            endAtMillis = System.currentTimeMillis() + 120_000), preferences = preferences, theme = theme)
     }
 
-    /** Explain that AOSP hides the chip while this app is visible or the screen is locked. */
-    private fun hintChipHiddenInForeground(context: Context, preferences: ClassNoticePreferences) {
-        if (!preferences.focusNotificationEnabled) return
-        if (StatusBarChipSupport.level() == StatusBarChipSupport.Level.Unsupported) return
-        if (!ClassNoticeDiagnostics.isForeground()) return
-        Toast.makeText(
-            context,
-            context.getString(R.string.class_notice_preview_chip_hint),
-            Toast.LENGTH_LONG,
-        ).show()
-    }
-
+    @Synchronized
     fun cancel(context: Context, notificationId: Int = NOTIFICATION_ID) {
+        postedOwners.remove(notificationId)
+        NativeNoticeExpiry.cancel(context, notificationId)
         runCatching { NotificationManagerCompat.from(context).cancel(notificationId) }
+        runCatching { NotificationManagerCompat.from(context).cancel(VivoAtomicNotice.TAG, notificationId) }
+    }
+
+    @Synchronized
+    internal fun cancelExpiredNative(context: Context, id: Int, token: String) {
+        if (NativeNoticeExpiry.expired(context, id, token)) cancel(context, id)
+    }
+
+    @Synchronized
+    internal fun isActive(context: Context, content: Content): Boolean = activeNoticeChannel(context, content) != null
+
+    @Synchronized
+    fun cancelIfCurrent(context: Context, content: Content) {
+        if (activeNoticeChannel(context, content) != null || NativeNoticeExpiry.owns(context, content)) cancel(context, content.notificationId)
     }
 
     fun cancelAlarmPreview(context: Context) = cancel(context, ALARM_NOTIFICATION_ID)
@@ -432,11 +489,22 @@ object ClassNoticeNotifier {
         )
     }
 
-    private fun activeNoticeChannel(context: Context): String? {
+    private fun activeNoticeChannel(context: Context, content: Content): String? {
+        val expected = postedOwners[content.notificationId]
+        if (expected != null && expected != (content.courseTitle to content.startAtMillis)) return null
         val manager = context.getSystemService(NotificationManager::class.java) ?: return null
         val active = runCatching { manager.activeNotifications }.getOrNull() ?: return null
-        val notice = active.firstOrNull { it.id == NOTIFICATION_ID } ?: return null
+        val notice = active.firstOrNull { it.id == content.notificationId && matchesActiveRecord(context, content, it) } ?: return null
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) notice.notification.channelId else CHANNEL_ID
+    }
+
+    internal fun matchesActiveRecord(context: Context, content: Content, record: android.service.notification.StatusBarNotification): Boolean {
+        if (record.id != content.notificationId) return false
+        val extra = record.notification.extras
+        val owned = postedOwners[content.notificationId] == (content.courseTitle to content.startAtMillis) || NativeNoticeExpiry.owns(context, content)
+        return matchesNoticeIdentity(content.courseTitle, content.startAtMillis,
+            extra.getString(EXTRA_COURSE_TITLE), extra.getLong(EXTRA_COURSE_START).takeIf { extra.containsKey(EXTRA_COURSE_START) },
+            extra.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString(), owned, record.tag == VivoAtomicNotice.TAG)
     }
 
     private fun cardRemoteViews(
@@ -588,26 +656,20 @@ object ClassNoticeNotifier {
      * notification fallback.
      */
     fun islandBlocked(context: Context): Boolean {
-        if (miuiFocusProtocol(context) > 0) {
-            val allowed = runCatching {
-                context.contentResolver.call(
-                    Uri.parse("content://miui.statusbar.notification.public"),
-                    "canShowFocus",
-                    null,
-                    Bundle().apply { putString("package", context.packageName) },
-                )?.getBoolean("canShowFocus", false)
-            }.getOrNull()
-            if (allowed == false) return true
-        }
-        if (StatusBarChipSupport.level() == StatusBarChipSupport.Level.PlatformDecides) {
-            return !StatusBarChipSupport.allowed(context)
-        }
-        return false
+        val nativeAvailable = StatusBarChipSupport.level() != StatusBarChipSupport.Level.Unsupported
+        val nativeAllowed = nativeAvailable && StatusBarChipSupport.allowed(context)
+        val focusAvailable = miuiFocusProtocol(context) > 0
+        val focusAllowed = focusAvailable && runCatching {
+            context.contentResolver.call(Uri.parse("content://miui.statusbar.notification.public"), "canShowFocus", null,
+                Bundle().apply { putString("package", context.packageName) })?.getBoolean("canShowFocus", false)
+        }.getOrNull() != false
+        return (nativeAvailable || focusAvailable) && !nativeAllowed && !focusAllowed
     }
 
-    /** Whether the device supports focus or live-update chips. */
+    /** Available request protocols; system acceptance and rendering are separate. */
     fun islandAvailable(context: Context): Boolean =
-        miuiFocusProtocol(context) > 0 ||
+        com.x500x.cursimple.core.reminder.permission.VendorRom.current() == com.x500x.cursimple.core.reminder.permission.VendorRom.Vivo ||
+            miuiFocusProtocol(context) > 0 ||
             StatusBarChipSupport.level() != StatusBarChipSupport.Level.Unsupported
 
     internal fun miuiFocusProtocol(context: Context): Int = runCatching {
@@ -643,8 +705,8 @@ object ClassNoticeNotifier {
         preferences: ClassNoticePreferences,
         overlayTakesOver: Boolean = false,
     ): String = when {
-        preferences.headsUpEnabled && preferences.vibrationEnabled -> CHANNEL_ID_VIBRATE
-        preferences.headsUpEnabled -> CHANNEL_ID
+        preferences.headsUpEnabled && !overlayTakesOver && preferences.vibrationEnabled -> CHANNEL_ID_VIBRATE
+        preferences.headsUpEnabled && !overlayTakesOver -> CHANNEL_ID
         preferences.vibrationEnabled -> CHANNEL_ID_QUIET_VIBRATE
         else -> CHANNEL_ID_QUIET
     }
@@ -688,4 +750,16 @@ object ClassNoticeNotifier {
             ?: return false
         return channel.importance < NotificationManager.IMPORTANCE_DEFAULT
     }
+}
+
+internal fun matchesCourseNotice(title: String, start: Long, activeTitle: String?, activeStart: Long): Boolean =
+    title == activeTitle && start == activeStart
+
+/** Some ROMs remove application-defined extras; retain ownership through the local record. */
+internal fun matchesNoticeIdentity(title: String, start: Long, privateTitle: String?, privateStart: Long?,
+    publicTitle: String?, owned: Boolean, vendorTagged: Boolean): Boolean {
+    if (privateTitle != null && privateTitle != title) return false
+    if (privateStart != null && privateStart != start) return false
+    if (privateTitle == title && privateStart == start) return true
+    return owned && (publicTitle == title || vendorTagged)
 }

@@ -150,6 +150,9 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.calendar_mode, actionIntent(context, appWidgetId, CalendarWidgetActionReceiver.ACTION_TOGGLE))
 
             val density = context.resources.displayMetrics.density
+            // Empty click cells have a text height; exclude them when measuring the header.
+            views.setViewVisibility(R.id.calendar_hit_area, View.GONE)
+            views.setViewVisibility(R.id.calendar_week_hit_area, View.GONE)
             val measuredBody = withContext(Dispatchers.Main) {
                 val root = views.apply(context, FrameLayout(context))
                 val widthPixels = ((widthDp + BODY_HORIZONTAL_INSET_DP) * density).toInt()
@@ -165,11 +168,38 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
                 labels = renderLabels(context, data),
             )
             views.setImageViewBitmap(R.id.calendar_grid, bitmap)
-            bindHitArea(context, views, appWidgetId, data, density)
+            bindHitArea(context, views, appWidgetId, data, density, measuredBody.second)
             return views
         }
 
-        private fun bindHitArea(context: Context, views: RemoteViews, appWidgetId: Int, data: CalendarWidgetData, density: Float) {
+        private fun bindHitArea(context: Context, views: RemoteViews, appWidgetId: Int, data: CalendarWidgetData, density: Float, bodyHeightDp: Float) {
+            if (data.week != null) {
+                views.setViewVisibility(R.id.calendar_hit_area, View.GONE)
+                views.setViewVisibility(R.id.calendar_week_hit_area, View.VISIBLE)
+                views.removeAllViews(R.id.calendar_week_hit_area)
+                views.setViewPadding(R.id.calendar_week_hit_area, (CalendarWidgetRenderer.weekGutterDp(data.week) * density).toInt(),
+                    (CalendarWidgetRenderer.WEEK_HEADER_DP * density).toInt(), 0, 0)
+                val cellIds = intArrayOf(R.id.course_hit_0, R.id.course_hit_1, R.id.course_hit_2, R.id.course_hit_3,
+                    R.id.course_hit_4, R.id.course_hit_5, R.id.course_hit_6)
+                val available = ((bodyHeightDp - CalendarWidgetRenderer.WEEK_HEADER_DP) * density).coerceAtLeast(1f)
+                data.week.rows.forEachIndexed { index, slot ->
+                    val row = RemoteViews(context.packageName, R.layout.widget_calendar_course_hit_row)
+                    val height = ((index + 1) * available / data.week.rows.size).toInt() - (index * available / data.week.rows.size).toInt()
+                    cellIds.forEachIndexed { column, id ->
+                        val day = data.week.days.getOrNull(column)
+                        row.setViewVisibility(id, if (day == null) View.GONE else View.VISIBLE)
+                        row.setInt(id, "setHeight", height.coerceAtLeast(1))
+                        val courses = day?.courses.orEmpty().filter { it.time.startNode <= slot.endNode && it.time.endNode >= slot.startNode }
+                        if (day != null && courses.isNotEmpty()) {
+                            row.setContentDescription(id, context.widgetDateWithWeekdayText(day.date) + " · " + slot.label + " · " + courses.joinToString { it.title })
+                            row.setOnClickPendingIntent(id, widgetCourseDetailPendingIntent(context, appWidgetId, data.termId, day.date, slot.startNode, slot.endNode))
+                        }
+                    }
+                    views.addView(R.id.calendar_week_hit_area, row)
+                }
+                return
+            }
+            views.setViewVisibility(R.id.calendar_week_hit_area, View.GONE)
             if (!data.widgetTheme.openAppOnDoubleClickEnabled) {
                 views.setViewVisibility(R.id.calendar_hit_area, View.GONE)
                 return
@@ -211,13 +241,14 @@ open class CalendarWidgetReceiver : AppWidgetProvider() {
 
         private fun openDatePendingIntent(context: Context, appWidgetId: Int, index: Int, date: LocalDate): PendingIntent? {
             val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
-            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
                 .putExtra(WidgetDeepLinks.EXTRA_OPEN_SCHEDULE_DATE, date.toString())
             return PendingIntent.getActivity(
                 context,
                 OPEN_DATE_REQUEST_BASE + appWidgetId * HIT_ROWS * 7 + index,
                 launch,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                android.app.ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle(),
             )
         }
 

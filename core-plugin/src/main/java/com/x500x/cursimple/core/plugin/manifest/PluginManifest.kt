@@ -152,6 +152,10 @@ data class PluginComponentRequirement(
 data class PluginWebSessionOptions(
     @SerialName("completionStableDelayMs") val completionStableDelayMs: Long = 1_200,
     @SerialName("autoCompleteOnScheduleDraft") val autoCompleteOnScheduleDraft: Boolean = true,
+    @SerialName("manualUploadHintDelayMs") val manualUploadHintDelayMs: Long? = null,
+    @SerialName("retryIncompleteAfterMs") val retryIncompleteAfterMs: Long? = null,
+    /** Requested on allowed hosts before the host drops the plugin's login state on account switch. */
+    @SerialName("logoutUrls") val logoutUrls: List<String> = emptyList(),
 )
 
 @Serializable

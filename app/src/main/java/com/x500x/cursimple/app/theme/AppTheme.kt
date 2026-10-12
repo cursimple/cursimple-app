@@ -305,7 +305,7 @@ fun appColorScheme(
     accent: ThemeAccent,
     dark: Boolean,
     customArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
-): ColorScheme = swatchFor(accent, customArgb).let { if (dark) it.dark else it.light }
+): ColorScheme = swatchFor(accent, customArgb).let { if (dark) it.dark else it.light }.withThemedContainers()
 
 private fun swatchFor(accent: ThemeAccent, customArgb: Int): AccentSwatch = when (accent) {
     ThemeAccent.Green -> GreenSwatch
@@ -431,8 +431,7 @@ fun ClassScheduleTheme(
         ThemeMode.Light -> false
         ThemeMode.Dark -> true
     }
-    val swatch = remember(themeAccent, customAccentArgb) { swatchFor(themeAccent, customAccentArgb) }
-    val colors = (if (isDark) swatch.dark else swatch.light).withThemedContainers()
+    val colors = remember(themeAccent, customAccentArgb, isDark) { appColorScheme(themeAccent, isDark, customAccentArgb) }
     val accents = if (isDark) DarkAccents else LightAccents
     CompositionLocalProvider(
         LocalScheduleAccents provides accents,

@@ -188,9 +188,12 @@ class AppContainer(
 
     suspend fun exportAppBackup(): AppBackupPayload {
         awaitBootstrap()
+        val memoSnapshot = memoStore.exportBackupSnapshot()
         return AppBackupPayload(
             version = AppBackupPayload.CURRENT_VERSION,
             createdAt = System.currentTimeMillis(),
+            memoImages = com.x500x.cursimple.core.data.memo.MemoImageStore(app)
+                .exportImages(com.x500x.cursimple.core.data.memo.memoNotesInBackup(memoSnapshot), maxBytes = 64 * 1024 * 1024),
             stores = listOf(
                 (userPreferencesRepository as DataStoreUserPreferencesRepository).exportBackupSnapshot(),
                 scheduleStore.exportBackupSnapshot(),
@@ -202,7 +205,7 @@ class AppContainer(
                 pluginRegistryRepository.exportBackupSnapshot(),
                 pluginComponentRepository.exportBackupSnapshot(),
                 scheduleEventStore.exportBackupSnapshot(),
-                memoStore.exportBackupSnapshot(),
+                memoSnapshot,
             ),
         )
     }
@@ -215,6 +218,11 @@ class AppContainer(
         require(payload.stores.any { it.storeName in AppBackupStores.ALL }) {
             app.getString(R.string.backup_restore_no_data)
         }
+        require(payload.memoImages.size <= 2000 && payload.memoImages.sumOf { it.data.length.toLong() } <= 90L * 1024 * 1024)
+        val imageRefs = com.x500x.cursimple.core.data.memo.memoNotesInBackup(payload.store(AppBackupStores.MEMOS))
+            .flatMap { com.x500x.cursimple.core.kernel.model.MemoImageRef.ids(it.body) }.toSet()
+        require(payload.memoImages.map { it.id }.toSet().containsAll(imageRefs)) { "note_images_missing" }
+        com.x500x.cursimple.core.data.memo.MemoImageStore(app).install(payload.memoImages)
         payload.store(AppBackupStores.USER_PREFERENCES)
             ?.let { (userPreferencesRepository as DataStoreUserPreferencesRepository).restoreBackupSnapshot(it) }
         payload.store(AppBackupStores.TERM_PROFILES)

@@ -14,6 +14,7 @@ import com.x500x.cursimple.core.kernel.model.coursesMovedTo
 import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.locationForWeek
+import com.x500x.cursimple.core.kernel.model.teacherForWeek
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
@@ -633,7 +634,7 @@ object ScheduleImageLayout {
         }
         val lines = composeBlockLines(
             title = course.title,
-            details = listOfNotNull(weeksNote) + listOf(course.locationForWeek(locationWeek), course.teacher),
+            details = listOfNotNull(weeksNote) + listOf(course.locationForWeek(locationWeek), course.teacherForWeek(locationWeek)),
             content = content,
             titleFontSize = titleFontSize,
             detailFontSize = detailFontSize,

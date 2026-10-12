@@ -25,7 +25,7 @@ import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -76,6 +76,7 @@ fun ExtensionFeedScreen(
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     openWidgetAbout: Boolean = false,
+    onRemove: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -126,6 +127,7 @@ fun ExtensionFeedScreen(
             actions = actions,
             onBack = {},
             onOpenSettings = onOpenSettings,
+            onRemove = onRemove,
             openWidgetAbout = openWidgetAbout,
             modifier = modifier,
         )
@@ -170,14 +172,14 @@ fun ExtensionFeedScreen(
                 Text(stringResource(if (showIgnored) R.string.extension_show_active else R.string.extension_show_ignored,
                     data.items.count { data.isIgnored(it, now) }))
             }
-            IconButton(onClick = ::sync, enabled = data.loggedIn && !syncing) {
+            AppCircleIconButton(onClick = ::sync, enabled = data.loggedIn && !syncing) {
                 if (syncing) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
                     Icon(Icons.Rounded.Sync, contentDescription = stringResource(R.string.extension_action_sync_now))
                 }
             }
-            IconButton(onClick = onOpenSettings) {
+            AppCircleIconButton(onClick = onOpenSettings) {
                 Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.extension_feed_open_settings))
             }
         }
@@ -287,7 +289,7 @@ private fun MonthHeader(
     val locale = LocalConfiguration.current.locales[0]
     val formatter = remember(locale) { DateTimeFormatter.ofPattern("LLLL yyyy", locale) }
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onPrevious) {
+        AppCircleIconButton(onClick = onPrevious) {
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, stringResource(R.string.extension_feed_prev_month))
         }
         Text(
@@ -295,7 +297,7 @@ private fun MonthHeader(
             fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).semantics { heading() },
         )
         if (!isCurrent) TextButton(onClick = onToday) { Text(stringResource(R.string.extension_feed_this_month)) }
-        IconButton(onClick = onNext) {
+        AppCircleIconButton(onClick = onNext) {
             Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, stringResource(R.string.extension_feed_next_month))
         }
     }

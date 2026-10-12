@@ -4,19 +4,19 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.FrameLayout
 import kotlinx.coroutines.withContext
 import android.widget.RemoteViews
-import android.widget.RemoteViewsService
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.memo.DataStoreMemoRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import com.x500x.cursimple.core.data.widget.WidgetThemePreferences
 import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.MemoNote
+import com.x500x.cursimple.core.kernel.model.MemoImageRef
+import com.x500x.cursimple.core.kernel.model.MemoPriority
 import com.x500x.cursimple.core.kernel.model.memoComparator
 import com.x500x.cursimple.core.kernel.model.parseChecklistLine
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -26,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -41,7 +40,10 @@ internal fun memoTodoRows(notes: List<MemoNote>, now: LocalDateTime): List<MemoT
         }
         if (checklist.isNotEmpty()) checklist.filter { !it.second.first }.map { (index, item) ->
             MemoTodoRow(note, index, item.second.trim().ifBlank { note.title })
-        } else listOf(MemoTodoRow(note, null, note.title.ifBlank { note.body.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim() }))
+        } else listOf(MemoTodoRow(note, null, note.title.ifBlank {
+            val first = note.body.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().trim()
+            MemoImageRef.parse(first)?.alt?.ifBlank { "Image" } ?: first
+        }))
     }
 
 private data class MemoTodoData(val rows: List<MemoTodoRow>, val theme: WidgetThemePreferences, val now: LocalDateTime)
@@ -93,8 +95,22 @@ open class MemoTodoWidgetReceiver : AppWidgetProvider() {
                 views.applyOpenAppClick(app, R.id.memo_root, id, data.theme, Intent().putExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO, ""))
                 views.setTextViewText(R.id.memo_title, app.getString(R.string.widget_label_memo))
                 val compact = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 148) < 160
+                if (compact && manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 330) < 240) {
+                    views.setTextViewText(R.id.memo_title, app.getString(R.string.widget_memo_pending))
+                }
+                val minimal = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 148) < 128
+                val density = app.resources.displayMetrics.density
+                val padding = ((if (minimal) 6 else 8) * density).toInt()
+                val endPadding = if (minimal) (64 * density).toInt() else padding
+                views.setViewPadding(R.id.memo_content, padding, padding, endPadding, padding)
+                views.setInt(R.id.memo_content, "setGravity", if (minimal) android.view.Gravity.CENTER_VERTICAL else android.view.Gravity.TOP)
+                views.setViewVisibility(R.id.memo_header, if (minimal) View.GONE else View.VISIBLE)
+                views.setViewVisibility(R.id.memo_add_small, if (minimal) View.VISIBLE else View.GONE)
+                views.applyMemoTodoAdd(app, id)
                 val accent = widgetAccentTextColor(data.theme)
                 views.setInt(R.id.memo_icon, "setColorFilter", accent)
+                views.setInt(R.id.memo_add, "setColorFilter", accent)
+                views.setInt(R.id.memo_add_small, "setColorFilter", accent)
                 views.setInt(R.id.memo_empty_icon, "setColorFilter", accent)
                 views.setTextColor(R.id.memo_count, accent)
                 views.setTextViewText(R.id.memo_count, app.getString(R.string.widget_memo_count, data.rows.size))
@@ -104,21 +120,16 @@ open class MemoTodoWidgetReceiver : AppWidgetProvider() {
                 views.setInt(R.id.memo_header_rule, "setBackgroundColor", (accent and 0x00FFFFFF) or 0x26000000)
                 val layout = withContext(Dispatchers.Main) { memoWidgetLayout(app, manager, id, data, views, compact) }
                 val visible = data.rows.take(layout.rows)
-                views.setWidgetRows(R.id.memo_list, visible, { it.stableId }, { memoTodoView(app, it, data, layout) }) {
-                    views.setRemoteAdapter(R.id.memo_list, Intent(app, MemoTodoRemoteViewsService::class.java).apply {
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id)
-                        putExtra(EXTRA_WIDGET_LIST_REVISION, widgetListRevision(data.rows.size, visible))
-                        this.data = Uri.parse(toUri(Intent.URI_INTENT_SCHEME))
-                    })
-                }
-                views.applyOpenAppListTemplate(app, R.id.memo_list, id, data.theme)
-                views.setEmptyView(R.id.memo_list, R.id.memo_empty)
-                views.setTextViewText(R.id.memo_empty_text, app.getString(R.string.widget_memo_empty))
+                // Only fitted rows are shown; direct actions avoid collection click trampolines.
+                views.removeAllViews(R.id.memo_list)
+                visible.forEach { row -> views.addView(R.id.memo_list, memoTodoView(app, row, data, layout, id)) }
+                views.setTextViewText(R.id.memo_empty_text, app.getString(if (minimal) R.string.widget_memo_empty_compact else R.string.widget_memo_empty))
+                views.setViewVisibility(R.id.memo_empty_icon, if (minimal) View.GONE else View.VISIBLE)
+                views.setInt(R.id.memo_empty_text, "setMaxLines", if (minimal) 2 else 4)
                 views.applyOpenAppClick(app, R.id.memo_empty, id, data.theme, Intent().putExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO, ""))
                 views.setViewVisibility(R.id.memo_list, if (visible.isEmpty()) View.GONE else View.VISIBLE)
                 views.setViewVisibility(R.id.memo_empty, if (data.rows.isEmpty()) View.VISIBLE else View.GONE)
                 manager.updateAppWidget(id, views)
-                manager.notifyAppWidgetViewDataChanged(intArrayOf(id), R.id.memo_list)
             }
         }
     }
@@ -126,7 +137,7 @@ open class MemoTodoWidgetReceiver : AppWidgetProvider() {
 
 class MemoTodoWidgetReceiverMIUI : MemoTodoWidgetReceiver()
 
-private data class MemoWidgetLayout(val rows: Int, val rowHeightDp: Int, val compact: Boolean)
+private data class MemoWidgetLayout(val rows: Int, val rowHeightDp: Int, val compact: Boolean, val minimal: Boolean)
 
 /** Widget options already exclude launcher padding. Measure fonts before choosing rows. */
 private fun memoWidgetLayout(context: Context, manager: AppWidgetManager, id: Int,
@@ -137,15 +148,19 @@ private fun memoWidgetLayout(context: Context, manager: AppWidgetManager, id: In
     val height = (options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 148) * density).toInt()
     val parent = FrameLayout(context)
     val root = header.apply(context, parent)
+    // The compact add action overlays the task area; it is not part of the header height.
+    root.findViewById<View>(R.id.memo_add_small)?.visibility = View.GONE
     root.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
         View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
     val available = height - root.measuredHeight
+    val minimal = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 148) < 128
     fun fit(prototype: MemoWidgetLayout): MemoWidgetLayout {
         var remaining = available
         var count = 0
         for (row in data.rows.take(8)) {
             val item = memoTodoView(context, row, data, prototype).apply(context, parent)
-            item.measure(View.MeasureSpec.makeMeasureSpec((width - 24 * density).toInt().coerceAtLeast(1), View.MeasureSpec.EXACTLY),
+            val horizontalPadding = if (minimal) 70 else 16
+            item.measure(View.MeasureSpec.makeMeasureSpec((width - horizontalPadding * density).toInt().coerceAtLeast(1), View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
             if (item.measuredHeight > remaining) break
             remaining -= item.measuredHeight
@@ -153,27 +168,51 @@ private fun memoWidgetLayout(context: Context, manager: AppWidgetManager, id: In
         }
         return prototype.copy(rows = count)
     }
-    val detailed = fit(MemoWidgetLayout(0, if (compact) 36 else 64, compact))
-    if (!compact || detailed.rows >= minOf(2, data.rows.size)) return detailed
-    val shortHeight = (available / density / 2).toInt().coerceIn(24, 35)
-    val shorter = fit(MemoWidgetLayout(0, shortHeight, true))
+    val detailed = fit(MemoWidgetLayout(0, if (compact) 48 else 64, compact, minimal))
+    if (compact || detailed.rows >= minOf(2, data.rows.size)) return detailed
+    val shorter = fit(detailed.copy(rowHeightDp = 58))
     return if (shorter.rows > detailed.rows) shorter else detailed
 }
 
-private fun memoTodoView(context: Context, row: MemoTodoRow, data: MemoTodoData, layout: MemoWidgetLayout): RemoteViews =
+private fun memoTodoView(context: Context, row: MemoTodoRow, data: MemoTodoData, layout: MemoWidgetLayout, widgetId: Int? = null): RemoteViews =
     RemoteViews(context.packageName, R.layout.widget_memo_row).apply {
         val accent = widgetAccentTextColor(data.theme)
         setInt(R.id.memo_row_root, "setMinimumHeight", (layout.rowHeightDp * context.resources.displayMetrics.density).toInt())
-        val padding = ((if (layout.compact) 2 else 5) * context.resources.displayMetrics.density).toInt()
+        val padding = ((if (layout.compact) 0 else 5) * context.resources.displayMetrics.density).toInt()
         setViewPadding(R.id.memo_row_content, 0, padding, 0, padding)
+        val priorityColor = memoWidgetPriorityColor(row.note.priority, accent)
         setInt(R.id.memo_checkbox, "setColorFilter", accent)
+        setViewVisibility(R.id.memo_row_priority_stripe, if (priorityColor == null) View.GONE else View.VISIBLE)
+        if (priorityColor != null) setInt(R.id.memo_row_priority_stripe, "setColorFilter", priorityColor)
+        val badge = when (row.note.priority) {
+            MemoPriority.High -> R.string.widget_memo_priority_badge_high
+            MemoPriority.Medium -> R.string.widget_memo_priority_badge_medium
+            MemoPriority.Low -> R.string.widget_memo_priority_badge_low
+            MemoPriority.None -> null
+        }
+        setViewVisibility(R.id.memo_row_priority, if (badge == null || layout.minimal) View.GONE else View.VISIBLE)
+        if (badge != null) {
+            setTextViewText(R.id.memo_row_priority, context.getString(badge))
+            setTextColor(R.id.memo_row_priority, priorityColor ?: accent)
+        }
         setInt(R.id.memo_row_rule, "setBackgroundColor", (accent and 0x00FFFFFF) or 0x18000000)
         setTextViewText(R.id.memo_row_title, row.title)
         setInt(R.id.memo_row_title, "setMaxLines", if (layout.compact) 1 else 2)
+        setViewVisibility(R.id.memo_row_pin, if (row.note.pinned && !layout.minimal) View.VISIBLE else View.GONE)
+        setInt(R.id.memo_row_pin, "setColorFilter", accent)
         val metadata = listOf(row.note.courseTitle, row.note.title.takeIf { row.lineIndex != null }.orEmpty())
             .filter(String::isNotBlank).joinToString(" · ").ifBlank { context.getString(R.string.widget_memo_notebook_other) }
         setTextViewText(R.id.memo_row_source, metadata)
-        setViewVisibility(R.id.memo_row_source, if (layout.rowHeightDp < 36) View.GONE else View.VISIBLE)
+        val showSource = !layout.minimal && layout.rowHeightDp >= 36
+        setViewVisibility(R.id.memo_row_source_row, if (showSource) View.VISIBLE else View.GONE)
+        // Notebook color dot follows the source line, or the title when compact rows hide it.
+        val notebookColor = memoWidgetNotebookColor(row.note).takeUnless { layout.minimal }
+        setViewVisibility(R.id.memo_row_dot, if (notebookColor != null && showSource) View.VISIBLE else View.GONE)
+        setViewVisibility(R.id.memo_row_dot_inline, if (notebookColor != null && !showSource) View.VISIBLE else View.GONE)
+        notebookColor?.let {
+            setInt(R.id.memo_row_dot, "setColorFilter", it)
+            setInt(R.id.memo_row_dot_inline, "setColorFilter", it)
+        }
         val due = row.note.dueDateTime
         val overdue = due?.isBefore(data.now) == true
         val dueText = when {
@@ -181,46 +220,41 @@ private fun memoTodoView(context: Context, row: MemoTodoRow, data: MemoTodoData,
             overdue -> context.getString(R.string.widget_memo_overdue) + "\n" + due.format(DateTimeFormatter.ofPattern("M/d HH:mm"))
             else -> due.format(DateTimeFormatter.ofPattern("M/d\nHH:mm"))
         }
-        setViewVisibility(R.id.memo_row_due, if (due == null || layout.rowHeightDp < 36) View.GONE else View.VISIBLE)
+        setViewVisibility(R.id.memo_row_due, if (due == null || layout.rowHeightDp < 36 || layout.minimal) View.GONE else View.VISIBLE)
         setTextViewText(R.id.memo_row_due, dueText)
         setTextColor(R.id.memo_row_due, if (overdue) 0xFFB3261E.toInt() else accent)
-        setContentDescription(R.id.memo_row_root, listOf(row.title, metadata, dueText).filter(String::isNotBlank).joinToString(" · "))
-        if (data.theme.openAppOnDoubleClickEnabled) setOnClickFillInIntent(R.id.memo_row_root,
-            Intent().putExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO, row.note.id))
+        val flags = listOfNotNull(
+            context.getString(R.string.widget_memo_pinned).takeIf { row.note.pinned },
+            memoWidgetPriorityLabel(context, row.note.priority),
+        )
+        setContentDescription(R.id.memo_row_root, (listOf(row.title) + flags + listOf(metadata, dueText))
+            .filter(String::isNotBlank).joinToString(" · "))
+        setContentDescription(R.id.memo_checkbox, context.getString(R.string.widget_memo_complete_action, row.title))
+        setContentDescription(R.id.memo_row_edit, context.getString(R.string.widget_memo_edit_action, row.title))
+        widgetId?.let { id -> applyMemoTodoActions(context, row, id) }
     }
 
-class MemoTodoRemoteViewsService : RemoteViewsService() {
-    override fun onGetViewFactory(intent: Intent): RemoteViewsFactory = MemoTodoFactory(applicationContext,
-        intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID))
+private const val MEMO_PRIORITY_HIGH = 0xFFBA1A1A.toInt()
+private const val MEMO_PRIORITY_MEDIUM = 0xFFE39A2D.toInt()
+
+/** Match light note-tag colors; low priority follows the user's widget accent. */
+internal fun memoWidgetPriorityColor(priority: MemoPriority, accent: Int): Int? = when (priority) {
+    MemoPriority.High -> MEMO_PRIORITY_HIGH
+    MemoPriority.Medium -> MEMO_PRIORITY_MEDIUM
+    MemoPriority.Low -> accent
+    MemoPriority.None -> null
 }
 
-private class MemoTodoFactory(private val app: Context, private val id: Int) : RemoteViewsService.RemoteViewsFactory {
-    private var context = app.widgetLocaleContext()
-    private var data: MemoTodoData? = null
-    private var rows = emptyList<MemoTodoRow>()
-    private var layout = MemoWidgetLayout(1, 36, true)
-    override fun onCreate() = Unit
-    override fun onDataSetChanged() {
-        context = app.widgetLocaleContext()
-        runCatching { runBlocking(Dispatchers.IO) { loadMemoTodos(context) } }.onSuccess {
-            data = it
-            val manager = AppWidgetManager.getInstance(context)
-            val compact = manager.getAppWidgetOptions(id).getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 148) < 160
-            val header = RemoteViews(context.packageName, R.layout.widget_memo).apply {
-                setViewVisibility(R.id.memo_subtitle, if (compact) View.GONE else View.VISIBLE)
-                setViewVisibility(R.id.memo_header_rule, if (compact) View.GONE else View.VISIBLE)
-                setTextViewText(R.id.memo_count, context.getString(R.string.widget_memo_count, it.rows.size))
-            }
-            layout = runBlocking(Dispatchers.Main) { memoWidgetLayout(context, manager, id, it, header, compact) }
-            rows = it.rows.take(layout.rows)
-        }
-    }
-    override fun onDestroy() { rows = emptyList(); data = null }
-    override fun getCount(): Int = rows.size
-    override fun getViewAt(position: Int): RemoteViews = rows.getOrNull(position)?.let { row -> data?.let { memoTodoView(context, row, it, layout) } }
-        ?: RemoteViews(context.packageName, R.layout.widget_memo_row)
-    override fun getLoadingView(): RemoteViews? = null
-    override fun getViewTypeCount(): Int = 1
-    override fun getItemId(position: Int): Long = rows.getOrNull(position)?.stableId ?: position.toLong()
-    override fun hasStableIds(): Boolean = true
+/** Same course palette and title seed as the in-app notebook tag; general notes have no color. */
+internal fun memoWidgetNotebookColor(note: MemoNote): Int? {
+    val key = note.courseKey ?: return null
+    val seed = note.courseTitle.trim().ifBlank { key }
+    return CalendarWidgetRenderer.coursePalette(seed).second
+}
+
+private fun memoWidgetPriorityLabel(context: Context, priority: MemoPriority): String? = when (priority) {
+    MemoPriority.High -> context.getString(R.string.widget_memo_priority_high)
+    MemoPriority.Medium -> context.getString(R.string.widget_memo_priority_medium)
+    MemoPriority.Low -> context.getString(R.string.widget_memo_priority_low)
+    MemoPriority.None -> null
 }

@@ -2,6 +2,10 @@ package com.x500x.cursimple.feature.plugin.extension
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -18,14 +22,12 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -86,18 +88,16 @@ internal fun ActionableFeedItemDetailSheet(
     var busy by remember(item.id) { mutableStateOf(false) }
     var result by remember(item.id) { mutableStateOf<String?>(null) }
     var failed by remember(item.id) { mutableStateOf(false) }
-    val readSuccess = stringResource(R.string.extension_read_success)
     val itemUpdated = stringResource(R.string.extension_item_updated)
-    fun run(markRead: Boolean) {
+    fun toggleIgnored() {
         if (busy) return
         busy = true
         result = null
         scope.launch {
             try {
-                if (markRead) actions.markRead(record, item.id)
-                else actions.setItemIgnored(record, item.id, !data.isIgnored(current, now))
+                actions.setItemIgnored(record, item.id, !data.isIgnored(current, now))
                 failed = false
-                result = if (markRead) readSuccess else itemUpdated
+                result = itemUpdated
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -108,8 +108,7 @@ internal fun ActionableFeedItemDetailSheet(
     }
     FeedItemDetailSheet(current, record.name, palette, now, onDismiss, scheduleLabel,
         ignored = data.isIgnored(current, now), busy = busy, result = result, failed = failed,
-        onMarkRead = if (current.isNotice() && !current.done) ({ run(true) }) else null,
-        onIgnore = { run(false) })
+        onIgnore = ::toggleIgnored)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,34 +124,29 @@ internal fun FeedItemDetailSheet(
     busy: Boolean = false,
     result: String? = null,
     failed: Boolean = false,
-    onMarkRead: (() -> Unit)? = null,
     onIgnore: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
-    var confirmRead by remember(item.id) { mutableStateOf(false) }
-    if (confirmRead) AlertDialog(
-        onDismissRequest = { confirmRead = false },
-        title = { Text(stringResource(R.string.extension_read_confirm_title)) },
-        text = { Text(stringResource(R.string.extension_read_confirm_body)) },
-        confirmButton = { TextButton(onClick = { confirmRead = false; onMarkRead?.invoke() }) { Text(stringResource(R.string.extension_mark_read)) } },
-        dismissButton = { TextButton(onClick = { confirmRead = false }) { Text(stringResource(android.R.string.cancel)) } },
-    )
+    val attachmentScope = rememberCoroutineScope()
+    val attachmentErrorText = stringResource(R.string.extension_attachment_error)
+    var attachmentBusy by remember(item.id) { mutableStateOf<String?>(null) }
+    var attachmentError by remember(item.id) { mutableStateOf<String?>(null) }
+    var pdfPreview by remember(item.id) { mutableStateOf<java.io.File?>(null) }
+    var imagePreview by remember(item.id) { mutableStateOf<LoadedFeedImage?>(null) }
+    pdfPreview?.let { ExtensionPdfPreview(it, onDismiss = { pdfPreview = null }) }
+    imagePreview?.let { ExtensionImagePreview(it.bitmap, it.source.name, onDismiss = { imagePreview = null }) }
     var media by remember(item.id) { mutableStateOf<LoadedFeedMedia?>(null) }
-    LaunchedEffect(item.id, item.images, item.attachments) {
+    LaunchedEffect(item.id, item.images) {
         val loader = ExtensionMediaLoader(context)
         val loadedImages = item.images.mapNotNull { image ->
-            runCatching {
+            try {
                 val file = loader.fetch(image.url, image.name, hint = "image/*", referer = item.url)
                 LoadedFeedImage(image, loader.bitmap(file.file))
-            }.getOrNull()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) { null }
         }
-        val loadedAttachments = item.attachments.mapNotNull { attachment ->
-            runCatching {
-                val file = loader.fetch(attachment.url, attachment.name, attachment.type, referer = item.url)
-                LoadedFeedAttachment(attachment, file)
-            }.getOrNull()
-        }
-        media = LoadedFeedMedia(loadedImages, loadedAttachments)
+        media = LoadedFeedMedia(loadedImages)
+
     }
     val contentScroll = rememberScrollState()
     // Allow sheet dismissal only after content reaches the top to prevent competing vertical scroll movement.
@@ -180,15 +174,12 @@ internal fun FeedItemDetailSheet(
                     modifier = Modifier.weight(1f),
                 )
                 if (busy) CircularProgressIndicator(modifier = Modifier.padding(8.dp).size(20.dp), strokeWidth = 2.dp)
-                onMarkRead?.let {
-                    TextButton(onClick = { confirmRead = true }, enabled = !busy) { Text(stringResource(R.string.extension_mark_read)) }
-                }
                 onIgnore?.let {
-                    TextButton(onClick = it, enabled = !busy) {
+                    AppOutlinedButton(onClick = it, enabled = !busy) {
                         Text(stringResource(if (ignored) R.string.extension_restore_item else R.string.extension_ignore_item))
                     }
                 }
-                IconButton(onClick = onDismiss) {
+                AppCircleIconButton(onClick = onDismiss) {
                     Icon(Icons.Rounded.Close, contentDescription = stringResource(R.string.extension_item_close))
                 }
             }
@@ -280,22 +271,37 @@ internal fun FeedItemDetailSheet(
                         if (loaded == null) {
                             CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                         } else {
-                            loaded.images.forEach { image ->
-                                Image(
-                                    bitmap = image.bitmap.asImageBitmap(),
-                                    contentDescription = image.source.name.ifBlank { null },
-                                    contentScale = ContentScale.Fit,
-                                    modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
-                                )
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                loaded.images.forEach { image ->
+                                    Image(bitmap = image.bitmap.asImageBitmap(),
+                                        contentDescription = stringResource(R.string.extension_image_enlarge), contentScale = ContentScale.Fit,
+                                        modifier = Modifier.size(132.dp, 104.dp).clip(RoundedCornerShape(16.dp)).clickable { imagePreview = image })
+                                }
                             }
-                            loaded.attachments.forEach { attachment ->
-                                Text(
-                                    text = "📎 ${attachment.source.name.ifBlank { attachment.file.name }} · ${attachment.file.file.length() / 1024} KB",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+
+                        }
+                        item.attachments.forEach { attachment ->
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(attachment.name.ifBlank { stringResource(R.string.extension_pdf_title) }, modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                AppOutlinedButton(enabled = attachmentBusy == null, onClick = {
+                                    attachmentScope.launch {
+                                        attachmentBusy = attachment.url; attachmentError = null
+                                        try {
+                                            val file = ExtensionMediaLoader(context).fetch(attachment.url, attachment.name, attachment.type, referer = item.url)
+                                            if (isExtensionPdf(file.file, file.mime)) pdfPreview = file.file else openExtensionFile(context, file.file, file.mime)
+                                        } catch (cancelled: CancellationException) { throw cancelled }
+                                        catch (_: Exception) { attachmentError = attachmentErrorText }
+                                        finally { attachmentBusy = null }
+                                    }
+                                }) {
+                                    if (attachmentBusy == attachment.url) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    else Text(stringResource(R.string.extension_attachment_preview))
+                                }
                             }
                         }
+                        attachmentError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+
                     }
                 }
             }
@@ -304,10 +310,8 @@ internal fun FeedItemDetailSheet(
 }
 
 private data class LoadedFeedImage(val source: ExtensionImage, val bitmap: Bitmap)
-private data class LoadedFeedAttachment(val source: ExtensionAttachment, val file: ExtensionMediaFile)
 private data class LoadedFeedMedia(
     val images: List<LoadedFeedImage>,
-    val attachments: List<LoadedFeedAttachment>,
 )
 
 @Composable

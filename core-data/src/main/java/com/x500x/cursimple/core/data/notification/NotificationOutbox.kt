@@ -30,6 +30,7 @@ data class NotificationTarget(
 @Serializable
 data class NotificationReceipt(
     val targetId: String, val status: String, val error: String = "", val at: Long = System.currentTimeMillis(),
+    val retryAt: Long = 0L,
 )
 
 @Serializable
@@ -42,9 +43,14 @@ data class NotificationDelivery(
     fun pendingTargets(now: Long): Set<String> {
         if (cancelled || notification.expiresAt <= now) return emptySet()
         val pending = targetIds - receipts.filter { it.status in setOf("sent", "accepted", "skipped", "unknown") }.map { it.targetId }.toSet()
-        return if (attempts < 6) pending else pending.filter { id -> receipts.any { it.targetId == id && it.status in setOf("queued", "querying") } }.toSet()
+        return if (attempts < 6) pending else pending.filter { id -> receipts.any {
+            it.targetId == id && (it.status in setOf("queued", "querying") || (it.status == "failed" && it.retryAt > 0))
+        } }.toSet()
     }
-    fun ready(now: Long): Boolean = nextAttemptAt <= now && pendingTargets(now).isNotEmpty()
+    fun dueTargets(now: Long): Set<String> = pendingTargets(now).filter { id ->
+        receipts.firstOrNull { it.targetId == id }?.retryAt?.let { it <= now } != false
+    }.toSet()
+    fun ready(now: Long): Boolean = nextAttemptAt <= now && dueTargets(now).isNotEmpty()
 }
 
 /** Persist each confirmed target immediately so partial retries skip successful deliveries. */
@@ -67,9 +73,12 @@ class NotificationOutbox internal constructor(private val file: File) {
         var started: NotificationDelivery? = null
         mutate { rows -> rows.map { row ->
             if (row.receiverId == receiverId && row.notification.id == id && row.ready(now)) {
-                val queriesOnly = row.pendingTargets(now).all { id -> row.receipts.any { it.targetId == id && it.status in setOf("queued", "querying") } }
+                val due = row.dueTargets(now)
+                val queriesOnly = due.all { id -> row.receipts.any { it.targetId == id && it.status in setOf("queued", "querying") } }
                 row.copy(attempts = if (queriesOnly) row.attempts else row.attempts + 1,
-                    nextAttemptAt = now + if (queriesOnly) 60_000L else retryDelay(row.attempts)).also { started = it }
+                    nextAttemptAt = now + if (queriesOnly) 60_000L else retryDelay(row.attempts)).also {
+                    started = it.copy(targetIds = due)
+                }
             } else row
         } }
         return started

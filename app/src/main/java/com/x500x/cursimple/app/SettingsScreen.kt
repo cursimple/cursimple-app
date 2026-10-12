@@ -246,6 +246,9 @@ private enum class SettingsDestination {
     Permissions,
     DevTime,
     DevNotice,
+    DevNoticeAod,
+    DevNoticeIsland,
+    DevNoticeCenter,
     DevLogs,
     DevData,
 }
@@ -577,6 +580,9 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.Permissions -> stringResource(R.string.settings_dest_permissions)
     SettingsDestination.DevTime -> stringResource(R.string.settings_dest_dev_time)
     SettingsDestination.DevNotice -> stringResource(R.string.settings_dest_dev_notice)
+    SettingsDestination.DevNoticeAod -> stringResource(R.string.notice_test_aod)
+    SettingsDestination.DevNoticeIsland -> stringResource(R.string.notice_test_island)
+    SettingsDestination.DevNoticeCenter -> stringResource(R.string.notice_test_center)
     SettingsDestination.DevLogs -> stringResource(R.string.settings_dest_dev_logs)
     SettingsDestination.DevData -> stringResource(R.string.settings_dest_dev_data)
 }
@@ -666,6 +672,7 @@ fun AppSettingsRoute(
     onCourseDragEnabledChange: (Boolean) -> Unit,
     onSchedulePinchZoomEnabledChange: (Boolean) -> Unit = {},
     onTodayOverviewEnabledChange: (Boolean) -> Unit = {},
+    onCourseSessionCountIncludeHolidaysChange: (Boolean) -> Unit = {},
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
@@ -1046,7 +1053,7 @@ fun AppSettingsRoute(
                         modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
-                        IconButton(onClick = ::handleBack, modifier = Modifier.size(36.dp)) {
+                        com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton(onClick = ::handleBack) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = stringResource(R.string.settings_back),
@@ -1493,7 +1500,22 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.DevNotice -> {
-                            ClassNoticeTestRows(classNotice)
+                            if (advancedToolsEnabled) NoticeDisplayTestEntries { target ->
+                                navigate(when (target) {
+                                    com.x500x.cursimple.app.notice.NoticeDisplayTarget.Aod -> SettingsDestination.DevNoticeAod
+                                    com.x500x.cursimple.app.notice.NoticeDisplayTarget.Island -> SettingsDestination.DevNoticeIsland
+                                    com.x500x.cursimple.app.notice.NoticeDisplayTarget.Center -> SettingsDestination.DevNoticeCenter
+                                })
+                            }
+                            if (advancedToolsEnabled) ClassNoticeTestRows(classNotice)
+                        }
+
+                        SettingsDestination.DevNoticeAod, SettingsDestination.DevNoticeIsland, SettingsDestination.DevNoticeCenter -> {
+                            if (advancedToolsEnabled) NoticeDisplayTestSection(when (destination) {
+                                SettingsDestination.DevNoticeAod -> com.x500x.cursimple.app.notice.NoticeDisplayTarget.Aod
+                                SettingsDestination.DevNoticeIsland -> com.x500x.cursimple.app.notice.NoticeDisplayTarget.Island
+                                else -> com.x500x.cursimple.app.notice.NoticeDisplayTarget.Center
+                            }, classNotice)
                         }
 
                         SettingsDestination.DevLogs -> {
@@ -1608,6 +1630,13 @@ fun AppSettingsRoute(
                         }
 
                         SettingsDestination.ScheduleDisplay -> {
+                            SettingsSwitchRow(
+                                icon = Icons.Rounded.EventAvailable,
+                                title = stringResource(R.string.settings_course_session_holidays_title),
+                                subtitle = stringResource(R.string.settings_course_session_holidays_subtitle),
+                                checked = scheduleDisplay.courseSessionCountIncludeHolidays,
+                                onCheckedChange = onCourseSessionCountIncludeHolidaysChange,
+                            )
                             SettingsSwitchRow(
                                 icon = Icons.Rounded.Schedule,
                                 title = stringResource(R.string.settings_today_overview_title),
@@ -4294,7 +4323,7 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
                 context.openOverlayPermissionSettings()
             } else {
                 val forced = classNotice.copy(skin = ClassNoticeSkin.Overlay)
-                ClassNoticeOverlay.show(context, ClassNoticeNotifier.previewContent(context, forced), forced, noticeTheme)
+                ClassNoticeOverlay.show(context, ClassNoticeNotifier.previewContent(context), forced, noticeTheme)
             }
         },
     )
@@ -4303,9 +4332,9 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
         title = stringResource(R.string.settings_dev_notice_system_title),
         subtitle = stringResource(R.string.settings_dev_notice_system_subtitle),
         onClick = {
-            val forced = classNotice.copy(skin = ClassNoticeSkin.System)
+            val forced = classNotice.copy(skin = ClassNoticeSkin.System, headsUpEnabled = true, focusNotificationEnabled = false)
             warnIfBlocked(forced)
-            ClassNoticeNotifier.notifyPreview(context, forced, noticeTheme)
+            ClassNoticeNotifier.notifyPlainTest(context, forced, noticeTheme)
         },
     )
     AdvancedActionRow(
@@ -4313,7 +4342,7 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
         title = stringResource(R.string.settings_dev_notice_plain_title),
         subtitle = stringResource(R.string.settings_dev_notice_plain_subtitle),
         onClick = {
-            val forced = classNotice.copy(skin = ClassNoticeSkin.System)
+            val forced = classNotice.copy(skin = ClassNoticeSkin.System, headsUpEnabled = false, focusNotificationEnabled = false)
             warnIfBlocked(forced)
             ClassNoticeNotifier.notifyPlainTest(context, forced, noticeTheme)
         },
@@ -4326,25 +4355,6 @@ private fun ClassNoticeTestRows(classNotice: ClassNoticePreferences) {
             val forced = classNotice.copy(skin = ClassNoticeSkin.System)
             warnIfBlocked(forced)
             ClassNoticeNotifier.notifySoundTest(context, forced, noticeTheme)
-        },
-    )
-    AdvancedActionRow(
-        icon = Icons.Rounded.Schedule,
-        title = stringResource(R.string.settings_dev_notice_delayed_title),
-        subtitle = stringResource(R.string.settings_dev_notice_delayed_subtitle),
-        onClick = {
-            warnIfBlocked(classNotice)
-            val app = context.applicationContext
-            // Use a main-thread Handler because screen coroutines can stop on background entry.
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
-                { ClassNoticeNotifier.notifyPreview(app, classNotice, noticeTheme) },
-                DEV_NOTICE_DELAY_MS,
-            )
-            Toast.makeText(
-                context,
-                context.getString(R.string.settings_toast_dev_notice_delayed),
-                Toast.LENGTH_SHORT,
-            ).show()
         },
     )
 }
@@ -4413,7 +4423,5 @@ internal fun ClassNoticeDiagnosticsDialog(preferences: ClassNoticePreferences, o
         },
     )
 }
-
-private const val DEV_NOTICE_DELAY_MS = 5_000L
 
 private const val ROOT_SCROLL_RESTORE_TIMEOUT_MS = 500L

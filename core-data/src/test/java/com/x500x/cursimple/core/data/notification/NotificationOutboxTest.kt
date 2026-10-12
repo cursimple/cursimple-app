@@ -92,4 +92,33 @@ class NotificationOutboxTest {
         q.cancelSource("schedule")
         assertTrue(q.list().single().pendingTargets(System.currentTimeMillis()).isEmpty())
     }
+    @Test fun `deferred targets survive restart and retry budget without sending before retry time`() = runBlocking {
+        val now = System.currentTimeMillis()
+        val e = event().copy(expiresAt = now + 7_200_000L)
+        val q = queue()
+        q.enqueue("receiver", e, targets)
+        q.receipt("receiver", e.id, NotificationReceipt("one", "failed", "Temporary session", retryAt = now + 3_600_000L))
+        q.receipt("receiver", e.id, NotificationReceipt("two", "sent"))
+        val row = queue().list().single().copy(attempts = 6)
+        assertEquals(setOf("one"), row.pendingTargets(now))
+        assertFalse(row.ready(now))
+        assertFalse(row.ready(now + 3_599_999L))
+        assertTrue(row.ready(now + 3_600_000L))
+        assertEquals(setOf("one"), row.dueTargets(now + 3_600_000L))
+        assertFalse(row.ready(e.expiresAt))
+    }
+
+    @Test fun `batch includes only due targets and preserves paused targets in storage`() = runBlocking {
+        val now = System.currentTimeMillis()
+        val q = queue(); val e = event().copy(expiresAt = now + 7_200_000L)
+        q.enqueue("receiver", e, targets)
+        q.receipt("receiver", e.id, NotificationReceipt("one", "failed", retryAt = now + 3_600_000L))
+        val batch = requireNotNull(q.begin("receiver", e.id, now))
+        assertEquals(setOf("two"), batch.targetIds)
+        assertEquals(setOf("one", "two"), q.list().single().targetIds)
+        q.receipt("receiver", e.id, NotificationReceipt("two", "sent"))
+        assertNull(q.begin("receiver", e.id, now + 60_000L))
+        assertEquals(setOf("one"), requireNotNull(q.begin("receiver", e.id, now + 3_600_000L)).targetIds)
+    }
+
 }

@@ -76,7 +76,7 @@ object InterruptionFilterValues {
 
 /**
  * System, RemoteViews card and overlay skins. Only overlays provide animation and blur,
- * requiring separate permission and lock-screen fallback.
+ * requiring separate permission. Locked devices always use system notifications.
  */
 enum class ClassNoticeSkin { System, Card, Overlay }
 
@@ -93,7 +93,7 @@ data class ClassNoticePreferences(
     val vibrationEnabled: Boolean = false,
     val lockScreenEnabled: Boolean = true,
     val focusNotificationEnabled: Boolean = true,
-    val skin: ClassNoticeSkin = ClassNoticeSkin.Overlay,
+    val skin: ClassNoticeSkin = ClassNoticeSkin.System,
     val animation: ClassNoticeAnimation = ClassNoticeAnimation.Slide,
     /** Fall back to translucency without cross-window blur support. */
     val blurEnabled: Boolean = true,
@@ -304,6 +304,8 @@ data class ScheduleDisplayPreferences(
     val pinchZoomEnabled: Boolean = false,
     /** Whether to show today's overview in today's day view. */
     val todayOverviewEnabled: Boolean = true,
+    /** This display preference is independent of holiday reminder delivery. */
+    val courseSessionCountIncludeHolidays: Boolean = true,
 )
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
@@ -367,6 +369,7 @@ data class UserPreferences(
     val scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
     val scheduleBackground: ScheduleBackgroundPreferences = ScheduleBackgroundPreferences(),
     val scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
+    val pluginTimetableRowVisibility: Map<String, Map<String, Boolean>> = emptyMap(),
     val scheduleCustomColorsAdaptToTheme: Boolean = false,
     val enabledPluginIds: Set<String> = emptySet(),
     val temporaryScheduleOverrides: List<TemporaryScheduleOverride> = emptyList(),
@@ -520,6 +523,8 @@ interface UserPreferencesRepository {
     suspend fun setScheduleWeekStartDay(day: WeekStartDay)
 
     suspend fun setCourseDragEnabled(enabled: Boolean)
+    suspend fun setCourseSessionCountIncludeHolidays(include: Boolean)
+    suspend fun setPluginTimetableRowVisible(pluginId: String, rowId: String, visible: Boolean)
     suspend fun setSchedulePinchZoomEnabled(enabled: Boolean)
     suspend fun setScheduleLocationVisible(visible: Boolean)
     suspend fun setScheduleTeacherVisible(visible: Boolean)
@@ -600,11 +605,12 @@ data class AppBackupPayload(
     @SerialName("version") val version: Int,
     @SerialName("createdAt") val createdAt: Long? = null,
     @SerialName("stores") val stores: List<PreferencesStoreSnapshot>,
+    @SerialName("memoImages") val memoImages: List<com.x500x.cursimple.core.data.memo.MemoTransferImage> = emptyList(),
 ) {
     fun store(name: String): PreferencesStoreSnapshot? = stores.firstOrNull { it.storeName == name }
 
     companion object {
-        const val CURRENT_VERSION = 1
+        const val CURRENT_VERSION = 2
         const val FILE_EXTENSION = ".json"
     }
 }

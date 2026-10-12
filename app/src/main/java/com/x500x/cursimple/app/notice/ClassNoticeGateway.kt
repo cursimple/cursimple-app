@@ -46,7 +46,7 @@ object ClassNoticeGateway {
     ): ClassNoticeNotifier.Content {
         val app = context.applicationContext
         val upcoming = upcomingClass(app, notice, advanceMinutes = 0)
-            ?: return ClassNoticeNotifier.previewContent(app, notice)
+            ?: return ClassNoticeNotifier.previewContent(app)
         return ClassNoticeNotifier.Content(
             courseTitle = upcoming.course.title,
             location = upcoming.displayLocation(),
@@ -61,9 +61,10 @@ object ClassNoticeGateway {
 
     private suspend fun rescheduleLocked(context: Context) {
         val app = context.applicationContext
+        com.x500x.cursimple.app.vendor.VendorCourseSync.enqueue(app)
         val notice = DataStoreUserPreferencesRepository(app).preferencesFlow.first().classNotice
         if (!notice.enabled) {
-            ClassNoticeScheduler.cancel(app)
+            ClassNoticeScheduler.cancelAll(app)
             return
         }
         ClassNoticeScheduler.reschedule(app, notice, upcomingClass(app, notice))
@@ -103,6 +104,7 @@ object ClassNoticeGateway {
         )
         ClassNoticeNotifier.notify(app, content, notice, theme(app), forward = true)
         ClassNoticeScheduler.recordLastPosted(app, key)
+        ClassNoticeScheduler.scheduleTransitions(app, content)
         ClassNoticeScheduler.reschedule(app, notice, upcomingClass(app, notice), now)
     }
 

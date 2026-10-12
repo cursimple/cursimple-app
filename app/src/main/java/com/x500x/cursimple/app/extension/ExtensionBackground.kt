@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -16,6 +15,7 @@ import androidx.work.WorkerParameters
 import com.x500x.cursimple.app.ClassScheduleApplication
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.feature.plugin.extension.ExtensionData
+import com.x500x.cursimple.feature.plugin.extension.nextIgnoredDeadline
 import com.x500x.cursimple.feature.plugin.extension.isIgnored
 import com.x500x.cursimple.feature.plugin.extension.isNotice
 import kotlinx.coroutines.CoroutineScope
@@ -49,14 +49,21 @@ class ExtensionSyncWorker(context: Context, params: WorkerParameters) : Coroutin
     }
 }
 
-/**
- * Schedule only the earliest component deadline reminder; inexact alarms avoid requiring
- * exact-alarm access.
- */
+/** Wake for a reminder or overdue-visibility change without requiring exact-alarm access. */
 object ExtensionDueScheduler {
 
     fun reschedule(context: Context, all: Collection<ExtensionData>, now: Long) {
-        val next = all.asSequence()
+        val next = nextWakeAt(all, now)
+        val alarms = context.getSystemService(AlarmManager::class.java) ?: return
+        val pending = pendingIntent(context)
+        if (next == null) { alarms.cancel(pending); return }
+        runCatching {
+            alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pending)
+        }.onFailure { ReminderLogger.warn("extension.due.schedule_failed", emptyMap(), it) }
+    }
+
+    internal fun nextWakeAt(all: Collection<ExtensionData>, now: Long): Long? {
+        val reminder = all.asSequence()
             .filter { it.loggedIn && it.host.dueReminderHours > 0 }
             .flatMap { data ->
                 data.items.asSequence()
@@ -65,19 +72,7 @@ object ExtensionDueScheduler {
                     .map { due -> (due - data.host.dueReminderHours * 3_600_000L).coerceAtLeast(now + 60_000L) }
             }
             .minOrNull()
-        val alarms = context.getSystemService(AlarmManager::class.java) ?: return
-        val pending = pendingIntent(context)
-        if (next == null) {
-            alarms.cancel(pending)
-            return
-        }
-        runCatching {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next, pending)
-            } else {
-                alarms.set(AlarmManager.RTC_WAKEUP, next, pending)
-            }
-        }.onFailure { ReminderLogger.warn("extension.due.schedule_failed", emptyMap(), it) }
+        return listOfNotNull(reminder, nextIgnoredDeadline(all, now)).minOrNull()
     }
 
     private fun pendingIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(

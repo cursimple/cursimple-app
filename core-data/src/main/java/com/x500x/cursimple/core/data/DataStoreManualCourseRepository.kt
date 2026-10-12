@@ -45,6 +45,13 @@ class DataStoreManualCourseRepository(
         }
     }
 
+    /** Catalog reads never activate a term or change its saved courses. */
+    val savedCoursesFlow: Flow<Map<String, List<CourseItem>>> = if (termProfileRepository != null) {
+        combine(store.data, termProfileRepository.termsFlow) { prefs, terms ->
+            terms.associate { term -> term.id to decode(prefs, term.id) }
+        }
+    } else store.data.map { mapOf("" to decode(it, "")) }
+
     override suspend fun updateCourse(course: CourseItem) {
         val termId = termProfileRepository?.activeTermId().orEmpty()
         store.edit { prefs ->

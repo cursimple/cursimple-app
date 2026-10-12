@@ -43,7 +43,7 @@ class LocalReleasePreviewUiQaTest {
             requireNotNull(loadLocalReleasePreview(activity))
         }
         val announcement = requireNotNull(buildReleaseAnnouncement(notes.markdown))
-        assertEquals(10, announcement.highlights.size)
+        assertEquals(5, announcement.highlights.size)
         val loader = releaseImageLoader(activity, notes.localDir, notes.localAssetDir)
         runBlocking {
             for (highlight in announcement.highlights) {

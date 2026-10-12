@@ -33,7 +33,7 @@ Instrumentation tests that modify device state require an explicit `*Qa=true` ar
 | `feature-plugin` | Marketplace, component pages and restricted WebView runtime |
 | `feature-widget` | RemoteViews providers, rendering and refresh scheduling |
 
-Keep platform adapters out of the host. The development host supports plugin API **9**; compatibility is defined by `PluginApiVersion` and each bundle's manifest, independently of app version names. See the [plugin API guide](plugin-system.md).
+Keep platform adapters out of the host. The development host supports plugin API **11**; compatibility is defined by `PluginApiVersion` and each bundle's manifest, independently of app version names. See the [plugin API guide](plugin-system.md).
 
 ## Signing and releases
 
@@ -62,7 +62,7 @@ Maintain `app.versionCode`, `app.versionName` and `app.releaseChannel` in `gradl
 
 Store release text in `docs/release-notes/v<version>.md`, with images under `docs/release-notes/images/v<version>/`. Tagged raw URLs keep announcement assets tied to their release. Image-bearing `##` sections become highlight pages; remaining text forms the final page.
 
-Developer tools can preview a draft from the private `release-preview` directory. Debug-only bundled previews use `app/src/debug/assets/release-preview/next-local.md`. Private drafts take precedence. Release builds exclude debug preview assets.
+Local announcement assets live in the Debug-only `app/src/debug/assets/release-preview/` directory. Release builds exclude these assets.
 
 Update checks run silently and report through badges. Users select beta updates in the check dialog or settings. Notes and eligible images are prefetched into local cache; metered-network prefetch stores text only. See [networking](networking.md) for transfer and cache behavior.
 
@@ -84,3 +84,7 @@ Write concise English comments explaining constraints or non-obvious behavior. K
 Before removing code, check call sites, reflection, manifest registrations, persisted formats and plugin bridges. Keep compatibility paths that still read supported user data. Exclude caches, temporary reports and generated build output from the repository.
 
 Additional guides: [website](../site/README.md), [today overview](today-overview.md), [holiday alarm policy](holiday-alarm-policy.md).
+
+Widgets use native `RemoteViews`. Their historical receiver class names remain stable for existing launcher bindings. Shared QR encoding, camera scanning and crop calculations live in `feature-schedule/sharing` and serve both timetable and note import.
+
+Compare APK sizes using the same build type and ABI. Debug is unshrunk; Release uses the existing R8 code and resource shrinking configuration. The difference between these configurations is not a cleanup saving.

@@ -24,8 +24,18 @@ class ExtensionSchedulePlacementTest {
     @Test fun `announcement is on publication date even after being read`() {
         val pair = extensionScheduleItems(data(listOf(item("announcement", done = true))), now, zone).single()
         assertEquals(LocalDate.of(2026, 9, 28), pair.second.date)
-        assertEquals(LocalTime.of(9, 0), pair.second.startTime)
-        assertEquals(LocalTime.of(9, 30), pair.second.endTime)
+        assertEquals(LocalTime.of(16, 0), pair.second.startTime)
+        assertEquals(LocalTime.of(16, 30), pair.second.endTime)
+    }
+
+    @Test fun `evening notices use publication clock in the requested timezone`() {
+        val notice = item("announcement").copy(publishAt = ms("2026-10-07T18:49"))
+        assertEquals(ExtensionSchedulePlacement(LocalDate.of(2026, 10, 7), LocalTime.of(18, 49), LocalTime.of(19, 19)), placed(notice))
+        val utc = placeExtensionItem(notice, ExtensionScheduleSettings(), ZoneId.of("UTC"))!!
+        assertEquals(LocalTime.of(10, 49), utc.startTime)
+        val late = placed(notice.copy(publishAt = ms("2026-10-07T23:59")))
+        assertTrue(late.startTime < late.endTime)
+        assertEquals(LocalDate.of(2026, 10, 7), late.date)
     }
 
     @Test fun `default homework uses deadline and configured duration before it`() {
@@ -98,8 +108,8 @@ class ExtensionSchedulePlacementTest {
     }
 
     @Test fun `invalid default clock and late times still make valid intervals`() {
-        assertEquals(LocalTime.of(9, 0), placed(item("announcement"), ExtensionScheduleSettings(defaultStartTime = "broken")).startTime)
-        val late = placed(item("announcement"), ExtensionScheduleSettings(defaultStartTime = "23:59"))
+        assertEquals(LocalTime.of(9, 0), placed(item("announcement"), ExtensionScheduleSettings(defaultStartTime = "broken", typeRules = mapOf("announcement" to ExtensionScheduleTypeRule(timeMode = ExtensionScheduleTimeMode.Fixed)))).startTime)
+        val late = placed(item("announcement"), ExtensionScheduleSettings(defaultStartTime = "23:59", typeRules = mapOf("announcement" to ExtensionScheduleTypeRule(timeMode = ExtensionScheduleTimeMode.Fixed))))
         assertTrue(late.endTime > late.startTime)
         assertEquals(LocalTime.of(23, 59), late.endTime)
     }

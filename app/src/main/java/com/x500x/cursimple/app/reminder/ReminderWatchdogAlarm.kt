@@ -16,27 +16,38 @@ object ReminderWatchdogAlarm {
     private const val REQUEST_CODE = 0x0C1F
     private const val INTERVAL_MILLIS = 15 * 60 * 1000L
 
+    @Synchronized
     fun ensureScheduled(context: Context) {
-        if (pendingIntent(context, PendingIntent.FLAG_NO_CREATE) != null) return
+        val due = context.getSharedPreferences("reminder_guard_health", Context.MODE_PRIVATE).getLong("next_elapsed", 0L)
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (guardRegistrationFresh(due, now, INTERVAL_MILLIS) && pendingIntent(context, PendingIntent.FLAG_NO_CREATE) != null) return
         scheduleNext(context)
     }
 
+    @Synchronized
     fun scheduleNext(context: Context) {
         val app = context.applicationContext
         val alarmManager = app.getSystemService(AlarmManager::class.java) ?: return
         val operation = pendingIntent(app, PendingIntent.FLAG_UPDATE_CURRENT) ?: return
-        val triggerAt = System.currentTimeMillis() + INTERVAL_MILLIS
+        val triggerAt = android.os.SystemClock.elapsedRealtime() + INTERVAL_MILLIS
         runCatching {
             // Use inexact inspection when exact-alarm access is unavailable.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-                alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
+                alarmManager.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, operation)
             } else {
-                alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, operation)
+                alarmManager.setExactAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, operation)
             }
-        }.onFailure { ReminderLogger.warn("reminder.watchdog.schedule.failure", emptyMap(), it) }
+        }.onSuccess {
+            app.getSharedPreferences("reminder_guard_health", Context.MODE_PRIVATE).edit().putLong("next_elapsed", triggerAt).apply()
+        }.onFailure {
+            operation.cancel()
+            ReminderLogger.warn("reminder.watchdog.schedule.failure", emptyMap(), it)
+        }
     }
 
+    @Synchronized
     fun cancel(context: Context) {
+        context.getSharedPreferences("reminder_guard_health", Context.MODE_PRIVATE).edit().remove("next_elapsed").apply()
         val operation = pendingIntent(context, PendingIntent.FLAG_NO_CREATE) ?: return
         runCatching {
             context.applicationContext.getSystemService(AlarmManager::class.java)?.cancel(operation)
@@ -58,3 +69,5 @@ object ReminderWatchdogAlarm {
         )
     }
 }
+
+internal fun guardRegistrationFresh(due: Long, now: Long, interval: Long): Boolean = due > now && due - now <= interval

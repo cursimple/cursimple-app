@@ -1,6 +1,7 @@
 package com.x500x.cursimple.core.reminder
 
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
+import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
@@ -9,7 +10,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
-import com.x500x.cursimple.core.kernel.model.coursesMovedTo
+import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
 import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
@@ -115,12 +116,12 @@ internal class LabelReminderRuleEvaluator {
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val day = resolveScheduleDay(targetDate, temporaryScheduleOverrides, holidayCalendar)
         val allCourses = schedule.dailySchedules.flatMap { it.courses }
-        val movedIn = coursesMovedTo(
+        val movedIn = coursesMovedToWithOrigin(
             date = targetDate,
             overrides = temporaryScheduleOverrides,
             courseById = { id -> allCourses.firstOrNull { it.id == id } },
             isOriginallyActive = { course, from -> course.isActiveInTermWeek(resolveTermWeek(termStart, from)) },
-        )
+        ).map { (course, origin) -> course.copy(location = course.locationForWeek(resolveTermWeek(termStart, origin))) }
         // Explicit make-up days may override holidays; moved courses still respect holiday and mute policy.
         if (dayPolicy.suppresses(targetDate, day)) {
             return emptyList()
@@ -138,7 +139,7 @@ internal class LabelReminderRuleEvaluator {
                 )?.let { course to it }
             }
             .filter { (course, courseSource) -> course.isActiveInTermWeek(resolveTermWeek(termStart, courseSource)) }
-            .map { (course, _) -> course }
+            .map { (course, source) -> course.copy(location = course.locationForWeek(resolveTermWeek(termStart, source))) }
             .plus(movedIn)
             .filterNot { isCourseTemporarilyCancelled(targetDate, it, temporaryScheduleOverrides) }
             .mapNotNull { course -> course.toDailyObject(timingProfile, targetDate) }

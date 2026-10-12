@@ -52,6 +52,7 @@ class DataStoreUserPreferencesRepository(
 
     override val preferencesFlow: Flow<UserPreferences> = store.data.map { prefs ->
         UserPreferences(
+            pluginTimetableRowVisibility = decodePluginTimetableRows(prefs[KEY_PLUGIN_TIMETABLE_ROWS].orEmpty()),
             themeMode = prefs[KEY_THEME_MODE]
                 ?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.Light,
@@ -425,6 +426,19 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setCourseDragEnabled(enabled: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED] = enabled }
+    }
+
+    override suspend fun setCourseSessionCountIncludeHolidays(include: Boolean) {
+        store.edit { prefs -> prefs[KEY_COURSE_SESSION_COUNT_INCLUDE_HOLIDAYS] = include }
+    }
+
+    override suspend fun setPluginTimetableRowVisible(pluginId: String, rowId: String, visible: Boolean) {
+        require(pluginId.isNotBlank() && rowId.matches(Regex("[A-Za-z0-9_.-]{1,64}")))
+        store.edit { prefs ->
+            val current = decodePluginTimetableRows(prefs[KEY_PLUGIN_TIMETABLE_ROWS].orEmpty())
+            val rows = current[pluginId].orEmpty() + (rowId to visible)
+            prefs[KEY_PLUGIN_TIMETABLE_ROWS] = json.encodeToString(current + (pluginId to rows))
+        }
     }
 
     override suspend fun setSchedulePinchZoomEnabled(enabled: Boolean) {
@@ -1036,6 +1050,7 @@ class DataStoreUserPreferencesRepository(
                 ?.let { raw -> runCatching { WeekStartDay.valueOf(raw) }.getOrNull() }
                 ?: WeekStartDay.Monday,
             courseDragEnabled = this[KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED] ?: false,
+            courseSessionCountIncludeHolidays = this[KEY_COURSE_SESSION_COUNT_INCLUDE_HOLIDAYS] ?: true,
             pinchZoomEnabled = this[KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED] ?: false,
             locationVisible = this[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
@@ -1055,7 +1070,7 @@ class DataStoreUserPreferencesRepository(
             focusNotificationEnabled = this[KEY_CLASS_NOTICE_FOCUS] ?: true,
             skin = this[KEY_CLASS_NOTICE_SKIN]
                 ?.let { runCatching { ClassNoticeSkin.valueOf(it) }.getOrNull() }
-                ?: ClassNoticeSkin.Overlay,
+                ?: ClassNoticeSkin.System,
             animation = this[KEY_CLASS_NOTICE_ANIMATION]
                 ?.let { runCatching { ClassNoticeAnimation.valueOf(it) }.getOrNull() }
                 ?: ClassNoticeAnimation.Slide,
@@ -1126,6 +1141,8 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE)
         remove(KEY_SCHEDULE_DISPLAY_WEEK_START_DAY)
         remove(KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED)
+        remove(KEY_COURSE_SESSION_COUNT_INCLUDE_HOLIDAYS)
+        remove(KEY_PLUGIN_TIMETABLE_ROWS)
         remove(KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
@@ -1217,6 +1234,9 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_WEEK_START_DAY = stringPreferencesKey("schedule_display_week_start_day")
         val KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED =
             booleanPreferencesKey("schedule_display_course_drag_enabled")
+        val KEY_COURSE_SESSION_COUNT_INCLUDE_HOLIDAYS =
+            booleanPreferencesKey("schedule_course_session_count_include_holidays")
+        val KEY_PLUGIN_TIMETABLE_ROWS = stringPreferencesKey("plugin_timetable_row_visibility")
         val KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED =
             booleanPreferencesKey("schedule_display_pinch_zoom_enabled")
         val KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE = booleanPreferencesKey("schedule_display_location_visible")

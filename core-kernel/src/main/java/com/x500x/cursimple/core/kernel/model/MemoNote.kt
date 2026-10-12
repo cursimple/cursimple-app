@@ -21,6 +21,7 @@ data class MemoNote(
     @SerialName("completed") val completed: Boolean = false,
     @SerialName("createdAt") val createdAt: Long = 0L,
     @SerialName("updatedAt") val updatedAt: Long = 0L,
+    @SerialName("sharedOriginId") val sharedOriginId: String? = null,
 ) {
     val dueDateTime: LocalDateTime?
         get() = dueAt?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }

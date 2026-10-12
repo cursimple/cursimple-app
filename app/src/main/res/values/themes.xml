@@ -9,6 +9,28 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
+    <style name="Theme.CurSimple.WidgetCourseDetail" parent="Theme.CurSimple">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowActivityTransitions">false</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
+    <style name="Theme.CurSimple.WidgetQuickEdit" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowCloseOnTouchOutside">false</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.25</item>
+        <item name="android:windowMinWidthMajor">0dp</item>
+        <item name="android:windowMinWidthMinor">0dp</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowActivityTransitions">false</item>
+        <item name="android:windowDisablePreview">true</item>
+    </style>
+
     <style name="Theme.CurSimple.AlarmRinging" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
@@ -20,16 +42,6 @@
     </style>
 
     <!-- Code supplies the rounded Window background; disable default decor, dimming and animations. -->
-    <!-- Transparent lock-screen banner theme; geometry is controlled by ClassNoticeLockActivity. -->
-    <style name="ClassNoticeLockBanner" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/transparent</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowShowWallpaper">true</item>
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:backgroundDimEnabled">false</item>
-        <item name="android:windowElevation">0dp</item>
-    </style>
-
     <style name="ClassNoticeOverlayDialog" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowIsTranslucent">true</item>

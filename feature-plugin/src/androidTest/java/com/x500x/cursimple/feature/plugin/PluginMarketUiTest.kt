@@ -294,23 +294,28 @@ class PluginMarketUiTest {
     }
 
     @Test
-    fun installedComponentHasDetailsWithSizeAndInstallTimeAndSettingsStayReachable() {
+    fun installedComponentCardAndDetailsOpenTheExactComponentHome() {
         val component = repo("qa/component-details", extension = true)
         val installed = record(component).copy(storagePath = context.cacheDir.resolve("qa-component-details").apply {
             mkdirs(); resolve("main.js").writeBytes(ByteArray(2048))
         }.path, installedAt = "2026-10-04T12:30:00+08:00")
+        val opened = mutableListOf<String>()
         val actions = object : ExtensionHostActions {
             override suspend fun loadPackage(record: InstalledPluginRecord) = manifest(extension = true) to ""
             override suspend fun loadUi(record: InstalledPluginRecord): String? = null
             override suspend fun syncNow(record: InstalledPluginRecord) = ExtensionSyncOutcome.Skipped(record.pluginId, "fixture")
             override fun onDataChanged(pluginId: String) {}
-            override fun openFeed(pluginId: String) {}
+            override fun openFeed(pluginId: String) { error("Use the installed record to preserve its identity") }
+            override fun openFeed(record: InstalledPluginRecord) { opened += record.installKey }
         }
         show(
             PluginMarketUiState(componentRepos = listOf(component), installedPlugins = listOf(installed)),
             initialTab = PluginPlatformTab.Extensions,
             extensionActions = actions,
         )
+        compose.onNodeWithTag("component-open:${installed.installKey}").performScrollTo().assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(listOf(installed.installKey), opened) }
+        compose.onNodeWithTag("catalog-installed").assertExists()
         compose.onNodeWithTag("details:${installed.installKey}").performScrollTo().performClick()
         compose.onNodeWithTag("installed-detail").assertExists()
         compose.onNodeWithTag("detail-install-info").assertExists()
@@ -325,10 +330,9 @@ class PluginMarketUiTest {
             java.io.File(context.filesDir, "plugin-detail-install-info.png").outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
         }
 
-        compose.onNodeWithTag("detail-open-settings").performScrollTo().performClick()
-        compose.waitForIdle()
-        compose.onNodeWithTag("installed-detail").assertDoesNotExist()
-        compose.onNodeWithContentDescription(context.getString(R.string.plugin_action_back)).performClick()
+        compose.onNodeWithTag("detail-open-component").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(listOf(installed.installKey, installed.installKey), opened) }
+        // The navigation callback belongs to MainActivity; this standalone screen stays put.
         compose.onNodeWithTag("installed-detail").assertExists()
         compose.onNodeWithTag("detail-back").performClick()
         compose.onNodeWithTag("catalog-installed").assertIsSelected()

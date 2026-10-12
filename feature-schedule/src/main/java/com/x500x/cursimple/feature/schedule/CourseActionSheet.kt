@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Checklist
@@ -62,6 +64,8 @@ internal fun CourseActionSheet(
     onMultiSelect: () -> Unit,
     onDelete: () -> Unit,
     onRestorePlugin: () -> Unit,
+    onAddAtPosition: () -> Unit,
+    position: CourseTimeSlot = course.time,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var confirmDelete by remember { mutableStateOf(false) }
@@ -75,6 +79,7 @@ internal fun CourseActionSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
@@ -85,12 +90,18 @@ internal fun CourseActionSheet(
                 maxLines = 2,
             )
             Text(
-                text = courseActionSubtitle(course),
+                text = courseActionSubtitle(course, position),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.size(8.dp))
 
+            CourseActionRow(
+                icon = Icons.Rounded.Add,
+                title = stringResource(R.string.schedule_course_action_add_at_position),
+                subtitle = stringResource(R.string.schedule_course_action_add_at_position_desc),
+                onClick = onAddAtPosition,
+            )
             CourseActionRow(
                 icon = Icons.Rounded.Edit,
                 title = stringResource(R.string.schedule_action_edit),
@@ -225,12 +236,12 @@ private fun CourseActionRow(
 }
 
 @Composable
-private fun courseActionSubtitle(course: CourseItem): String {
-    val weekday = stringResource(scheduleWeekdayFullRes(course.time.dayOfWeek))
-    val nodes = if (course.time.startNode == course.time.endNode) {
-        stringResource(R.string.schedule_node_single, course.time.startNode)
+private fun courseActionSubtitle(course: CourseItem, position: CourseTimeSlot): String {
+    val weekday = stringResource(scheduleWeekdayFullRes(position.dayOfWeek))
+    val nodes = if (position.startNode == position.endNode) {
+        stringResource(R.string.schedule_node_single, position.startNode)
     } else {
-        stringResource(R.string.schedule_node_range, course.time.startNode, course.time.endNode)
+        stringResource(R.string.schedule_node_range, position.startNode, position.endNode)
     }
     return listOfNotNull(
         "$weekday · $nodes",

@@ -88,6 +88,27 @@ internal class WebLoginCredentialStore(context: Context) {
         editor.apply()
     }
 
+    /**
+     * Record the account last submitted on [host]; true when it differs from a previously recorded
+     * one. Only a hash is kept, so the marker works even when the user declines saving passwords.
+     */
+    fun rememberAccount(pluginId: String, host: String, username: String): Boolean {
+        val key = accountKey(pluginId, host)
+        val marker = accountMarker(username)
+        val previous = prefs.getString(key, null) ?: find(pluginId, host)?.username?.let(::accountMarker)
+        if (previous != marker) prefs.edit().putString(key, marker).apply()
+        return previous != marker
+    }
+
+    fun forgetAccounts(pluginId: String) {
+        val prefix = "$ACCOUNT_PREFIX${pluginId}|"
+        val editor = prefs.edit()
+        prefs.all.keys.filter { it.startsWith(prefix) }.forEach(editor::remove)
+        editor.apply()
+    }
+
+    private fun accountKey(pluginId: String, host: String) = "$ACCOUNT_PREFIX$pluginId|${normalizeHost(host)}"
+
     private fun entryKey(pluginId: String, host: String) = "$ENTRY_PREFIX$pluginId|${normalizeHost(host)}"
 
     private fun neverKey(pluginId: String, host: String) = "$NEVER_PREFIX$pluginId|${normalizeHost(host)}"
@@ -134,6 +155,7 @@ internal class WebLoginCredentialStore(context: Context) {
         const val PREFS_NAME = "plugin_web_credentials"
         private const val ENTRY_PREFIX = "cred|"
         private const val NEVER_PREFIX = "never|"
+        private const val ACCOUNT_PREFIX = "account|"
         private const val KEY_ALIAS = "cursimple_plugin_web_credentials"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
@@ -149,7 +171,10 @@ internal class WebLoginAssist(
     private val allowedHosts: List<String>,
     private val store: WebLoginCredentialStore,
     private val onCaptured: (WebLoginCredential) -> Unit,
+    private val onAccountChanged: (host: String) -> Unit = {},
 ) {
+
+    var suppressAutofill = false
 
     fun install(webView: WebView) {
         webView.addJavascriptInterface(Bridge(webView), BRIDGE_NAME)
@@ -158,11 +183,23 @@ internal class WebLoginAssist(
     fun onPageFinished(webView: WebView, url: String?) {
         val host = hostOf(url) ?: return
         if (!isAllowedHost(url.orEmpty(), allowedHosts)) return
-        val saved = store.find(pluginId, host)
+        val saved = if (suppressAutofill) null else store.find(pluginId, host)
         webView.evaluateJavascript(webLoginAssistScript(host, saved), null)
     }
 
     private inner class Bridge(private val webView: WebView) {
+        /** Clear other portal sessions while the user moves from username to password. */
+        @JavascriptInterface
+        fun onAccountInput(host: String?, username: String?) {
+            val reportedHost = normalizeHost(host.orEmpty())
+            val user = username.orEmpty().trim()
+            if (reportedHost.isBlank() || user.isBlank() || user.length > MAX_FIELD_CHARS) return
+            webView.post {
+                val currentHost = hostOf(webView.url) ?: return@post
+                if (currentHost != reportedHost || !isAllowedHost(webView.url.orEmpty(), allowedHosts)) return@post
+                if (store.rememberAccount(pluginId, currentHost, user)) onAccountChanged(currentHost)
+            }
+        }
         /** Accept credential reports only from the current allowlisted top-level host. */
         @JavascriptInterface
         fun onLoginSubmit(host: String?, username: String?, password: String?) {
@@ -174,6 +211,7 @@ internal class WebLoginAssist(
                 val currentHost = hostOf(webView.url) ?: return@post
                 if (currentHost != reportedHost) return@post
                 if (!isAllowedHost(webView.url.orEmpty(), allowedHosts)) return@post
+                if (store.rememberAccount(pluginId, currentHost, user)) onAccountChanged(currentHost)
                 if (store.isNeverSave(pluginId, currentHost)) return@post
                 val saved = store.find(pluginId, currentHost)
                 if (saved != null && saved.username == user && saved.password == pass) return@post
@@ -192,6 +230,13 @@ private fun hostOf(url: String?): String? =
     runCatching { Uri.parse(url.orEmpty()).host }.getOrNull()
         ?.let(::normalizeHost)
         ?.takeIf(String::isNotBlank)
+
+/** SHA-256 of the account name; the name itself is never stored. */
+internal fun accountMarker(username: String): String {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+        .digest(username.trim().toByteArray(Charsets.UTF_8))
+    return digest.joinToString("") { "%02x".format(it) }
+}
 
 private fun normalizeHost(host: String): String = host.trim().trimEnd('.').lowercase(Locale.ROOT)
 
@@ -265,6 +310,22 @@ internal fun webLoginAssistScript(host: String, saved: WebLoginCredential?): Str
               if (!user || user.value === currentSaved.u) { setValue(pwd, currentSaved.p); }
             }
             state.fill = function (value) { currentSaved = value; fillNow(); };
+            // Typing another account must not submit the saved account's password.
+            document.addEventListener("input", function (event) {
+              var pwd = passwordField();
+              if (!currentSaved || !pwd || !pwd.__cursimpleFilled || event.target === pwd) { return; }
+              var user = usernameField(pwd);
+              if (event.target === user && user.value !== currentSaved.u && pwd.value === currentSaved.p) {
+                setValue(pwd, "");
+              }
+            }, true);
+            document.addEventListener("focusout", function (event) {
+              var pwd = passwordField();
+              if (!pwd) { return; }
+              var user = usernameField(pwd);
+              if (event.target !== user || !user.value) { return; }
+              try { window.${WebLoginAssist.BRIDGE_NAME}.onAccountInput(location.hostname, user.value); } catch (e) {}
+            }, true);
             function report(root) {
               var pwd = passwordField(root) || passwordField();
               if (!pwd || !pwd.value) { return; }

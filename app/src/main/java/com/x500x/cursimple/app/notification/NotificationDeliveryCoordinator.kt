@@ -127,7 +127,8 @@ class NotificationDeliveryCoordinator(
             "notification.test" -> lock(record.pluginId).withLock {
                 val targetId = (payload["targetId"] as? JsonPrimitive)?.contentOrNull ?: error("请选择通知目标")
                 val target = secure.read(record.pluginId).targets.firstOrNull { it.id == targetId } ?: error("请先保存绑定")
-                val event = OutboundNotification("test/${UUID.randomUUID()}", "test", "课简通知测试", "这是一条连接测试消息。收到它表示当前目标已接入。", "cursimple", "课简")
+                val content = notificationTestContent(payload)
+                val event = OutboundNotification("test/${UUID.randomUUID()}", "test", content.title, content.body, "cursimple", "课简")
                 outbox.enqueue(record.pluginId, event, listOf(target.copy(enabled = true, kinds = emptySet())))
                 val delivery = outbox.begin(record.pluginId, event.id, System.currentTimeMillis()) ?: error("测试发送未启动")
                 runDelivery(record, manifest, entry, delivery)
@@ -193,7 +194,11 @@ class NotificationDeliveryCoordinator(
                     }
                 }
                 outbox.receipt(record.pluginId, delivery.notification.id, NotificationReceipt(requireNotNull(targetId), requireNotNull(status),
-                    (payload["error"] as? JsonPrimitive)?.contentOrNull.orEmpty()))
+                    (payload["error"] as? JsonPrimitive)?.contentOrNull.orEmpty(),
+                    retryAt = if (status == "failed") {
+                        (payload["retryAt"] as? JsonPrimitive)?.contentOrNull?.toLongOrNull()
+                            ?.coerceIn(0L, System.currentTimeMillis() + 3_600_000L) ?: 0L
+                    } else 0L))
                 true
             },
             onSession = session@{ payload -> configLock.withLock {

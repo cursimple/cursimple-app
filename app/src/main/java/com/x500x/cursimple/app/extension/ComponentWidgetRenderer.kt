@@ -18,6 +18,8 @@ import com.x500x.cursimple.feature.plugin.extension.ExtensionData
 import kotlinx.serialization.json.Json
 import com.x500x.cursimple.feature.widget.ComponentWidgetHit
 import com.x500x.cursimple.feature.widget.ComponentWidgetRender
+import kotlinx.coroutines.flow.first
+import com.x500x.cursimple.feature.plugin.extension.componentTheme
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -36,6 +38,13 @@ internal object ComponentWidgetRenderer {
         data: ExtensionData, definition: ComponentWidgetDefinition, width: Float, height: Float): ComponentWidgetRender {
         val store = PluginFileStore(context)
         val html = withContext(Dispatchers.IO) { store.loadExtensionUi(record, definition.spec.entry) }
+        val preferences = com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository(context).preferencesFlow.first()
+        val dark = when (preferences.themeMode) {
+            com.x500x.cursimple.core.data.ThemeMode.Dark -> true
+            com.x500x.cursimple.core.data.ThemeMode.Light -> false
+            com.x500x.cursimple.core.data.ThemeMode.System -> (context.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        }
+        val theme = componentTheme(com.x500x.cursimple.app.theme.appColorScheme(preferences.themeAccent, dark, preferences.themeCustomColorArgb))
         return withTimeout(12_000) { withContext(Dispatchers.Main) {
             val token = UUID.randomUUID().toString()
             val ready = CompletableDeferred<String>()
@@ -46,6 +55,7 @@ internal object ComponentWidgetRenderer {
             val state = JSONObject(codec.encodeToString(ExtensionData.serializer(), data)).apply {
                 put("manifest", JSONObject(codec.encodeToString(PluginManifest.serializer(), manifest)))
                 put("context", JSONObject().put("width", width).put("height", height).put("widgetId", definition.spec.id)
+                    .put("theme", JSONObject(theme.toString()))
                     .put("fontScale", context.resources.configuration.fontScale)
                     .put("language", context.resources.configuration.locales[0].toLanguageTag())
                     .put("timeZone", com.x500x.cursimple.core.kernel.time.BeijingTime.zone.id)

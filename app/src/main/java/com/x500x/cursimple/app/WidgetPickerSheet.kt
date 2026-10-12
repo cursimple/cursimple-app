@@ -6,6 +6,8 @@ import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
@@ -148,6 +151,7 @@ fun WidgetPickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -580,16 +584,24 @@ private fun WidgetPickerRow(
         else -> Icons.Rounded.Widgets
     }
     var preview by remember(entry.componentWidgetKey) { mutableStateOf<android.graphics.Bitmap?>(null) }
-    // Render component previews from the owner's HTML so the picker shows real content.
-    LaunchedEffect(entry.componentWidgetKey) {
-        val key = entry.componentWidgetKey ?: return@LaunchedEffect
-        preview = runCatching {
-            val definition = com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.read(context)
-                .firstOrNull { it.key == key } ?: return@runCatching null
-            val render = com.x500x.cursimple.feature.widget.ComponentWidgetHooks.render ?: return@runCatching null
-            render(definition, 180f, 96f).bitmap
-        }.getOrNull()
+    var previewFailed by remember(entry.componentWidgetKey) { mutableStateOf(false) }
+    var previewAttempt by remember(entry.componentWidgetKey) { mutableStateOf(0) }
+    val colors = MaterialTheme.colorScheme
+    val definition = entry.componentWidgetKey?.let { key ->
+        com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry.read(context).firstOrNull { it.key == key }
     }
+    LaunchedEffect(definition, colors, previewAttempt) {
+        if (definition == null) return@LaunchedEffect
+        previewFailed = false
+        preview = null
+        try {
+            val render = com.x500x.cursimple.feature.widget.ComponentWidgetHooks.render ?: error("Renderer unavailable")
+            preview = render(definition, 330f, 148f).bitmap
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) { previewFailed = true }
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -598,50 +610,43 @@ private fun WidgetPickerRow(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(16.dp),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (preview != null) {
-                androidx.compose.foundation.Image(
-                    bitmap = preview!!.asImageBitmap(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(width = 60.dp, height = 40.dp)
-                        .clip(RoundedCornerShape(8.dp)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(20.dp),
-                    )
+        Column {
+            if (entry.componentWidgetKey != null) {
+                Box(Modifier.fillMaxWidth().padding(12.dp).aspectRatio(330f / 148f).clip(RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
+                    val bitmap = preview
+                    if (bitmap != null) {
+                        androidx.compose.foundation.Image(bitmap.asImageBitmap(), contentDescription = entry.title,
+                            modifier = Modifier.fillMaxSize().testTag("widget-preview-${entry.componentWidgetKey}"), contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+                    } else if (previewFailed) {
+                        AppOutlinedButton(onClick = { previewAttempt++ }) { Text(stringResource(R.string.widget_preview_retry)) }
+                    } else {
+                        androidx.compose.material3.CircularProgressIndicator(Modifier.size(28.dp))
+                    }
                 }
             }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = entry.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = entry.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = entry.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = entry.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                TrailingStatus(installed = installed, installedCount = installedCount)
             }
-            Spacer(Modifier.width(8.dp))
-            TrailingStatus(installed = installed, installedCount = installedCount)
         }
     }
 }
@@ -659,7 +664,7 @@ private fun ManualAddGuideDialog(
         stringResource(R.string.widget_manual_step2),
         stringResource(R.string.widget_manual_step3),
         if (entry.fromComponents) stringResource(R.string.widget_manual_component_step4,
-            stringResource(com.x500x.cursimple.feature.widget.R.string.widget_label_tasks), entry.title)
+            stringResource(com.x500x.cursimple.feature.widget.R.string.component_widget_slot_label), entry.title)
         else stringResource(R.string.widget_manual_step4, entry.title),
     )
     val vendorGuide = widgetVendorGuide(vendor)

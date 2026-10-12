@@ -117,11 +117,18 @@ internal object CalendarWidgetRenderer {
             canvas.drawRoundRect(RectF(gutter + index * colW + 1 * px, 0f, gutter + (index + 1) * colW - 1 * px, h), 8 * px, 8 * px, fill)
         }
 
+        week.currentRows.filter { it in week.rows.indices }.forEach { index ->
+            fill.color = withAlpha(accent, 0x1F)
+            val top = header + index * rowH
+            canvas.drawRoundRect(RectF(0f, top + px, w, top + rowH - px), 8 * px, 8 * px, fill)
+        }
+
         val line = Paint().apply { color = GRID_LINE; strokeWidth = max(1f, 0.6f * px) }
         week.rows.forEachIndexed { index, row ->
             val top = header + index * rowH
             if (index > 0) canvas.drawLine(gutter, top, w, top, line)
-            drawRowLabel(canvas, row, RectF(0f, top, gutter, top + rowH), px)
+            drawRowLabel(canvas, row, RectF(0f, top, gutter, top + rowH), px,
+                if (index in week.currentRows) accentText else TEXT_SECONDARY, index in week.currentRows)
         }
 
         val weekdayPaint = textPaint(9f * px, TEXT_SECONDARY, bold = false).apply { textAlign = Paint.Align.CENTER }
@@ -169,6 +176,18 @@ internal object CalendarWidgetRenderer {
                 )
                 if (rect.height() <= 0f || rect.width() <= 0f) return@forEach
                 drawCourseBlock(canvas, rect, block, px)
+                // Opaque course cards cover the bands; outline the intersection so it stays visible.
+                if (week.days[index].isToday && !block.inactive && week.currentRows.any { it in span }) {
+                    val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = 1.6f * px
+                        color = accentText
+                    }
+                    // Keep the red exam border visible inside the active-course outline.
+                    val inset = if (block.isExam) -0.4f * px else stroke.strokeWidth / 2f
+                    canvas.drawRoundRect(RectF(rect.left + inset, rect.top + inset, rect.right - inset, rect.bottom - inset),
+                        6 * px, 6 * px, stroke)
+                }
             }
         }
 
@@ -182,18 +201,18 @@ internal object CalendarWidgetRenderer {
      * Wrap labels before shrinking to [GUTTER_LABEL_MIN_DP]; add start time only if height
      * permits.
      */
-    private fun drawRowLabel(canvas: Canvas, row: CalendarRow, cell: RectF, px: Float) {
+    private fun drawRowLabel(canvas: Canvas, row: CalendarRow, cell: RectF, px: Float, color: Int, active: Boolean) {
         val width = (cell.width() - 3f * px).toInt()
         if (width <= 2 || cell.height() <= 2f) return
         var size = GUTTER_LABEL_DP
-        var paint = textPaint(size * px, TEXT_SECONDARY, bold = false)
+        var paint = textPaint(size * px, color, bold = active)
         var layout = centeredLayout(row.label, paint, width, maxLinesFor(cell.height(), paint).coerceAtLeast(1))
         while (layout.isTruncated() && size > GUTTER_LABEL_MIN_DP) {
             size = (size - 0.5f).coerceAtLeast(GUTTER_LABEL_MIN_DP)
-            paint = textPaint(size * px, TEXT_SECONDARY, bold = false)
+            paint = textPaint(size * px, color, bold = active)
             layout = centeredLayout(row.label, paint, width, maxLinesFor(cell.height(), paint).coerceAtLeast(1))
         }
-        val timePaint = textPaint(GUTTER_TIME_DP * px, withAlpha(TEXT_SECONDARY, 0xB3), bold = false)
+        val timePaint = textPaint(GUTTER_TIME_DP * px, withAlpha(color, 0xB3), bold = active)
         val showTime = row.startTime.isNotBlank() &&
             cell.height() - layout.height >= timePaint.fontSpacing + 2f * px &&
             timePaint.measureText(row.startTime) <= width

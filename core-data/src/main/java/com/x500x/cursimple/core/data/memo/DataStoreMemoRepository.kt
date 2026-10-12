@@ -48,6 +48,45 @@ class DataStoreMemoRepository(
         }
     }
 
+    /** Read and complete in one transaction, preserving current metadata and other notes. */
+    suspend fun completeTodo(noteId: String, lineIndex: Int?, expectedRevision: String): Boolean {
+        var changed = false
+        store.edit { prefs ->
+            val current = decode(prefs)
+            val note = current.firstOrNull { it.id == noteId } ?: return@edit
+            val completed = completedMemoTodo(note, lineIndex, expectedRevision, System.currentTimeMillis())
+                ?: return@edit
+            prefs[KEY_NOTES] = json.encodeToString(serializer, current.map { if (it.id == noteId) completed else it })
+            changed = true
+        }
+        return changed
+    }
+
+    suspend fun saveTodoEdit(original: MemoNote, lineIndex: Int?, draft: MemoTodoEditDraft): MemoTodoEditResult {
+        var result = MemoTodoEditResult.Missing
+        store.edit { prefs ->
+            val current = decode(prefs)
+            val latest = current.firstOrNull { it.id == original.id } ?: return@edit
+            val edited = editedMemoTodo(latest, original, lineIndex, draft, System.currentTimeMillis())
+            if (edited == null) { result = MemoTodoEditResult.Conflict; return@edit }
+            prefs[KEY_NOTES] = json.encodeToString(serializer, current.map { if (it.id == original.id) edited else it })
+            result = MemoTodoEditResult.Saved
+        }
+        return result
+    }
+
+    override suspend fun importNotes(notes: List<MemoNote>): Int {
+        var added = 0
+        store.edit { prefs ->
+            val current = decode(prefs)
+            val ids = current.mapTo(mutableSetOf()) { it.id }
+            val incoming = notes.filter { ids.add(it.id) }
+            added = incoming.size
+            if (incoming.isNotEmpty()) prefs[KEY_NOTES] = json.encodeToString(serializer, current + incoming)
+        }
+        return added
+    }
+
     suspend fun exportBackupSnapshot(): PreferencesStoreSnapshot =
         store.exportSnapshot(AppBackupStores.MEMOS)
 

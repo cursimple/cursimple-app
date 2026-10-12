@@ -190,6 +190,7 @@ class ReminderPlanner {
             .toInstant()
             .toEpochMilli()
         val titleContent = buildTitleContent(course, slot, rule.advanceMinutes, titlePeriod)
+            .copy(dayOfWeek = courseDate.dayOfWeek.value)
         val messageContent = buildMessageContent(course, courseDate, slot)
         return ReminderPlan(
             planId = "${rule.ruleId}_${course.id}_$trigger",
@@ -226,7 +227,7 @@ class ReminderPlanner {
     ): ReminderNotificationMessage = ReminderNotificationMessage(
         month = courseDate.monthValue,
         dayOfMonth = courseDate.dayOfMonth,
-        dayOfWeek = course.time.dayOfWeek,
+        dayOfWeek = courseDate.dayOfWeek.value,
         startTime = slot.startTime,
         endTime = slot.endTime,
         startNode = course.time.startNode,

@@ -76,7 +76,7 @@ fun placeExtensionItem(
     fun minute(time: LocalTime) = time.hour * 60 + time.minute
     val start = item.startAt?.let { Instant.ofEpochMilli(it).atZone(zone) }
     val due = item.dueAt?.let { Instant.ofEpochMilli(it).atZone(zone) }
-    val useSource = rule.timeMode == ExtensionScheduleTimeMode.Source && !item.isNotice()
+    val useSource = rule.timeMode == ExtensionScheduleTimeMode.Source
     val selectedDate = anchor.toLocalDate()
     val (from, until) = when {
         useSource && start != null && due != null && start.toLocalDate() == selectedDate &&
@@ -87,7 +87,7 @@ fun placeExtensionItem(
             if (end > 0) (end - duration).coerceAtLeast(0) to end
             else 0 to duration
         }
-        useSource && source == item.startAt -> {
+        useSource -> {
             val begin = minute(anchor.toLocalTime()).coerceAtMost(lastMinute - 1)
             begin to (begin + duration).coerceAtMost(lastMinute)
         }

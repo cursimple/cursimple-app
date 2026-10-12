@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,7 +59,7 @@ fun BulkReminderDialog(
         shape = RoundedCornerShape(24.dp),
         title = { Text(stringResource(if (containsExam) R.string.schedule_bulk_reminder_exam_title else R.string.schedule_bulk_reminder_title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
                     text = if (containsExam) {
                         pluralStringResource(R.plurals.schedule_bulk_reminder_body_exam, selectedCount, selectedCount)
@@ -73,7 +74,13 @@ fun BulkReminderDialog(
                     onValueChange = { advanceMinutesText = it.filter(Char::isDigit).take(4) },
                     label = { Text(stringResource(R.string.schedule_advance_minutes_label)) },
                     singleLine = true,
+                    isError = advanceMinutesText.isNotBlank() && !canSave,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    supportingText = {
+                        if (advanceMinutesText.isNotBlank() && !canSave) {
+                            Text(stringResource(R.string.schedule_advance_minutes_error))
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                 )
                 AlarmRingtoneSelector(
@@ -95,7 +102,7 @@ fun BulkReminderDialog(
             ) { Text(stringResource(R.string.schedule_action_create)) }
         },
         dismissButton = {
-            AppOutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.schedule_action_cancel)) }
+            AppOutlinedButton(onClick = onDismiss) { AppAtomicText(stringResource(R.string.schedule_action_cancel)) }
         },
     )
 }

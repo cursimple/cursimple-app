@@ -63,6 +63,17 @@ class ReleasePrefetchTest {
         assertNull(cache.read("v1.0.1"))
     }
 
+    @Test fun `changing announcement language never reads another language cache`() {
+        val cache = ReleaseNotesCache(folder.newFolder())
+        cache.write("v1", "# 中文")
+        assertNull(cache.read("v1", "en"))
+        cache.write("v1", "# English", "en")
+        cache.write("v1", "# 繁體", "zh-TW")
+        assertEquals("# 中文", cache.read("v1", "zh-CN"))
+        assertEquals("# English", cache.read("v1", "en"))
+        assertEquals("# 繁體", cache.read("v1", "zh-TW"))
+    }
+
     @Test
     fun `cache keeps only the most recent versions`() {
         val dir = folder.newFolder()

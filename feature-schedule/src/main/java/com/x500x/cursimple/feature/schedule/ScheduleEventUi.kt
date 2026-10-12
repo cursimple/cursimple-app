@@ -338,6 +338,8 @@ internal fun ScheduleEventEditorDialog(
     onDismiss: () -> Unit,
     onSave: (ScheduleEvent) -> Unit,
 ) {
+    val reuse = rememberCourseReuseValues(emptyList())
+    val locationOptions = remember(reuse.locations) { reuse.locations.map { CourseReuseOption(it) } }
     val zone = com.x500x.cursimple.feature.schedule.time.LocalAppZone.current
     val now = remember(zone) { com.x500x.cursimple.core.kernel.time.BeijingTime.nowTimeIn(zone) }
     val defaultStart = remember { LocalTime.of((now.hour + 1).coerceAtMost(22), 0) }
@@ -485,12 +487,12 @@ internal fun ScheduleEventEditorDialog(
                         }
                     }
                 }
-                OutlinedTextField(
+                CourseReuseTextField(
                     value = location,
-                    onValueChange = { location = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.schedule_event_field_location)) },
+                    onChange = { location = it },
+                    label = stringResource(R.string.schedule_event_field_location),
+                    options = locationOptions,
+                    tag = "event-location",
                 )
                 OutlinedTextField(
                     value = note,

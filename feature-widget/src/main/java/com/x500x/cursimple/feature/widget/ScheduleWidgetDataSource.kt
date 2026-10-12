@@ -246,9 +246,12 @@ internal object ScheduleWidgetDataSource {
     ): ScheduleWidgetCourseRow {
         val nodeRange = context.widgetNodeRangeText(time.startNode, time.endNode)
         val timeRange = timingProfile?.courseClockRange(this) ?: nodeRange
-        val subtitle = listOf(location, teacher)
+        val subtitle = listOf(
+            location.ifBlank { context.getString(R.string.widget_location_unset) },
+            teacher.ifBlank { context.getString(R.string.widget_teacher_unset) },
+        )
             .filter { it.isNotBlank() }
-            .joinToString(" · ")
+            .joinToString("\n")
             .ifBlank { context.getString(R.string.widget_course_subtitle_placeholder) }
         return ScheduleWidgetCourseRow(
             id = id,

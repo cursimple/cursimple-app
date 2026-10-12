@@ -119,9 +119,9 @@
     <string name="widget_diag_pin_ignored">系统声明支持，但这家桌面不响应（已改为手动添加）</string>
 
     <string name="calendar_widget_description">课简 · 课程日历</string>
-    <string name="tasks_widget_description">由已安装并启用的组件提供界面和内容</string>
     <string name="widget_label_calendar">课程日历</string>
     <string name="widget_label_tasks">组件提供的小组件</string>
+    <string name="component_widget_slot_label">课简组件</string>
     <string name="widget_catalog_calendar_description">周课表与月历两种视图，点某一天直接打开那天的课程</string>
     <string name="widget_catalog_tasks_description">选择组件声明的小组件，界面和内容由组件管理</string>
     <string name="widget_background_image_error">背景图片无法读取</string>
@@ -158,13 +158,27 @@
     <string name="widget_page_prev">往前翻</string>
     <string name="widget_page_next">往后翻</string>
     <string name="widget_label_memo">笔记待办</string>
-    <string name="widget_catalog_memo_description">把笔记中的未完成待办放到桌面，点开直接查看对应笔记</string>
+    <string name="widget_catalog_memo_description">笔记待办放到桌面，点勾选框完成，点内容直接编辑</string>
     <string name="widget_memo_empty">待办都完成了
 在备忘录里记下下一件事</string>
     <string name="widget_memo_notebook_other">其他笔记</string>
     <string name="widget_memo_pending">待办</string>
-    <string name="widget_memo_subtitle">笔记里的未完成事项</string>
+    <string name="widget_memo_subtitle">点勾选框完成 · 点内容编辑</string>
     <string name="widget_memo_count">%1$d 项待办</string>
+    <string name="widget_memo_pinned">已置顶</string>
+    <string name="widget_memo_priority_badge_high">高</string>
+    <string name="widget_memo_priority_badge_medium">中</string>
+    <string name="widget_memo_priority_badge_low">低</string>
+    <string name="widget_memo_priority_high">高优先级</string>
+    <string name="widget_memo_priority_medium">中优先级</string>
+    <string name="widget_memo_priority_low">低优先级</string>
     <string name="component_widget_unavailable">组件小组件暂不可用，请打开课简检查组件</string>
-    <string name="component_widget_choose">选择组件的小组件</string>
+    <string name="widget_location_unset">地点未设置</string>
+    <string name="widget_teacher_unset">教师未设置</string>
+    <string name="widget_memo_complete_action">完成待办：%1$s</string>
+    <string name="widget_memo_edit_action">编辑笔记：%1$s</string>
+    <string name="widget_memo_changed">待办内容已变化，已刷新，请重试</string>
+    <string name="widget_memo_save_failed">保存失败，请稍后重试</string>
+    <string name="widget_memo_add_action">添加待办</string>
+    <string name="widget_memo_empty_compact">点＋添加待办</string>
 </resources>
