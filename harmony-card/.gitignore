@@ -1,9 +1,0 @@
-.hvigor/
-.ohpm/
-oh_modules/
-local.properties
-signing-configs/
-*.p12
-*.p7b
-*.cer
-**/build/
