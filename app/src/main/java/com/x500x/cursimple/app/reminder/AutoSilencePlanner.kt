@@ -17,6 +17,7 @@ import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
+import com.x500x.cursimple.core.kernel.model.typedClock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -206,8 +207,9 @@ private data class ClassInterval(val start: LocalTime, val end: LocalTime)
 private fun ClassInterval.toBlockOn(date: LocalDate): ClassBlock =
     ClassBlock(start = LocalDateTime.of(date, start), end = LocalDateTime.of(date, end))
 
-/** Prefer timing-profile slots, falling back to course reminder times. */
+/** Typed course times first, then timing-profile slots, then any lone reminder times. */
 private fun CourseItem.classInterval(timingProfile: TermTimingProfile): ClassInterval? {
+    typedClock()?.let { (start, end) -> return ClassInterval(start = start, end = end) }
     val start = timingProfile.slotContaining(time.startNode)?.let { parseLocalTime(it.startTime) }
         ?: reminderStartTime?.let(::parseLocalTime)
         ?: return null

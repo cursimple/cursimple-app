@@ -380,6 +380,8 @@ fun ScheduleScreen(
                 onSaveEvent(it)
                 eventEditing = null
             },
+            termStartDate = overrideTermStart,
+            maxWeekCount = termWeekCount ?: DEFAULT_TERM_WEEK_COUNT,
         )
     }
     var pendingReminderCourse by remember { mutableStateOf<CourseItem?>(null) }
@@ -418,9 +420,10 @@ fun ScheduleScreen(
     val now by remember(zone, overviewActive) {
         kotlinx.coroutines.flow.flow {
             do {
-                emit(BeijingTime.nowDateTimeIn(zone))
+                val current = BeijingTime.nowDateTimeIn(zone)
+                emit(current)
                 if (!overviewActive) break
-                kotlinx.coroutines.delay(30_000L)
+                kotlinx.coroutines.delay(millisToNextMinute(current))
             } while (true)
         }
     }.collectAsStateWithLifecycle(initialValue = BeijingTime.nowDateTimeIn(zone))
@@ -806,6 +809,7 @@ fun ScheduleScreen(
                 slotLabel = state.timingProfile?.slotTimes?.firstOrNull {
                     it.startNode == position.startNode && it.endNode == position.endNode
                 }?.label?.takeIf { it.isNotBlank() },
+                slotTimes = state.timingProfile?.slotTimes.orEmpty(),
                 onDismiss = { quickAddRequest = null },
                 onConfirm = { added ->
                     onAddManualCourse(added)
@@ -825,6 +829,7 @@ fun ScheduleScreen(
                 maxNodeCount = maxNodeCount,
                 maxWeekCount = editableMaxWeek,
                 initial = course,
+                slotTimes = state.timingProfile?.slotTimes.orEmpty(),
             )
         }
 
@@ -1726,12 +1731,18 @@ private fun DayList(
     onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
 ) {
     val dayEvents = remember(events, targetDate) { events.occurrencesOn(targetDate) }
-    val timedOrder = remember(slots, dayEvents) {
+    val timedOrder = remember(slots, dayEvents, courses) {
         val slotKeys = slots.mapIndexed { index, slot ->
             (clockMinute(slot.startTime) ?: (24 * 60 + index)) to slot
         }
         val eventKeys = dayEvents.map { (it.startMinute ?: 0) to it }
-        (slotKeys + eventKeys).sortedWith(compareBy({ it.first }, { if (it.second is ScheduleEvent) 1 else 0 }))
+        // Typed-time courses get their own row at their minute, labelled with that time.
+        val typedKeys = courses.mapNotNull { course ->
+            val clock = course.clockRange() ?: return@mapNotNull null
+            clock.start to DisplaySlot(course.time.startNode, course.time.endNode, "",
+                minuteText(clock.start), minuteText(clock.end)) to course
+        }.groupBy({ it.first }, { it.second }).map { (key, list) -> key.first to TypedDayRow(key.second, list) }
+        (slotKeys + typedKeys + eventKeys).sortedWith(compareBy({ it.first }, { if (it.second is ScheduleEvent) 1 else 0 }))
             .map { it.second }
     }
     Column(
@@ -1751,12 +1762,13 @@ private fun DayList(
                 )
                 return@forEach
             }
-            val slot = item as DisplaySlot
-            val coursesInSlot = courses.filter { course ->
-                course.time.startNode <= slot.endNode && course.time.endNode >= slot.startNode
+            val typed = item as? TypedDayRow
+            val slot = typed?.slot ?: item as DisplaySlot
+            val coursesInSlot = typed?.courses ?: courses.filter { course ->
+                course.clockRange() == null && course.time.startNode <= slot.endNode && course.time.endNode >= slot.startNode
             }
             // Draw a spanning course only where its first slot begins.
-            val starting = coursesInSlot.filter { it.time.startNode in slot.startNode..slot.endNode }
+            val starting = if (typed != null) coursesInSlot else coursesInSlot.filter { it.time.startNode in slot.startNode..slot.endNode }
             if (starting.isEmpty()) {
                 return@forEach
             }
@@ -2020,11 +2032,14 @@ private fun DayRow(
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text(
-                            text = stringResource(R.string.schedule_period_compact, course.time.startNode),
-                            color = onColor,
-                            fontSize = 12.sp,
-                        )
+                        // Typed-time courses are labelled by their clock time on the rail instead.
+                        if (course.clockRange() == null) {
+                            Text(
+                                text = stringResource(R.string.schedule_period_compact, course.time.startNode),
+                                color = onColor,
+                                fontSize = 12.sp,
+                            )
+                        }
                         if (hasReminderForCourse(course, reminderRules, timingProfile)) {
                             Icon(
                                 imageVector = Icons.Rounded.Notifications,
@@ -2417,7 +2432,8 @@ private fun ScheduleGrid(
 ) {
     val cellGroups = remember(activeEntries) {
         activeEntries
-            .groupBy { it.placement.dayIndex to it.placement.rowIndex }
+            // Typed-time courses get their own card instead of joining the period cell.
+            .groupBy { Triple(it.placement.dayIndex, it.placement.rowIndex, it.course.clockRange()) }
             .map { (_, list) ->
                 val main = list.first()
                 val sorted = list.map { it.course }.distinctBy { it.id }
@@ -2430,14 +2446,14 @@ private fun ScheduleGrid(
     }
     val dayColumnCount = visibleDays.size.coerceAtLeast(1)
     val dayEvents = remember(events, visibleDays) { visibleDays.map { events.occurrencesOn(it.date) } }
-    val timeline = remember(slots, dayEvents) {
+    val timeline = remember(slots, dayEvents, activeEntries) {
         GridTimeline.build(
             slots = slots.map { it.clock() },
             events = dayEvents.flatten().mapNotNull { event ->
                 val start = event.startMinute ?: return@mapNotNull null
                 val end = event.endMinute ?: return@mapNotNull null
                 MinuteRange(start, end)
-            },
+            } + activeEntries.mapNotNull { it.course.clockRange() },
         )
     }
     val rows = timeline.rows
@@ -2541,13 +2557,15 @@ private fun ScheduleGrid(
                 }
             }
         }
-        val lanes = remember(cellGroups, dayEventGroups, timeline) {
+        val lanes = remember(cellGroups, dayEventGroups, timeline, minEventUnits) {
             val items = cellGroups.map { (entry, _, _) ->
                 val p = entry.placement
+                val clock = entry.course.clockRange()
+                val (top, bottom) = timeline.courseSpan(p.rowIndex, p.rowSpan, clock, minEventUnits)
                 LaneItem<Any>(
-                    key = p.dayIndex to p.rowIndex,
-                    top = timeline.slotTop(p.rowIndex),
-                    bottom = timeline.slotBottom(p.rowIndex + p.rowSpan - 1),
+                    key = Triple(p.dayIndex, p.rowIndex, clock),
+                    top = top,
+                    bottom = bottom,
                     order = 0,
                 ) to p.dayIndex
             } + dayEventGroups.flatMapIndexed { dayIndex, groups ->
@@ -2569,7 +2587,7 @@ private fun ScheduleGrid(
             lanes.forEach { (key, position) ->
                 val day = when (key) {
                     is EventLaneKey -> key.dayIndex
-                    is Pair<*, *> -> key.first as? Int
+                    is Triple<*, *, *> -> key.first as? Int
                     else -> null
                 } ?: return@forEach
                 if (day in laneCounts.indices) laneCounts[day] = maxOf(laneCounts[day], position.laneCount)
@@ -2834,10 +2852,10 @@ private fun ScheduleGrid(
                             val course = mainEntry.course
                             val columnDate = visibleDays.getOrNull(placement.dayIndex)?.date ?: week.weekStart
                             val isMultiSelected = course.id in multiSelectedIds
-                            val courseTop = timeline.slotTop(placement.rowIndex)
-                            val courseBottom = timeline.slotBottom(placement.rowIndex + placement.rowSpan - 1)
+                            val clock = course.clockRange()
+                            val (courseTop, courseBottom) = timeline.courseSpan(placement.rowIndex, placement.rowSpan, clock, minEventUnits)
                             val courseHeight = slotHeight * (courseBottom - courseTop) - 3.dp
-                            val lane = lanes[placement.dayIndex to placement.rowIndex] ?: LanePosition(0, 1)
+                            val lane = lanes[Triple(placement.dayIndex, placement.rowIndex, clock)] ?: LanePosition(0, 1)
                             val (laneStart, laneSpan) = laneFraction(lane)
                             val colWidth = columnWidth(placement.dayIndex)
                             val isDragging = course.id == draggingCourseId
@@ -2878,10 +2896,11 @@ private fun ScheduleGrid(
                                         onCourseLongClick(course, columnDate)
                                     }
                                 },
-                                dragEnabled = course.id in movableCourseIds &&
+                                // Dragging snaps to periods, so typed-time courses are edited in the form instead.
+                                dragEnabled = course.id in movableCourseIds && clock == null &&
                                     !multiSelectMode &&
                                     resizingCourseId == null,
-                                resizeEnabled = course.id in movableCourseIds &&
+                                resizeEnabled = course.id in movableCourseIds && clock == null &&
                                     !multiSelectMode &&
                                     draggingCourseId == null,
                                 onResizeStart = { edge ->
@@ -3085,6 +3104,7 @@ private fun ScheduleGrid(
                 existingCourses = existingCourses,
                 slotLabel = slots.firstOrNull { it.startNode == startNode && it.endNode == endNode }
                     ?.label?.takeIf { it.isNotBlank() },
+                slotTimes = timingProfile?.slotTimes.orEmpty(),
                 onDismiss = { addRequest = null },
                 onConfirm = { course ->
                     onAddManualCourse(course)
@@ -3261,7 +3281,7 @@ internal fun courseCardTextPlan(
 
 private const val MIN_FIT_TITLE_SP = 8f
 
-private const val CARD_LOCATION_SP = 10f
+private const val CARD_LOCATION_SP = 9f
 private const val MIN_FIT_LOCATION_SP = 8f
 
 private fun androidx.compose.ui.text.TextStyle.scaledCardText(
@@ -3340,6 +3360,16 @@ internal fun wrapByCharacter(text: String, maxWidth: Int, measureWidth: (String)
     }
     return lines.joinToString(separator = "\n")
 }
+
+/** Scale that fits a single-line location when it overflows by at most [NEAR_FIT_MIN_SCALE]. */
+internal fun nearFitLocationScale(textWidth: Int, maxWidth: Int): Float? {
+    if (textWidth <= maxWidth || maxWidth <= 0) return null
+    // Slight undershoot so rounding in the real layout still fits.
+    val scale = (maxWidth - 1).toFloat() / textWidth
+    return scale.takeIf { it >= NEAR_FIT_MIN_SCALE }
+}
+
+private const val NEAR_FIT_MIN_SCALE = 0.9f
 
 private const val CJK_START = 0x2E80
 
@@ -3747,6 +3777,12 @@ private fun CourseBlock(
                 role = ScheduleCustomColorRole.Foreground,
             )
         }
+    // Muted toward the neutral tone so the room reads apart from the course name.
+    val locationColor = androidx.compose.ui.graphics.lerp(
+        onColor,
+        MaterialTheme.colorScheme.onSurfaceVariant,
+        0.6f,
+    )
     val highlight = multiSelected || selected
     val borderColor = when {
         multiSelected -> MaterialTheme.colorScheme.primary
@@ -3916,12 +3952,12 @@ private fun CourseBlock(
                             ),
                         )
                     }
-                    val baseLocationStyle = remember(baseStyle, onColor, textAlign) {
+                    val baseLocationStyle = remember(baseStyle, locationColor, textAlign) {
                         baseStyle.merge(
                             androidx.compose.ui.text.TextStyle(
-                                color = onColor.copy(alpha = 0.85f),
-                                fontSize = 10.sp,
-                                lineHeight = 11.sp,
+                                color = locationColor,
+                                fontSize = CARD_LOCATION_SP.sp,
+                                lineHeight = (CARD_LOCATION_SP + 1f).sp,
                                 textAlign = textAlign,
                                 lineBreak = androidx.compose.ui.text.style.LineBreak.Simple,
                             ),
@@ -3978,12 +4014,19 @@ private fun CourseBlock(
                     val titleStyle = remember(baseTitleStyle, fitScale) {
                         if (fitScale >= 1f) baseTitleStyle else baseTitleStyle.scaledCardText(titleFontSizeSp, fitScale)
                     }
-                    val locationStyle = remember(baseLocationStyle, fitScale) {
-                        if (fitScale >= 1f) {
+                    val locationStyle = remember(baseLocationStyle, fitScale, rawLocationText, constraints.maxWidth) {
+                        val scaled = if (fitScale >= 1f) {
                             baseLocationStyle
                         } else {
                             baseLocationStyle.scaledCardText(CARD_LOCATION_SP, fitScale, MIN_FIT_LOCATION_SP)
                         }
+                        // A room name a hair too wide shrinks slightly instead of dropping its last character.
+                        fun widthOf(text: String) =
+                            textMeasurer.measure(text, scaled, softWrap = false, maxLines = 1).size.width
+                        nearFitLocationScale(widthOf(rawLocationText), constraints.maxWidth)?.let { scale ->
+                            val size = (scaled.fontSize.value * scale).coerceAtLeast(MIN_FIT_LOCATION_SP)
+                            scaled.copy(fontSize = size.sp, lineHeight = (size + 1f).sp)
+                        } ?: scaled
                     }
                     val locationText = remember(rawLocationText, locationStyle, constraints.maxWidth) {
                         wrapByCharacter(rawLocationText, constraints.maxWidth) { piece ->
@@ -4264,6 +4307,8 @@ internal data class WeekModel(
     val days: List<DayHeaderModel>,
 )
 
+private data class TypedDayRow(val slot: DisplaySlot, val courses: List<CourseItem>)
+
 internal data class DisplaySlot(
     val startNode: Int,
     val endNode: Int,
@@ -4451,7 +4496,9 @@ private fun formatCourseLocation(
     location: String,
     scheduleDisplay: ScheduleDisplayPreferences,
     locationSuffix: String = "",
-): String = strippedLocationOrNull(location, locationSuffix)?.let { "@$it" }.orEmpty()
+): String = strippedLocationOrNull(location, locationSuffix)
+    ?.let { if (scheduleDisplay.locationAtPrefix) "@$it" else it }
+    .orEmpty()
 
 private data class CourseDetailRequest(
     val courses: List<CourseItem>,
@@ -4996,7 +5043,7 @@ internal fun buildWeekRenderEntries(
     return entries
 }
 
-private fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
+internal fun shortWeekdayRes(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
     DayOfWeek.MONDAY -> R.string.schedule_weekday_short_monday
     DayOfWeek.TUESDAY -> R.string.schedule_weekday_short_tuesday
     DayOfWeek.WEDNESDAY -> R.string.schedule_weekday_short_wednesday

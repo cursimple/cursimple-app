@@ -25,6 +25,10 @@ class UserPreferencesTest {
         assertEquals(display.locationVisible, disabled.locationVisible)
     }
     @Test
+    fun `location at prefix is on by default`() {
+        assertTrue(ScheduleDisplayPreferences().locationAtPrefix)
+    }
+    @Test
     fun `holiday alarms are skipped by default and user opt out is preserved`() {
         assertTrue(UserPreferences().skipRemindersOnHoliday)
         assertTrue(UserPreferences().reminderDayPolicy().skipOnHoliday)

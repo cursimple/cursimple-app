@@ -111,7 +111,8 @@ internal sealed interface ScheduleWidgetEmptyLabel {
     /** Pre-term state with optional [termStartDate]. */
     data class BeforeTermStart(val termStartDate: LocalDate?) : ScheduleWidgetEmptyLabel
 
-    data class NoCourses(val offset: Int) : ScheduleWidgetEmptyLabel
+    /** [agenda] says the day list also covers events, so nothing at all is planned. */
+    data class NoCourses(val offset: Int, val agenda: Boolean = false) : ScheduleWidgetEmptyLabel
 }
 
 internal fun scheduleWidgetEmptyLabel(
@@ -120,11 +121,12 @@ internal fun scheduleWidgetEmptyLabel(
     termStartDate: LocalDate?,
     offset: Int,
     holidayLabel: WidgetHolidayLabel? = null,
+    showEvents: Boolean = false,
 ): ScheduleWidgetEmptyLabel = when {
     holidayLabel != null -> ScheduleWidgetEmptyLabel.Holiday(holidayLabel)
     termStartMissing -> ScheduleWidgetEmptyLabel.TermStartMissing
     beforeTermStart -> ScheduleWidgetEmptyLabel.BeforeTermStart(termStartDate)
-    else -> ScheduleWidgetEmptyLabel.NoCourses(offset)
+    else -> ScheduleWidgetEmptyLabel.NoCourses(offset, agenda = showEvents)
 }
 
 internal fun Context.scheduleWidgetEmptyText(label: ScheduleWidgetEmptyLabel): String = when (label) {
@@ -133,15 +135,15 @@ internal fun Context.scheduleWidgetEmptyText(label: ScheduleWidgetEmptyLabel): S
 
     ScheduleWidgetEmptyLabel.TermStartMissing -> getString(R.string.widget_empty_term_start_missing)
     is ScheduleWidgetEmptyLabel.BeforeTermStart -> beforeTermStartText(label.termStartDate)
-    is ScheduleWidgetEmptyLabel.NoCourses -> getString(noCoursesRes(label.offset))
+    is ScheduleWidgetEmptyLabel.NoCourses -> getString(noCoursesRes(label.offset, label.agenda))
 }
 
 @StringRes
-private fun noCoursesRes(offset: Int): Int = when (offset) {
-    -1 -> R.string.widget_empty_yesterday
-    0 -> R.string.widget_empty_today
-    1 -> R.string.widget_empty_tomorrow
-    else -> R.string.widget_empty_other_day
+private fun noCoursesRes(offset: Int, agenda: Boolean): Int = when (offset) {
+    -1 -> if (agenda) R.string.widget_agenda_empty_yesterday else R.string.widget_empty_yesterday
+    0 -> if (agenda) R.string.widget_agenda_empty_today else R.string.widget_empty_today
+    1 -> if (agenda) R.string.widget_agenda_empty_tomorrow else R.string.widget_empty_tomorrow
+    else -> if (agenda) R.string.widget_agenda_empty_other_day else R.string.widget_empty_other_day
 }
 
 private fun Context.beforeTermStartText(termStartDate: LocalDate?): String = termStartDate

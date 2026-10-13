@@ -640,14 +640,17 @@ private fun MemoEmptyHint(text: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 40.dp),
+            .padding(horizontal = 24.dp, vertical = 40.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            // Balanced breaks keep a lone trailing character off the last line.
+            style = MaterialTheme.typography.bodyMedium.copy(
+                lineBreak = androidx.compose.ui.text.style.LineBreak.Paragraph,
+            ),
         )
     }
 }

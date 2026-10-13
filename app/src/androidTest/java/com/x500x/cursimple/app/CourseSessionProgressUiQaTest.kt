@@ -30,7 +30,7 @@ class CourseSessionProgressUiQaTest {
                 }
             }
         }
-        compose.onNodeWithTag("course-session-progress").assertIsDisplayed().assertTextContains("2/36")
+        compose.onNodeWithTag("course-session-progress").assertIsDisplayed().assertTextContains("2/36", substring = true)
     }
 
     @Test fun movedCourseCountsAtTheNewPosition() {
@@ -44,6 +44,6 @@ class CourseSessionProgressUiQaTest {
                     temporaryScheduleOverrides = listOf(move), onDismiss = {}, onSetReminder = {}, onDelete = {})
             }
         }
-        compose.onNodeWithTag("course-session-progress").assertIsDisplayed().assertTextContains("1/18")
+        compose.onNodeWithTag("course-session-progress").assertIsDisplayed().assertTextContains("1/18", substring = true)
     }
 }

@@ -40,9 +40,10 @@ class MemoMiniEditorUiQaTest {
                 }
             }
         }
+        compose.onNodeWithTag("memo-quick-edit").performClick()
         compose.onNodeWithTag("memo-quick-body-1").performScrollTo().performTextReplacement("Changed")
         compose.onNodeWithTag("memo-tool-undo").assertIsDisplayed().performClick()
-        compose.onNodeWithTag("memo-quick-body-1").performScrollTo().assertTextContains("Second")
+        compose.onNodeWithTag("memo-quick-body-1").performScrollTo().assertTextContains("Second", substring = true)
         compose.onAllNodes(hasTestTag("memo-tool-undo") and hasAnyAncestor(hasTestTag("memo-edit-tools")))
             .assertCountEquals(0)
         compose.onNodeWithTag("memo-tool-image").assertIsDisplayed()
@@ -70,6 +71,7 @@ class MemoMiniEditorUiQaTest {
                 }
             }
         }
+        compose.onNodeWithTag("memo-quick-edit").performClick()
         compose.onNodeWithTag("memo-quick-body-1").performScrollTo().performTextReplacement("Kept draft")
         val bounds = compose.onNodeWithTag("memo-quick-editor").fetchSemanticsNode().boundsInRoot
         compose.mainClock.autoAdvance = false
@@ -84,7 +86,7 @@ class MemoMiniEditorUiQaTest {
             }
             compose.mainClock.advanceTimeBy(320)
         } finally { compose.mainClock.autoAdvance = true }
-        compose.onNodeWithTag("memo-quick-body-1").performScrollTo().assertTextContains("Kept draft")
+        compose.onNodeWithTag("memo-quick-body-1").performScrollTo().assertTextContains("Kept draft", substring = true)
         compose.onNodeWithTag("memo-quick-save").assertIsDisplayed()
     }
 
@@ -102,6 +104,7 @@ class MemoMiniEditorUiQaTest {
                 }
             }
         }
+        compose.onNodeWithTag("memo-quick-edit").performClick()
         compose.onNodeWithTag("memo-quick-body-check").performScrollTo().performClick()
         compose.onNodeWithTag("memo-complete-confirmation").assertIsDisplayed()
         compose.onNode(hasText(text(com.x500x.cursimple.feature.schedule.R.string.schedule_action_cancel)) and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
@@ -114,7 +117,7 @@ class MemoMiniEditorUiQaTest {
             compose.onNodeWithTag("memo-quick-more").performClick()
             compose.onNodeWithText(text(R.string.memo_quick_priority)).assertIsDisplayed()
             compose.onNodeWithTag("memo-quick-back").performClick()
-            compose.onNodeWithTag("memo-quick-body-1").performScrollTo().assertTextContains("Second item")
+            compose.onNodeWithTag("memo-quick-body-1").performScrollTo().assertTextContains("Second item", substring = true)
         }
         compose.onNodeWithTag("memo-quick-save").performClick()
         compose.onNode(hasText(text(R.string.memo_quick_cancel)) and hasAnyAncestor(isDialog())).performClick()
@@ -126,5 +129,52 @@ class MemoMiniEditorUiQaTest {
             assertEquals("Homework", saved?.text)
             assertEquals("- [x] First\n- [ ] Second item\n1. Bring notes", saved?.body)
         }
+    }
+
+    private fun showEditor(isNew: Boolean = false) = compose.setContent {
+        ClassScheduleTheme(themeMode = ThemeMode.Light) {
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.3f)) {
+                Surface(Modifier.width(288.dp)) {
+                    MemoTodoQuickEditor(note, null, isNew, emptyList(), emptyMap(), onClose = {},
+                        onSave = { MemoTodoEditResult.Saved })
+                }
+            }
+        }
+    }
+
+    @Test fun anExistingNoteOpensForReadingUntilEditIsTapped() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("memoMiniQa") == "true")
+        showEditor()
+        compose.onNodeWithText("Homework").assertIsDisplayed()
+        compose.onNodeWithText("Bring notes", substring = true).assertExists()
+        compose.onNodeWithTag("memo-quick-text").assertDoesNotExist()
+        compose.onNodeWithTag("memo-quick-toolbar").assertDoesNotExist()
+        compose.onNodeWithTag("memo-quick-save").assertDoesNotExist()
+        val bounds = compose.onNodeWithTag("memo-quick-editor").fetchSemanticsNode().boundsInRoot
+        compose.onNodeWithTag("memo-quick-edit").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("memo-quick-text").assertIsDisplayed()
+        compose.onNodeWithTag("memo-quick-toolbar").assertExists()
+        compose.onNodeWithTag("memo-quick-edit").assertDoesNotExist()
+        assertEquals("阅读和编辑不应改变窗口大小", bounds, compose.onNodeWithTag("memo-quick-editor").fetchSemanticsNode().boundsInRoot)
+    }
+
+    @Test fun aNewNoteOpensStraightIntoEditing() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("memoMiniQa") == "true")
+        showEditor(isNew = true)
+        compose.onNodeWithTag("memo-quick-text").assertIsDisplayed()
+        compose.onNodeWithTag("memo-quick-edit").assertDoesNotExist()
+    }
+
+    @Test fun editorToolsExplainThemselvesOnLongPress() {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("memoMiniQa") == "true")
+        showEditor(isNew = true)
+        val bold = text(com.x500x.cursimple.feature.schedule.R.string.memo_tool_bold)
+        compose.onNodeWithText(bold).assertDoesNotExist()
+        compose.onNodeWithTag("memo-tool-bold").performScrollTo().performTouchInput { longClick() }
+        compose.waitUntil(3000) { compose.onAllNodesWithText(bold).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText(bold).assertIsDisplayed()
+        val undo = text(com.x500x.cursimple.feature.schedule.R.string.memo_tool_undo)
+        compose.onNodeWithTag("memo-tool-undo").performTouchInput { longClick() }
+        compose.waitUntil(3000) { compose.onAllNodesWithText(undo).fetchSemanticsNodes().isNotEmpty() }
     }
 }

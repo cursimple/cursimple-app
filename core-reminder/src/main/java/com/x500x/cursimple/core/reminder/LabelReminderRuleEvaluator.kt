@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.findSlot
+import com.x500x.cursimple.core.kernel.model.slotFor
 import com.x500x.cursimple.core.kernel.model.isCourseTemporarilyCancelled
 import com.x500x.cursimple.core.kernel.model.reminderSlotLabel
 import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
@@ -290,7 +291,7 @@ internal class LabelReminderRuleEvaluator {
         return if (course.reminderOnly) {
             placeholder ?: timingProfile.findSlot(course.time.startNode, course.time.endNode)
         } else {
-            timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: placeholder
+            timingProfile.slotFor(course) ?: placeholder
         }
     }
 

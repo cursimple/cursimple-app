@@ -18,6 +18,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DeleteSweep
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.EventBusy
 import androidx.compose.material.icons.rounded.EventRepeat
 import androidx.compose.material.icons.rounded.Schedule
@@ -61,6 +62,7 @@ import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.makeUpNodeRange
 import com.x500x.cursimple.core.kernel.model.resolveTemporaryScheduleSourceDate
 import com.x500x.cursimple.core.kernel.model.weekdayLabel
+import com.x500x.cursimple.core.kernel.model.typedClock
 import java.time.LocalDate
 import java.util.UUID
 import com.x500x.cursimple.feature.schedule.CalendarMonthPicker
@@ -191,7 +193,7 @@ internal fun TemporaryOverrideSettingsSection(
             onClick = { pickDateFor = PICK_MAKEUP_TARGET },
         )
         SettingsActionRow(
-            icon = Icons.Rounded.Schedule,
+            icon = Icons.Rounded.Event,
             title = stringResource(R.string.settings_override_source_day),
             subtitle = makeUpSourceDate?.let(::formatLongDate)
                 ?: stringResource(R.string.settings_override_date_unset),
@@ -411,8 +413,8 @@ private fun CancelDayCourseList(
             R.string.settings_override_cancel_course_nodes,
             nodeSpanText(course.time.startNode, course.time.endNode),
         )
-        val time = covering.takeIf { it.isNotEmpty() }
-            ?.let { "${it.first().value.startTime}–${it.last().value.endTime}" }
+        val time = course.typedClock()?.let { (start, end) -> "$start–$end" }
+            ?: covering.takeIf { it.isNotEmpty() }?.let { "${it.first().value.startTime}–${it.last().value.endTime}" }
         val detail = listOfNotNull(
             period,
             time,

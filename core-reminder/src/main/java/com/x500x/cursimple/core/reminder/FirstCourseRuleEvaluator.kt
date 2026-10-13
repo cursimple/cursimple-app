@@ -7,7 +7,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
-import com.x500x.cursimple.core.kernel.model.findSlot
+import com.x500x.cursimple.core.kernel.model.slotFor
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberActive
 import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
@@ -45,7 +45,7 @@ internal class FirstCourseRuleEvaluator {
             .flatMap { it.courses }
             .filter { rule.courseId.isNullOrBlank() || it.id == rule.courseId }
             .flatMap { course ->
-                val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode)
+                val slot = timingProfile.slotFor(course)
                     ?: return@flatMap emptyList()
                 courseOccurrenceDates(
                     course = course,
@@ -77,7 +77,7 @@ internal class FirstCourseRuleEvaluator {
                         course = (moved?.first ?: course).copy(location = course.locationForWeek(resolveTermWeek(termStart, sourceDate))),
                         courseDate = courseDate,
                         termWeek = resolveTermWeek(termStart, sourceDate),
-                        slot = moved?.first?.let { timingProfile.findSlot(it.time.startNode, it.time.endNode) } ?: slot,
+                        slot = moved?.first?.let { timingProfile.slotFor(it) } ?: slot,
                         sourceCourse = course,
                     )
                 }

@@ -37,6 +37,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import com.x500x.cursimple.core.data.navigation.AppLayoutSelection
+import com.x500x.cursimple.core.data.navigation.DrawerLayout
+import com.x500x.cursimple.core.data.navigation.decodeAppLayout
+import com.x500x.cursimple.core.data.navigation.decodeDrawerLayout
+import com.x500x.cursimple.core.data.navigation.encodeAppLayout
+import com.x500x.cursimple.core.data.navigation.encodeDrawerLayout
 import kotlinx.serialization.json.Json
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -135,6 +141,8 @@ class DataStoreUserPreferencesRepository(
             pluginSources = restoredPluginSources(prefs[KEY_PLUGIN_SOURCES], prefs[KEY_PLUGIN_REGISTRY_REPO]),
             componentSources = prefs[KEY_COMPONENT_SOURCES]?.let(::decodeMarketSources)
                 ?: listOf(DEFAULT_COMPONENT_REGISTRY_REPO),
+            drawerLayout = decodeDrawerLayout(prefs[KEY_DRAWER_LAYOUT]),
+            appLayout = decodeAppLayout(prefs[KEY_APP_LAYOUT]),
             pluginMarketCacheJson = prefs[KEY_PLUGIN_MARKET_CACHE_JSON].orEmpty(),
             pluginMarketCachedAtMillis = prefs[KEY_PLUGIN_MARKET_CACHED_AT_MILLIS] ?: 0L,
             pluginMarketCachedRegistry = prefs[KEY_PLUGIN_MARKET_CACHED_REGISTRY].orEmpty(),
@@ -461,6 +469,10 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] = visible }
     }
 
+    override suspend fun setScheduleLocationAtPrefix(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX] = enabled }
+    }
+
     override suspend fun setScheduleTeacherVisible(visible: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] = visible }
     }
@@ -677,6 +689,17 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_PLUGIN_SOURCES] = encodeMarketSources(sources) }
     }
 
+    override suspend fun setDrawerLayout(layout: DrawerLayout) {
+        store.edit { prefs -> prefs[KEY_DRAWER_LAYOUT] = encodeDrawerLayout(layout) }
+    }
+
+    override suspend fun setAppLayout(selection: AppLayoutSelection?) {
+        store.edit { prefs ->
+            val encoded = encodeAppLayout(selection)
+            if (encoded == null) prefs.remove(KEY_APP_LAYOUT) else prefs[KEY_APP_LAYOUT] = encoded
+        }
+    }
+
     override suspend fun setComponentSources(sources: List<String>) {
         store.edit { prefs -> prefs[KEY_COMPONENT_SOURCES] = encodeMarketSources(sources) }
     }
@@ -780,6 +803,8 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_PLUGIN_REGISTRY_REPO)
             prefs.remove(KEY_PLUGIN_SOURCES)
             prefs.remove(KEY_COMPONENT_SOURCES)
+            prefs.remove(KEY_DRAWER_LAYOUT)
+            prefs.remove(KEY_APP_LAYOUT)
             prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
             prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
             prefs.remove(KEY_PLUGIN_MARKET_CACHED_AT_MILLIS)
@@ -1053,6 +1078,7 @@ class DataStoreUserPreferencesRepository(
             courseSessionCountIncludeHolidays = this[KEY_COURSE_SESSION_COUNT_INCLUDE_HOLIDAYS] ?: true,
             pinchZoomEnabled = this[KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED] ?: false,
             locationVisible = this[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] ?: true,
+            locationAtPrefix = this[KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
             totalScheduleDisplayEnabled = this[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
         )
@@ -1145,6 +1171,7 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_PLUGIN_TIMETABLE_ROWS)
         remove(KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE)
+        remove(KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX)
         remove(KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED)
         remove(KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE)
         remove(KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED)
@@ -1240,6 +1267,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_PINCH_ZOOM_ENABLED =
             booleanPreferencesKey("schedule_display_pinch_zoom_enabled")
         val KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE = booleanPreferencesKey("schedule_display_location_visible")
+        val KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX = booleanPreferencesKey("schedule_display_location_at_prefix")
         val KEY_SCHEDULE_DISPLAY_LOCATION_PREFIX_AT_ENABLED =
             booleanPreferencesKey("schedule_display_location_prefix_at_enabled")
         val KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE = booleanPreferencesKey("schedule_display_teacher_visible")
@@ -1301,6 +1329,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_PLUGIN_REGISTRY_REPO = stringPreferencesKey("plugin_registry_repo")
         val KEY_PLUGIN_SOURCES = stringPreferencesKey("plugin_sources")
         val KEY_COMPONENT_SOURCES = stringPreferencesKey("component_sources")
+        val KEY_DRAWER_LAYOUT = stringPreferencesKey("drawer_layout")
+        val KEY_APP_LAYOUT = stringPreferencesKey("app_layout")
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
         val KEY_PLUGIN_MARKET_CACHE_JSON = stringPreferencesKey("plugin_market_cache_json")
         val KEY_PLUGIN_MARKET_CACHED_AT_MILLIS = longPreferencesKey("plugin_market_cached_at_millis")

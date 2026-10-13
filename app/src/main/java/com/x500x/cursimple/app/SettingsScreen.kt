@@ -41,7 +41,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.EventNote
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
@@ -76,8 +76,10 @@ import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.ViewSidebar
 import androidx.compose.material.icons.rounded.Style
 import androidx.compose.material.icons.rounded.TouchApp
 import androidx.compose.material.icons.rounded.Tune
@@ -106,6 +108,8 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.Composable
@@ -241,6 +245,7 @@ private enum class SettingsDestination {
     AutoSilence,
     ClassNotice,
     Plugins,
+    Sidebar,
     WebDav,
     AiImport,
     Permissions,
@@ -403,6 +408,7 @@ private fun settingsSearchEntries(
             stringResource(R.string.settings_display_total_title),
             stringResource(R.string.settings_display_node_time_title),
             stringResource(R.string.settings_display_location_title),
+            stringResource(R.string.settings_display_location_at_title),
             stringResource(R.string.settings_display_teacher_title),
             stringResource(R.string.settings_display_course_drag_title),
             stringResource(R.string.settings_display_pinch_zoom_title),
@@ -547,6 +553,14 @@ private fun settingsSearchEntries(
         words("GitHub repo token 仓库 私有 來源 来源 登入 登录 令牌 插件 组件"),
     )
     page(SettingsDestination.WebDav, Icons.Rounded.Storage, "WebDAV", data, emptyList())
+    page(
+        SettingsDestination.Sidebar,
+        Icons.Rounded.ViewSidebar,
+        stringResource(R.string.settings_sidebar_title),
+        general,
+        listOf(stringResource(R.string.settings_sidebar_shortcuts), stringResource(R.string.settings_sidebar_restore_drawer)),
+        words("侧边栏 側邊欄 菜单 選單 导航 導覽 底栏 底边栏 布局 版面 sidebar drawer menu navigation layout"),
+    )
     page(SettingsDestination.AiImport, Icons.Rounded.ImageSearch, stringResource(R.string.settings_dest_ai_import), data, emptyList())
     entries += SettingsSearchEntry(Icons.Rounded.Language, stringResource(R.string.settings_language), general, onClick = onPickAppLanguage)
     entries += SettingsSearchEntry(
@@ -558,6 +572,8 @@ private fun settingsSearchEntries(
     entries += SettingsSearchEntry(Icons.Rounded.Restore, stringResource(R.string.settings_reset_all_title), general, onClick = onResetAll)
     return entries
 }
+
+data class SettingsTopBar(val title: String, val onBack: (() -> Unit)?)
 
 @Composable
 private fun SettingsDestination.title(): String = when (this) {
@@ -575,6 +591,7 @@ private fun SettingsDestination.title(): String = when (this) {
     SettingsDestination.AutoSilence -> stringResource(R.string.settings_dest_auto_silence)
     SettingsDestination.ClassNotice -> stringResource(R.string.settings_dest_class_notice)
     SettingsDestination.Plugins -> stringResource(R.string.settings_dest_plugins)
+    SettingsDestination.Sidebar -> stringResource(R.string.settings_sidebar_title)
     SettingsDestination.WebDav -> "WebDAV"
     SettingsDestination.AiImport -> stringResource(R.string.settings_dest_ai_import)
     SettingsDestination.Permissions -> stringResource(R.string.settings_dest_permissions)
@@ -675,6 +692,7 @@ fun AppSettingsRoute(
     onCourseSessionCountIncludeHolidaysChange: (Boolean) -> Unit = {},
     onScheduleLocationVisibleChange: (Boolean) -> Unit,
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
+    onScheduleLocationAtPrefixChange: (Boolean) -> Unit = {},
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
@@ -698,9 +716,14 @@ fun AppSettingsRoute(
     vendorPermissionAcks: Set<String> = emptySet(),
     onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
+    onWidgetShowEventsChange: (Boolean) -> Unit = {},
     onAppTimeZoneChange: (String?) -> Unit,
     onPluginSourcesChange: (List<String>) -> Unit,
     onComponentSourcesChange: (List<String>) -> Unit,
+    drawerLayout: com.x500x.cursimple.core.data.navigation.DrawerLayout = com.x500x.cursimple.core.data.navigation.DrawerLayout.DEFAULT,
+    componentLayoutActive: Boolean = false,
+    onDrawerLayoutChange: (com.x500x.cursimple.core.data.navigation.DrawerLayout) -> Unit = {},
+    onRestoreDrawer: () -> Unit = {},
     onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
     onWebDavSettingsChange: (String, String, String) -> Unit,
     onTestWebDavSettings: suspend (WebDavConfig) -> Result<Unit>,
@@ -721,6 +744,8 @@ fun AppSettingsRoute(
     scheduleCourses: List<CourseItem> = emptyList(),
     scheduleTimingProfile: TermTimingProfile? = null,
     onApplyCancelPlan: (CancelCoursePlan) -> Unit = {},
+    /** Reports the subpage title and back action so the app bar can replace the menu button. */
+    onTopBarChange: (SettingsTopBar?) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -780,6 +805,15 @@ fun AppSettingsRoute(
     }
     BackHandler(enabled = backStack.size > 1) {
         handleBack()
+    }
+    val topBarTitle = if (destination == SettingsDestination.Root) null else destination.title()
+    val canGoBack = backStack.size > 1
+    val latestHandleBack by rememberUpdatedState(::handleBack)
+    LaunchedEffect(topBarTitle, canGoBack) {
+        onTopBarChange(topBarTitle?.let { SettingsTopBar(it, if (canGoBack) ({ latestHandleBack() }) else null) })
+    }
+    DisposableEffect(Unit) {
+        onDispose { onTopBarChange(null) }
     }
     var showHolidayEditor by rememberSaveable { mutableStateOf(false) }
     var showResetScheduleAppearanceConfirm by rememberSaveable { mutableStateOf(false) }
@@ -1047,26 +1081,7 @@ fun AppSettingsRoute(
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
             ) {
-                // Pin navigation and preview while the settings content scrolls.
-                if (destination != SettingsDestination.Root) {
-                    Row(
-                        modifier = Modifier.padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 8.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton(onClick = ::handleBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = stringResource(R.string.settings_back),
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = destination.title(),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                }
+                // Pin the preview while the settings content scrolls; the app bar carries title and back.
                 if (destination == SettingsDestination.ScheduleAppearance) {
                     ScheduleAppearancePreview(
                         scheduleTextStyle = scheduleTextStyle,
@@ -1225,6 +1240,12 @@ fun AppSettingsRoute(
                                         quickId = "language",
                                     )
                                     TimeZoneRow(zoneId = appTimeZoneId, onZoneChange = onAppTimeZoneChange)
+                                    SettingsActionRow(
+                                        icon = Icons.Rounded.ViewSidebar,
+                                        title = stringResource(R.string.settings_sidebar_title),
+                                        subtitle = stringResource(R.string.settings_sidebar_subtitle),
+                                        onClick = { navigate(SettingsDestination.Sidebar) },
+                                    )
                                     SettingsActionRow(
                                         icon = Icons.Rounded.Explore,
                                         title = stringResource(R.string.settings_replay_guide_title),
@@ -1689,6 +1710,15 @@ fun AppSettingsRoute(
                                     checked = scheduleDisplay.locationVisible,
                                     onCheckedChange = onScheduleLocationVisibleChange,
                                 )
+                                if (scheduleDisplay.locationVisible) {
+                                    SettingsSwitchRow(
+                                        icon = Icons.Rounded.AlternateEmail,
+                                        title = stringResource(R.string.settings_display_location_at_title),
+                                        subtitle = stringResource(R.string.settings_display_location_at_subtitle),
+                                        checked = scheduleDisplay.locationAtPrefix,
+                                        onCheckedChange = onScheduleLocationAtPrefixChange,
+                                    )
+                                }
                                 SettingsSwitchRow(
                                     icon = Icons.Rounded.Person,
                                     title = stringResource(R.string.settings_display_teacher_title),
@@ -1751,6 +1781,13 @@ fun AppSettingsRoute(
                                     checked = widgetThemePreferences.openAppOnDoubleClickEnabled,
                                     onCheckedChange = onWidgetOpenAppOnDoubleClickChange,
                                 )
+                                SettingsSwitchRow(
+                                    icon = Icons.AutoMirrored.Rounded.EventNote,
+                                    title = stringResource(R.string.settings_widget_show_events_title),
+                                    subtitle = stringResource(R.string.settings_widget_show_events_subtitle),
+                                    checked = widgetThemePreferences.showEvents,
+                                    onCheckedChange = onWidgetShowEventsChange,
+                                )
                             }
                         }
 
@@ -1786,6 +1823,15 @@ fun AppSettingsRoute(
                                 onPluginSourcesChange = onPluginSourcesChange,
                                 onComponentSourcesChange = onComponentSourcesChange,
                                 services = marketSourceServices,
+                            )
+                        }
+
+                        SettingsDestination.Sidebar -> {
+                            com.x500x.cursimple.app.navigation.SidebarSettingsPage(
+                                layout = drawerLayout,
+                                componentLayoutActive = componentLayoutActive,
+                                onChange = onDrawerLayoutChange,
+                                onRestoreDrawer = onRestoreDrawer,
                             )
                         }
 

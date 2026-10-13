@@ -6,6 +6,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.core.data.ThemeMode
@@ -63,6 +64,28 @@ class CourseReuseAndBatchUiQaTest {
             assertEquals(CourseTimeSlot(2, 3, 4), saved?.time)
             assertEquals((1..5).toList(), saved?.weeks)
             assertNotEquals(history.last().id, saved?.id)
+        }
+    }
+
+    @Test fun onlyTheArrowOpensSavedValues() {
+        setContent()
+        compose.onNodeWithTag("course-teacher-field").performScrollTo().performClick()
+        compose.onNodeWithTag("course-teacher-reuse-menu").assertDoesNotExist()
+        compose.onNodeWithTag("course-teacher-field").performTextInput("Teacher")
+        compose.onNodeWithTag("course-teacher-reuse-menu").assertDoesNotExist()
+        compose.onNodeWithTag("course-teacher-reuse").performClick()
+        compose.onNodeWithTag("course-teacher-reuse-menu").assertIsDisplayed()
+    }
+
+    @Test fun fieldActionsLookSmallButKeepTheirTouchTarget() {
+        setContent()
+        for (tag in listOf("course-teacher-reuse", "course-teacher-weeks")) {
+            val node = compose.onNodeWithTag(tag).performScrollTo().fetchSemanticsNode()
+            with(compose.density) {
+                assertTrue("$tag 画成了 ${node.size.width.toDp()}", node.size.width.toDp() <= 36.dp)
+                assertTrue("$tag 只能点 ${node.touchBoundsInRoot}", node.touchBoundsInRoot.width.toDp() >= 48.dp &&
+                    node.touchBoundsInRoot.height.toDp() >= 48.dp)
+            }
         }
     }
 

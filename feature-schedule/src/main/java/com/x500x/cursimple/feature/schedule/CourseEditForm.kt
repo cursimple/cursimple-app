@@ -18,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -34,7 +35,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
+import com.x500x.cursimple.core.kernel.model.typedClock
 import java.util.UUID
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.EditCalendar
@@ -152,6 +155,7 @@ internal fun CourseEditFormFields(
     onDraftChange: (CourseItem?) -> Unit,
     modifier: Modifier = Modifier,
     spacing: Dp = 12.dp,
+    slotTimes: List<ClassSlotTime> = emptyList(),
 ) {
     val reuse = rememberCourseReuseValues(existingCourses, initial)
     var title by rememberSaveable(initial) { mutableStateOf(initial?.title.orEmpty()) }
@@ -163,6 +167,15 @@ internal fun CourseEditFormFields(
     }
     var endNodeText by rememberSaveable(initial) {
         mutableStateOf(initial?.time?.endNode?.toString() ?: "2")
+    }
+    // Placeholders keep their own times; only real courses switch between periods and clock.
+    val initialClock = initial?.takeUnless { it.reminderOnly }?.typedClock()
+    var byClock by rememberSaveable(initial) { mutableStateOf(initialClock != null) }
+    var clockStart by rememberSaveable(initial) {
+        mutableIntStateOf(initialClock?.first?.let { it.hour * 60 + it.minute } ?: DEFAULT_CLOCK_START)
+    }
+    var clockEnd by rememberSaveable(initial) {
+        mutableIntStateOf(initialClock?.second?.let { it.hour * 60 + it.minute } ?: (DEFAULT_CLOCK_START + DEFAULT_CLOCK_LENGTH))
     }
     // Leave new-course weeks unset rather than assuming a misleading default range.
     var startWeekText by rememberSaveable(initial) {
@@ -189,8 +202,10 @@ internal fun CourseEditFormFields(
     }
 
     val titleTrimmed = title.trim()
-    val startNode = startNodeText.toIntOrNull()
-    val endNode = endNodeText.toIntOrNull()
+    val clockValid = clockEnd > clockStart
+    val clockNodes = if (byClock && clockValid) nodesForClock(slotTimes, clockStart, clockEnd) else null
+    val startNode = clockNodes?.first ?: startNodeText.toIntOrNull()
+    val endNode = clockNodes?.second ?: endNodeText.toIntOrNull()
     val startWeek = startWeekText.toIntOrNull()
     val endWeek = endWeekText.toIntOrNull()
     val rangeValid = startWeek != null && endWeek != null &&
@@ -207,8 +222,11 @@ internal fun CourseEditFormFields(
     } else {
         manualCourseWeeksOrNull(startWeek, endWeek, parity, maxWeekCount)
     }
-    val nodesValid = startNode != null && endNode != null &&
-        startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount
+    val nodesValid = if (byClock) {
+        clockValid && startNode != null && endNode != null && endNode >= startNode
+    } else {
+        startNode != null && endNode != null && startNode in 1..maxNodeCount && endNode in startNode..maxNodeCount
+    }
     val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
     val weekTeachersMap = remember(weekTeachersRaw) { decodeWeekLocations(weekTeachersRaw) }
     // Retain nonblank locations in selected weeks only; disabling clears overrides.
@@ -231,6 +249,7 @@ internal fun CourseEditFormFields(
             weekTeachers = weekTeachersMap.filterKeys { weeks != null && it in weeks }
                 .mapValues { it.value.trim() }.filterValues { it.isNotBlank() },
             existing = initial,
+            clock = if (byClock) clockStart to clockEnd else null,
         )
     } else {
         null
@@ -306,7 +325,25 @@ internal fun CourseEditFormFields(
             }
         }
 
-        Row(
+        if (initial?.reminderOnly != true) {
+            CourseTimeModeChips(byClock = byClock, onByClock = { clock ->
+                if (clock && !byClock) {
+                    val nodes = startNodeText.toIntOrNull()?.let { s -> endNodeText.toIntOrNull()?.let { s to it } }
+                    nodes?.let { (s, e) -> clockForNodes(slotTimes, s, e) }?.let { (s, e) ->
+                        clockStart = s
+                        clockEnd = e
+                    }
+                }
+                if (!clock && byClock) clockNodes?.let { (s, e) ->
+                    startNodeText = s.toString()
+                    endNodeText = e.toString()
+                }
+                byClock = clock
+            })
+        }
+
+        if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
+        else Row(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -438,7 +475,7 @@ internal fun CourseEditFormFields(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SelectedWeeksRow(
+internal fun SelectedWeeksRow(
     weeks: List<Int>,
     onEdit: () -> Unit,
 ) {
@@ -487,7 +524,7 @@ private fun SelectedWeeksRow(
 /** Week-grid edits remain local until confirmation. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WeekMatrixDialog(
+internal fun WeekMatrixDialog(
     maxWeekCount: Int,
     selected: Set<Int>,
     onConfirm: (Set<Int>) -> Unit,
@@ -576,8 +613,8 @@ private fun CourseWeeklyField(
     val options = remember(suggestions) { suggestions.map { CourseReuseOption(it) } }
     CourseReuseTextField(value, onChange, stringResource(labelRes), options, modifier = modifier, tag = tag,
         extraAction = {
-            AppCircleIconButton(onClick = onPickWeeks, modifier = Modifier.testTag("$tag-weeks")) {
-                Icon(Icons.Rounded.EditCalendar, stringResource(titleRes),
+            AppCircleIconButton(onClick = onPickWeeks, modifier = Modifier.testTag("$tag-weeks"), size = FieldActionSize) {
+                Icon(Icons.Rounded.EditCalendar, stringResource(titleRes), Modifier.size(FieldActionIconSize),
                     tint = if (overrides.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
         },
@@ -718,8 +755,11 @@ private fun buildCourse(
     weekLocations: Map<Int, String> = emptyMap(),
     weekTeachers: Map<Int, String> = emptyMap(),
     existing: CourseItem? = null,
+    clock: Pair<Int, Int>? = null,
 ): CourseItem {
     val time = CourseTimeSlot(dayOfWeek = dayOfWeek, startNode = startNode, endNode = endNode)
+    val clockStart = clock?.first?.let(::formatMinuteOfDay)
+    val clockEnd = clock?.second?.let(::formatMinuteOfDay)
     // Edit only form fields, preserving IDs and placeholder metadata so manual overrides replace plugin originals.
     if (existing != null) {
         return existing.copy(
@@ -731,6 +771,8 @@ private fun buildCourse(
             time = time,
             weekLocations = weekLocations,
             weekTeachers = weekTeachers,
+            reminderStartTime = keptClock(existing, clockStart, existing.reminderStartTime),
+            reminderEndTime = keptClock(existing, clockEnd, existing.reminderEndTime),
         )
     }
     return CourseItem(
@@ -743,6 +785,15 @@ private fun buildCourse(
         time = time,
         weekLocations = weekLocations,
         weekTeachers = weekTeachers,
+        reminderStartTime = clockStart,
+        reminderEndTime = clockEnd,
     )
 }
 
+/** Placeholders keep their times; leaving clock mode clears typed times but not lone imported ones. */
+private fun keptClock(existing: CourseItem, typed: String?, stored: String?): String? = when {
+    existing.reminderOnly -> stored
+    typed != null -> typed
+    existing.typedClock() != null -> null
+    else -> stored
+}

@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="glance_appwidget_description">CurSimple · Daily classes</string>
+    <string name="glance_appwidget_description">CurSimple · Daily agenda</string>
     <string name="next_course_widget_description">CurSimple · Next class</string>
     <string name="reminder_widget_description">CurSimple · Class alarms</string>
-    <string name="widget_label_today">Daily classes</string>
+    <string name="widget_label_today">Daily agenda</string>
     <string name="widget_label_next">Next class</string>
     <string name="widget_label_reminder">Class alarms</string>
 
     <string name="widget_catalog_next_description">Current and next class at a glance, with time and place</string>
-    <string name="widget_catalog_today_description">Classes for any date, with one-tap day switching and jump back to today</string>
+    <string name="widget_catalog_today_description">Classes and events for any date, with one-tap day switching and jump back to today</string>
     <string name="widget_catalog_reminder_description">Class alarms about to ring</string>
 
     <string name="widget_month_day">%1$d/%2$d</string>
@@ -30,6 +30,10 @@
     <string name="widget_empty_today">No classes today, enjoy</string>
     <string name="widget_empty_tomorrow">No classes tomorrow</string>
     <string name="widget_empty_other_day">No classes that day</string>
+    <string name="widget_agenda_empty_yesterday">Nothing planned yesterday</string>
+    <string name="widget_agenda_empty_today">Nothing planned today, enjoy</string>
+    <string name="widget_agenda_empty_tomorrow">Nothing planned tomorrow</string>
+    <string name="widget_agenda_empty_other_day">Nothing planned that day</string>
 
     <string name="widget_subtitle_holiday">%1$s · %2$s</string>
     <string name="widget_subtitle_term_start_missing">%1$s · No term start</string>
@@ -48,6 +52,7 @@
 
     <string name="widget_status_live">In class</string>
     <string name="widget_status_exam_live">In exam</string>
+    <string name="widget_status_event_live">Ongoing</string>
     <string name="widget_status_upcoming">Starting soon</string>
     <string name="widget_status_not_started">Later</string>
     <string name="widget_status_finished">Ended</string>
@@ -60,6 +65,7 @@
     <string name="widget_course_subtitle_placeholder">TBD</string>
     <string name="widget_exam_title">Exam · %1$s</string>
     <string name="widget_course_reminder_badge">Alarm</string>
+    <string name="widget_row_event_tag">Event</string>
 
     <string name="widget_reminder_badge_count">%1$d</string>
     <string name="widget_reminder_empty_no_rules">No alarm rules yet</string>
@@ -101,11 +107,11 @@
     <string name="widget_preview_date">Sep 20 · Today</string>
     <string name="widget_preview_weekday">Saturday</string>
     <string name="widget_preview_nodes_1">Periods 1-2  08:00-09:35</string>
-    <string name="widget_preview_nodes_2">Periods 3-4  10:05-11:40</string>
+    <string name="widget_preview_nodes_2">Event  12:30-13:00</string>
     <string name="widget_preview_course_1">Data Structures</string>
-    <string name="widget_preview_course_2">Modern History</string>
+    <string name="widget_preview_course_2">Club meeting</string>
     <string name="widget_preview_place_1">East 13-C-315</string>
-    <string name="widget_preview_place_2">East 11-A-207</string>
+    <string name="widget_preview_place_2">Student Center</string>
     <string name="widget_preview_next_title">Next class</string>
     <string name="widget_preview_next_badge">In 20 min</string>
     <string name="widget_preview_next_line">08:00-09:35 · East 13-C-315</string>
@@ -120,7 +126,8 @@
     <string name="calendar_widget_description">CurSimple · Course calendar</string>
     <string name="widget_label_calendar">Course calendar</string>
     <string name="widget_label_tasks">Component widgets</string>
-    <string name="component_widget_slot_label">CurSimple component</string>
+    <string name="component_widget_slot_label">Optional component</string>
+    <string name="component_widget_slot_description">CurSimple · optional component</string>
     <string name="widget_catalog_calendar_description">Week timetable and month calendar; tap a day to open its classes</string>
     <string name="widget_catalog_tasks_description">Choose a declared widget with UI and content managed by its component</string>
     <string name="widget_background_image_error">Background image unavailable</string>

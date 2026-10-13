@@ -6,6 +6,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.x500x.cursimple.core.kernel.model.MemoNote
 
 /** Shared Markdown model stays alive while the desktop window switches settings panels. */
 @Stable
@@ -43,4 +44,10 @@ fun MemoMiniEditorToolbar(state: MemoRichTextState, modifier: Modifier = Modifie
 @Composable
 fun MemoMiniEditorHistory(state: MemoRichTextState, enabled: Boolean = true) {
     MemoEditorHistoryControls(state.blocks, enabled = enabled)
+}
+
+/** The Notes reading view for a floating window; checklists stay read-only until editing. */
+@Composable
+fun MemoMiniReader(note: MemoNote, notebooks: List<MemoNotebook>) {
+    MemoReadContent(note, notebooks, onToggle = null, horizontalPadding = 0.dp)
 }

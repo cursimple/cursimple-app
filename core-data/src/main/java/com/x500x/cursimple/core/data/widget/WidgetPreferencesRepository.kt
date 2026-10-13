@@ -17,6 +17,8 @@ data class WidgetThemePreferences(
     val openAppOnDoubleClickEnabled: Boolean = true,
     val followsAppThemeAccent: Boolean = true,
     val backgroundImageTransparencyPercent: Int = DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
+    /** Events join courses on the day list and mark days on the calendar. */
+    val showEvents: Boolean = true,
 ) {
     companion object {
         const val DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT = 0
@@ -92,6 +94,8 @@ interface WidgetPreferencesRepository {
     suspend fun clearWidgetBackgroundImage()
 
     suspend fun setWidgetOpenAppOnDoubleClickEnabled(enabled: Boolean)
+
+    suspend fun setWidgetShowEvents(enabled: Boolean)
 
     suspend fun resetWidgetThemePreferences()
 }

@@ -161,6 +161,27 @@ class FastTransferTest {
     }
 
     @Test
+    fun `when the whole first wave is dead the next wave is probed instead of giving up`() = runBlocking {
+        val data = body(1024)
+        val dead = List(FastTransfer.PROBE_WAVE) { DownloadCandidate("dead$it", "http://127.0.0.1:1/file$it.bin") }
+        val good = mirror(data)
+        val probes = FastTransfer(SharedHttp.transfer, "test", null).probe(dead + good.candidate("good"))
+
+        assertEquals(listOf("good"), probes.map { it.candidate.sourceName })
+    }
+
+    @Test
+    fun `a lone early answer waits a little longer so a second mirror can join`() = runBlocking {
+        val data = body(1024)
+        val quick = mirror(data)
+        val later = mirror(data, { it.firstByteDelayMillis = 1_000L })
+        val probes = FastTransfer(SharedHttp.transfer, "test", null)
+            .probe(listOf(quick.candidate("quick"), later.candidate("later")))
+
+        assertEquals(listOf("later", "quick"), probes.map { it.candidate.sourceName }.sorted())
+    }
+
+    @Test
     fun `several mirrors cooperate and the assembled file is byte for byte identical`() = runBlocking {
         val data = body(6 * 1024 * 1024)
         val a = mirror(data); val b = mirror(data); val c = mirror(data)

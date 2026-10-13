@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.x500x.cursimple.R
 
 class ShouldShowFirstRunGuideTest {
     @Test
@@ -91,14 +92,60 @@ class GuideNavigationTest {
 class GuideStepsTest {
     @Test
     fun `the guide has steps to show`() {
-        assertTrue(FIRST_RUN_GUIDE_STEPS.isNotEmpty())
+        assertTrue(firstRunGuideSteps(bottomBar = false).isNotEmpty())
     }
 
     @Test
     fun `steps that point somewhere name a real element`() {
-        FIRST_RUN_GUIDE_STEPS.mapNotNull { it.anchor }.forEach { anchor ->
+        (firstRunGuideSteps(bottomBar = false) + firstRunGuideSteps(bottomBar = true)).mapNotNull { it.anchor }.forEach { anchor ->
             assertTrue(anchor in GuideAnchor.entries)
         }
+    }
+}
+
+class GuideLayoutTest {
+    @Test
+    fun `the bottom bar tour explains the bar instead of the drawer menu`() {
+        val bar = firstRunGuideSteps(bottomBar = true).first()
+        assertEquals(R.string.guide_bar_title, bar.titleRes)
+        assertEquals(R.string.guide_bar_body, bar.bodyRes)
+        assertEquals(GuideAnchor.Navigation, bar.anchor)
+        val drawer = firstRunGuideSteps(bottomBar = false).first()
+        assertEquals(R.string.guide_drawer_body, drawer.bodyRes)
+        assertEquals(GuideAnchor.Navigation, drawer.anchor)
+    }
+
+    @Test
+    fun `both layouts visit the same pages`() {
+        assertEquals(firstRunGuideSteps(false).map { it.destination }, firstRunGuideSteps(true).map { it.destination })
+    }
+
+    @Test
+    fun `page steps introduce the page instead of narrating how it opens`() {
+        val pageBodies = firstRunGuideSteps(bottomBar = false)
+            .filter { it.destination != GuideDestination.Schedule }
+            .map { stepName(it.bodyRes) }
+        listOf("values", "values-en", "values-zh-rTW").forEach { dir ->
+            val strings = strings(dir)
+            pageBodies.forEach { name ->
+                val body = strings.getValue(name)
+                listOf("下一步", "过渡", "轉場", "Next", "transition").forEach { word ->
+                    assertFalse("$dir/$name 还在讲怎么打开：$body", body.contains(word))
+                }
+            }
+        }
+    }
+
+    private fun stepName(id: Int) = R.string::class.java.fields.first { it.getInt(null) == id }.name
+
+    private fun strings(dir: String): Map<String, String> {
+        val userDir = java.nio.file.Paths.get(System.getProperty("user.dir"))
+        val file = sequenceOf(userDir.resolve("src/main/res/$dir/strings.xml"), userDir.resolve("app/src/main/res/$dir/strings.xml"))
+            .first(java.nio.file.Files::isRegularFile).toFile()
+        val nodes = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file)
+            .getElementsByTagName("string")
+        return (0 until nodes.length).map { nodes.item(it) as org.w3c.dom.Element }
+            .associate { it.getAttribute("name") to it.textContent }
     }
 }
 

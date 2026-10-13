@@ -47,6 +47,12 @@ class PluginCompatibilityTest {
     }
 
     @Test
+    fun `api 12 manifests pass compatibility`() {
+        assertEquals(PluginCompatibilityStatus.Compatible, resolvePluginCompatibility(12).status)
+        assertEquals(PluginCompatibilityStatus.Incompatible, resolvePluginCompatibility(13).status)
+    }
+
+    @Test
     fun `an api version below the current one stays supported`() {
         val older = PluginApiVersion.CURRENT - 1
         if (older >= 1) {

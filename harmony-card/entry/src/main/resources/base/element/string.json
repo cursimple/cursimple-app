@@ -1,0 +1,68 @@
+{
+  "string": [
+    {
+      "name": "app_name",
+      "value": "课简卡片"
+    },
+    {
+      "name": "notes_card",
+      "value": "笔记待办"
+    },
+    {
+      "name": "courses_card",
+      "value": "今日课程"
+    },
+    {
+      "name": "empty_notes",
+      "value": "暂无未完成笔记"
+    },
+    {
+      "name": "empty_courses",
+      "value": "今天暂无后续课程"
+    },
+    {
+      "name": "import_hint",
+      "value": "打开应用导入课简笔记或课表日历"
+    },
+    {
+      "name": "pinned",
+      "value": "置顶"
+    },
+    {
+      "name": "priority_high",
+      "value": "高优先级"
+    },
+    {
+      "name": "priority_medium",
+      "value": "中优先级"
+    },
+    {
+      "name": "priority_low",
+      "value": "低优先级"
+    },
+    {
+      "name": "import_notes",
+      "value": "导入课简笔记"
+    },
+    {
+      "name": "import_calendar",
+      "value": "导入课表日历"
+    },
+    {
+      "name": "home_description",
+      "value": "导入课简分享的笔记或课表日历，在系统桌面查看真实内容。"
+    },
+    {
+      "name": "add_hint",
+      "value": "长按桌面空白处 → 服务卡片 → 课简卡片，添加今日课程或笔记待办。"
+    },
+    {
+      "name": "import_success",
+      "value": "已导入"
+    },
+    {
+      "name": "import_failed",
+      "value": "无法导入，请选择有效的课简笔记或日历文件。"
+    }
+  ]
+}

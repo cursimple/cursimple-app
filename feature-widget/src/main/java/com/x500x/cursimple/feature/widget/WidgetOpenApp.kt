@@ -44,9 +44,10 @@ internal fun RemoteViews.applyOpenAppListTemplate(
     listId: Int,
     appWidgetId: Int,
     theme: WidgetThemePreferences,
+    extraIntent: Intent? = null,
 ) {
     if (!theme.openAppOnDoubleClickEnabled) return
-    val pendingIntent = openAppPendingIntent(context, appWidgetId, fillInTemplate = true) ?: return
+    val pendingIntent = openAppPendingIntent(context, appWidgetId, fillInTemplate = true, extraIntent = extraIntent) ?: return
     setPendingIntentTemplate(listId, pendingIntent)
 }
 

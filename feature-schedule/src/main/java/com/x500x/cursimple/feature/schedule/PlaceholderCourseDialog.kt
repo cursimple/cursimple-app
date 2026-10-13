@@ -166,19 +166,19 @@ internal fun PlaceholderCourseDialog(
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
                     if (maxWidth < 200.dp) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            PlaceholderTimeButton(stringResource(R.string.schedule_placeholder_start_label), startMinute,
+                            TimeValueButton(stringResource(R.string.schedule_placeholder_start_label), startMinute,
                                 { picking = PlaceholderTimePick.Start }, Modifier.fillMaxWidth())
-                            PlaceholderTimeButton(stringResource(R.string.schedule_placeholder_end_label), endMinute,
+                            TimeValueButton(stringResource(R.string.schedule_placeholder_end_label), endMinute,
                                 { picking = PlaceholderTimePick.End }, Modifier.fillMaxWidth())
                         }
                     } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PlaceholderTimeButton(
+                        TimeValueButton(
                             label = stringResource(R.string.schedule_placeholder_start_label),
                             minute = startMinute,
                             onClick = { picking = PlaceholderTimePick.Start },
                             modifier = Modifier.weight(1f),
                         )
-                        PlaceholderTimeButton(
+                        TimeValueButton(
                             label = stringResource(R.string.schedule_placeholder_end_label),
                             minute = endMinute,
                             onClick = { picking = PlaceholderTimePick.End },
@@ -290,7 +290,7 @@ private fun PlaceholderError(text: String) {
 }
 
 @Composable
-private fun PlaceholderTimeButton(
+internal fun TimeValueButton(
     label: String,
     minute: Int,
     onClick: () -> Unit,

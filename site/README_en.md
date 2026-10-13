@@ -16,6 +16,10 @@ Support `zh-CN`, `zh-TW` and `en` with identical semantic dictionary keys in `i1
 
 Use `data-i18n` for text-only nodes. For elements containing icons or links, mark a text child to preserve interactions. Alternative text, accessible labels and metadata use `data-i18n-alt`, `data-i18n-aria-label` and `data-i18n-content`. Dynamic strings use `SiteI18n.t()`; dates use `formatDate()`.
 
+## Downloads
+
+Download buttons use the China mirror by default: the page starts with the first mirror, then switches to whichever mirror first returns the real `update.json`; rate-limited or failing mirrors are never chosen. Choosing “GitHub direct” is remembered. Only mirrors verified to serve the APK and allow cross-origin probes belong in the list.
+
 ## Release notes
 
 Keep localized files together in `release-notes/`:

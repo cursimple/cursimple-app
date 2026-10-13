@@ -1,0 +1,6 @@
+{
+  "name": "cursimple-harmony-card",
+  "version": "0.1.0",
+  "description": "Local HarmonyOS service widgets for CurSimple data",
+  "dependencies": {}
+}

@@ -68,6 +68,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -457,10 +458,11 @@ private fun MemoEditContent(
 /** Rendered, read-only note; only round checklist controls can change it. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MemoReadContent(
+internal fun MemoReadContent(
     note: MemoNote,
     notebooks: List<MemoNotebook>,
     onToggle: ((Int) -> Unit)?,
+    horizontalPadding: Dp = 16.dp,
 ) {
     val zone = LocalAppZone.current
     val now = BeijingTime.nowDateTimeIn(zone)
@@ -468,7 +470,7 @@ private fun MemoReadContent(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = horizontalPadding)
             .padding(top = 4.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {

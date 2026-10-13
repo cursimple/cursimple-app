@@ -12,6 +12,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import kotlinx.coroutines.CoroutineScope
+import com.x500x.cursimple.core.data.event.DataStoreScheduleEventRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
@@ -40,14 +41,26 @@ object ScheduleWidgetUpdater {
         }
     }
 
+    /** Events only reach the day list and the calendar. */
+    suspend fun refreshForEvents(context: Context) = withContext(Dispatchers.Default) {
+        val app = context.applicationContext
+        ScheduleWidgetDataSource.invalidate()
+        ScheduleGlanceWidgetReceiver.updateWidgets(app)
+        CalendarWidgetReceiver.updateWidgets(app)
+        rescheduleBoundaryRefresh(app)
+    }
+
     private suspend fun rescheduleBoundaryRefresh(context: Context) {
         runCatching {
+            val preferences = DataStoreWidgetPreferencesRepository(context)
             // Null timing means unavailable data; preserve scheduled boundaries until an actual profile is read.
-            val profile = DataStoreWidgetPreferencesRepository(context)
-                .timingProfileFlow
-                .first()
-                ?: return@runCatching
-            WidgetBoundaryRefreshScheduler.reschedule(context, profile.slotTimes)
+            val profile = preferences.timingProfileFlow.first() ?: return@runCatching
+            val events = if (preferences.themePreferencesFlow.first().showEvents) {
+                DataStoreScheduleEventRepository(context).eventsFlow.first()
+            } else {
+                emptyList()
+            }
+            WidgetBoundaryRefreshScheduler.reschedule(context, profile.slotTimes, events = events)
         }.onFailure { error ->
             ReminderLogger.warn("widget.boundary_refresh.reschedule.failure", emptyMap(), error)
         }

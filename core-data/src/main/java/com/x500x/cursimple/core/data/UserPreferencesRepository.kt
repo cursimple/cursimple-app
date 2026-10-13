@@ -11,6 +11,8 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import com.x500x.cursimple.core.data.navigation.AppLayoutSelection
+import com.x500x.cursimple.core.data.navigation.DrawerLayout
 import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
 import com.x500x.cursimple.core.reminder.ReminderDayPolicy
@@ -295,6 +297,8 @@ data class ScheduleDisplayPreferences(
     val weekendVisible: Boolean = true,
     val rowFitMode: ScheduleRowFitMode = ScheduleRowFitMode.Fit,
     val locationVisible: Boolean = true,
+    /** Prefix the location with "@" on course cards. */
+    val locationAtPrefix: Boolean = true,
     val teacherVisible: Boolean = true,
     val totalScheduleDisplayEnabled: Boolean = true,
     val weekStartDay: WeekStartDay = WeekStartDay.Monday,
@@ -429,6 +433,9 @@ data class UserPreferences(
      */
     val pluginSources: List<String> = listOf(DEFAULT_PLUGIN_REGISTRY_REPO),
     val componentSources: List<String> = listOf(DEFAULT_COMPONENT_REGISTRY_REPO),
+    val drawerLayout: DrawerLayout = DrawerLayout.DEFAULT,
+    /** Layout applied by a component; only used while that component can still provide it. */
+    val appLayout: AppLayoutSelection? = null,
     val pluginMarketCacheJson: String = "",
     val pluginMarketCachedAtMillis: Long = 0L,
     val pluginMarketCachedRegistry: String = "",
@@ -527,6 +534,7 @@ interface UserPreferencesRepository {
     suspend fun setPluginTimetableRowVisible(pluginId: String, rowId: String, visible: Boolean)
     suspend fun setSchedulePinchZoomEnabled(enabled: Boolean)
     suspend fun setScheduleLocationVisible(visible: Boolean)
+    suspend fun setScheduleLocationAtPrefix(enabled: Boolean)
     suspend fun setScheduleTeacherVisible(visible: Boolean)
     suspend fun setTotalScheduleDisplayEnabled(enabled: Boolean)
     suspend fun setPluginEnabled(pluginKey: String, enabled: Boolean)
@@ -590,6 +598,8 @@ interface UserPreferencesRepository {
     suspend fun setPluginRegistryRepo(repo: String)
     suspend fun setPluginSources(sources: List<String>)
     suspend fun setComponentSources(sources: List<String>)
+    suspend fun setDrawerLayout(layout: DrawerLayout)
+    suspend fun setAppLayout(selection: AppLayoutSelection?)
     suspend fun setPluginMarketCache(json: String, atMillis: Long, registry: String)
     suspend fun setComponentMarketIndexUrl(url: String)
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)

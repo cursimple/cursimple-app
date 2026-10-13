@@ -189,6 +189,20 @@ class AutoSilencePlannerTest {
     }
 
     @Test
+    fun `手填时刻优先于节次时刻`() {
+        val blocks = resolveClassBlocks(
+            date = MONDAY_WEEK_1,
+            courses = listOf(course("a", startNode = 1, endNode = 2).copy(reminderStartTime = "08:20", reminderEndTime = "09:10")),
+            timingProfile = timingProfile(),
+            termStart = TERM_START,
+            overrides = emptyList(),
+            holidayCalendar = HolidayCalendarSettings.NONE,
+        )
+
+        assertEquals(listOf(block(MONDAY_WEEK_1, 8, 20, 9, 10)), blocks)
+    }
+
+    @Test
     fun `上课时段开始算在内结束算在外`() {
         val blocks = listOf(block(MONDAY_WEEK_1, 8, 0, 9, 35))
 

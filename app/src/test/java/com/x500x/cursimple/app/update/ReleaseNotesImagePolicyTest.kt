@@ -6,11 +6,12 @@ import org.junit.Test
 import java.io.File
 
 /**
- * The announcement renderer fetches images over the in-app mirror pool. That pool only
- * understands `raw.githubusercontent.com` URLs (see `releaseImageRequest`), so every
- * `docs/release-notes/v*.md` image must use an absolute raw URL; relative paths are treated
- * as direct URLs and fail to load. This checks the convention holds for versions at or newer
- * than the first release that introduced image-heavy announcements (v0.7.9).
+ * The announcement renderer fetches images over the in-app mirror pool, which only understands
+ * `raw.githubusercontent.com` URLs (see `releaseImageRequest`). Notes fetched by tag are now
+ * rewritten by `resolveReleaseImageUrls`, so relative paths no longer break the announcement —
+ * but absolute raw URLs stay the convention because these files are read outside the app too
+ * (GitHub rendering, the website copies). This checks versions at or newer than the first
+ * release with image-heavy announcements (v0.7.9).
  */
 class ReleaseNotesImagePolicyTest {
 

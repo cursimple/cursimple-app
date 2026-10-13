@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="glance_appwidget_description">课简 · 每日课程</string>
+    <string name="glance_appwidget_description">课简 · 今日安排</string>
     <string name="next_course_widget_description">课简 · 下一节课</string>
     <string name="reminder_widget_description">课简 · 课程闹钟</string>
-    <string name="widget_label_today">每日课程</string>
+    <string name="widget_label_today">今日安排</string>
     <string name="widget_label_next">下一节课</string>
     <string name="widget_label_reminder">课程闹钟</string>
 
     <string name="widget_catalog_next_description">紧凑显示当前与下一节课程，附时间和地点</string>
-    <string name="widget_catalog_today_description">查看任意日期的课程列表，可一键切换和回到今天</string>
+    <string name="widget_catalog_today_description">查看任意日期的课程和事务，可一键切换和回到今天</string>
     <string name="widget_catalog_reminder_description">未来即将触发的课程闹钟清单</string>
 
     <string name="widget_month_day">%1$d月%2$d日</string>
@@ -31,6 +31,10 @@
     <string name="widget_empty_today">今日没有课程，享受一天</string>
     <string name="widget_empty_tomorrow">明日没有课程</string>
     <string name="widget_empty_other_day">当日没有课程</string>
+    <string name="widget_agenda_empty_yesterday">昨日没有安排</string>
+    <string name="widget_agenda_empty_today">今日没有安排，享受一天</string>
+    <string name="widget_agenda_empty_tomorrow">明日没有安排</string>
+    <string name="widget_agenda_empty_other_day">当日没有安排</string>
 
     <string name="widget_subtitle_holiday">%1$s · %2$s</string>
     <string name="widget_subtitle_term_start_missing">%1$s · 未设开学日期</string>
@@ -49,6 +53,7 @@
 
     <string name="widget_status_live">上课中</string>
     <string name="widget_status_exam_live">考试中</string>
+    <string name="widget_status_event_live">进行中</string>
     <string name="widget_status_upcoming">即将开始</string>
     <string name="widget_status_not_started">未开始</string>
     <string name="widget_status_finished">已结束</string>
@@ -61,6 +66,7 @@
     <string name="widget_course_subtitle_placeholder">待定</string>
     <string name="widget_exam_title">考试 · %1$s</string>
     <string name="widget_course_reminder_badge">闹钟</string>
+    <string name="widget_row_event_tag">事务</string>
 
     <string name="widget_reminder_badge_count">%1$d 条</string>
     <string name="widget_reminder_empty_no_rules">尚未设置闹钟规则</string>
@@ -102,11 +108,11 @@
     <string name="widget_preview_date">9月20日 · 今天</string>
     <string name="widget_preview_weekday">周六</string>
     <string name="widget_preview_nodes_1">1-2节  08:00-09:35</string>
-    <string name="widget_preview_nodes_2">3-4节  10:05-11:40</string>
+    <string name="widget_preview_nodes_2">事务  12:30-13:00</string>
     <string name="widget_preview_course_1">算法与数据结构</string>
-    <string name="widget_preview_course_2">毛泽东思想概论</string>
+    <string name="widget_preview_course_2">社团例会</string>
     <string name="widget_preview_place_1">东 13-C-315</string>
-    <string name="widget_preview_place_2">东 11-A-207</string>
+    <string name="widget_preview_place_2">学生活动中心</string>
     <string name="widget_preview_next_title">下一节课</string>
     <string name="widget_preview_next_badge">20分钟后</string>
     <string name="widget_preview_next_line">08:00-09:35 · 东 13-C-315</string>
@@ -121,7 +127,8 @@
     <string name="calendar_widget_description">课简 · 课程日历</string>
     <string name="widget_label_calendar">课程日历</string>
     <string name="widget_label_tasks">组件提供的小组件</string>
-    <string name="component_widget_slot_label">课简组件</string>
+    <string name="component_widget_slot_label">选装组件</string>
+    <string name="component_widget_slot_description">课简 · 选装组件</string>
     <string name="widget_catalog_calendar_description">周课表与月历两种视图，点某一天直接打开那天的课程</string>
     <string name="widget_catalog_tasks_description">选择组件声明的小组件，界面和内容由组件管理</string>
     <string name="widget_background_image_error">背景图片无法读取</string>

@@ -30,10 +30,10 @@ FONT_CANDIDATES = [
 LOCALES = {
     "": {
         "date": "9月20日 · 今天", "weekday": "周六",
-        "nodes1": "1-2节", "nodes2": "3-4节",
-        "time1": "08:00-09:35", "time2": "10:05-11:40",
-        "course1": "算法与数据结构", "course2": "毛泽东思想概论",
-        "place1": "东 13-C-315", "place2": "东 11-A-207",
+        "nodes1": "1-2节", "nodes2": "事务",
+        "time1": "08:00-09:35", "time2": "12:30-13:00",
+        "course1": "算法与数据结构", "course2": "社团例会",
+        "place1": "东 13-C-315", "place2": "学生活动中心",
         "next_title": "下一节课", "next_badge": "20分钟后",
         "next_line": "08:00-09:35 · 东 13-C-315",
         "rem_title": "课程提醒", "rem_badge": "已开启",
@@ -42,10 +42,10 @@ LOCALES = {
     },
     "en": {
         "date": "Sep 20 · Today", "weekday": "Saturday",
-        "nodes1": "P1-2", "nodes2": "P3-4",
-        "time1": "08:00-09:35", "time2": "10:05-11:40",
-        "course1": "Data Structures", "course2": "Modern History",
-        "place1": "East 13-C-315", "place2": "East 11-A-207",
+        "nodes1": "P1-2", "nodes2": "Event",
+        "time1": "08:00-09:35", "time2": "12:30-13:00",
+        "course1": "Data Structures", "course2": "Club meeting",
+        "place1": "East 13-C-315", "place2": "Student Center",
         "next_title": "Next class", "next_badge": "In 20 min",
         "next_line": "08:00-09:35 · East 13-C-315",
         "rem_title": "Class reminders", "rem_badge": "On",
@@ -54,10 +54,10 @@ LOCALES = {
     },
     "zh-rTW": {
         "date": "9月20日 · 今天", "weekday": "週六",
-        "nodes1": "1-2節", "nodes2": "3-4節",
-        "time1": "08:00-09:35", "time2": "10:05-11:40",
-        "course1": "演算法與資料結構", "course2": "近代史綱要",
-        "place1": "東 13-C-315", "place2": "東 11-A-207",
+        "nodes1": "1-2節", "nodes2": "事務",
+        "time1": "08:00-09:35", "time2": "12:30-13:00",
+        "course1": "演算法與資料結構", "course2": "社團例會",
+        "place1": "東 13-C-315", "place2": "學生活動中心",
         "next_title": "下一節課", "next_badge": "20分鐘後",
         "next_line": "08:00-09:35 · 東 13-C-315",
         "rem_title": "課程提醒", "rem_badge": "已開啟",
@@ -151,7 +151,7 @@ def _course_row(
 
 
 def today_preview(t: dict) -> Image.Image:
-    """每日课程：头部一天的日期加左右翻页，下面两行课。"""
+    """今日安排：头部一天的日期加左右翻页，下面一行课、一行事务。"""
     width, height = 220, 148
     image, draw = _card(width, height)
 

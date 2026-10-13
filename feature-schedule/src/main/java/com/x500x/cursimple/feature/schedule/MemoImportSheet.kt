@@ -53,6 +53,9 @@ internal fun MemoImportSheet(
     var saved by remember(uri, code) { mutableStateOf<Int?>(null) }
     var retry by remember(uri, code) { mutableIntStateOf(0) }
     var images by remember(uri, code) { mutableStateOf<List<MemoTransferImage>>(emptyList()) }
+    // Resolved at composition level so a locale change is picked up; the loop below builds the
+    // list it renders and would otherwise read resources outside composition.
+    val otherNotebookTitle = stringResource(R.string.memo_notebook_other)
     LaunchedEffect(uri, code, retry) {
         failure = false
         plan = null
@@ -97,7 +100,7 @@ internal fun MemoImportSheet(
                     val ready = plan!!
                     Text(stringResource(R.string.memo_import_summary, ready.notes.size, ready.skipped))
                     Text(stringResource(R.string.memo_import_mapping_hint), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ready.notes.map { it.courseTitle.ifBlank { context.getString(R.string.memo_notebook_other) } }.distinct().forEach {
+                    ready.notes.map { it.courseTitle.ifBlank { otherNotebookTitle } }.distinct().forEach {
                         Text(it, style = MaterialTheme.typography.titleSmall)
                     }
                     Button(

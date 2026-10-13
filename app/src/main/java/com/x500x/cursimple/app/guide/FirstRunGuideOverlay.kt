@@ -1,6 +1,11 @@
 package com.x500x.cursimple.app.guide
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -53,7 +58,7 @@ import com.x500x.cursimple.R
  */
 @Composable
 fun FirstRunGuideOverlay(
-    steps: List<GuideStep> = FIRST_RUN_GUIDE_STEPS,
+    steps: List<GuideStep>,
     onNavigate: (GuideDestination) -> Unit = {},
     onFinish: () -> Unit,
 ) {
@@ -78,72 +83,82 @@ fun FirstRunGuideOverlay(
     ) {
         SpotlightScrim(spotlight)
 
-        val placement = guideCardPlacement(
-            anchorCenterY = spotlight?.center?.y,
-            containerHeight = with(LocalDensity.current) { maxHeight.toPx() },
-        )
-        Column(
-            modifier = Modifier
-                .align(
-                    when (placement) {
-                        GuideCardPlacement.Top -> Alignment.TopCenter
-                        GuideCardPlacement.Bottom -> Alignment.BottomCenter
-                        GuideCardPlacement.Center -> Alignment.Center
-                    },
-                )
-                .padding(horizontal = 20.dp, vertical = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 3.dp,
-            ) {
+        val containerHeight = with(LocalDensity.current) { maxHeight.toPx() }
+        // Steps crossfade rather than swapping text in a single frame.
+        AnimatedContent(
+            targetState = index.coerceIn(steps.indices),
+            transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(140)) },
+            label = "guide_step",
+            modifier = Modifier.fillMaxSize(),
+        ) { shown ->
+            val card = steps[shown]
+            val cardSpotlight = card.anchor?.let { anchors[it] }
+            Box(Modifier.fillMaxSize()) {
+                val placement = guideCardPlacement(anchorCenterY = cardSpotlight?.center?.y, containerHeight = containerHeight)
                 Column(
-                    modifier = Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = stringResource(step.titleRes),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = stringResource(step.bodyRes),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    StepDots(current = index, total = steps.size)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AppOutlinedButton(
-                            onClick = onFinish,
-                            contentPadding = PaddingValues(horizontal = 8.dp),
-                        ) {
-                            Text(stringResource(R.string.guide_skip))
-                        }
-                        Spacer(modifier = Modifier.weight(1f))
-                        if (index > 0) {
-                            AppOutlinedButton(onClick = { index = previousGuideIndex(index) }) {
-                                Text(stringResource(R.string.guide_previous))
-                            }
-                            Spacer(modifier = Modifier.width(4.dp))
-                        }
-                        Button(
-                            onClick = {
-                                val next = nextGuideIndex(index, steps.size)
-                                if (next == null) onFinish() else index = next
+                    modifier = Modifier
+                        .align(
+                            when (placement) {
+                                GuideCardPlacement.Top -> Alignment.TopCenter
+                                GuideCardPlacement.Bottom -> Alignment.BottomCenter
+                                GuideCardPlacement.Center -> Alignment.Center
                             },
+                        )
+                        .padding(horizontal = 20.dp, vertical = 48.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(18.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 3.dp,
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(18.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Text(
-                                if (index == steps.lastIndex) {
-                                    stringResource(R.string.guide_done)
-                                } else {
-                                    stringResource(R.string.guide_next)
-                                },
+                                text = stringResource(card.titleRes),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
                             )
+                            Text(
+                                text = stringResource(card.bodyRes),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            StepDots(current = shown, total = steps.size)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                AppOutlinedButton(
+                                    onClick = onFinish,
+                                    contentPadding = PaddingValues(horizontal = 8.dp),
+                                ) {
+                                    Text(stringResource(R.string.guide_skip))
+                                }
+                                Spacer(modifier = Modifier.weight(1f))
+                                if (shown > 0) {
+                                    AppOutlinedButton(onClick = { index = previousGuideIndex(index) }) {
+                                        Text(stringResource(R.string.guide_previous))
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
+                                Button(
+                                    onClick = {
+                                        val next = nextGuideIndex(index, steps.size)
+                                        if (next == null) onFinish() else index = next
+                                    },
+                                ) {
+                                    Text(
+                                        if (shown == steps.lastIndex) {
+                                            stringResource(R.string.guide_done)
+                                        } else {
+                                            stringResource(R.string.guide_next)
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                 }

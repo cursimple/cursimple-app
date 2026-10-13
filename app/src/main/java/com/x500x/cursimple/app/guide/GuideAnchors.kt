@@ -11,7 +11,8 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 
 enum class GuideAnchor {
-    Drawer,
+    /** The drawer button, or the whole bottom bar when that layout is active. */
+    Navigation,
 
     Add,
 

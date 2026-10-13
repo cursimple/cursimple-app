@@ -8,6 +8,8 @@ import org.w3c.dom.Element
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.text.Collator
+import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
 
 class WidgetProviderMetadataTest {
@@ -84,6 +86,47 @@ class WidgetProviderMetadataTest {
         assertEquals("", slot.androidAttribute("previewImage"))
         assertEquals("", slot.androidAttribute("previewLayout"))
         assertEquals("hide_from_picker", providerXml("tasks_widget_info.xml").androidAttribute("widgetFeatures"))
+    }
+
+    @Test
+    fun `component widgets list after the built-in ones in every picker language`() {
+        // Launchers order an app's widgets by label with the system collator.
+        val builtIns = listOf("widget_label_today", "widget_label_next", "widget_label_reminder",
+            "widget_label_calendar", "widget_label_memo")
+        listOf("values" to Locale.SIMPLIFIED_CHINESE, "values-zh-rTW" to Locale.TRADITIONAL_CHINESE,
+            "values-en" to Locale.ENGLISH).forEach { (dir, locale) ->
+            val strings = strings(dir)
+            val slot = strings.getValue("component_widget_slot_label")
+            val collator = Collator.getInstance(locale)
+            builtIns.map(strings::getValue).forEach { label ->
+                assertTrue("$dir：「$slot」会排在「$label」前面", collator.compare(slot, label) > 0)
+            }
+        }
+    }
+
+    @Test
+    fun `component slots carry the same picker subtitle as built-in widgets`() {
+        val receivers = manifest().getElementsByTagName("receiver")
+        val miui = (0 until receivers.length).map { receivers.item(it) as Element }
+            .associateBy { it.androidAttribute("name") }
+        (0 until ComponentWidgetSlots.COUNT).forEach { slot ->
+            val metas = miui.getValue(".ComponentWidgetSlot${slot}ReceiverMIUI").getElementsByTagName("meta-data")
+            val description = (0 until metas.length).map { metas.item(it) as Element }
+                .firstOrNull { it.androidAttribute("name") == "vivo.widget.description" }
+            assertEquals("slot $slot", "@string/component_widget_slot_description", description?.androidAttribute("resource"))
+        }
+    }
+
+    private fun manifest() = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
+        .newDocumentBuilder().parse(sequenceOf(
+            Paths.get(System.getProperty("user.dir")).resolve("src/main/AndroidManifest.xml"),
+            Paths.get(System.getProperty("user.dir")).resolve("feature-widget/src/main/AndroidManifest.xml"),
+        ).first(Files::isRegularFile).toFile())
+
+    private fun strings(dir: String): Map<String, String> {
+        val file = resCandidates("$dir/strings.xml").first(Files::isRegularFile).toFile()
+        val nodes = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(file).getElementsByTagName("string")
+        return (0 until nodes.length).map { nodes.item(it) as Element }.associate { it.getAttribute("name") to it.textContent }
     }
 
     private fun resCandidates(relative: String): Sequence<Path> {

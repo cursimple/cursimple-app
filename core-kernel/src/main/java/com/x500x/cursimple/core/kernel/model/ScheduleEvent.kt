@@ -24,6 +24,8 @@ data class ScheduleEvent(
     @SerialName("repeatWeekly") val repeatWeekly: Boolean = false,
     /** Inclusive repeat end; null means unbounded. */
     @SerialName("repeatUntil") val repeatUntil: String? = null,
+    /** Dates picked week by week; when set they are the only days the event occurs. */
+    @SerialName("weekDates") val weekDates: List<String> = emptyList(),
     @SerialName("colorArgb") val colorArgb: Long? = null,
     @SerialName("source") val source: ScheduleEventSource? = null,
 ) {
@@ -42,9 +44,18 @@ data class ScheduleEvent(
             return localDate != null && end > start && title.isNotBlank()
         }
 
+    val pickedDates: List<LocalDate> get() = weekDates.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.sorted()
+
+    val isRecurring: Boolean get() = repeatWeekly || weekDates.size > 1
+
+    /** Term weeks of [pickedDates], counted from [termStart]'s Monday. */
+    fun termWeeks(termStart: LocalDate): List<Int> =
+        pickedDates.map { resolveTermWeekNumber(termStart, it) }.distinct().sorted()
+
     fun occursOn(day: LocalDate): Boolean {
         val first = localDate ?: return false
         if (!isValid) return false
+        if (weekDates.isNotEmpty()) return day in pickedDates
         if (!repeatWeekly) return day == first
         if (day.isBefore(first) || day.dayOfWeek != first.dayOfWeek) return false
         val until = repeatUntil?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
@@ -55,6 +66,12 @@ data class ScheduleEvent(
         val (h, m) = raw.trim().split(':').map { it.toInt() }
         LocalTime.of(h, m)
     }.getOrNull()
+}
+
+/** The [dayOfWeek] in each of [weeks], counting week 1 from the Monday of [termStart]. */
+fun termWeekDates(termStart: LocalDate, dayOfWeek: java.time.DayOfWeek, weeks: Collection<Int>): List<LocalDate> {
+    val monday = termStart.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+    return weeks.distinct().sorted().map { monday.plusWeeks(it - 1L).plusDays(dayOfWeek.value - 1L) }
 }
 
 @Serializable

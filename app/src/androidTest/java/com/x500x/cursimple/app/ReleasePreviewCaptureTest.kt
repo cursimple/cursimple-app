@@ -267,7 +267,7 @@ class ReleasePreviewCaptureTest {
         compose.onNodeWithTag("today-overview-card").assertIsDisplayed().performClick()
         compose.onNodeWithTag("today-overview-sheet").assertIsDisplayed()
         compose.onNodeWithText(fixtureContext.getString(ScheduleR.string.schedule_today_count, 3, 1)).assertIsDisplayed()
-        awaitVisibleText(fixtureContext.getString(ScheduleR.string.schedule_today_minutes_to_end, 30L))
+        awaitVisibleText(fixtureContext.getString(ScheduleR.string.schedule_today_seconds_to_end, 30, 0))
         awaitVisibleText(fixtureContext.getString(ScheduleR.string.schedule_today_next_brief, "大学英语", "09:30"))
         saveScreenshot("agenda.png")
     }

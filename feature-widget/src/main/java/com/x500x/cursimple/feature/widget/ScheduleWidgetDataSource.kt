@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.data.DataStoreManualCourseRepository
 import com.x500x.cursimple.core.data.DataStoreScheduleRepository
 import com.x500x.cursimple.core.data.DataStoreUserPreferencesRepository
 import com.x500x.cursimple.core.data.ThemeAccent
+import com.x500x.cursimple.core.data.event.DataStoreScheduleEventRepository
 import com.x500x.cursimple.core.data.reminder.DataStoreReminderRepository
 import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
@@ -17,12 +18,15 @@ import com.x500x.cursimple.core.data.widget.resolveAccent
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.allCoursesWith
+import com.x500x.cursimple.core.kernel.model.occurrencesOn
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.model.ReminderRule
 import kotlinx.coroutines.flow.first
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -39,6 +43,8 @@ internal data class ScheduleWidgetCourseRow(
     val slotLabel: String? = null,
     /** Optional period range from a matching timing slot; otherwise use [nodeRange]. */
     val nodeNumbers: String = "",
+    /** Event rows carry a tag in [nodeRange] and their own clock in [timeRange]. */
+    val isEvent: Boolean = false,
 ) {
     val stableId: Long = id.hashCode().toLong()
 }
@@ -119,6 +125,11 @@ internal object ScheduleWidgetDataSource {
             reminderRules = reminderRepository.reminderRulesFlow.first(),
             temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
             holidayCalendar = userPrefs.holidayCalendar,
+            events = if (widgetTheme.showEvents) {
+                DataStoreScheduleEventRepository(appContext).eventsFlow.first()
+            } else {
+                emptyList()
+            },
         )
 
         fun dayAt(offset: Int) = loadDate(
@@ -151,6 +162,7 @@ internal object ScheduleWidgetDataSource {
         val reminderRules: List<ReminderRule>,
         val temporaryScheduleOverrides: List<TemporaryScheduleOverride>,
         val holidayCalendar: HolidayCalendarSettings,
+        val events: List<ScheduleEvent>,
     ) {
         val allCourses: List<CourseItem> = schedule.allCoursesWith(manualCourses)
     }
@@ -175,8 +187,8 @@ internal object ScheduleWidgetDataSource {
             temporaryScheduleOverrides = sources.temporaryScheduleOverrides,
             holidayCalendar = sources.holidayCalendar,
         ) { dayOfWeek -> sources.allCourses.filter { it.time.dayOfWeek == dayOfWeek } }
-        val rows = day.courses.map {
-            it.toRow(
+        val courseRows = day.courses.map {
+            timingProfile?.courseStartTime(it)?.toSecondOfDay()?.div(60) to it.toRow(
                 context = context,
                 timingProfile = timingProfile,
                 reminderRules = sources.reminderRules,
@@ -191,6 +203,11 @@ internal object ScheduleWidgetDataSource {
                 ),
             )
         }
+        // Events follow the calendar date, not the teaching day a holiday or swap resolves to.
+        val eventRows = sources.events.occurrencesOn(targetDate).map {
+            (it.startMinute ?: 0) to it.toRow(context, widgetEventStatus(it, today, targetDate, now))
+        }
+        val rows = mergeWidgetDayRows(courseRows, eventRows)
 
         val weekKnown = day.weekIndex != null && !isBeforeTermStart(day.weekIndex)
         val moodLine = if (rows.isEmpty() && weekKnown && targetDate == today.plusDays(1) && day.holidayLabel == null) {
@@ -266,6 +283,47 @@ internal object ScheduleWidgetDataSource {
             slotLabel = context.courseSlotLabelText(timingProfile, time.startNode, time.endNode),
             nodeNumbers = widgetNodeNumbersText(timingProfile, time.startNode, time.endNode),
         )
+    }
+
+    private fun ScheduleEvent.toRow(context: Context, status: CourseStatus?): ScheduleWidgetCourseRow =
+        ScheduleWidgetCourseRow(
+            // Prefixed so an event can never collide with a course ID in the list adapter.
+            id = "event:$id",
+            nodeRange = context.getString(R.string.widget_row_event_tag),
+            timeRange = "$startTime–$endTime",
+            title = title,
+            subtitle = location.ifBlank { note.lineSequence().firstOrNull().orEmpty().trim() },
+            hasReminder = false,
+            status = status,
+            isEvent = true,
+        )
+}
+
+/**
+ * Interleave by clock start, courses first on a tie. Courses without a known clock time cannot
+ * be placed among events, so they keep their period order ahead of them.
+ */
+internal fun <T> mergeWidgetDayRows(courses: List<Pair<Int?, T>>, events: List<Pair<Int, T>>): List<T> {
+    if (events.isEmpty()) return courses.map { it.second }
+    if (courses.any { it.first == null }) return (courses + events).map { it.second }
+    return (courses + events).sortedBy { it.first ?: 0 }.map { it.second }
+}
+
+/** Events run on their own clock, so holidays and missing class timing do not hide their status. */
+internal fun widgetEventStatus(
+    event: ScheduleEvent,
+    today: LocalDate,
+    targetDate: LocalDate,
+    now: LocalTime,
+): CourseStatus? {
+    if (targetDate != today) return null
+    val start = event.startLocalTime ?: return null
+    val end = event.endLocalTime ?: return null
+    return when {
+        !now.isBefore(end) -> CourseStatus.Past
+        !now.isBefore(start) -> CourseStatus.Live
+        Duration.between(now, start).toMinutes() <= SOON_THRESHOLD_MINUTES -> CourseStatus.Soon
+        else -> CourseStatus.Upcoming
     }
 }
 

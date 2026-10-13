@@ -20,6 +20,11 @@ class WidgetPreferencesTest {
     }
 
     @Test
+    fun `widgets show events until the user turns them off`() {
+        assertEquals(true, WidgetThemePreferences().showEvents)
+    }
+
+    @Test
     fun `widget follows the app accent until one is picked for it`() {
         val following = WidgetThemePreferences()
 

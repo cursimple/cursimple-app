@@ -520,13 +520,16 @@ fun PluginWebSessionScreen(
     val hintStartedAt = remember(request.token, hintUrl, browserGeneration.value) { System.currentTimeMillis() }
     val showManualHint = shouldShowManualUploadHint(request, hintUrl, hintStartedAt, tickNow.value,
         busy = uploading || pendingCompletion.value != null || switchingAccount.value)
+    // Resolved at composition level so a locale change is picked up; the effect body is not
+    // recomposed and cannot read resources itself.
+    val manualUploadNotReadyMessage = stringResource(R.string.plugin_web_manual_upload_not_ready)
     LaunchedEffect(manualUploadRequested.value) {
         if (manualUploadRequested.value) {
             delay(request.limits.timeoutMs.coerceAtLeast(5_000))
             if (manualUploadRequested.value && !isFinishing.value) {
                 manualUploadRequested.value = false
                 uploadStage.value = null
-                pageError.value = context.getString(R.string.plugin_web_manual_upload_not_ready)
+                pageError.value = manualUploadNotReadyMessage
             }
         }
     }

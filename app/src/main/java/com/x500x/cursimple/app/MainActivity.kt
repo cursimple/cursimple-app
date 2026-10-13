@@ -57,6 +57,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ListAlt
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.material.icons.rounded.School
@@ -66,6 +67,7 @@ import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.EventNote
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
@@ -93,6 +95,8 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ripple
@@ -134,6 +138,7 @@ import com.x500x.cursimple.app.guide.GuideAnchor
 import com.x500x.cursimple.app.guide.LocalGuideAnchors
 import com.x500x.cursimple.app.guide.guideAnchor
 import com.x500x.cursimple.app.guide.rememberGuideAnchorBounds
+import com.x500x.cursimple.app.guide.firstRunGuideSteps
 import com.x500x.cursimple.app.guide.shouldShowFirstRunGuide
 import com.x500x.cursimple.app.theme.ClassScheduleTheme
 import com.x500x.cursimple.app.ai.AiImportConfig
@@ -174,6 +179,12 @@ import com.x500x.cursimple.feature.schedule.time.today
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
+import com.x500x.cursimple.app.navigation.toDestination
+import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.MoreHoriz
+import com.x500x.cursimple.app.navigation.toAppScreen
+import com.x500x.cursimple.app.navigation.declaredLayoutShells
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -291,6 +302,7 @@ class MainActivity : ComponentActivity() {
                     var currentScreen by rememberSaveable { mutableStateOf(AppScreen.Schedule) }
                     var memoSearchOpen by rememberSaveable { mutableStateOf(false) }
                     var memoShareOpen by remember { mutableStateOf(false) }
+                    var settingsTopBar by remember { mutableStateOf<SettingsTopBar?>(null) }
                     var currentExtension by rememberSaveable { mutableStateOf<String?>(null) }
                     var linkedExtensionContent by remember {
                         mutableStateOf<Triple<com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, com.x500x.cursimple.feature.plugin.extension.ExtensionFeedItem, com.x500x.cursimple.core.kernel.model.ScheduleEvent>?>(null)
@@ -316,6 +328,27 @@ class MainActivity : ComponentActivity() {
                                 com.x500x.cursimple.app.extension.ExtensionCoordinator.titleOf(manifest, record)
                             extensionTitles[record.installKey] =
                                 com.x500x.cursimple.app.extension.ExtensionCoordinator.titleOf(manifest, record)
+                        }
+                    }
+                    // Null until the first registry emission, so a saved layout survives the cold start.
+                    val extensionShells by androidx.compose.runtime.produceState<Pair<List<com.x500x.cursimple.core.plugin.install.InstalledPluginRecord>, Map<String, Set<String>>>?>(null) {
+                        container.pluginManager.installedPluginsFlow.collect { records ->
+                            value = records to container.pluginManager.declaredLayoutShells(records)
+                        }
+                    }
+                    val effectiveLayout = com.x500x.cursimple.app.navigation.resolveEffectiveLayout(
+                        prefs.appLayout,
+                        extensionShells?.let { (records, shells) -> com.x500x.cursimple.app.navigation.activeLayoutShells(records, shells, prefs.enabledPluginIds) },
+                    )
+                    // Null while the host drawer is in charge.
+                    val barItems = effectiveLayout?.takeIf { it.shell == com.x500x.cursimple.core.data.navigation.SHELL_BOTTOM_BAR }?.items
+                    var openMarketExtensionsTab by remember { mutableStateOf(false) }
+                    // A component page that switched back to the drawer stays open until the user leaves it.
+                    LaunchedEffect(barItems == null, currentExtension == null) {
+                        if (barItems == null && currentExtension == null &&
+                            (currentScreen == AppScreen.Me || currentScreen == AppScreen.ComponentsHub)
+                        ) {
+                            currentScreen = AppScreen.Schedule
                         }
                     }
                     val sidebarExtensions = com.x500x.cursimple.app.extension.activeExtensionRecords(installedPlugins, prefs.enabledPluginIds)
@@ -405,6 +438,29 @@ class MainActivity : ComponentActivity() {
                                             })
                                         }
                                 }
+
+                            override suspend fun applyLayout(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord, payload: kotlinx.serialization.json.JsonObject): kotlinx.serialization.json.JsonElement {
+                                val declared = container.pluginManager.loadExtensionPackage(record).first
+                                    .extension?.layouts.orEmpty().map { it.shell }.toSet()
+                                val selection = com.x500x.cursimple.feature.plugin.extension.applyLayoutRequest(record.pluginId, declared, payload)
+                                val repository = container.userPreferencesRepository
+                                if (selection != null) {
+                                    repository.setAppLayout(selection)
+                                } else if (repository.preferencesFlow.first().appLayout?.ownerId == record.pluginId) {
+                                    repository.setAppLayout(null)
+                                }
+                                return currentLayout(record)
+                            }
+
+                            override suspend fun currentLayout(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord): kotlinx.serialization.json.JsonElement {
+                                val saved = container.userPreferencesRepository.preferencesFlow.first()
+                                val records = container.pluginManager.getInstalledPlugins()
+                                val effective = com.x500x.cursimple.app.navigation.resolveEffectiveLayout(
+                                    saved.appLayout,
+                                    com.x500x.cursimple.app.navigation.activeLayoutShells(records, container.pluginManager.declaredLayoutShells(records), saved.enabledPluginIds),
+                                )
+                                return com.x500x.cursimple.feature.plugin.extension.currentLayoutJson(effective, record.pluginId)
+                            }
 
                             override fun refreshWidget(record: com.x500x.cursimple.core.plugin.install.InstalledPluginRecord) {
                                 container.extensionCoordinator.onDataChanged(record.pluginId)
@@ -513,7 +569,10 @@ class MainActivity : ComponentActivity() {
 
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
-                    val drawerGesturesEnabled = !scheduleState.isSyncing && scheduleState.pendingWebSession == null &&
+                    // Pages listed on the me page return there instead of to the timetable.
+                    val underMe = barItems != null && currentScreen != AppScreen.Me &&
+                        currentScreen.toDestination()?.let { it !in barItems } == true
+                    val drawerGesturesEnabled = barItems == null && !scheduleState.isSyncing && scheduleState.pendingWebSession == null &&
                         (drawerState.isOpen || (currentExtension == null && !embeddedPageGestures.ownsContentGestures))
                     var showDatePicker by rememberSaveable { mutableStateOf(false) }
                     var showCurrentWeekDialog by rememberSaveable { mutableStateOf(false) }
@@ -806,11 +865,16 @@ class MainActivity : ComponentActivity() {
                         gesturesEnabled = drawerGesturesEnabled,
                         drawerContent = {
                             AppDrawer(
+                                drawerLayout = prefs.drawerLayout,
                                 currentScreen = currentScreen,
                                 extensionEntries = sidebarExtensions,
                                 currentExtension = currentExtension,
                                 onSelectExtension = {
                                     currentExtension = it
+                                    scope.launch { drawerState.close() }
+                                },
+                                onShowAllExtensions = {
+                                    subScreen = MainActivity.SubScreen.AllExtensions
                                     scope.launch { drawerState.close() }
                                 },
                                 termStartDate = prefs.termStartDate,
@@ -852,6 +916,26 @@ class MainActivity : ComponentActivity() {
                                 .background(MaterialTheme.colorScheme.background),
                             containerColor = MaterialTheme.colorScheme.background,
                             snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
+                            bottomBar = {
+                                if (barItems != null) {
+                                    com.x500x.cursimple.app.navigation.AppBottomBar(
+                                        items = barItems,
+                                        selected = com.x500x.cursimple.app.navigation.selectedBarTab(
+                                            barItems,
+                                            currentScreen.toDestination(),
+                                        ),
+                                        meBadge = updateBadgeVisible || pluginUpdateBadgeVisible,
+                                        modifier = Modifier.guideAnchor(GuideAnchor.Navigation),
+                                        onSelect = { tab ->
+                                            currentExtension = null
+                                            currentScreen = when (tab) {
+                                                is com.x500x.cursimple.app.navigation.BarTab.Destination -> tab.destination.toAppScreen()
+                                                com.x500x.cursimple.app.navigation.BarTab.Me -> AppScreen.Me
+                                            }
+                                        },
+                                    )
+                                }
+                            },
                             topBar = {
                                 CenterAlignedTopAppBar(
                                     title = {
@@ -953,6 +1037,7 @@ class MainActivity : ComponentActivity() {
                                         } else {
                                             Text(
                                                 text = currentExtension?.let { extensionTitles[it] }
+                                                    ?: settingsTopBar?.title?.takeIf { currentScreen == AppScreen.Settings }
                                                     ?: stringResource(currentScreen.labelRes),
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.SemiBold,
@@ -960,10 +1045,32 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     navigationIcon = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        val settingsBack = settingsTopBar?.onBack
+                                            ?.takeIf { currentExtension == null && currentScreen == AppScreen.Settings }
+                                        if (settingsBack != null) {
+                                            AppToolbarIconButton(
+                                                icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                                                contentDescription = stringResource(R.string.settings_back),
+                                                onClick = settingsBack,
+                                            )
+                                        } else if (barItems != null) {
+                                            if (currentExtension != null || underMe) {
+                                                AppToolbarIconButton(
+                                                    icon = Icons.AutoMirrored.Rounded.ArrowBack,
+                                                    contentDescription = stringResource(R.string.settings_back),
+                                                    onClick = {
+                                                        if (currentExtension != null) {
+                                                            currentExtension = null
+                                                            componentAboutRequest.value = null
+                                                        } else currentScreen = AppScreen.Me
+                                                    },
+                                                    modifier = Modifier.testTag("bar-back"),
+                                                )
+                                            }
+                                        } else Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(
                                                 onClick = { scope.launch { drawerState.open() } },
-                                                modifier = Modifier.guideAnchor(GuideAnchor.Drawer),
+                                                modifier = Modifier.guideAnchor(GuideAnchor.Navigation),
                                             ) {
                                                 Box {
                                                     Icon(
@@ -1127,10 +1234,7 @@ class MainActivity : ComponentActivity() {
                                 val routeTarget = currentScreen to currentExtension
                                 AnimatedContent(
                                     targetState = routeTarget,
-                                    transitionSpec = {
-                                        (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { it / 8 }) togetherWith
-                                            (fadeOut(tween(140)) + slideOutHorizontally(tween(180)) { -it / 8 })
-                                    },
+                                    transitionSpec = { com.x500x.cursimple.app.navigation.routeTransition() },
                                     label = "main_route_transition",
                                     modifier = Modifier.fillMaxSize(),
                                 ) { (targetScreen, targetExtension) ->
@@ -1157,6 +1261,51 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxSize(),
                                     )
                                 } else when (targetScreen) {
+                                    AppScreen.Me -> com.x500x.cursimple.app.navigation.MeScreen(
+                                        overflow = com.x500x.cursimple.core.data.navigation.bottomBarOverflow(barItems.orEmpty()),
+                                        termLabel = listOf(
+                                            LocalContext.current.termWeekText(
+                                                if (effectiveTermStart == null) termWeekLabel(currentWeekIndex)
+                                                else termWeekLabel(effectiveTermStart, currentWeekIndex),
+                                            ),
+                                            formatTermLabel(effectiveTermStart),
+                                        ).filter { it.isNotBlank() }.joinToString(" · "),
+                                        versionName = BuildConfig.VERSION_NAME,
+                                        updateBadge = updateBadgeVisible,
+                                        badgeFor = { destination ->
+                                            (updateBadgeVisible && destination == com.x500x.cursimple.core.data.navigation.NavDestination.About) ||
+                                                (pluginUpdateBadgeVisible && destination == com.x500x.cursimple.core.data.navigation.NavDestination.Plugins)
+                                        },
+                                        onOpen = { currentScreen = it.toAppScreen() },
+                                        onShortcut = { id ->
+                                            when (id) {
+                                                "action.theme" -> showThemeAccentDialog = true
+                                                "action.background" -> {
+                                                    openSettingsDestination = SettingsDestinationKey.ScheduleBackground
+                                                    currentScreen = AppScreen.Settings
+                                                }
+                                                "action.overrides" -> {
+                                                    openSettingsDestination = SettingsDestinationKey.TemporaryOverrides
+                                                    currentScreen = AppScreen.Settings
+                                                }
+                                                "action.update" -> showUpdateCheckDialog = true
+                                            }
+                                        },
+                                        onOpenUpdate = { showUpdateCheckDialog = true },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+
+                                    AppScreen.ComponentsHub -> com.x500x.cursimple.app.navigation.ComponentsHubScreen(
+                                        entries = sidebarExtensions,
+                                        current = currentExtension,
+                                        onOpen = { currentExtension = it },
+                                        onOpenMarket = {
+                                            openMarketExtensionsTab = true
+                                            currentScreen = AppScreen.Plugins
+                                        },
+                                        modifier = Modifier.fillMaxSize(),
+                                    )
+
                                     AppScreen.Schedule -> ScheduleRoute(
                                         viewModel = scheduleViewModel,
                                         overrideTermStart = prefs.termStartDate,
@@ -1219,6 +1368,8 @@ class MainActivity : ComponentActivity() {
                                         extensionActions = extensionActions,
                                         openExtensionPluginId = openExtensionSettings,
                                         onExtensionOpenConsumed = { openExtensionSettings = null },
+                                        openExtensionsTab = openMarketExtensionsTab,
+                                        onExtensionsTabConsumed = { openMarketExtensionsTab = false },
                                     )
 
                                     AppScreen.Courses -> CourseLibraryRoute(
@@ -1230,6 +1381,7 @@ class MainActivity : ComponentActivity() {
                                             currentWeek = currentWeekIndex,
                                             extraWeekCount = activeTermExtraWeeks,
                                         ),
+                                        termStartDate = prefs.termStartDate,
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -1390,6 +1542,7 @@ class MainActivity : ComponentActivity() {
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
+                                        onScheduleLocationAtPrefixChange = prefsViewModel::setScheduleLocationAtPrefix,
                                         onScheduleTeacherVisibleChange = prefsViewModel::setScheduleTeacherVisible,
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
@@ -1420,9 +1573,14 @@ class MainActivity : ComponentActivity() {
                                         onVendorPermissionAckChange = prefsViewModel::setVendorPermissionAck,
                                         onWidgetOpenAppOnDoubleClickChange =
                                             widgetPrefsViewModel::setWidgetOpenAppOnDoubleClickEnabled,
+                                        onWidgetShowEventsChange = widgetPrefsViewModel::setWidgetShowEvents,
                                         onAppTimeZoneChange = prefsViewModel::setAppTimeZoneId,
                                         onPluginSourcesChange = prefsViewModel::setPluginSources,
                                         onComponentSourcesChange = prefsViewModel::setComponentSources,
+                                        drawerLayout = prefs.drawerLayout,
+                                        componentLayoutActive = effectiveLayout != null,
+                                        onDrawerLayoutChange = prefsViewModel::setDrawerLayout,
+                                        onRestoreDrawer = prefsViewModel::clearAppLayout,
                                         onPrivateFilesProviderEnabledChange =
                                             prefsViewModel::setPrivateFilesProviderEnabled,
                                         onWebDavSettingsChange = prefsViewModel::setWebDavSettings,
@@ -1469,6 +1627,7 @@ class MainActivity : ComponentActivity() {
                                             .allCoursesWith(scheduleState.manualCourses),
                                         scheduleTimingProfile = scheduleState.timingProfile,
                                         onApplyCancelPlan = prefsViewModel::applyCancelCoursePlan,
+                                        onTopBarChange = { settingsTopBar = it },
                                         onExportScheduleMetadata = {
                                             scope.launch {
                                                 val snapshot = ScheduleMetadataExportSnapshot(
@@ -1533,7 +1692,8 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    when (subScreen) {
+                    com.x500x.cursimple.app.navigation.AnimatedPage(subScreen) { page ->
+                    when (page) {
                         MainActivity.SubScreen.TermManagement -> {
                             TermManagementScreen(
                                 state = termProfileState,
@@ -1697,7 +1857,20 @@ class MainActivity : ComponentActivity() {
                                 enabled = scheduleState.pendingWebSession == null,
                             ) { subScreen = null }
                         }
-                        null -> Unit
+                        MainActivity.SubScreen.AllExtensions -> {
+                            AllExtensionsScreen(
+                                entries = sidebarExtensions,
+                                current = currentExtension,
+                                onOpen = {
+                                    currentExtension = it
+                                    subScreen = null
+                                },
+                                onBack = { subScreen = null },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                            androidx.activity.compose.BackHandler { subScreen = null }
+                        }
+                    }
                     }
 
                     // Let the open drawer consume Back first; other pages return to the timetable.
@@ -1709,7 +1882,7 @@ class MainActivity : ComponentActivity() {
                         if (currentExtension != null) {
                             currentExtension = null
                             componentAboutRequest.value = null
-                        } else currentScreen = AppScreen.Schedule
+                        } else currentScreen = if (underMe) AppScreen.Me else AppScreen.Schedule
                     }
 
                     if (showDatePicker) {
@@ -1835,6 +2008,7 @@ class MainActivity : ComponentActivity() {
                                 scheduleViewModel.addManualCourse(course)
                                 showAddCourseDialog = false
                             },
+                            slotTimes = scheduleState.timingProfile?.slotTimes.orEmpty(),
                         )
                     }
 
@@ -1948,6 +2122,7 @@ class MainActivity : ComponentActivity() {
                         )
                     ) {
                         FirstRunGuideOverlay(
+                            steps = firstRunGuideSteps(bottomBar = barItems != null),
                             onNavigate = { destination ->
                                 when (destination) {
                                     GuideDestination.Schedule -> {
@@ -2009,9 +2184,15 @@ class MainActivity : ComponentActivity() {
         Reminders(R.string.screen_reminders, Icons.Rounded.Notifications),
         Settings(R.string.screen_settings, Icons.Rounded.Settings),
         About(R.string.screen_about, Icons.Rounded.Info),
+
+        /** Bottom bar shell only. */
+        Me(R.string.nav_me, Icons.Rounded.AccountCircle),
+
+        /** Bottom bar shell only. */
+        ComponentsHub(R.string.nav_components, Icons.Rounded.Widgets),
     }
 
-    enum class SubScreen { TermManagement, ImportExport, SchoolImport, CourseSwap }
+    enum class SubScreen { TermManagement, ImportExport, SchoolImport, CourseSwap, AllExtensions }
 }
 
 private fun Intent.pickedRingtoneUri(): Uri? =
@@ -2024,10 +2205,12 @@ private fun Intent.pickedRingtoneUri(): Uri? =
 
 @Composable
 private fun AppDrawer(
+    drawerLayout: com.x500x.cursimple.core.data.navigation.DrawerLayout,
     currentScreen: MainActivity.AppScreen,
     extensionEntries: List<Pair<String, String>>,
     currentExtension: String?,
     onSelectExtension: (String) -> Unit,
+    onShowAllExtensions: () -> Unit,
     termStartDate: LocalDate?,
     currentWeekIndex: Int,
     appVersionName: String,
@@ -2071,7 +2254,11 @@ private fun AppDrawer(
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            MainActivity.AppScreen.entries.forEach { screen ->
+            val badgeFor = { screen: MainActivity.AppScreen ->
+                (updateBadgeVisible && screen == MainActivity.AppScreen.About) ||
+                    (pluginUpdateBadgeVisible && screen == MainActivity.AppScreen.Plugins)
+            }
+            drawerLayout.visible.map { it.toAppScreen() }.forEach { screen ->
                 NavigationDrawerItem(
                     label = {
                         Text(
@@ -2087,7 +2274,7 @@ private fun AppDrawer(
                             modifier = Modifier.size(20.dp),
                         )
                     },
-                    badge = if ((updateBadgeVisible && screen == MainActivity.AppScreen.About) || (pluginUpdateBadgeVisible && screen == MainActivity.AppScreen.Plugins)) {
+                    badge = if (badgeFor(screen)) {
                         { UpdateBadgeDot() }
                     } else null,
                     selected = screen == currentScreen && currentExtension == null,
@@ -2104,7 +2291,7 @@ private fun AppDrawer(
                 Spacer(modifier = Modifier.height(4.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(4.dp))
-                extensionEntries.forEach { (pluginId, title) ->
+                sidebarExtensionPreview(extensionEntries, currentExtension).forEach { (pluginId, title) ->
                     NavigationDrawerItem(
                         label = {
                             Text(text = title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
@@ -2125,6 +2312,21 @@ private fun AppDrawer(
                         ),
                     )
                 }
+                if (extensionEntries.size > SIDEBAR_EXTENSION_LIMIT) {
+                    AppOutlinedButton(
+                        onClick = onShowAllExtensions,
+                        modifier = Modifier.padding(start = 8.dp).testTag("drawer-all-extensions"),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    ) {
+                        Icon(Icons.Rounded.Apps, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = stringResource(R.string.main_drawer_extensions_all, extensionEntries.size),
+                            style = MaterialTheme.typography.labelMedium,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -2132,42 +2334,84 @@ private fun AppDrawer(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                DrawerAppearanceShortcut(
-                    icon = Icons.Rounded.Style,
-                    label = stringResource(R.string.main_drawer_theme_shortcut),
-                    onClick = onPickThemeAccent,
-                    modifier = Modifier.weight(1f),
-                )
-                DrawerAppearanceShortcut(
-                    icon = Icons.Rounded.Wallpaper,
-                    label = stringResource(R.string.main_drawer_background_shortcut),
-                    onClick = onPickScheduleBackground,
-                    modifier = Modifier.weight(1f),
-                )
+            if (drawerLayout.shortcutsVisible) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    DrawerAppearanceShortcut(
+                        icon = Icons.Rounded.Style,
+                        label = stringResource(R.string.main_drawer_theme_shortcut),
+                        onClick = onPickThemeAccent,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DrawerAppearanceShortcut(
+                        icon = Icons.Rounded.Wallpaper,
+                        label = stringResource(R.string.main_drawer_background_shortcut),
+                        onClick = onPickScheduleBackground,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    DrawerAppearanceShortcut(
+                        icon = Icons.Rounded.SwapHoriz,
+                        label = stringResource(R.string.main_drawer_overrides_shortcut),
+                        onClick = onOpenTemporaryOverrides,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DrawerAppearanceShortcut(
+                        icon = Icons.Rounded.SystemUpdate,
+                        label = stringResource(R.string.main_drawer_update_shortcut),
+                        onClick = onOpenUpdateCheck,
+                        badge = updateBadgeVisible,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                DrawerAppearanceShortcut(
-                    icon = Icons.Rounded.SwapHoriz,
-                    label = stringResource(R.string.main_drawer_overrides_shortcut),
-                    onClick = onOpenTemporaryOverrides,
-                    modifier = Modifier.weight(1f),
-                )
-                DrawerAppearanceShortcut(
-                    icon = Icons.Rounded.SystemUpdate,
-                    label = stringResource(R.string.main_drawer_update_shortcut),
-                    onClick = onOpenUpdateCheck,
-                    badge = updateBadgeVisible,
-                    modifier = Modifier.weight(1f),
+            val overflowScreens = drawerLayout.overflow.map { it.toAppScreen() }
+            val hiddenShortcuts = !drawerLayout.shortcutsVisible
+            var moreOpen by remember { mutableStateOf(false) }
+            if (overflowScreens.isNotEmpty() || hiddenShortcuts) {
+                Spacer(modifier = Modifier.height(4.dp))
+                AppOutlinedButton(
+                    onClick = { moreOpen = true },
+                    modifier = Modifier.padding(start = 8.dp).testTag("drawer-more"),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Box {
+                        Icon(Icons.Rounded.MoreHoriz, contentDescription = null, modifier = Modifier.size(16.dp))
+                        if (overflowScreens.any(badgeFor) || (hiddenShortcuts && updateBadgeVisible)) {
+                            UpdateBadgeDot(modifier = Modifier.align(Alignment.TopEnd))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = stringResource(R.string.main_drawer_more, overflowScreens.size + if (hiddenShortcuts) 4 else 0),
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                    )
+                }
+            }
+            if (moreOpen) {
+                DrawerMoreSheet(
+                    screens = overflowScreens,
+                    showShortcuts = hiddenShortcuts,
+                    badgeFor = badgeFor,
+                    updateBadgeVisible = updateBadgeVisible,
+                    onDismiss = { moreOpen = false },
+                    onSelectScreen = { moreOpen = false; onSelectScreen(it) },
+                    onShortcut = { action -> moreOpen = false; action() },
+                    onPickThemeAccent = onPickThemeAccent,
+                    onPickScheduleBackground = onPickScheduleBackground,
+                    onOpenTemporaryOverrides = onOpenTemporaryOverrides,
+                    onOpenUpdateCheck = onOpenUpdateCheck,
                 )
             }
 
@@ -2184,6 +2428,79 @@ private fun AppDrawer(
                     .clickable(onClick = onOpenUpdateCheck)
                     .padding(horizontal = 4.dp, vertical = 2.dp),
             )
+        }
+    }
+}
+
+/** Sidebar items and shortcuts the user hid; they stay one tap away. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DrawerMoreSheet(
+    screens: List<MainActivity.AppScreen>,
+    showShortcuts: Boolean,
+    badgeFor: (MainActivity.AppScreen) -> Boolean,
+    updateBadgeVisible: Boolean,
+    onDismiss: () -> Unit,
+    onSelectScreen: (MainActivity.AppScreen) -> Unit,
+    onShortcut: (() -> Unit) -> Unit,
+    onPickThemeAccent: () -> Unit,
+    onPickScheduleBackground: () -> Unit,
+    onOpenTemporaryOverrides: () -> Unit,
+    onOpenUpdateCheck: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, bottom = 24.dp)
+                .testTag("drawer-more-sheet"),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.main_drawer_more_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 8.dp, bottom = 8.dp),
+            )
+            val rowColors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent)
+            screens.forEach { screen ->
+                NavigationDrawerItem(
+                    label = { Text(stringResource(screen.labelRes), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium) },
+                    icon = { Icon(screen.icon, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                    badge = if (badgeFor(screen)) {
+                        { UpdateBadgeDot() }
+                    } else null,
+                    selected = false,
+                    onClick = { onSelectScreen(screen) },
+                    colors = rowColors,
+                )
+            }
+            if (showShortcuts) {
+                if (screens.isNotEmpty()) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+                listOf(
+                    Triple(Icons.Rounded.Style, R.string.main_drawer_theme_shortcut, onPickThemeAccent),
+                    Triple(Icons.Rounded.Wallpaper, R.string.main_drawer_background_shortcut, onPickScheduleBackground),
+                    Triple(Icons.Rounded.SwapHoriz, R.string.main_drawer_overrides_shortcut, onOpenTemporaryOverrides),
+                    Triple(Icons.Rounded.SystemUpdate, R.string.main_drawer_update_shortcut, onOpenUpdateCheck),
+                ).forEach { (icon, label, action) ->
+                    NavigationDrawerItem(
+                        label = { Text(stringResource(label), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium) },
+                        icon = { Icon(icon, contentDescription = null, modifier = Modifier.size(22.dp)) },
+                        badge = if (updateBadgeVisible && label == R.string.main_drawer_update_shortcut) {
+                            { UpdateBadgeDot() }
+                        } else null,
+                        selected = false,
+                        onClick = { onShortcut(action) },
+                        colors = rowColors,
+                    )
+                }
+            }
         }
     }
 }

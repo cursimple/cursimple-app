@@ -41,14 +41,23 @@ class AppUpdateChecker(
         userAgent = "CurSimple/${BuildConfig.VERSION_NAME}",
         preferenceStore = mirrorStore,
     ),
+    private val checkDeadlineMillis: Long = CHECK_DEADLINE_MILLIS,
 ) {
     /**
      * Read CDN-accessible update feeds first; fall back to GitHub release metadata when
-     * unavailable.
+     * unavailable. Blocking reads ignore cancellation, so the work runs detached and the caller
+     * stops waiting at [checkDeadlineMillis].
      */
-    suspend fun check(includePrerelease: Boolean = false): AppUpdateCheckResult = withContext(Dispatchers.IO) {
-        checkFromFeed(includePrerelease)?.let { return@withContext it }
-        checkFromReleaseApi(includePrerelease)
+    suspend fun check(includePrerelease: Boolean = false): AppUpdateCheckResult {
+        val work = detachedScope.async {
+            checkFromFeed(includePrerelease) ?: checkFromReleaseApi(includePrerelease)
+        }
+        try {
+            return withTimeoutOrNull(checkDeadlineMillis) { work.await() }
+                ?: AppUpdateCheckResult.Failure(UpdateStatusReason.CheckError(UpdateErrorReason.Timeout))
+        } finally {
+            work.cancel()
+        }
     }
 
     /** Read the selected stable or beta feed; null requests release-API fallback. */
@@ -283,7 +292,11 @@ class AppUpdateChecker(
             accept = "text/plain",
             validate = { require(it.trimStart().startsWith("#")) },
         )
-        (result as? MirrorDownloadResult.Success)?.value?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+        (result as? MirrorDownloadResult.Success)?.value?.trim()?.takeIf { it.isNotBlank() }?.let { notes ->
+            // Published tags carry immutable notes that may still use relative image paths; resolve
+            // them here so the mirror pool can route them.
+            return resolveReleaseImageUrls(notes, repository, tagName, path)
+        }
         }
         return null
     }
@@ -616,5 +629,6 @@ class AppUpdateChecker(
         private const val GITHUB_API_ACCEPT = "application/vnd.github+json"
         val USER_AGENT = "CurSimple/${BuildConfig.VERSION_NAME}"
         const val NETWORK_TIMEOUT_MILLIS = 8_000
+        private const val CHECK_DEADLINE_MILLIS = 20_000L
     }
 }

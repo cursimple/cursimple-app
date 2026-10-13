@@ -61,6 +61,15 @@ data class PluginExtensionSpec(
     @SerialName("ui") val ui: PluginExtensionUiSpec? = null,
     val notificationReceiver: Boolean = false,
     val widgets: List<PluginWidgetSpec> = emptyList(),
+    val layouts: List<PluginLayoutSpec> = emptyList(),
+)
+
+/** App layout a component may apply; the host draws the [shell] natively. */
+@Serializable
+data class PluginLayoutSpec(
+    val id: String,
+    val title: String,
+    val shell: String,
 )
 
 /** Owned HTML widgets; the host provides data, rendering and declared navigation actions. */

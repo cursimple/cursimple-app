@@ -123,6 +123,13 @@ class CourseCardTextPlanTest {
     }
 
     @Test
+    fun `地点只超出一点时略缩字号，超出太多就不缩`() {
+        assertEquals(null, nearFitLocationScale(textWidth = 80, maxWidth = 80))
+        assertEquals(0.95f, nearFitLocationScale(textWidth = 80, maxWidth = 77)!!, 0.001f)
+        assertEquals(null, nearFitLocationScale(textWidth = 100, maxWidth = 80))
+    }
+
+    @Test
     fun `一行放得下时原样返回`() {
         assertEquals("@东-16", wrap("@东-16", maxWidth = 60))
     }

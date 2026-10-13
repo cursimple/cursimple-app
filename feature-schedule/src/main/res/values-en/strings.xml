@@ -13,6 +13,9 @@
     <string name="schedule_category_exam">Exam</string>
     <string name="schedule_add_course_time_label">Class time</string>
     <string name="schedule_node_start_label">Start period</string>
+    <string name="schedule_course_time_by_node">By period</string>
+    <string name="schedule_course_time_by_clock">By time</string>
+    <string name="schedule_course_clock_hint">Placed on the timetable at this time; reminders follow it too</string>
     <string name="schedule_node_end_label">End period</string>
     <string name="schedule_weeks_label">Weeks</string>
     <string name="schedule_swap_title">Drag to reschedule</string>
@@ -338,6 +341,10 @@
     <string name="schedule_library_hidden_show">%1$d deleted</string>
     <string name="schedule_library_hidden_hide">Hide deleted</string>
     <string name="schedule_status_course_restored">Course restored</string>
+    <string name="schedule_library_purge">Delete forever</string>
+    <string name="schedule_library_purge_title">Delete this course forever?</string>
+    <string name="schedule_library_purge_body">%1$s will leave the deleted list and can no longer be restored. Plugin syncs will not add it back to the timetable either.</string>
+    <string name="schedule_status_course_purged">Course deleted forever</string>
     <string name="schedule_drag_confirm_title">Apply this change?</string>
     <string name="schedule_drag_confirm_move">%1$s moves to %2$s, periods %3$d-%4$d</string>
     <string name="schedule_drag_confirm_resize">%1$s becomes periods %2$d-%3$d</string>
@@ -608,7 +615,12 @@
     <string name="schedule_event_field_start">Starts</string>
     <string name="schedule_event_field_end">Ends</string>
     <string name="schedule_event_time_invalid">The end must be after the start (events cannot cross midnight)</string>
-    <string name="schedule_event_repeat_weekly">Repeat weekly</string>
+    <string name="schedule_event_repeat_label">Repeat</string>
+    <string name="schedule_event_repeat_once">Once</string>
+    <string name="schedule_event_repeat_mode_weekly">Weekly</string>
+    <string name="schedule_event_repeat_mode_weeks">Pick weeks</string>
+    <string name="schedule_event_weeks_hint">On %1$s of each picked week</string>
+    <string name="schedule_event_repeat_picked">%1$d weeks: %2$s</string>
     <string name="schedule_event_repeat_weekly_desc">Same weekday every week from this date</string>
     <string name="schedule_event_repeat_until_label">Repeat until</string>
     <string name="schedule_event_repeat_until_none">Forever</string>
@@ -749,7 +761,8 @@
     <string name="schedule_today_details">Today’s agenda</string>
     <string name="schedule_today_need_timing">Class times need setup</string>
     <string name="schedule_today_time_missing">Class time not set</string>
-    <string name="schedule_today_minutes_to_start">Class starts in %1$d minutes</string>
+    <string name="schedule_today_seconds_to_start">Class starts in %1$d:%2$02d</string>
+    <string name="schedule_today_seconds_to_end">Class ends in %1$d:%2$02d</string>
     <string name="schedule_today_minutes_to_end">Class ends in %1$d minutes</string>
     <string name="schedule_today_next_brief">Next: %1$s · %2$s</string>
     <string name="schedule_today_week_unknown">Term start is not set; showing weekday matches. Please check teaching weeks</string>

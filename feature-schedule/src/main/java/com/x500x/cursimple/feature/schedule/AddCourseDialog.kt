@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseItem
 
 @Composable
@@ -44,6 +45,7 @@ fun AddCourseDialog(
     maxNodeCount: Int = 12,
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     initial: CourseItem? = null,
+    slotTimes: List<ClassSlotTime> = emptyList(),
 ) {
     // Null drafts indicate input that cannot be saved.
     var draft by remember(initial) { mutableStateOf<CourseItem?>(null) }
@@ -85,6 +87,7 @@ fun AddCourseDialog(
                     modifier = Modifier
                         .weight(1f, fill = false)
                         .verticalScroll(rememberScrollState()),
+                    slotTimes = slotTimes,
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))

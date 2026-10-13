@@ -111,6 +111,13 @@ interface ExtensionHostActions {
     suspend fun debugLogs(record: InstalledPluginRecord): JsonElement =
         error("请更新应用以支持组件调试")
 
+    /** `layout.apply`: validate and store the caller's layout, then reply like [currentLayout]. */
+    suspend fun applyLayout(record: InstalledPluginRecord, payload: JsonObject): JsonElement =
+        error("请更新应用以支持布局组件")
+
+    suspend fun currentLayout(record: InstalledPluginRecord): JsonElement =
+        error("请更新应用以支持布局组件")
+
     fun refreshWidget(record: InstalledPluginRecord) {}
 
     /** Reconcile reminders and events after host or login changes without fetching again. */

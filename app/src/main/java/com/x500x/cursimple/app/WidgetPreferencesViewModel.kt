@@ -67,6 +67,13 @@ class WidgetPreferencesViewModel(
         }
     }
 
+    fun setWidgetShowEvents(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setWidgetShowEvents(enabled)
+            refreshWidgets()
+        }
+    }
+
     fun resetWidgetThemePreferences() {
         viewModelScope.launch {
             repository.resetWidgetThemePreferences()

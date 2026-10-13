@@ -846,7 +846,10 @@ class PluginMarketViewModel internal constructor(
 
     fun removePlugin(pluginKey: String) {
         marketScope.launch {
-            val result = marketAttempt { operations.removePlugin(pluginKey) }
+            val result = marketAttempt {
+                operations.removePlugin(pluginKey)
+                clearLayoutOfRemovedOwner()
+            }
             currentCoroutineContext().ensureActive()
             result
                 .onSuccess {
@@ -855,6 +858,14 @@ class PluginMarketViewModel internal constructor(
                 .onFailure { error ->
                     _uiState.update { it.copy(status = PluginMarketStatus.RemoveFailed(error.message)) }
                 }
+        }
+    }
+
+    /** A deleted layout owner must not silently take the layout back if it is reinstalled. */
+    private suspend fun clearLayoutOfRemovedOwner() {
+        val ownerId = userPreferencesRepository.preferencesFlow.first().appLayout?.ownerId ?: return
+        if (operations.installedPluginsFlow.first().none { it.pluginId == ownerId }) {
+            userPreferencesRepository.setAppLayout(null)
         }
     }
 

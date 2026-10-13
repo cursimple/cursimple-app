@@ -1,7 +1,6 @@
 package com.x500x.cursimple.feature.schedule
 
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -60,13 +59,22 @@ internal fun MemoEditorToolbar(state: MemoBlockEditorState, modifier: Modifier =
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val barColor = MaterialTheme.colorScheme.surfaceContainer
     val imageLabel = stringResource(R.string.memo_tool_image)
-    val photo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null && !state.importingImage) {
+    // The content picker opens the phone's gallery, which previews before selecting and allows
+    // several photos; the single-select photo picker returned on the first tap.
+    val photo = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty() && !state.importingImage) {
             state.importingImage = true; failure = false
             scope.launch {
-                try { state.insertBlock(MemoImageRef.markdown(MemoImageStore(context).importImage(uri), imageLabel)) }
-                catch (cancel: CancellationException) { throw cancel }
-                catch (_: Exception) { failure = true }
+                try {
+                    val store = MemoImageStore(context)
+                    val images = uris.mapNotNull { uri ->
+                        try { MemoImageRef.markdown(store.importImage(uri), imageLabel) }
+                        catch (cancel: CancellationException) { throw cancel }
+                        catch (_: Exception) { failure = true; null }
+                    }
+                    // One block keeps the batch in picking order and undoes in a single step.
+                    if (images.isNotEmpty()) state.insertBlock(images.joinToString("\n"))
+                }
                 finally { state.importingImage = false }
             }
         }
@@ -86,7 +94,7 @@ internal fun MemoEditorToolbar(state: MemoBlockEditorState, modifier: Modifier =
                 if (state.importingImage) Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else MemoTool(Icons.Rounded.Image, R.string.memo_tool_image, "image", enabled, onClick = {
-                    photo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    photo.launch("image/*")
                 })
                 val target = state.targetLine
                 MemoTool(Icons.Rounded.Check, R.string.memo_tool_check, "check", enabled, target.kind == MemoLineKind.Check) { state.applyKind(MemoLineKind.Check) }
@@ -122,13 +130,22 @@ internal fun MemoEditorToolbar(state: MemoBlockEditorState, modifier: Modifier =
     }
 }
 
+/** Hover or long-press names the tool, since the icons alone are ambiguous. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MemoTool(icon: ImageVector, label: Int, tag: String, enabled: Boolean,
     selected: Boolean = false, onClick: () -> Unit) {
-    IconButton(onClick, enabled = enabled, modifier = Modifier.size(48.dp).testTag("memo-tool-$tag")) {
-        Icon(icon, stringResource(label), modifier = Modifier.size(32.dp)
-            .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, CircleShape).padding(6.dp),
-            tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else LocalContentColor.current)
+    val name = stringResource(label)
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(name) } },
+        state = rememberTooltipState(),
+    ) {
+        IconButton(onClick, enabled = enabled, modifier = Modifier.size(48.dp).testTag("memo-tool-$tag")) {
+            Icon(icon, name, modifier = Modifier.size(32.dp)
+                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, CircleShape).padding(6.dp),
+                tint = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else LocalContentColor.current)
+        }
     }
 }
 

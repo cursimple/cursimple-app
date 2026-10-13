@@ -270,6 +270,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleLocationVisible(visible) }
     }
 
+    fun setScheduleLocationAtPrefix(enabled: Boolean) {
+        viewModelScope.launch { repository.setScheduleLocationAtPrefix(enabled) }
+    }
+
     fun setScheduleTeacherVisible(visible: Boolean) {
         viewModelScope.launch { repository.setScheduleTeacherVisible(visible) }
     }
@@ -459,6 +463,14 @@ class AppPreferencesViewModel(
 
     fun setPluginSources(sources: List<String>) {
         viewModelScope.launch { repository.setPluginSources(sources) }
+    }
+
+    fun setDrawerLayout(layout: com.x500x.cursimple.core.data.navigation.DrawerLayout) {
+        viewModelScope.launch { repository.setDrawerLayout(layout) }
+    }
+
+    fun clearAppLayout() {
+        viewModelScope.launch { repository.setAppLayout(null) }
     }
 
     fun setComponentSources(sources: List<String>) {

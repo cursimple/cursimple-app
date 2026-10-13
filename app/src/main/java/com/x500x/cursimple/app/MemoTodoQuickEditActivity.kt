@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.*
@@ -44,6 +45,7 @@ import com.x500x.cursimple.feature.schedule.MemoDeadlineFields
 import com.x500x.cursimple.feature.schedule.MemoMiniEditorField
 import com.x500x.cursimple.feature.schedule.MemoMiniEditorToolbar
 import com.x500x.cursimple.feature.schedule.MemoMiniEditorHistory
+import com.x500x.cursimple.feature.schedule.MemoMiniReader
 import com.x500x.cursimple.feature.schedule.MemoCompletionPrompt
 import com.x500x.cursimple.feature.schedule.MemoCompletionRequest
 import com.x500x.cursimple.feature.schedule.rememberMemoRichTextState
@@ -65,14 +67,17 @@ import java.util.UUID
 class MemoTodoQuickEditActivity : ComponentActivity() {
     private var original: MemoNote? = null
     private var closing = false
+    private var vanished = false
 
-    private fun closeWindow() {
-        if (closing) return
+    // Save callbacks can resume off the main thread; finishing touches window attributes.
+    private fun closeWindow() = runOnUiThread {
+        if (closing) return@runOnUiThread
         closing = true
         finish()
     }
 
     override fun finish() {
+        if (!vanished) { vanished = true; vanishThen(::finish); return }
         window.setWindowAnimations(0)
         if (Build.VERSION.SDK_INT >= 34) overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
         if (isTaskRoot) super.finishAndRemoveTask() else super.finish()
@@ -107,8 +112,7 @@ class MemoTodoQuickEditActivity : ComponentActivity() {
             val insets = metrics.windowInsets.getInsetsIgnoringVisibility(android.view.WindowInsets.Type.systemBars())
             metrics.bounds.height() - insets.top - insets.bottom
         } else resources.displayMetrics.heightPixels
-        val height = minOf(520 * resources.displayMetrics.density, windowHeight - 48 * resources.displayMetrics.density).toInt()
-        window.setLayout(minOf(width, maxWidth), if (completing) WindowManager.LayoutParams.WRAP_CONTENT else height.coerceAtLeast(1))
+        val height = minOf(QUICK_EDIT_MAX_HEIGHT_DP * resources.displayMetrics.density, windowHeight - 48 * resources.displayMetrics.density).toInt()
         val container = (application as ClassScheduleApplication).appContainer
         val repo = DataStoreMemoRepository(this)
         val noteId = intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO)
@@ -198,6 +202,8 @@ class MemoTodoQuickEditActivity : ComponentActivity() {
                 }
             }
         }
+        // A floating window resets its layout to wrap content when setContent installs the decor.
+        window.setLayout(minOf(width, maxWidth), if (completing) WindowManager.LayoutParams.WRAP_CONTENT else height.coerceAtLeast(1))
     }
 
 
@@ -256,6 +262,8 @@ internal fun MemoTodoQuickEditor(note: MemoNote, line: Int?, isNew: Boolean, not
     var courseKey by rememberSaveable(note.id) { mutableStateOf(initial.courseKey) }
     var courseTitle by rememberSaveable(note.id) { mutableStateOf(initial.courseTitle) }
     var options by rememberSaveable { mutableStateOf(false) }
+    // Existing notes open for reading; only the header's edit button turns on editing.
+    var editing by rememberSaveable(note.id) { mutableStateOf(isNew) }
     var busy by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
     var discard by remember { mutableStateOf(false) }
@@ -292,7 +300,23 @@ internal fun MemoTodoQuickEditor(note: MemoNote, line: Int?, isNew: Boolean, not
                     R.string.memo_quick_conflict else R.string.memo_quick_save_failed
             }
         })
-    val maxHeight = minOf(520, (LocalConfiguration.current.screenHeightDp - 48).coerceAtLeast(200)).dp
+    val maxHeight = minOf(QUICK_EDIT_MAX_HEIGHT_DP, (LocalConfiguration.current.screenHeightDp - 48).coerceAtLeast(200)).dp
+    if (!editing) {
+        Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).padding(16.dp).testTag("memo-quick-editor")) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AppAtomicText(stringResource(R.string.memo_quick_view_title), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                AppCircleIconButton(onClick = { editing = true }, modifier = Modifier.testTag("memo-quick-edit")) {
+                    Icon(Icons.Rounded.Edit, stringResource(R.string.memo_quick_edit))
+                }
+                AppCircleIconButton(onClick = onClose, modifier = Modifier.testTag("memo-quick-close")) {
+                    Icon(Icons.Rounded.Close, stringResource(R.string.memo_quick_close))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) { MemoMiniReader(note, notebooks) }
+        }
+        return
+    }
     Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).padding(16.dp).testTag("memo-quick-editor")) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AppAtomicText(stringResource(if (options) R.string.memo_quick_settings_title else if (isNew) R.string.memo_quick_add_title else R.string.memo_quick_title),
@@ -306,10 +330,13 @@ internal fun MemoTodoQuickEditor(note: MemoNote, line: Int?, isNew: Boolean, not
                 Icon(Icons.Rounded.Close, stringResource(R.string.memo_quick_close))
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        // History shares the course label row so it does not cost a row of its own.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.memo_quick_course), Modifier.weight(1f), style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary)
             MemoMiniEditorHistory(editor, enabled = !options && !busy && !editor.importingImage)
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(4.dp))
         error?.let {
             Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.testTag("memo-quick-error"))
@@ -320,8 +347,6 @@ internal fun MemoTodoQuickEditor(note: MemoNote, line: Int?, isNew: Boolean, not
             Column(Modifier.fillMaxSize()) {
                 Column(Modifier.weight(1f).verticalScroll(if (settings) optionsScroll else contentScroll),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(stringResource(R.string.memo_quick_course), style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary)
                     MemoNotebookSelector(notebooks, courseKey, modifier = Modifier.fillMaxWidth().testTag("memo-quick-course"),
                         enabled = !busy, openCounts = openCounts) { selected ->
                         courseKey = selected.key; courseTitle = if (selected.key == null) "" else selected.title
@@ -363,3 +388,6 @@ internal fun MemoTodoQuickEditor(note: MemoNote, line: Int?, isNew: Boolean, not
         }
     }
 }
+
+/** Editing and settings share this fixed window height so switching panels never resizes it. */
+private const val QUICK_EDIT_MAX_HEIGHT_DP = 460

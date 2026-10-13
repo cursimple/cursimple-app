@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,7 +35,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
+import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.feature.schedule.time.LocalAppZone
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import java.time.LocalTime
 
 internal enum class TodayItemStatus { Done, Current, Pending, Unknown }
 
@@ -48,14 +55,40 @@ internal fun TodayOverviewState.statusOf(item: TodayOverviewItem): TodayItemStat
 internal val TodayOverviewState.doneCount: Int get() = courses.count { statusOf(it) == TodayItemStatus.Done }
 
 @Composable
-internal fun countdownText(state: TodayOverviewState): String? = when {
-    state.current != null -> stringResource(R.string.schedule_today_minutes_to_end, state.currentMinutesLeft ?: 0L)
-    state.minutesUntilNext != null -> {
-        val minutes = state.minutesUntilNext
-        if (minutes >= 60) stringResource(R.string.schedule_today_hours_to_start, (minutes / 60).toInt(), (minutes % 60).toInt())
-        else stringResource(R.string.schedule_today_minutes_to_start, minutes)
+internal fun countdownText(countdown: TodayCountdown): String {
+    val seconds = countdown.secondsLeft
+    val minutes = (seconds + 59L) / 60L
+    return when {
+        seconds < 3_600L -> stringResource(
+            if (countdown.ending) R.string.schedule_today_seconds_to_end else R.string.schedule_today_seconds_to_start,
+            (seconds / 60L).toInt(),
+            (seconds % 60L).toInt(),
+        )
+        countdown.ending -> stringResource(R.string.schedule_today_minutes_to_end, minutes)
+        else -> stringResource(R.string.schedule_today_hours_to_start, (minutes / 60L).toInt(), (minutes % 60L).toInt())
     }
-    else -> null
+}
+
+/** Second-level clock scoped to the countdown chip; the rest of the overview stays minute-level. */
+@Composable
+private fun rememberSecondClock(): LocalTime {
+    val zone = LocalAppZone.current
+    val now by remember(zone) {
+        flow {
+            while (true) {
+                val current = BeijingTime.nowTimeIn(zone)
+                emit(current)
+                delay(1_000L - current.nano / 1_000_000L)
+            }
+        }
+    }.collectAsStateWithLifecycle(initialValue = BeijingTime.nowTimeIn(zone))
+    return now
+}
+
+@Composable
+private fun TodayCountdownChip(state: TodayOverviewState) {
+    val countdown = state.countdownAt(rememberSecondClock()) ?: return
+    TodayChip(countdownText(countdown), MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), MaterialTheme.colorScheme.primary)
 }
 
 @Composable
@@ -119,11 +152,11 @@ internal fun TodayOverviewCard(
                     drawStopIndicator = {},
                 )
             }
-            val countdown = countdownText(state)
+            val hasCountdown = state.countdownAt(state.now) != null
             val nextBrief = if (state.current != null) state.next?.let { stringResource(R.string.schedule_today_next_brief, it.course.title, clockText(it.start)) } else null
-            if (countdown != null || state.conflicts.isNotEmpty() || nextBrief != null) {
+            if (hasCountdown || state.conflicts.isNotEmpty() || nextBrief != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    countdown?.let { TodayChip(it, MaterialTheme.colorScheme.primary.copy(alpha = 0.14f), MaterialTheme.colorScheme.primary) }
+                    if (hasCountdown) TodayCountdownChip(state)
                     if (state.conflicts.isNotEmpty()) {
                         TodayChip(stringResource(R.string.schedule_today_conflict_short, state.conflicts.size), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
                     }
@@ -143,7 +176,8 @@ internal fun TodayOverviewCard(
 @Composable
 internal fun TodayChip(text: String, container: Color, content: Color) {
     Surface(shape = RoundedCornerShape(50), color = container) {
-        Text(text, style = MaterialTheme.typography.labelMedium, color = content, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+        // Tabular digits keep the ticking countdown from shifting width.
+        Text(text, style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"), color = content, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
     }
 }
 
