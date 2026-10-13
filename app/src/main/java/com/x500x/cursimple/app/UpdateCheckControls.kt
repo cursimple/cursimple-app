@@ -64,7 +64,6 @@ import com.x500x.cursimple.R
 import com.x500x.cursimple.app.update.AppUpdateCheckResult
 import com.x500x.cursimple.app.update.AppUpdateChecker
 import com.x500x.cursimple.app.update.AppUpdateDownloadProgress
-import com.x500x.cursimple.app.update.AppUpdateDownloadResult
 import com.x500x.cursimple.app.update.AppUpdateInfo
 import com.x500x.cursimple.app.update.AppUpdateInstaller
 import com.x500x.cursimple.app.download.mirrorDownloaderLabels
@@ -77,6 +76,9 @@ import com.x500x.cursimple.app.update.autoUpdateCheckDue
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.lifecycle.repeatOnLifecycle
 import com.x500x.cursimple.app.update.UpdatePanelStatus
+import com.x500x.cursimple.app.update.UpdateDownloadSession
+import com.x500x.cursimple.app.update.UpdateDownloadState
+import androidx.compose.runtime.collectAsState
 import com.x500x.cursimple.app.update.releasePrefetcher
 import com.x500x.cursimple.app.update.shouldShowUpdateBadge
 import com.x500x.cursimple.app.update.updateStatusText
@@ -291,17 +293,46 @@ fun UpdateCheckSection(
             ) }
     val prefetcher = remember(checker) { releasePrefetcher(context, checker) }
     var checkJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    // Keep operation flags composition-local because their coroutines are cancelled on recreation.
+    // Checks are composition-local; downloads live in the shared session so closing the panel keeps them running.
     var checking by remember { mutableStateOf(false) }
-    var downloading by remember { mutableStateOf(false) }
-    var downloadProgress by remember { mutableStateOf<AppUpdateDownloadProgress?>(null) }
-    var status by remember { mutableStateOf<UpdatePanelStatus>(UpdatePanelStatus.Idle) }
+    val downloadSession = remember { UpdateDownloadSession.get(context) }
+    val downloadState by downloadSession.state.collectAsState()
+    val downloading = downloadState is UpdateDownloadState.Downloading
+    val downloadProgress = (downloadState as? UpdateDownloadState.Downloading)?.progress
+    fun downloadedFor(info: AppUpdateInfo?): File? = (downloadState as? UpdateDownloadState.Done)
+        ?.takeIf { info != null && it.info.versionCode == info.versionCode && it.file.exists() }?.file
+    // Reopening during or after a download shows it instead of checking again.
+    val resumed = remember {
+        when (val current = downloadSession.state.value) {
+            is UpdateDownloadState.Downloading -> current
+            is UpdateDownloadState.Done -> current.takeIf { it.file.exists() }
+            else -> null
+        }
+    }
+    var installWhenDone by remember { mutableStateOf(resumed is UpdateDownloadState.Downloading) }
+    var status by remember {
+        mutableStateOf(
+            when (resumed) {
+                is UpdateDownloadState.Downloading -> UpdatePanelStatus.Downloading(resumed.info.asset.fileName)
+                is UpdateDownloadState.Done -> UpdatePanelStatus.Downloaded(resumed.sourceName)
+                else -> UpdatePanelStatus.Idle
+            },
+        )
+    }
     var pendingUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
     var pendingRollback by remember { mutableStateOf<AppUpdateInfo?>(null) }
-    var downloadedApk by remember { mutableStateOf<File?>(null) }
-    var autoCheckedForCurrentEntry by rememberSaveable { mutableStateOf(false) }
+    var autoCheckedForCurrentEntry by rememberSaveable { mutableStateOf(resumed != null) }
     // Retain the discovered release for direct download and release-note access.
-    var foundUpdate by remember { mutableStateOf<AppUpdateInfo?>(null) }
+    var foundUpdate by remember {
+        mutableStateOf(
+            when (resumed) {
+                is UpdateDownloadState.Downloading -> resumed.info
+                is UpdateDownloadState.Done -> resumed.info
+                else -> null
+            },
+        )
+    }
+    val downloadedApk = downloadedFor(foundUpdate)
 
     fun dismissPendingUpdate() {
         pendingUpdate = null
@@ -310,30 +341,30 @@ fun UpdateCheckSection(
 
     fun downloadAndInstall(info: AppUpdateInfo) {
         if (downloading) return
-        val downloaded = downloadedApk
-        if (downloaded != null && downloaded.exists()) {
+        downloadedFor(info)?.let { downloaded ->
             AppUpdateInstaller.openInstall(context, downloaded)
             return
         }
-        scope.launch {
-            downloading = true
-            downloadProgress = AppUpdateDownloadProgress(0L, null)
-            status = UpdatePanelStatus.Downloading(info.asset.fileName)
-            val result = checker.download(context, info) { downloaded, total ->
-                downloadProgress = AppUpdateDownloadProgress(downloaded, total.takeIf { it > 0L })
-            }
-            when (result) {
-                is AppUpdateDownloadResult.Success -> {
-                    downloadedApk = result.file
-                    status = UpdatePanelStatus.Downloaded(result.sourceName)
-                    AppUpdateInstaller.openInstall(context, result.file)
-                }
-                is AppUpdateDownloadResult.Failure -> {
-                    status = UpdatePanelStatus.Failed(result.reason)
+        installWhenDone = true
+        downloadSession.start(info)
+    }
+
+    LaunchedEffect(downloadState) {
+        when (val current = downloadState) {
+            is UpdateDownloadState.Downloading -> status = UpdatePanelStatus.Downloading(current.info.asset.fileName)
+            is UpdateDownloadState.Done -> {
+                status = UpdatePanelStatus.Downloaded(current.sourceName)
+                if (installWhenDone) {
+                    installWhenDone = false
+                    if (downloadSession.claimInstall()) AppUpdateInstaller.openInstall(context, current.file)
                 }
             }
-            downloading = false
-            downloadProgress = null
+            // An old failure must not overwrite a fresh check; only report failures this panel waited for.
+            is UpdateDownloadState.Failed -> if (installWhenDone) {
+                installWhenDone = false
+                status = UpdatePanelStatus.Failed(current.reason)
+            }
+            UpdateDownloadState.Idle -> Unit
         }
     }
 
@@ -344,9 +375,7 @@ fun UpdateCheckSection(
             status = UpdatePanelStatus.Checking
             dismissPendingUpdate()
             val result = checker.check(includePrerelease = betaUpdatesEnabled)
-            val found = (result as? AppUpdateCheckResult.Available)?.info
-            if (found?.versionCode != foundUpdate?.versionCode) downloadedApk = null
-            foundUpdate = found
+            foundUpdate = (result as? AppUpdateCheckResult.Available)?.info
             when (result) {
                 AppUpdateCheckResult.NoRelease -> {
                     onUpdateNoticeCleared()
@@ -388,7 +417,6 @@ fun UpdateCheckSection(
         checkJob?.cancelAndJoin()
         checking = false
         foundUpdate = null
-        downloadedApk = null
         dismissPendingUpdate()
         checkUpdate(manual = checkOnOpen)
     }
@@ -481,7 +509,7 @@ fun UpdateCheckSection(
             info = info,
             downloading = downloading,
             downloadProgress = downloadProgress,
-            downloadedApk = downloadedApk,
+            downloadedApk = downloadedFor(info),
             onUpdate = { downloadAndInstall(info) },
             onIgnore = {
                 onIgnoreUpdateVersion(info.versionCode)
@@ -498,7 +526,7 @@ fun UpdateCheckSection(
             info = info,
             downloading = downloading,
             downloadProgress = downloadProgress,
-            downloadedApk = downloadedApk,
+            downloadedApk = downloadedFor(info),
             onDownload = { downloadAndInstall(info) },
             onDismiss = { dismissPendingUpdate() },
         )

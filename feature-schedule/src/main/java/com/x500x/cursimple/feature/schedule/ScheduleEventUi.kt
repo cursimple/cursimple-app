@@ -36,10 +36,10 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimeInput
 import androidx.compose.material3.rememberTimePickerState
@@ -57,16 +57,27 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
+import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
+import com.x500x.cursimple.core.kernel.model.termWeekDates
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.temporal.TemporalAdjusters
 import java.util.UUID
 
 /** Use an explicit event color, otherwise choose from the course palette by title. */
@@ -132,21 +143,51 @@ internal fun EventBlock(
                 val titleSize = (titleSizeSp - 1f).coerceAtLeast(9f)
                 // Wrap narrow text within available height rather than replacing it entirely with ellipsis.
                 val timeLineDp = if (tight) 0f else 11f
-                val titleLines = (((maxHeight.value - timeLineDp) / ((titleSize + 1f) * 1.15f)).toInt())
+                val estimatedLines = (((maxHeight.value - timeLineDp) / ((titleSize + 1f) * 1.15f)).toInt())
                     .coerceIn(1, 4)
                 // Shrink short one-line titles when width is limited.
-                val fittedSize = if (titleLines == 1) {
+                val fittedSize = if (estimatedLines == 1) {
                     fitSingleLineSp(event.title, maxWidth.value, titleSize)
                 } else {
                     titleSize
                 }
+                val timeText = if (narrow) event.startTime else event.timeRangeText()
+                // Measure and render with the same merged styles.
+                val baseStyle = LocalTextStyle.current
+                val timeStyle = baseStyle.merge(TextStyle(fontSize = 9.sp, lineHeight = 10.sp))
+                val titleStyle = baseStyle.merge(
+                    TextStyle(
+                        fontSize = fittedSize.sp,
+                        lineHeight = (fittedSize + 1f).sp,
+                        fontWeight = FontWeight.SemiBold,
+                    ),
+                )
+                // Measure real line bottoms so a half-visible title line is never drawn.
+                val textMeasurer = rememberTextMeasurer()
+                val density = LocalDensity.current
+                val plan = remember(event.title, timeText, titleStyle, timeStyle, maxWidth, maxHeight, tight) {
+                    val widthPx = with(density) { maxWidth.roundToPx() }
+                    val title = textMeasurer.measure(
+                        event.title,
+                        titleStyle,
+                        constraints = Constraints(maxWidth = widthPx),
+                        maxLines = 4,
+                    )
+                    eventBlockTextPlan(
+                        availableHeight = with(density) { maxHeight.toPx() },
+                        timeHeight = if (tight) null else {
+                            textMeasurer.measure(timeText, timeStyle, softWrap = false, maxLines = 1).size.height.toFloat() +
+                                with(density) { 1.dp.toPx() }
+                        },
+                        titleLineBottoms = List(title.lineCount) { title.getLineBottom(it) },
+                    )
+                }
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    if (!tight) {
+                    if (plan.showTime) {
                         // Show only start time when a full time range cannot fit.
                         Text(
-                            text = if (narrow) event.startTime else event.timeRangeText(),
-                            fontSize = 9.sp,
-                            lineHeight = 10.sp,
+                            text = timeText,
+                            style = timeStyle,
                             color = colors.onContainer.copy(alpha = 0.8f),
                             maxLines = 1,
                             overflow = TextOverflow.Clip,
@@ -154,11 +195,9 @@ internal fun EventBlock(
                     }
                     Text(
                         text = event.title,
-                        fontSize = fittedSize.sp,
-                        lineHeight = (fittedSize + 1f).sp,
-                        fontWeight = FontWeight.SemiBold,
+                        style = titleStyle,
                         color = colors.onContainer,
-                        maxLines = titleLines,
+                        maxLines = plan.titleLines,
                         overflow = if (narrow) TextOverflow.Clip else TextOverflow.Ellipsis,
                     )
                     if (roomy && event.location.isNotBlank()) {
@@ -211,6 +250,25 @@ internal fun InsertedTimeCell(startMinute: Int, endMinute: Int, height: Dp, colo
  * Estimate one-line size using CJK and Latin widths, bounded by [preferredSp] and an 8sp
  * minimum.
  */
+internal data class EventBlockTextPlan(val showTime: Boolean, val titleLines: Int)
+
+/** Keep the time line only when dropping it would not reveal more of the title. */
+internal fun eventBlockTextPlan(
+    availableHeight: Float,
+    timeHeight: Float?,
+    titleLineBottoms: List<Float>,
+): EventBlockTextPlan {
+    fun fitting(height: Float) = titleLineBottoms.count { it <= height + 0.5f }
+    val withoutTime = fitting(availableHeight).coerceAtLeast(1)
+    if (timeHeight == null) return EventBlockTextPlan(showTime = false, titleLines = withoutTime)
+    val withTime = fitting(availableHeight - timeHeight)
+    return if (withTime >= 1 && withTime >= withoutTime) {
+        EventBlockTextPlan(showTime = true, titleLines = withTime)
+    } else {
+        EventBlockTextPlan(showTime = false, titleLines = withoutTime)
+    }
+}
+
 internal fun fitSingleLineSp(text: String, widthDp: Float, preferredSp: Float): Float {
     val ems = text.sumOf { c -> if (c.code < 0x2E80) 0.6 else 1.0 }.toFloat().coerceAtLeast(1f)
     return (widthDp / (ems * 1.05f)).coerceIn(8f, preferredSp)
@@ -234,7 +292,7 @@ internal fun ScheduleEventDetailDialog(
             text = {
                 Text(
                     stringResource(
-                        if (event.repeatWeekly) {
+                        if (event.isRecurring) {
                             R.string.schedule_event_delete_body_repeat
                         } else {
                             R.string.schedule_event_delete_body
@@ -276,7 +334,7 @@ internal fun ScheduleEventDetailDialog(
         text = {
             Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 EventDetailLine(Icons.Rounded.AccessTime, "${formatPickerDate(date)}  ${event.timeRangeText()}")
-                if (event.repeatWeekly) {
+                if (event.isRecurring) {
                     EventDetailLine(Icons.Rounded.Repeat, repeatText(event))
                 }
                 if (event.location.isNotBlank()) {
@@ -318,11 +376,53 @@ private fun EventDetailLine(icon: androidx.compose.ui.graphics.vector.ImageVecto
 
 @Composable
 internal fun repeatText(event: ScheduleEvent): String {
+    if (event.weekDates.isNotEmpty()) {
+        val dates = event.pickedDates
+        return stringResource(
+            R.string.schedule_event_repeat_picked,
+            dates.size,
+            dates.joinToString("、") { "${it.monthValue}/${it.dayOfMonth}" },
+        )
+    }
     val until = event.repeatUntil?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
     return if (until == null) {
         stringResource(R.string.schedule_event_repeat_forever)
     } else {
         stringResource(R.string.schedule_event_repeat_until, formatPickerDate(until))
+    }
+}
+
+internal enum class EventRepeat { Once, Weekly, Weeks }
+
+internal val ScheduleEvent.repeatMode: EventRepeat
+    get() = when {
+        weekDates.isNotEmpty() -> EventRepeat.Weeks
+        repeatWeekly -> EventRepeat.Weekly
+        else -> EventRepeat.Once
+    }
+
+/** Week 1 is the term's first week, or the event's own week when no term start is set. */
+internal fun eventWeekAnchor(termStart: LocalDate?, date: LocalDate): LocalDate =
+    termStart ?: date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
+/** Picked weeks fall on the event's weekday; the stored date becomes the earliest of them. */
+internal fun ScheduleEvent.withRepeat(
+    repeat: EventRepeat,
+    repeatUntil: String?,
+    weeks: Collection<Int>,
+    anchor: LocalDate,
+): ScheduleEvent = when (repeat) {
+    EventRepeat.Once -> copy(repeatWeekly = false, repeatUntil = null, weekDates = emptyList())
+    EventRepeat.Weekly -> copy(repeatWeekly = true, repeatUntil = repeatUntil, weekDates = emptyList())
+    EventRepeat.Weeks -> {
+        val day = localDate
+        val dates = if (day == null) emptyList() else termWeekDates(anchor, day.dayOfWeek, weeks)
+        copy(
+            date = dates.firstOrNull()?.toString() ?: date,
+            repeatWeekly = false,
+            repeatUntil = null,
+            weekDates = dates.map { it.toString() },
+        )
     }
 }
 
@@ -337,6 +437,8 @@ internal fun ScheduleEventEditorDialog(
     defaultDate: LocalDate,
     onDismiss: () -> Unit,
     onSave: (ScheduleEvent) -> Unit,
+    termStartDate: LocalDate? = null,
+    maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
 ) {
     val reuse = rememberCourseReuseValues(emptyList())
     val locationOptions = remember(reuse.locations) { reuse.locations.map { CourseReuseOption(it) } }
@@ -351,8 +453,11 @@ internal fun ScheduleEventEditorDialog(
     }
     var location by rememberSaveable { mutableStateOf(initial?.location.orEmpty()) }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
-    var repeatWeekly by rememberSaveable { mutableStateOf(initial?.repeatWeekly ?: false) }
+    var repeat by rememberSaveable { mutableStateOf(initial?.repeatMode ?: EventRepeat.Once) }
     var repeatUntil by rememberSaveable { mutableStateOf(initial?.repeatUntil) }
+    // Fixed for the whole edit so changing the date never shifts the picked week numbers.
+    val weekAnchor = remember { eventWeekAnchor(termStartDate, initial?.localDate ?: defaultDate) }
+    var pickedWeeks by rememberSaveable { mutableStateOf(initial?.termWeeks(weekAnchor).orEmpty()) }
     var colorArgb by rememberSaveable { mutableStateOf(initial?.colorArgb) }
 
     var picking by remember { mutableStateOf<EventPick?>(null) }
@@ -362,6 +467,8 @@ internal fun ScheduleEventEditorDialog(
     val endMinute = clockMinute(end)
     val titleMissing = title.isBlank()
     val timeInvalid = startMinute == null || endMinute == null || endMinute <= startMinute
+    val weeksMissing = repeat == EventRepeat.Weeks && pickedWeeks.isEmpty()
+    val weekLimit = maxOf(maxWeekCount, pickedWeeks.maxOrNull() ?: 0)
 
     when (val pick = picking) {
         EventPick.Date -> AlarmDatePickerDialog(
@@ -379,6 +486,15 @@ internal fun ScheduleEventEditorDialog(
                 repeatUntil = it.toString()
                 picking = null
             },
+        )
+        EventPick.Weeks -> WeekMatrixDialog(
+            maxWeekCount = weekLimit,
+            selected = pickedWeeks.toSet(),
+            onConfirm = {
+                pickedWeeks = it.sorted()
+                picking = null
+            },
+            onDismiss = { picking = null },
         )
         EventPick.Start, EventPick.End -> EventTimePickerDialog(
             initialMinute = (if (pick == EventPick.Start) startMinute else endMinute) ?: 8 * 60,
@@ -451,39 +567,49 @@ internal fun ScheduleEventEditorDialog(
                             color = MaterialTheme.colorScheme.error,
                         )
                     }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.schedule_event_repeat_weekly),
-                                fontWeight = FontWeight.SemiBold,
-                            )
+                }
+                AlarmEditorSection(stringResource(R.string.schedule_event_repeat_label)) {
+                    EventRepeatChips(repeat) { mode ->
+                        if (mode == EventRepeat.Weeks && pickedWeeks.isEmpty()) {
+                            pickedWeeks = listOf(resolveTermWeekNumber(weekAnchor, date)).filter { it in 1..weekLimit }
+                        }
+                        repeat = mode
+                    }
+                    when (repeat) {
+                        EventRepeat.Once -> Unit
+                        EventRepeat.Weekly -> {
                             Text(
                                 stringResource(R.string.schedule_event_repeat_weekly_desc),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                        }
-                        Switch(checked = repeatWeekly, onCheckedChange = { repeatWeekly = it })
-                    }
-                    if (repeatWeekly) {
-                        AlarmValueRow(
-                            label = stringResource(R.string.schedule_event_repeat_until_label),
-                            value = repeatUntil
-                                ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                                ?.let { formatPickerDate(it) }
-                                ?: stringResource(R.string.schedule_event_repeat_until_none),
-                            onClick = { picking = EventPick.RepeatUntil },
-                        )
-                        if (repeatUntil != null) {
-                            Text(
-                                text = stringResource(R.string.schedule_event_repeat_until_clear),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.clickable { repeatUntil = null },
+                            AlarmValueRow(
+                                label = stringResource(R.string.schedule_event_repeat_until_label),
+                                value = repeatUntil
+                                    ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                                    ?.let { formatPickerDate(it) }
+                                    ?: stringResource(R.string.schedule_event_repeat_until_none),
+                                onClick = { picking = EventPick.RepeatUntil },
                             )
+                            if (repeatUntil != null) {
+                                Text(
+                                    text = stringResource(R.string.schedule_event_repeat_until_clear),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.clickable { repeatUntil = null },
+                                )
+                            }
+                        }
+                        EventRepeat.Weeks -> {
+                            Text(
+                                stringResource(
+                                    R.string.schedule_event_weeks_hint,
+                                    stringResource(shortWeekdayRes(date.dayOfWeek)),
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            SelectedWeeksRow(weeks = pickedWeeks, onEdit = { picking = EventPick.Weeks })
                         }
                     }
                 }
@@ -514,7 +640,7 @@ internal fun ScheduleEventEditorDialog(
         confirmButton = {
             AppOutlinedButton(onClick = {
                 submitted = true
-                if (titleMissing || timeInvalid) return@AppOutlinedButton
+                if (titleMissing || timeInvalid || weeksMissing) return@AppOutlinedButton
                 onSave(
                     ScheduleEvent(
                         id = initial?.id ?: "event-${UUID.randomUUID()}",
@@ -524,10 +650,8 @@ internal fun ScheduleEventEditorDialog(
                         endTime = end,
                         location = location.trim(),
                         note = note.trim(),
-                        repeatWeekly = repeatWeekly,
-                        repeatUntil = repeatUntil.takeIf { repeatWeekly },
                         colorArgb = colorArgb,
-                    ),
+                    ).withRepeat(repeat, repeatUntil, pickedWeeks, weekAnchor),
                 )
             }) { Text(stringResource(R.string.schedule_action_save)) }
         },
@@ -537,7 +661,26 @@ internal fun ScheduleEventEditorDialog(
     )
 }
 
-private enum class EventPick { Date, Start, End, RepeatUntil }
+private enum class EventPick { Date, Start, End, RepeatUntil, Weeks }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun EventRepeatChips(selected: EventRepeat, onSelect: (EventRepeat) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            EventRepeat.Once to R.string.schedule_event_repeat_once,
+            EventRepeat.Weekly to R.string.schedule_event_repeat_mode_weekly,
+            EventRepeat.Weeks to R.string.schedule_event_repeat_mode_weeks,
+        ).forEach { (mode, label) ->
+            AppFilterChip(
+                selected = selected == mode,
+                onClick = { onSelect(mode) },
+                label = { Text(stringResource(label)) },
+                modifier = Modifier.testTag("event-repeat-${mode.name.lowercase()}"),
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

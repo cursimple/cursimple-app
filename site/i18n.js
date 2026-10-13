@@ -199,7 +199,7 @@
     "download.notes": "更新内容",
     "channel.stableEmptyLine": "最新正式版：暂无正式版",
     "channel.betaPrefix": "最新测试版：",
-    "download.betaNotice": "0.7.4、0.7.5 和 0.7.9 均为测试版。",
+    "download.betaNotice": "0.7.10、0.7.11 均为测试版。",
     "download.route": "下载线路",
     "download.github": "GitHub 直连",
     "download.mirror": "国内加速",
@@ -265,7 +265,9 @@
     "components.releases": "版本与下载",
     "components.browse": "浏览组件收录",
     "components.install": "在课简的「组件」市场搜索并安装，或从组件 Release 下载 ZIP 后导入。按提示登录或绑定通知目标，首次使用先核对同步或测试消息的真实结果。",
-    "footer.components": "组件收录"
+    "footer.components": "组件收录",
+    "schools.browse": "浏览插件收录",
+    "schools.catalogHint": "在课简「从教务系统导课」中搜索学校名即可安装对应插件。已适配的学校和插件仓库都在插件收录里，也可以从那里提交你写的插件。"
   },
   "zh-TW": {
     "meta.title": "課簡 CurSimple · 開源 Android 課表",
@@ -461,7 +463,7 @@
     "download.notes": "更新內容",
     "channel.stableEmptyLine": "最新正式版：暫無正式版",
     "channel.betaPrefix": "最新測試版：",
-    "download.betaNotice": "0.7.4、0.7.5 和 0.7.9 均為測試版。",
+    "download.betaNotice": "0.7.10、0.7.11 均為測試版。",
     "download.route": "下載線路",
     "download.github": "GitHub 直連",
     "download.mirror": "國內加速",
@@ -527,7 +529,9 @@
     "components.releases": "版本與下載",
     "components.browse": "瀏覽元件收錄",
     "components.install": "在課簡的「元件」市場搜尋並安裝，或從元件 Release 下載 ZIP 後匯入。依提示登入或綁定通知目標，首次使用先核對同步或測試訊息的實際結果。",
-    "footer.components": "元件收錄"
+    "footer.components": "元件收錄",
+    "schools.browse": "瀏覽外掛收錄",
+    "schools.catalogHint": "在課簡「從教務系統匯入課表」中搜尋學校名稱即可安裝對應外掛。已支援的學校和外掛儲存庫都在外掛收錄裡，也可以從那裡提交你寫的外掛。"
   },
   "en": {
     "meta.title": "CurSimple · Open-source Android timetable",
@@ -723,7 +727,7 @@
     "download.notes": "What's new",
     "channel.stableEmptyLine": "Latest stable: No stable release yet",
     "channel.betaPrefix": "Latest beta: ",
-    "download.betaNotice": "Versions 0.7.4, 0.7.5 and 0.7.9 are beta releases.",
+    "download.betaNotice": "Versions 0.7.10 and 0.7.11 are beta releases.",
     "download.route": "Download source",
     "download.github": "GitHub direct",
     "download.mirror": "China mirror",
@@ -789,7 +793,9 @@
     "components.releases": "Releases",
     "components.browse": "Browse component catalog",
     "components.install": "Search and install from the Components market, or download a Release ZIP and import it. Sign in or bind recipients as prompted, then verify an initial sync or test message.",
-    "footer.components": "Component catalog"
+    "footer.components": "Component catalog",
+    "schools.browse": "Browse plugin catalog",
+    "schools.catalogHint": "Search for your school under “Import from your university” in CurSimple to install its plugin. The plugin catalog lists every supported school and repository, and accepts new plugins."
   }
 };
   const languages = Object.freeze(['zh-CN', 'zh-TW', 'en']);

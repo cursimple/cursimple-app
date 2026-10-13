@@ -168,6 +168,15 @@ internal fun ExtensionOwnedDocument(
                             require(spec.notificationReceiver && PluginPermission.NotificationReceive in manifest.permissions) { "组件未声明通知出口能力" }
                             currentActions.notificationCommand(record, command, payload)
                         }
+                        "layout.apply" -> {
+                            check(currentInteractive) { "已离开组件页面" }
+                            require(spec.layouts.isNotEmpty()) { "组件未声明布局能力" }
+                            currentActions.applyLayout(record, payload)
+                        }
+                        "layout.current" -> {
+                            require(spec.layouts.isNotEmpty()) { "组件未声明布局能力" }
+                            currentActions.currentLayout(record)
+                        }
                         "debug.logs" -> currentActions.debugLogs(record)
                         "debug.refreshWidget" -> { currentActions.refreshWidget(record); JsonPrimitive(true) }
                         "debug.advancedTools" -> {
@@ -455,7 +464,7 @@ internal fun componentUiHtml(html: String, snapshot: JsonObject, token: String, 
  window.__CurSimpleComponentHasBack=false;
  window.__CurSimpleComponentReply=function(id,response){if(id==='legacy-sync'&&window.CurSimpleExtensionUiSetSyncing)window.CurSimpleExtensionUiSetSyncing(false);const p=pending.get(id);if(!p)return;pending.delete(id);clearTimeout(p.timer);response.ok?p.resolve(response.value):p.reject(new Error(response.error||'组件调用失败'));};
  window.__CurSimpleComponentPush=function(value){state=value;listeners.forEach(fn=>fn(state));if(window.CurSimpleExtensionUiSetData)window.CurSimpleExtensionUiSetData(state.data);};
- window.CurSimpleComponent=Object.freeze({capabilities:Object.freeze({sessionFetch:true,nativeWebSocket:true,orientation:true}),version:${com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT},get state(){return state;},subscribe(fn){listeners.add(fn);fn(state);return()=>listeners.delete(fn);},request(command,payload){if(command==='ui.navigation')window.__CurSimpleComponentHasBack=payload?.canGoBack===true;return new Promise((resolve,reject)=>{const id=String(++seq);const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作超时，请重试'));},(command==='sync'||command==='item.markRead'||command==='notification.test')?185000:(command==='network.session.fetch'?Math.min(60000,Math.max(1000,Number(payload?.timeoutMs)||20000))+5000:45000));pending.set(id,{resolve,reject,timer});window.CurSimpleExtensionUi.request(token,id,command,JSON.stringify(payload||{}));});}});
+ window.CurSimpleComponent=Object.freeze({capabilities:Object.freeze({sessionFetch:true,nativeWebSocket:true,orientation:true,layouts:Object.freeze(${layoutCapabilitiesJson()})}),version:${com.x500x.cursimple.core.plugin.PluginApiVersion.CURRENT},get state(){return state;},subscribe(fn){listeners.add(fn);fn(state);return()=>listeners.delete(fn);},request(command,payload){if(command==='ui.navigation')window.__CurSimpleComponentHasBack=payload?.canGoBack===true;return new Promise((resolve,reject)=>{const id=String(++seq);const timer=setTimeout(()=>{pending.delete(id);reject(new Error('操作超时，请重试'));},(command==='sync'||command==='item.markRead'||command==='notification.test')?185000:(command==='network.session.fetch'?Math.min(60000,Math.max(1000,Number(payload?.timeoutMs)||20000))+5000:45000));pending.set(id,{resolve,reject,timer});window.CurSimpleExtensionUi.request(token,id,command,JSON.stringify(payload||{}));});}});
  const nativeFetch=window.fetch.bind(window), hosts=${extensionJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.serializer<String>()), manifest.allowedHosts)}, network=${PluginPermission.NetworkFetch in manifest.permissions};
  const allowed=h=>hosts.some(x=>h===x||h.endsWith('.'+x));
  window.fetch=function(url,init){const u=new URL(typeof url==='string'?url:url.url,location.href),local=u.origin===location.origin&&u.pathname.startsWith('$ASSET_PREFIX');if(!local&&(!network||u.protocol!=='https:'||!allowed(u.hostname)))return Promise.reject(new Error('请求地址不在组件声明的站点内'));return nativeFetch(url,init);};

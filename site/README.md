@@ -16,6 +16,10 @@
 
 `i18n.js` 三种语言使用相同的语义键。纯文本使用 `data-i18n`；包含图标或链接时只标记文字子元素。图片说明、读屏标签和元信息分别使用 `data-i18n-alt`、`data-i18n-aria-label`、`data-i18n-content`。动态文案用 `SiteI18n.t()`，日期用 `formatDate()`。
 
+## 下载
+
+下载按钮默认走国内加速直链：页面先用第一个镜像，再测速换成最先返回真实 `update.json` 的镜像，限流或报错的镜像不会被选中。用户切到「GitHub 直连」后会记住选择。镜像列表只放实测能下载 APK 且允许跨域测速的地址。
+
 ## 公告
 
 在 `release-notes/` 中维护原文 `v<version>.md`、繁体 `v<version>.zh-TW.md` 和英文 `v<version>.en.md`。图片相对各自 Markdown 文件解析。

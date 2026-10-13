@@ -119,8 +119,10 @@ class WidgetQaTest {
         refresh { CalendarWidgetReceiver.updateWidgets(context, intArrayOf(tallId)) }
         capture(tall, 330, 600, "widget-calendar-four-column-tall.png")
 
+        // Week cells open course details; only month cells deep-link to a day.
+        click(view, WidgetR.id.calendar_mode)
         val monitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
-        click(view, WidgetR.id.calendar_hit_0_3, waitMs = 0)
+        click(view, WidgetR.id.calendar_hit_2_3, waitMs = 0)
         val activity = instrumentation.waitForMonitorWithTimeout(monitor, 10_000)
         assertNotNull("点日期没有打开应用", activity)
         assertEquals("2026-09-17", activity!!.intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_SCHEDULE_DATE))
@@ -262,11 +264,13 @@ class WidgetQaTest {
             assertNotNull(activity)
             compose.waitUntil(30_000) { compose.onAllNodesWithTag("memo-quick-editor").fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty() }
             assertEquals(0, mainMonitor.hits)
-            assertTrue("Quick edit must stay in a floating window", activity!!.window.decorView.height < context.resources.displayMetrics.heightPixels)
+            val decorHeight = activity!!.window.decorView.height
+            val screenHeight = context.resources.displayMetrics.heightPixels
+            assertTrue("Quick edit must stay in a floating window ($decorHeight of $screenHeight px)", decorHeight < screenHeight)
             captureActivity(activity!!, "widget-memo-quick-editor.png")
             compose.onNodeWithTag("memo-quick-text").performClick()
             compose.onNodeWithTag("memo-quick-save").assertIsDisplayed()
-            compose.onNodeWithTag("memo-quick-body-1").performTextReplacement("提交附件和实验截图")
+            compose.onNodeWithTag("memo-quick-body-2").performTextReplacement("提交附件和实验截图")
             compose.onNodeWithTag("memo-quick-more").performClick()
             compose.onNodeWithText(AppLocale.wrap(context).getString(R.string.memo_quick_priority)).performScrollTo().assertIsDisplayed()
             captureActivity(activity, "widget-memo-quick-options.png")
@@ -278,7 +282,8 @@ class WidgetQaTest {
             compose.onNodeWithTag("memo-quick-save").performClick()
             compose.onNode(hasText(localized.getString(R.string.memo_quick_save)) and hasAnyAncestor(isDialog())).performClick()
             compose.waitUntil(10_000) { activity.isFinishing || activity.isDestroyed }
-            assertTrue(repo.notesFlow.first().first { it.id == "memo-widget-qa" }.body.contains("- [ ] 提交附件和实验截图"))
+            val saved = repo.notesFlow.first().first { it.id == "memo-widget-qa" }.body
+            assertTrue("Quick edit saved: $saved", saved.contains("- [ ] 提交附件和实验截图"))
             assertEquals(0, mainMonitor.hits)
             Thread.sleep(600)
             capture(view, 330, 230, "widget-memo-after-edit.png")
@@ -311,7 +316,7 @@ class WidgetQaTest {
             compose.onNodeWithText("大学英语").performScrollTo().performClick()
             compose.onNodeWithTag("memo-quick-text").performTextReplacement("桌面新增待办")
             compose.onNodeWithTag("memo-quick-body").performTextReplacement("周五带上学习资料")
-            compose.onNodeWithTag("memo-quick-body").assertTextContains("周五带上学习资料")
+            compose.onNodeWithTag("memo-quick-body").assertTextContains("周五带上学习资料", substring = true)
             captureActivity(adding!!, "widget-memo-add-course.png")
             compose.onNodeWithTag("memo-quick-save").performClick()
             compose.onNode(hasText(localized.getString(R.string.memo_quick_save)) and hasAnyAncestor(isDialog())).performClick()
@@ -370,6 +375,81 @@ class WidgetQaTest {
         preferences.setDebugForcedDateTime(LocalDateTime.of(2027, 1, 6, 10, 0))
         refresh { CalendarWidgetReceiver.updateWidgets(context, intArrayOf(calendarId)) }
         capture(calendar, 330, 360, "widget-mood-calendar-empty-week.png")
+    }
+
+    @Test fun dayWidgetListsEventsAmongCoursesUntilTurnedOff() = runBlocking {
+        val container = (context.applicationContext as ClassScheduleApplication).appContainer
+        val widgetPreferences = container.widgetPreferencesRepository
+        val events = container.scheduleEventRepository
+        // Seeded Tuesday 10:00 has 线性代数 at 08:00 and two classes from 11:35.
+        val fixtures = listOf(
+            ScheduleEvent("qa-w-day-live", "社团例会", "2026-09-15", "09:45", "10:30", location = "学生活动中心"),
+            ScheduleEvent("qa-w-day-weekly", "实验室周会", "2026-09-08", "12:30", "13:00", note = "带上周报\n第二行不显示", repeatWeekly = true),
+            ScheduleEvent("qa-w-day-night", "夜跑", "2026-09-15", "21:00", "21:30"),
+            ScheduleEvent("qa-w-day-other", "别的日子", "2026-09-17", "09:00", "10:00"),
+        )
+        fixtures.forEach { events.upsert(it) }
+        val provider = com.x500x.cursimple.feature.widget.ScheduleGlanceWidgetReceiver::class.java
+        val (id, view) = bind(provider, 330, 460)
+        val (smallId, small) = bind(provider, 180, 110)
+        fun titles(): List<String> {
+            val found = mutableListOf<String>()
+            instrumentation.runOnMainSync {
+                val list = view.findViewById<ListView>(WidgetR.id.widget_course_list)
+                for (i in 0 until list.childCount) {
+                    found += list.getChildAt(i).findViewById<TextView>(WidgetR.id.course_title).text.toString()
+                }
+            }
+            return found
+        }
+        suspend fun shoot(suffix: String) {
+            refresh { com.x500x.cursimple.feature.widget.ScheduleGlanceWidgetReceiver.updateWidgets(context, intArrayOf(id, smallId)) }
+            capture(view, 330, 460, "widget-day-events-$suffix.png")
+            capture(small, 180, 110, "widget-day-events-$suffix-small.png")
+        }
+        try {
+            widgetPreferences.setWidgetShowEvents(true)
+            shoot("on")
+            assertEquals(listOf("线性代数", "社团例会", "程序设计", "物理实验", "实验室周会", "夜跑"), titles())
+            instrumentation.runOnMainSync {
+                val list = view.findViewById<ListView>(WidgetR.id.widget_course_list)
+                val live = list.getChildAt(1)
+                assertEquals(View.VISIBLE, live.findViewById<View>(WidgetR.id.course_badge).visibility)
+                assertEquals("学生活动中心", live.findViewById<TextView>(WidgetR.id.course_subtitle).text.toString())
+                assertEquals("带上周报", list.getChildAt(4).findViewById<TextView>(WidgetR.id.course_subtitle).text.toString())
+                // No place and no note: the line collapses instead of leaving a gap.
+                assertEquals(View.GONE, list.getChildAt(5).findViewById<View>(WidgetR.id.course_subtitle).visibility)
+            }
+            widgetPreferences.setWidgetShowEvents(false)
+            shoot("off")
+            assertEquals(listOf("线性代数", "程序设计", "物理实验"), titles())
+            // A day with nothing but an event keeps the list instead of the empty state.
+            widgetPreferences.setWidgetShowEvents(true)
+            container.manualCourseRepository.replaceAll(emptyList())
+            shoot("events-only")
+            assertEquals(listOf("社团例会", "实验室周会", "夜跑"), titles())
+            fixtures.forEach { events.remove(it.id) }
+            shoot("empty")
+            assertTrue(titles().isEmpty())
+            fun openedDate(): String? {
+                val monitor = instrumentation.addMonitor(MainActivity::class.java.name, null, false)
+                click(view, WidgetR.id.widget_root, waitMs = 0)
+                val activity = instrumentation.waitForMonitorWithTimeout(monitor, 10_000)
+                instrumentation.removeMonitor(monitor)
+                assertNotNull("点小组件没有打开应用", activity)
+                return activity!!.intent.getStringExtra(WidgetDeepLinks.EXTRA_OPEN_SCHEDULE_DATE).also { activity.finishAndWait() }
+            }
+            // Today keeps the plain launch; a paged-to day opens on that date.
+            assertEquals(null, openedDate())
+            click(view, WidgetR.id.widget_next)
+            assertEquals("2026-09-16", openedDate())
+            click(view, WidgetR.id.widget_reset)
+            assertEquals(null, openedDate())
+        } finally {
+            fixtures.forEach { events.remove(it.id) }
+            widgetPreferences.setWidgetShowEvents(true)
+            seed()
+        }
     }
 
     @Test fun everyWidgetRendersAcrossSizesAndEmptyStates() = runBlocking {

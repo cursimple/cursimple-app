@@ -29,6 +29,8 @@
 .component-card .catalog-links { margin-top:24px; }
 .component-bottom { display:flex; flex-wrap:wrap; gap:24px; align-items:center; justify-content:space-between; margin-top:28px; }
 .component-bottom p { max-width:740px; flex:1 1 300px; color:var(--mute); font-size:14px; }
+.schools-sec .component-bottom { max-width:760px; margin:32px auto 0; flex-direction:column; gap:16px; text-align:center; }
+.schools-sec .component-bottom p { flex:none; }
 .foot-in nav { flex-wrap:wrap; }
 @media(max-width:650px) {
   .components-sec { padding-block:52px; }

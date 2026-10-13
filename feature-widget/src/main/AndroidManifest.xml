@@ -315,6 +315,9 @@
             <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
             <meta-data android:name="vivo_widget" android:value="true" />
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/component_widget_slot_description" />
         </receiver>
         <receiver
             android:name=".ComponentWidgetSlot1Receiver"
@@ -349,6 +352,9 @@
             <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
             <meta-data android:name="vivo_widget" android:value="true" />
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/component_widget_slot_description" />
         </receiver>
         <receiver
             android:name=".ComponentWidgetSlot2Receiver"
@@ -383,6 +389,9 @@
             <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
             <meta-data android:name="vivo_widget" android:value="true" />
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/component_widget_slot_description" />
         </receiver>
         <receiver
             android:name=".ComponentWidgetSlot3Receiver"
@@ -417,6 +426,9 @@
             <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
             <meta-data android:name="vivo_widget" android:value="true" />
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/component_widget_slot_description" />
         </receiver>
         <receiver
             android:name=".ComponentWidgetSlot4Receiver"
@@ -451,6 +463,9 @@
             <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
             <meta-data android:name="vivo_widget" android:value="true" />
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/component_widget_slot_description" />
         </receiver>
         <receiver
             android:name=".ComponentWidgetSlot5Receiver"
@@ -485,6 +500,9 @@
             <meta-data android:name="miuiWidgetRefreshMinInterval" android:value="10000" />
             <meta-data android:name="vivo_widget" android:value="true" />
             <meta-data android:name="vivoWidgetVersion" android:value="1" />
+            <meta-data
+                android:name="vivo.widget.description"
+                android:resource="@string/component_widget_slot_description" />
         </receiver>
     </application>
 

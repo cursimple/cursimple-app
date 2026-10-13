@@ -30,6 +30,25 @@ class ScheduleTimelineTest {
         assertEquals(row.top, timeline.yOf(m("18:49")), 0.001f)
     }
 
+    @Test fun typedCourseSitsAtItsMinutesWhilePeriodCoursesFillTheirRows() {
+        val lunch = ev("12:10", "13:00")
+        val timeline = GridTimeline.build(day, listOf(lunch))
+        val gap = timeline.rows.filterIsInstance<TimelineRow.Gap>().single()
+        val (top, bottom) = timeline.courseSpan(rowIndex = 3, rowSpan = 1, clock = lunch, minUnits = 0.3f)
+        assertEquals(gap.top, top, 0.001f)
+        assertEquals(gap.top + gap.height, bottom, 0.001f)
+        // Inside a period the typed course only covers its share of the row.
+        val (innerTop, innerBottom) = timeline.courseSpan(0, 2, ev("08:20", "09:10"), 0.3f)
+        assertTrue(innerTop > timeline.slotTop(0) && innerBottom < timeline.slotBottom(1))
+        assertEquals(timeline.slotTop(4) to timeline.slotBottom(5), timeline.courseSpan(4, 2, null, 0.3f))
+    }
+
+    @Test fun veryShortTypedCourseKeepsAReadableHeight() {
+        val timeline = GridTimeline.build(day, emptyList())
+        val (top, bottom) = timeline.courseSpan(0, 1, ev("08:00", "08:05"), minUnits = 0.4f)
+        assertEquals(0.4f, bottom - top, 0.001f)
+    }
+
     @Test
     fun noEvents_isTheOriginalGrid() {
         val t = GridTimeline.build(day, emptyList())
@@ -179,6 +198,16 @@ class ScheduleTimelineTest {
         assertEquals(java.time.LocalDate.of(2026, 10, 6), weekly.nextOccurrence(today))
         assertEquals(java.time.LocalDate.of(2026, 9, 29), weekly.nextOccurrence(java.time.LocalDate.of(2026, 9, 29)))
         assertNull(weekly.copy(repeatUntil = "2026-10-05").nextOccurrence(today))
+    }
+
+    @Test
+    fun nextOccurrence_followsPickedWeeks() {
+        val picked = com.x500x.cursimple.core.kernel.model.ScheduleEvent(
+            id = "e", title = "t", date = "2026-09-15", startTime = "10:00", endTime = "11:00",
+            weekDates = listOf("2026-09-15", "2026-10-13", "2026-11-03"),
+        )
+        assertEquals(java.time.LocalDate.of(2026, 10, 13), picked.nextOccurrence(java.time.LocalDate.of(2026, 9, 30)))
+        assertNull(picked.nextOccurrence(java.time.LocalDate.of(2026, 11, 4)))
     }
 
     @Test

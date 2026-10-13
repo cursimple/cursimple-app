@@ -22,6 +22,17 @@ class MemoMediaEditingTest {
         assertEquals("Before\nAfter", editor.body)
         editor.undo(); assertTrue(editor.body.contains(image))
     }
+    @Test fun `several picked images insert in order and undo together`() {
+        val second = MemoImageRef.markdown("b".repeat(64), "图片")
+        val editor = MemoBlockEditorState("Text", clock = { 0L })
+        val id = editor.lines.first().id
+        editor.onFocusChanged(id, true)
+        editor.onFieldChange(id, TextFieldValue("\u200BText", TextRange(5)))
+        editor.insertBlock(listOf(image, second).joinToString("\n"))
+        assertEquals("Text\n$image\n$second\n", editor.body)
+        assertEquals(2, editor.lines.count { it.kind == MemoLineKind.Image })
+        editor.undo(); assertEquals("Text", editor.body)
+    }
     @Test fun `backspace after media never merges text into the image or divider`() {
         for (body in listOf("$image\nFollowing", "---\nFollowing")) {
             var id = 0L

@@ -7,7 +7,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
-import com.x500x.cursimple.core.kernel.model.findSlot
+import com.x500x.cursimple.core.kernel.model.slotFor
 import com.x500x.cursimple.core.kernel.model.startLocalTimeOrNull
 import com.x500x.cursimple.core.kernel.model.termStartLocalDate
 import com.x500x.cursimple.core.kernel.time.BeijingTime
@@ -159,7 +159,7 @@ class ReminderPlanner {
         holidayCalendar: HolidayCalendarSettings,
         dayPolicy: ReminderDayPolicy,
     ): List<ReminderPlan> {
-        val slot = timingProfile.findSlot(course.time.startNode, course.time.endNode) ?: return emptyList()
+        val slot = timingProfile.slotFor(course) ?: return emptyList()
         val termStart = timingProfile.termStartLocalDate() ?: return emptyList()
         val zone = BeijingTime.zone
         return courseOccurrenceDates(

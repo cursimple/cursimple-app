@@ -81,6 +81,7 @@ class DataStoreWidgetPreferencesRepository(
                     preferences[KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT]
                         ?: WidgetThemePreferences.DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
                 ),
+            showEvents = preferences[KEY_WIDGET_SHOW_EVENTS] ?: true,
         )
     }
 
@@ -344,6 +345,12 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
+    override suspend fun setWidgetShowEvents(enabled: Boolean) {
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_SHOW_EVENTS] = enabled
+        }
+    }
+
     override suspend fun resetWidgetThemePreferences() {
         var previousImageUri: String? = null
         store.edit { preferences ->
@@ -352,6 +359,7 @@ class DataStoreWidgetPreferencesRepository(
             preferences.remove(KEY_WIDGET_BACKGROUND_MODE)
             preferences.remove(KEY_WIDGET_BACKGROUND_IMAGE_URI)
             preferences.remove(KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK)
+            preferences.remove(KEY_WIDGET_SHOW_EVENTS)
         }
         releasePersistedReadPermission(previousImageUri)
     }
@@ -390,6 +398,7 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_BACKGROUND_MODE = stringPreferencesKey("widget_background_mode")
         val KEY_WIDGET_BACKGROUND_IMAGE_URI = stringPreferencesKey("widget_background_image_uri")
         val KEY_WIDGET_OPEN_APP_ON_DOUBLE_CLICK = booleanPreferencesKey("widget_open_app_on_double_click")
+        val KEY_WIDGET_SHOW_EVENTS = booleanPreferencesKey("widget_show_events")
         val KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT =
             intPreferencesKey("widget_background_image_transparency_percent")
         const val MIN_OFFSET = -3650

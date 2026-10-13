@@ -108,6 +108,43 @@ fun parseReleaseNotes(markdown: String): List<ReleaseNoteBlock> {
     return blocks
 }
 
+/**
+ * Rewrite relative image targets to absolute repository URLs. Notes may be authored with either
+ * form, but the announcement renderer resolves images through the mirror pool, which only routes
+ * `raw.githubusercontent.com` URLs (see `releaseImageRequest`); a relative path degrades to a
+ * direct request and fails on restricted networks. Resolving here keeps already-published tags
+ * working, since their notes are immutable and cannot be re-edited.
+ *
+ * [basePath] is the note's repository path; relative targets resolve against its directory.
+ */
+internal fun resolveReleaseImageUrls(markdown: String, repository: String, ref: String, basePath: String): String {
+    val baseDir = basePath.substringBeforeLast('/', "")
+    return markdown.lineSequence().joinToString("\n") { line ->
+        val match = MARKDOWN_IMAGE_LINE.matchEntire(line) ?: return@joinToString line
+        val target = match.groupValues[3]
+        if (target.hasUrlScheme()) return@joinToString line
+        val resolved = "https://raw.githubusercontent.com/$repository/$ref/${resolveRelativePath(baseDir, target)}"
+        "${match.groupValues[1]}![${match.groupValues[2]}]($resolved${match.groupValues[4]}"
+    }
+}
+
+private fun String.hasUrlScheme(): Boolean = startsWith("//") || SCHEME.containsMatchIn(this)
+
+/** Collapse `.`/`..`/empty segments so `images/../a.png` and `./a.png` both resolve cleanly. */
+private fun resolveRelativePath(baseDir: String, target: String): String {
+    val segments = ArrayDeque<String>()
+    if (baseDir.isNotEmpty()) segments.addAll(baseDir.split('/').filter { it.isNotEmpty() })
+    val path = target.substringBefore('?').substringBefore('#')
+    for (segment in path.split('/')) {
+        when (segment) {
+            "", "." -> Unit
+            ".." -> if (segments.isNotEmpty()) segments.removeLast()
+            else -> segments.addLast(segment)
+        }
+    }
+    return segments.joinToString("/")
+}
+
 internal fun parseInline(text: String): List<ReleaseNoteSpan> {
     val spans = mutableListOf<ReleaseNoteSpan>()
     var index = 0
@@ -161,6 +198,12 @@ private enum class PendingKind { Paragraph, Bullet }
 private fun Char.isCjk(): Boolean = this in '⺀'..'鿿' || this in '＀'..'￯'
 
 private val IMAGE_LINE = Regex("^!\\[([^\\]]*)]\\((\\S+?)(?:\\s+\"[^\"]*\")?\\)$")
+
+/** [1] leading indent, [2] alt text, [3] target, [4] optional title and closing paren. */
+private val MARKDOWN_IMAGE_LINE =
+    Regex("^(\\s*)!\\[([^\\]]*)]\\((\\S+?)((?:\\s+\"[^\"]*\")?\\))\\s*$")
+
+private val SCHEME = Regex("^[A-Za-z][A-Za-z0-9+.\\-]*:")
 private val HORIZONTAL_RULE = Regex("^(-{3,}|\\*{3,}|_{3,})$")
 private val BULLET_PREFIX = Regex("^([-*+]|\\d+\\.)\\s+")
 private val BOLD = Regex("\\*\\*(.+?)\\*\\*")

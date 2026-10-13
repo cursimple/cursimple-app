@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,13 +40,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.x500x.cursimple.core.kernel.model.ClassSlotTime
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import java.util.UUID
 
 /**
- * Quick-add fixes the tapped day and period span while asking for course metadata and weeks.
+ * Quick-add fixes the tapped day and defaults to its periods; typed times can replace them.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -56,6 +58,7 @@ fun QuickAddCourseDialog(
     existingCourses: List<CourseItem> = emptyList(),
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     slotLabel: String? = null,
+    slotTimes: List<ClassSlotTime> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (CourseItem) -> Unit,
 ) {
@@ -71,6 +74,13 @@ fun QuickAddCourseDialog(
     var startWeekText by rememberSaveable { mutableStateOf("") }
     var endWeekText by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf(CourseCategory.Course) }
+    var byClock by rememberSaveable { mutableStateOf(false) }
+    val tappedClock = remember(slotTimes, startNode, endNode) { clockForNodes(slotTimes, startNode, endNode) }
+    var clockStart by rememberSaveable { mutableIntStateOf(tappedClock?.first ?: DEFAULT_CLOCK_START) }
+    var clockEnd by rememberSaveable { mutableIntStateOf(tappedClock?.second ?: (DEFAULT_CLOCK_START + DEFAULT_CLOCK_LENGTH)) }
+    // Typed times move the course to the periods they overlap; the tapped cell is only the default.
+    val clockValid = clockEnd > clockStart
+    val nodes = (if (byClock && clockValid) nodesForClock(slotTimes, clockStart, clockEnd) else null) ?: (startNode to endNode)
 
     val titleTrimmed = title.trim()
     val weekLocationsMap = remember(weekLocationsRaw) { decodeWeekLocations(weekLocationsRaw) }
@@ -79,16 +89,16 @@ fun QuickAddCourseDialog(
     val endWeek = endWeekText.toIntOrNull()
     val weeksValid = startWeek != null && endWeek != null &&
         startWeek in 1..maxWeekCount && endWeek in startWeek..maxWeekCount
-    val canSave = titleTrimmed.isNotBlank() && weeksValid
+    val canSave = titleTrimmed.isNotBlank() && weeksValid && (!byClock || clockValid)
     val conflictWarning = remember(
-        existingCourses, dayOfWeek, startNode, endNode, startWeek, endWeek, weeksValid, category, maxWeekCount,
+        existingCourses, dayOfWeek, nodes, startWeek, endWeek, weeksValid, category, maxWeekCount,
     ) {
         addCourseConflictWarning(
             draftCourseConflicts(
                 existingCourses = existingCourses,
                 dayOfWeek = dayOfWeek,
-                startNode = startNode,
-                endNode = endNode,
+                startNode = nodes.first,
+                endNode = nodes.second,
                 weeks = if (weeksValid) (startWeek!!..endWeek!!).toList() else null,
                 category = category,
                 maxWeekCount = maxWeekCount,
@@ -137,7 +147,8 @@ fun QuickAddCourseDialog(
                         enabled = false,
                         label = {
                             Text(
-                                slotLabel
+                                if (byClock) "${formatMinuteOfDay(clockStart)}–${formatMinuteOfDay(clockEnd)}"
+                                else slotLabel
                                     ?: if (startNode == endNode) stringResource(R.string.schedule_node_single, startNode)
                                     else stringResource(R.string.schedule_node_range, startNode, endNode)
                             )
@@ -210,6 +221,9 @@ fun QuickAddCourseDialog(
                         )
                     }
 
+                    CourseTimeModeChips(byClock = byClock, onByClock = { byClock = it })
+                    if (byClock) CourseClockFields(clockStart, clockEnd, onStartChange = { clockStart = it }, onEndChange = { clockEnd = it })
+
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedTextField(
                             value = startWeekText,
@@ -260,9 +274,11 @@ fun QuickAddCourseDialog(
                                 category = category,
                                 time = CourseTimeSlot(
                                     dayOfWeek = dayOfWeek,
-                                    startNode = startNode,
-                                    endNode = endNode,
+                                    startNode = nodes.first,
+                                    endNode = nodes.second,
                                 ),
+                                reminderStartTime = formatMinuteOfDay(clockStart).takeIf { byClock },
+                                reminderEndTime = formatMinuteOfDay(clockEnd).takeIf { byClock },
                             )
                             onConfirm(course)
                         },

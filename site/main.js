@@ -6,14 +6,17 @@
   const FEED_STABLE = `${CDN}@update-feed/stable.json`;
   const FEED_BETA = `${CDN}@update-feed/beta.json`;
   const API = `https://api.github.com/repos/${REPO}/releases`;
-  // Release mirrors share app sources and verified fallback routes.
+  // Mirrors measured for APK downloads that also allow cross-origin probes; the first is the default before probing.
   const MIRRORS = [
     'https://gh-proxy.com/',
-    'https://gh.llkk.cc/',
     'https://gh-proxy.org/',
-    'https://gh.dpik.top/',
-    'https://ghfile.geekertao.top/',
+    'https://gh.llkk.cc/',
+    'https://fastgit.cc/',
+    'https://gh.wglee.org/',
+    'https://gh.monlor.com/',
   ];
+  // New key: the old one stored GitHub as the default for visitors outside mainland time zones.
+  const ROUTE_KEY = 'dl-route-v2';
 
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -99,7 +102,7 @@
   let channels = selectChannels();
   let release = channels.recommended;
   let assets = release.assets;
-  let route = 'github';
+  let route = 'mirror';
   let mirror = MIRRORS[0];
 
   const fmtSize = (n) => `${(n / 1048576).toFixed(1)} MB`;
@@ -187,13 +190,19 @@
     } catch { /* ignore */ }
   })();
 
+  // Only a mirror that returns the real file counts; rate-limited or failing mirrors answer fast with errors.
   async function pickMirror() {
     const probe = `https://github.com/${REPO}/releases/download/${encodeURIComponent(release.tag)}/update.json`;
-    const race = MIRRORS.map((m) => new Promise((resolve, reject) => {
+    const race = MIRRORS.map(async (m) => {
       const ctl = new AbortController();
-      const timer = setTimeout(() => { ctl.abort(); reject(); }, 5000);
-      fetch(m + probe, { mode: 'no-cors', cache: 'no-store', signal: ctl.signal }).then(() => resolve(m), reject).finally(() => clearTimeout(timer));
-    }));
+      const timer = setTimeout(() => ctl.abort(), 5000);
+      try {
+        const r = await fetch(m + probe, { cache: 'no-store', signal: ctl.signal });
+        if (!r.ok) throw new Error(r.status);
+        await r.json();
+        return m;
+      } finally { clearTimeout(timer); }
+    });
     try { mirror = await Promise.any(race); } catch { mirror = MIRRORS[0]; }
     applyLinks();
   }
@@ -201,16 +210,14 @@
   function setRoute(next, save = true) {
     route = next;
     $$('.route button').forEach((b) => b.classList.toggle('on', b.dataset.route === next));
-    if (save) store.set('dl-route', next);
+    if (save) store.set(ROUTE_KEY, next);
     if (next === 'mirror') pickMirror();
     applyLinks();
   }
 
   $$('.route button').forEach((b) => b.addEventListener('click', () => setRoute(b.dataset.route)));
 
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-  const inMainland = /^Asia\/(Shanghai|Chongqing|Harbin|Urumqi|Kashgar)$/.test(tz);
-  setRoute(store.get('dl-route') || (inMainland ? 'mirror' : 'github'), false);
+  setRoute(store.get(ROUTE_KEY) === 'github' ? 'github' : 'mirror', false);
 
   let notesBase = document.baseURI;
   // Rewrite repository raw image URLs through jsDelivr.

@@ -27,9 +27,12 @@ import java.time.LocalDate
 
 /** Transparent launcher task hosts the same course dialog with all mutations disabled. */
 class WidgetCourseDetailActivity : ComponentActivity() {
+    private var vanished = false
+
     override fun attachBaseContext(newBase: Context) = super.attachBaseContext(AppLocale.wrap(newBase))
 
     override fun finish() {
+        if (!vanished) { vanished = true; vanishThen(::finish); return }
         if (Build.VERSION.SDK_INT >= 34) overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
         if (isTaskRoot) super.finishAndRemoveTask() else super.finish()
         @Suppress("DEPRECATION")

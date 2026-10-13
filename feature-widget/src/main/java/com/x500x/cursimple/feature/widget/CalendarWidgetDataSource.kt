@@ -50,7 +50,11 @@ internal object CalendarWidgetDataSource {
         val schedule = DataStoreScheduleRepository(appContext, termProfiles).scheduleFlow.first()
         val manual = DataStoreManualCourseRepository(appContext, termProfiles).manualCoursesFlow.first()
         val allCourses = schedule.allCoursesWith(manual)
-        val events = DataStoreScheduleEventRepository(appContext).eventsFlow.first()
+        val events = if (widgetTheme.showEvents) {
+            DataStoreScheduleEventRepository(appContext).eventsFlow.first()
+        } else {
+            emptyList()
+        }
 
         fun dayOf(date: LocalDate): CalendarDay {
             val resolved = resolveWidgetScheduleDay(

@@ -170,6 +170,27 @@ class ReminderPlannerTest {
     }
 
     @Test
+    fun typedCourseTimeDrivesCourseAndFirstCourseReminders() {
+        val original = labelSchedule()
+        val schedule = original.copy(dailySchedules = original.dailySchedules.map { day ->
+            day.copy(courses = day.courses.map {
+                if (it.id == "math") it.copy(reminderStartTime = "08:20", reminderEndTime = "09:10") else it
+            })
+        })
+        val single = ReminderRule(ruleId = "single", pluginId = "demo", scopeType = ReminderScopeType.SingleCourse,
+            courseId = "math", advanceMinutes = 15, createdAt = "2026-02-23T00:00:00+08:00", updatedAt = "2026-02-23T00:00:00+08:00")
+        val first = ReminderRule(ruleId = "first", pluginId = "qa", scopeType = ReminderScopeType.FirstCourseOfPeriod,
+            period = ReminderDayPeriod.Morning, periodStartNode = 1, periodEndNode = 4, advanceMinutes = 15,
+            createdAt = "2026-02-23T00:00:00Z", updatedAt = "2026-02-23T00:00:00Z")
+        val expected = java.time.LocalDateTime.of(2026, 2, 23, 8, 5).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        for (rule in listOf(single, first)) {
+            val plan = planner.expandRule(rule, schedule, labelProfile(), java.time.LocalDate.of(2026, 2, 23)).single()
+            assertEquals(rule.ruleId, expected, plan.triggerAtMillis)
+            assertEquals(rule.ruleId, "08:20", plan.messageContent?.startTime)
+        }
+    }
+
+    @Test
     fun duplicateLabelRemindersAreDeduplicated() {
         val plans = planner.expandRules(
             rules = listOf(

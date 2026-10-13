@@ -27,12 +27,13 @@ data class GuideStep(
     val destination: GuideDestination = GuideDestination.Schedule,
 )
 
-val FIRST_RUN_GUIDE_STEPS: List<GuideStep> = listOf(
-    GuideStep(
-        titleRes = R.string.guide_drawer_title,
-        bodyRes = R.string.guide_drawer_body,
-        anchor = GuideAnchor.Drawer,
-    ),
+/** The opening step follows the active layout; the pages visited stay the same. */
+fun firstRunGuideSteps(bottomBar: Boolean): List<GuideStep> = listOf(
+    if (bottomBar) {
+        GuideStep(R.string.guide_bar_title, R.string.guide_bar_body, GuideAnchor.Navigation)
+    } else {
+        GuideStep(R.string.guide_drawer_title, R.string.guide_drawer_body, GuideAnchor.Navigation)
+    },
     GuideStep(
         titleRes = R.string.guide_week_title,
         bodyRes = R.string.guide_week_body,

@@ -18,6 +18,7 @@ import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.targetDates
 import com.x500x.cursimple.core.kernel.model.temporaryScheduleCourseSourceDate
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
+import com.x500x.cursimple.core.kernel.model.typedClock
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -139,8 +140,9 @@ fun planScheduleOccurrences(
             val key = courseKey(course)
             val startSlot = timingProfile.coveringSlot(course.time.startNode)
             val endSlot = timingProfile.coveringSlot(course.time.endNode)
-            val startTime = startSlot?.parseStart()
-            val endTime = endSlot?.parseEnd()
+            val typed = course.typedClock()
+            val startTime = typed?.first ?: startSlot?.parseStart()
+            val endTime = typed?.second ?: endSlot?.parseEnd()
             if (startTime == null || endTime == null) {
                 skippedKeys.getOrPut(key) { course.toSkipped(R.string.ics_skip_missing_period) }
                 continue
@@ -151,7 +153,7 @@ fun planScheduleOccurrences(
             } else {
                 date.plusDays(1).atTime(endTime)
             }
-            groupCourses.getOrPut(key) { course to startSlot.label.takeIf { it.isNotBlank() } }
+            groupCourses.getOrPut(key) { course to startSlot?.label?.takeIf { it.isNotBlank() } }
             groups.getOrPut(key) { mutableListOf() }.add(
                 CourseOccurrence(
                     date = date,

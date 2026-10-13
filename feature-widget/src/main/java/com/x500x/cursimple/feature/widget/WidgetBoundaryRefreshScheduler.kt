@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import com.x500x.cursimple.core.kernel.model.ClassSlotTime
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import java.time.LocalDateTime
@@ -14,10 +15,21 @@ import java.time.ZoneId
 /** Refresh at advance, start and end boundaries, supplementing the periodic guard. */
 internal object WidgetBoundaryRefreshScheduler {
 
-    fun reschedule(context: Context, slots: List<ClassSlotTime>, zone: ZoneId = BeijingTime.zone) {
+    fun reschedule(
+        context: Context,
+        slots: List<ClassSlotTime>,
+        zone: ZoneId = BeijingTime.zone,
+        events: List<ScheduleEvent> = emptyList(),
+    ) {
         val app = context.applicationContext
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val boundaries = widgetRefreshBoundaries(slots, LocalDateTime.now(zone), limit = SLOT_COUNT)
+        val now = LocalDateTime.now(zone)
+        val boundaries = widgetRefreshBoundaries(
+            slots = slots,
+            now = now,
+            limit = SLOT_COUNT,
+            eventSpans = widgetEventSpans(events, now.toLocalDate()),
+        )
         // Cancel unused boundary slots after the schedule shrinks.
         for (index in boundaries.size until SLOT_COUNT) {
             cancelSlot(app, alarmManager, index)

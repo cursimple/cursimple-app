@@ -123,6 +123,14 @@ class ScheduleIcsBuilderTest {
     }
 
     @Test
+    fun `手填时刻的课程按手填时刻导出`() {
+        val typed = mondayCourse(weeks = listOf(1)).copy(reminderStartTime = "12:10", reminderEndTime = "13:00")
+        val ev = vevents(build(schedule = scheduleOf(typed)).content).single()
+        assertTrue(ev.contains("DTSTART;TZID=Asia/Shanghai:20260907T121000"))
+        assertTrue(ev.contains("DTEND;TZID=Asia/Shanghai:20260907T130000"))
+    }
+
+    @Test
     fun `不连续周次用 RRULE UNTIL 加 EXDATE 表达`() {
         val result = build(schedule = scheduleOf(mondayCourse(weeks = listOf(1, 3, 5))))
         val ev = vevents(result.content).single()

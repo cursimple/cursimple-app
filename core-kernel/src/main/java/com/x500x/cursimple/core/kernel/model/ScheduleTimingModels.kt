@@ -45,6 +45,27 @@ fun TermTimingProfile.findSlot(startNode: Int, endNode: Int): ClassSlotTime? {
     return slotTimes.firstOrNull { it.startNode == startNode && it.endNode == endNode }
 }
 
+/** Both typed clock times when they are set and in order; null means the course follows its periods. */
+fun CourseItem.typedClock(): Pair<LocalTime, LocalTime>? {
+    val start = reminderStartTime?.let { runCatching { LocalTime.parse(it.trim()) }.getOrNull() } ?: return null
+    val end = reminderEndTime?.let { runCatching { LocalTime.parse(it.trim()) }.getOrNull() } ?: return null
+    return (start to end).takeIf { start.isBefore(end) }
+}
+
+/** The times [course] actually runs: its typed clock first, then the period matching its nodes. */
+fun TermTimingProfile.slotFor(course: CourseItem): ClassSlotTime? {
+    val period = findSlot(course.time.startNode, course.time.endNode)
+    val (start, end) = course.typedClock() ?: return period
+    return ClassSlotTime(
+        startNode = course.time.startNode,
+        endNode = course.time.endNode,
+        startTime = start.toString(),
+        endTime = end.toString(),
+        label = period?.label.orEmpty(),
+        labelKey = period?.labelKey,
+    )
+}
+
 /** Resolve covered timing slots with sorted zero-based indices for localized display labels. */
 fun TermTimingProfile.slotsCovering(startNode: Int, endNode: Int): List<IndexedValue<ClassSlotTime>> {
     if (endNode < startNode) return emptyList()

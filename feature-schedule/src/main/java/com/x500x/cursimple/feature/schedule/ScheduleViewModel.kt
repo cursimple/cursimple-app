@@ -560,7 +560,7 @@ class ScheduleViewModel(
             return
         }
         if (target.time == time) return
-        val moved = target.copy(time = time)
+        val moved = target.movedTo(time)
         if (manualTarget != null) {
             manualCourseRepository.replaceAll(courses.map { if (it.id == courseId) moved else it })
         } else {
@@ -632,6 +632,16 @@ class ScheduleViewModel(
                     ),
                 )
             }
+        }
+    }
+
+    /** Keeps the tombstone so the course stays deleted; only its restore entry goes away. */
+    fun purgeHiddenCourse(courseId: String) {
+        viewModelScope.launch {
+            val tombstone = manualCourseRepository.manualCoursesFlow.first()
+                .firstOrNull { it.id == courseId && it.hidden } ?: return@launch
+            manualCourseRepository.updateCourse(tombstone.copy(purged = true))
+            _uiState.update { it.copy(statusMessage = text(R.string.schedule_status_course_purged)) }
         }
     }
 

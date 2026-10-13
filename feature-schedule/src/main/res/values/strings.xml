@@ -13,6 +13,9 @@
     <string name="schedule_category_exam">考试</string>
     <string name="schedule_add_course_time_label">上课时间</string>
     <string name="schedule_node_start_label">起始节</string>
+    <string name="schedule_course_time_by_node">按节次</string>
+    <string name="schedule_course_time_by_clock">按时间</string>
+    <string name="schedule_course_clock_hint">课表上按这个时间摆放，提醒也按它来</string>
     <string name="schedule_node_end_label">结束节</string>
     <string name="schedule_weeks_label">周次</string>
     <string name="schedule_swap_title">拖动调课</string>
@@ -325,6 +328,10 @@
     <string name="schedule_library_hidden_show">已删除 %1$d 门</string>
     <string name="schedule_library_hidden_hide">收起已删除</string>
     <string name="schedule_status_course_restored">已恢复这门课</string>
+    <string name="schedule_library_purge">彻底删除</string>
+    <string name="schedule_library_purge_title">彻底删除这门课？</string>
+    <string name="schedule_library_purge_body">%1$s 会从「已删除」里移除，之后不能再恢复。插件同步时也不会把它加回课表。</string>
+    <string name="schedule_status_course_purged">已彻底删除这门课</string>
     <string name="schedule_drag_confirm_title">确认调整这门课？</string>
     <string name="schedule_drag_confirm_move">%1$s 将改到 %2$s 第 %3$d-%4$d 节</string>
     <string name="schedule_drag_confirm_resize">%1$s 将改为第 %2$d-%3$d 节</string>
@@ -579,7 +586,12 @@
     <string name="schedule_event_field_start">开始</string>
     <string name="schedule_event_field_end">结束</string>
     <string name="schedule_event_time_invalid">结束时间要晚于开始时间（不支持跨过零点）</string>
-    <string name="schedule_event_repeat_weekly">每周重复</string>
+    <string name="schedule_event_repeat_label">重复</string>
+    <string name="schedule_event_repeat_once">不重复</string>
+    <string name="schedule_event_repeat_mode_weekly">每周</string>
+    <string name="schedule_event_repeat_mode_weeks">选择周</string>
+    <string name="schedule_event_weeks_hint">选中的每一周都在周%1$s</string>
+    <string name="schedule_event_repeat_picked">共 %1$d 周：%2$s</string>
     <string name="schedule_event_repeat_weekly_desc">从这天起，每周同一天都有</string>
     <string name="schedule_event_repeat_until_label">重复到</string>
     <string name="schedule_event_repeat_until_none">一直重复</string>
@@ -617,7 +629,7 @@
     <string name="memo_delete_body">删掉「%1$s」？删了就找不回来了。</string>
     <string name="memo_untitled">无标题</string>
     <string name="memo_empty_filter">这一类里没有笔记</string>
-    <string name="memo_empty_all">还没有笔记。\n点右下角「记一条」，写课堂重点、待办清单、截止时间都行。</string>
+    <string name="memo_empty_all">还没有笔记\n点右下角「记一条」\n课堂重点、待办、截止时间都能记</string>
     <string name="memo_empty_notebook">这门课还没有笔记，点右下角记一条</string>
     <string name="memo_new">记一条</string>
     <string name="memo_stat_todo">待办</string>
@@ -718,7 +730,8 @@
     <string name="schedule_today_details">今日安排</string>
     <string name="schedule_today_need_timing">课程时间待设置</string>
     <string name="schedule_today_time_missing">未设置上课时间</string>
-    <string name="schedule_today_minutes_to_start">还有 %1$d 分钟上课</string>
+    <string name="schedule_today_seconds_to_start">还有 %1$d 分 %2$02d 秒上课</string>
+    <string name="schedule_today_seconds_to_end">还有 %1$d 分 %2$02d 秒下课</string>
     <string name="schedule_today_minutes_to_end">还有 %1$d 分钟下课</string>
     <string name="schedule_today_next_brief">下一节：%1$s · %2$s</string>
     <string name="schedule_today_week_unknown">开学日期未设置，暂按星期显示，请核对周次</string>

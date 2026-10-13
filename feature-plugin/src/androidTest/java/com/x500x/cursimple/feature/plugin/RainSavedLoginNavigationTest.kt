@@ -67,8 +67,10 @@ class RainSavedLoginNavigationTest {
         }
         try {
             val login = File(directory, "ui/login.html").readText()
+            // Read the store before composition; `.value` inside setContent is not observable.
+            val initialData = store.all.value.getValue(record.pluginId)
             compose.setContent {
-                val data by store.flow(record.pluginId).collectAsState(initial = store.all.value.getValue(record.pluginId))
+                val data by store.flow(record.pluginId).collectAsState(initial = initialData)
                 MaterialTheme { ExtensionOwnedPage(record, manifest, data, login, PluginExtensionUiPage.Login, actions, {}, {}) }
             }
             compose.waitUntil(15_000) { feedLoads == 1 }

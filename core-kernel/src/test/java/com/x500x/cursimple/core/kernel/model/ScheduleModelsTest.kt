@@ -51,6 +51,37 @@ class ScheduleModelsTest {
     }
 
     @Test
+    fun typedTimesWinOverThePeriodTimes() {
+        val period = ClassSlotTime(1, 2, "08:00", "09:35", "上午一")
+        val profile = TermTimingProfile(termStartDate = "2026-09-07", slotTimes = listOf(period))
+        val course = CourseItem(
+            id = "c", title = "实验", time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+            reminderStartTime = " 08:20 ", reminderEndTime = "09:10",
+        )
+
+        assertEquals(ClassSlotTime(1, 2, "08:20", "09:10", "上午一"), profile.slotFor(course))
+        assertEquals(period, profile.slotFor(course.copy(reminderStartTime = null)))
+        assertEquals(period, profile.slotFor(course.copy(reminderEndTime = "08:00")))
+        assertEquals(java.time.LocalTime.of(8, 20) to java.time.LocalTime.of(9, 10), course.typedClock())
+    }
+
+    @Test
+    fun occurrencesUseTypedTimesBeforeThePeriod() {
+        val profile = TermTimingProfile(termStartDate = "2026-09-07", slotTimes = listOf(ClassSlotTime(1, 2, "08:00", "09:35")))
+        val course = CourseItem(
+            id = "c", title = "实验", weeks = listOf(1), time = CourseTimeSlot(dayOfWeek = 1, startNode = 1, endNode = 2),
+            reminderStartTime = "12:10", reminderEndTime = "13:00",
+        )
+        val occurrence = scheduledCourseOccurrencesOn(
+            java.time.LocalDate.of(2026, 9, 7), listOf(course), profile, java.time.LocalDate.of(2026, 9, 7),
+            emptyList(), HolidayCalendarSettings.NONE,
+        ).single()
+
+        assertEquals(java.time.LocalTime.of(12, 10), occurrence.start)
+        assertEquals(java.time.LocalTime.of(13, 0), occurrence.end)
+    }
+
+    @Test
     fun reminderSlotLabelUsesOverrideBeforeTimingProfileLabel() {
         val timingProfile = TermTimingProfile(
             termStartDate = "2026-02-23",
@@ -117,6 +148,19 @@ class ScheduleModelsTest {
 
         assertEquals(listOf("plugin-b"), schedule.allCoursesWith(manual).map { it.id })
         assertEquals(listOf("plugin-a"), manual.hiddenCourses().map { it.id })
+    }
+
+    @Test
+    fun permanentlyDeletedTombstonesStayHiddenButLeaveTheRestoreList() {
+        val schedule = TermSchedule(
+            termId = "t",
+            updatedAt = "now",
+            dailySchedules = listOf(DailySchedule(1, listOf(courseOf("plugin-a"), courseOf("plugin-b")))),
+        )
+        val manual = listOf(courseOf("plugin-a").copy(hidden = true, purged = true), courseOf("plugin-b").copy(hidden = true))
+
+        assertEquals(emptyList<String>(), schedule.allCoursesWith(manual).map { it.id })
+        assertEquals(listOf("plugin-b"), manual.hiddenCourses().map { it.id })
     }
 
     @Test

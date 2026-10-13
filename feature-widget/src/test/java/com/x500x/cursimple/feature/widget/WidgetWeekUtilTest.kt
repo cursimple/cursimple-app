@@ -237,6 +237,19 @@ class WidgetWeekUtilTest {
         )
     }
 
+    @Test
+    fun `typed course times win over the period times`() {
+        val profile = com.x500x.cursimple.core.kernel.model.TermTimingProfile(
+            termStartDate = "2026-09-07",
+            slotTimes = listOf(com.x500x.cursimple.core.kernel.model.ClassSlotTime(1, 2, "08:00", "09:35")),
+        )
+        val typed = course("typed", weeks = emptyList()).copy(reminderStartTime = "12:10", reminderEndTime = "13:00")
+        assertEquals(java.time.LocalTime.of(12, 10), profile.courseStartTime(typed))
+        assertEquals(java.time.LocalTime.of(13, 0), profile.courseEndTime(typed))
+        assertEquals("12:10–13:00", profile.courseClockRange(typed))
+        assertEquals("08:00–09:35", profile.courseClockRange(course("plain", weeks = emptyList())))
+    }
+
     private fun course(id: String, weeks: List<Int>): CourseItem =
         CourseItem(
             id = id,

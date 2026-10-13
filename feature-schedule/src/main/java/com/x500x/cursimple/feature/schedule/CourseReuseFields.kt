@@ -3,6 +3,7 @@ package com.x500x.cursimple.feature.schedule
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -57,9 +58,6 @@ internal fun rememberCourseReuseValues(existing: List<CourseItem>, initial: Cour
 
 internal data class CourseReuseOption(val value: String, val detail: String = "", val course: CourseItem? = null)
 
-internal fun filterCourseReuseOptions(options: List<CourseReuseOption>, query: String): List<CourseReuseOption> =
-    query.trim().let { text -> options.filter { it.value.contains(text, true) || it.detail.contains(text, true) } }
-
 @Composable
 internal fun CourseTitleField(value: String, onChange: (String) -> Unit, courses: List<CourseItem>, onReuse: (CourseItem) -> Unit) {
     val options = remember(courses) { courses.map { course ->
@@ -69,7 +67,7 @@ internal fun CourseTitleField(value: String, onChange: (String) -> Unit, courses
         onSelect = { option -> option.course?.let(onReuse) }, tag = "course-title")
 }
 
-/** Editable autocomplete; explicitly opening the arrow always lists all saved values. */
+/** Free text with saved values behind the arrow; typing or tapping the field never opens the list. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CourseReuseTextField(
@@ -86,42 +84,37 @@ internal fun CourseReuseTextField(
     onSelect: (CourseReuseOption) -> Unit = { onChange(it.value) },
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var filtering by remember { mutableStateOf(false) }
-    val filtered = remember(options, filtering, value) { if (filtering) filterCourseReuseOptions(options, value) else options }
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val scroll = rememberScrollState()
-    ExposedDropdownMenuBox(expanded = expanded && filtered.isNotEmpty() && enabled,
-        onExpandedChange = { filtering = false; expanded = it && enabled && options.isNotEmpty() },
+    ExposedDropdownMenuBox(expanded = expanded && options.isNotEmpty() && enabled,
+        onExpandedChange = { expanded = it && enabled && options.isNotEmpty() },
         modifier = modifier.fillMaxWidth()) {
-        OutlinedTextField(value, onValueChange = {
-            onChange(it)
-            filtering = true
-            expanded = options.isNotEmpty()
-        }, enabled = enabled, singleLine = true,
+        OutlinedTextField(value, onValueChange = onChange, enabled = enabled, singleLine = true,
             label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             placeholder = placeholder?.let { { Text(it, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
             supportingText = supportingText, keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             trailingIcon = if (options.isNotEmpty() || extraAction != null) ({
                 Row {
                     if (options.isNotEmpty()) AppCircleIconButton(
-                        onClick = { filtering = false; expanded = !expanded }, enabled = enabled,
+                        onClick = { expanded = !expanded }, enabled = enabled, size = FieldActionSize,
                         modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.SecondaryEditable)
                             .testTag("$tag-reuse"),
                     ) {
                         Icon(if (expanded) Icons.Rounded.ArrowDropUp else Icons.Rounded.ArrowDropDown,
-                            stringResource(R.string.schedule_reuse_values))
+                            stringResource(R.string.schedule_reuse_values), Modifier.size(FieldActionIconSize))
                     }
                     extraAction?.invoke()
                 }
             }) else null,
-            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable)
+            // The field only positions the menu; its taps place the cursor.
+            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, enabled = false)
                 .testTag("$tag-field"),
         )
-        ExposedDropdownMenu(expanded = expanded && filtered.isNotEmpty() && enabled,
+        ExposedDropdownMenu(expanded = expanded && options.isNotEmpty() && enabled,
             onDismissRequest = { expanded = false }, scrollState = scroll,
             modifier = Modifier.heightIn(max = 240.dp).testTag("$tag-reuse-menu")) {
-            filtered.forEachIndexed { index, option ->
+            options.forEachIndexed { index, option ->
                 DropdownMenuItem(
                     text = {
                         androidx.compose.foundation.layout.Column {
@@ -142,3 +135,7 @@ internal fun CourseReuseTextField(
         }
     }
 }
+
+/** Field actions draw smaller than toolbar buttons so the value keeps the room. */
+internal val FieldActionSize = 36.dp
+internal val FieldActionIconSize = 20.dp

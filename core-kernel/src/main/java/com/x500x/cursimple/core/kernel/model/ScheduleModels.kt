@@ -32,6 +32,10 @@ data class CourseItem(
     @SerialName("time") val time: CourseTimeSlot,
     @SerialName("reminderOnly") val reminderOnly: Boolean = false,
     @SerialName("slotLabelOverride") val slotLabelOverride: String? = null,
+    /**
+     * Typed clock times. Placeholders always use them; a course with both set in order takes
+     * them over its periods' times (see [typedClock]).
+     */
     @SerialName("reminderStartTime") val reminderStartTime: String? = null,
     @SerialName("reminderEndTime") val reminderEndTime: String? = null,
     /**
@@ -46,6 +50,11 @@ data class CourseItem(
     @SerialName("details") val details: List<CourseDetailField> = emptyList(),
     /** Sparse per-week teachers override [teacher]; legacy data keeps the default. */
     @SerialName("weekTeachers") val weekTeachers: Map<Int, String> = emptyMap(),
+    /**
+     * A permanently deleted tombstone still masks its plugin course but leaves the restoration
+     * list; removing it instead would let the next sync bring the course back.
+     */
+    @SerialName("purged") val purged: Boolean = false,
 )
 
 @Serializable
@@ -105,7 +114,7 @@ fun mergeCourseSources(
 }
 
 /** Retain deleted-course tombstones for restoration UI. */
-fun List<CourseItem>.hiddenCourses(): List<CourseItem> = filter { it.hidden }
+fun List<CourseItem>.hiddenCourses(): List<CourseItem> = filter { it.hidden && !it.purged }
 
 /** Nullable-schedule convenience for [mergeCourseSources]. */
 fun TermSchedule?.allCoursesWith(manualCourses: List<CourseItem>): List<CourseItem> =

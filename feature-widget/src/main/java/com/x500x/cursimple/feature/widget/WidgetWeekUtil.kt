@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.kernel.model.isActiveInTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.isTermWeekNumberStarted
 import com.x500x.cursimple.core.kernel.model.resolveTermWeekNumber
 import com.x500x.cursimple.core.kernel.model.startLocalTime
+import com.x500x.cursimple.core.kernel.model.typedClock
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalTime
@@ -94,16 +95,17 @@ internal fun TermTimingProfile.startSlotFor(startNode: Int): ClassSlotTime? =
 internal fun TermTimingProfile.endSlotFor(endNode: Int): ClassSlotTime? =
     slotTimes.firstOrNull { it.startNode <= endNode && endNode <= it.endNode }
 
-/** Real-clock start of a course using the configured node range. */
+/** Real-clock start of a course: its typed time, else the configured node range. */
 internal fun TermTimingProfile.courseStartTime(course: CourseItem): LocalTime? =
-    runCatching { startSlotFor(course.time.startNode)?.startLocalTime() }.getOrNull()
+    course.typedClock()?.first ?: runCatching { startSlotFor(course.time.startNode)?.startLocalTime() }.getOrNull()
 
-/** Real-clock end of a course using the configured node range. */
+/** Real-clock end of a course: its typed time, else the configured node range. */
 internal fun TermTimingProfile.courseEndTime(course: CourseItem): LocalTime? =
-    runCatching { endSlotFor(course.time.endNode)?.endLocalTime() }.getOrNull()
+    course.typedClock()?.second ?: runCatching { endSlotFor(course.time.endNode)?.endLocalTime() }.getOrNull()
 
 /** "08:00 – 09:35" formatted clock range for a course, or null if timing data is missing. */
 internal fun TermTimingProfile.courseClockRange(course: CourseItem, separator: String = "–"): String? {
+    course.typedClock()?.let { (start, end) -> return "$start$separator$end" }
     val start = startSlotFor(course.time.startNode)?.startTime ?: return null
     val end = endSlotFor(course.time.endNode)?.endTime ?: return null
     return "$start$separator$end"

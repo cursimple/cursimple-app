@@ -1,6 +1,5 @@
 package com.x500x.cursimple.app
 
-import com.x500x.cursimple.feature.widget.CalendarWidgetReceiver
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
@@ -28,6 +27,7 @@ import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.plugin.logging.PluginLogger
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import com.x500x.cursimple.core.reminder.model.ReminderSyncReason
+import com.x500x.cursimple.feature.widget.ScheduleWidgetUpdater
 import com.x500x.cursimple.feature.widget.ScheduleWidgetWorkScheduler
 import com.x500x.cursimple.feature.widget.applyWidgetProviderVisibility
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class ClassScheduleApplication : Application() {
@@ -200,10 +201,9 @@ class ClassScheduleApplication : Application() {
             appContainer.userPreferencesRepository.preferencesFlow
                 .map { it.debugForcedDateTime }
                 .distinctUntilChanged()
-                .collect { forced ->
-                    BeijingTime.setForcedNow(forced)
-                    appContainer.refreshWidgets()
-                }
+                .onEach { BeijingTime.setForcedNow(it) }
+                .widgetRefreshes { it != null }
+                .collect { appContainer.refreshWidgets() }
         }
 
         appScope.launch {
@@ -211,12 +211,13 @@ class ClassScheduleApplication : Application() {
             appContainer.userPreferencesRepository.preferencesFlow
                 .map { it.appTimeZoneId }
                 .distinctUntilChanged()
-                .collect { zoneId ->
+                .onEach { zoneId ->
                     BeijingTime.setOverrideZone(
                         zoneId?.let { runCatching { java.time.ZoneId.of(it) }.getOrNull() },
                     )
-                    appContainer.refreshWidgets()
                 }
+                .widgetRefreshes { it != null }
+                .collect { appContainer.refreshWidgets() }
         }
 
         appScope.launch {
@@ -232,11 +233,13 @@ class ClassScheduleApplication : Application() {
 
         appScope.launch {
             appContainer.bootstrapJob.join()
-            appContainer.memoRepository.notesFlow.distinctUntilChanged().collect {
-                appContainer.notificationDeliveryCoordinator.onMemosChanged()
-                runCatching { com.x500x.cursimple.feature.widget.MemoTodoWidgetReceiver.updateWidgets(this@ClassScheduleApplication) }
-                    .onFailure { error -> AppDiagnosticsLogger.warn("widget.memo.refresh.failure", emptyMap(), error) }
-            }
+            appContainer.memoRepository.notesFlow.distinctUntilChanged()
+                .onEach { appContainer.notificationDeliveryCoordinator.onMemosChanged() }
+                .widgetRefreshes()
+                .collect {
+                    runCatching { com.x500x.cursimple.feature.widget.MemoTodoWidgetReceiver.updateWidgets(this@ClassScheduleApplication) }
+                        .onFailure { error -> AppDiagnosticsLogger.warn("widget.memo.refresh.failure", emptyMap(), error) }
+                }
         }
 
         appScope.launch {
@@ -245,8 +248,8 @@ class ClassScheduleApplication : Application() {
                 .distinctUntilChanged()
                 .drop(1)
                 .collect {
-                    runCatching { CalendarWidgetReceiver.updateWidgets(this@ClassScheduleApplication) }
-                        .onFailure { error -> AppDiagnosticsLogger.warn("widget.calendar.events_refresh.failure", emptyMap(), error) }
+                    runCatching { ScheduleWidgetUpdater.refreshForEvents(this@ClassScheduleApplication) }
+                        .onFailure { error -> AppDiagnosticsLogger.warn("widget.events_refresh.failure", emptyMap(), error) }
                 }
         }
 

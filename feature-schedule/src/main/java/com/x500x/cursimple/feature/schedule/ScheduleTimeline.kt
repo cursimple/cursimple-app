@@ -1,5 +1,8 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.typedClock
+
 /**
  * Map period rows and actual event minutes onto one vertical axis. Insert only event-occupied
  * gaps and remove them when events disappear.
@@ -33,6 +36,13 @@ internal class GridTimeline private constructor(
             previousBottom = row.top + row.height
         }
         return previousBottom
+    }
+
+    /** Courses with a typed [clock] sit at their minutes like events; the rest fill their period rows. */
+    fun courseSpan(rowIndex: Int, rowSpan: Int, clock: MinuteRange?, minUnits: Float): Pair<Float, Float> {
+        if (clock == null) return slotTop(rowIndex) to slotBottom(rowIndex + rowSpan - 1)
+        val top = yOf(clock.start)
+        return top to maxOf(yOf(clock.end), top + minUnits).coerceAtMost(maxOf(totalUnits, top + minUnits))
     }
 
     fun slotIndexAt(units: Float): Int? {
@@ -161,6 +171,10 @@ internal data class SlotClock(val start: Int?, val end: Int?) {
 }
 
 internal data class MinuteRange(val start: Int, val end: Int)
+
+/** The typed clock of a course as grid minutes; null when it follows its periods. */
+internal fun CourseItem.clockRange(): MinuteRange? =
+    typedClock()?.let { (start, end) -> MinuteRange(start.hour * 60 + start.minute, end.hour * 60 + end.minute) }
 
 internal fun clockMinute(raw: String): Int? {
     val parts = raw.trim().split(':')

@@ -105,25 +105,39 @@ internal class FastTransfer(
         HedgeOutcome.Lost(failures.toList(), firstError)
     }
 
-    /** Return responsive probes after a bounded grace period; return empty if none respond. */
-    suspend fun probe(candidates: List<DownloadCandidate>): List<RangeProbe> = coroutineScope {
-        val wave = candidates.take(PROBE_WAVE)
-        if (wave.isEmpty()) return@coroutineScope emptyList()
+    /**
+     * Probe waves of candidates until one wave answers; return empty only if every wave is silent.
+     * A lone answer gets a longer grace so a single mirror rarely carries the whole transfer.
+     */
+    suspend fun probe(candidates: List<DownloadCandidate>): List<RangeProbe> {
+        for (wave in candidates.chunked(PROBE_WAVE).take(MAX_PROBE_WAVES)) {
+            val got = probeWave(wave)
+            if (got.isNotEmpty()) return got
+        }
+        return emptyList()
+    }
+
+    private suspend fun probeWave(wave: List<DownloadCandidate>): List<RangeProbe> = coroutineScope {
         val answers = Channel<Result<RangeProbe?>>(Channel.UNLIMITED)
         val jobs = wave.map { candidate ->
             launch { answers.trySend(runCatching { probeOne(candidate) }) }
         }
         val got = mutableListOf<RangeProbe>()
         var pending = wave.size
-        var deadline = Long.MAX_VALUE
+        var firstAnswerAt = -1L
         while (pending > 0) {
-            val remaining = if (deadline == Long.MAX_VALUE) PROBE_TIMEOUT_MILLIS else (deadline - clock()).coerceAtLeast(0L)
+            val remaining = when {
+                firstAnswerAt < 0L -> PROBE_TIMEOUT_MILLIS
+                got.size == 1 -> firstAnswerAt + PROBE_SOLO_GRACE_MILLIS - clock()
+                else -> firstAnswerAt + PROBE_GRACE_MILLIS - clock()
+            }
+            if (remaining <= 0L) break
             val outcome = withTimeoutOrNull(remaining) { answers.receive() } ?: break
             pending--
             val answer = outcome.getOrNull()
             if (answer != null) {
                 got += answer
-                if (deadline == Long.MAX_VALUE) deadline = clock() + PROBE_GRACE_MILLIS
+                if (firstAnswerAt < 0L) firstAnswerAt = clock()
             }
         }
         jobs.forEach { it.cancel() }
@@ -332,6 +346,8 @@ internal class FastTransfer(
         const val PROBE_WAVE = 6
         const val PROBE_TIMEOUT_MILLIS = 5_000L
         const val PROBE_GRACE_MILLIS = 600L
+        const val PROBE_SOLO_GRACE_MILLIS = 1_500L
+        const val MAX_PROBE_WAVES = 5
 
         const val SEGMENT_MIN_BYTES = 1L * 1024 * 1024
         const val MAX_CONNECTIONS = 6

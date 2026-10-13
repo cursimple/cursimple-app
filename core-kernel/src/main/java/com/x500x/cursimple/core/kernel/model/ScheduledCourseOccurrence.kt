@@ -36,9 +36,12 @@ fun scheduledCourseOccurrencesOn(
             val source = movedSources[course.id]
                 ?: temporaryScheduleCourseSourceDate(date, course, day.sourceDate, overrides) ?: date
             val slots = timingProfile?.slotsCovering(course.time.startNode, course.time.endNode).orEmpty()
-            val start = slots.firstOrNull { course.time.startNode in it.value.startNode..it.value.endNode }?.value?.startTime?.let(::occurrenceTime)
+            val typed = course.typedClock()
+            val start = typed?.first
+                ?: slots.firstOrNull { course.time.startNode in it.value.startNode..it.value.endNode }?.value?.startTime?.let(::occurrenceTime)
                 ?: course.reminderStartTime?.let(::occurrenceTime)
-            val end = slots.firstOrNull { course.time.endNode in it.value.startNode..it.value.endNode }?.value?.endTime?.let(::occurrenceTime)
+            val end = typed?.second
+                ?: slots.firstOrNull { course.time.endNode in it.value.startNode..it.value.endNode }?.value?.endTime?.let(::occurrenceTime)
                 ?: course.reminderEndTime?.let(::occurrenceTime)
             val valid = start != null && end != null && start.isBefore(end)
             ScheduledCourseOccurrence(

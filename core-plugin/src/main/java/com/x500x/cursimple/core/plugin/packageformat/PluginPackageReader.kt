@@ -96,6 +96,7 @@ internal fun requireSafePluginId(id: String): String {
 
 private val WINDOWS_DRIVE_PATH = Regex("^[A-Za-z]:.*")
 private val SAFE_PLUGIN_ID = Regex("[A-Za-z0-9._-]+")
+private val LAYOUT_SHELL = Regex("[A-Za-z]{1,32}")
 
 /** Reject unknown kinds and extensions without the required manifest section or API version. */
 internal fun validateKind(manifest: com.x500x.cursimple.core.plugin.manifest.PluginManifest) {
@@ -120,6 +121,18 @@ internal fun validateKind(manifest: com.x500x.cursimple.core.plugin.manifest.Plu
                     val path = normalizePluginPackagePath(widget.entry)
                     pluginRequire(widget.entry == path && path.endsWith(".html") && widget.title.isNotBlank() &&
                         widget.columns in 1..5 && widget.rows in 1..6, R.string.plugin_error_package_illegal_path, widget.entry)
+                }
+            }
+            if (spec != null && spec.layouts.isNotEmpty()) {
+                pluginRequire((manifest.apiVersion ?: 0) >= com.x500x.cursimple.core.plugin.PluginApiVersion.LAYOUT_MIN,
+                    R.string.plugin_error_extension_api_too_old, com.x500x.cursimple.core.plugin.PluginApiVersion.LAYOUT_MIN)
+                pluginRequire(spec.layouts.size <= 8 && spec.layouts.map { it.id }.distinct().size == spec.layouts.size,
+                    R.string.plugin_error_package_illegal_path, "layouts")
+                spec.layouts.forEach { layout ->
+                    requireSafePluginId(layout.id)
+                    // Unknown shells install for forward compatibility; the host just cannot apply them.
+                    pluginRequire(layout.title.isNotBlank() && LAYOUT_SHELL.matches(layout.shell),
+                        R.string.plugin_error_package_illegal_path, "layouts")
                 }
             }
         }

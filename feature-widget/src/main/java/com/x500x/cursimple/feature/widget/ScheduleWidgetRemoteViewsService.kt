@@ -89,6 +89,8 @@ internal fun buildScheduleCourseRow(
     row.setTextViewText(R.id.course_time, rowData.timeRange)
     row.setTextViewText(R.id.course_title, rowData.title)
     row.setTextViewText(R.id.course_subtitle, rowData.subtitle)
+    // Events may have neither place nor note; launchers reuse rows, so set both states.
+    row.setViewVisibility(R.id.course_subtitle, if (rowData.subtitle.isBlank()) View.GONE else View.VISIBLE)
     // Apply colors in every state because launchers reuse previously greyed rows.
     if (rowData.onHoliday) {
         val primary = ContextCompat.getColor(context, R.color.widget_row_holiday_primary)
@@ -105,8 +107,13 @@ internal fun buildScheduleCourseRow(
     }
     // In-progress and starting-soon status takes priority over reminder markers.
     val badgeText = when (rowData.status) {
-        CourseStatus.Live, CourseStatus.Soon ->
-            context.getString(widgetCourseStatusRes(rowData.status, rowData.isExam))
+        CourseStatus.Live, CourseStatus.Soon -> context.getString(
+            if (rowData.isEvent && rowData.status == CourseStatus.Live) {
+                R.string.widget_status_event_live
+            } else {
+                widgetCourseStatusRes(rowData.status, rowData.isExam)
+            },
+        )
         else -> if (rowData.hasReminder) context.getString(R.string.widget_course_reminder_badge) else null
     }
     row.setViewVisibility(R.id.course_badge, if (badgeText == null) View.GONE else View.VISIBLE)

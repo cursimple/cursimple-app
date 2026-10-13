@@ -54,6 +54,10 @@ internal fun MemoCodeShareSheet(notes: List<MemoNote>, initiallyQr: Boolean,
     var failure by remember { mutableStateOf<Int?>(null) }
     var saved by remember { mutableStateOf(false) }
     var retry by remember { mutableIntStateOf(0) }
+    // Resolved at composition level so a locale change is picked up; the callbacks below are not
+    // recomposed and cannot read resources themselves.
+    val chooserTitle = stringResource(R.string.memo_share_chooser)
+    val codeLabel = stringResource(R.string.memo_share_format_code)
     LaunchedEffect(notes, retry) {
         loading = true; failure = null
         try {
@@ -91,7 +95,7 @@ internal fun MemoCodeShareSheet(notes: List<MemoNote>, initiallyQr: Boolean,
         }
     }
     fun share(intent: Intent) {
-        context.startActivity(Intent.createChooser(intent, context.getString(R.string.memo_share_chooser)).apply {
+        context.startActivity(Intent.createChooser(intent, chooserTitle).apply {
             clipData = intent.clipData
             if (intent.clipData != null) addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         })
@@ -150,7 +154,7 @@ internal fun MemoCodeShareSheet(notes: List<MemoNote>, initiallyQr: Boolean,
                 }
                 Button(onClick = {
                     (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                        .setPrimaryClip(ClipData.newPlainText(context.getString(R.string.memo_share_format_code), code!!))
+                        .setPrimaryClip(ClipData.newPlainText(codeLabel, code!!))
                 }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("memo-share-code-copy")) {
                     AppAtomicText(stringResource(R.string.memo_code_copy))
                 }

@@ -101,6 +101,17 @@ internal fun buildTodayOverview(
     )
 }
 
+internal data class TodayCountdown(val ending: Boolean, val secondsLeft: Long)
+
+/** Live countdown to the current class end, else the next start; [now] runs ahead of the minute-level state. */
+internal fun TodayOverviewState.countdownAt(now: LocalTime): TodayCountdown? {
+    val target = current?.end ?: next?.start ?: return null
+    return TodayCountdown(ending = current != null, secondsLeft = Duration.between(now, target).seconds.coerceAtLeast(0L))
+}
+
+/** Class times are whole minutes, so the overview refreshes right on each minute. */
+internal fun millisToNextMinute(now: LocalDateTime): Long = 60_000L - (now.second * 1_000L + now.nano / 1_000_000L)
+
 private val overviewClock = DateTimeFormatter.ofPattern("HH:mm")
 internal fun clockText(clock: LocalTime?): String = clock?.format(overviewClock).orEmpty()
 

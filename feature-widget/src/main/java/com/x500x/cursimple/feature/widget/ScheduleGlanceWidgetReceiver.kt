@@ -117,9 +117,13 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             dayData: ScheduleWidgetDayData,
         ): RemoteViews {
             val views = RemoteViews(context.packageName, R.layout.widget_schedule_today)
+            // A paged-to day opens on that day; today keeps the app's own last view.
+            val openDay = if (dayData.offset == 0) null else {
+                Intent().putExtra(WidgetDeepLinks.EXTRA_OPEN_SCHEDULE_DATE, dayData.targetDate.toString())
+            }
 
             views.applyWidgetBackground(context, R.id.widget_root, dayData.widgetTheme)
-            views.applyOpenAppClick(context, R.id.widget_root, appWidgetId, dayData.widgetTheme)
+            views.applyOpenAppClick(context, R.id.widget_root, appWidgetId, dayData.widgetTheme, openDay)
 
             views.setTextViewText(
                 R.id.widget_title,
@@ -190,12 +194,12 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                     )
                 },
             )
-            views.applyOpenAppListTemplate(context, R.id.widget_course_list, appWidgetId, dayData.widgetTheme)
+            views.applyOpenAppListTemplate(context, R.id.widget_course_list, appWidgetId, dayData.widgetTheme, openDay)
             views.setEmptyView(R.id.widget_course_list, R.id.widget_empty)
             val hasRows = dayData.rows.isNotEmpty()
             views.setViewVisibility(R.id.widget_course_list, if (hasRows) View.VISIBLE else View.GONE)
             views.setViewVisibility(R.id.widget_empty, if (hasRows) View.GONE else View.VISIBLE)
-            views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme)
+            views.applyOpenAppClick(context, R.id.widget_empty, appWidgetId, dayData.widgetTheme, openDay)
             views.applyAccentBackground(R.id.widget_empty, dayData.widgetTheme, WidgetSurfaceTone.RowVariant)
             val emptyText = dayData.moodLine ?: context.scheduleWidgetEmptyText(
                 scheduleWidgetEmptyLabel(
@@ -204,6 +208,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
                     termStartDate = dayData.termStartDate,
                     offset = dayData.offset,
                     holidayLabel = dayData.holidayLabel,
+                    showEvents = dayData.widgetTheme.showEvents,
                 ),
             )
             views.setTextViewText(R.id.widget_empty, emptyText)

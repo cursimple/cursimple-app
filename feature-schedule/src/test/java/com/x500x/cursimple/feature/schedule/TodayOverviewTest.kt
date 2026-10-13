@@ -5,6 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 class TodayOverviewTest {
     private val termStart = LocalDate.of(2026, 9, 7)
@@ -41,6 +42,20 @@ class TodayOverviewTest {
         val after = overview(at = "2026-09-07T09:00")
         assertNull(after.current)
         assertEquals(30L, after.minutesUntilNext)
+    }
+
+    @Test fun `live countdown ticks by the second toward the class end or next start`() {
+        val inClass = overview(at = "2026-09-07T08:30")
+        assertEquals(TodayCountdown(ending = true, secondsLeft = 870L), inClass.countdownAt(LocalTime.of(8, 45, 30)))
+        assertEquals(TodayCountdown(ending = true, secondsLeft = 0L), inClass.countdownAt(LocalTime.of(9, 0, 5)))
+        val before = overview(at = "2026-09-07T07:00")
+        assertEquals(TodayCountdown(ending = false, secondsLeft = 2L), before.countdownAt(LocalTime.of(7, 59, 58)))
+        assertNull(overview(at = "2026-09-07T16:00").countdownAt(LocalTime.of(16, 0)))
+    }
+
+    @Test fun `overview clock wakes on the next whole minute`() {
+        assertEquals(44_750L, millisToNextMinute(LocalDateTime.of(2026, 9, 7, 8, 30, 15, 250_000_000)))
+        assertEquals(60_000L, millisToNextMinute(LocalDateTime.of(2026, 9, 7, 8, 30)))
     }
 
     @Test fun `classes without timing are retained rather than reported as no classes`() {

@@ -12,12 +12,14 @@ import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.hiddenCourses
+import java.time.LocalDate
 
 @Composable
 fun CourseLibraryRoute(
     viewModel: ScheduleViewModel,
     scheduleDisplay: ScheduleDisplayPreferences = ScheduleDisplayPreferences(),
     maxWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
+    termStartDate: LocalDate? = null,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -59,8 +61,11 @@ fun CourseLibraryRoute(
         onRemoveCourse = viewModel::removeManualCourse,
         maxNodeCount = maxNodeCount,
         maxWeekCount = maxWeekCount,
+        termStartDate = termStartDate,
+        slotTimes = state.timingProfile?.slotTimes.orEmpty(),
         hiddenCourses = hiddenCourses,
         onRestoreCourse = viewModel::restoreHiddenCourse,
+        onPurgeCourse = viewModel::purgeHiddenCourse,
         onSetReminder = { reminderTarget = it },
         events = state.events,
         onSaveEvent = viewModel::saveEvent,

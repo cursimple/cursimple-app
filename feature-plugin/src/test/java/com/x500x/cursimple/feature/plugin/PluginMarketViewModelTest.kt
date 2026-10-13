@@ -2,6 +2,9 @@ package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.core.data.UserPreferences
 import com.x500x.cursimple.core.data.UserPreferencesRepository
+import com.x500x.cursimple.core.data.navigation.AppLayoutSelection
+import com.x500x.cursimple.core.data.navigation.NavDestination
+import com.x500x.cursimple.core.data.navigation.SHELL_BOTTOM_BAR
 import com.x500x.cursimple.core.plugin.install.InstalledPluginRecord
 import com.x500x.cursimple.core.plugin.install.PluginInstallPreview
 import com.x500x.cursimple.core.plugin.install.PluginInstallResult
@@ -728,6 +731,22 @@ class PluginMarketViewModelTest {
         }
     }
 
+    @Test fun `removing the layout owner returns the app to the drawer`() {
+        val layout = AppLayoutSelection("one", SHELL_BOTTOM_BAR, listOf(NavDestination.Schedule, NavDestination.Memos))
+        Harness(initialPrefs = prefs(listOf("one/registry"), emptyList()).copy(appLayout = layout)).use { h ->
+            val owner = record()
+            val other = record().copy(pluginId = "two", storagePath = "/tmp/two")
+            h.ops.installedPluginsFlow.value = listOf(owner, other)
+            h.ops.remove = { key -> h.ops.installedPluginsFlow.value = h.ops.installedPluginsFlow.value.filterNot { it.installKey == key } }
+
+            h.vm.removePlugin(other.installKey)
+            assertEquals(layout, h.prefs.value.appLayout)
+
+            h.vm.removePlugin(owner.installKey)
+            assertNull(h.prefs.value.appLayout)
+        }
+    }
+
     @Test fun `automatic checks can be disabled while manual checks still discover updates`() {
         Harness().use { h ->
             val installed = record()
@@ -810,6 +829,10 @@ class PluginMarketViewModelTest {
                     Unit
                 }
                 "setPluginEnabled" -> Unit
+                "setAppLayout" -> {
+                    prefs.value = prefs.value.copy(appLayout = args!![0] as AppLayoutSelection?)
+                    Unit
+                }
                 else -> error("Unexpected preference operation: ${method.name}")
             }
         } as UserPreferencesRepository

@@ -93,6 +93,7 @@ import com.x500x.cursimple.core.kernel.model.ExamCountdown
 import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.teacherForWeek
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.core.kernel.model.typedClock
 import com.x500x.cursimple.core.kernel.model.examCountdownOrNull
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import com.x500x.cursimple.feature.schedule.time.today
@@ -349,6 +350,7 @@ fun CourseDetailDialog(
                                 },
                                 maxNodeCount = maxNodeCount,
                                 maxWeekCount = maxWeekCount,
+                                slotTimes = timingProfile?.slotTimes.orEmpty(),
                                 convertsToManual = !manual,
                                 onCancel = { editing = false },
                                 onSave = {
@@ -416,6 +418,7 @@ private fun CourseEditSection(
     existingCourses: List<CourseItem>,
     maxNodeCount: Int,
     maxWeekCount: Int,
+    slotTimes: List<ClassSlotTime>,
     convertsToManual: Boolean,
     onCancel: () -> Unit,
     onSave: (CourseItem) -> Unit,
@@ -451,6 +454,7 @@ private fun CourseEditSection(
             maxWeekCount = maxWeekCount,
             onDraftChange = { draft = it },
             modifier = Modifier.fillMaxWidth(),
+            slotTimes = slotTimes,
         )
 
         Row(
@@ -929,6 +933,7 @@ internal sealed interface ClassTimeInfo {
 }
 
 private fun resolveClassTime(course: CourseItem, timingProfile: TermTimingProfile?): ClassTimeInfo {
+    course.typedClock()?.let { (start, end) -> return ClassTimeInfo.Range(start.toString(), end.toString()) }
     val slots: List<ClassSlotTime> = timingProfile?.slotTimes.orEmpty().sortedBy { it.startNode }
     val matchStart = slots.firstOrNull { course.time.startNode in it.startNode..it.endNode }
     val matchEnd = slots.firstOrNull { course.time.endNode in it.startNode..it.endNode }

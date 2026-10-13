@@ -106,7 +106,7 @@ class TodayOverviewUiTest {
             }
         }
         compose.onNodeWithTag("today-overview-card").assertIsDisplayed()
-        compose.onNodeWithText(context.getString(ScheduleR.string.schedule_today_minutes_to_end, 30L)).assertIsDisplayed()
+        compose.onNodeWithText(context.getString(ScheduleR.string.schedule_today_seconds_to_end, 30, 0)).assertIsDisplayed()
         compose.onNodeWithText(context.getString(ScheduleR.string.schedule_today_conflict_short, 1)).assertIsDisplayed()
         saveScreenshot(if (chinese) "today-card-zh.png" else "today-card.png")
         compose.onNodeWithTag("today-overview-card").performClick()

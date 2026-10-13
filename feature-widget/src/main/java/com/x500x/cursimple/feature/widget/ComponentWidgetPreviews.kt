@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.os.Build
 import android.view.View
 import android.widget.RemoteViews
+import androidx.annotation.RequiresApi
 import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.widget.ComponentWidgetRegistry
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
@@ -73,7 +74,13 @@ object ComponentWidgetPreviews {
         }
     }
 
-    /** A freshly enabled slot registers with the widget service asynchronously. */
+    /**
+     * A freshly enabled slot registers with the widget service asynchronously.
+     *
+     * `getInstalledProvidersForPackage` needs API 26 and the picker-preview APIs need API 31;
+     * [refresh] only calls this behind its Android 15+ guard.
+     */
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     private suspend fun registered(context: Context, manager: AppWidgetManager, wanted: List<ComponentName>): List<ComponentName> {
         var known = emptySet<ComponentName>()
         repeat(10) {

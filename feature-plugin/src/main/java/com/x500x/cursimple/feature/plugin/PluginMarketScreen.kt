@@ -110,6 +110,9 @@ fun PluginMarketRoute(
     extensionActions: com.x500x.cursimple.feature.plugin.extension.ExtensionHostActions? = null,
     openExtensionPluginId: String? = null,
     onExtensionOpenConsumed: () -> Unit = {},
+    /** Opens the component tab once, e.g. from the components page in the bottom bar. */
+    openExtensionsTab: Boolean = false,
+    onExtensionsTabConsumed: () -> Unit = {},
     /** Account identity and refresh generation only; never pass access tokens. */
     accountKey: String? = null,
 ) {
@@ -131,6 +134,12 @@ fun PluginMarketRoute(
 
     LaunchedEffect(openExtensionPluginId) {
         if (openExtensionPluginId != null) selectedTab = PluginPlatformTab.Extensions
+    }
+    LaunchedEffect(openExtensionsTab) {
+        if (openExtensionsTab) {
+            selectedTab = PluginPlatformTab.Extensions
+            onExtensionsTabConsumed()
+        }
     }
 
     // Refresh on entry and kind changes; hide versions while checking.

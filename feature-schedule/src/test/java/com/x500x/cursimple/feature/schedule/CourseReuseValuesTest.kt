@@ -28,12 +28,4 @@ class CourseReuseValuesTest {
         assertTrue(values.teachers.isEmpty())
         assertTrue(values.locations.isEmpty())
     }
-
-    @Test fun autocompleteSearchFindsMetadataAndArrowCanUseTheFullList() {
-        val choices = listOf(CourseReuseOption("Algorithms", "Teacher Chen · Room 101"), CourseReuseOption("Physics", "Lab 202"))
-        assertEquals(choices.take(1), filterCourseReuseOptions(choices, " teacher chen "))
-        assertEquals(choices.takeLast(1), filterCourseReuseOptions(choices, "202"))
-        assertEquals(choices, filterCourseReuseOptions(choices, ""))
-        assertTrue(filterCourseReuseOptions(choices, "missing").isEmpty())
-    }
 }

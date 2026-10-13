@@ -4,7 +4,7 @@ Plugins are independent ZIP bundles executed through a restricted WebView. The h
 
 ## API compatibility
 
-The development host supports API **11**. Bundles declaring supported older APIs remain compatible; undeclared, invalid or newer APIs are rejected by the APK before package files or install records are written. The same check runs during local imports, market installs and upgrades; it cannot be bypassed by invoking installation directly. Failed compatibility checks preserve an existing installation.
+The development host supports API **12**. Bundles declaring supported older APIs remain compatible; undeclared, invalid or newer APIs are rejected by the APK before package files or install records are written. The same check runs during local imports, market installs and upgrades; it cannot be bypassed by invoking installation directly. Failed compatibility checks preserve an existing installation.
 
 | API | Capability |
 |---|---|
@@ -16,6 +16,9 @@ The development host supports API **11**. Bundles declaring supported older APIs
 | 7 | Binding-page HTTP, encrypted sessions and generic TLS SMTP |
 | 8 | Separate accepted, queued and confirmed delivery states with resumable status checks |
 | 9 | Component-owned HTML desktop widgets |
+| 10 | Native session requests and WebSockets for owned pages |
+| 11 | Temporary reader orientation for owned pages |
+| 12 | Component-provided app layouts drawn natively by the host |
 
 `kind` defaults to `schedule`; `extension` requires API 3 or later and an `extension` section. Unknown kinds are rejected. Runtime asset components are a separate dependency mechanism, not extension pages.
 
@@ -308,3 +311,39 @@ Sockets use native 20-second ping/pong, bounded queues, at most three connection
 Owned pages may check `CurSimpleComponent.capabilities.orientation` and call `ui.orientation` with `{mode:"portrait"}`, `{mode:"landscape"}` or `{mode:"restore"}`. The host requests sensor portrait/landscape orientation and restores the Activity's previous request when the page leaves or closes. Requests are temporary and do not change user preferences. The Activity handles orientation and size changes in place so owned readers retain page and gesture state. Windowing policies may override an orientation request. API 3–10 packages remain compatible.
 
 A successful `login.check` schedules one synchronization per saved session in the application scope, before optional navigation. Repeated confirmation does not repeat that synchronization, and leaving the login document does not cancel it. Results continue to reach active owned pages through the normal archive subscription.
+
+## App layouts (API 12)
+
+The host draws every layout natively; a component only declares which shells it may use and tells the host which one the user picked. Without a layout component the app uses its own sidebar, which users customize in Settings → Sidebar.
+
+Declare shells in `extension.layouts`:
+
+```json
+"layouts": [{ "id": "bottom-bar", "title": "Bottom bar", "shell": "bottomBar" }]
+```
+
+At most 8 entries, each with a unique safe `id`, a non-blank `title` and a `shell` of 1–32 ASCII letters. Unknown shells install, so packages can prepare for later hosts, but they cannot be applied.
+
+`CurSimpleComponent.capabilities.layouts` reports `{shells, destinations, maxBarItems}`. Treat a missing field as a host without layout support.
+
+| Command | Payload and result |
+|---|---|
+| `layout.apply` | `{shell:"drawer"}` hands the app back to the sidebar (only when the caller owns the current layout). `{shell:"bottomBar", items:[...]}` sets the leading bar entries; the host appends the "me" tab. Returns the same value as `layout.current`. Invalid requests fail with a readable message and leave the layout unchanged. |
+| `layout.current` | Returns `{shell, items, ownedByCaller}` for the layout actually drawn; `shell` is `drawer` when the sidebar is in use. |
+
+Both commands require a declared `layouts` section; `layout.apply` also requires the page to be in the foreground. Bottom bar rules: `items` starts with `schedule`, ids are known and unique, and with "me" the bar has 3 to `maxBarItems` (5) entries. Destinations that are not on the bar are listed on the "me" page in the fixed order below, so Schedule and Settings stay reachable in every configuration.
+
+| Destination id | Page |
+|---|---|
+| `schedule` | Timetable (always first on the bar) |
+| `courses` | Courses |
+| `memos` | Notes |
+| `components` | Components hub: enabled components shown in navigation, plus the component market (bottom bar only) |
+| `plugins` | Plugins and market |
+| `reminders` | Reminders |
+| `settings` | Settings |
+| `about` | About |
+
+Quick actions use `action.theme`, `action.background`, `action.overrides` and `action.update`; the host shows them at the bottom of the sidebar and as a row on the "me" page.
+
+The applied layout is stored with the owner's id and included in in-app backups. It is used only while the owner is installed, enabled, compatible and still declares that shell; otherwise the app shows the sidebar. Disabling and re-enabling the owner restores its layout, and removing it clears the record. The last component to call `layout.apply` owns the layout. Settings → Sidebar always offers a way back to the sidebar. API 3–11 packages remain compatible.

@@ -247,10 +247,13 @@ fun ScheduleSettingsScreen(
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // Keep missing required access visible until granted.
-                AlarmAccessBanner(onFix = { alarmPermissionGate.require(context) {} })
+                val missingAccess = rememberMissingAlarmPermissions()
+                AlarmAccessBanner(missing = missingAccess, onFix = { alarmPermissionGate.require(context) {} })
                 NextAlarmCard(
                     next = ringing.firstOrNull(),
                     remaining = (ringing.size - 1).coerceAtLeast(0),
+                    // The access fix stays the only filled action while it is shown.
+                    createIsPrimary = missingAccess.isEmpty(),
                     onCreate = { alarmPermissionGate.require(context) { showManualAlarmDialog = true } },
                     onRefresh = onRefreshAlarms,
                 )
@@ -510,7 +513,7 @@ private class PendingDelete(val name: String, val onConfirm: () -> Unit)
 
 /** Required access summary; recommended access stays in the permission dialog. */
 @Composable
-private fun AlarmAccessBanner(onFix: () -> Unit) {
+private fun rememberMissingAlarmPermissions(): List<AlarmPermission> {
     val context = LocalContext.current
     var missing by remember { mutableStateOf(readAlarmPermissionState(context).missingBlocking) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -523,6 +526,11 @@ private fun AlarmAccessBanner(onFix: () -> Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    return missing
+}
+
+@Composable
+private fun AlarmAccessBanner(missing: List<AlarmPermission>, onFix: () -> Unit) {
     if (missing.isEmpty()) return
 
     val names = missing.map { stringResource(it.shortTitleRes()) }
@@ -580,6 +588,7 @@ private fun AlarmPermission.shortTitleRes(): Int = when (this) {
 private fun NextAlarmCard(
     next: SystemAlarmRecord?,
     remaining: Int,
+    createIsPrimary: Boolean,
     onCreate: () -> Unit,
     onRefresh: () -> Unit,
 ) {
@@ -649,13 +658,23 @@ private fun NextAlarmCard(
                     )
                 }
             }
-            Button(
-                onClick = onCreate,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-            ) {
+            val createContent: @Composable RowScope.() -> Unit = {
                 Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.schedule_new_alarm), fontWeight = FontWeight.SemiBold)
+            }
+            if (createIsPrimary) {
+                Button(
+                    onClick = onCreate,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    content = createContent,
+                )
+            } else {
+                AppOutlinedButton(
+                    onClick = onCreate,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    content = createContent,
+                )
             }
         }
     }
@@ -973,10 +992,11 @@ private fun SubsectionLabel(title: String, description: String?) {
             .semantics { heading() },
         verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        // Neutral color: green text reads as a link next to the section's tappable rows.
         Text(
             title,
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
         )
         description?.let {

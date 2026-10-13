@@ -1,26 +1,44 @@
 package com.x500x.cursimple.feature.schedule
 
-import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
-import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Place
+import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,23 +49,33 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.CourseCategory
 import com.x500x.cursimple.core.kernel.model.CourseItem
+import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
+import com.x500x.cursimple.core.kernel.model.weekdayNameRes
+import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
+import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
+import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppSearchField
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import com.x500x.cursimple.feature.schedule.time.today
-import androidx.compose.ui.platform.LocalConfiguration
-import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
-import com.x500x.cursimple.core.kernel.model.weekdayNameRes
+import java.time.LocalDate
 
 private const val COMPACT_HEADER_MAX_HEIGHT_DP = 500
 
 /** Searchable term-wide course list with reversible manual overrides for plugin courses. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CourseLibraryScreen(
     entries: List<CourseLibraryEntry>,
@@ -57,9 +85,12 @@ internal fun CourseLibraryScreen(
     onRemoveCourse: (String) -> Unit,
     maxNodeCount: Int,
     maxWeekCount: Int,
+    termStartDate: LocalDate? = null,
+    slotTimes: List<com.x500x.cursimple.core.kernel.model.ClassSlotTime> = emptyList(),
     /** Deleted-course tombstones enable the restoration entry point. */
     hiddenCourses: List<CourseItem> = emptyList(),
     onRestoreCourse: (String) -> Unit = {},
+    onPurgeCourse: (String) -> Unit = {},
     onSetReminder: (CourseItem) -> Unit = {},
     events: List<ScheduleEvent> = emptyList(),
     onSaveEvent: (ScheduleEvent) -> Unit = {},
@@ -86,6 +117,8 @@ internal fun CourseLibraryScreen(
                 eventEditing = null
                 tab = LibraryTab.Events
             },
+            termStartDate = termStartDate,
+            maxWeekCount = maxWeekCount,
         )
     }
     val matchedEvents = remember(events, query) { events.filter { matchesEventQuery(it, query) } }
@@ -97,6 +130,7 @@ internal fun CourseLibraryScreen(
     var moving by remember { mutableStateOf<CourseItem?>(null) }
     var pendingMove by remember { mutableStateOf<Pair<CourseItem, CourseTimeSlot>?>(null) }
     var showHidden by rememberSaveable { mutableStateOf(false) }
+    var pendingPurge by remember { mutableStateOf<CourseItem?>(null) }
 
     val allCourses = remember(entries) { entries.map { it.course } }
     val matched = remember(entries, query, sortMode) {
@@ -114,6 +148,7 @@ internal fun CourseLibraryScreen(
             },
             existingCourses = allCourses.filterNot { it.id == initial?.id },
             maxNodeCount = maxNodeCount,
+            slotTimes = slotTimes,
             maxWeekCount = maxWeekCount,
             initial = initial,
         )
@@ -152,6 +187,31 @@ internal fun CourseLibraryScreen(
             },
             dismissButton = {
                 AppOutlinedButton(onClick = { pendingRestore = null }) {
+                    Text(stringResource(R.string.schedule_library_delete_cancel))
+                }
+            },
+        )
+    }
+
+    pendingPurge?.let { target ->
+        AlertDialog(
+            onDismissRequest = { pendingPurge = null },
+            title = { Text(stringResource(R.string.schedule_library_purge_title)) },
+            text = { Text(stringResource(R.string.schedule_library_purge_body, target.title)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onPurgeCourse(target.id)
+                        pendingPurge = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) { Text(stringResource(R.string.schedule_library_purge)) }
+            },
+            dismissButton = {
+                AppOutlinedButton(onClick = { pendingPurge = null }) {
                     Text(stringResource(R.string.schedule_library_delete_cancel))
                 }
             },
@@ -200,190 +260,138 @@ internal fun CourseLibraryScreen(
         )
     }
 
-    // Compact landscape controls to preserve list height.
+    // Compact landscape keeps search and tabs on one row to preserve list height.
     val compactHeader = LocalConfiguration.current.screenHeightDp < COMPACT_HEADER_MAX_HEIGHT_DP
     val searchField = @Composable { fieldModifier: Modifier ->
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
+        AppSearchField(
+            query = query,
+            onQueryChange = { query = it },
+            hint = stringResource(R.string.schedule_library_search),
+            clearLabel = stringResource(R.string.memo_search_clear),
             modifier = fieldModifier,
-            singleLine = true,
-            label = { Text(stringResource(R.string.schedule_library_search)) },
+            onClear = { query = "" },
         )
     }
-    val addButton = @Composable {
-        Button(onClick = { adding = true }) {
-            Text(stringResource(R.string.schedule_library_add), maxLines = 2)
-        }
-    }
-    val addEventButton = @Composable {
-        FilledTonalButton(onClick = { addingEvent = true }) {
-            Text(stringResource(R.string.schedule_library_add_event), maxLines = 2)
-        }
-    }
-    val tabChips = @Composable {
-        AppFilterChip(
-            selected = tab == LibraryTab.Courses,
-            onClick = { tab = LibraryTab.Courses },
-            label = { Text(stringResource(R.string.schedule_library_tab_courses, entries.size), maxLines = 1) },
-        )
-        AppFilterChip(
-            selected = tab == LibraryTab.Events,
-            onClick = { tab = LibraryTab.Events },
-            label = { Text(stringResource(R.string.schedule_library_tab_events, events.size), maxLines = 1) },
-        )
-    }
-    val summaryText = @Composable { textModifier: Modifier ->
-        Text(
-            text = pluralStringResource(R.plurals.schedule_library_summary, matched.size, matched.size),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = textModifier,
-        )
-    }
-    val hiddenToggle = @Composable {
-        if (hiddenCourses.isNotEmpty()) {
-            AppOutlinedButton(onClick = { showHidden = !showHidden }) {
-                Text(
-                    stringResource(
-                        if (showHidden) {
-                            R.string.schedule_library_hidden_hide
-                        } else {
-                            R.string.schedule_library_hidden_show
-                        },
-                        hiddenCourses.size,
+    val tabSwitch = @Composable { switchModifier: Modifier ->
+        SingleChoiceSegmentedButtonRow(modifier = switchModifier) {
+            LibraryTab.entries.forEachIndexed { index, entry ->
+                SegmentedButton(
+                    selected = tab == entry,
+                    onClick = { tab = entry },
+                    shape = SegmentedButtonDefaults.itemShape(index, LibraryTab.entries.size),
+                    // Match the selected filter chips below instead of the secondary tint.
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        activeContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
-                )
-            }
-        }
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(if (compactHeader) 6.dp else 10.dp),
-    ) {
-        if (compactHeader) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                searchField(Modifier.weight(1f))
-                addButton()
-                addEventButton()
-            }
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                tabChips()
-                if (tab == LibraryTab.Courses) CourseSortMode.entries.forEach { mode ->
-                    AppFilterChip(
-                        selected = mode == sortMode,
-                        onClick = { sortMode = mode },
-                        label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 1) },
+                ) {
+                    Text(
+                        stringResource(
+                            if (entry == LibraryTab.Courses) R.string.schedule_library_tab_courses
+                            else R.string.schedule_library_tab_events,
+                            if (entry == LibraryTab.Courses) entries.size else events.size,
+                        ),
+                        maxLines = 1,
                     )
                 }
-                if (tab == LibraryTab.Courses) {
-                    summaryText(Modifier.align(Alignment.CenterVertically))
-                    hiddenToggle()
-                }
             }
-        } else {
-            searchField(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
-            )
+        }
+    }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                addButton()
-                addEventButton()
-            }
-
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                tabChips()
-            }
-
-            if (tab == LibraryTab.Courses) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    CourseSortMode.entries.forEach { mode ->
-                        AppFilterChip(
-                            selected = mode == sortMode,
-                            onClick = { sortMode = mode },
-                            label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 2) },
-                        )
-                    }
-                }
-
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            if (compactHeader) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    summaryText(Modifier.weight(1f))
-                    hiddenToggle()
+                    searchField(Modifier.weight(1f))
+                    tabSwitch(Modifier.weight(1f))
+                }
+            } else {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    searchField(Modifier)
+                    tabSwitch(Modifier.fillMaxWidth())
                 }
             }
-        }
 
-        if (tab == LibraryTab.Events) {
-            when {
-                events.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_events_empty))
-                matchedEvents.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_no_match))
-                else -> EventLibraryList(
-                    events = matchedEvents,
-                    today = today,
-                    onEdit = { eventEditing = it },
-                    onDelete = onRemoveEvent,
+            if (tab == LibraryTab.Events) {
+                when {
+                    events.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_events_empty))
+                    matchedEvents.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_no_match))
+                    else -> EventLibraryList(
+                        events = matchedEvents,
+                        today = today,
+                        onEdit = { eventEditing = it },
+                        onDelete = onRemoveEvent,
+                        contentPadding = LibraryListPadding,
+                    )
+                }
+            } else {
+                CourseLibraryList(
+                    entries = entries,
+                    matched = matched,
+                    searching = query.isNotBlank(),
+                    sortMode = sortMode,
+                    onSortModeChange = { sortMode = it },
+                    columnDayOfWeeks = columnDayOfWeeks,
+                    hiddenCourses = hiddenCourses,
+                    showHidden = showHidden,
+                    onToggleHidden = { showHidden = !showHidden },
+                    onRestoreHidden = onRestoreCourse,
+                    onPurgeHidden = { pendingPurge = it },
+                    onEdit = { editing = it },
+                    onDelete = { pendingDelete = it },
+                    onRestore = { pendingRestore = it },
+                    onMove = { moving = it },
+                    onSetReminder = onSetReminder,
                 )
             }
-            return@Column
         }
-
-        if (showHidden && hiddenCourses.isNotEmpty()) {
-            HiddenCourseList(hiddenCourses = hiddenCourses, onRestore = onRestoreCourse)
-        }
-
-        when {
-            entries.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_empty))
-            matched.isEmpty() -> CourseLibraryHint(stringResource(R.string.schedule_library_no_match))
-            else -> CourseLibraryList(
-                matched = matched,
-                sortMode = sortMode,
-                columnDayOfWeeks = columnDayOfWeeks,
-                onEdit = { editing = it },
-                onDelete = { pendingDelete = it },
-                onRestore = { pendingRestore = it },
-                onMove = { moving = it },
-                onSetReminder = onSetReminder,
-            )
-        }
+        // The add action follows the visible tab, as on the notes page.
+        ExtendedFloatingActionButton(
+            onClick = { if (tab == LibraryTab.Courses) adding = true else addingEvent = true },
+            icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+            text = {
+                Text(
+                    stringResource(
+                        if (tab == LibraryTab.Courses) R.string.schedule_library_add else R.string.schedule_library_add_event,
+                    ),
+                    maxLines = 1,
+                )
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp),
+        )
     }
 }
 
+/** Leaves room under the last card for the floating add button. */
+private val LibraryListPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CourseLibraryList(
+    entries: List<CourseLibraryEntry>,
     matched: List<CourseLibraryEntry>,
+    searching: Boolean,
     sortMode: CourseSortMode,
+    onSortModeChange: (CourseSortMode) -> Unit,
     columnDayOfWeeks: List<Int>,
+    hiddenCourses: List<CourseItem>,
+    showHidden: Boolean,
+    onToggleHidden: () -> Unit,
+    onRestoreHidden: (String) -> Unit,
+    onPurgeHidden: (CourseItem) -> Unit,
     onEdit: (CourseItem) -> Unit,
     onDelete: (CourseLibraryEntry) -> Unit,
     onRestore: (CourseLibraryEntry) -> Unit,
@@ -398,36 +406,121 @@ private fun CourseLibraryList(
             emptyList()
         }
     }
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (grouped.isEmpty()) {
-            items(matched, key = { it.course.id }) { entry ->
-                CourseLibraryRow(entry, onEdit, onDelete, onRestore, onMove, onSetReminder)
+    val hasPluginCourses = remember(matched) { matched.any { it.source == CourseSource.Plugin } }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = LibraryListPadding,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item(key = "controls") {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                CourseSortMode.entries.forEach { mode ->
+                    AppFilterChip(
+                        selected = mode == sortMode,
+                        onClick = { onSortModeChange(mode) },
+                        label = { Text(stringResource(courseSortModeLabel(mode)), maxLines = 1) },
+                    )
+                }
+                if (hiddenCourses.isNotEmpty()) {
+                    AppFilterChip(
+                        selected = showHidden,
+                        onClick = onToggleHidden,
+                        leadingIcon = { Icon(Icons.Rounded.DeleteOutline, contentDescription = null, Modifier.size(18.dp)) },
+                        label = {
+                            Text(
+                                stringResource(
+                                    if (showHidden) R.string.schedule_library_hidden_hide else R.string.schedule_library_hidden_show,
+                                    hiddenCourses.size,
+                                ),
+                                maxLines = 1,
+                            )
+                        },
+                    )
+                }
             }
-        } else {
-            grouped.forEach { (dayOfWeek, dayEntries) ->
-                item(key = "header-$dayOfWeek") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+        }
+        if (showHidden && hiddenCourses.isNotEmpty()) {
+            items(hiddenCourses, key = { "hidden-${it.id}" }) { course ->
+                HiddenCourseRow(course = course, onRestore = onRestoreHidden, onPurge = onPurgeHidden)
+            }
+        }
+        when {
+            entries.isEmpty() -> item(key = "empty") { CourseLibraryHint(stringResource(R.string.schedule_library_empty)) }
+            matched.isEmpty() -> item(key = "empty") { CourseLibraryHint(stringResource(R.string.schedule_library_no_match)) }
+            else -> {
+                if (searching) {
+                    item(key = "summary") {
                         Text(
-                            text = stringResource(weekdayNameRes(dayOfWeek)),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = pluralStringResource(R.plurals.schedule_library_group_count, dayEntries.size, dayEntries.size),
-                            style = MaterialTheme.typography.labelSmall,
+                            text = pluralStringResource(R.plurals.schedule_library_summary, matched.size, matched.size),
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
-                items(dayEntries, key = { it.course.id }) { entry ->
-                    CourseLibraryRow(entry, onEdit, onDelete, onRestore, onMove, onSetReminder)
+                // Said once for the list instead of on every synced card.
+                if (hasPluginCourses) {
+                    item(key = "plugin-hint") { PluginEditableHint() }
+                }
+                if (grouped.isEmpty()) {
+                    items(matched, key = { it.course.id }) { entry ->
+                        CourseLibraryRow(entry, onEdit, onDelete, onRestore, onMove, onSetReminder)
+                    }
+                } else {
+                    grouped.forEach { (dayOfWeek, dayEntries) ->
+                        item(key = "header-$dayOfWeek") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = stringResource(weekdayNameRes(dayOfWeek)),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                                Text(
+                                    text = pluralStringResource(R.plurals.schedule_library_group_count, dayEntries.size, dayEntries.size),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                        items(dayEntries, key = { it.course.id }) { entry ->
+                            CourseLibraryRow(entry, onEdit, onDelete, onRestore, onMove, onSetReminder)
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun PluginEditableHint() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            Icons.Rounded.Info,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = stringResource(R.string.schedule_library_plugin_editable_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -442,76 +535,106 @@ private fun CourseLibraryRow(
     onSetReminder: (CourseItem) -> Unit,
 ) {
     val course = entry.course
+    var menu by remember { mutableStateOf(false) }
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = entry.editable) { onEdit(course) },
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        onClick = { onEdit(course) },
+        enabled = entry.editable,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                itemVerticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = course.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                )
-                CourseLibraryTag(
-                    stringResource(
-                        when {
-                            entry.overridesPlugin -> R.string.schedule_library_source_plugin
-                            entry.source == CourseSource.Manual -> R.string.schedule_library_source_manual
-                            else -> R.string.schedule_library_source_plugin
-                        },
-                    ),
-                )
-                if (entry.overridesPlugin) {
-                    CourseLibraryTag(stringResource(R.string.schedule_library_source_manual_edited))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FlowRow(
+                    modifier = Modifier.weight(1f).padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = course.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(end = 2.dp),
+                    )
+                    CourseLibraryTag(
+                        stringResource(
+                            if (entry.source == CourseSource.Manual && !entry.overridesPlugin) {
+                                R.string.schedule_library_source_manual
+                            } else {
+                                R.string.schedule_library_source_plugin
+                            },
+                        ),
+                    )
+                    if (entry.overridesPlugin) {
+                        CourseLibraryTag(
+                            stringResource(R.string.schedule_library_source_manual_edited),
+                            container = MaterialTheme.colorScheme.secondaryContainer,
+                            content = MaterialTheme.colorScheme.onSecondaryContainer,
+                        )
+                    }
+                    if (course.category == CourseCategory.Exam) {
+                        CourseLibraryTag(
+                            stringResource(R.string.schedule_category_exam),
+                            container = MaterialTheme.colorScheme.errorContainer,
+                            content = MaterialTheme.colorScheme.onErrorContainer,
+                        )
+                    }
                 }
-                if (course.category == CourseCategory.Exam) {
-                    CourseLibraryTag(stringResource(R.string.schedule_category_exam))
+                Spacer(Modifier.width(8.dp))
+                Box {
+                    AppCircleIconButton(onClick = { menu = true }) {
+                        Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.memo_more))
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.schedule_action_edit)) },
+                            leadingIcon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                            onClick = { menu = false; onEdit(course) },
+                        )
+                        if (entry.restorable) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.schedule_action_restore_plugin)) },
+                                leadingIcon = { Icon(Icons.Rounded.Restore, contentDescription = null) },
+                                onClick = { menu = false; onRestore(entry) },
+                            )
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.schedule_action_delete), color = MaterialTheme.colorScheme.error) },
+                            leadingIcon = {
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                            },
+                            onClick = { menu = false; onDelete(entry) },
+                        )
+                    }
                 }
             }
-            Text(
-                text = courseLibrarySubtitle(course),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (entry.source == CourseSource.Plugin) {
-                Text(
-                    text = stringResource(R.string.schedule_library_plugin_editable_hint),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(end = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                AppOutlinedButton(onClick = { onEdit(course) }) {
-                    Text(stringResource(R.string.schedule_action_edit), maxLines = 2)
-                }
+                CourseLibraryFact(
+                    Icons.Rounded.Schedule,
+                    stringResource(weekdayNameRes(course.time.dayOfWeek)) + " · " +
+                        stringResource(R.string.schedule_node_range, course.time.startNode, course.time.endNode),
+                )
+                course.location.takeIf { it.isNotBlank() }?.let { CourseLibraryFact(Icons.Rounded.Place, it) }
+                course.teacher.takeIf { it.isNotBlank() }?.let { CourseLibraryFact(Icons.Rounded.Person, it) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AppOutlinedButton(onClick = { onMove(course) }) {
-                    Text(stringResource(R.string.schedule_course_action_move), maxLines = 2)
+                    AppAtomicText(stringResource(R.string.schedule_course_action_move))
                 }
                 AppOutlinedButton(onClick = { onSetReminder(course) }) {
-                    Text(stringResource(R.string.schedule_action_reminder), maxLines = 2)
-                }
-                if (entry.restorable) {
-                    AppOutlinedButton(onClick = { onRestore(entry) }) {
-                        Text(stringResource(R.string.schedule_action_restore_plugin), maxLines = 2)
-                    }
-                }
-                AppOutlinedButton(onClick = { onDelete(entry) }) {
-                    Text(stringResource(R.string.schedule_action_delete), maxLines = 2)
+                    AppAtomicText(stringResource(R.string.schedule_action_reminder))
                 }
             }
         }
@@ -519,38 +642,59 @@ private fun CourseLibraryRow(
 }
 
 @Composable
-private fun HiddenCourseList(
-    hiddenCourses: List<CourseItem>,
+private fun CourseLibraryFact(icon: ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun HiddenCourseRow(
+    course: CourseItem,
     onRestore: (String) -> Unit,
+    onPurge: (CourseItem) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        hiddenCourses.forEach { course ->
-            Surface(
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = course.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = courseLibrarySubtitle(course),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                Row(
-                    modifier = Modifier.padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                AppOutlinedButton(
+                    onClick = { onPurge(course) },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.6f)),
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = course.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                        Text(
-                            text = courseLibrarySubtitle(course),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                        )
-                    }
-                    AppOutlinedButton(onClick = { onRestore(course.id) }) {
-                        Text(stringResource(R.string.schedule_action_restore))
-                    }
+                    AppAtomicText(stringResource(R.string.schedule_library_purge))
+                }
+                AppOutlinedButton(onClick = { onRestore(course.id) }) {
+                    AppAtomicText(stringResource(R.string.schedule_action_restore))
                 }
             }
         }
@@ -558,16 +702,20 @@ private fun HiddenCourseList(
 }
 
 @Composable
-private fun CourseLibraryTag(text: String) {
+private fun CourseLibraryTag(
+    text: String,
+    container: Color = MaterialTheme.colorScheme.surfaceContainerHighest,
+    content: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     Surface(
         shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.surface,
+        color = container,
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = content,
         )
     }
 }
@@ -575,13 +723,14 @@ private fun CourseLibraryTag(text: String) {
 @Composable
 private fun CourseLibraryHint(text: String) {
     Box(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 32.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }
