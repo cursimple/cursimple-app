@@ -734,15 +734,15 @@ private fun CourseEditSection(
                 } else {
                     stringResource(R.string.schedule_course_edit_apply_week_n, sourceWeekNumber)
                 }
+                val appliedFeedback = stringResource(
+                    R.string.schedule_course_edit_applied_feedback,
+                    sourceWeekNumber,
+                )
                 AppOutlinedButton(
                     onClick = {
                         val currentDraft = draft ?: return@AppOutlinedButton
                         val weekCourse = applyDraftToTargetWeek(course, currentDraft, sourceWeekNumber)
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.schedule_course_edit_applied_feedback, sourceWeekNumber),
-                            Toast.LENGTH_SHORT,
-                        ).show()
+                        Toast.makeText(context, appliedFeedback, Toast.LENGTH_SHORT).show()
                         onSave(weekCourse)
                     },
                     modifier = Modifier.testTag("course-edit-apply-this-week"),

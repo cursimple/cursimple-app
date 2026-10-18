@@ -599,6 +599,8 @@
     <string name="settings_display_days_title">顯示天數</string>
     <string name="settings_display_row_fit_title">縱向排布</string>
     <string name="settings_display_row_fit_subtitle">課表一螢幕放不下時怎麼處理</string>
+    <string name="settings_display_auto_scroll_title">擁擠時自動捲動</string>
+    <string name="settings_display_auto_scroll_subtitle">開啟後課程太滿時會自動改為上下捲動；關閉時始終保持一頁</string>
     <string name="settings_display_row_fit_fit">平鋪全部</string>
     <string name="settings_display_row_fit_scroll">固定列高捲動</string>
     <string name="settings_display_row_fit_auto_scrolling">目前課程太多，一個畫面放下會把課程名稱擠成一直排，課表已暫時改為上下捲動；刪掉多餘的課程或事務後會自動恢復平鋪。</string>
@@ -662,6 +664,8 @@
     <string name="settings_beta_updates_title">測試版更新</string>
     <string name="settings_beta_updates_on">已開啟 · 更新檢查會包含預發布版本</string>
     <string name="settings_beta_updates_off">關閉 · 只檢查正式版本</string>
+    <string name="settings_announcement_autoplay_title">自動輪播更新公告</string>
+    <string name="settings_announcement_autoplay_subtitle">開啟後公告會自動翻頁；關閉時停在你開啟的那一頁</string>
     <string name="settings_beta_updates_confirm_title">開啟測試版更新？</string>
     <string name="settings_beta_updates_confirm_body">測試版會先於正式版發布，可能存在未修復的問題，也可能出現資料異常。建議先備份課表。確定要開啟嗎？</string>
     <string name="settings_beta_updates_confirm_ok">我明白，開啟</string>

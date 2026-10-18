@@ -243,6 +243,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setScheduleRowFitMode(mode) }
     }
 
+    fun setScheduleAutoScrollWhenCrowded(enabled: Boolean) {
+        viewModelScope.launch { repository.setScheduleAutoScrollWhenCrowded(enabled) }
+    }
+
     fun setScheduleWeekendVisible(visible: Boolean) {
         viewModelScope.launch { repository.setScheduleWeekendVisible(visible) }
     }
@@ -427,6 +431,10 @@ class AppPreferencesViewModel(
 
     fun setLastSeenVersionCode(versionCode: Int) {
         viewModelScope.launch { repository.setLastSeenVersionCode(versionCode) }
+    }
+
+    fun setAnnouncementAutoPlayEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setAnnouncementAutoPlayEnabled(enabled) }
     }
 
     fun setBetaUpdatesEnabled(enabled: Boolean) {

@@ -605,6 +605,7 @@ fun AutomaticUpdateCheck(
 fun ReleaseAnnouncementGate(
     lastSeenVersionCode: Int,
     onSeen: (Int) -> Unit,
+    announcementAutoPlayEnabled: Boolean = false,
     onDialogVisibleChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -650,6 +651,7 @@ fun ReleaseAnnouncementGate(
             markdown = loaded.text,
             imageLoader = com.x500x.cursimple.app.update.rememberReleaseImageLoader(),
             onDismiss = { visible = false },
+            autoPlay = announcementAutoPlayEnabled,
         )
         return
     }

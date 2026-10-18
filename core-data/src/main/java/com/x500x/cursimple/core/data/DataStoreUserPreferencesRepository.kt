@@ -131,6 +131,7 @@ class DataStoreUserPreferencesRepository(
             pluginUpdateCheckIntervalHours = prefs[KEY_PLUGIN_UPDATE_INTERVAL]?.takeIf { it in listOf(1, 6, 12, 24) } ?: 6,
             betaUpdatesEnabled = prefs[KEY_BETA_UPDATES_ENABLED] ?: false,
             lastSeenVersionCode = prefs[KEY_LAST_SEEN_VERSION_CODE] ?: 0,
+            announcementAutoPlayEnabled = prefs[KEY_ANNOUNCEMENT_AUTO_PLAY_ENABLED] ?: false,
             appTimeZoneId = prefs[KEY_APP_TIME_ZONE_ID]?.takeIf { it.isNotBlank() },
             ignoredUpdateVersionCode = prefs[KEY_IGNORED_UPDATE_VERSION_CODE],
             updateNoticeVersionCode = prefs[KEY_UPDATE_NOTICE_VERSION_CODE] ?: 0,
@@ -467,6 +468,10 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE] = mode.name }
     }
 
+    override suspend fun setScheduleAutoScrollWhenCrowded(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_AUTO_SCROLL_WHEN_CROWDED] = enabled }
+    }
+
     override suspend fun setScheduleLocationVisible(visible: Boolean) {
         store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_LOCATION_VISIBLE] = visible }
     }
@@ -628,6 +633,10 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setLastSeenVersionCode(versionCode: Int) {
         store.edit { prefs -> prefs[KEY_LAST_SEEN_VERSION_CODE] = versionCode }
+    }
+
+    override suspend fun setAnnouncementAutoPlayEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_ANNOUNCEMENT_AUTO_PLAY_ENABLED] = enabled }
     }
 
     override suspend fun setAppTimeZoneId(zoneId: String?) {
@@ -1082,6 +1091,7 @@ class DataStoreUserPreferencesRepository(
             rowFitMode = this[KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE]
                 ?.let { name -> runCatching { ScheduleRowFitMode.valueOf(name) }.getOrNull() }
                 ?: ScheduleRowFitMode.Fit,
+            autoScrollWhenCrowded = this[KEY_SCHEDULE_DISPLAY_AUTO_SCROLL_WHEN_CROWDED] ?: false,
             weekStartDay = this[KEY_SCHEDULE_DISPLAY_WEEK_START_DAY]
                 ?.let { raw -> runCatching { WeekStartDay.valueOf(raw) }.getOrNull() }
                 ?: WeekStartDay.Monday,
@@ -1269,6 +1279,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_DISPLAY_SATURDAY_VISIBLE = booleanPreferencesKey("schedule_display_saturday_visible")
         val KEY_SCHEDULE_DISPLAY_WEEKEND_VISIBLE = booleanPreferencesKey("schedule_display_weekend_visible")
         val KEY_SCHEDULE_DISPLAY_ROW_FIT_MODE = stringPreferencesKey("schedule_display_row_fit_mode")
+        val KEY_SCHEDULE_DISPLAY_AUTO_SCROLL_WHEN_CROWDED =
+            booleanPreferencesKey("schedule_display_auto_scroll_when_crowded")
         val KEY_SCHEDULE_DISPLAY_WEEK_START_DAY = stringPreferencesKey("schedule_display_week_start_day")
         val KEY_SCHEDULE_DISPLAY_COURSE_DRAG_ENABLED =
             booleanPreferencesKey("schedule_display_course_drag_enabled")
@@ -1332,6 +1344,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_PLUGIN_UPDATE_INTERVAL = intPreferencesKey("plugin_update_interval_hours")
         val KEY_BETA_UPDATES_ENABLED = booleanPreferencesKey("beta_updates_enabled")
         val KEY_LAST_SEEN_VERSION_CODE = intPreferencesKey("last_seen_version_code")
+        val KEY_ANNOUNCEMENT_AUTO_PLAY_ENABLED = booleanPreferencesKey("announcement_auto_play_enabled")
         val KEY_APP_TIME_ZONE_ID = stringPreferencesKey("app_time_zone_id")
         val KEY_IGNORED_UPDATE_VERSION_CODE = intPreferencesKey("ignored_update_version_code")
         val KEY_UPDATE_NOTICE_VERSION_CODE = intPreferencesKey("update_notice_version_code")

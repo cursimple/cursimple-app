@@ -57,6 +57,11 @@ class ScheduleCrowdedUiQaTest {
         course("p", "web上机", 2, 7, 8), course("q", "AI创意工坊", 3, 7), course("r", "数据库上机", 4, 7, 8),
         course("s", "汇编语言程序设计", 5, 7), course("t", "数值分析上机", 7, 1, 2),
     )
+    // Overlaps: two split one cell, three show the first above the expander.
+    private val overlapCourses = listOf(
+        course("u", "线性代数", 6, 1, 2), course("v", "大学物理", 6, 1), course("w", "体育", 6, 2),
+        course("x", "概率论", 5, 5), course("y", "离散数学", 5, 5),
+    )
     private fun event(id: String, title: String, day: Long, start: String, end: String) =
         ScheduleEvent(id, title, date = monday.plusDays(day).toString(), startTime = start, endTime = end)
     private val extraEvents = listOf(
@@ -64,30 +69,37 @@ class ScheduleCrowdedUiQaTest {
         event("lab", "数值分析上机", 6, "08:30", "10:00"),
         event("thu", "学术英语答疑", 3, "14:30", "15:30"),
         event("late", "社团例会", 1, "18:45", "19:00"),
+        event("run", "晨跑", 6, "08:00", "09:00"), event("read", "早读", 6, "09:00", "09:40"),
+        event("meet", "组会", 2, "14:00", "15:30"), event("ask", "答疑", 2, "14:30", "15:30"),
     )
 
     @Test fun crowdedWeekScrollsAndTrimmedWeekFits() {
         assumeTrue(args.getString("crowdedQa") == "true")
         val events = mutableStateOf(extraEvents)
-        show(events)
+        val manual = mutableStateOf(courses + overlapCourses)
+        show(events, manual)
         save("crowded")
         // At 1.0 the crowded week still reads fine on one page; larger fonts must switch to scrolling.
         if (args.getString("expectCrowdedScroll") == "true") {
             compose.runOnIdle { assertTrue("crowded week should scroll", ScheduleOverflowState.autoScrolling.value) }
         }
         events.value = emptyList()
+        manual.value = courses
         save("trimmed")
         compose.runOnIdle { assertFalse("trimmed week should fit one page", ScheduleOverflowState.autoScrolling.value) }
     }
 
-    private fun show(events: androidx.compose.runtime.State<List<ScheduleEvent>>) {
+    private fun show(
+        events: androidx.compose.runtime.State<List<ScheduleEvent>>,
+        manual: androidx.compose.runtime.State<List<CourseItem>>,
+    ) {
         compose.setContent {
             ClassScheduleTheme(themeMode = if (args.getString("qaDark") == "true") ThemeMode.Dark else ThemeMode.Light,
                 themeAccent = ThemeAccent.Green) {
                 CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density,
                     args.getString("qaFontScale")?.toFloatOrNull() ?: 1f)) {
                     ScheduleScreen(state = ScheduleUiState(initialized = true, timingProfile = timing,
-                        manualCourses = courses, events = events.value),
+                        manualCourses = manual.value, events = events.value),
                         onAddManualCourse = {}, onSaveCourse = {}, onSaveEvent = {},
                         onCreateCourseReminder = { _, _, _ -> }, onMuteExamReminder = {}, onRestoreExamReminder = {},
                         onRemoveReminderRule = {}, onRemoveManualCourse = {}, onCreateBulkReminder = { _, _, _ -> },
@@ -95,7 +107,10 @@ class ScheduleCrowdedUiQaTest {
                         onOpenPluginMarket = {}, overrideTermStart = monday, viewMode = ScheduleViewMode.Week,
                         weekOffset = 0, minWeekOffset = 0, maxWeekOffset = 16, termWeekCount = 16,
                         onWeekOffsetChange = {}, onAddWeek = {},
-                        dayOffset = ChronoUnit.DAYS.between(today, monday).toInt())
+                        dayOffset = ChronoUnit.DAYS.between(today, monday).toInt(),
+                        scheduleDisplay = com.x500x.cursimple.core.data.ScheduleDisplayPreferences(
+                            autoScrollWhenCrowded = args.getString("expectCrowdedScroll") == "true",
+                        ))
                 }
             }
         }

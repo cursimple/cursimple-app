@@ -53,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -656,6 +657,7 @@ private suspend fun reportOverlayPreview(
 @Composable
 private fun rememberNoticeGate(preferences: ClassNoticePreferences): (() -> Unit) -> Unit {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val latest by rememberUpdatedState(preferences)
     var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
     lateinit var gate: (() -> Unit) -> Unit
@@ -668,7 +670,7 @@ private fun rememberNoticeGate(preferences: ClassNoticePreferences): (() -> Unit
             val canAskAgain = context.findActivity()?.let {
                 ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
             } ?: true
-            Toast.makeText(context, context.getString(R.string.settings_toast_notification_denied), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, resources.getString(R.string.settings_toast_notification_denied), Toast.LENGTH_SHORT).show()
             if (!canAskAgain) context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(latest))
         }
     }
@@ -676,7 +678,7 @@ private fun rememberNoticeGate(preferences: ClassNoticePreferences): (() -> Unit
         val current = latest
         val channel = ClassNoticeNotifier.channelIdFor(current)
         fun redirect(@StringRes message: Int, open: () -> Unit) {
-            Toast.makeText(context, context.getString(message), Toast.LENGTH_LONG).show()
+            Toast.makeText(context, resources.getString(message), Toast.LENGTH_LONG).show()
             open()
         }
         when {

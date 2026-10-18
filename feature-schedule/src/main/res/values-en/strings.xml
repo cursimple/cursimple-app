@@ -680,6 +680,10 @@
     <string name="schedule_event_delete_body_repeat">Delete \"%1$s\"? It repeats weekly, so every future week goes too. The timetable goes back to its usual layout.</string>
     <string name="schedule_event_past">Past</string>
     <string name="schedule_event_group_close">Close</string>
+    <plurals name="schedule_course_more_description">
+        <item quantity="one">%1$d course here, tap to see it</item>
+        <item quantity="other">%1$d courses here, tap to see all</item>
+    </plurals>
     <plurals name="schedule_event_group_count">
         <item quantity="one">%1$d event</item>
         <item quantity="other">%1$d events</item>
@@ -895,7 +899,6 @@
     <string name="schedule_course_session_progress">Sessions %1$d/%2$d</string>
     <string name="schedule_course_session_not_scheduled">Not scheduled here · %1$d total</string>
     <string name="schedule_course_session_needs_start">Set the term start date to count sessions</string>
-    <string name="schedule_overflow_auto_scroll_notice">Schedule and events exceed single screen, switched to vertical scrolling</string>
     <string name="schedule_today_makeup_notice">Make-up day: Schedule for %1$s applies today</string>
     <string name="schedule_today_free_slots_title">Free Slots &amp; Study Windows</string>
     <string name="schedule_today_free_all_day">All clear today, enjoy your self-study time</string>

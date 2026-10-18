@@ -89,6 +89,7 @@ fun ReleaseAnnouncementDialog(
     versionName: String,
     markdown: String,
     imageLoader: ReleaseImageLoader,
+    autoPlay: Boolean = false,
     onDismiss: () -> Unit,
 ) {
     val announcement = remember(markdown) { buildReleaseAnnouncement(markdown) }
@@ -123,6 +124,7 @@ fun ReleaseAnnouncementDialog(
                 announcement = announcement,
                 imageLoader = imageLoader,
                 onDismiss = onDismiss,
+                autoPlay = autoPlay,
             )
         }
     }
@@ -135,6 +137,7 @@ private fun ReleaseAnnouncementScreen(
     announcement: ReleaseAnnouncement,
     imageLoader: ReleaseImageLoader,
     onDismiss: () -> Unit,
+    autoPlay: Boolean,
 ) {
     val highlights = announcement.highlights
     val pageCount = highlights.size + if (announcement.rest.isNotEmpty()) 1 else 0
@@ -149,8 +152,9 @@ private fun ReleaseAnnouncementScreen(
     }
 
     // Start idle timing only on settled pages; gesture state changes must not cancel an active page animation.
-    LaunchedEffect(pagerState, pageCount) {
-        if (pageCount < 2) return@LaunchedEffect
+    // Auto-advance is opt-in; the announcement stays on the page the user opens.
+    LaunchedEffect(pagerState, pageCount, autoPlay) {
+        if (!autoPlay || pageCount < 2) return@LaunchedEffect
         snapshotFlow { pagerState.settledPage }.collectLatest { page ->
             delay(if (page >= highlights.size) REST_PAGE_DWELL_MS else AUTO_ADVANCE_MS)
             snapshotFlow { touching || pagerState.isScrollInProgress || zoomed != null || readingRest }
@@ -292,14 +296,18 @@ private fun HighlightPage(
     imageLoader: ReleaseImageLoader,
     onZoom: (ReleaseNoteImage) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // Keep titles to one line to preserve image space.
+    // Scroll with the text so a long body never sits under the image.
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
         Text(
             text = highlight.title,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         if (highlight.body.isNotEmpty()) {
@@ -314,9 +322,7 @@ private fun HighlightPage(
             loader = imageLoader,
             cornerRadius = 20.dp,
             onClick = { onZoom(highlight.image) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
+            modifier = Modifier.fillMaxWidth(),
         )
         Text(
             text = stringResource(R.string.update_announcement_tap_to_zoom),

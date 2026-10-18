@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.Slideshow
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.VerifiedUser
@@ -85,10 +86,12 @@ fun AboutScreen(
     onSetAdvancedTools: (Boolean) -> Unit,
     autoUpdateEnabled: Boolean,
     betaUpdatesEnabled: Boolean,
+    announcementAutoPlayEnabled: Boolean,
     ignoredUpdateVersionCode: Int?,
     updateNotice: UpdateNoticeState,
     onAutoUpdateEnabledChange: (Boolean) -> Unit,
     onBetaUpdatesEnabledChange: (Boolean) -> Unit,
+    onAnnouncementAutoPlayEnabledChange: (Boolean) -> Unit,
     onIgnoreUpdateVersion: (Int?) -> Unit,
     onUpdateFound: (Int, String) -> Unit,
     onUpdateNoticeCleared: () -> Unit,
@@ -162,6 +165,13 @@ fun AboutScreen(
                 BetaUpdatesRow(
                     enabled = betaUpdatesEnabled,
                     onEnabledChange = onBetaUpdatesEnabledChange,
+                )
+                SettingsSwitchRow(
+                    icon = Icons.Rounded.Slideshow,
+                    title = stringResource(R.string.settings_announcement_autoplay_title),
+                    subtitle = stringResource(R.string.settings_announcement_autoplay_subtitle),
+                    checked = announcementAutoPlayEnabled,
+                    onCheckedChange = onAnnouncementAutoPlayEnabledChange,
                 )
                 // Release history follows the selected stable or beta channel.
                 SettingsActionRow(

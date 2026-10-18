@@ -684,6 +684,7 @@ class MainActivity : ComponentActivity() {
                     ReleaseAnnouncementGate(
                         lastSeenVersionCode = prefs.lastSeenVersionCode,
                         onSeen = prefsViewModel::setLastSeenVersionCode,
+                        announcementAutoPlayEnabled = prefs.announcementAutoPlayEnabled,
                         onDialogVisibleChange = { announcementVisible = it },
                     )
                     var showThemeSheet by rememberSaveable { mutableStateOf(false) }
@@ -1593,6 +1594,7 @@ class MainActivity : ComponentActivity() {
                                         onCourseSessionCountIncludeHolidaysChange = prefsViewModel::setCourseSessionCountIncludeHolidays,
                                         onScheduleWeekendVisibleChange = prefsViewModel::setScheduleWeekendVisible,
                                         onScheduleRowFitModeChange = prefsViewModel::setScheduleRowFitMode,
+                                        onScheduleAutoScrollWhenCrowdedChange = prefsViewModel::setScheduleAutoScrollWhenCrowded,
                                         onScheduleLocationVisibleChange = prefsViewModel::setScheduleLocationVisible,
                                         onScheduleLocationAtPrefixChange = prefsViewModel::setScheduleLocationAtPrefix,
                                         onScheduleTeacherVisibleChange = prefsViewModel::setScheduleTeacherVisible,
@@ -1731,10 +1733,12 @@ class MainActivity : ComponentActivity() {
                                         onSetAdvancedTools = prefsViewModel::setAdvancedToolsEnabled,
                                         autoUpdateEnabled = prefs.autoUpdateEnabled,
                                         betaUpdatesEnabled = prefs.betaUpdatesEnabled,
+                                        announcementAutoPlayEnabled = prefs.announcementAutoPlayEnabled,
                                         ignoredUpdateVersionCode = prefs.ignoredUpdateVersionCode,
                                         updateNotice = updateNotice,
                                         onAutoUpdateEnabledChange = prefsViewModel::setAutoUpdateEnabled,
                                         onBetaUpdatesEnabledChange = prefsViewModel::setBetaUpdatesEnabled,
+                                        onAnnouncementAutoPlayEnabledChange = prefsViewModel::setAnnouncementAutoPlayEnabled,
                                         onIgnoreUpdateVersion = prefsViewModel::setIgnoredUpdateVersionCode,
                                         onUpdateFound = prefsViewModel::setUpdateNotice,
                                         onUpdateNoticeCleared = prefsViewModel::clearUpdateNotice,

@@ -1,6 +1,8 @@
 package com.x500x.cursimple.feature.schedule
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -955,6 +957,56 @@ internal fun EventGroupBlock(
                     }
                 }
             }
+        }
+    }
+}
+
+/** Expander under the top course of a crowded cell; neutral colors keep it apart from event groups. */
+@Composable
+internal fun CourseMoreBlock(
+    count: Int,
+    width: Dp,
+    height: Dp,
+    offsetX: Dp,
+    offsetY: Dp,
+    cornerRadius: Dp,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(cornerRadius.coerceAtMost(height / 2))
+    val onContainer = MaterialTheme.colorScheme.onSurfaceVariant
+    val description = androidx.compose.ui.res.pluralStringResource(
+        R.plurals.schedule_course_more_description,
+        count,
+        count,
+    )
+    Row(
+        modifier = Modifier
+            .offset(offsetX, offsetY)
+            .width(width)
+            .height(height)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shape)
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = description },
+        horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "⋯",
+            fontSize = 14.sp,
+            lineHeight = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = onContainer,
+        )
+        if (width >= 36.dp) {
+            Text(
+                text = count.toString(),
+                fontSize = 10.sp,
+                lineHeight = 10.sp,
+                color = onContainer.copy(alpha = 0.8f),
+                maxLines = 1,
+            )
         }
     }
 }

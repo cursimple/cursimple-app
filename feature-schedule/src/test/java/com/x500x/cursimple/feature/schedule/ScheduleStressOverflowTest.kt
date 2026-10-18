@@ -101,11 +101,75 @@ class ScheduleStressOverflowTest {
             dayHeaderHeight = 52.dp,
             defaultCardHeight = 64.dp,
             titleSlotHeight = 100.dp,
+            autoScrollWhenCrowded = true,
         )
 
         assertFalse(resolution.fitMode)
         assertTrue(resolution.isOverflowing)
         assertEquals(100.dp, resolution.slotHeight)
+    }
+
+    @Test
+    fun crowdedWeek_keepsOnePageUnlessAutoScrollEnabled() {
+        // Same crowded week: the default keeps one page; the setting opts into scrolling.
+        val crowded = resolveScheduleGridFit(
+            rowFitMode = ScheduleRowFitMode.Fit,
+            slotCount = 8,
+            timelineTotalUnits = 8f,
+            availableHeight = 700.dp,
+            dayHeaderHeight = 52.dp,
+            defaultCardHeight = 64.dp,
+            titleSlotHeight = 100.dp,
+            autoScrollWhenCrowded = false,
+        )
+
+        assertTrue(crowded.fitMode)
+        assertFalse(crowded.isOverflowing)
+        assertEquals(81.dp, crowded.slotHeight)
+    }
+
+    @Test
+    fun twoCourses_splitCellTopAndBottom() {
+        val stack = stackCellItems(listOf("A", "B"), 81.dp)
+        assertEquals(listOf("A", "B"), stack.pieces.map { it.entry })
+        assertEquals(39.dp, stack.pieces[0].height)
+        assertEquals(42.dp, stack.pieces[1].top)
+        assertEquals(0.dp, stack.moreHeight)
+        assertFalse(stack.whole)
+    }
+
+    @Test
+    fun threeCourses_showFirstAboveExpander() {
+        val stack = stackCellItems(listOf("A", "B", "C"), 81.dp)
+        assertEquals(listOf("A"), stack.pieces.map { it.entry })
+        assertEquals(56.dp, stack.pieces[0].height)
+        assertEquals(22.dp, stack.moreHeight)
+    }
+
+    @Test
+    fun shortCell_fallsBackToCountBadge() {
+        val stack = stackCellItems(listOf("A", "B", "C"), 40.dp)
+        assertTrue(stack.whole)
+        assertEquals(40.dp, stack.pieces.single().height)
+        // Two courses too short to split still get the expander when it fits.
+        assertEquals(22.dp, stackCellItems(listOf("A", "B"), 54.dp).moreHeight)
+    }
+
+    @Test
+    fun tooManyPeriods_keepOnePageWhenAutoScrollOff() {
+        val resolution = resolveScheduleGridFit(
+            rowFitMode = ScheduleRowFitMode.Fit,
+            slotCount = 16,
+            timelineTotalUnits = 16f,
+            availableHeight = 652.dp,
+            dayHeaderHeight = 52.dp,
+            defaultCardHeight = 64.dp,
+            autoScrollWhenCrowded = false,
+        )
+
+        assertTrue(resolution.fitMode)
+        assertFalse(resolution.isOverflowing)
+        assertEquals(37.5.dp, resolution.slotHeight)
     }
 
     @Test

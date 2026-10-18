@@ -94,6 +94,7 @@ import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.AlternateEmail
 import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Storage
@@ -702,6 +703,7 @@ fun AppSettingsRoute(
     onScheduleSaturdayVisibleChange: (Boolean) -> Unit,
     onScheduleWeekendVisibleChange: (Boolean) -> Unit,
     onScheduleRowFitModeChange: (ScheduleRowFitMode) -> Unit,
+    onScheduleAutoScrollWhenCrowdedChange: (Boolean) -> Unit = {},
     onScheduleWeekStartDayChange: (WeekStartDay) -> Unit,
     onCourseDragEnabledChange: (Boolean) -> Unit,
     onSchedulePinchZoomEnabledChange: (Boolean) -> Unit = {},
@@ -1721,6 +1723,15 @@ fun AppSettingsRoute(
                                     selected = scheduleDisplay.rowFitMode,
                                     onSelect = onScheduleRowFitModeChange,
                                 )
+                                if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
+                                    SettingsSwitchRow(
+                                        icon = Icons.Rounded.SwapVert,
+                                        title = stringResource(R.string.settings_display_auto_scroll_title),
+                                        subtitle = stringResource(R.string.settings_display_auto_scroll_subtitle),
+                                        checked = scheduleDisplay.autoScrollWhenCrowded,
+                                        onCheckedChange = onScheduleAutoScrollWhenCrowdedChange,
+                                    )
+                                }
                                 SettingsSwitchRow(
                                     icon = Icons.AutoMirrored.Rounded.MenuBook,
                                     title = stringResource(R.string.settings_display_total_title),

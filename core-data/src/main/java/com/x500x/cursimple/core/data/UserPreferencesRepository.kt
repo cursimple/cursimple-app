@@ -298,6 +298,8 @@ data class ScheduleDisplayPreferences(
     val saturdayVisible: Boolean = true,
     val weekendVisible: Boolean = true,
     val rowFitMode: ScheduleRowFitMode = ScheduleRowFitMode.Fit,
+    /** Crowded rows may switch to vertical scrolling; opt-in so one page stays the default. */
+    val autoScrollWhenCrowded: Boolean = false,
     val locationVisible: Boolean = true,
     /** Prefix the location with "@" on course cards. */
     val locationAtPrefix: Boolean = true,
@@ -423,6 +425,8 @@ data class UserPreferences(
     val pluginUpdateCheckIntervalHours: Int = 6,
     val betaUpdatesEnabled: Boolean = false,
     val lastSeenVersionCode: Int = 0,
+    /** Announcement pages stay still unless the user enables auto-play. */
+    val announcementAutoPlayEnabled: Boolean = false,
     val appTimeZoneId: String? = null,
     val ignoredUpdateVersionCode: Int? = null,
     val updateNoticeVersionCode: Int = 0,
@@ -530,6 +534,8 @@ interface UserPreferencesRepository {
 
     suspend fun setScheduleRowFitMode(mode: ScheduleRowFitMode)
 
+    suspend fun setScheduleAutoScrollWhenCrowded(enabled: Boolean)
+
     suspend fun setScheduleWeekStartDay(day: WeekStartDay)
 
     suspend fun setCourseDragEnabled(enabled: Boolean)
@@ -586,6 +592,8 @@ interface UserPreferencesRepository {
     suspend fun setBetaUpdatesEnabled(enabled: Boolean)
 
     suspend fun setLastSeenVersionCode(versionCode: Int)
+
+    suspend fun setAnnouncementAutoPlayEnabled(enabled: Boolean)
 
     suspend fun setAppTimeZoneId(zoneId: String?)
 

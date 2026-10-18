@@ -599,6 +599,8 @@
     <string name="settings_display_days_title">显示天数</string>
     <string name="settings_display_row_fit_title">纵向排布</string>
     <string name="settings_display_row_fit_subtitle">课表一屏放不下时怎么处理</string>
+    <string name="settings_display_auto_scroll_title">拥挤时自动滚动</string>
+    <string name="settings_display_auto_scroll_subtitle">开启后课程太满时会自动改为上下滚动；关闭时始终保持一页</string>
     <string name="settings_display_row_fit_fit">平铺全部</string>
     <string name="settings_display_row_fit_scroll">固定行高滚动</string>
     <string name="settings_display_row_fit_auto_scrolling">当前课程太多，一屏放下会把课程名挤成一竖列，课表已临时改为上下滚动；删掉多余的课程或事务后会自动恢复平铺。</string>
@@ -662,6 +664,8 @@
     <string name="settings_beta_updates_title">测试版更新</string>
     <string name="settings_beta_updates_on">已开启 · 更新检查会包含预发布版本</string>
     <string name="settings_beta_updates_off">关闭 · 只检查正式版本</string>
+    <string name="settings_announcement_autoplay_title">自动轮播更新公告</string>
+    <string name="settings_announcement_autoplay_subtitle">开启后公告会自动翻页；关闭时停在你打开的那一页</string>
     <string name="settings_beta_updates_confirm_title">开启测试版更新？</string>
     <string name="settings_beta_updates_confirm_body">测试版会先于正式版发布，可能存在未修复的问题，也可能出现数据异常。建议先备份课表。确定要开启吗？</string>
     <string name="settings_beta_updates_confirm_ok">我明白，开启</string>

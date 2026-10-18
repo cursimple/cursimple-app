@@ -650,6 +650,9 @@
     <string name="schedule_event_delete_body_repeat">删掉「%1$s」？这是每周重复的事务，以后每一周的都会一起删掉，课表会自动恢复原来的排版。</string>
     <string name="schedule_event_past">已过去</string>
     <string name="schedule_event_group_close">关闭</string>
+    <plurals name="schedule_course_more_description">
+        <item quantity="other">这里有 %1$d 门课程，点开查看全部</item>
+    </plurals>
     <plurals name="schedule_event_group_count">
         <item quantity="other">%1$d 项</item>
     </plurals>
@@ -859,7 +862,6 @@
     <string name="schedule_course_session_progress">上课次数 %1$d/%2$d</string>
     <string name="schedule_course_session_not_scheduled">本次不计 · 共 %1$d 次</string>
     <string name="schedule_course_session_needs_start">设置学期开始日期后显示上课次数</string>
-    <string name="schedule_overflow_auto_scroll_notice">课表与事务超出单屏，已自动切换为上下滚动</string>
     <string name="schedule_today_makeup_notice">调休补课：今日按 %1$s 课表上课</string>
     <string name="schedule_today_free_slots_title">今日自习与空闲时段</string>
     <string name="schedule_today_free_all_day">全天无课，整天都是自由自习时间</string>

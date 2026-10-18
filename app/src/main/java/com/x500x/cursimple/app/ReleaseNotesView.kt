@@ -159,16 +159,19 @@ fun ReleaseImage(
         value = loader.load(image.url)?.let(ReleaseImageState::Loaded) ?: ReleaseImageState.Failed
     }
     val shape = RoundedCornerShape(cornerRadius)
-    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+    Box(
+        modifier = modifier.heightIn(min = 120.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         when (val current = state) {
             is ReleaseImageState.Loaded -> Image(
                 bitmap = current.bitmap,
                 contentDescription = image.caption.ifBlank { null },
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
+                    .fillMaxWidth()
                     .aspectRatio(
                         current.bitmap.width.toFloat() / current.bitmap.height.coerceAtLeast(1),
-                        matchHeightConstraintsFirst = true,
                     )
                     .clip(shape)
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)

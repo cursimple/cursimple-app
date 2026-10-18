@@ -613,6 +613,8 @@
     <string name="settings_display_days_title">Days shown</string>
     <string name="settings_display_row_fit_title">Vertical layout</string>
     <string name="settings_display_row_fit_subtitle">What to do when the timetable does not fit one screen</string>
+    <string name="settings_display_auto_scroll_title">Auto-scroll when crowded</string>
+    <string name="settings_display_auto_scroll_subtitle">Scrolls vertically when cards get too full; off always keeps one page</string>
     <string name="settings_display_row_fit_fit">Fit every period</string>
     <string name="settings_display_row_fit_scroll">Fixed row height, scroll</string>
     <string name="settings_display_row_fit_auto_scrolling">Too much is on this week to fit one screen without squeezing course names, so the timetable scrolls for now. Remove extra courses or events and it fits one page again.</string>
@@ -680,6 +682,8 @@
     <string name="settings_beta_updates_title">Beta updates</string>
     <string name="settings_beta_updates_on">On · update checks include prereleases</string>
     <string name="settings_beta_updates_off">Off · stable releases only</string>
+    <string name="settings_announcement_autoplay_title">Auto-play release notes</string>
+    <string name="settings_announcement_autoplay_subtitle">Turns pages automatically; off keeps the page you opened</string>
     <string name="settings_beta_updates_confirm_title">Turn on beta updates?</string>
     <string name="settings_beta_updates_confirm_body">Betas ship before stable releases and may contain unfixed problems or corrupt data. Back up your timetable first. Turn it on?</string>
     <string name="settings_beta_updates_confirm_ok">I understand, turn it on</string>
