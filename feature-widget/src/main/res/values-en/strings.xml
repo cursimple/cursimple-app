@@ -136,6 +136,7 @@
     <string name="widget_calendar_mode_switch">Switch between week and month view</string>
     <string name="widget_calendar_reset_week">This week</string>
     <string name="widget_calendar_reset_month">This month</string>
+    <string name="widget_today_reset">Today</string>
     <string name="widget_calendar_week_title">Week %1$d</string>
     <string name="widget_calendar_before_term_title">Before term</string>
     <string name="widget_calendar_range">%1$s – %2$s</string>

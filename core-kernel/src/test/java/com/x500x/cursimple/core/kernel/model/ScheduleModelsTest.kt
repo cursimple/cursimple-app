@@ -222,5 +222,22 @@ class ScheduleModelsTest {
         assertEquals(emptyMap<Int, String>(), legacy.weekTeachers)
         assertEquals("Old teacher", legacy.teacherForWeek(2))
     }
+
+    @Test
+    fun weeklyTitlesRoundTripAndLegacyFallback() {
+        val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+        val original = courseOf("exp").copy(
+            title = "Default Title", weekTitles = mapOf(2 to "Exp 1", 3 to "Exp 2", 4 to " "),
+        )
+        val restored = json.decodeFromString(CourseItem.serializer(), json.encodeToString(CourseItem.serializer(), original))
+        assertEquals("Exp 1", restored.titleForWeek(2))
+        assertEquals("Exp 2", restored.titleForWeek(3))
+        assertEquals("Default Title", restored.titleForWeek(4))
+        assertEquals("Default Title", restored.titleForWeek(5))
+        assertEquals("Default Title", restored.titleForWeek(null))
+        val legacy = json.decodeFromString(CourseItem.serializer(), """{"id":"old","title":"Old Title","time":{"dayOfWeek":2,"startNode":1,"endNode":2}}""")
+        assertEquals(emptyMap<Int, String>(), legacy.weekTitles)
+        assertEquals("Old Title", legacy.titleForWeek(2))
+    }
 }
 

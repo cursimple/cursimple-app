@@ -9,6 +9,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowDropUp
+import androidx.compose.material.icons.rounded.EditCalendar
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -59,12 +60,44 @@ internal fun rememberCourseReuseValues(existing: List<CourseItem>, initial: Cour
 internal data class CourseReuseOption(val value: String, val detail: String = "", val course: CourseItem? = null)
 
 @Composable
-internal fun CourseTitleField(value: String, onChange: (String) -> Unit, courses: List<CourseItem>, onReuse: (CourseItem) -> Unit) {
+internal fun CourseTitleField(
+    value: String,
+    onChange: (String) -> Unit,
+    courses: List<CourseItem>,
+    onReuse: (CourseItem) -> Unit,
+    weekTitles: Map<Int, String> = emptyMap(),
+    onPickWeekTitles: (() -> Unit)? = null,
+) {
     val options = remember(courses) { courses.map { course ->
         CourseReuseOption(course.title.trim(), listOf(course.teacher.trim(), course.location.trim()).filter(String::isNotEmpty).joinToString(" · "), course)
     } }
-    CourseReuseTextField(value, onChange, stringResource(R.string.schedule_course_name_label), options,
-        onSelect = { option -> option.course?.let(onReuse) }, tag = "course-title")
+    CourseReuseTextField(
+        value = value,
+        onChange = onChange,
+        label = stringResource(R.string.schedule_course_name_label),
+        options = options,
+        onSelect = { option -> option.course?.let(onReuse) },
+        tag = "course-title",
+        extraAction = onPickWeekTitles?.let { onClick ->
+            {
+                AppCircleIconButton(
+                    onClick = onClick,
+                    modifier = Modifier.testTag("course-title-weeks"),
+                    size = FieldActionSize,
+                ) {
+                    Icon(
+                        Icons.Rounded.EditCalendar,
+                        stringResource(R.string.schedule_week_title_dialog_title),
+                        Modifier.size(FieldActionIconSize),
+                        tint = if (weekTitles.isNotEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+        supportingText = weekTitles.size.takeIf { it > 0 }?.let { count -> {
+            Text(stringResource(R.string.schedule_week_title_summary, count), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        } },
+    )
 }
 
 /** Free text with saved values behind the arrow; typing or tapping the field never opens the list. */

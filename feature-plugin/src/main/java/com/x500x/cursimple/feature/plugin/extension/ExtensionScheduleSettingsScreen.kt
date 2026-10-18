@@ -55,6 +55,7 @@ import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.core.plugin.manifest.PluginFeedTypeSpec
 import com.x500x.cursimple.feature.plugin.R
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import java.time.LocalTime
 import java.util.Locale
 import kotlinx.serialization.json.Json
@@ -210,7 +211,7 @@ private fun ScheduleTypeCard(type: PluginFeedTypeSpec, checked: Boolean, rule: E
                 Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, stringResource(R.string.extension_schedule_expand))
             }
         }
-        AnimatedVisibility(visible = expanded && checked) {
+        AnimatedVisibility(visible = expanded && checked, enter = AppMotion.revealEnter, exit = AppMotion.revealExit) {
             Column {
                 ChoiceRow(title = stringResource(R.string.extension_schedule_date_source), value = rule.dateSource, choices = ExtensionScheduleDateSource.entries, label = { dateSourceLabel(it) }, onSelect = { onRule(rule.copy(dateSource = it)) })
                 Text(stringResource(R.string.extension_schedule_missing_date), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

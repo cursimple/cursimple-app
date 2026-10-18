@@ -80,7 +80,7 @@ object ClassNoticeScheduler {
         val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
             action = ACTION_NOTICE
             setPackage(app.packageName)
-            putExtra(EXTRA_TITLE, next.course.title)
+            putExtra(EXTRA_TITLE, next.displayTitle())
             putExtra(EXTRA_LOCATION, next.displayLocation())
             putExtra(EXTRA_TIME_RANGE, next.timeRangeText())
             putExtra(EXTRA_SLOT_LABEL, app.slotLabelText(next.slots).orEmpty())

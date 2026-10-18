@@ -19,7 +19,7 @@
   const ROUTE_KEY = 'dl-route-v2';
 
   const $ = (s, el = document) => el.querySelector(s);
-  const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+  const $$ = (s, el = document) => (typeof el?.querySelectorAll === 'function' ? [...el.querySelectorAll(s)] : []);
   const modal = $('#changelog');
   const store = {
     get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -43,6 +43,41 @@
   menu.addEventListener('click', (e) => { if (e.target.closest('a')) setMenu(false); });
   document.addEventListener('click', (e) => { if (!menu.hidden && !nav.contains(e.target)) setMenu(false); });
   onScroll();
+
+  const langSelect = $('#langSelect');
+  const langTrigger = $('#langTrigger');
+  const langMenu = $('#langMenu');
+  if (langTrigger && langMenu) {
+    const toggleLangMenu = (open) => {
+      const willOpen = open !== undefined ? open : langMenu.hidden;
+      langMenu.hidden = !willOpen;
+      langTrigger.setAttribute('aria-expanded', String(willOpen));
+      langTrigger.classList.toggle('open', willOpen);
+    };
+    langTrigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleLangMenu();
+    });
+    $$('.lang-option').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const lang = btn.dataset.lang;
+        SiteI18n.setLanguage(lang);
+        toggleLangMenu(false);
+      });
+    });
+    document.addEventListener('click', (e) => {
+      if (!langMenu.hidden && !langSelect?.contains(e.target)) {
+        toggleLangMenu(false);
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !langMenu.hidden) {
+        toggleLangMenu(false);
+        langTrigger.focus();
+      }
+    });
+  }
 
   const spyLinks = $$('.nav-links a[href^="#"]:not([data-changelog])');
   const spyTargets = spyLinks.map((a) => $(a.getAttribute('href'))).filter(Boolean);

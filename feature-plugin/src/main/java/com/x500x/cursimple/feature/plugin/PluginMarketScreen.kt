@@ -1,7 +1,9 @@
 package com.x500x.cursimple.feature.plugin
 
+import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.appItemMotion
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -10,6 +12,16 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +34,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,15 +46,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Extension
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.OpenInBrowser
-import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.BorderStroke
@@ -68,6 +86,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.res.pluralStringResource
@@ -248,31 +269,41 @@ internal fun PluginMarketScreen(
                     Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.plugin_update_settings_title), modifier = Modifier.size(22.dp))
                 }
             }
-            catalogState.SaveableStateProvider(selectedTab.name) {
-                val extensionMode = selectedTab == PluginPlatformTab.Extensions
-                PluginListContent(
-                    uiState = uiState,
-                    enabledPluginIds = enabledPluginIds,
-                    syncingPluginId = syncingPluginId,
-                    syncStatusMessage = syncStatusMessage,
-                    missingComponents = if (extensionMode) emptyList() else missingComponents,
-                    pluginRegistryRepo = if (extensionMode) componentSources.firstOrNull().orEmpty()
-                        else pluginSources.firstOrNull().orEmpty(),
-                    extensionMode = extensionMode,
-                    onPickLocalPlugin = onPickLocalPlugin,
-                    onRefreshMarket = onRefreshMarket,
-                    onOpenRepo = onOpenRepo,
-                    onInstallFromGitHub = { repo -> downloadTarget = repo; onInstallFromGitHub(repo) },
-                    onRemovePlugin = onRemovePlugin,
-                    onSetPluginEnabled = onSetPluginEnabled,
-                    onSyncPlugin = onSyncPlugin,
-                    onUpgradePlugin = { record, repo -> downloadTarget = repo; onUpgradePlugin(record, repo) },
-                    extensionActions = extensionActions,
-                    openExtensionPluginId = openExtensionPluginId,
-                    onExtensionOpenConsumed = onExtensionOpenConsumed,
-                    onDetailVisibilityChange = { detailVisible = it },
-                    modifier = Modifier.weight(1f),
-                )
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    val forward = targetState.ordinal >= initialState.ordinal
+                    AppMotion.sharedAxisX(forward)
+                },
+                modifier = Modifier.weight(1f),
+                label = "PluginPlatformTabTransition",
+            ) { tab ->
+                catalogState.SaveableStateProvider(tab.name) {
+                    val extensionMode = tab == PluginPlatformTab.Extensions
+                    PluginListContent(
+                        uiState = uiState,
+                        enabledPluginIds = enabledPluginIds,
+                        syncingPluginId = syncingPluginId,
+                        syncStatusMessage = syncStatusMessage,
+                        missingComponents = if (extensionMode) emptyList() else missingComponents,
+                        pluginRegistryRepo = if (extensionMode) componentSources.firstOrNull().orEmpty()
+                            else pluginSources.firstOrNull().orEmpty(),
+                        extensionMode = extensionMode,
+                        onPickLocalPlugin = onPickLocalPlugin,
+                        onRefreshMarket = onRefreshMarket,
+                        onOpenRepo = onOpenRepo,
+                        onInstallFromGitHub = { repo -> downloadTarget = repo; onInstallFromGitHub(repo) },
+                        onRemovePlugin = onRemovePlugin,
+                        onSetPluginEnabled = onSetPluginEnabled,
+                        onSyncPlugin = onSyncPlugin,
+                        onUpgradePlugin = { record, repo -> downloadTarget = repo; onUpgradePlugin(record, repo) },
+                        extensionActions = extensionActions,
+                        openExtensionPluginId = openExtensionPluginId,
+                        onExtensionOpenConsumed = onExtensionOpenConsumed,
+                        onDetailVisibilityChange = { detailVisible = it },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                }
             }
         }
 
@@ -308,6 +339,21 @@ internal fun PluginMarketScreen(
             )
         }
     }
+}
+
+private sealed interface PluginCatalogViewTarget {
+    data object List : PluginCatalogViewTarget
+    data class InstalledDetail(val plugin: InstalledPluginRecord) : PluginCatalogViewTarget
+    data class RepoDetail(val repo: GitHubRepoSummary) : PluginCatalogViewTarget
+    data class PluginScheduleSettings(val plugin: InstalledPluginRecord) : PluginCatalogViewTarget
+    data class ExtensionSettings(val plugin: InstalledPluginRecord) : PluginCatalogViewTarget
+
+    val rank: Int
+        get() = when (this) {
+            List -> 0
+            is InstalledDetail, is RepoDetail -> 1
+            is PluginScheduleSettings, is ExtensionSettings -> 2
+        }
 }
 
 @Composable
@@ -381,207 +427,247 @@ internal fun PluginListContent(
         }
     }
 
-    if (settingsPlugin != null && !settingsPlugin.isExtension) {
-        SchedulePluginSettingsScreen(settingsPlugin, onBack = { settingsPluginKey = null }, modifier = modifier)
-        return
-    }
-    if (settingsPlugin != null && extensionActions != null) {
-        com.x500x.cursimple.feature.plugin.extension.ExtensionSettingsScreen(
-            record = settingsPlugin,
-            actions = extensionActions,
-            onBack = { settingsPluginKey = null },
-            onRemove = {
-                onRemovePlugin(settingsPlugin.installKey)
-                settingsPluginKey = null
-                detailPluginKey = null
-            },
-            modifier = modifier,
-        )
-        return
-    }
-    if (detailPlugin != null) {
-        PluginDetailScreen(
-            plugin = detailPlugin,
-            repo = catalogRepos.firstOrNull { it.fullName.equals(detailPlugin.sourceRepo?.trim(), ignoreCase = true) },
-            registrySource = detailPlugin.registrySourceFor(catalogRepos, pluginRegistryRepo),
-            isEnabled = isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins),
-            isSyncing = syncingPluginId == detailPlugin.pluginId || syncingPluginId == detailPlugin.installKey ||
-                uiState.checkingUpdateKey == detailPlugin.installKey || uiState.upgradingKey == detailPlugin.installKey || uiState.processingPlugin(detailPlugin),
-            upgrade = availableUpgrade(detailPlugin, uiState.copy(marketRepos = catalogRepos)),
-            onBack = { detailPluginKey = null },
-            onSetEnabled = { onSetPluginEnabled(detailPlugin.installKey, it) },
-            onSync = { onSyncPlugin(detailPlugin.installKey) },
-            onUpgrade = { latest ->
-                if (detailPlugin.isExtension || !isPluginInstallEnabled(detailPlugin, enabledPluginIds, uiState.installedPlugins)) {
-                    onInstallFromGitHub(latest)
-                } else onUpgradePlugin(detailPlugin, latest)
-            },
-            onOpenRepo = onOpenRepo,
-            onOpenComponent = if (detailPlugin.isExtension) {
-                extensionActions?.let { actions -> { actions.openFeed(detailPlugin) } }
-            } else null,
-            onOpenScheduleSettings = if (!detailPlugin.isExtension) ({ settingsPluginKey = installedPluginKey(detailPlugin) }) else null,
-            onRemove = {
-                onRemovePlugin(detailPlugin.installKey)
-                detailPluginKey = null
-            },
-            modifier = modifier,
-        )
-        return
-    }
-    if (detailRepo != null) {
-        GitHubRepoDetailScreen(
-            repo = detailRepo,
-            installState = resolveRepoInstallState(
-                repoSlug = detailRepo.fullName,
-                latestTag = detailRepo.latestRelease?.tagName,
-                installed = uiState.installedPlugins,
-            ),
-            isLoading = uiState.isLoading,
-            isCheckingVersions = uiState.isRefreshingReleases || uiState.versionsChecking,
-            isProcessing = uiState.processingRepo(detailRepo.fullName),
-            isCheckingInstall = uiState.processingRepo(detailRepo.fullName) && uiState.status is PluginMarketStatus.CheckingInstallRelease,
-            registryRepo = pluginRegistryRepo,
-            onBack = { detailRepoSlug = null },
-            onOpenRepo = { onOpenRepo(detailRepo.htmlUrl) },
-            onInstall = { onInstallFromGitHub(detailRepo) },
-            onUninstall = onRemovePlugin,
-            modifier = modifier,
-        )
-        return
+    val currentTarget = when {
+        settingsPlugin != null && !settingsPlugin.isExtension -> PluginCatalogViewTarget.PluginScheduleSettings(settingsPlugin)
+        settingsPlugin != null && extensionActions != null -> PluginCatalogViewTarget.ExtensionSettings(settingsPlugin)
+        detailPlugin != null -> PluginCatalogViewTarget.InstalledDetail(detailPlugin)
+        detailRepo != null -> PluginCatalogViewTarget.RepoDetail(detailRepo)
+        else -> PluginCatalogViewTarget.List
     }
 
-    val context = LocalContext.current
-    LazyColumn(
-        modifier = modifier.fillMaxSize().testTag("catalog-list"),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item(key = "controls") {
-            MarketCatalogControls(
-                tab = catalogTab,
-                onSelectTab = { catalogTab = it },
-                query = query,
-                onQueryChange = { query = it },
-                extensionMode = extensionMode,
-                isLoading = uiState.isLoading,
-                isRefreshingReleases = uiState.isRefreshingReleases,
-                onImport = onPickLocalPlugin,
-                onRefresh = onRefreshMarket,
-            )
-        }
-        if (missingComponents.isNotEmpty()) {
-            item {
-                MissingComponentsCard(
-                    components = missingComponents,
+    AnimatedContent(
+        targetState = currentTarget,
+        transitionSpec = {
+            val forward = targetState.rank >= initialState.rank
+            AppMotion.sharedAxisX(forward)
+        },
+        modifier = modifier.fillMaxSize(),
+        label = "PluginCatalogTransition",
+    ) { target ->
+        when (target) {
+            is PluginCatalogViewTarget.PluginScheduleSettings -> {
+                SchedulePluginSettingsScreen(target.plugin, onBack = { settingsPluginKey = null }, modifier = Modifier.fillMaxSize())
+            }
+            is PluginCatalogViewTarget.ExtensionSettings -> {
+                com.x500x.cursimple.feature.plugin.extension.ExtensionSettingsScreen(
+                    record = target.plugin,
+                    actions = extensionActions!!,
+                    onBack = { settingsPluginKey = null },
+                    onRemove = {
+                        onRemovePlugin(target.plugin.installKey)
+                        settingsPluginKey = null
+                        detailPluginKey = null
+                    },
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
-        }
-
-        // Keep active operations and failures visible while omitting routine loaded-count messages.
-        val busyText = when {
-            uiState.checkingUpdateKey != null || uiState.upgradingKey != null ->
-                uiState.status?.let { context.pluginMarketStatusText(it) }
-            syncingPluginId != null -> syncStatusMessage?.takeIf { it.isNotBlank() }
-            else -> null
-        }
-        val failureText = uiState.status?.takeIf {
-            it is PluginMarketStatus.DownloadFailed ||
-                it is PluginMarketStatus.InstallFailed ||
-                it is PluginMarketStatus.ParsePackageFailed ||
-                (it is PluginMarketStatus.MarketLoadFailed && uiState.sourceErrors.isEmpty()) ||
-                it is PluginMarketStatus.ReleaseAssetMissing
-        }?.let { context.pluginMarketStatusText(it) }
-        when {
-            busyText != null -> item(key = "busy") { SchoolImportProgressCard(text = busyText) }
-            failureText != null -> item(key = "failure") { StatusCard(message = failureText) }
-        }
-
-        val sourceKind = if (extensionMode) MarketSourceKind.Component else MarketSourceKind.Plugin
-        items(uiState.sourceErrors.filter { it.kind == sourceKind }, key = { "source-error:${it.kind}:${it.source}" }) { failure ->
-            MarketSourceErrorCard(failure, uiState.isLoading, onRefreshMarket)
-        }
-
-        val marketSelected = catalogTab == MarketCatalogTab.Market
-        item(key = "count") {
-            Text(
-                text = pluralStringResource(
-                    if (marketSelected && extensionMode) R.plurals.extension_search_count
-                    else if (marketSelected) R.plurals.plugin_market_search_count
-                    else R.plurals.plugin_catalog_installed_count,
-                    if (marketSelected) filteredRepos.size else filteredInstalled.size,
-                    if (marketSelected) filteredRepos.size else filteredInstalled.size,
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        val empty = if (marketSelected) filteredRepos.isEmpty() else filteredInstalled.isEmpty()
-        if (empty) {
-            item(key = "empty") {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    EmptyStateCard(
-                        title = when {
-                            query.isNotBlank() -> stringResource(
-                                if (extensionMode) R.string.extension_search_empty else R.string.plugin_market_search_empty,
-                                query.trim(),
+            is PluginCatalogViewTarget.InstalledDetail -> {
+                PluginDetailScreen(
+                    plugin = target.plugin,
+                    repo = catalogRepos.firstOrNull { it.fullName.equals(target.plugin.sourceRepo?.trim(), ignoreCase = true) },
+                    registrySource = target.plugin.registrySourceFor(catalogRepos, pluginRegistryRepo),
+                    isEnabled = isPluginInstallEnabled(target.plugin, enabledPluginIds, uiState.installedPlugins),
+                    isSyncing = syncingPluginId == target.plugin.pluginId || syncingPluginId == target.plugin.installKey ||
+                        uiState.checkingUpdateKey == target.plugin.installKey || uiState.upgradingKey == target.plugin.installKey || uiState.processingPlugin(target.plugin),
+                    upgrade = availableUpgrade(target.plugin, uiState.copy(marketRepos = catalogRepos)),
+                    onBack = { detailPluginKey = null },
+                    onSetEnabled = { onSetPluginEnabled(target.plugin.installKey, it) },
+                    onSync = { onSyncPlugin(target.plugin.installKey) },
+                    onUpgrade = { latest ->
+                        if (target.plugin.isExtension || !isPluginInstallEnabled(target.plugin, enabledPluginIds, uiState.installedPlugins)) {
+                            onInstallFromGitHub(latest)
+                        } else onUpgradePlugin(target.plugin, latest)
+                    },
+                    onOpenRepo = onOpenRepo,
+                    onOpenComponent = if (target.plugin.isExtension) {
+                        extensionActions?.let { actions -> { actions.openFeed(target.plugin) } }
+                    } else null,
+                    onOpenScheduleSettings = if (!target.plugin.isExtension) ({ settingsPluginKey = installedPluginKey(target.plugin) }) else null,
+                    onRemove = {
+                        onRemovePlugin(target.plugin.installKey)
+                        detailPluginKey = null
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            is PluginCatalogViewTarget.RepoDetail -> {
+                GitHubRepoDetailScreen(
+                    repo = target.repo,
+                    installState = resolveRepoInstallState(
+                        repoSlug = target.repo.fullName,
+                        latestTag = target.repo.latestRelease?.tagName,
+                        installed = uiState.installedPlugins,
+                    ),
+                    isLoading = uiState.isLoading,
+                    isCheckingVersions = uiState.isRefreshingReleases || uiState.versionsChecking,
+                    isProcessing = uiState.processingRepo(target.repo.fullName),
+                    isCheckingInstall = uiState.processingRepo(target.repo.fullName) && uiState.status is PluginMarketStatus.CheckingInstallRelease,
+                    registryRepo = pluginRegistryRepo,
+                    onBack = { detailRepoSlug = null },
+                    onOpenRepo = { onOpenRepo(target.repo.htmlUrl) },
+                    onInstall = { onInstallFromGitHub(target.repo) },
+                    onUninstall = onRemovePlugin,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+            PluginCatalogViewTarget.List -> {
+                val context = LocalContext.current
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().testTag("catalog-list"),
+                    contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    item(key = "controls") {
+                        MarketCatalogControls(
+                            tab = catalogTab,
+                            onSelectTab = { catalogTab = it },
+                            query = query,
+                            onQueryChange = { query = it },
+                            extensionMode = extensionMode,
+                            isLoading = uiState.isLoading,
+                            isRefreshingReleases = uiState.isRefreshingReleases,
+                            onImport = onPickLocalPlugin,
+                            onRefresh = onRefreshMarket,
+                            installedCount = shownInstalled.size,
+                            marketCount = shownRepos.size,
+                        )
+                    }
+                    if (missingComponents.isNotEmpty()) {
+                        item {
+                            MissingComponentsCard(
+                                components = missingComponents,
                             )
-                            marketSelected && uiState.isLoading -> stringResource(R.string.plugin_market_loading_title)
-                            marketSelected && extensionMode -> stringResource(R.string.extension_market_empty_title)
-                            marketSelected -> stringResource(R.string.plugin_market_empty_title)
-                            extensionMode -> stringResource(R.string.extension_installed_empty_title)
-                            else -> stringResource(R.string.plugin_market_installed_empty_title)
-                        },
-                        subtitle = when {
-                            query.isNotBlank() -> stringResource(R.string.plugin_catalog_search_empty_hint)
-                            marketSelected && uiState.isLoading -> stringResource(R.string.plugin_market_loading_subtitle)
-                            marketSelected && extensionMode -> stringResource(R.string.extension_market_empty_subtitle)
-                            marketSelected -> stringResource(R.string.plugin_market_empty_subtitle)
-                            extensionMode -> stringResource(R.string.extension_installed_empty_subtitle)
-                            else -> stringResource(R.string.plugin_market_installed_empty_subtitle)
-                        },
-                    )
-                    if (!marketSelected && query.isBlank()) {
-                        Button(onClick = { catalogTab = MarketCatalogTab.Market }) {
-                            Text(stringResource(R.string.plugin_catalog_browse_market))
+                        }
+                    }
+
+                    // Keep active operations and failures visible while omitting routine loaded-count messages.
+                    val busyText = when {
+                        uiState.checkingUpdateKey != null || uiState.upgradingKey != null ->
+                            uiState.status?.let { context.pluginMarketStatusText(it) }
+                        syncingPluginId != null -> syncStatusMessage?.takeIf { it.isNotBlank() }
+                        else -> null
+                    }
+                    val failureText = uiState.status?.takeIf {
+                        it is PluginMarketStatus.DownloadFailed ||
+                            it is PluginMarketStatus.InstallFailed ||
+                            it is PluginMarketStatus.ParsePackageFailed ||
+                            (it is PluginMarketStatus.MarketLoadFailed && uiState.sourceErrors.isEmpty()) ||
+                            it is PluginMarketStatus.ReleaseAssetMissing
+                    }?.let { context.pluginMarketStatusText(it) }
+                    when {
+                        busyText != null -> item(key = "busy") { SchoolImportProgressCard(text = busyText) }
+                        failureText != null -> item(key = "failure") { StatusCard(message = failureText) }
+                    }
+
+                    val sourceKind = if (extensionMode) MarketSourceKind.Component else MarketSourceKind.Plugin
+                    items(uiState.sourceErrors.filter { it.kind == sourceKind }, key = { "source-error:${it.kind}:${it.source}" }) { failure ->
+                        Box(appItemMotion()) {
+                            MarketSourceErrorCard(failure, uiState.isLoading, onRefreshMarket)
+                        }
+                    }
+
+                    val marketSelected = catalogTab == MarketCatalogTab.Market
+                    item(key = "count") {
+                        Text(
+                            text = pluralStringResource(
+                                if (marketSelected && extensionMode) R.plurals.extension_search_count
+                                else if (marketSelected) R.plurals.plugin_market_search_count
+                                else R.plurals.plugin_catalog_installed_count,
+                                if (marketSelected) filteredRepos.size else filteredInstalled.size,
+                                if (marketSelected) filteredRepos.size else filteredInstalled.size,
+                            ),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    val empty = if (marketSelected) filteredRepos.isEmpty() else filteredInstalled.isEmpty()
+                    if (empty) {
+                        item(key = "empty") {
+                            Box(appItemMotion()) {
+                                // Centered in the free space below the search and tabs.
+                                Box(Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f), contentAlignment = Alignment.Center) {
+                                    EmptyStateCard(
+                                        title = when {
+                                            query.isNotBlank() -> stringResource(
+                                                if (extensionMode) R.string.extension_search_empty else R.string.plugin_market_search_empty,
+                                                query.trim(),
+                                            )
+                                            marketSelected && uiState.isLoading -> stringResource(R.string.plugin_market_loading_title)
+                                            marketSelected && extensionMode -> stringResource(R.string.extension_market_empty_title)
+                                            marketSelected -> stringResource(R.string.plugin_market_empty_title)
+                                            extensionMode -> stringResource(R.string.extension_installed_empty_title)
+                                            else -> stringResource(R.string.plugin_market_installed_empty_title)
+                                        },
+                                        subtitle = when {
+                                            query.isNotBlank() -> stringResource(R.string.plugin_catalog_search_empty_hint)
+                                            marketSelected && uiState.isLoading -> stringResource(R.string.plugin_market_loading_subtitle)
+                                            marketSelected && extensionMode -> stringResource(R.string.extension_market_empty_subtitle)
+                                            marketSelected -> stringResource(R.string.plugin_market_empty_subtitle)
+                                            extensionMode -> stringResource(R.string.extension_installed_empty_subtitle)
+                                            else -> stringResource(R.string.plugin_market_installed_empty_subtitle)
+                                        },
+                                        icon = if (marketSelected) Icons.Rounded.Search
+                                            else if (extensionMode) Icons.Rounded.Widgets
+                                            else Icons.Rounded.Extension,
+                                        isLoading = marketSelected && uiState.isLoading,
+                                        action = if (!marketSelected && query.isBlank()) {
+                                            {
+                                                Button(
+                                                    onClick = { catalogTab = MarketCatalogTab.Market },
+                                                    shape = RoundedCornerShape(50),
+                                                    modifier = Modifier.padding(top = 4.dp),
+                                                ) {
+                                                    Icon(Icons.Rounded.Storefront, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(stringResource(R.string.plugin_catalog_browse_market), fontWeight = FontWeight.SemiBold)
+                                                }
+                                            }
+                                        } else null,
+                                    )
+                                }
+                            }
+                        }
+                    } else if (marketSelected) {
+                        items(filteredRepos, key = { "repo:${it.fullName}" }) { repo ->
+                            Box(appItemMotion()) {
+                                GitHubRepoCard(
+                                    repo = repo,
+                                    registryRepo = pluginRegistryRepo,
+                                    installState = resolveRepoInstallState(repo.fullName, repo.latestRelease?.tagName, uiState.installedPlugins),
+                                    isLoading = uiState.isLoading,
+                                    isRefreshingReleases = uiState.isRefreshingReleases || uiState.versionsChecking,
+                                    isProcessing = uiState.processingRepo(repo.fullName),
+                                    isCheckingInstall = uiState.processingRepo(repo.fullName) && uiState.status is PluginMarketStatus.CheckingInstallRelease,
+                                    onInstall = { onInstallFromGitHub(repo) },
+                                    onOpenDetail = { detailRepoSlug = repo.fullName },
+                                )
+                            }
+                        }
+                    } else {
+                        items(filteredInstalled, key = { "installed:${installedPluginKey(it)}" }) { plugin ->
+                            Box(appItemMotion()) {
+                                PluginCard(
+                                    plugin = plugin,
+                                    registrySource = plugin.registrySourceFor(shownRepos, pluginRegistryRepo),
+                                    isEnabled = isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins),
+                                    isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey ||
+                                        uiState.checkingUpdateKey == plugin.installKey || uiState.upgradingKey == plugin.installKey,
+                                    isLoading = uiState.isLoading,
+                                    isProcessing = uiState.processingPlugin(plugin),
+                                    upgrade = availableUpgrade(plugin, uiState.copy(marketRepos = catalogRepos)),
+                                    onSetEnabled = { onSetPluginEnabled(plugin.installKey, it) },
+                                    onSync = { onSyncPlugin(plugin.installKey) },
+                                    onUpgrade = { latest -> onUpgradePlugin(plugin, latest) },
+                                    onInstallUpgrade = { latest -> onInstallFromGitHub(latest) },
+                                    onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
+                                    onOpenComponent = extensionActions?.let { actions -> { actions.openFeed(plugin) } },
+                                    onOpenScheduleSettings = if (!plugin.isExtension) ({ settingsPluginKey = installedPluginKey(plugin) }) else null,
+                                    onRemove = { onRemovePlugin(plugin.installKey) },
+                                )
+                            }
                         }
                     }
                 }
-            }
-        } else if (marketSelected) {
-            items(filteredRepos, key = { "repo:${it.fullName}" }) { repo ->
-                GitHubRepoCard(
-                    repo = repo,
-                    registryRepo = pluginRegistryRepo,
-                    installState = resolveRepoInstallState(repo.fullName, repo.latestRelease?.tagName, uiState.installedPlugins),
-                    isLoading = uiState.isLoading,
-                    isRefreshingReleases = uiState.isRefreshingReleases || uiState.versionsChecking,
-                    isProcessing = uiState.processingRepo(repo.fullName),
-                    isCheckingInstall = uiState.processingRepo(repo.fullName) && uiState.status is PluginMarketStatus.CheckingInstallRelease,
-                    onInstall = { onInstallFromGitHub(repo) },
-                    onOpenDetail = { detailRepoSlug = repo.fullName },
-                )
-            }
-        } else {
-            items(filteredInstalled, key = { "installed:${installedPluginKey(it)}" }) { plugin ->
-                PluginCard(
-                    plugin = plugin,
-                    registrySource = plugin.registrySourceFor(shownRepos, pluginRegistryRepo),
-                    isEnabled = isPluginInstallEnabled(plugin, enabledPluginIds, uiState.installedPlugins),
-                    isSyncing = syncingPluginId == plugin.pluginId || syncingPluginId == plugin.installKey ||
-                        uiState.checkingUpdateKey == plugin.installKey || uiState.upgradingKey == plugin.installKey,
-                    isLoading = uiState.isLoading,
-                    isProcessing = uiState.processingPlugin(plugin),
-                    upgrade = availableUpgrade(plugin, uiState.copy(marketRepos = catalogRepos)),
-                    onSetEnabled = { onSetPluginEnabled(plugin.installKey, it) },
-                    onSync = { onSyncPlugin(plugin.installKey) },
-                    onUpgrade = { latest -> onUpgradePlugin(plugin, latest) },
-                    onInstallUpgrade = { latest -> onInstallFromGitHub(latest) },
-                    onOpenDetail = { detailPluginKey = installedPluginKey(plugin) },
-                    onOpenComponent = extensionActions?.let { actions -> { actions.openFeed(plugin) } },
-                    onOpenScheduleSettings = if (!plugin.isExtension) ({ settingsPluginKey = installedPluginKey(plugin) }) else null,
-                    onRemove = { onRemovePlugin(plugin.installKey) },
-                )
             }
         }
     }
@@ -602,18 +688,44 @@ internal fun GitHubRepoCard(
 ) {
     MarketItemSurface(Modifier.testTag("repo:${repo.fullName}")) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            OwnerAvatar(owner = repo.owner, size = 40.dp)
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (repo.isExtension) Icons.Rounded.Widgets else Icons.Rounded.Extension,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
             Spacer(Modifier.width(12.dp))
-            Text(
-                text = repo.displayTitle,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = repo.displayTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = repo.owner,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             VersionPill(repo.latestRelease?.tagName)
             InstallStatePill(installState)
+            if (repo.stars > 0) {
+                StarCountPill(repo.stars)
+            }
         }
         MarketSourceLabel(repo.marketSource(registryRepo))
         Text(
@@ -625,7 +737,9 @@ internal fun GitHubRepoCard(
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             RepoInstallButton(repo, installState, isLoading, isRefreshingReleases, onInstall, isProcessing, isCheckingInstall)
-            AppOutlinedButton(onClick = onOpenDetail) { Text(stringResource(R.string.plugin_catalog_details)) }
+            AppOutlinedButton(onClick = onOpenDetail, shape = RoundedCornerShape(50)) {
+                Text(stringResource(R.string.plugin_catalog_details))
+            }
         }
     }
 }
@@ -645,7 +759,12 @@ private fun RepoInstallButton(
         onClick = onInstall,
         enabled = hasRelease && !isLoading && installState !is PluginRepoInstallState.Installed,
         modifier = Modifier.testTag("install:${repo.fullName}"),
+        shape = RoundedCornerShape(50),
     ) {
+        if (installState !is PluginRepoInstallState.Installed) {
+            Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+        }
         Text(
             when {
                 isCheckingInstall -> stringResource(R.string.plugin_repo_action_checking)
@@ -689,6 +808,33 @@ private fun VersionPill(tag: String?) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+    }
+}
+
+@Composable
+private fun StarCountPill(stars: Int) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(
+                Icons.Rounded.Star,
+                contentDescription = null,
+                modifier = Modifier.size(13.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = stars.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 
@@ -758,12 +904,19 @@ private fun GitHubRepoDetailScreen(
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         VersionPill(repo.latestRelease?.tagName)
                         InstallStatePill(installState)
+                        if (repo.stars > 0) {
+                            StarCountPill(repo.stars)
+                        }
                     }
                     MarketSourceLabel(repo.marketSource(registryRepo))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         RepoInstallButton(repo, installState, isLoading, isCheckingVersions, onInstall, isProcessing, isCheckingInstall)
                         installState.installedRecord?.let { installed ->
-                            AppOutlinedButton(onClick = { onUninstall(installed.installKey) }, enabled = !isLoading) {
+                            AppOutlinedButton(
+                                onClick = { onUninstall(installed.installKey) },
+                                enabled = !isLoading,
+                                shape = RoundedCornerShape(50),
+                            ) {
                                 Text(stringResource(R.string.plugin_repo_action_uninstall))
                             }
                         }
@@ -816,18 +969,27 @@ private fun PluginPlatformTabs(
     updateKeys: Set<String> = emptySet(),
     installed: List<InstalledPluginRecord> = emptyList(),
 ) {
-    Row(
+    Surface(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
-        PluginPlatformTab.visibleTabs.forEach { tab ->
-            PlatformTabChip(
-                tab = tab,
-                selected = tab == selected,
-                onClick = { onSelect(tab) },
-                hasUpdates = installed.any { it.installKey in updateKeys && it.isExtension == (tab == PluginPlatformTab.Extensions) },
-                modifier = Modifier.weight(1f),
-            )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            PluginPlatformTab.visibleTabs.forEach { tab ->
+                PlatformTabChip(
+                    tab = tab,
+                    selected = tab == selected,
+                    onClick = { onSelect(tab) },
+                    hasUpdates = installed.any { it.installKey in updateKeys && it.isExtension == (tab == PluginPlatformTab.Extensions) },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }
@@ -840,16 +1002,44 @@ private fun PlatformTabChip(
     modifier: Modifier = Modifier,
     hasUpdates: Boolean = false,
 ) {
-    val tabModifier = modifier.testTag("platform-${tab.name.lowercase()}")
-        .semantics { this.selected = selected }
-    val content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {
-        Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(stringResource(tab.labelRes))
-        if (hasUpdates) { Spacer(Modifier.width(6.dp)); PluginUpdateDot() }
+    val haptics = com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics()
+    Surface(
+        onClick = {
+            haptics.click()
+            onClick()
+        },
+        modifier = modifier
+            .heightIn(min = 40.dp)
+            .testTag("platform-${tab.name.lowercase()}")
+            .semantics {
+                this.selected = selected
+                role = Role.Tab
+            },
+        shape = RoundedCornerShape(50),
+        color = if (selected) MaterialTheme.colorScheme.surface else Color.Transparent,
+        contentColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        shadowElevation = if (selected) 1.dp else 0.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(tab.icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                stringResource(tab.labelRes),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            )
+            if (hasUpdates) {
+                Spacer(Modifier.width(6.dp))
+                PluginUpdateDot()
+            }
+        }
     }
-    if (selected) Button(onClick = onClick, modifier = tabModifier, content = content)
-    else AppOutlinedButton(onClick = onClick, modifier = tabModifier, content = content)
 }
 
 @Composable
@@ -928,12 +1118,42 @@ private fun PluginCard(
     MarketItemSurface(Modifier.testTag("installed:${plugin.installKey}")) {
         // Separate enablement switch from primary, details and removal actions.
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = plugin.name,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isEnabled) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+                        else MaterialTheme.colorScheme.surfaceVariant
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = if (plugin.isExtension) Icons.Rounded.Widgets else Icons.Rounded.Extension,
+                    contentDescription = null,
+                    tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = plugin.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                plugin.sourceRepo?.takeIf { it.isNotBlank() }?.let { sourceRepo ->
+                    Text(
+                        text = sourceRepo,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
             Switch(
                 checked = isEnabled,
                 onCheckedChange = onSetEnabled,
@@ -1497,18 +1717,62 @@ private fun StatusCard(message: String) {
 private fun EmptyStateCard(
     title: String,
     subtitle: String,
+    icon: ImageVector? = null,
+    isLoading: Boolean = false,
+    action: (@Composable () -> Unit)? = null,
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceColorAtElevation(1.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 26.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(26.dp),
+                        strokeWidth = 2.8.dp,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+            if (action != null) {
+                Spacer(Modifier.height(4.dp))
+                action()
+            }
         }
     }
 }

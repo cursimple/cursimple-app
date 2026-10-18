@@ -42,6 +42,8 @@ import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import java.time.LocalTime
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.x500x.cursimple.feature.plugin.ui.pressFeedback
 
 internal enum class TodayItemStatus { Done, Current, Pending, Unknown }
 
@@ -154,8 +156,15 @@ internal fun TodayOverviewCard(
             }
             val hasCountdown = state.countdownAt(state.now) != null
             val nextBrief = if (state.current != null) state.next?.let { stringResource(R.string.schedule_today_next_brief, it.course.title, clockText(it.start)) } else null
-            if (hasCountdown || state.conflicts.isNotEmpty() || nextBrief != null) {
+            if (hasCountdown || state.conflicts.isNotEmpty() || nextBrief != null || state.makeUpWeekdayRes != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (state.makeUpWeekdayRes != null) {
+                        TodayChip(
+                            stringResource(R.string.schedule_today_makeup_notice, stringResource(state.makeUpWeekdayRes)),
+                            MaterialTheme.colorScheme.tertiaryContainer,
+                            MaterialTheme.colorScheme.onTertiaryContainer,
+                        )
+                    }
                     if (hasCountdown) TodayCountdownChip(state)
                     if (state.conflicts.isNotEmpty()) {
                         TodayChip(stringResource(R.string.schedule_today_conflict_short, state.conflicts.size), MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.onErrorContainer)
@@ -167,7 +176,14 @@ internal fun TodayOverviewCard(
     }
     val cardModifier = modifier.fillMaxWidth().testTag("today-overview-card")
     if (onClick != null) {
-        Surface(onClick = onClick, shape = RoundedCornerShape(24.dp), color = container, modifier = cardModifier) { body() }
+        val press = remember { MutableInteractionSource() }
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(24.dp),
+            color = container,
+            interactionSource = press,
+            modifier = cardModifier.pressFeedback(press),
+        ) { body() }
     } else {
         Surface(shape = RoundedCornerShape(24.dp), color = container, modifier = cardModifier) { body() }
     }

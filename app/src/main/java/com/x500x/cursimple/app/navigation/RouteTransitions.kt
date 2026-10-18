@@ -2,31 +2,31 @@ package com.x500x.cursimple.app.navigation
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.x500x.cursimple.feature.plugin.ui.AppMotion
 
-/** The app's page change: a short fade with a slight slide, reversed when going back. */
-fun routeTransition(forward: Boolean = true): ContentTransform {
-    val sign = if (forward) 1 else -1
-    return (fadeIn(tween(220)) + slideInHorizontally(tween(260)) { sign * it / 8 }) togetherWith
-        (fadeOut(tween(140)) + slideOutHorizontally(tween(180)) { -sign * it / 8 })
-}
+/** The app's page change: a shared-axis drift with a quick cross-fade, reversed when going back. */
+fun routeTransition(forward: Boolean = true): ContentTransform = AppMotion.sharedAxisX(forward)
 
-/** A full-screen page over the current route; opening and closing it use [routeTransition]. */
+/**
+ * A full-screen page over the current route. It slides in over the still screen and slides back out
+ * on close, so the screen underneath never shows through a half-faded page.
+ */
 @Composable
 fun <T : Any> AnimatedPage(target: T?, content: @Composable (T) -> Unit) {
     AnimatedContent(
         targetState = target,
         transitionSpec = {
-            val closing = targetState == null
-            (if (closing) routeTransition(forward = false) else routeTransition()).using(null)
+            when {
+                initialState == null -> AppMotion.pushEnter togetherWith ExitTransition.None
+                targetState == null -> EnterTransition.None togetherWith AppMotion.popExit
+                else -> routeTransition()
+            }.using(null)
         },
         label = "page_transition",
         modifier = Modifier.fillMaxSize(),

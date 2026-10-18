@@ -1,6 +1,8 @@
 package com.x500x.cursimple.app
 
+import androidx.compose.foundation.layout.Box
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.appItemMotion
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -207,12 +209,14 @@ private fun TimeZonePickerDialog(
                         )
                     }
                     items(matched, key = { it.id }) { choice ->
-                        ZoneOption(
-                            label = choice.label,
-                            detail = "${choice.offsetLabel} · ${choice.displayName}",
-                            selected = selected == choice.id,
-                            onSelect = { onSelect(choice.id) },
-                        )
+                        Box(appItemMotion()) {
+                            ZoneOption(
+                                label = choice.label,
+                                detail = "${choice.offsetLabel} · ${choice.displayName}",
+                                selected = selected == choice.id,
+                                onSelect = { onSelect(choice.id) },
+                            )
+                        }
                     }
                 }
             }

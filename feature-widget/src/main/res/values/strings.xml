@@ -137,6 +137,7 @@
     <string name="widget_calendar_mode_switch">切换周视图与月视图</string>
     <string name="widget_calendar_reset_week">回本周</string>
     <string name="widget_calendar_reset_month">回本月</string>
+    <string name="widget_today_reset">回今天</string>
     <string name="widget_calendar_week_title">第%1$d周</string>
     <string name="widget_calendar_before_term_title">未开学</string>
     <string name="widget_calendar_range">%1$s – %2$s</string>

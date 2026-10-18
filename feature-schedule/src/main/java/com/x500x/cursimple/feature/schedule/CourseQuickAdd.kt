@@ -22,4 +22,13 @@ internal fun quickAddPosition(
     return course.time.copy(dayOfWeek = (if (followsSource) sourceDate else displayedDate).dayOfWeek.value)
 }
 
-internal data class CourseActionRequest(val course: CourseItem, val position: CourseTimeSlot)
+internal data class CourseActionRequest(
+    val course: CourseItem,
+    val position: CourseTimeSlot,
+    val date: LocalDate? = null,
+)
+
+internal data class QuickAddPositionRequest(
+    val position: CourseTimeSlot,
+    val date: LocalDate? = null,
+)

@@ -112,6 +112,48 @@ class CourseReuseAndBatchUiQaTest {
         compose.runOnIdle { assertEquals(mapOf(2 to "Batch Teacher", 3 to "Batch Teacher", 4 to "Batch Teacher"), saved?.weekTeachers) }
     }
 
+    @Test fun tappingSeveralWeeksThenTypingSavesEveryTappedWeek() {
+        var saved: CourseItem? = null
+        setContent(onSave = { saved = it })
+        compose.onNodeWithTag("course-title-field").performTextReplacement("Tap course")
+        compose.onNodeWithTag("course-location-field").performScrollTo().performTextReplacement("Default room")
+        compose.onNodeWithTag("course-location-weeks").performClick()
+        compose.onNodeWithTag("week-select-2").performClick()
+        compose.onNodeWithTag("week-select-3").performClick()
+        compose.onNodeWithText(text(ScheduleR.string.schedule_week_location_value_label)).assertIsDisplayed()
+        compose.onNodeWithTag("week-batch-value-field").performScrollTo().performTextReplacement("Lab 305")
+        compose.onNodeWithTag("week-batch-apply").performScrollTo().performClick()
+        compose.onNodeWithTag("week-batch-save").performClick()
+        weekRange()
+        saveCourse()
+        compose.runOnIdle {
+            assertEquals("Default room", saved?.location)
+            assertEquals(mapOf(2 to "Lab 305", 3 to "Lab 305"), saved?.weekLocations)
+        }
+    }
+
+    @Test fun typingOnceAndApplyingToAllWeeksKeepsLaterOverrides() {
+        var saved: CourseItem? = null
+        setContent(onSave = { saved = it })
+        compose.onNodeWithTag("course-title-field").performTextReplacement("All course")
+        compose.onNodeWithTag("course-teacher-weeks").performScrollTo().performClick()
+        compose.onNodeWithTag("week-pick-all").performScrollTo().performClick()
+        compose.onNodeWithTag("week-batch-value-field").performScrollTo().performTextReplacement("One Teacher")
+        compose.onNodeWithTag("week-batch-apply").performScrollTo().performClick()
+        compose.onNodeWithTag("week-batch-save").performClick()
+        compose.onNodeWithTag("course-teacher-weeks").performScrollTo().performClick()
+        compose.onNodeWithTag("week-select-3").performClick()
+        compose.onNodeWithTag("week-batch-value-field").performScrollTo().performTextReplacement("Only week 3")
+        compose.onNodeWithTag("week-batch-apply").performScrollTo().performClick()
+        compose.onNodeWithTag("week-batch-save").performClick()
+        weekRange()
+        saveCourse()
+        compose.runOnIdle {
+            assertEquals(mapOf(1 to "One Teacher", 2 to "One Teacher", 3 to "Only week 3",
+                4 to "One Teacher", 5 to "One Teacher"), saved?.weekTeachers)
+        }
+    }
+
     @Test fun cancellingBatchLocationsLeavesTheCourseDraftUnchanged() {
         var saved: CourseItem? = null
         setContent(onSave = { saved = it })

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="kernel_week_index">第 %1$d 周</string>
+    <string name="kernel_week_index">第 %1$d 週</string>
     <string name="kernel_week_not_started">未開學</string>
     <string name="kernel_week_term_start_missing">未設定開學日期</string>
 

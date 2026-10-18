@@ -73,6 +73,7 @@ import com.x500x.cursimple.core.plugin.manifest.PluginManifest
 import com.x500x.cursimple.core.plugin.manifest.PluginExtensionUiPage
 import com.x500x.cursimple.feature.plugin.R
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -346,7 +347,7 @@ fun ExtensionSettingsScreen(
                             subtitle = stringResource(R.string.extension_host_sidebar_desc, title),
                             checked = data.host.showInSidebar,
                         ) { checked -> updateHost(scope, store, actions, record) { it.copy(showInSidebar = checked) } }
-                        AnimatedVisibility(visible = data.host.showInSidebar) {
+                        AnimatedVisibility(visible = data.host.showInSidebar, enter = AppMotion.revealEnter, exit = AppMotion.revealExit) {
                             Column {
                                 Row(Modifier.fillMaxWidth().clickable { showFeedSettings = true }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Rounded.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
@@ -391,7 +392,7 @@ fun ExtensionSettingsScreen(
                         subtitle = stringResource(R.string.extension_host_schedule_desc),
                         checked = data.host.addToSchedule,
                     ) { checked -> updateHost(scope, store, actions, record) { it.copy(addToSchedule = checked) } }
-                    AnimatedVisibility(visible = data.host.addToSchedule) {
+                    AnimatedVisibility(visible = data.host.addToSchedule, enter = AppMotion.revealEnter, exit = AppMotion.revealExit) {
                         Column {
                             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                             Row(Modifier.fillMaxWidth().clickable { showScheduleSettings = true }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {

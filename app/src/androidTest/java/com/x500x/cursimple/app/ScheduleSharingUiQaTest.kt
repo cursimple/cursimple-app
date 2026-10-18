@@ -96,11 +96,9 @@ class ScheduleSharingUiQaTest {
         }
     }
     private fun capture(name: String) {
-        compose.waitForIdle(); instrumentation.waitForIdleSync(); Thread.sleep(300)
-        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+        compose.waitForIdle()
         val file = File(context.filesDir, "schedule-sharing/${args.getString("qaVariant") ?: "normal"}/$name.png")
-        file.parentFile!!.mkdirs()
-        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
+        ScreenshotCapture.save(ScreenshotCapture.take(), file)
     }
     private fun waitTag(tag: String) {
         try { compose.waitUntil(30_000) {
@@ -252,7 +250,7 @@ class ScheduleSharingUiQaTest {
                 val selectedWeek = week.intValue
                 ScheduleImageDialog(weekNumber = selectedWeek, maxWeekNumber = 3, allWeeks = false,
                     generationKey = courses,
-                    generateImage = {
+                    generateImage = { _, _ ->
                         ScheduleImageExporter.export(context = compose.activity, termName = payload.termName,
                             termStartDate = start, weekNumber = selectedWeek, schedule = null, manualCourses = courses,
                             timingProfile = timing, overrides = emptyList(), holidayCalendar = HolidayCalendarSettings()).also {

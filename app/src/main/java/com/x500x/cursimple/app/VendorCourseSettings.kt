@@ -11,8 +11,10 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
@@ -37,7 +39,6 @@ internal fun VendorCourseSettingsSection() {
     var opened by remember { mutableStateOf(false) }
     var configure by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
     SettingsSwitchRow(icon = Icons.Rounded.NotificationsActive,
         title = stringResource(R.string.reminder_guard_title), subtitle = stringResource(if (guarded && guardState != "running") R.string.reminder_guard_waiting else R.string.reminder_guard_description),
         checked = guarded, onCheckedChange = { enabled -> scope.launch {
@@ -68,7 +69,9 @@ internal fun VendorCourseSettingsSection() {
             }
             TextButton(onClick = {
                 val report = com.x500x.cursimple.app.notice.ClassNoticeDiagnostics.report(context, preferences.classNotice).joinToString("\n") { "${it.first}: ${it.second}" }
-                clipboard.setText(AnnotatedString("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} / Android ${android.os.Build.VERSION.RELEASE}\n$report"))
+                val text = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} / Android ${android.os.Build.VERSION.RELEASE}\n$report"
+                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                cm?.setPrimaryClip(ClipData.newPlainText("report", text))
             }) { Text(stringResource(R.string.vendor_course_copy)) }
         } },
         confirmButton = { TextButton(onClick = { opened = false }) { Text(stringResource(R.string.notice_guide_close)) } },

@@ -26,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
+import com.x500x.cursimple.feature.plugin.ui.appItemMotion
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -225,7 +226,9 @@ fun ExtensionFeedScreen(
             ) {
                 item { Text(stringResource(R.string.extension_ignored_hint), style = MaterialTheme.typography.bodySmall) }
                 items(visibleItems.sortedByDescending { it.anchorAt }, key = { it.id }) { item ->
-                    FeedListCard(item, now, palette, onClick = { detail = item })
+                    Box(appItemMotion()) {
+                        FeedListCard(item, now, palette, onClick = { detail = item })
+                    }
                 }
             }
         } else {
@@ -384,7 +387,9 @@ private fun MonthAgenda(
                 )
             }
         }
-        items(dayItems, key = { it.id }) { item -> FeedListCard(item, now, palette, onClick = { onOpen(item) }) }
+        items(dayItems, key = { it.id }) { item ->
+            Box(appItemMotion()) { FeedListCard(item, now, palette, onClick = { onOpen(item) }) }
+        }
     }
 }
 

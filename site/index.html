@@ -42,6 +42,7 @@
   <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></symbol>
   <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6m0-6-9 9M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-megaphone" viewBox="0 0 24 24"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Zm12-1.5a4 4 0 0 1 0 7M18.5 6a7.5 7.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.2 0 1.8-.9 1.4-1.9-.5-1.2.3-2.1 1.5-2.1H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="7.5" cy="11" r="1.4" fill="currentColor"/><circle cx="10.5" cy="7" r="1.4" fill="currentColor"/><circle cx="15.5" cy="7.5" r="1.4" fill="currentColor"/></symbol>
@@ -60,18 +61,39 @@
       <a href="#changelog" class="nav-news" data-changelog><svg><use href="#i-megaphone"/></svg><span data-i18n="notes.title">更新公告</span><i class="dot" hidden></i></a>
     </nav>
     <div class="nav-act">
-      <label class="language-picker"><svg aria-hidden="true"><use href="#i-globe"/></svg><select id="siteLanguage" aria-label="语言" data-i18n-aria-label="language.label">
-        <option value="zh-CN" lang="zh-CN">简体中文</option>
-        <option value="zh-TW" lang="zh-TW">繁體中文</option>
-        <option value="en" lang="en">English</option>
-      </select></label>
+      <div class="lang-select" id="langSelect">
+        <button type="button" class="lang-trigger" id="langTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="langMenu" aria-label="语言" data-i18n-aria-label="language.label">
+          <svg class="lang-globe" aria-hidden="true"><use href="#i-globe"/></svg>
+          <span class="lang-current" id="langCurrent">简体中文</span>
+          <svg class="lang-arrow" aria-hidden="true"><use href="#i-down"/></svg>
+        </button>
+        <div class="lang-menu" id="langMenu" role="listbox" aria-label="语言" data-i18n-aria-label="language.label" hidden>
+          <button type="button" role="option" class="lang-option on" data-lang="zh-CN" lang="zh-CN" aria-selected="true">
+            <span class="lang-opt-name">简体中文</span>
+            <svg class="lang-check" aria-hidden="true"><use href="#i-check"/></svg>
+          </button>
+          <button type="button" role="option" class="lang-option" data-lang="zh-TW" lang="zh-TW" aria-selected="false">
+            <span class="lang-opt-name">繁體中文</span>
+            <svg class="lang-check" aria-hidden="true"><use href="#i-check"/></svg>
+          </button>
+          <button type="button" role="option" class="lang-option" data-lang="en" lang="en" aria-selected="false">
+            <span class="lang-opt-name">English</span>
+            <svg class="lang-check" aria-hidden="true"><use href="#i-check"/></svg>
+          </button>
+        </div>
+        <select id="siteLanguage" class="sr-only" aria-hidden="true" tabindex="-1">
+          <option value="zh-CN">简体中文</option>
+          <option value="zh-TW">繁體中文</option>
+          <option value="en">English</option>
+        </select>
+      </div>
       <a class="icon-btn" href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener" aria-label="GitHub"><svg><use href="#i-github"/></svg></a>
       <a class="btn btn-sm btn-primary" href="#download" aria-label="下载" data-i18n-aria-label="nav.download"><svg><use href="#i-download"/></svg><span data-i18n="nav.download">下载</span></a>
       <button class="icon-btn menu-btn" id="menuBtn" aria-label="菜单" aria-expanded="false" aria-controls="mMenu" data-i18n-aria-label="nav.menu"><svg><use href="#i-menu"/></svg></button>
     </div>
   </div>
   <nav class="m-menu" id="mMenu" hidden>
-    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span><span data-i18n="notes.title">更新公告</span><small><span data-ver>v0.7.11</span> · <span data-channel-label data-i18n="channel.beta">最新测试版</span></small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
+    <a href="#changelog" class="m-news" data-changelog><svg><use href="#i-megaphone"/></svg><span><span data-i18n="notes.title">更新公告</span><small><span data-ver>v0.8.0</span> · <span data-channel-label data-i18n="channel.beta">最新测试版</span></small></span><i class="dot" hidden></i><svg class="m-go"><use href="#i-right"/></svg></a>
     <div class="m-grid">
       <a href="#schedule" data-i18n="nav.schedule">课表</a>
       <a href="#memo" data-i18n="nav.memo">备忘录</a>
@@ -91,12 +113,12 @@
   <div class="wrap hero-in">
     <div class="hero-text">
       <a class="pill" href="#changelog" data-changelog>
-        <b><i class="dot" hidden></i><span data-ver>v0.7.11</span></b><span class="pill-text" data-highlights data-i18n="hero.highlights">今日概览 · 备忘录全文检索 · 新桌面小组件</span><svg><use href="#i-arrow"/></svg>
+        <b><i class="dot" hidden></i><span data-ver>v0.8.0</span></b><span class="pill-text" data-highlights data-i18n="hero.highlights">学期合并 · 课程各周安排 · 铺满的锁屏壁纸</span><svg><use href="#i-arrow"/></svg>
       </a>
       <h1><span data-i18n="hero.title">课表、提醒与小组件</span><br><span class="grad" data-i18n="hero.tagline">一个应用装下整个学期</span></h1>
       <p class="lead" data-i18n="hero.description">课简是一款开源免费、没有广告的 Android 课表。用学校插件导入课程，记录课程笔记和待办，通过雨课堂、多平台通知等独立组件接入学习平台与通知渠道。</p>
       <div class="hero-cta">
-        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-arm64-v8a.apk">
+        <a class="btn btn-lg btn-primary" data-dl="arm64-v8a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-arm64-v8a.apk">
           <svg><use href="#i-download"/></svg><span><span data-i18n="hero.download">下载安装包</span><small data-dl-meta data-i18n="hero.downloadMeta">arm64 · 适合绝大多数手机</small></span>
         </a>
         <a class="btn btn-lg btn-ghost" href="#download" data-i18n="hero.otherDownloads">其他版本与扫码下载</a>
@@ -427,9 +449,9 @@
       <div class="dl-main">
         <img class="dl-icon" src="assets/icon.png" alt="" width="84" height="84">
         <h2 data-i18n="download.title">下载课简</h2>
-        <p class="dl-ver"><b data-ver>v0.7.11</b><span data-channel-label data-i18n="channel.beta">最新测试版</span><span data-date></span><a href="#changelog" class="dl-notes" data-changelog><span data-i18n="download.notes">更新内容</span><svg><use href="#i-right"/></svg></a></p>
+        <p class="dl-ver"><b data-ver>v0.8.0</b><span data-channel-label data-i18n="channel.beta">最新测试版</span><span data-date></span><a href="#changelog" class="dl-notes" data-changelog><span data-i18n="download.notes">更新内容</span><svg><use href="#i-right"/></svg></a></p>
         <p class="beta-line" data-channel="stable" data-i18n="channel.stableEmptyLine">最新正式版：暂无正式版</p>
-        <p class="beta-line" id="betaLine" data-channel="beta"><span data-i18n="channel.betaPrefix">最新测试版：</span><a href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.11" target="_blank" rel="noopener">v0.7.11</a></p>
+        <p class="beta-line" id="betaLine" data-channel="beta"><span data-i18n="channel.betaPrefix">最新测试版：</span><a href="https://github.com/cursimple/cursimple-app/releases/tag/v0.8.0" target="_blank" rel="noopener">v0.8.0</a></p>
         <p class="beta-line" data-i18n="download.betaNotice">0.7.4 与 0.7.9 均为测试版。</p>
 
         <div class="route" role="radiogroup" aria-label="下载线路" data-i18n-aria-label="download.route">
@@ -437,7 +459,7 @@
           <button data-route="github" data-i18n="download.github">GitHub 直连</button>
         </div>
 
-        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-arm64-v8a.apk">
+        <a class="btn btn-xl btn-primary" data-dl="arm64-v8a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-arm64-v8a.apk">
           <svg><use href="#i-download"/></svg><span><span data-i18n="download.arm64">下载 arm64 版</span><small data-dl-meta data-i18n="download.arm64Meta">推荐 · 绝大多数手机选这个</small></span>
         </a>
 
@@ -446,16 +468,16 @@
         <details class="abis">
           <summary data-i18n="download.architectures">其他架构安装包</summary>
           <ul id="abiList">
-            <li><a data-dl="universal" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-universal.apk"><b data-i18n="download.universal">通用版 universal</b><span data-i18n="download.universalDescription">不确定手机架构时选这个</span><em data-size="universal" data-i18n="download.sizePending">大小待获取</em></a></li>
-            <li><a data-dl="armeabi-v7a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span data-i18n="download.arm32Description">较旧的 32 位手机</span><em data-size="armeabi-v7a" data-i18n="download.sizePending">大小待获取</em></a></li>
-            <li><a data-dl="x86_64" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-x86_64.apk"><b>x86_64</b><span data-i18n="download.intelDescription">Intel 设备与模拟器</span><em data-size="x86_64" data-i18n="download.sizePending">大小待获取</em></a></li>
-            <li><a data-dl="x86" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-x86.apk"><b>x86</b><span data-i18n="download.intel32Description">32 位 Intel 设备</span><em data-size="x86" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="universal" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-universal.apk"><b data-i18n="download.universal">通用版 universal</b><span data-i18n="download.universalDescription">不确定手机架构时选这个</span><em data-size="universal" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="armeabi-v7a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-armeabi-v7a.apk"><b>armeabi-v7a</b><span data-i18n="download.arm32Description">较旧的 32 位手机</span><em data-size="armeabi-v7a" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="x86_64" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-x86_64.apk"><b>x86_64</b><span data-i18n="download.intelDescription">Intel 设备与模拟器</span><em data-size="x86_64" data-i18n="download.sizePending">大小待获取</em></a></li>
+            <li><a data-dl="x86" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-x86.apk"><b>x86</b><span data-i18n="download.intel32Description">32 位 Intel 设备</span><em data-size="x86" data-i18n="download.sizePending">大小待获取</em></a></li>
           </ul>
         </details>
 
         <p class="dl-links">
           <a href="https://github.com/cursimple/cursimple-app/releases" target="_blank" rel="noopener" data-i18n="download.history">历史版本与测试版</a>
-          <a data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.11" target="_blank" rel="noopener" data-i18n="download.changelog">更新日志</a>
+          <a data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.8.0" target="_blank" rel="noopener" data-i18n="download.changelog">更新日志</a>
           <a href="https://github.com/cursimple/cursimple-app" target="_blank" rel="noopener" data-i18n="download.source">源代码</a>
         </p>
       </div>
@@ -508,7 +530,7 @@
     <header class="sheet-head">
       <img src="assets/icon.png" alt="" width="46" height="46">
       <div>
-        <h3 id="clTitle"><span data-ver>v0.7.11</span> <span data-i18n="notes.title">更新公告</span></h3>
+        <h3 id="clTitle"><span data-ver>v0.8.0</span> <span data-i18n="notes.title">更新公告</span></h3>
         <p id="clMeta" data-i18n="channel.beta">最新测试版</p>
       </div>
       <button class="icon-btn sheet-x" data-close aria-label="关闭" data-i18n-aria-label="common.close"><svg><use href="#i-close"/></svg></button>
@@ -525,8 +547,8 @@
         <button class="nav-arrow" id="clNext" aria-label="下一页" data-i18n-aria-label="notes.next"><svg><use href="#i-right"/></svg></button>
       </div>
       <div class="sheet-act">
-        <a class="btn btn-ghost btn-md" id="clGithub" data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.7.11" target="_blank" rel="noopener"><span data-i18n="notes.full">完整说明</span><svg><use href="#i-ext"/></svg></a>
-        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg><span data-i18n="download.now">立即下载</span></a>
+        <a class="btn btn-ghost btn-md" id="clGithub" data-release-link href="https://github.com/cursimple/cursimple-app/releases/tag/v0.8.0" target="_blank" rel="noopener"><span data-i18n="notes.full">完整说明</span><svg><use href="#i-ext"/></svg></a>
+        <a class="btn btn-primary btn-md" data-dl="arm64-v8a" href="https://gh-proxy.com/https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-arm64-v8a.apk"><svg><use href="#i-download"/></svg><span data-i18n="download.now">立即下载</span></a>
       </div>
     </footer>
   </div>

@@ -6,6 +6,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
 import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.teacherForWeek
+import com.x500x.cursimple.core.kernel.model.titleForWeek
 import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.filterTemporaryCancelledCourses
 import com.x500x.cursimple.core.kernel.model.resolveScheduleDay
@@ -49,7 +50,7 @@ internal fun resolveWidgetScheduleDay(
         isOriginallyActive = { course, from -> course.activeOnWeek(resolveWeekIndex(from, termStart)) },
     ).map { (course, origin) ->
         val week = resolveWeekIndex(origin, termStart)
-        course.copy(location = course.locationForWeek(week), teacher = course.teacherForWeek(week))
+        course.copy(title = course.titleForWeek(week), location = course.locationForWeek(week), teacher = course.teacherForWeek(week))
     }.visibleScheduleCourses()
     val courses = filterTemporaryCancelledCourses(
         date = targetDate,
@@ -67,7 +68,7 @@ internal fun resolveWidgetScheduleDay(
             course.takeIf { it.activeOnWeek(resolveWeekIndex(courseSource, termStart)) }
                 ?.let {
                     val week = resolveWeekIndex(courseSource, termStart)
-                    it.copy(location = it.locationForWeek(week), teacher = it.teacherForWeek(week))
+                    it.copy(title = it.titleForWeek(week), location = it.locationForWeek(week), teacher = it.teacherForWeek(week))
                 }
         }
         .plus(movedIn)

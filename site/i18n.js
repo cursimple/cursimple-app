@@ -21,7 +21,7 @@
     "channel.beta": "最新测试版",
     "nav.memo": "备忘录",
     "nav.moreFeatures": "更多功能",
-    "hero.highlights": "今日概览 · 备忘录全文检索 · 新桌面小组件",
+    "hero.highlights": "学期合并 · 课程各周安排 · 铺满的锁屏壁纸",
     "hero.title": "课表、提醒与小组件",
     "hero.tagline": "一个应用装下整个学期",
     "hero.description": "课简是一款开源免费、没有广告的 Android 课表。用学校插件导入课程，记录课程笔记和待办，通过雨课堂、多平台通知等独立组件接入学习平台与通知渠道。",
@@ -199,7 +199,7 @@
     "download.notes": "更新内容",
     "channel.stableEmptyLine": "最新正式版：暂无正式版",
     "channel.betaPrefix": "最新测试版：",
-    "download.betaNotice": "0.7.10、0.7.11 均为测试版。",
+    "download.betaNotice": "0.7.11、0.8.0 均为测试版。",
     "download.route": "下载线路",
     "download.github": "GitHub 直连",
     "download.mirror": "国内加速",
@@ -285,7 +285,7 @@
     "channel.beta": "最新測試版",
     "nav.memo": "備忘錄",
     "nav.moreFeatures": "更多功能",
-    "hero.highlights": "今日概覽 · 備忘錄全文檢索 · 新桌面小工具",
+    "hero.highlights": "學期合併 · 課程各週安排 · 鋪滿的鎖定畫面桌布",
     "hero.title": "課表、提醒與小工具",
     "hero.tagline": "一個應用裝下整個學期",
     "hero.description": "課簡是一款開源免費、沒有廣告的 Android 課表。用學校外掛匯入課程，記錄課程筆記與待辦，透過雨課堂、多平台通知等獨立元件接上學習平台與通知管道。",
@@ -463,7 +463,7 @@
     "download.notes": "更新內容",
     "channel.stableEmptyLine": "最新正式版：暫無正式版",
     "channel.betaPrefix": "最新測試版：",
-    "download.betaNotice": "0.7.10、0.7.11 均為測試版。",
+    "download.betaNotice": "0.7.11、0.8.0 均為測試版。",
     "download.route": "下載線路",
     "download.github": "GitHub 直連",
     "download.mirror": "國內加速",
@@ -549,7 +549,7 @@
     "channel.beta": "Latest beta",
     "nav.memo": "Notes",
     "nav.moreFeatures": "More features",
-    "hero.highlights": "Daily overview · Full-text note search · New widgets",
+    "hero.highlights": "Term merging · Per-week course plans · Full-screen wallpaper",
     "hero.title": "Timetable, reminders, widgets",
     "hero.tagline": "Your semester in one app",
     "hero.description": "A free, open-source Android timetable without ads. Import courses through school plugins, keep course notes and tasks, and connect learning platforms and notification services with independent components.",
@@ -727,7 +727,7 @@
     "download.notes": "What's new",
     "channel.stableEmptyLine": "Latest stable: No stable release yet",
     "channel.betaPrefix": "Latest beta: ",
-    "download.betaNotice": "Versions 0.7.10 and 0.7.11 are beta releases.",
+    "download.betaNotice": "Versions 0.7.11 and 0.8.0 are beta releases.",
     "download.route": "Download source",
     "download.github": "GitHub direct",
     "download.mirror": "China mirror",
@@ -835,6 +835,14 @@
     }
     document.querySelector('meta[property="og:locale"]')?.setAttribute('content', { 'zh-CN': 'zh_CN', 'zh-TW': 'zh_TW', en: 'en_US' }[current]);
     document.querySelectorAll('#siteLanguage').forEach((select) => { select.value = current; });
+    const langNames = { 'zh-CN': '简体中文', 'zh-TW': '繁體中文', en: 'English' };
+    const curEl = document.querySelector('#langCurrent');
+    if (curEl) curEl.textContent = langNames[current] || current;
+    document.querySelectorAll('.lang-option').forEach((opt) => {
+      const match = opt.dataset.lang === current;
+      opt.classList.toggle('on', match);
+      opt.setAttribute('aria-selected', match ? 'true' : 'false');
+    });
   }
   function setLanguage(value) {
     const language = normalizeLanguage(value);

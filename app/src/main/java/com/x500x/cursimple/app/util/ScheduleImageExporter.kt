@@ -8,6 +8,7 @@ import androidx.core.content.FileProvider
 import com.x500x.cursimple.R
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.weekdayName
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
@@ -45,6 +46,9 @@ object ScheduleImageExporter {
         holidayCalendar: HolidayCalendarSettings,
         weekStartDay: WeekStartDay = WeekStartDay.Monday,
         allWeeks: Boolean = false,
+        wallpaperMode: Boolean = false,
+        events: List<ScheduleEvent> = emptyList(),
+        options: ScheduleImageOptions = ScheduleImageOptions(),
     ): ScheduleImageExportOutcome = withContext(Dispatchers.IO) {
         val anchorDate = termStartDate ?: if (allWeeks) FALLBACK_ANCHOR else null
         if (anchorDate == null) {
@@ -67,6 +71,10 @@ object ScheduleImageExporter {
             measurer = ScheduleImageRenderer.textMeasurer(),
             labels = context.scheduleImageLabels(),
             allWeeks = allWeeks,
+            wallpaperMode = wallpaperMode,
+            // Event weeks are meaningless against the fallback anchor.
+            events = if (termStartDate != null) events else emptyList(),
+            options = options,
         )
         layout.failureReason?.let { return@withContext failure(layout.weekNumber, it) }
 

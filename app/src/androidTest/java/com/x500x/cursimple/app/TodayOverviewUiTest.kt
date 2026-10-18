@@ -218,11 +218,7 @@ class TodayOverviewUiTest {
     }
 
     private fun saveScreenshot(name: String) {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val bitmap = instrumentation.uiAutomation.takeScreenshot()
-        File(instrumentation.targetContext.filesDir, name).outputStream().use {
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
-        }
-        bitmap.recycle()
+        val target = File(InstrumentationRegistry.getInstrumentation().targetContext.filesDir, name)
+        ScreenshotCapture.save(ScreenshotCapture.take(), target)
     }
 }

@@ -228,6 +228,11 @@ class UserPreferencesTest {
     }
 
     @Test
+    fun `webdav has no provider baked in`() {
+        assertEquals("", DEFAULT_WEBDAV_URL)
+    }
+
+    @Test
     fun `backup export drops credential keys and keeps everything else`() {
         val entries = listOf(
             stringEntry("ai_import_api_key", "sk-secret"),

@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import com.x500x.cursimple.core.data.navigation.AppLayoutSelection
+import com.x500x.cursimple.core.data.navigation.BottomBarSize
 import com.x500x.cursimple.core.data.navigation.DrawerLayout
 import com.x500x.cursimple.core.kernel.time.ScheduleRowFitMode
 import com.x500x.cursimple.core.kernel.time.WeekStartDay
@@ -178,7 +179,8 @@ const val DEFAULT_COMPONENT_REGISTRY_REPO = "cursimple/cursimple-components"
 const val DEFAULT_COMPONENT_MARKET_INDEX_URL =
     "https://raw.githubusercontent.com/cursimple/cursimple-components/refs/heads/main/manifest.json"
 
-const val DEFAULT_WEBDAV_URL = "https://example.com/dav/"
+/** Empty by default: WebDAV addresses are provider-specific, so the user fills in their own. */
+const val DEFAULT_WEBDAV_URL = ""
 
 const val WEBDAV_PASSWORD_PREFERENCE_KEY = "webdav_password"
 const val AI_IMPORT_API_KEY_PREFERENCE_KEY = "ai_import_api_key"
@@ -436,6 +438,7 @@ data class UserPreferences(
     val drawerLayout: DrawerLayout = DrawerLayout.DEFAULT,
     /** Layout applied by a component; only used while that component can still provide it. */
     val appLayout: AppLayoutSelection? = null,
+    val bottomBarSize: BottomBarSize = BottomBarSize.Medium,
     val pluginMarketCacheJson: String = "",
     val pluginMarketCachedAtMillis: Long = 0L,
     val pluginMarketCachedRegistry: String = "",
@@ -600,6 +603,7 @@ interface UserPreferencesRepository {
     suspend fun setComponentSources(sources: List<String>)
     suspend fun setDrawerLayout(layout: DrawerLayout)
     suspend fun setAppLayout(selection: AppLayoutSelection?)
+    suspend fun setBottomBarSize(size: BottomBarSize)
     suspend fun setPluginMarketCache(json: String, atMillis: Long, registry: String)
     suspend fun setComponentMarketIndexUrl(url: String)
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)

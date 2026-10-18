@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.x500x.cursimple.core.data.AppLocale
 import com.x500x.cursimple.core.data.ManualCourseRepository
 import com.x500x.cursimple.core.data.event.ScheduleEventRepository
 import com.x500x.cursimple.core.data.memo.MemoRepository
@@ -140,8 +141,14 @@ class ScheduleViewModel(
     private val memoRepository: MemoRepository? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-    /** Use application Context for locale resolution without retaining an Activity. */
-    private val resources: Context = appContext.applicationContext
+    private val application: Context = appContext.applicationContext
+
+    /**
+     * Application Context avoids retaining an Activity, but it follows the system language; wrap it
+     * per message so status text uses the in-app language the screens are drawn in.
+     */
+    private val resources: Context
+        get() = AppLocale.wrap(application)
 
     private fun text(resId: Int): String = resources.getString(resId)
 

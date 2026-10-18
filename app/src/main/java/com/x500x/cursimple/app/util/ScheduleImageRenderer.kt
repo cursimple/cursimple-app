@@ -23,6 +23,7 @@ object ScheduleImageRenderer {
     private const val HEADER_FILL = 0xFFF8FAFC.toInt()
     private const val WEEKEND_FILL = 0xFFF1F5F9.toInt()
     private const val NODE_FILL = 0xFFFAFBFD.toInt()
+    private const val GAP_FILL = 0xFFF6F7F9.toInt()
     private const val TEXT_PRIMARY = 0xFF1F2430.toInt()
     private const val TEXT_SECONDARY = 0xFF6B7280.toInt()
     private const val TEXT_MUTED = 0xFF9AA3B0.toInt()
@@ -48,6 +49,7 @@ object ScheduleImageRenderer {
     )
 
     private val examPalette = BlockPalette(0xFFFDE7E3.toInt(), 0xFF8E2410.toInt(), 0xFFEF4444.toInt())
+    private val eventPalette = BlockPalette(0xFFEAEFF5.toInt(), 0xFF334155.toInt(), 0xFF64748B.toInt())
 
     fun textMeasurer(): ScheduleImageTextMeasurer {
         val regular = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = Typeface.DEFAULT }
@@ -62,7 +64,11 @@ object ScheduleImageRenderer {
     fun render(layout: ScheduleImageLayoutResult): Bitmap {
         val bitmap = Bitmap.createBitmap(layout.width, layout.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        canvas.drawColor(PAGE)
+        if (layout.wallpaperMode) {
+            drawWallpaperBackground(canvas, layout)
+        } else {
+            canvas.drawColor(PAGE)
+        }
         drawHeader(canvas, layout)
 
         val card = layout.gridRect.toRectF()
@@ -82,12 +88,23 @@ object ScheduleImageRenderer {
         return bitmap
     }
 
+    private fun drawWallpaperBackground(canvas: Canvas, layout: ScheduleImageLayoutResult) {
+        val shader = android.graphics.LinearGradient(
+            0f, 0f, 0f, layout.height.toFloat(),
+            intArrayOf(0xFFE8EEF5.toInt(), 0xFFE2E8F0.toInt(), 0xFFD8E2ED.toInt()),
+            floatArrayOf(0f, 0.45f, 1f),
+            android.graphics.Shader.TileMode.CLAMP,
+        )
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { setShader(shader) }
+        canvas.drawRect(0f, 0f, layout.width.toFloat(), layout.height.toFloat(), bgPaint)
+    }
+
     private fun drawHeader(canvas: Canvas, layout: ScheduleImageLayoutResult) {
         val metrics = layout.metrics
         val titlePaint = textPaint(metrics.headerTitleFontSize, TEXT_PRIMARY, bold = true)
         val subtitlePaint = textPaint(metrics.headerSubtitleFontSize, TEXT_SECONDARY, bold = false)
         val left = metrics.outerPadding
-        val titleTop = metrics.outerPadding + 14f
+        val titleTop = layout.headerTop + if (layout.wallpaperMode) 4f else 14f
         canvas.drawTextInLine(layout.title, left, titleTop, metrics.headerTitleFontSize * 1.4f, titlePaint)
         canvas.drawTextInLine(
             layout.subtitle,
@@ -136,15 +153,22 @@ object ScheduleImageRenderer {
         val indexPaint = centeredPaint(metrics.nodeIndexFontSize, TEXT_PRIMARY, bold = true)
         val timePaint = centeredPaint(metrics.nodeTimeFontSize, TEXT_MUTED, bold = false)
         for (row in layout.rows) {
-            val indexHeight = metrics.nodeIndexFontSize * 1.4f
-            val timeHeight = metrics.nodeTimeFontSize * 1.35f
+            if (row.isGap) {
+                canvas.drawRect(RectF(column.left, row.rect.top, layout.bodyRect.right, row.rect.bottom), fillPaint(GAP_FILL))
+            }
+            val indexHeight = if (row.nodeLabel.isEmpty()) 0f else metrics.nodeIndexFontSize * 1.4f
+            val timeHeight = if (row.startTimeLabel.isEmpty()) 0f else metrics.nodeTimeFontSize * 1.35f
             val used = indexHeight + timeHeight * 2
             var top = row.rect.top + (row.rect.height - used) / 2f
-            canvas.drawTextInLine(row.nodeLabel, row.rect.centerX, top, indexHeight, indexPaint)
-            top += indexHeight
-            canvas.drawTextInLine(row.startTimeLabel, row.rect.centerX, top, timeHeight, timePaint)
-            top += timeHeight
-            canvas.drawTextInLine(row.endTimeLabel, row.rect.centerX, top, timeHeight, timePaint)
+            if (indexHeight > 0f) {
+                canvas.drawTextInLine(row.nodeLabel, row.rect.centerX, top, indexHeight, indexPaint)
+                top += indexHeight
+            }
+            if (timeHeight > 0f) {
+                canvas.drawTextInLine(row.startTimeLabel, row.rect.centerX, top, timeHeight, timePaint)
+                top += timeHeight
+                canvas.drawTextInLine(row.endTimeLabel, row.rect.centerX, top, timeHeight, timePaint)
+            }
         }
     }
 
@@ -184,6 +208,7 @@ object ScheduleImageRenderer {
             val palette = when {
                 block.isOverflow -> BlockPalette(OVERFLOW_FILL, OVERFLOW_TEXT, TEXT_MUTED)
                 block.isExam -> examPalette
+                block.isEvent -> eventPalette
                 else -> palettes[block.colorIndex % palettes.size]
             }
             val rect = block.rect.toRectF()

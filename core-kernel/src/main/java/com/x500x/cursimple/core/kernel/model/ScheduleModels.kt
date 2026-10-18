@@ -50,6 +50,8 @@ data class CourseItem(
     @SerialName("details") val details: List<CourseDetailField> = emptyList(),
     /** Sparse per-week teachers override [teacher]; legacy data keeps the default. */
     @SerialName("weekTeachers") val weekTeachers: Map<Int, String> = emptyMap(),
+    /** Sparse per-week titles override [title]; legacy data keeps the default. */
+    @SerialName("weekTitles") val weekTitles: Map<Int, String> = emptyMap(),
     /**
      * A permanently deleted tombstone still masks its plugin course but leaves the restoration
      * list; removing it instead would let the next sync bring the course back.
@@ -95,6 +97,9 @@ fun CourseItem.locationForWeek(week: Int?): String =
 
 fun CourseItem.teacherForWeek(week: Int?): String =
     week?.let { weekTeachers[it] }?.takeIf { it.isNotBlank() } ?: teacher
+
+fun CourseItem.titleForWeek(week: Int?): String =
+    week?.let { weekTitles[it] }?.takeIf { it.isNotBlank() } ?: title
 
 fun List<CourseItem>.visibleScheduleCourses(): List<CourseItem> =
     filterNot { it.reminderOnly }

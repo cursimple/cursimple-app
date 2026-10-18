@@ -174,4 +174,55 @@ class CourseLibraryTest {
 
         assertEquals(listOf(6), groupCourseLibraryByWeekday(entries, listOf(1, 2, 3, 4, 5)).map { it.first })
     }
+
+    @Test
+    fun `a course without overrides stays a single arrangement`() {
+        val group = groupCourseLibrary(buildCourseLibrary(emptyList(), listOf(course("a", "高数", location = "A101")))).single()
+
+        assertFalse(group.hasVariants)
+        assertEquals(emptySet<VariantField>(), group.variants.single().changed)
+    }
+
+    @Test
+    fun `per-week location and teacher overrides split a course into variants`() {
+        val math = course("m", "高数", location = "A101", teacher = "王老师").copy(
+            weeks = (1..8).toList(),
+            weekLocations = mapOf(3 to "B202", 4 to "B202"),
+            weekTeachers = mapOf(4 to "李老师"),
+        )
+        val variants = groupCourseLibrary(buildCourseLibrary(emptyList(), listOf(math))).single().variants
+
+        assertEquals(listOf(listOf(1, 2, 5, 6, 7, 8), listOf(3), listOf(4)), variants.map { it.weeks })
+        assertEquals(listOf(emptySet(), setOf(VariantField.Location), setOf(VariantField.Location, VariantField.Teacher)), variants.map { it.changed })
+        assertEquals("李老师", variants[2].teacher)
+    }
+
+    @Test
+    fun `same-name courses at different periods share one card`() {
+        val entries = buildCourseLibrary(
+            emptyList(),
+            listOf(course("mon", "高数", dayOfWeek = 1), course("eng", "英语"), course("thu", "高数", dayOfWeek = 4)),
+        )
+        val groups = groupCourseLibrary(entries)
+
+        assertEquals(listOf("高数", "英语"), groups.map { it.main.course.title })
+        assertEquals(listOf("mon", "thu"), groups[0].entries.map { it.course.id })
+        assertEquals(listOf(emptySet(), setOf(VariantField.Time)), groups[0].variants.map { it.changed })
+    }
+
+    @Test
+    fun `a course without listed weeks keeps a remaining-weeks variant`() {
+        val math = course("m", "高数", location = "A101").copy(weekLocations = mapOf(5 to "B202"))
+        val variants = groupCourseLibrary(buildCourseLibrary(emptyList(), listOf(math))).single().variants
+
+        assertEquals(listOf(emptyList<Int>(), listOf(5)), variants.map { it.weeks })
+        assertEquals("B202", variants[1].location)
+    }
+
+    @Test
+    fun `the query reaches per-week locations`() {
+        val math = course("m", "高数", location = "A101").copy(weeks = listOf(1, 2), weekLocations = mapOf(2 to "实验楼"))
+
+        assertTrue(matchesCourseQuery(math, "实验楼"))
+    }
 }

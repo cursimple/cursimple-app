@@ -467,8 +467,8 @@ class MirrorDownloader(
             .header("Cache-Control", "no-cache").header("Pragma", "no-cache").build())
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
-            override fun onFailure(call: Call, error: IOException) {
-                if (continuation.isActive) continuation.resumeWithException(error)
+            override fun onFailure(call: Call, e: IOException) {
+                if (continuation.isActive) continuation.resumeWithException(e)
             }
             override fun onResponse(call: Call, response: Response) {
                 try {

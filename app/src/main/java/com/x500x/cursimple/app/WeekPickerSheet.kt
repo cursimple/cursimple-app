@@ -1,6 +1,12 @@
 package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +71,7 @@ fun WeekPickerSheet(
     onDeleteWeek: (Int) -> Unit = {},
     onDismiss: () -> Unit,
 ) {
+    val haptics = rememberAppHaptics()
     var pendingDeleteWeek by remember { mutableStateOf<Int?>(null) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
@@ -89,8 +96,12 @@ fun WeekPickerSheet(
                     modifier = Modifier.weight(1f),
                 )
                 AppOutlinedButton(
-                    onClick = { onSetSelectedAsCurrent(selectedWeek) },
+                    onClick = {
+                        haptics.click()
+                        onSetSelectedAsCurrent(selectedWeek)
+                    },
                     enabled = selectedWeek >= 1,
+                    shape = RoundedCornerShape(50),
                 ) {
                     Text(stringResource(R.string.week_picker_set_current))
                 }
@@ -120,16 +131,28 @@ fun WeekPickerSheet(
                     ) {
                         rowCells.forEach { week ->
                             if (week == null) {
-                                AddWeekCell(onClick = onAddWeek, modifier = Modifier.weight(1f))
+                                AddWeekCell(
+                                    onClick = {
+                                        haptics.click()
+                                        onAddWeek()
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
                             } else {
                                 WeekCell(
                                     week = week,
                                     isCurrent = isCurrentTermWeek(termStart, week, currentWeek),
                                     isSelected = week == selectedWeek,
-                                    onClick = { onSelectWeek(week) },
+                                    onClick = {
+                                        haptics.tick()
+                                        onSelectWeek(week)
+                                    },
                                     // Only user-added blank weeks are removable.
                                     onDelete = if (week > derivedWeeks) {
-                                        { pendingDeleteWeek = week }
+                                        {
+                                            haptics.heavy()
+                                            pendingDeleteWeek = week
+                                        }
                                     } else {
                                         null
                                     },
@@ -203,11 +226,12 @@ internal fun deriveTermStartForCurrentWeek(today: LocalDate, currentWeek: Int): 
 @Composable
 private fun AddWeekCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -215,6 +239,7 @@ private fun AddWeekCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 imageVector = Icons.Rounded.Add,
                 contentDescription = stringResource(R.string.week_picker_add_week),
                 tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp),
             )
         }
     }
@@ -257,32 +282,79 @@ private fun WeekCell(
     modifier: Modifier = Modifier,
     onDelete: (() -> Unit)? = null,
 ) {
-    val container = when {
+    val targetContainer = when {
         isCurrent -> MaterialTheme.colorScheme.primary
         isSelected -> MaterialTheme.colorScheme.primaryContainer
-        else -> MaterialTheme.colorScheme.surfaceVariant
+        else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
     }
-    val onContainer = when {
+    val targetOnContainer = when {
         isCurrent -> MaterialTheme.colorScheme.onPrimary
         isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val container by animateColorAsState(
+        targetValue = targetContainer,
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "WeekCellBg",
+    )
+    val onContainer by animateColorAsState(
+        targetValue = targetOnContainer,
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "WeekCellContent",
+    )
+    val targetBorderColor = when {
+        isSelected && !isCurrent -> MaterialTheme.colorScheme.primary
+        isSelected && isCurrent -> MaterialTheme.colorScheme.onPrimary
+        else -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+    }
+    val borderColor by animateColorAsState(
+        targetValue = targetBorderColor,
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "WeekCellBorderColor",
+    )
+    val borderWidth by animateDpAsState(
+        targetValue = if (isSelected) 2.dp else 1.dp,
+        animationSpec = tween(180, easing = FastOutSlowInEasing),
+        label = "WeekCellBorderWidth",
+    )
+    val border = BorderStroke(borderWidth, borderColor)
     Box(modifier = modifier.aspectRatio(1f)) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(16.dp),
             color = container,
+            border = border,
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .combinedClickable(onClick = onClick, onLongClick = onDelete),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Text(
-                    text = if (isCurrent) stringResource(R.string.week_picker_current_week) else week.toString(),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = if (isCurrent || isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                    color = onContainer,
-                )
+                if (isCurrent) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            text = week.toString(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = onContainer,
+                        )
+                        Text(
+                            text = stringResource(R.string.week_picker_current_week),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = onContainer.copy(alpha = 0.85f),
+                        )
+                    }
+                } else {
+                    Text(
+                        text = week.toString(),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                        color = onContainer,
+                    )
+                }
             }
         }
         onDelete?.let { delete ->

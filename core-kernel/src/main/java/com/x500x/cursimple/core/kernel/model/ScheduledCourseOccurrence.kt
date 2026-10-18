@@ -11,6 +11,7 @@ data class ScheduledCourseOccurrence(
     val start: LocalTime?,
     val end: LocalTime?,
 ) {
+    val title: String get() = course.titleForWeek(sourceWeek)
     val location: String get() = course.locationForWeek(sourceWeek)
     val teacher: String get() = course.teacherForWeek(sourceWeek)
     val hasTime: Boolean get() = start != null && end != null

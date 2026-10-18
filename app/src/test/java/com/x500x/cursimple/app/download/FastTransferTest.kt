@@ -77,7 +77,7 @@ private class FakeMirror(
                 var status = "200 OK"
                 var extra = ""
                 if (range != null && supportsRange) {
-                    val spec = range!!.removePrefix("bytes=").split('-')
+                    val spec = range.removePrefix("bytes=").split('-')
                     start = spec[0].toLong()
                     end = minOf(spec[1].toLong(), body.size - 1L)
                     status = "206 Partial Content"

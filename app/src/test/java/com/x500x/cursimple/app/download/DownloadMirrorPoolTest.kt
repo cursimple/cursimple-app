@@ -31,6 +31,11 @@ class DownloadMirrorPoolTest {
         assertTrue(candidates.any { it.url.contains("hk.gh-proxy.com/https://github.com") })
         assertTrue(candidates.any { it.url.contains("edgeone.gh-proxy.com/https://github.com") })
         assertTrue(candidates.any { it.url.contains("gh.llkk.cc/https://github.com") })
+        assertTrue(candidates.any { it.url.contains("ghproxy.cn/https://github.com") })
+        assertTrue(candidates.any { it.url.contains("mirror.ghproxy.com/https://github.com") })
+        assertTrue(candidates.any { it.url.contains("ghps.cc/https://github.com") })
+        assertTrue(candidates.any { it.url.contains("github.boki.moe/https://github.com") })
+        assertTrue(candidates.any { it.url.contains("gitdl.cn/https://github.com") })
         assertFalse(candidates.any { it.url.contains("jsdelivr.net") })
     }
 
@@ -48,7 +53,10 @@ class DownloadMirrorPoolTest {
         assertFalse(candidates.any { it.url.contains("ghproxy.net") })
         assertFalse(candidates.any { it.url.contains("gh.llkk.cc") })
         assertTrue(candidates.any { it.url.contains("gh-proxy.com") })
+        assertTrue(candidates.any { it.url.contains("mirror.ghproxy.com") })
         assertTrue(candidates.any { it.url.contains("edgeone.gh-proxy.com") })
+        assertTrue(candidates.any { it.url.contains("ghps.cc") })
+        assertTrue(candidates.any { it.url.contains("slink.ltd") })
         assertTrue(candidates.any { it.url == "https://api.github.com/repos/cursimple/cursimple-app/releases/latest" })
     }
 
@@ -70,6 +78,8 @@ class DownloadMirrorPoolTest {
         assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net.cn/gh/cursimple/cursimple-plugins@main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://cdn.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
         assertTrue(candidates.any { it.url == "https://fastly.jsdelivr.net/gh/cursimple/cursimple-plugins@main/manifest.json" })
+        assertTrue(candidates.any { it.url == "https://raw.gitmirror.com/cursimple/cursimple-plugins/main/manifest.json" })
+        assertTrue(candidates.any { it.url == "https://raw.kkgithub.com/cursimple/cursimple-plugins/main/manifest.json" })
     }
 
     @Test

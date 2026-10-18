@@ -90,8 +90,20 @@ class AppContainer(
     val manualCourseRepository: ManualCourseRepository = manualStore
     private val courseNoteStore = DataStoreCourseNoteRepository(app, termProfileRepository)
     val courseNoteRepository: CourseNoteRepository = courseNoteStore
-    private val scheduleEventStore = DataStoreScheduleEventRepository(app)
+    private val scheduleEventStore = DataStoreScheduleEventRepository(app, termProfileRepository)
     val scheduleEventRepository: ScheduleEventRepository = scheduleEventStore
+
+    /** 合并学期要按学期读写，接口只暴露当前学期，这里给出具体实现。 */
+    val termMerger: TermMerger by lazy {
+        TermMerger(
+            terms = termProfileRepository,
+            store = RepositoryTermMergeStore(
+                scheduleRepository = scheduleStore,
+                manualCourseRepository = manualStore,
+                eventRepository = scheduleEventStore,
+            ),
+        )
+    }
     private val memoStore = DataStoreMemoRepository(app)
     val memoRepository: MemoRepository = memoStore
     val notificationDeliveryCoordinator by lazy {
@@ -182,6 +194,7 @@ class AppContainer(
         )
         scheduleStore.migrateLegacyScheduleIfNeeded(activeTermId)
         manualStore.migrateLegacyManualIfNeeded(activeTermId)
+        scheduleEventStore.migrateLegacyEventsIfNeeded(activeTermId)
     }
 
     private suspend fun awaitBootstrap() = bootstrapJob.join()

@@ -41,10 +41,12 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.plugin.R
 import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
+import com.x500x.cursimple.feature.plugin.ui.pressFeedback
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 @Composable
 internal fun FeedOverview(items: List<ExtensionFeedItem>, today: LocalDate, zone: ZoneId) {
@@ -172,9 +174,11 @@ internal fun feedStatusRes(item: ExtensionFeedItem): Int = when {
 @Composable
 internal fun FeedListCard(item: ExtensionFeedItem, now: Long, palette: FeedPalette, onClick: () -> Unit) {
     val muted = item.historical
+    val press = remember { MutableInteractionSource() }
     Surface(
+        interactionSource = press,
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().pressFeedback(press),
         shape = RoundedCornerShape(22.dp),
         color = if (muted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
         else MaterialTheme.colorScheme.surfaceContainerLow,

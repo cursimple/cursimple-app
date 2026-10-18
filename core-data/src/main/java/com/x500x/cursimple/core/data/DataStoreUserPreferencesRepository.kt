@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import com.x500x.cursimple.core.data.navigation.AppLayoutSelection
+import com.x500x.cursimple.core.data.navigation.BottomBarSize
 import com.x500x.cursimple.core.data.navigation.DrawerLayout
 import com.x500x.cursimple.core.data.navigation.decodeAppLayout
 import com.x500x.cursimple.core.data.navigation.decodeDrawerLayout
@@ -143,6 +144,7 @@ class DataStoreUserPreferencesRepository(
                 ?: listOf(DEFAULT_COMPONENT_REGISTRY_REPO),
             drawerLayout = decodeDrawerLayout(prefs[KEY_DRAWER_LAYOUT]),
             appLayout = decodeAppLayout(prefs[KEY_APP_LAYOUT]),
+            bottomBarSize = BottomBarSize.fromId(prefs[KEY_BOTTOM_BAR_SIZE]),
             pluginMarketCacheJson = prefs[KEY_PLUGIN_MARKET_CACHE_JSON].orEmpty(),
             pluginMarketCachedAtMillis = prefs[KEY_PLUGIN_MARKET_CACHED_AT_MILLIS] ?: 0L,
             pluginMarketCachedRegistry = prefs[KEY_PLUGIN_MARKET_CACHED_REGISTRY].orEmpty(),
@@ -693,6 +695,10 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_DRAWER_LAYOUT] = encodeDrawerLayout(layout) }
     }
 
+    override suspend fun setBottomBarSize(size: BottomBarSize) {
+        store.edit { prefs -> prefs[KEY_BOTTOM_BAR_SIZE] = size.id }
+    }
+
     override suspend fun setAppLayout(selection: AppLayoutSelection?) {
         store.edit { prefs ->
             val encoded = encodeAppLayout(selection)
@@ -733,8 +739,12 @@ class DataStoreUserPreferencesRepository(
 
     override suspend fun setWebDavSettings(url: String, username: String, password: String) {
         store.edit { prefs ->
-            val normalizedUrl = url.trim().ifBlank { DEFAULT_WEBDAV_URL }
-            prefs[KEY_WEBDAV_URL] = normalizedUrl
+            val normalizedUrl = url.trim()
+            if (normalizedUrl.isBlank()) {
+                prefs.remove(KEY_WEBDAV_URL)
+            } else {
+                prefs[KEY_WEBDAV_URL] = normalizedUrl
+            }
             prefs[KEY_WEBDAV_USERNAME] = username.trim()
             prefs[KEY_WEBDAV_PASSWORD] = password
         }
@@ -805,6 +815,7 @@ class DataStoreUserPreferencesRepository(
             prefs.remove(KEY_COMPONENT_SOURCES)
             prefs.remove(KEY_DRAWER_LAYOUT)
             prefs.remove(KEY_APP_LAYOUT)
+            prefs.remove(KEY_BOTTOM_BAR_SIZE)
             prefs.remove(LEGACY_KEY_PLUGIN_MARKET_INDEX_URL)
             prefs.remove(KEY_PLUGIN_MARKET_CACHE_JSON)
             prefs.remove(KEY_PLUGIN_MARKET_CACHED_AT_MILLIS)
@@ -1331,6 +1342,7 @@ class DataStoreUserPreferencesRepository(
         val KEY_COMPONENT_SOURCES = stringPreferencesKey("component_sources")
         val KEY_DRAWER_LAYOUT = stringPreferencesKey("drawer_layout")
         val KEY_APP_LAYOUT = stringPreferencesKey("app_layout")
+        val KEY_BOTTOM_BAR_SIZE = stringPreferencesKey("bottom_bar_size")
         val LEGACY_KEY_PLUGIN_MARKET_INDEX_URL = stringPreferencesKey("plugin_market_index_url")
         val KEY_PLUGIN_MARKET_CACHE_JSON = stringPreferencesKey("plugin_market_cache_json")
         val KEY_PLUGIN_MARKET_CACHED_AT_MILLIS = longPreferencesKey("plugin_market_cached_at_millis")

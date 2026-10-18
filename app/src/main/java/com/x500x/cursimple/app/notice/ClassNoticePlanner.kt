@@ -6,6 +6,7 @@ import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.model.locationForWeek
+import com.x500x.cursimple.core.kernel.model.titleForWeek
 import com.x500x.cursimple.core.kernel.model.slotsCovering
 import com.x500x.cursimple.core.kernel.model.scheduledCourseOccurrencesOn
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
@@ -64,3 +65,5 @@ object ClassNoticePlanner {
 }
 
 fun UpcomingClass.displayLocation(): String = course.locationForWeek(weekNumber)
+
+fun UpcomingClass.displayTitle(): String = course.titleForWeek(weekNumber)

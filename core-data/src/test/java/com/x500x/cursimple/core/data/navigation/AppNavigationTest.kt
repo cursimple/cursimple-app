@@ -84,4 +84,10 @@ class AppNavigationTest {
         assertNull(decodeAppLayout("nope"))
         assertNull(decodeAppLayout("""{"ownerId":"owner","shell":"bottomBar","items":["schedule","nope"]}"""))
     }
+
+    @Test fun `bottom bar size defaults to medium and reads saved ids`() {
+        assertEquals(BottomBarSize.Medium, BottomBarSize.fromId(null))
+        assertEquals(BottomBarSize.Medium, BottomBarSize.fromId("huge"))
+        BottomBarSize.entries.forEach { assertEquals(it, BottomBarSize.fromId(it.id)) }
+    }
 }

@@ -13,6 +13,7 @@ import androidx.work.WorkerParameters
 import com.x500x.cursimple.core.reminder.logging.ReminderLogger
 import kotlinx.coroutines.CoroutineScope
 import com.x500x.cursimple.core.data.event.DataStoreScheduleEventRepository
+import com.x500x.cursimple.core.data.term.DataStoreTermProfileRepository
 import com.x500x.cursimple.core.data.widget.DataStoreWidgetPreferencesRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +57,7 @@ object ScheduleWidgetUpdater {
             // Null timing means unavailable data; preserve scheduled boundaries until an actual profile is read.
             val profile = preferences.timingProfileFlow.first() ?: return@runCatching
             val events = if (preferences.themePreferencesFlow.first().showEvents) {
-                DataStoreScheduleEventRepository(context).eventsFlow.first()
+                DataStoreScheduleEventRepository(context, DataStoreTermProfileRepository(context)).eventsFlow.first()
             } else {
                 emptyList()
             }

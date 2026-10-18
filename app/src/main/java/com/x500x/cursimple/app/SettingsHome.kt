@@ -1,6 +1,9 @@
 package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppSearchField
+import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
+import com.x500x.cursimple.feature.plugin.ui.pressFeedback
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 @Composable
 internal fun SettingsSearchField(
@@ -70,11 +74,14 @@ internal fun SettingsQuickTile(
     valueMaxLines: Int = 1,
     color: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.surfaceVariant,
 ) {
+    val press = remember { MutableInteractionSource() }
     Surface(
+        interactionSource = press,
         onClick = tile.onClick,
         shape = RoundedCornerShape(18.dp),
         color = color,
-        modifier = modifier,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        modifier = modifier.pressFeedback(press),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
@@ -100,7 +107,8 @@ internal fun SettingsQuickTile(
                 text = tile.title,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
+                maxLines = 2,
+                minLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
@@ -133,12 +141,17 @@ internal object SettingsHomeLayoutStore {
 
 @Composable
 internal fun SettingsHomeLayoutToggle(layout: SettingsHomeLayout, onToggle: () -> Unit) {
+    val haptics = rememberAppHaptics()
     val toGrid = layout == SettingsHomeLayout.List
     Surface(
-        onClick = onToggle,
+        onClick = {
+            haptics.click()
+            onToggle()
+        },
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceVariant,
-        modifier = Modifier.size(52.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+        modifier = Modifier.size(48.dp),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -146,6 +159,7 @@ internal fun SettingsHomeLayoutToggle(layout: SettingsHomeLayout, onToggle: () -
                 contentDescription = stringResource(
                     if (toGrid) R.string.settings_layout_to_grid else R.string.settings_layout_to_list,
                 ),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(22.dp),
             )
         }

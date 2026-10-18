@@ -5,7 +5,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 
 import com.x500x.cursimple.feature.plugin.ui.AppSearchField
+import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import com.x500x.cursimple.feature.plugin.ui.AppConfirmationDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DeleteOutline
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PushPin
 import androidx.compose.material.icons.rounded.Schedule
@@ -82,12 +85,15 @@ import com.x500x.cursimple.core.kernel.model.parseChecklistLine
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.time.BeijingTime
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.appItemMotion
+import com.x500x.cursimple.feature.plugin.ui.pressFeedback
 import com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import com.x500x.cursimple.feature.schedule.time.LocalAppZone
 import java.time.Duration
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 data class MemoNotebook(
     val key: String?,
@@ -218,6 +224,7 @@ internal fun MemoScreen(
     val notebooks = remember(courses, memos, otherTitle) { buildMemoNotebooks(courses, memos, otherTitle) }
     var selection by remember { mutableStateOf<MemoSelection>(MemoSelection.All) }
     var quickFilter by rememberSaveable { mutableStateOf<MemoQuickFilter?>(null) }
+    val haptics = rememberAppHaptics()
     var searchQuery by rememberSaveable(searchOpen) { mutableStateOf("") }
     val searching = searchOpen && searchQuery.isNotBlank()
     // Editable note or new draft initialized with its course association.
@@ -402,65 +409,75 @@ internal fun MemoScreen(
                 }
                 if (visible.isEmpty()) {
                     item(key = "empty") {
-                        MemoEmptyHint(
-                            text = stringResource(
-                                when {
-                                    searching -> R.string.memo_search_empty
-                                    quickFilter != null && inAll -> R.string.memo_empty_filter
-                                    inAll -> R.string.memo_empty_all
-                                    else -> R.string.memo_empty_notebook
-                                },
-                            ),
-                            modifier = if (searching) Modifier.testTag("memo-search-empty") else Modifier,
-                        )
+                        Box(appItemMotion()) {
+                            Box(Modifier.fillParentMaxWidth().fillParentMaxHeight(0.6f), contentAlignment = Alignment.Center) {
+                                MemoEmptyHint(
+                                    text = stringResource(
+                                        when {
+                                            searching -> R.string.memo_search_empty
+                                            quickFilter != null && inAll -> R.string.memo_empty_filter
+                                            inAll -> R.string.memo_empty_all
+                                            else -> R.string.memo_empty_notebook
+                                        },
+                                    ),
+                                    modifier = if (searching) Modifier.testTag("memo-search-empty") else Modifier,
+                                )
+                            }
+                        }
                     }
                 }
                 items(active, key = { it.id }) { note ->
-                    MemoCard(
-                        note = note,
-                        now = now,
-                        notebook = notebookOf[note.courseKey],
-                        showNotebook = inAll || searching,
-                        onOpen = { editing = note },
-                        onToggleLine = { line ->
-                            if (note.body.lines().getOrNull(line)?.let(::parseChecklistLine)?.first == true) {
-                                update(note.copy(body = toggleChecklistLine(note.body, line)))
-                            } else pendingCompletion = MemoCompletionRequest.from(note, line)
-                        },
-                        onToggleCompleted = { pendingCompletion = MemoCompletionRequest.from(note) },
-                        onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
-                        onShare = { sharingNote = note },
-                        onDelete = { pendingDelete = note },
-                    )
-                }
-                if (done.isNotEmpty()) {
-                    item(key = "done-header") {
-                        Text(
-                            text = pluralStringResource(R.plurals.memo_done_header, done.size, done.size),
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp, start = 4.dp),
-                        )
-                    }
-                    items(done, key = { it.id }) { note ->
+                    Box(appItemMotion()) {
                         MemoCard(
                             note = note,
                             now = now,
                             notebook = notebookOf[note.courseKey],
                             showNotebook = inAll || searching,
                             onOpen = { editing = note },
-                            onToggleLine = null,
-                            onToggleCompleted = { update(note.copy(completed = !note.completed)) },
+                            onToggleLine = { line ->
+                                if (note.body.lines().getOrNull(line)?.let(::parseChecklistLine)?.first == true) {
+                                    update(note.copy(body = toggleChecklistLine(note.body, line)))
+                                } else pendingCompletion = MemoCompletionRequest.from(note, line)
+                            },
+                            onToggleCompleted = { pendingCompletion = MemoCompletionRequest.from(note) },
                             onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
                             onShare = { sharingNote = note },
                             onDelete = { pendingDelete = note },
                         )
                     }
                 }
+                if (done.isNotEmpty()) {
+                    item(key = "done-header") {
+                        Box(appItemMotion()) {
+                            Text(
+                                text = pluralStringResource(R.plurals.memo_done_header, done.size, done.size),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 8.dp, start = 4.dp),
+                            )
+                        }
+                    }
+                    items(done, key = { it.id }) { note ->
+                        Box(appItemMotion()) {
+                            MemoCard(
+                                note = note,
+                                now = now,
+                                notebook = notebookOf[note.courseKey],
+                                showNotebook = inAll || searching,
+                                onOpen = { editing = note },
+                                onToggleLine = null,
+                                onToggleCompleted = { update(note.copy(completed = !note.completed)) },
+                                onTogglePinned = { update(note.copy(pinned = !note.pinned)) },
+                                onShare = { sharingNote = note },
+                                onDelete = { pendingDelete = note },
+                            )
+                        }
+                    }
+                }
             }
         }
         ExtendedFloatingActionButton(
-            onClick = { editing = newDraft() },
+            onClick = { haptics.click(); editing = newDraft() },
             icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
             text = { Text(stringResource(R.string.memo_new)) },
             modifier = Modifier
@@ -536,6 +553,7 @@ private fun MemoStatsRow(
     selected: MemoQuickFilter?,
     onSelect: (MemoQuickFilter?) -> Unit,
 ) {
+    val haptics = rememberAppHaptics()
     val todo = memos.count { !it.completed }
     val today = memos.count { it.dueState(now) == MemoDueState.Today }
     val overdue = memos.count { it.dueState(now) == MemoDueState.Overdue }
@@ -545,7 +563,7 @@ private fun MemoStatsRow(
             value = todo,
             accent = MaterialTheme.colorScheme.primary,
             selected = selected == MemoQuickFilter.Todo,
-            onClick = { onSelect(if (selected == MemoQuickFilter.Todo) null else MemoQuickFilter.Todo) },
+            onClick = { haptics.click(); onSelect(if (selected == MemoQuickFilter.Todo) null else MemoQuickFilter.Todo) },
             modifier = Modifier.weight(1f),
         )
         MemoStatCard(
@@ -553,7 +571,7 @@ private fun MemoStatsRow(
             value = today,
             accent = Color(0xFFE39A2D),
             selected = selected == MemoQuickFilter.Today,
-            onClick = { onSelect(if (selected == MemoQuickFilter.Today) null else MemoQuickFilter.Today) },
+            onClick = { haptics.click(); onSelect(if (selected == MemoQuickFilter.Today) null else MemoQuickFilter.Today) },
             modifier = Modifier.weight(1f),
         )
         MemoStatCard(
@@ -561,7 +579,7 @@ private fun MemoStatsRow(
             value = overdue,
             accent = MaterialTheme.colorScheme.error,
             selected = selected == MemoQuickFilter.Overdue,
-            onClick = { onSelect(if (selected == MemoQuickFilter.Overdue) null else MemoQuickFilter.Overdue) },
+            onClick = { haptics.click(); onSelect(if (selected == MemoQuickFilter.Overdue) null else MemoQuickFilter.Overdue) },
             modifier = Modifier.weight(1f),
         )
     }
@@ -637,21 +655,43 @@ private fun MemoNotebookHeader(notebook: MemoNotebook?, memos: List<MemoNote>) {
 
 @Composable
 private fun MemoEmptyHint(text: String, modifier: Modifier = Modifier) {
-    Box(
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 40.dp),
-        contentAlignment = Alignment.Center,
+            .padding(horizontal = 16.dp, vertical = 24.dp),
     ) {
-        Text(
-            text = text,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            // Balanced breaks keep a lone trailing character off the last line.
-            style = MaterialTheme.typography.bodyMedium.copy(
-                lineBreak = androidx.compose.ui.text.style.LineBreak.Paragraph,
-            ),
-        )
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
+                modifier = Modifier.size(48.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.EditNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp),
+                    )
+                }
+            }
+            Text(
+                text = text,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                // Balanced breaks keep a lone trailing character off the last line.
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    lineBreak = androidx.compose.ui.text.style.LineBreak.Paragraph,
+                ),
+            )
+        }
     }
 }
 
@@ -671,7 +711,9 @@ private fun MemoCard(
 ) {
     val priorityColor = memoPriorityColor(note.priority)
     var menu by remember { mutableStateOf(false) }
+    val press = remember { MutableInteractionSource() }
     Surface(
+        interactionSource = press,
         onClick = onOpen,
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -685,7 +727,8 @@ private fun MemoCard(
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (note.completed) 0.6f else 1f),
+            .alpha(if (note.completed) 0.6f else 1f)
+            .pressFeedback(press),
     ) {
         Row(modifier = Modifier.height(IntrinsicSize.Min)) {
             // Show a priority stripe only when priority is assigned.
@@ -817,6 +860,7 @@ private fun MemoCard(
 
 @Composable
 private fun MemoDoneToggle(done: Boolean, onClick: () -> Unit) {
+    val haptics = rememberAppHaptics()
     val primary = MaterialTheme.colorScheme.primary
     Box(
         modifier = Modifier
@@ -824,7 +868,10 @@ private fun MemoDoneToggle(done: Boolean, onClick: () -> Unit) {
             .clip(CircleShape)
             .background(if (done) primary else Color.Transparent)
             .border(2.dp, if (done) primary else MaterialTheme.colorScheme.outline, CircleShape)
-            .clickable(onClick = onClick),
+            .clickable {
+                if (!done) haptics.confirm() else haptics.click()
+                onClick()
+            },
         contentAlignment = Alignment.Center,
     ) {
         if (done) {

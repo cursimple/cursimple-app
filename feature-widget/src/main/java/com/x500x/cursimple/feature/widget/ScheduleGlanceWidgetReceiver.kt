@@ -168,6 +168,7 @@ open class ScheduleGlanceWidgetReceiver : AppWidgetProvider() {
             views.setViewVisibility(R.id.widget_prev, View.VISIBLE)
             views.setViewVisibility(R.id.widget_next, View.VISIBLE)
             views.setViewVisibility(R.id.widget_reset, if (dayData.manualOffset == 0) View.GONE else View.VISIBLE)
+            views.setTextViewText(R.id.widget_reset, context.getString(R.string.widget_today_reset))
             views.setOnClickPendingIntent(
                 R.id.widget_reset,
                 actionPendingIntent(

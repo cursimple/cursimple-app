@@ -126,7 +126,7 @@ internal object ScheduleWidgetDataSource {
             temporaryScheduleOverrides = userPrefs.temporaryScheduleOverrides,
             holidayCalendar = userPrefs.holidayCalendar,
             events = if (widgetTheme.showEvents) {
-                DataStoreScheduleEventRepository(appContext).eventsFlow.first()
+                DataStoreScheduleEventRepository(appContext, termProfileRepository).eventsFlow.first()
             } else {
                 emptyList()
             },

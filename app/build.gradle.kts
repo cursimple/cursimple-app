@@ -93,6 +93,7 @@ android {
             .getOrElse("")
         require(githubClientId.matches(Regex("[A-Za-z0-9_]*"))) { "无效的 GitHub OAuth Client ID" }
         buildConfigField("String", "GITHUB_OAUTH_CLIENT_ID", "\"$githubClientId\"")
+        resourceConfigurations += setOf("zh", "zh-rTW", "en")
     }
 
     signingConfigs {
@@ -141,7 +142,13 @@ android {
 
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += listOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/DEPENDENCIES",
+                "/META-INF/LICENSE*",
+                "/META-INF/NOTICE*",
+                "/META-INF/*.version",
+            )
         }
     }
 
@@ -155,6 +162,11 @@ android {
     }
 }
 
+composeCompiler {
+    includeSourceInformation = false
+}
+
+
 gradle.taskGraph.whenReady {
     val releasePackagingTasks = allTasks.filter {
         it.project == project && isReleasePackagingTaskName(it.name)
@@ -167,6 +179,7 @@ gradle.taskGraph.whenReady {
 tasks.withType<KotlinJvmCompile>().configureEach {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)
+        freeCompilerArgs.add("-Xannotation-default-target=param-property")
     }
 }
 
@@ -214,4 +227,5 @@ dependencies {
     androidTestImplementation(libs.androidx.webkit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.compose.material.icons.extended)
 }

@@ -470,53 +470,6 @@ internal fun ScheduleEventEditorDialog(
     val weeksMissing = repeat == EventRepeat.Weeks && pickedWeeks.isEmpty()
     val weekLimit = maxOf(maxWeekCount, pickedWeeks.maxOrNull() ?: 0)
 
-    when (val pick = picking) {
-        EventPick.Date -> AlarmDatePickerDialog(
-            initial = date,
-            onDismiss = { picking = null },
-            onPick = {
-                date = it
-                picking = null
-            },
-        )
-        EventPick.RepeatUntil -> AlarmDatePickerDialog(
-            initial = repeatUntil?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: date.plusWeeks(8),
-            onDismiss = { picking = null },
-            onPick = {
-                repeatUntil = it.toString()
-                picking = null
-            },
-        )
-        EventPick.Weeks -> WeekMatrixDialog(
-            maxWeekCount = weekLimit,
-            selected = pickedWeeks.toSet(),
-            onConfirm = {
-                pickedWeeks = it.sorted()
-                picking = null
-            },
-            onDismiss = { picking = null },
-        )
-        EventPick.Start, EventPick.End -> EventTimePickerDialog(
-            initialMinute = (if (pick == EventPick.Start) startMinute else endMinute) ?: 8 * 60,
-            onDismiss = { picking = null },
-            onPick = { minute ->
-                if (pick == EventPick.Start) {
-                    val duration = if (startMinute != null && endMinute != null && endMinute > startMinute) {
-                        endMinute - startMinute
-                    } else {
-                        60
-                    }
-                    start = minuteText(minute)
-                    end = minuteText((minute + duration).coerceAtMost(23 * 60 + 59))
-                } else {
-                    end = minuteText(minute)
-                }
-                picking = null
-            },
-        )
-        null -> Unit
-    }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -527,115 +480,33 @@ internal fun ScheduleEventEditorDialog(
             )
         },
         text = {
-            Column(
+            ScheduleEventEditForm(
+                title = title,
+                onTitleChange = { title = it },
+                date = date,
+                onDateChange = { date = it },
+                start = start,
+                onStartChange = { start = it },
+                end = end,
+                onEndChange = { end = it },
+                location = location,
+                onLocationChange = { location = it },
+                note = note,
+                onNoteChange = { note = it },
+                repeat = repeat,
+                onRepeatChange = { repeat = it },
+                repeatUntil = repeatUntil,
+                onRepeatUntilChange = { repeatUntil = it },
+                pickedWeeks = pickedWeeks,
+                onPickedWeeksChange = { pickedWeeks = it },
+                colorArgb = colorArgb,
+                onColorArgbChange = { colorArgb = it },
+                submitted = submitted,
+                weekAnchor = weekAnchor,
+                weekLimit = weekLimit,
+                locationOptions = locationOptions,
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                OutlinedTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text(stringResource(R.string.schedule_event_field_title)) },
-                    isError = submitted && titleMissing,
-                    supportingText = if (submitted && titleMissing) {
-                        { Text(stringResource(R.string.schedule_event_title_required)) }
-                    } else {
-                        null
-                    },
-                )
-                AlarmEditorSection(stringResource(R.string.schedule_event_section_when)) {
-                    AlarmValueRow(
-                        label = stringResource(R.string.schedule_event_field_date),
-                        value = formatPickerDate(date),
-                        onClick = { picking = EventPick.Date },
-                    )
-                    AlarmValueRow(
-                        label = stringResource(R.string.schedule_event_field_start),
-                        value = start,
-                        onClick = { picking = EventPick.Start },
-                    )
-                    AlarmValueRow(
-                        label = stringResource(R.string.schedule_event_field_end),
-                        value = end,
-                        onClick = { picking = EventPick.End },
-                    )
-                    if (timeInvalid) {
-                        Text(
-                            text = stringResource(R.string.schedule_event_time_invalid),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                    }
-                }
-                AlarmEditorSection(stringResource(R.string.schedule_event_repeat_label)) {
-                    EventRepeatChips(repeat) { mode ->
-                        if (mode == EventRepeat.Weeks && pickedWeeks.isEmpty()) {
-                            pickedWeeks = listOf(resolveTermWeekNumber(weekAnchor, date)).filter { it in 1..weekLimit }
-                        }
-                        repeat = mode
-                    }
-                    when (repeat) {
-                        EventRepeat.Once -> Unit
-                        EventRepeat.Weekly -> {
-                            Text(
-                                stringResource(R.string.schedule_event_repeat_weekly_desc),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            AlarmValueRow(
-                                label = stringResource(R.string.schedule_event_repeat_until_label),
-                                value = repeatUntil
-                                    ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-                                    ?.let { formatPickerDate(it) }
-                                    ?: stringResource(R.string.schedule_event_repeat_until_none),
-                                onClick = { picking = EventPick.RepeatUntil },
-                            )
-                            if (repeatUntil != null) {
-                                Text(
-                                    text = stringResource(R.string.schedule_event_repeat_until_clear),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.clickable { repeatUntil = null },
-                                )
-                            }
-                        }
-                        EventRepeat.Weeks -> {
-                            Text(
-                                stringResource(
-                                    R.string.schedule_event_weeks_hint,
-                                    stringResource(shortWeekdayRes(date.dayOfWeek)),
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            SelectedWeeksRow(weeks = pickedWeeks, onEdit = { picking = EventPick.Weeks })
-                        }
-                    }
-                }
-                CourseReuseTextField(
-                    value = location,
-                    onChange = { location = it },
-                    label = stringResource(R.string.schedule_event_field_location),
-                    options = locationOptions,
-                    tag = "event-location",
-                )
-                OutlinedTextField(
-                    value = note,
-                    onValueChange = { note = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 2,
-                    maxLines = 4,
-                    label = { Text(stringResource(R.string.schedule_event_field_note)) },
-                )
-                AlarmEditorSection(stringResource(R.string.schedule_event_section_color)) {
-                    EventColorRow(
-                        selected = colorArgb,
-                        previewTitle = title,
-                        onSelect = { colorArgb = it },
-                    )
-                }
-            }
+            )
         },
         confirmButton = {
             AppOutlinedButton(onClick = {
@@ -661,7 +532,200 @@ internal fun ScheduleEventEditorDialog(
     )
 }
 
-private enum class EventPick { Date, Start, End, RepeatUntil, Weeks }
+internal enum class EventPick { Date, Start, End, RepeatUntil, Weeks }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ScheduleEventEditForm(
+    title: String,
+    onTitleChange: (String) -> Unit,
+    date: LocalDate,
+    onDateChange: (LocalDate) -> Unit,
+    start: String,
+    onStartChange: (String) -> Unit,
+    end: String,
+    onEndChange: (String) -> Unit,
+    location: String,
+    onLocationChange: (String) -> Unit,
+    note: String,
+    onNoteChange: (String) -> Unit,
+    repeat: EventRepeat,
+    onRepeatChange: (EventRepeat) -> Unit,
+    repeatUntil: String?,
+    onRepeatUntilChange: (String?) -> Unit,
+    pickedWeeks: List<Int>,
+    onPickedWeeksChange: (List<Int>) -> Unit,
+    colorArgb: Long?,
+    onColorArgbChange: (Long?) -> Unit,
+    submitted: Boolean,
+    weekAnchor: LocalDate,
+    weekLimit: Int,
+    locationOptions: List<CourseReuseOption> = emptyList(),
+    modifier: Modifier = Modifier,
+) {
+    var picking by remember { mutableStateOf<EventPick?>(null) }
+    val startMinute = clockMinute(start)
+    val endMinute = clockMinute(end)
+    val titleMissing = title.isBlank()
+    val timeInvalid = startMinute == null || endMinute == null || endMinute <= startMinute
+
+    when (val pick = picking) {
+        EventPick.Date -> AlarmDatePickerDialog(
+            initial = date,
+            onDismiss = { picking = null },
+            onPick = {
+                onDateChange(it)
+                picking = null
+            },
+        )
+        EventPick.RepeatUntil -> AlarmDatePickerDialog(
+            initial = repeatUntil?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: date.plusWeeks(8),
+            onDismiss = { picking = null },
+            onPick = {
+                onRepeatUntilChange(it.toString())
+                picking = null
+            },
+        )
+        EventPick.Weeks -> WeekMatrixDialog(
+            maxWeekCount = weekLimit,
+            selected = pickedWeeks.toSet(),
+            onConfirm = {
+                onPickedWeeksChange(it.sorted())
+                picking = null
+            },
+            onDismiss = { picking = null },
+        )
+        EventPick.Start, EventPick.End -> EventTimePickerDialog(
+            initialMinute = (if (pick == EventPick.Start) startMinute else endMinute) ?: 8 * 60,
+            onDismiss = { picking = null },
+            onPick = { minute ->
+                if (pick == EventPick.Start) {
+                    val duration = if (startMinute != null && endMinute != null && endMinute > startMinute) {
+                        endMinute - startMinute
+                    } else {
+                        60
+                    }
+                    onStartChange(minuteText(minute))
+                    onEndChange(minuteText((minute + duration).coerceAtMost(23 * 60 + 59)))
+                } else {
+                    onEndChange(minuteText(minute))
+                }
+                picking = null
+            },
+        )
+        null -> Unit
+    }
+
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        OutlinedTextField(
+            value = title,
+            onValueChange = onTitleChange,
+            modifier = Modifier.fillMaxWidth().testTag("event-title-field"),
+            singleLine = true,
+            label = { Text(stringResource(R.string.schedule_event_field_title)) },
+            isError = submitted && titleMissing,
+            supportingText = if (submitted && titleMissing) {
+                { Text(stringResource(R.string.schedule_event_title_required)) }
+            } else {
+                null
+            },
+        )
+        AlarmEditorSection(stringResource(R.string.schedule_event_section_when)) {
+            AlarmValueRow(
+                label = stringResource(R.string.schedule_event_field_date),
+                value = formatPickerDate(date),
+                onClick = { picking = EventPick.Date },
+            )
+            AlarmValueRow(
+                label = stringResource(R.string.schedule_event_field_start),
+                value = start,
+                onClick = { picking = EventPick.Start },
+            )
+            AlarmValueRow(
+                label = stringResource(R.string.schedule_event_field_end),
+                value = end,
+                onClick = { picking = EventPick.End },
+            )
+            if (timeInvalid) {
+                Text(
+                    text = stringResource(R.string.schedule_event_time_invalid),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
+        AlarmEditorSection(stringResource(R.string.schedule_event_repeat_label)) {
+            EventRepeatChips(repeat) { mode ->
+                if (mode == EventRepeat.Weeks && pickedWeeks.isEmpty()) {
+                    onPickedWeeksChange(listOf(resolveTermWeekNumber(weekAnchor, date)).filter { it in 1..weekLimit })
+                }
+                onRepeatChange(mode)
+            }
+            when (repeat) {
+                EventRepeat.Once -> Unit
+                EventRepeat.Weekly -> {
+                    Text(
+                        stringResource(R.string.schedule_event_repeat_weekly_desc),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    AlarmValueRow(
+                        label = stringResource(R.string.schedule_event_repeat_until_label),
+                        value = repeatUntil
+                            ?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                            ?.let { formatPickerDate(it) }
+                            ?: stringResource(R.string.schedule_event_repeat_until_none),
+                        onClick = { picking = EventPick.RepeatUntil },
+                    )
+                    if (repeatUntil != null) {
+                        Text(
+                            text = stringResource(R.string.schedule_event_repeat_until_clear),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { onRepeatUntilChange(null) },
+                        )
+                    }
+                }
+                EventRepeat.Weeks -> {
+                    Text(
+                        stringResource(
+                            R.string.schedule_event_weeks_hint,
+                            stringResource(shortWeekdayRes(date.dayOfWeek)),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    SelectedWeeksRow(weeks = pickedWeeks, onEdit = { picking = EventPick.Weeks })
+                }
+            }
+        }
+        CourseReuseTextField(
+            value = location,
+            onChange = onLocationChange,
+            label = stringResource(R.string.schedule_event_field_location),
+            options = locationOptions,
+            tag = "event-location",
+        )
+        OutlinedTextField(
+            value = note,
+            onValueChange = onNoteChange,
+            modifier = Modifier.fillMaxWidth(),
+            minLines = 2,
+            maxLines = 4,
+            label = { Text(stringResource(R.string.schedule_event_field_note)) },
+        )
+        AlarmEditorSection(stringResource(R.string.schedule_event_section_color)) {
+            EventColorRow(
+                selected = colorArgb,
+                previewTitle = title,
+                onSelect = onColorArgbChange,
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

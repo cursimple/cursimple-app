@@ -469,6 +469,10 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setDrawerLayout(layout) }
     }
 
+    fun setBottomBarSize(size: com.x500x.cursimple.core.data.navigation.BottomBarSize) {
+        viewModelScope.launch { repository.setBottomBarSize(size) }
+    }
+
     fun clearAppLayout() {
         viewModelScope.launch { repository.setAppLayout(null) }
     }

@@ -8,6 +8,7 @@ import com.x500x.cursimple.core.kernel.model.DailySchedule
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarEntry
 import com.x500x.cursimple.core.kernel.model.HolidayCalendarSettings
 import com.x500x.cursimple.core.kernel.model.HolidayEntryKind
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverrideType
 import com.x500x.cursimple.core.kernel.model.TermSchedule
@@ -104,6 +105,9 @@ class ScheduleImageLayoutTest {
         holidayCalendar: HolidayCalendarSettings = HolidayCalendarSettings.NONE,
         metrics: ScheduleImageMetrics = ScheduleImageMetrics(),
         allWeeks: Boolean = false,
+        wallpaperMode: Boolean = false,
+        events: List<ScheduleEvent> = emptyList(),
+        options: ScheduleImageOptions = ScheduleImageOptions(),
     ): ScheduleImageLayoutResult = ScheduleImageLayout.compute(
         termName = "2026 秋季学期",
         termStartDate = termStart,
@@ -117,7 +121,12 @@ class ScheduleImageLayoutTest {
         labels = labels,
         metrics = metrics,
         allWeeks = allWeeks,
+        wallpaperMode = wallpaperMode,
+        events = events,
+        options = options,
     )
+
+    private val withDetails = ScheduleImageOptions(showWeeks = false, showLocation = true, showTeacher = true)
 
     @Test
     fun `跨多节的课程块合并成一个高块`() {
@@ -320,6 +329,7 @@ class ScheduleImageLayoutTest {
                     location = "第三教学楼多媒体阶梯教室",
                 ),
             ),
+            options = withDetails,
         )
 
         val block = result.blocks.single()
@@ -337,6 +347,7 @@ class ScheduleImageLayoutTest {
             schedule = scheduleOf(
                 course("c1", "数学", dayOfWeek = 1, startNode = 1, endNode = 2, teacher = "", location = "  "),
             ),
+            options = withDetails,
         )
 
         val block = result.blocks.single()
@@ -889,5 +900,170 @@ class ScheduleImageLayoutTest {
         assertEquals(5, friday.single().startNode)
         assertTrue(result.holidays.none { it.dayOfWeek == 5 })
         assertTrue(result.blocks.none { it.dayOfWeek == 3 && it.title == "大学物理" })
+    }
+
+    @Test
+    fun `壁纸模式是真正的9比16画布且课表从状态栏下铺满到手势条`() {
+        val courses = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2))
+        val normal = layout(schedule = courses)
+        val wallpaper = layout(schedule = courses, wallpaperMode = true)
+
+        assertTrue(wallpaper.wallpaperMode)
+        assertFalse(normal.wallpaperMode)
+        assertEquals(9 * wallpaper.height, 16 * wallpaper.width)
+        // Only the status bar and gesture bar stay clear; there is no blank band for the clock.
+        assertTrue(wallpaper.headerTop <= wallpaper.height * 0.06f)
+        assertTrue(wallpaper.gridRect.bottom >= wallpaper.height * 0.95f)
+        assertTrue(wallpaper.gridRect.bottom <= wallpaper.height * 0.97f)
+        // Seven columns even when only Monday has a class.
+        assertEquals(7, wallpaper.dayHeaders.size)
+        assertEquals(wallpaper.width - wallpaper.metrics.outerPadding, wallpaper.gridRect.right, 1f)
+        // All periods share the stretched height evenly.
+        val heights = wallpaper.rows.map { it.rect.height }
+        assertTrue(heights.all { kotlin.math.abs(it - heights.first()) < 0.01f })
+        assertTrue(heights.first() > normal.rows.first().rect.height)
+    }
+
+    @Test
+    fun `壁纸模式节次很多时仍然留在画布里`() {
+        val slots = (1..14).map { ClassSlotTime(it, it, "%02d:00".format(7 + it), "%02d:45".format(7 + it)) }
+        val result = layout(
+            schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 13, endNode = 14)),
+            timingProfile = profile(*slots.toTypedArray()),
+            wallpaperMode = true,
+        )
+
+        assertEquals(14, result.rows.size)
+        assertTrue(result.gridRect.bottom <= result.height)
+        val block = result.blocks.single()
+        assertTrue(block.rect.bottom <= result.bodyRect.bottom)
+    }
+
+    @Test
+    fun `默认只写课程名和周数，地点与老师不进图`() {
+        val result = layout(
+            schedule = scheduleOf(
+                course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2, weeks = (1..16).toList()),
+            ),
+        )
+
+        val details = result.blocks.single().lines.filter { it.role == ScheduleImageTextRole.Detail }.map { it.text }
+        assertEquals(listOf("1-16 周"), details)
+    }
+
+    @Test
+    fun `可以只导出考试`() {
+        val result = layout(
+            schedule = scheduleOf(
+                course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2),
+                course("e1", "期中考试", dayOfWeek = 2, startNode = 3, endNode = 4, category = CourseCategory.Exam),
+            ),
+            options = ScheduleImageOptions(showCourses = false),
+        )
+
+        assertEquals(listOf("期中考试"), result.blocks.map { it.title })
+    }
+
+    @Test
+    fun `事务默认不进图，打开后按时间放进对应节次`() {
+        val courses = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2))
+        val meeting = ScheduleEvent("ev1", "组会", date = termStart.plusDays(1).toString(), startTime = "10:30", endTime = "11:00")
+
+        assertTrue(layout(schedule = courses, events = listOf(meeting)).blocks.none { it.isEvent })
+
+        val shown = layout(schedule = courses, events = listOf(meeting), options = ScheduleImageOptions(showEvents = true))
+        val block = shown.blocks.single { it.isEvent }
+        assertEquals(2, block.dayOfWeek)
+        assertEquals("3-4", shown.rows[block.rowStart].nodeLabel)
+        assertTrue(block.lines.any { it.text == "10:30-11:00" })
+        assertEquals(4, shown.rows.size)
+    }
+
+    @Test
+    fun `课外时间的事务插入单独一行`() {
+        val lunch = ScheduleEvent("ev1", "社团", date = termStart.plusDays(2).toString(), startTime = "12:10", endTime = "13:00")
+        val result = layout(
+            schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 5, endNode = 6)),
+            events = listOf(lunch),
+            options = ScheduleImageOptions(showEvents = true),
+        )
+
+        assertEquals(5, result.rows.size)
+        val band = result.rows.single { it.isGap }
+        assertEquals(listOf("1-2", "3-4", "", "5-6", "7-8"), result.rows.map { it.nodeLabel })
+        assertEquals("12:10", band.startTimeLabel)
+        val block = result.blocks.single { it.isEvent }
+        assertEquals(band.rect.top, block.rect.top - result.metrics.blockGap, 0.01f)
+        // The course after the band still sits in its own period row.
+        val course = result.blocks.single { !it.isEvent }
+        assertEquals("5-6", result.rows[course.rowStart].nodeLabel)
+    }
+
+    @Test
+    fun `全部周的事务按星期归位并标出发生的周`() {
+        val weekly = ScheduleEvent(
+            "ev1", "组会", date = termStart.plusDays(2).toString(), startTime = "10:30", endTime = "11:00",
+            weekDates = listOf(termStart.plusDays(2), termStart.plusDays(9), termStart.plusDays(23)).map { it.toString() },
+        )
+        val result = layout(
+            schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2)),
+            events = listOf(weekly),
+            allWeeks = true,
+            options = ScheduleImageOptions(showEvents = true),
+        )
+
+        val block = result.blocks.single { it.isEvent }
+        assertEquals(3, block.dayOfWeek)
+        assertTrue(block.lines.any { it.text == "1-2, 4 周" })
+    }
+
+    @Test
+    fun `可以隐藏周末、日期与节次时间`() {
+        val result = layout(
+            schedule = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2)),
+            options = ScheduleImageOptions(days = (1..5).toSet(), showDates = false, showPeriodTimes = false),
+        )
+
+        assertEquals(listOf(1, 2, 3, 4, 5), result.dayHeaders.map { it.dayOfWeek })
+        assertTrue(result.dayHeaders.all { it.dateLabel.isEmpty() })
+        assertEquals("第 1 周", result.subtitle)
+        assertTrue(result.rows.all { it.startTimeLabel.isEmpty() && it.endTimeLabel.isEmpty() })
+        assertTrue(result.nodeColumnRect.width < ScheduleImageMetrics().nodeColumnWidth)
+    }
+
+    @Test
+    fun `壁纸模式的课程名写全而不是省略`() {
+        val title = "马克思主义基本原理概论"
+        val result = layout(
+            schedule = scheduleOf(course("c1", title, dayOfWeek = 1, startNode = 1, endNode = 2)),
+            wallpaperMode = true,
+        )
+
+        val lines = result.blocks.single().lines.filter { it.role == ScheduleImageTextRole.Title }
+        assertEquals(title, lines.joinToString("") { it.text })
+    }
+
+    @Test
+    fun `壁纸模式缩小字号也不把英文单词拆开`() {
+        val result = layout(
+            schedule = scheduleOf(course("c1", "Programming", dayOfWeek = 1, startNode = 1, endNode = 2)),
+            wallpaperMode = true,
+        )
+
+        val lines = result.blocks.single().lines.filter { it.role == ScheduleImageTextRole.Title }
+        assertEquals(listOf("Programming"), lines.map { it.text })
+    }
+
+    @Test
+    fun `只导出选中的几天且没课的天也保留`() {
+        val courses = scheduleOf(course("c1", "高等数学", dayOfWeek = 1, startNode = 1, endNode = 2))
+        val picked = layout(schedule = courses, options = ScheduleImageOptions(days = setOf(3, 1)))
+        assertEquals(listOf(1, 3), picked.dayHeaders.map { it.dayOfWeek })
+
+        val single = layout(schedule = courses, wallpaperMode = true, options = ScheduleImageOptions(days = setOf(1)))
+        assertEquals(listOf(1), single.dayHeaders.map { it.dayOfWeek })
+        val week = layout(schedule = courses, wallpaperMode = true)
+        // A lone column gets wider blocks and larger text than the seven-day page.
+        assertTrue(single.blocks.single().titleFontSize > week.blocks.single().titleFontSize)
     }
 }

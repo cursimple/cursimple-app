@@ -1,6 +1,7 @@
 package com.x500x.cursimple.feature.schedule
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import android.content.Context
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -34,16 +35,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
+import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.foundation.verticalScroll
@@ -143,6 +149,7 @@ import com.x500x.cursimple.core.kernel.model.isCourseMovedAwayFrom
 import com.x500x.cursimple.core.kernel.model.isCourseMovedTo
 import com.x500x.cursimple.core.kernel.model.locationForWeek
 import com.x500x.cursimple.core.kernel.model.teacherForWeek
+import com.x500x.cursimple.core.kernel.model.titleForWeek
 import com.x500x.cursimple.core.kernel.model.coursesMovedToWithOrigin
 import com.x500x.cursimple.core.kernel.model.visibleScheduleCourses
 import com.x500x.cursimple.core.kernel.model.weekdayNameRes
@@ -392,7 +399,7 @@ fun ScheduleScreen(
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showBulkReminder by rememberSaveable { mutableStateOf(false) }
     var actionSheetRequest by remember { mutableStateOf<CourseActionRequest?>(null) }
-    var quickAddRequest by remember { mutableStateOf<CourseTimeSlot?>(null) }
+    var quickAddRequest by remember { mutableStateOf<QuickAddPositionRequest?>(null) }
     var editRequest by remember { mutableStateOf<CourseItem?>(null) }
     var moveRequest by remember { mutableStateOf<CourseItem?>(null) }
     var daySheetDate by remember { mutableStateOf<LocalDate?>(null) }
@@ -471,7 +478,9 @@ fun ScheduleScreen(
             if (!state.initialized) {
                 ScheduleInitializingState(modifier = Modifier.fillMaxSize())
             } else {
+                val haptics = rememberAppHaptics()
                 val onCellClickHandler: (List<CourseItem>, LocalDate) -> Unit = { coursesAtCell, targetDate ->
+                    haptics.click()
                     if (multiSelectMode) {
                         val next = toggleCellSelection(selectedIds, coursesAtCell)
                         if (next != selectedIds) {
@@ -484,6 +493,7 @@ fun ScheduleScreen(
                 }
                 // Long-press adds to active multiselection, otherwise opens course actions.
                 val onLongClickHandler: (CourseItem, LocalDate) -> Unit = { displayedCourse, displayedDate ->
+                    haptics.heavy()
                     val id = displayedCourse.id
                     if (multiSelectMode) {
                         selectedIds = selectedIds + id
@@ -493,8 +503,11 @@ fun ScheduleScreen(
                             multiSelectMode = true
                             selectedIds = selectedIds + id
                         } else {
-                            actionSheetRequest = CourseActionRequest(target,
-                                quickAddPosition(displayedCourse, displayedDate, temporaryScheduleOverrides, holidayCalendar))
+                            actionSheetRequest = CourseActionRequest(
+                                target,
+                                quickAddPosition(displayedCourse, displayedDate, temporaryScheduleOverrides, holidayCalendar),
+                                displayedDate,
+                            )
                         }
                     }
                 }
@@ -556,6 +569,8 @@ fun ScheduleScreen(
                             onEventClick = ::openEvent,
                             onEventLongClick = { event, _ -> editEvent(event) },
                             onEventGroupClick = { events, date -> eventGroup = events to date },
+                            onSaveEvent = onSaveEvent,
+                            termWeekCount = editableMaxWeek,
                         )
 
                         ScheduleViewMode.Day -> Column(Modifier.fillMaxSize()) {
@@ -768,7 +783,7 @@ fun ScheduleScreen(
                 position = request.position,
                 onAddAtPosition = {
                     actionSheetRequest = null
-                    quickAddRequest = request.position
+                    quickAddRequest = QuickAddPositionRequest(request.position, request.date)
                 },
                 onDismiss = { actionSheetRequest = null },
                 onEdit = {
@@ -799,20 +814,26 @@ fun ScheduleScreen(
             )
         }
 
-        quickAddRequest?.let { position ->
+        quickAddRequest?.let { req ->
             QuickAddCourseDialog(
-                dayOfWeek = position.dayOfWeek,
-                startNode = position.startNode,
-                endNode = position.endNode,
+                dayOfWeek = req.position.dayOfWeek,
+                startNode = req.position.startNode,
+                endNode = req.position.endNode,
                 maxWeekCount = editableMaxWeek,
                 existingCourses = allVisibleCourses,
                 slotLabel = state.timingProfile?.slotTimes?.firstOrNull {
-                    it.startNode == position.startNode && it.endNode == position.endNode
+                    it.startNode == req.position.startNode && it.endNode == req.position.endNode
                 }?.label?.takeIf { it.isNotBlank() },
                 slotTimes = state.timingProfile?.slotTimes.orEmpty(),
+                defaultDate = req.date,
+                termStartDate = overrideTermStart,
                 onDismiss = { quickAddRequest = null },
                 onConfirm = { added ->
                     onAddManualCourse(added)
+                    quickAddRequest = null
+                },
+                onConfirmEvent = { addedEvent ->
+                    onSaveEvent(addedEvent)
                     quickAddRequest = null
                 },
             )
@@ -1066,6 +1087,7 @@ fun ScheduleAppearancePreview(
                                 val courseHeight = (slotHeight * placement.rowSpan) - 3.dp
                                 CourseBlock(
                                     course = course,
+                                    displayTitle = course.titleForWeek(mainEntry.sourceWeekIndex),
                                     displayLocation = course.locationForWeek(mainEntry.sourceWeekIndex),
                                     badges = emptyList(),
                                     hasReminder = false,
@@ -1134,6 +1156,8 @@ private fun WeeklyScheduleSection(
     onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     onEventGroupClick: (List<ScheduleEvent>, LocalDate) -> Unit = { _, _ -> },
+    onSaveEvent: (ScheduleEvent) -> Unit = {},
+    termWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     modifier: Modifier = Modifier,
 ) {
     val slotContext = LocalContext.current
@@ -1269,8 +1293,8 @@ private fun WeeklyScheduleSection(
                     // Disable week paging while one-finger dragging a zoomed timetable.
                     userScrollEnabled = !zoomed,
                 ) { page ->
-                    if (addPageEnabled && page == pageCount - 1) {
-                        AddWeekPage(onClick = { onAddWeek?.invoke() })
+                    if (onAddWeek != null && page == pageCount - 1) {
+                        AddWeekPage(onClick = onAddWeek)
                         return@HorizontalPager
                     }
                     val pageOffset = page + safeMin
@@ -1342,6 +1366,7 @@ private fun WeeklyScheduleSection(
                             ) { stickyOffset, boxZoomed ->
                             ScheduleGrid(
                                 modifier = Modifier.fillMaxSize(),
+                                isCurrentPage = page == pagerState.currentPage,
                                 stickyOffset = stickyOffset,
                                 pinnedHeaders = boxZoomed,
                                 week = pageWeek,
@@ -1374,6 +1399,9 @@ private fun WeeklyScheduleSection(
                                 onEventClick = onEventClick,
                                 onEventLongClick = onEventLongClick,
                                 onEventGroupClick = onEventGroupClick,
+                                onSaveEvent = onSaveEvent,
+                                overrideTermStart = overrideTermStart,
+                                termWeekCount = termWeekCount,
                             )
                             }
                         }
@@ -1975,7 +2003,7 @@ private fun DayRow(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
-                            text = course.title,
+                            text = course.titleForWeek(displayWeek),
                             color = titleTextColor,
                             fontSize = titleTextSize.sp,
                             lineHeight = (titleTextSize + 2).sp,
@@ -2280,14 +2308,35 @@ internal fun Context.emptyScheduleHintText(hint: EmptyScheduleHint): String = wh
 
 @Composable
 private fun EmptyScheduleHintRow(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Info,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
 }
 
 internal data class ScheduleEmptyStateText(
@@ -2373,26 +2422,36 @@ private fun EmptyWeekState(
             holidayLabel = holidayLabel,
         ),
     )
+    // Fills what is left of the page so the message sits in the middle, not under the header.
     Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 32.dp),
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
         )
         Text(
             text = subtitle,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
 }
+
+private data class GridAddRequest(
+    val dayOfWeek: Int,
+    val startNode: Int,
+    val endNode: Int,
+    val date: LocalDate? = null,
+)
 
 @Composable
 private fun ScheduleGrid(
@@ -2426,8 +2485,12 @@ private fun ScheduleGrid(
     onEventClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     onEventLongClick: (ScheduleEvent, LocalDate) -> Unit = { _, _ -> },
     onEventGroupClick: (List<ScheduleEvent>, LocalDate) -> Unit = { _, _ -> },
+    onSaveEvent: (ScheduleEvent) -> Unit = {},
+    overrideTermStart: LocalDate? = null,
+    termWeekCount: Int = DEFAULT_TERM_WEEK_COUNT,
     stickyOffset: () -> androidx.compose.ui.unit.IntOffset = { androidx.compose.ui.unit.IntOffset.Zero },
     pinnedHeaders: Boolean = false,
+    isCurrentPage: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val cellGroups = remember(activeEntries) {
@@ -2459,12 +2522,13 @@ private fun ScheduleGrid(
     val rows = timeline.rows
 
     // Keep quick-add hint state at grid scope; expire it after 2.5 seconds.
+    val haptics = rememberAppHaptics()
     var hintCell by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Pair<Int, Int>?>(null) }
     var longPressPick by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<Pair<List<CourseItem>, LocalDate>?>(null)
     }
     var addRequest by androidx.compose.runtime.remember {
-        androidx.compose.runtime.mutableStateOf<Triple<Int, Int, Int>?>(null)
+        androidx.compose.runtime.mutableStateOf<GridAddRequest?>(null)
     }
     val occupiedCells = androidx.compose.runtime.remember(cellGroups) {
         buildSet {
@@ -2521,84 +2585,75 @@ private fun ScheduleGrid(
             },
         )
         val totalWidth = maxWidth
+        val gridAvailable = totalWidth - timeColumnWidth
+        // Keep ordinary days at least two title characters wide when crowded days widen.
+        val titleEmDp = scheduleTextStyle.courseTextSizeSp * headerDensity.fontScale
+        val minColumnDp = maxOf(MIN_DAY_COLUMN_DP, titleEmDp * 2.1f + CARD_TEXT_INSET_DP)
         // Measure whether the complete period-and-event timeline fits; otherwise permit vertical scrolling.
-        val fitSlotHeight = if (slots.isEmpty()) {
-            MIN_FIT_SLOT_HEIGHT
-        } else {
-            (maxHeight - dayHeaderMinHeight) / timeline.totalUnits
+        val periodFit = resolveScheduleGridFit(
+            rowFitMode = scheduleDisplay.rowFitMode,
+            slotCount = slots.size,
+            timelineTotalUnits = timeline.totalUnits,
+            availableHeight = maxHeight,
+            dayHeaderHeight = dayHeaderMinHeight,
+            defaultCardHeight = scheduleCardStyle.courseCardHeightDp.dp,
+            hasInsertedRows = timeline.hasInsertedRows,
+        )
+        val fitLayout = remember(cellGroups, dayEvents, timeline, periodFit.slotHeight, dayColumnCount, gridAvailable, minColumnDp) {
+            layoutDayLanes(cellGroups, dayEvents, timeline, EVENT_MIN_HEIGHT / periodFit.slotHeight, dayColumnCount, gridAvailable.value, minColumnDp)
         }
-        val fitRequested = scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit && slots.isNotEmpty()
-        val fitMode = fitRequested && fitSlotHeight >= MIN_FIT_SLOT_HEIGHT
-        // Keep the minimum compact row height when inserted event bands alone require scrolling.
-        val squeezedByEvents = fitRequested && !fitMode && timeline.hasInsertedRows &&
-            (maxHeight - dayHeaderMinHeight) / slots.size >= MIN_FIT_SLOT_HEIGHT
-        val slotHeight = when {
-            fitMode -> fitSlotHeight
-            squeezedByEvents -> MIN_FIT_SLOT_HEIGHT
-            else -> scheduleCardStyle.courseCardHeightDp.dp
+        // Rows that only fit by squeezing course names into slivers count as overflow too.
+        val titleSlotHeight = remember(fitLayout, scheduleTextStyle, headerDensity.fontScale) {
+            titleSlotHeightNeeded(
+                cellGroups = cellGroups,
+                layout = fitLayout,
+                timeline = timeline,
+                minEventUnits = EVENT_MIN_HEIGHT / periodFit.slotHeight,
+                unitWidthDp = gridAvailable.value / fitLayout.columns.totalUnits,
+                titleSizeSp = scheduleTextStyle.courseTextSizeSp,
+                autoShrink = scheduleTextStyle.autoShrinkLongTitles,
+                fontScale = headerDensity.fontScale,
+            ).dp
         }
+        val fitResolution = resolveScheduleGridFit(
+            rowFitMode = scheduleDisplay.rowFitMode,
+            slotCount = slots.size,
+            timelineTotalUnits = timeline.totalUnits,
+            availableHeight = maxHeight,
+            dayHeaderHeight = dayHeaderMinHeight,
+            defaultCardHeight = scheduleCardStyle.courseCardHeightDp.dp,
+            hasInsertedRows = timeline.hasInsertedRows,
+            titleSlotHeight = titleSlotHeight,
+        )
+        val fitMode = fitResolution.fitMode
+        val isOverflowing = fitResolution.isOverflowing
+        val slotHeight = fitResolution.slotHeight
         val gridHeight = slotHeight * timeline.totalUnits
 
+        var showOverflowNotice by remember { mutableStateOf(false) }
+        // Auto-scroll is temporary: the saved preference stays, so deleting extra items restores one page.
+        androidx.compose.runtime.LaunchedEffect(isOverflowing, isCurrentPage) {
+            if (!isCurrentPage) return@LaunchedEffect
+            ScheduleOverflowState.update(isOverflowing)
+            showOverflowNotice = false
+            if (isOverflowing) {
+                showOverflowNotice = true
+                kotlinx.coroutines.delay(4500)
+                showOverflowNotice = false
+            }
+        }
+
         val minEventUnits = EVENT_MIN_HEIGHT / slotHeight
-        val dayEventGroups = remember(dayEvents, timeline, minEventUnits) {
-            dayEvents.map { list ->
-                val placed = list.map { event ->
-                    val top = timeline.yOf(event.startMinute ?: 0)
-                    val bottom = maxOf(timeline.yOf(event.endMinute ?: 0), top + minEventUnits)
-                        .coerceAtMost(timeline.totalUnits)
-                    Triple(event, top, bottom)
-                }
-                clusterByOverlap(placed, { it.second }, { it.third }).map { group ->
-                    PlacedEventGroup(
-                        events = group.map { it.first },
-                        top = group.minOf { it.second },
-                        bottom = group.maxOf { it.third },
-                    )
-                }
+        val dayLayout = remember(fitLayout, slotHeight) {
+            if (slotHeight == periodFit.slotHeight) {
+                fitLayout
+            } else {
+                layoutDayLanes(cellGroups, dayEvents, timeline, minEventUnits, dayColumnCount, gridAvailable.value, minColumnDp)
             }
         }
-        val lanes = remember(cellGroups, dayEventGroups, timeline, minEventUnits) {
-            val items = cellGroups.map { (entry, _, _) ->
-                val p = entry.placement
-                val clock = entry.course.clockRange()
-                val (top, bottom) = timeline.courseSpan(p.rowIndex, p.rowSpan, clock, minEventUnits)
-                LaneItem<Any>(
-                    key = Triple(p.dayIndex, p.rowIndex, clock),
-                    top = top,
-                    bottom = bottom,
-                    order = 0,
-                ) to p.dayIndex
-            } + dayEventGroups.flatMapIndexed { dayIndex, groups ->
-                groups.map { group ->
-                    LaneItem<Any>(
-                        key = EventLaneKey(dayIndex, group.key),
-                        top = group.top,
-                        bottom = group.bottom,
-                        order = 1,
-                    ) to dayIndex
-                }
-            }
-            items.groupBy({ it.second }, { it.first })
-                .values
-                .fold(emptyMap<Any, LanePosition>()) { acc, day -> acc + assignLanes(day) }
-        }
-        val columns = remember(lanes, dayColumnCount) {
-            val laneCounts = IntArray(dayColumnCount) { 1 }
-            lanes.forEach { (key, position) ->
-                val day = when (key) {
-                    is EventLaneKey -> key.dayIndex
-                    is Triple<*, *, *> -> key.first as? Int
-                    else -> null
-                } ?: return@forEach
-                if (day in laneCounts.indices) laneCounts[day] = maxOf(laneCounts[day], position.laneCount)
-            }
-            DayColumns.of(laneCounts.toList())
-        }
-        // Redistribute expanded columns only while every day remains within the viewport.
-        val gridAvailable = totalWidth - timeColumnWidth
-        val fittedColumns = remember(columns, gridAvailable) {
-            columns.fitInto(availableDp = gridAvailable.value, minUnitDp = MIN_DAY_COLUMN_DP)
-        }
+        val dayEventGroups = dayLayout.dayEventGroups
+        val lanes = dayLayout.lanes
+        val fittedColumns = dayLayout.columns
         val dayColumnWidth = (gridAvailable / fittedColumns.totalUnits).coerceAtLeast(MIN_DAY_COLUMN_DP.dp)
         val gridWidth = dayColumnWidth * fittedColumns.totalUnits
         val columnX: (Int) -> Dp = { index -> dayColumnWidth * fittedColumns.start(index) }
@@ -2746,6 +2801,7 @@ private fun ScheduleGrid(
                                         val slot = timeline.slotIndexAt(offset.y / slotHeightPx)
                                             ?: return@detectTapGestures
                                         if ((day to slot) !in occupiedCells) {
+                                            haptics.tick()
                                             hintCell = day to slot
                                         }
                                     },
@@ -2861,6 +2917,7 @@ private fun ScheduleGrid(
                             val isDragging = course.id == draggingCourseId
                             CourseBlock(
                                 course = course,
+                                displayTitle = course.titleForWeek(mainEntry.sourceWeekIndex),
                                 displayLocation = course.locationForWeek(mainEntry.sourceWeekIndex),
                                 badges = badgesForCourse(
                                     course,
@@ -2904,6 +2961,7 @@ private fun ScheduleGrid(
                                     !multiSelectMode &&
                                     draggingCourseId == null,
                                 onResizeStart = { edge ->
+                                    haptics.heavy()
                                     resizingCourseId = course.id
                                     resizingEdge = edge
                                     resizeOffsetY = 0f
@@ -2925,13 +2983,19 @@ private fun ScheduleGrid(
                                         occupiedByOthers = occupiedByOthers,
                                     )
                                     when {
-                                        !target.isValid -> onMoveBlocked()
+                                        !target.isValid -> {
+                                            haptics.heavy()
+                                            onMoveBlocked()
+                                        }
                                         !target.isResizeFrom(placement.rowIndex, placement.rowSpan) -> Unit
                                         else -> {
                                             val dayOfWeek = columnDayOfWeeks.getOrNull(placement.dayIndex)
                                             if (dayOfWeek != null) {
                                                 resizedCourseTime(target, dayOfWeek, slots)
-                                                    ?.let { time -> onResizeCourse(course.id, time) }
+                                                    ?.let { time ->
+                                                        haptics.confirm()
+                                                        onResizeCourse(course.id, time)
+                                                    }
                                             }
                                         }
                                     }
@@ -2939,6 +3003,7 @@ private fun ScheduleGrid(
                                 dragging = isDragging,
                                 dragPixelOffset = if (isDragging) dragOffset else androidx.compose.ui.geometry.Offset.Zero,
                                 onDragStart = {
+                                    haptics.heavy()
                                     draggingCourseId = course.id
                                     dragOffset = androidx.compose.ui.geometry.Offset.Zero
                                 },
@@ -2963,14 +3028,20 @@ private fun ScheduleGrid(
                                         kotlin.math.abs(settled.y) > slotHeightPx / 2f
                                     when {
                                         !movedFar -> onCourseLongClick(course, columnDate)
-                                        !target.isValid -> onMoveBlocked()
+                                        !target.isValid -> {
+                                            haptics.heavy()
+                                            onMoveBlocked()
+                                        }
                                         !target.isMoveFrom(placement.dayIndex, placement.rowIndex) -> Unit
                                         else -> movedCourseTime(
                                             target = target,
                                             rowSpan = placement.rowSpan,
                                             columnDayOfWeeks = columnDayOfWeeks,
                                             slots = slots,
-                                        )?.let { time -> onMoveCourse(course.id, time) }
+                                        )?.let { time ->
+                                            haptics.confirm()
+                                            onMoveCourse(course.id, time)
+                                        }
                                     }
                                 },
                             )
@@ -3049,8 +3120,10 @@ private fun ScheduleGrid(
                                             modifier = Modifier
                                                 .size(36.dp)
                                                 .clickable(enabled = hintCell != null) {
+                                                    haptics.click()
                                                     val dayOfWeek = columnDayOfWeeks.getOrElse(day) { day + 1 }
-                                                    addRequest = Triple(dayOfWeek, slot.startNode, slot.endNode)
+                                                    val targetDate = visibleDays.firstOrNull { it.dayOfWeek == dayOfWeek }?.date
+                                                    addRequest = GridAddRequest(dayOfWeek, slot.startNode, slot.endNode, targetDate)
                                                     hintCell = null
                                                 },
                                         ) {
@@ -3085,6 +3158,43 @@ private fun ScheduleGrid(
             )
         }
 
+        AnimatedVisibility(
+            visible = showOverflowNotice,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut() + slideOutVertically { -it },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = dayHeaderMinHeight + 8.dp)
+                .zIndex(20f),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.92f),
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                shadowElevation = 6.dp,
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .testTag("ScheduleOverflowNotice"),
+                onClick = { showOverflowNotice = false },
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.SwapVert,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.schedule_overflow_auto_scroll_notice),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+        }
+
         longPressPick?.let { (courses, date) ->
             OverlappingCoursePickerDialog(
                 courses = courses,
@@ -3096,18 +3206,25 @@ private fun ScheduleGrid(
             )
         }
 
-        addRequest?.let { (day, startNode, endNode) ->
+        addRequest?.let { req ->
             QuickAddCourseDialog(
-                dayOfWeek = day,
-                startNode = startNode,
-                endNode = endNode,
+                dayOfWeek = req.dayOfWeek,
+                startNode = req.startNode,
+                endNode = req.endNode,
                 existingCourses = existingCourses,
-                slotLabel = slots.firstOrNull { it.startNode == startNode && it.endNode == endNode }
+                maxWeekCount = termWeekCount,
+                slotLabel = slots.firstOrNull { it.startNode == req.startNode && it.endNode == req.endNode }
                     ?.label?.takeIf { it.isNotBlank() },
                 slotTimes = timingProfile?.slotTimes.orEmpty(),
+                defaultDate = req.date,
+                termStartDate = overrideTermStart,
                 onDismiss = { addRequest = null },
                 onConfirm = { course ->
                     onAddManualCourse(course)
+                    addRequest = null
+                },
+                onConfirmEvent = { event ->
+                    onSaveEvent(event)
                     addRequest = null
                 },
             )
@@ -3168,7 +3285,176 @@ private data class PlacedEventGroup(
     val key: String get() = events.first().id
 }
 
-private val MIN_FIT_SLOT_HEIGHT = 52.dp
+/** Card chrome around the title: the 2dp accent bar, 3dp padding each side, the 2dp lane gap and glyph slack. */
+private const val CARD_TEXT_INSET_DP = 12f
+
+/** One page is kept while every card shows at least this much of its title (about six CJK characters). */
+private const val READABLE_TITLE_EMS = 6f
+
+/** Whether the visible timetable has temporarily switched from one page to vertical scrolling. */
+object ScheduleOverflowState {
+    private val state = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val autoScrolling: kotlinx.coroutines.flow.StateFlow<Boolean> = state
+
+    internal fun update(overflowing: Boolean) {
+        state.value = overflowing
+    }
+}
+
+private class DayLaneLayout(
+    val dayEventGroups: List<List<PlacedEventGroup>>,
+    val lanes: Map<Any, LanePosition>,
+    val columns: DayColumns,
+)
+
+/** Place events and courses into per-day lanes and widen crowded days within [availableDp]. */
+private fun layoutDayLanes(
+    cellGroups: List<Triple<CourseRenderEntry, List<CourseItem>, Int>>,
+    dayEvents: List<List<ScheduleEvent>>,
+    timeline: GridTimeline,
+    minEventUnits: Float,
+    dayColumnCount: Int,
+    availableDp: Float,
+    minColumnDp: Float,
+): DayLaneLayout {
+    val dayEventGroups = dayEvents.map { list ->
+        val placed = list.map { event ->
+            val top = timeline.yOf(event.startMinute ?: 0)
+            val bottom = maxOf(timeline.yOf(event.endMinute ?: 0), top + minEventUnits)
+                .coerceAtMost(timeline.totalUnits)
+            Triple(event, top, bottom)
+        }
+        clusterByOverlap(placed, { it.second }, { it.third }).map { group ->
+            PlacedEventGroup(
+                events = group.map { it.first },
+                top = group.minOf { it.second },
+                bottom = group.maxOf { it.third },
+            )
+        }
+    }
+    val items = cellGroups.map { (entry, _, _) ->
+        val p = entry.placement
+        val clock = entry.course.clockRange()
+        val (top, bottom) = timeline.courseSpan(p.rowIndex, p.rowSpan, clock, minEventUnits)
+        LaneItem<Any>(
+            key = Triple(p.dayIndex, p.rowIndex, clock),
+            top = top,
+            bottom = bottom,
+            order = 0,
+        ) to p.dayIndex
+    } + dayEventGroups.flatMapIndexed { dayIndex, groups ->
+        groups.map { group ->
+            LaneItem<Any>(
+                key = EventLaneKey(dayIndex, group.key),
+                top = group.top,
+                bottom = group.bottom,
+                order = 1,
+            ) to dayIndex
+        }
+    }
+    val lanes = items.groupBy({ it.second }, { it.first })
+        .values
+        .fold(emptyMap<Any, LanePosition>()) { acc, day -> acc + assignLanes(day) }
+    val laneCounts = IntArray(dayColumnCount) { 1 }
+    lanes.forEach { (key, position) ->
+        val day = when (key) {
+            is EventLaneKey -> key.dayIndex
+            is Triple<*, *, *> -> key.first as? Int
+            else -> null
+        } ?: return@forEach
+        if (day in laneCounts.indices) laneCounts[day] = maxOf(laneCounts[day], position.laneCount)
+    }
+    // Redistribute expanded columns only while every day remains within the viewport.
+    val columns = DayColumns.of(laneCounts.toList()).fitInto(availableDp = availableDp, minUnitDp = minColumnDp)
+    return DayLaneLayout(dayEventGroups, lanes, columns)
+}
+
+/** Tallest per-period height any course card needs to show the head of its title at its lane width. */
+private fun titleSlotHeightNeeded(
+    cellGroups: List<Triple<CourseRenderEntry, List<CourseItem>, Int>>,
+    layout: DayLaneLayout,
+    timeline: GridTimeline,
+    minEventUnits: Float,
+    unitWidthDp: Float,
+    titleSizeSp: Int,
+    autoShrink: Boolean,
+    fontScale: Float,
+): Float = cellGroups.maxOfOrNull { (entry, _, count) ->
+    val p = entry.placement
+    val clock = entry.course.clockRange()
+    val (top, bottom) = timeline.courseSpan(p.rowIndex, p.rowSpan, clock, minEventUnits)
+    val lane = layout.lanes[Triple(p.dayIndex, p.rowIndex, clock)] ?: LanePosition(0, 1)
+    val cardWidth = unitWidthDp * layout.columns.width(p.dayIndex) * laneFraction(lane).second
+    val title = entry.course.titleForWeek(entry.sourceWeekIndex)
+    val sizeSp = courseTitleFontSizeSp(titleSizeSp, title.length, autoShrink)
+    val extraDp = (if (entry.inactive) 10f else 0f) + (if (count > 1) 13f else 0f)
+    courseTitleHeightDp(title, cardWidth, sizeSp * fontScale, (sizeSp + 1f) * fontScale, extraDp, READABLE_TITLE_EMS) /
+        (bottom - top).coerceAtLeast(0.25f)
+} ?: 0f
+
+/** Approximate wrapped height of the first [maxEms] of a title: CJK takes a full em, Latin about 0.58 em. */
+internal fun courseTitleHeightDp(
+    title: String,
+    cardWidthDp: Float,
+    emDp: Float,
+    lineHeightDp: Float,
+    extraDp: Float = 0f,
+    maxEms: Float = Float.MAX_VALUE,
+): Float {
+    if (emDp <= 0f) return 0f
+    val perLine = kotlin.math.floor((cardWidthDp - CARD_TEXT_INSET_DP) / emDp).coerceAtLeast(1f)
+    val ems = title.trim().sumOf { if (it.code >= 0x2E80) 1.0 else 0.58 }.toFloat().coerceAtMost(maxEms)
+    val lines = kotlin.math.ceil(ems / perLine).coerceAtLeast(1f)
+    return lines * lineHeightDp + 9f + extraDp
+}
+
+internal val MIN_FIT_SLOT_HEIGHT = 52.dp
+
+internal data class ScheduleGridFitResolution(
+    val fitMode: Boolean,
+    val isOverflowing: Boolean,
+    val slotHeight: Dp,
+)
+
+internal fun resolveScheduleGridFit(
+    rowFitMode: ScheduleRowFitMode,
+    slotCount: Int,
+    timelineTotalUnits: Float,
+    availableHeight: Dp,
+    dayHeaderHeight: Dp,
+    defaultCardHeight: Dp,
+    hasInsertedRows: Boolean = false,
+    minFitSlotHeight: Dp = MIN_FIT_SLOT_HEIGHT,
+    titleSlotHeight: Dp = 0.dp,
+): ScheduleGridFitResolution {
+    if (slotCount == 0 || timelineTotalUnits <= 0f) {
+        return ScheduleGridFitResolution(
+            fitMode = false,
+            isOverflowing = false,
+            slotHeight = defaultCardHeight,
+        )
+    }
+    val fitSlotHeight = (availableHeight - dayHeaderHeight) / timelineTotalUnits
+    val fitRequested = rowFitMode == ScheduleRowFitMode.Fit
+    val periodsFit = fitSlotHeight >= minFitSlotHeight
+    // Rows tall enough for the periods may still crush course names into a sliver.
+    val titlesSqueezed = fitRequested && periodsFit && fitSlotHeight < titleSlotHeight
+    val fitMode = fitRequested && periodsFit && !titlesSqueezed
+    val isOverflowing = fitRequested && !fitMode
+    val squeezedByEvents = fitRequested && !periodsFit && hasInsertedRows &&
+        (availableHeight - dayHeaderHeight) / slotCount >= minFitSlotHeight
+    val slotHeight = when {
+        fitMode -> fitSlotHeight
+        titlesSqueezed -> maxOf(defaultCardHeight, titleSlotHeight).coerceAtMost(maxOf(defaultCardHeight, fitSlotHeight) * 2)
+        squeezedByEvents -> minFitSlotHeight
+        else -> defaultCardHeight
+    }
+    return ScheduleGridFitResolution(
+        fitMode = fitMode,
+        isOverflowing = isOverflowing,
+        slotHeight = slotHeight,
+    )
+}
 
 private val GRID_BOTTOM_SPACING = 28.dp
 
@@ -3432,8 +3718,16 @@ private fun DayHeader(
 ) {
     val darkTheme = isDarkColorScheme()
     val headerColor = scheduleTextStyle.resolvedHeaderTextColor(darkTheme, customColorsAdaptToTheme)
-    val todayContainer = scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme, customColorsAdaptToTheme)
-    val todayContent = readableContentColor(todayContainer)
+    val todayContainer = if (scheduleTextStyle.todayHeaderBackgroundColorCustomized) {
+        scheduleTextStyle.resolvedTodayHeaderBackgroundColor(darkTheme, customColorsAdaptToTheme)
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val todayContent = if (scheduleTextStyle.todayHeaderBackgroundColorCustomized) {
+        readableContentColor(todayContainer)
+    } else {
+        MaterialTheme.colorScheme.onPrimary
+    }
     val headerSize = scheduleTextStyle.headerTextSizeSp.sp
     val columnModifier = Modifier
         .width(width)
@@ -3450,9 +3744,9 @@ private fun DayHeader(
         .let {
             if (day.isToday) {
                 it.padding(vertical = 2.dp)
-                    .clip(RoundedCornerShape(10.dp))
+                    .clip(RoundedCornerShape(12.dp))
                     .background(todayContainer)
-                    .padding(horizontal = 3.dp, vertical = 2.dp)
+                    .padding(horizontal = 3.dp, vertical = 3.dp)
             } else {
                 it
             }
@@ -3703,6 +3997,7 @@ private fun slotTimeRange(slot: DisplaySlot): String {
 @Composable
 private fun CourseBlock(
     course: CourseItem,
+    displayTitle: String = course.title,
     // Resolve per-week location, falling back to the default.
     displayLocation: String,
     badges: List<String>,
@@ -3739,7 +4034,13 @@ private fun CourseBlock(
     onLongClick: () -> Unit,
 ) {
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
-    val palette = remember(course.title, accents) { courseColor(course.title, accents.coursePalette) }
+    val sourceTerm = remember(course.details) {
+        course.details.firstOrNull { it.label in setOf("来源学期", "Source Term", "來源學期") }?.value
+    }
+    val colorSeed = remember(course.title, sourceTerm) {
+        if (!sourceTerm.isNullOrBlank()) "${sourceTerm}_${course.title}" else course.title
+    }
+    val palette = remember(colorSeed, accents) { courseColor(colorSeed, accents.coursePalette) }
     val isExam = course.category == CourseCategory.Exam
     val shape = RoundedCornerShape(scheduleCardStyle.courseCornerRadiusDp.dp)
     val titleSizeSp = if (isExam) {
@@ -3917,10 +4218,10 @@ private fun CourseBlock(
                     )
                 }
                 // Allocate title height before location; full details can supply omitted room text.
-                val titleFontSizeSp = remember(titleSizeSp, course.title, scheduleTextStyle.autoShrinkLongTitles) {
+                val titleFontSizeSp = remember(titleSizeSp, displayTitle, scheduleTextStyle.autoShrinkLongTitles) {
                     courseTitleFontSizeSp(
                         baseSizeSp = titleSizeSp,
-                        titleLength = course.title.length,
+                        titleLength = displayTitle.length,
                         enabled = scheduleTextStyle.autoShrinkLongTitles,
                     )
                 }
@@ -3978,7 +4279,7 @@ private fun CourseBlock(
                     val widthConstraints = Constraints(maxWidth = constraints.maxWidth)
                     // Fit title and location together against measured available height when shrinking is enabled.
                     val fitScale = remember(
-                        course.title,
+                        displayTitle,
                         rawLocationText,
                         showLocationText,
                         baseTitleStyle,
@@ -3996,7 +4297,7 @@ private fun CourseBlock(
                             ) { scale ->
                                 val fittedTitle = baseTitleStyle.scaledCardText(titleFontSizeSp, scale)
                                 val fittedLocation = baseLocationStyle.scaledCardText(CARD_LOCATION_SP, scale, MIN_FIT_LOCATION_SP)
-                                val titleBottoms = textMeasurer.measure(course.title, fittedTitle, constraints = widthConstraints)
+                                val titleBottoms = textMeasurer.measure(displayTitle, fittedTitle, constraints = widthConstraints)
                                     .cutHeights(textMeasurer.lastLineExtra(fittedTitle))
                                 val locationBottoms = if (showLocationText) {
                                     val wrapped = wrapByCharacter(rawLocationText, constraints.maxWidth) { piece ->
@@ -4033,8 +4334,8 @@ private fun CourseBlock(
                             textMeasurer.measure(piece, locationStyle, softWrap = false, maxLines = 1).size.width
                         }
                     }
-                    val titleLayout = remember(course.title, titleStyle, constraints.maxWidth) {
-                        textMeasurer.measure(course.title, titleStyle, constraints = widthConstraints)
+                    val titleLayout = remember(displayTitle, titleStyle, constraints.maxWidth) {
+                        textMeasurer.measure(displayTitle, titleStyle, constraints = widthConstraints)
                     }
                     val locationLayout = remember(locationText, locationStyle, constraints.maxWidth, showLocationText) {
                         if (showLocationText) {
@@ -4066,7 +4367,7 @@ private fun CourseBlock(
                     val ellipsize = scheduleTextStyle.truncationEllipsis
                     FitOrDropColumn(centered = horizontalCentered) {
                         Text(
-                            text = if (ellipsize) course.title else visibleLinesText(course.title, titleLayout, plan.titleLines),
+                            text = if (ellipsize) displayTitle else visibleLinesText(displayTitle, titleLayout, plan.titleLines),
                             style = titleStyle,
                             maxLines = plan.titleLines,
                             overflow = cellTextOverflow,
@@ -4817,13 +5118,29 @@ internal fun courseColor(
     return palette[seed.hashCode().mod(palette.size)]
 }
 
+internal fun formatSourceTermBadge(sourceTerm: String): String {
+    val trimmed = sourceTerm.trim()
+    if (trimmed.length <= 4) return trimmed
+    val delimiterIndex = trimmed.indexOfAny(charArrayOf('·', ' ', '-', '_', '/'))
+    if (delimiterIndex in 1..4) {
+        return trimmed.substring(0, delimiterIndex)
+    }
+    return trimmed.take(4)
+}
+
 internal fun badgesForCourse(
     course: CourseItem,
     rules: List<CourseBadgeRule>,
     schoolName: String = "",
-): List<String> = matchedBadgeLabels(course, rules)
-    // Hide institution-only badges using strippedLocationOrNull.
-    .filter { label -> schoolName.isBlank() || strippedLocationOrNull(label, schoolName) != null }
+): List<String> {
+    val matched = matchedBadgeLabels(course, rules)
+        // Hide institution-only badges using strippedLocationOrNull.
+        .filter { label -> schoolName.isBlank() || strippedLocationOrNull(label, schoolName) != null }
+    val sourceTermBadge = course.details.firstOrNull { it.label in setOf("来源学期", "Source Term", "來源學期") }
+        ?.value?.takeIf { it.isNotBlank() }
+        ?.let { formatSourceTermBadge(it) }
+    return if (sourceTermBadge != null) listOf(sourceTermBadge) + matched else matched
+}
 
 /** Infer institution text from unfiltered badge labels to avoid circular filtering. */
 internal fun matchedBadgeLabels(

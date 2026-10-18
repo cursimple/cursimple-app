@@ -347,7 +347,7 @@ internal class FastTransfer(
         const val PROBE_TIMEOUT_MILLIS = 5_000L
         const val PROBE_GRACE_MILLIS = 600L
         const val PROBE_SOLO_GRACE_MILLIS = 1_500L
-        const val MAX_PROBE_WAVES = 5
+        const val MAX_PROBE_WAVES = 8
 
         const val SEGMENT_MIN_BYTES = 1L * 1024 * 1024
         const val MAX_CONNECTIONS = 6

@@ -48,13 +48,9 @@ class CourseDetailHeightUiQaTest {
         ))
 
     private fun capture(name: String) {
-        compose.waitForIdle(); instrumentation.waitForIdleSync()
-        Thread.sleep(300)
-        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
+        compose.waitForIdle()
         val file = File(context.filesDir, "course-detail-height/${args.getString("qaVariant") ?: "normal"}/$name.png")
-        file.parentFile!!.mkdirs()
-        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
+        ScreenshotCapture.save(ScreenshotCapture.take(), file)
     }
 
     private fun render(course: CourseItem) {

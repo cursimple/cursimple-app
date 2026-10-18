@@ -1,33 +1,42 @@
 package com.x500x.cursimple.app
 
-import com.x500x.cursimple.feature.plugin.ui.AppFilterChip
-import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.Manifest
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.EventAvailable
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,11 +49,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.app.util.SystemCalendarAccount
@@ -59,6 +70,7 @@ import com.x500x.cursimple.core.kernel.model.TemporaryScheduleOverride
 import com.x500x.cursimple.core.kernel.model.TermSchedule
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
 import com.x500x.cursimple.core.kernel.time.BeijingTime
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,7 +84,6 @@ import java.time.format.FormatStyle
  * Calendar export: write to the system calendar or share an .ics file. Exported event IDs are
  * recorded locally so undo removes only app-created events.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun SystemCalendarExportDialog(
     canExport: Boolean,
@@ -200,6 +211,7 @@ internal fun SystemCalendarExportDialog(
     if (pendingOverwrite) {
         AlertDialog(
             onDismissRequest = { pendingOverwrite = false },
+            shape = RoundedCornerShape(24.dp),
             title = { Text(stringResource(R.string.calendar_export_overwrite_title)) },
             text = {
                 Text(pluralStringResource(R.plurals.calendar_export_overwrite_body, lastRecordEventCount, lastRecordEventCount))
@@ -210,6 +222,7 @@ internal fun SystemCalendarExportDialog(
                         pendingOverwrite = false
                         selectedId?.let(::runWrite)
                     },
+                    modifier = Modifier.heightIn(min = 48.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
                         contentColor = MaterialTheme.colorScheme.onError,
@@ -226,128 +239,339 @@ internal fun SystemCalendarExportDialog(
 
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text(stringResource(R.string.ie_calendar_row_title)) },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+        shape = RoundedCornerShape(28.dp),
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                if (!canExport) {
-                    Text(
-                        text = stringResource(R.string.ie_no_schedule_body),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                }
-                CalendarSectionTitle(
-                    icon = Icons.Rounded.EventAvailable,
-                    title = stringResource(R.string.calendar_export_title),
-                    body = stringResource(R.string.calendar_export_subtitle),
-                )
-                when {
-                    !granted -> {
-                        Text(
-                            text = stringResource(R.string.calendar_export_permission_body),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(36.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.EventAvailable,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
                         )
-                        Button(
-                            onClick = {
-                                permissionLauncher.launch(
-                                    arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
-                                )
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 48.dp),
-                        ) { Text(stringResource(R.string.calendar_export_permission_grant)) }
                     }
-                    accounts.isEmpty() -> Text(
-                        text = stringResource(R.string.calendar_export_no_account),
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        text = stringResource(R.string.ie_calendar_row_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = stringResource(R.string.ie_calendar_row_body),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    else -> {
-                        Text(
-                            text = stringResource(R.string.calendar_export_pick_account),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                if (!canExport) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
-                            accounts.forEach { account ->
-                                AppFilterChip(
-                                    selected = account.id == selectedId,
-                                    onClick = { selectedId = account.id },
-                                    enabled = !busy,
-                                    label = {
-                                        Text(
-                                            text = account.displayName.ifBlank { account.accountName },
-                                            maxLines = 2,
-                                        )
-                                    },
-                                )
-                            }
-                        }
-                        if (lastRecordEventCount > 0) {
-                            Text(
-                                text = pluralStringResource(
-                                    R.plurals.calendar_export_last,
-                                    lastRecordEventCount,
-                                    formatExportTime(lastRecordAt, zone),
-                                    lastRecordEventCount,
-                                ),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            Icon(
+                                imageVector = Icons.Rounded.WarningAmber,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.size(20.dp),
                             )
-                        }
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Button(
-                                onClick = {
-                                    val id = selectedId ?: return@Button
-                                    if (lastRecordEventCount > 0) pendingOverwrite = true else runWrite(id)
-                                },
-                                enabled = canExport && !busy && selectedId != null,
-                                modifier = Modifier.heightIn(min = 48.dp),
-                            ) { Text(stringResource(R.string.calendar_export_action), maxLines = 1) }
-                            AppOutlinedButton(
-                                onClick = { runUndo() },
-                                enabled = !busy && lastRecordEventCount > 0,
-                                modifier = Modifier.heightIn(min = 48.dp),
-                            ) { Text(stringResource(R.string.calendar_export_undo), maxLines = 1) }
+                            Text(
+                                text = stringResource(R.string.ie_no_schedule_body),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
                         }
                     }
                 }
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                )
-                CalendarSectionTitle(
-                    icon = Icons.Rounded.CalendarMonth,
-                    title = stringResource(R.string.ie_ics_title),
-                    body = stringResource(R.string.ie_ics_body),
-                )
-                AppOutlinedButton(
-                    onClick = onExportIcs,
-                    enabled = canExport && !icsBusy,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp),
+
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        if (icsBusy) {
-                            stringResource(R.string.ie_generating)
-                        } else {
-                            stringResource(R.string.ie_ics_generate_action)
-                        },
-                    )
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        CalendarSectionHeader(
+                            icon = Icons.Rounded.EventAvailable,
+                            title = stringResource(R.string.calendar_export_title),
+                            subtitle = stringResource(R.string.calendar_export_subtitle),
+                        )
+
+                        when {
+                            !granted -> {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        Text(
+                                            text = stringResource(R.string.calendar_export_permission_body),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Button(
+                                            onClick = {
+                                                permissionLauncher.launch(
+                                                    arrayOf(Manifest.permission.READ_CALENDAR, Manifest.permission.WRITE_CALENDAR),
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(min = 48.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Lock,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(stringResource(R.string.calendar_export_permission_grant))
+                                        }
+                                    }
+                                }
+                            }
+                            accounts.isEmpty() -> {
+                                Surface(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Text(
+                                        text = stringResource(R.string.calendar_export_no_account),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(12.dp),
+                                    )
+                                }
+                            }
+                            else -> {
+                                Text(
+                                    text = stringResource(R.string.calendar_export_pick_account),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 190.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    accounts.forEach { account ->
+                                        val selected = account.id == selectedId
+                                        Surface(
+                                            onClick = { if (!busy) selectedId = account.id },
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                                    else MaterialTheme.colorScheme.surface,
+                                            border = BorderStroke(
+                                                width = if (selected) 1.5.dp else 1.dp,
+                                                color = if (selected) MaterialTheme.colorScheme.primary
+                                                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                                            ),
+                                            modifier = Modifier.fillMaxWidth(),
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                            ) {
+                                                val dotColor = account.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primary
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(12.dp)
+                                                        .background(dotColor, CircleShape),
+                                                )
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        text = account.displayName.ifBlank { account.accountName },
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                        color = MaterialTheme.colorScheme.onSurface,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                    )
+                                                    if (account.displayName.isNotBlank() && account.accountName.isNotBlank() && account.displayName != account.accountName) {
+                                                        Text(
+                                                            text = account.accountName,
+                                                            style = MaterialTheme.typography.bodySmall,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                        )
+                                                    }
+                                                }
+                                                if (selected) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.CheckCircle,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(18.dp),
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (lastRecordEventCount > 0) {
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                                        modifier = Modifier.fillMaxWidth(),
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.History,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(16.dp),
+                                            )
+                                            Text(
+                                                text = pluralStringResource(
+                                                    R.plurals.calendar_export_last,
+                                                    lastRecordEventCount,
+                                                    formatExportTime(lastRecordAt, zone),
+                                                    lastRecordEventCount,
+                                                ),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            val id = selectedId ?: return@Button
+                                            if (lastRecordEventCount > 0) pendingOverwrite = true else runWrite(id)
+                                        },
+                                        enabled = canExport && !busy && selectedId != null,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .heightIn(min = 48.dp),
+                                    ) {
+                                        if (busy) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(18.dp),
+                                                color = MaterialTheme.colorScheme.onPrimary,
+                                                strokeWidth = 2.dp,
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Sync,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(stringResource(R.string.calendar_export_action), maxLines = 1)
+                                        }
+                                    }
+                                    if (lastRecordEventCount > 0) {
+                                        AppOutlinedButton(
+                                            onClick = { runUndo() },
+                                            enabled = !busy,
+                                            modifier = Modifier.heightIn(min = 48.dp),
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Rounded.Undo,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp),
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(stringResource(R.string.calendar_export_undo), maxLines = 1)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        CalendarSectionHeader(
+                            icon = Icons.Rounded.CalendarMonth,
+                            title = stringResource(R.string.ie_ics_title),
+                            subtitle = stringResource(R.string.ie_ics_body),
+                        )
+                        AppOutlinedButton(
+                            onClick = onExportIcs,
+                            enabled = canExport && !icsBusy,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                        ) {
+                            if (icsBusy) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    strokeWidth = 2.dp,
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(stringResource(R.string.ie_generating))
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Share,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(stringResource(R.string.ie_ics_generate_action))
+                            }
+                        }
+                    }
                 }
             }
         },
@@ -358,7 +582,7 @@ internal fun SystemCalendarExportDialog(
 }
 
 @Composable
-private fun CalendarSectionTitle(icon: ImageVector, title: String, body: String) {
+private fun CalendarSectionHeader(icon: ImageVector, title: String, subtitle: String) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -372,10 +596,11 @@ private fun CalendarSectionTitle(icon: ImageVector, title: String, body: String)
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
         }
         Text(
-            text = body,
+            text = subtitle,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

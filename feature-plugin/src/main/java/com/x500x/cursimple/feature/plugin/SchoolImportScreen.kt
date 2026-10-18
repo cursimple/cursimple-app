@@ -1,6 +1,7 @@
 package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.appItemMotion
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -216,14 +217,16 @@ fun SchoolImportRoute(
                 ) {
                     if (matched.isEmpty()) {
                         item(key = "no-match") {
-                            SchoolImportEmpty(
-                                text = stringResource(R.string.school_import_no_match, query.trim()),
-                                hint = stringResource(R.string.school_import_no_match_hint),
-                                actionText = stringResource(R.string.school_import_add_manually),
-                                onAction = onAddCourseManually,
-                                secondaryActionText = stringResource(R.string.school_import_refresh_list),
-                                onSecondaryAction = { pluginMarketViewModel.loadRegistry() },
-                            )
+                            Box(appItemMotion()) {
+                                SchoolImportEmpty(
+                                    text = stringResource(R.string.school_import_no_match, query.trim()),
+                                    hint = stringResource(R.string.school_import_no_match_hint),
+                                    actionText = stringResource(R.string.school_import_add_manually),
+                                    onAction = onAddCourseManually,
+                                    secondaryActionText = stringResource(R.string.school_import_refresh_list),
+                                    onSecondaryAction = { pluginMarketViewModel.loadRegistry() },
+                                )
+                            }
                         }
                         item(key = "catalog-header") {
                             Text(
@@ -239,19 +242,21 @@ fun SchoolImportRoute(
                         }
                     }
                     items(matched.ifEmpty { uiState.marketRepos }, key = { it.fullName }) { repo ->
-                        val installed = installedByRepo[repo.fullName]
-                        SchoolPluginRow(
-                            repo = repo,
-                            installed = installed,
-                            upgrade = installed?.let { availableUpgrade(it, uiState) },
-                            busy = uiState.isLoading,
-                            checking = uiState.processingRepo(repo.fullName) || (installed != null &&
-                                (uiState.checkingUpdateKey == installed.installKey || uiState.upgradingKey == installed.installKey)),
-                            syncingPluginId = syncingPluginId,
-                            onInstall = { pluginMarketViewModel.installFromGitHub(repo) },
-                            onSync = { record -> pluginMarketViewModel.syncWithUpdateCheck(record) },
-                            onUpgrade = { record, latest -> pluginMarketViewModel.upgradeThenSync(record, latest) },
-                        )
+                        Box(appItemMotion()) {
+                            val installed = installedByRepo[repo.fullName]
+                            SchoolPluginRow(
+                                repo = repo,
+                                installed = installed,
+                                upgrade = installed?.let { availableUpgrade(it, uiState) },
+                                busy = uiState.isLoading,
+                                checking = uiState.processingRepo(repo.fullName) || (installed != null &&
+                                    (uiState.checkingUpdateKey == installed.installKey || uiState.upgradingKey == installed.installKey)),
+                                syncingPluginId = syncingPluginId,
+                                onInstall = { pluginMarketViewModel.installFromGitHub(repo) },
+                                onSync = { record -> pluginMarketViewModel.syncWithUpdateCheck(record) },
+                                onUpgrade = { record, latest -> pluginMarketViewModel.upgradeThenSync(record, latest) },
+                            )
+                        }
                     }
                     item(key = "browse-all") {
                         AppOutlinedButton(

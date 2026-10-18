@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.R
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
@@ -238,12 +239,12 @@ internal fun SettingsQuickSection(
     val shown = state.ids.mapNotNull { byId[it] }
     var showPicker by remember { mutableStateOf(false) }
     val darkTheme = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val container = if (darkTheme) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primary
-    val onContainer = if (darkTheme) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onPrimary
+    val container = MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (darkTheme) 0.85f else 0.55f)
+    val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
     val addingFromBelow = state.draggingId != null && !state.fromQuick
     val removing = state.draggingId != null && state.fromQuick && !state.insideQuick
     val border by animateColorAsState(
-        targetValue = if (addingFromBelow && state.insideQuick) onContainer else container,
+        targetValue = if (addingFromBelow && state.insideQuick) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
         label = "quickBorder",
     )
 
@@ -251,7 +252,7 @@ internal fun SettingsQuickSection(
         shape = RoundedCornerShape(24.dp),
         color = container,
         contentColor = onContainer,
-        border = BorderStroke(2.dp, border),
+        border = BorderStroke(if (addingFromBelow && state.insideQuick) 2.dp else 1.dp, border),
         modifier = Modifier
             .fillMaxWidth()
             .onGloballyPositioned { state.quickBounds = it.boundsInRoot() },
@@ -267,15 +268,15 @@ internal fun SettingsQuickSection(
                 Surface(
                     onClick = { showPicker = true },
                     shape = CircleShape,
-                    color = onContainer.copy(alpha = 0.16f),
-                    contentColor = onContainer,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    contentColor = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(36.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Rounded.Add,
                             contentDescription = stringResource(R.string.settings_quick_add),
-                            modifier = Modifier.size(22.dp),
+                            modifier = Modifier.size(20.dp),
                         )
                     }
                 }
@@ -294,7 +295,7 @@ internal fun SettingsQuickSection(
             } else {
                 QuickTilesLayout(state = state, tiles = shown)
             }
-            AnimatedVisibility(visible = addingFromBelow || removing) {
+            AnimatedVisibility(visible = addingFromBelow || removing, enter = AppMotion.revealEnter, exit = AppMotion.revealExit) {
                 Text(
                     text = stringResource(
                         when {

@@ -2,7 +2,9 @@
 
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.feature.plugin.ui.AppMotion
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -13,7 +15,19 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +41,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,7 +57,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.EventNote
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.ViewSidebar
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.Brightness7
 import androidx.compose.material.icons.rounded.BugReport
@@ -166,7 +184,6 @@ import com.x500x.cursimple.core.data.ScheduleTextStylePreferences
 import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.DEFAULT_AI_IMPORT_TIMEOUT_SECONDS
-import com.x500x.cursimple.core.data.DEFAULT_WEBDAV_URL
 import com.x500x.cursimple.core.data.MAX_AI_IMPORT_TIMEOUT_SECONDS
 import com.x500x.cursimple.core.data.MIN_AI_IMPORT_TIMEOUT_SECONDS
 import com.x500x.cursimple.core.data.adaptScheduleBackgroundColorArgb
@@ -288,9 +305,9 @@ private fun SettingsDestination.parentChain(): List<SettingsDestination> = when 
     else -> emptyList()
 }
 
-/** Drawer destinations form their own navigation root; Back returns to the timetable. */
+/** Shortcut destinations form their own navigation root; Back returns to where they were opened. */
 private fun SettingsDestination.isStandaloneEntry(): Boolean =
-    this == SettingsDestination.BackgroundHub
+    this == SettingsDestination.BackgroundHub || this == SettingsDestination.TemporaryOverrides
 
 /** Limit the pinned timetable preview to leave room for settings. */
 private const val STYLE_PREVIEW_SLOTS = 2
@@ -523,7 +540,7 @@ private fun settingsSearchEntries(
     )
     page(
         SettingsDestination.AutoSilence,
-        Icons.Rounded.VolumeOff,
+        Icons.AutoMirrored.Rounded.VolumeOff,
         stringResource(R.string.settings_dest_auto_silence),
         reminder,
         listOf(stringResource(R.string.settings_auto_silence_mode_title)),
@@ -555,7 +572,7 @@ private fun settingsSearchEntries(
     page(SettingsDestination.WebDav, Icons.Rounded.Storage, "WebDAV", data, emptyList())
     page(
         SettingsDestination.Sidebar,
-        Icons.Rounded.ViewSidebar,
+        Icons.AutoMirrored.Rounded.ViewSidebar,
         stringResource(R.string.settings_sidebar_title),
         general,
         listOf(stringResource(R.string.settings_sidebar_shortcuts), stringResource(R.string.settings_sidebar_restore_drawer)),
@@ -724,6 +741,8 @@ fun AppSettingsRoute(
     componentLayoutActive: Boolean = false,
     onDrawerLayoutChange: (com.x500x.cursimple.core.data.navigation.DrawerLayout) -> Unit = {},
     onRestoreDrawer: () -> Unit = {},
+    bottomBarSize: com.x500x.cursimple.core.data.navigation.BottomBarSize? = null,
+    onBottomBarSizeChange: (com.x500x.cursimple.core.data.navigation.BottomBarSize) -> Unit = {},
     onPrivateFilesProviderEnabledChange: (Boolean) -> Unit,
     onWebDavSettingsChange: (String, String, String) -> Unit,
     onTestWebDavSettings: suspend (WebDavConfig) -> Result<Unit>,
@@ -758,8 +777,10 @@ fun AppSettingsRoute(
     val homeGrid = homeLayout == SettingsHomeLayout.Grid
     // Restore the root-page scroll offset after visiting subpages.
     var rootScrollOffset by rememberSaveable { mutableIntStateOf(0) }
+    var navDirection by remember { mutableIntStateOf(1) }
     fun navigate(next: SettingsDestination) {
         if (destination == SettingsDestination.Root) rootScrollOffset = scrollState.value
+        navDirection = 1
         backStack = backStack + next.name
     }
     LaunchedEffect(destination) {
@@ -779,7 +800,10 @@ fun AppSettingsRoute(
         else -> false
     }
     fun goBack() {
-        if (backStack.size > 1) backStack = backStack.dropLast(1)
+        if (backStack.size > 1) {
+            navDirection = -1
+            backStack = backStack.dropLast(1)
+        }
     }
     fun handleBack() {
         if (
@@ -793,6 +817,7 @@ fun AppSettingsRoute(
     }
     androidx.compose.runtime.LaunchedEffect(openDestination) {
         val requested = openDestination?.toDestination() ?: return@LaunchedEffect
+        navDirection = 1
         backStack = buildList {
             if (!requested.isStandaloneEntry()) {
                 add(SettingsDestination.Root.name)
@@ -1026,7 +1051,7 @@ fun AppSettingsRoute(
                 active = classNotice.enabled,
             )),
             SettingsQuickItem("auto_silence", reminderGroup, SettingsQuickTileSpec(
-                icon = Icons.Rounded.VolumeOff,
+                icon = Icons.AutoMirrored.Rounded.VolumeOff,
                 title = stringResource(R.string.settings_dest_auto_silence),
                 value = stringResource(R.string.settings_row_auto_silence_subtitle),
                 onClick = { navigate(SettingsDestination.AutoSilence) },
@@ -1076,38 +1101,52 @@ fun AppSettingsRoute(
         CompositionLocalProvider(
             LocalSettingsQuickDrag provides quickDrag.takeIf { destination == SettingsDestination.Root },
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background),
-            ) {
-                // Pin the preview while the settings content scrolls; the app bar carries title and back.
-                if (destination == SettingsDestination.ScheduleAppearance) {
-                    ScheduleAppearancePreview(
-                        scheduleTextStyle = scheduleTextStyle,
-                        scheduleCardStyle = scheduleCardStyle,
-                        scheduleBackground = scheduleBackground,
-                        scheduleDisplay = scheduleDisplay,
-                        customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
-                        maxSlots = STYLE_PREVIEW_SLOTS,
-                        maxHeight = STYLE_PREVIEW_MAX_HEIGHT,
-                        modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 8.dp),
-                    )
-                }
+            AnimatedContent(
+                targetState = destination,
+                transitionSpec = {
+                    val forward = navDirection >= 0
+                    AppMotion.sharedAxisX(forward)
+                },
+                modifier = Modifier.fillMaxSize(),
+                label = "SettingsDestinationTransition",
+            ) { currentDest ->
+                val pageScrollState = if (currentDest == SettingsDestination.Root) scrollState else rememberScrollState()
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .onGloballyPositioned { quickDrag.viewport = it.boundsInRoot() }
-                        .verticalScroll(scrollState)
-                        .padding(
-                            start = 18.dp,
-                            end = 18.dp,
-                            top = if (destination == SettingsDestination.Root) 14.dp else 4.dp,
-                            bottom = 24.dp,
-                        ),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
                 ) {
-                    when (destination) {
+                    // Pin the preview while the settings content scrolls; the app bar carries title and back.
+                    if (currentDest == SettingsDestination.ScheduleAppearance) {
+                        ScheduleAppearancePreview(
+                            scheduleTextStyle = scheduleTextStyle,
+                            scheduleCardStyle = scheduleCardStyle,
+                            scheduleBackground = scheduleBackground,
+                            scheduleDisplay = scheduleDisplay,
+                            customColorsAdaptToTheme = scheduleCustomColorsAdaptToTheme,
+                            maxSlots = STYLE_PREVIEW_SLOTS,
+                            maxHeight = STYLE_PREVIEW_MAX_HEIGHT,
+                            modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 8.dp),
+                        )
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .then(
+                                if (currentDest == SettingsDestination.Root) {
+                                    Modifier.onGloballyPositioned { quickDrag.viewport = it.boundsInRoot() }
+                                } else Modifier
+                            )
+                            .verticalScroll(pageScrollState)
+                            .padding(
+                                start = 18.dp,
+                                end = 18.dp,
+                                top = if (currentDest == SettingsDestination.Root) 14.dp else 4.dp,
+                                bottom = 24.dp,
+                            ),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        when (currentDest) {
                         SettingsDestination.Root -> {
                             Row(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1192,7 +1231,7 @@ fun AppSettingsRoute(
                                         quickId = "class_notice",
                                     )
                                     SettingsActionRow(
-                                        icon = Icons.Rounded.VolumeOff,
+                                        icon = Icons.AutoMirrored.Rounded.VolumeOff,
                                         title = stringResource(R.string.settings_dest_auto_silence),
                                         subtitle = stringResource(R.string.settings_row_auto_silence_subtitle),
                                         onClick = { navigate(SettingsDestination.AutoSilence) },
@@ -1241,7 +1280,7 @@ fun AppSettingsRoute(
                                     )
                                     TimeZoneRow(zoneId = appTimeZoneId, onZoneChange = onAppTimeZoneChange)
                                     SettingsActionRow(
-                                        icon = Icons.Rounded.ViewSidebar,
+                                        icon = Icons.AutoMirrored.Rounded.ViewSidebar,
                                         title = stringResource(R.string.settings_sidebar_title),
                                         subtitle = stringResource(R.string.settings_sidebar_subtitle),
                                         onClick = { navigate(SettingsDestination.Sidebar) },
@@ -1832,6 +1871,8 @@ fun AppSettingsRoute(
                                 componentLayoutActive = componentLayoutActive,
                                 onChange = onDrawerLayoutChange,
                                 onRestoreDrawer = onRestoreDrawer,
+                                bottomBarSize = bottomBarSize,
+                                onBottomBarSizeChange = onBottomBarSizeChange,
                             )
                         }
 
@@ -1913,7 +1954,7 @@ fun AppSettingsRoute(
                         )
                     }
 
-                    if (advancedToolsEnabled && destination == SettingsDestination.Root && settingsQuery.isBlank()) {
+                    if (advancedToolsEnabled && currentDest == SettingsDestination.Root && settingsQuery.isBlank()) {
                         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                         AdvancedToolsSection(
                             debugForcedDateTime = debugForcedDateTime,
@@ -1923,6 +1964,7 @@ fun AppSettingsRoute(
                     }
                 }
             }
+        }
         }
         if (destination == SettingsDestination.Root) {
             SettingsQuickAutoScroll(state = quickDrag, scrollState = scrollState)
@@ -2063,6 +2105,8 @@ internal val LocalSettingsRowInCard = staticCompositionLocalOf { false }
 internal fun SettingsCardGroup(
     title: String,
     tiles: Boolean = false,
+    /** Lets a dragged row and its shadow leave the card; rows must stay transparent at rest. */
+    liftable: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     if (tiles) {
@@ -2072,46 +2116,78 @@ internal fun SettingsCardGroup(
         }
         return
     }
-    val dividerColor = MaterialTheme.colorScheme.outlineVariant
+    val cardShape = RoundedCornerShape(20.dp)
+    val cardColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    val cardBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+    val rows: @Composable () -> Unit = {
+        CompositionLocalProvider(LocalSettingsRowInCard provides true) { SettingsDividedRows(liftable, content) }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SettingsSectionHeader(title)
+        if (liftable) {
+            // No clip: Surface would cut the dragged row's shadow at the card edge.
+            Box(Modifier.fillMaxWidth().background(cardColor, cardShape).border(cardBorder, cardShape)) { rows() }
+        } else {
+            Surface(shape = cardShape, color = cardColor, border = cardBorder, modifier = Modifier.fillMaxWidth()) { rows() }
+        }
+    }
+}
+
+/** Stacks card rows and draws an inset divider between every pair that has height. */
+@Composable
+private fun SettingsDividedRows(liftable: Boolean, content: @Composable () -> Unit) {
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
     val density = LocalDensity.current
-    val dividerStart = with(density) { 46.dp.toPx() }
+    val dividerStart = with(density) { 64.dp.toPx() }
     val dividerEnd = with(density) { 14.dp.toPx() }
     val dividerWidth = with(density) { 1.dp.toPx() }
     val dividerTops = remember { mutableListOf<Int>() }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SettingsSectionHeader(title)
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            CompositionLocalProvider(LocalSettingsRowInCard provides true) {
-                Layout(
-                    content = content,
-                    modifier = Modifier.drawWithContent {
-                        drawContent()
-                        dividerTops.forEach { y ->
-                            drawLine(
-                                color = dividerColor,
-                                start = Offset(dividerStart, y.toFloat()),
-                                end = Offset(size.width - dividerEnd, y.toFloat()),
-                                strokeWidth = dividerWidth,
-                            )
-                        }
-                    },
-                ) { measurables, constraints ->
-                    val placeables = measurables.map { it.measure(constraints.copy(minHeight = 0)) }
-                    layout(constraints.maxWidth, placeables.sumOf { it.height }) {
-                        dividerTops.clear()
-                        var y = 0
-                        placeables.forEach { placeable ->
-                            if (y > 0 && placeable.height > 0) dividerTops += y
-                            placeable.placeRelative(0, y)
-                            y += placeable.height
-                        }
-                    }
-                }
+    Layout(
+        content = content,
+        modifier = Modifier.drawWithContent {
+            fun drawDividers() = dividerTops.forEach { y ->
+                drawLine(
+                    color = dividerColor,
+                    start = Offset(dividerStart, y.toFloat()),
+                    end = Offset(size.width - dividerEnd, y.toFloat()),
+                    strokeWidth = dividerWidth,
+                )
             }
+            // Lifted rows are opaque, so dividers go underneath instead of across them.
+            if (liftable) {
+                drawDividers()
+                drawContent()
+            } else {
+                drawContent()
+                drawDividers()
+            }
+        },
+    ) { measurables, constraints ->
+            val placeables = measurables.map { it.measure(constraints.copy(minHeight = 0)) }
+        layout(constraints.maxWidth, placeables.sumOf { it.height }) {
+            dividerTops.clear()
+            var y = 0
+            placeables.forEach { placeable ->
+                if (y > 0 && placeable.height > 0) dividerTops += y
+                placeable.placeRelative(0, y)
+                y += placeable.height
+            }
+        }
+    }
+}
+
+/**
+ * Rows a switch reveals. Inside a card they keep the card's dividers; elsewhere they stack with the
+ * page's usual gap. Opening grows them down from the switch, closing folds them back.
+ */
+@Composable
+internal fun SettingsReveal(visible: Boolean, content: @Composable () -> Unit) {
+    val inCard = LocalSettingsRowInCard.current
+    AnimatedVisibility(visible = visible, enter = AppMotion.revealEnter, exit = AppMotion.revealExit) {
+        if (inCard) {
+            SettingsDividedRows(liftable = false, content)
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
         }
     }
 }
@@ -2123,7 +2199,7 @@ internal fun SettingsSectionHeader(text: String) {
         style = MaterialTheme.typography.labelLarge,
         color = MaterialTheme.colorScheme.primary,
         fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(top = 4.dp),
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 2.dp),
     )
 }
 
@@ -3038,12 +3114,11 @@ internal fun parseIsoDate(value: String): LocalDate? =
 
 @Composable
 private fun webDavSettingsSubtitle(url: String, username: String): String {
-    val hasAccount = username.isNotBlank()
-    val displayUrl = url.ifBlank { DEFAULT_WEBDAV_URL }
+    val hasAccount = username.isNotBlank() && url.isNotBlank()
     return if (hasAccount) {
-        stringResource(R.string.settings_webdav_subtitle_configured, displayUrl)
+        stringResource(R.string.settings_webdav_subtitle_configured, url)
     } else {
-        stringResource(R.string.settings_webdav_subtitle_unconfigured, displayUrl)
+        stringResource(R.string.settings_webdav_subtitle_unconfigured)
     }
 }
 
@@ -3067,7 +3142,7 @@ private fun WebDavSettingsSection(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var urlDraft by rememberSaveable(webDavUrl) { mutableStateOf(webDavUrl.ifBlank { DEFAULT_WEBDAV_URL }) }
+    var urlDraft by rememberSaveable(webDavUrl) { mutableStateOf(webDavUrl) }
     var usernameDraft by rememberSaveable(webDavUsername) { mutableStateOf(webDavUsername) }
     var passwordDraft by rememberSaveable(webDavPassword) { mutableStateOf(webDavPassword) }
     var testing by rememberSaveable { mutableStateOf(false) }
@@ -3079,6 +3154,7 @@ private fun WebDavSettingsSection(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             label = { Text("URL") },
+            placeholder = { Text(stringResource(R.string.settings_webdav_url_placeholder)) },
         )
         OutlinedTextField(
             value = usernameDraft,
@@ -3097,7 +3173,7 @@ private fun WebDavSettingsSection(
         Button(
             onClick = {
                 onSave(urlDraft, usernameDraft, passwordDraft)
-                onSaved(WebDavConfig(urlDraft.trim().ifBlank { DEFAULT_WEBDAV_URL }, usernameDraft.trim(), passwordDraft).isComplete)
+                onSaved(WebDavConfig(urlDraft.trim(), usernameDraft.trim(), passwordDraft).isComplete)
                 Toast.makeText(
                     context,
                     context.getString(R.string.settings_toast_webdav_saved),
@@ -3673,11 +3749,20 @@ internal fun SettingsActionRow(
     /** Stable IDs support dragging entries into quick settings; see [SettingsQuickItem]. */
     quickId: String? = null,
 ) {
+    val haptics = rememberAppHaptics()
     val quickDrag = LocalSettingsQuickDrag.current
     val click = if (quickId != null && quickDrag != null) {
-        { if (!quickDrag.consumeClickAfterDrag()) onClick() }
+        {
+            if (!quickDrag.consumeClickAfterDrag()) {
+                haptics.click()
+                onClick()
+            }
+        }
     } else {
-        onClick
+        {
+            haptics.click()
+            onClick()
+        }
     }
     if (LocalSettingsRowAsTile.current) {
         SettingsQuickTile(
@@ -3695,20 +3780,28 @@ internal fun SettingsActionRow(
             .settingsQuickDragSource(quickId)
             .clip(shape)
             .clickable(onClick = click),
-        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
+        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
         shape = shape,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
@@ -3723,6 +3816,13 @@ internal fun SettingsActionRow(
             }
             if (trailing != null) {
                 trailing()
+            } else {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp),
+                )
             }
         }
     }
@@ -3747,20 +3847,31 @@ internal fun SettingsSwitchRow(
                 role = Role.Switch,
                 onValueChange = onCheckedChange,
             ),
-        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant,
+        color = if (inCard) Color.Transparent else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
         shape = shape,
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (checked) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
@@ -4214,6 +4325,14 @@ private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFi
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            val autoScrolling by com.x500x.cursimple.feature.schedule.ScheduleOverflowState.autoScrolling.collectAsState()
+            if (selected == ScheduleRowFitMode.Fit && autoScrolling) {
+                Text(
+                    text = stringResource(R.string.settings_display_row_fit_auto_scrolling),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),

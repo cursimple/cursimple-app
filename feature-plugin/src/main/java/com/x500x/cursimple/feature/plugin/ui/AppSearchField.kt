@@ -50,12 +50,12 @@ fun AppSearchField(
     var focused by remember { mutableStateOf(false) }
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
     ) {
         Row(
-            modifier = Modifier.heightIn(min = 48.dp).padding(start = 12.dp, end = 4.dp),
+            modifier = Modifier.heightIn(min = 48.dp).padding(start = 14.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Rounded.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))

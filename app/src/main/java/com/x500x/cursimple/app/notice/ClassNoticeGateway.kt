@@ -48,7 +48,7 @@ object ClassNoticeGateway {
         val upcoming = upcomingClass(app, notice, advanceMinutes = 0)
             ?: return ClassNoticeNotifier.previewContent(app)
         return ClassNoticeNotifier.Content(
-            courseTitle = upcoming.course.title,
+            courseTitle = upcoming.displayTitle(),
             location = upcoming.displayLocation(),
             timeRange = upcoming.timeRangeText(),
             slotLabel = app.slotLabelText(upcoming.slots).orEmpty(),
@@ -87,14 +87,14 @@ object ClassNoticeGateway {
         if (!upcoming.startAt.isAfter(now)) return
 
         val startAtMillis = upcoming.startAt.atZone(BeijingTime.zone).toInstant().toEpochMilli()
-        val key = ClassNoticeScheduler.postedKey(upcoming.course.title, startAtMillis)
+        val key = ClassNoticeScheduler.postedKey(upcoming.displayTitle(), startAtMillis)
         if (ClassNoticeScheduler.lastPostedKey(app) == key) {
             ClassNoticeScheduler.reschedule(app, notice, upcomingClass(app, notice), now)
             return
         }
 
         val content = ClassNoticeNotifier.Content(
-            courseTitle = upcoming.course.title,
+            courseTitle = upcoming.displayTitle(),
             location = upcoming.displayLocation(),
             timeRange = upcoming.timeRangeText(),
             slotLabel = app.slotLabelText(upcoming.slots).orEmpty(),

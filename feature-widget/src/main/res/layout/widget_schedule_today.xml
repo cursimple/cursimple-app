@@ -97,7 +97,7 @@
             android:minWidth="64dp"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:text="回今天"
+            android:text="@string/widget_today_reset"
             android:textColor="#24527A"
             android:textSize="10sp"
             android:textStyle="bold"

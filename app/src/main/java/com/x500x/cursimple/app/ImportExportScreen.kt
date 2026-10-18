@@ -89,6 +89,8 @@ import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.util.ScheduleIcsExporter
 import com.x500x.cursimple.app.util.ScheduleImageExporter
+import com.x500x.cursimple.app.util.ScheduleImageOptionsStore
+import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.app.util.ScheduleImageLayout
 import com.x500x.cursimple.core.data.AppBackupPayload
 import com.x500x.cursimple.core.kernel.model.CourseItem
@@ -117,6 +119,7 @@ fun ImportExportScreen(
     weekStartDay: WeekStartDay = WeekStartDay.Monday,
     schedule: TermSchedule?,
     manualCourses: List<CourseItem>,
+    scheduleEvents: List<ScheduleEvent> = emptyList(),
     termName: String?,
     termStartDate: LocalDate?,
     timingProfile: TermTimingProfile?,
@@ -167,6 +170,8 @@ fun ImportExportScreen(
         mutableIntStateOf(current)
     }
     var imageAllWeeks by rememberSaveable { mutableStateOf(true) }
+    var imageWallpaperMode by rememberSaveable { mutableStateOf(false) }
+    var imageOptions by remember { mutableStateOf(ScheduleImageOptionsStore.load(context)) }
     val contentScrollState = rememberScrollState()
     val appBackupJson = remember {
         Json {
@@ -717,15 +722,20 @@ fun ImportExportScreen(
             weekNumber = imageWeek,
             maxWeekNumber = maxImageWeek,
             allWeeks = imageAllWeeks,
-            generationKey = listOf(schedule, manualCourses, termName, termStartDate, timingProfile,
-                temporaryScheduleOverrides, holidayCalendar, weekStartDay, localeTags),
-            generateImage = {
+            wallpaperMode = imageWallpaperMode,
+            options = imageOptions,
+            generationKey = listOf(schedule, manualCourses, scheduleEvents, termName, termStartDate, timingProfile,
+                temporaryScheduleOverrides, holidayCalendar, weekStartDay, localeTags, imageWallpaperMode),
+            generateImage = { wallpaper, options ->
                 ScheduleImageExporter.export(context = context, termName = termName, termStartDate = termStartDate,
                     weekNumber = imageWeek, schedule = schedule, manualCourses = manualCourses,
                     timingProfile = timingProfile, overrides = temporaryScheduleOverrides,
-                    holidayCalendar = holidayCalendar, weekStartDay = weekStartDay, allWeeks = imageAllWeeks)
+                    holidayCalendar = holidayCalendar, weekStartDay = weekStartDay, allWeeks = imageAllWeeks,
+                    wallpaperMode = wallpaper, events = scheduleEvents, options = options)
             },
+            onOptionsChange = { imageOptions = it; ScheduleImageOptionsStore.save(context, it) },
             onAllWeeksChange = { imageAllWeeks = it },
+            onWallpaperModeChange = { imageWallpaperMode = it },
             onWeekChange = { imageWeek = it.coerceIn(1, maxImageWeek) },
             onShare = { intent ->
                 runCatching { launchScheduleShare(context, intent, context.getString(R.string.ie_image_chooser_title)) }

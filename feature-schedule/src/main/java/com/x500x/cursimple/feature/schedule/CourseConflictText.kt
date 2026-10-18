@@ -108,7 +108,9 @@ internal fun Context.weekRangesText(label: WeekRangesLabel): String = when (labe
                 getString(R.string.schedule_conflict_week_segment_range, segment.first, segment.last)
             }
         }
-        getString(R.string.schedule_conflict_week_segments, joined)
+        // A lone week reads "Week 12" in English, not "Weeks 12".
+        val single = label.segments.singleOrNull()?.takeIf { it.first == it.last }
+        getString(if (single != null) R.string.schedule_conflict_week_segments_one else R.string.schedule_conflict_week_segments, joined)
     }
 
     is WeekRangesLabel.Summary -> resources.getQuantityString(

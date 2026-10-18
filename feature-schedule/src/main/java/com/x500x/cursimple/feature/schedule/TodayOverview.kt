@@ -41,8 +41,55 @@ internal data class TodayOverviewState(
     val currentMinutesLeft: Long? = null,
     val weekKnown: Boolean = true,
     val now: LocalTime = LocalTime.MIDNIGHT,
+    val makeUpWeekdayRes: Int? = null,
+    val freeSlots: List<TodayFreeSlot> = emptyList(),
 ) {
     val unknownTimeCount: Int get() = courses.count { !it.hasTime }
+}
+
+internal data class TodayFreeSlot(
+    val startNode: Int,
+    val endNode: Int,
+    val descriptionRes: Int,
+)
+
+internal fun computeTodayFreeSlots(
+    courses: List<TodayOverviewItem>,
+    maxNode: Int = 12,
+): List<TodayFreeSlot> {
+    if (courses.isEmpty()) {
+        return listOf(TodayFreeSlot(1, maxNode, R.string.schedule_today_free_all_day))
+    }
+    val occupied = BooleanArray(maxNode + 1)
+    courses.forEach { item ->
+        val range = item.course.time.nodeRange()
+        for (n in range.first.coerceAtLeast(1)..range.last.coerceAtMost(maxNode)) {
+            occupied[n] = true
+        }
+    }
+    val spans = mutableListOf<IntRange>()
+    var start = -1
+    for (n in 1..maxNode) {
+        if (!occupied[n]) {
+            if (start == -1) start = n
+        } else {
+            if (start != -1) {
+                spans += start until n
+                start = -1
+            }
+        }
+    }
+    if (start != -1) spans += start..maxNode
+
+    return spans.map { span ->
+        val res = when {
+            span.first == 1 && span.last >= 4 -> R.string.schedule_today_free_morning
+            span.first <= 5 && span.last >= 8 -> R.string.schedule_today_free_afternoon
+            span.first >= 9 -> R.string.schedule_today_free_evening
+            else -> R.string.schedule_today_free_nodes
+        }
+        TodayFreeSlot(span.first, span.last, res)
+    }
 }
 
 internal fun buildTodayOverview(
@@ -82,6 +129,11 @@ internal fun buildTodayOverview(
         (Duration.between(now.toLocalTime(), it).seconds.coerceAtLeast(0L) + 59L) / 60L
     }
     val day = resolveScheduleDay(date, overrides, holidayCalendar)
+    val makeUpWeekdayRes = if (!day.isHoliday && day.sourceDate.dayOfWeek != day.date.dayOfWeek) {
+        scheduleWeekdayFullRes(day.sourceDate.dayOfWeek.value)
+    } else null
+    val freeSlots = computeTodayFreeSlots(coursesToday)
+
     return TodayOverviewState(
         date = date,
         current = current,
@@ -98,6 +150,8 @@ internal fun buildTodayOverview(
         currentMinutesLeft = minutesLeft(current?.end),
         weekKnown = termStartDate != null,
         now = now.toLocalTime(),
+        makeUpWeekdayRes = makeUpWeekdayRes,
+        freeSlots = freeSlots,
     )
 }
 

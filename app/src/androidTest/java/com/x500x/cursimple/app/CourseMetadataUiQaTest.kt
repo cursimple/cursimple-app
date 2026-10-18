@@ -35,6 +35,12 @@ class CourseMetadataUiQaTest {
     private val args get() = InstrumentationRegistry.getArguments()
     private val repository get() = DataStoreManualCourseRepository(context)
     private fun enabled() = args.getString("courseMetadataQa") == "true"
+    private val language get() = when (args.getString("qaLanguage")) {
+        "en" -> AppLanguage.English
+        "zh-TW" -> AppLanguage.TraditionalChinese
+        else -> AppLanguage.Chinese
+    }
+    private val languageSuffix get() = args.getString("qaLanguage")?.takeIf { it == "en" || it == "zh-TW" }?.let { ".$it" }.orEmpty()
     private val initial = CourseItem("qa-week-teacher", "物理实验", teacher = "", location = "",
         weekLocations = mapOf(2 to "Lab 204"), weekTeachers = mapOf(2 to "Teacher A"),
         weeks = listOf(2, 3), time = CourseTimeSlot(2, 5, 7))
@@ -47,11 +53,11 @@ class CourseMetadataUiQaTest {
                     setDisclaimerAccepted(true); setFirstRunGuideCompleted(true)
                     setLastSeenVersionCode(BuildConfig.VERSION_CODE); markIslandStartupPromptShown()
                     markNotificationPermissionStartupAsked(); setTermStartUserDecided(true)
-                    setAppLanguage(AppLanguage.Chinese)
+                    setAppLanguage(language)
                 }
                 repository.apply { removeCourse(initial.id); addCourse(initial) }
             }
-            AppLocale.cache(context, AppLanguage.Chinese)
+            AppLocale.cache(context, language)
             com.x500x.cursimple.app.reminder.ForceStopMonitor.markPrompted(context)
         }
         override fun after() { if (enabled()) runBlocking { repository.removeCourse(initial.id) } }
@@ -64,12 +70,9 @@ class CourseMetadataUiQaTest {
         )).performClick()
     }
     private fun capture(name: String) {
-        compose.waitForIdle(); instrumentation.waitForIdleSync()
-        Thread.sleep(300)
-        val bitmap = checkNotNull(instrumentation.uiAutomation.takeScreenshot())
-        val file = File(context.filesDir, "course-metadata/${args.getString("qaVariant") ?: "normal"}/$name.png")
-        file.parentFile!!.mkdirs()
-        file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
+        compose.waitForIdle()
+        val file = File(context.filesDir, "course-metadata/${args.getString("qaVariant") ?: "normal"}/$name$languageSuffix.png")
+        ScreenshotCapture.save(ScreenshotCapture.take(), file)
     }
 
     @Test fun teacherButtonLivesInEditorAndWeekValuesPersist() {
@@ -90,7 +93,7 @@ class CourseMetadataUiQaTest {
             }
         }
         compose.onAllNodesWithText("设置默认").assertCountEquals(0)
-        compose.onAllNodesWithText("未设置").assertCountEquals(2)
+        if (language == AppLanguage.Chinese) compose.onAllNodesWithText("未设置").assertCountEquals(2)
         capture("details-before")
         compose.onNodeWithText(text(ScheduleR.string.schedule_action_edit)).performClick()
         compose.onNodeWithTag("course-teacher-field").performScrollTo()
@@ -98,14 +101,14 @@ class CourseMetadataUiQaTest {
         compose.onNodeWithTag("course-location-weeks").assertIsDisplayed().assertIsEnabled()
         capture("course-edit")
         compose.onNodeWithTag("course-teacher-weeks").performClick()
-        compose.onNodeWithTag("week-select-2").performClick()
+        // Selecting a week loads what it shows now; the editor only appears once weeks are picked.
+        compose.onNodeWithTag("week-select-2").performScrollTo().performClick()
+        compose.onNodeWithText(text(ScheduleR.string.schedule_week_teacher_value_label)).assertIsDisplayed()
         compose.onNodeWithTag("week-batch-value-field").assertTextContains("Teacher A")
-        compose.onNodeWithTag("week-select-2").performClick()
-        compose.onNode(hasText("3") and hasAnyAncestor(isDialog() and
-            hasAnyDescendant(hasText(text(ScheduleR.string.schedule_week_teacher_title))))).performClick()
-        compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog() and
-            hasAnyDescendant(hasText(text(ScheduleR.string.schedule_week_teacher_title)))))
-            .apply { performTextReplacement("Teacher B"); performImeAction() }
+        compose.onNodeWithTag("week-pick-none").performScrollTo().performClick()
+        compose.onNodeWithTag("week-select-3").performScrollTo().performClick()
+        compose.onNodeWithTag("week-batch-value-field").performTextReplacement("Teacher B")
+        compose.onNodeWithTag("week-batch-apply").performScrollTo().performClick()
         capture("week-teachers")
         saveWeekTeacher()
         compose.onNodeWithText(text(ScheduleR.string.schedule_action_save)).performScrollTo().performClick()
@@ -121,11 +124,9 @@ class CourseMetadataUiQaTest {
         compose.onNodeWithText(text(ScheduleR.string.schedule_action_edit)).performClick()
         compose.onNodeWithTag("course-teacher-field").performScrollTo().performTextReplacement("Unsaved default")
         compose.onNodeWithTag("course-teacher-weeks").performClick()
-        compose.onNode(hasText("3") and hasAnyAncestor(isDialog() and
-            hasAnyDescendant(hasText(text(ScheduleR.string.schedule_week_teacher_title))))).performClick()
-        compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog() and
-            hasAnyDescendant(hasText(text(ScheduleR.string.schedule_week_teacher_title)))))
-            .apply { performTextReplacement("Unsaved weekly"); performImeAction() }
+        compose.onNodeWithTag("week-select-3").performScrollTo().performClick()
+        compose.onNodeWithTag("week-batch-value-field").performScrollTo().performTextReplacement("Unsaved weekly")
+        compose.onNodeWithTag("week-batch-apply").performScrollTo().performClick()
         saveWeekTeacher()
         compose.onNodeWithText(text(ScheduleR.string.schedule_action_cancel)).performScrollTo().performClick()
         assertEquals(stored, runBlocking { repository.manualCoursesFlow.first().first { it.id == initial.id } })
@@ -150,11 +151,9 @@ class CourseMetadataUiQaTest {
         compose.onNodeWithTag("course-teacher-weeks").assertIsDisplayed()
         capture("quick-course-edit")
         compose.onNodeWithTag("course-teacher-weeks").performClick()
-        compose.onNode(hasText("3") and hasAnyAncestor(isDialog() and
-            hasAnyDescendant(hasText(text(ScheduleR.string.schedule_week_teacher_title))))).performClick()
-        compose.onNode(hasSetTextAction() and hasAnyAncestor(isDialog() and
-            hasAnyDescendant(hasText(text(ScheduleR.string.schedule_week_teacher_title)))))
-            .apply { performTextReplacement("Teacher C"); performImeAction() }
+        compose.onNodeWithTag("week-select-3").performScrollTo().performClick()
+        compose.onNodeWithTag("week-batch-value-field").performScrollTo().performTextReplacement("Teacher C")
+        compose.onNodeWithTag("week-batch-apply").performScrollTo().performClick()
         saveWeekTeacher()
         for ((label, value) in listOf(ScheduleR.string.schedule_course_name_label to "新课程",
             ScheduleR.string.schedule_week_start_label to "2", ScheduleR.string.schedule_week_end_label to "3")) {

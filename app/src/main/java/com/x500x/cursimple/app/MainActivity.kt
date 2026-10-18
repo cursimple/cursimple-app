@@ -1,6 +1,7 @@
 package com.x500x.cursimple.app
 
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
+import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 
 import com.x500x.cursimple.feature.plugin.ui.AppToolbarIconButton
 import com.x500x.cursimple.feature.widget.WidgetDeepLinks
@@ -24,13 +25,17 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -96,6 +101,8 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -165,10 +172,12 @@ import com.x500x.cursimple.feature.plugin.availableUpdateKeys
 import com.x500x.cursimple.feature.plugin.PluginUpdateAutoCheck
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModel
 import com.x500x.cursimple.feature.plugin.PluginMarketViewModelFactory
+import androidx.compose.material.icons.rounded.Event
 import com.x500x.cursimple.feature.plugin.SchoolImportRoute
 import com.x500x.cursimple.feature.schedule.AddCourseDialog
 import com.x500x.cursimple.feature.schedule.CourseLibraryRoute
 import com.x500x.cursimple.feature.schedule.MemoRoute
+import com.x500x.cursimple.feature.schedule.ScheduleItemType
 import com.x500x.cursimple.feature.schedule.ScheduleRoute
 import com.x500x.cursimple.feature.schedule.ScheduleViewMode
 import com.x500x.cursimple.feature.schedule.ScheduleViewModel
@@ -528,6 +537,7 @@ class MainActivity : ComponentActivity() {
                                 container.applyActiveTermTimingProfile()
                                 container.refreshWidgets()
                             },
+                            merger = { ids, name, alignment, anchorTermId -> container.termMerger.merge(ids, name, alignment, anchorTermId) },
                         ),
                     )
                     val termProfileState by termProfileViewModel.state.collectAsStateWithLifecycle()
@@ -569,6 +579,7 @@ class MainActivity : ComponentActivity() {
 
                     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
+                    val haptics = rememberAppHaptics()
                     // Pages listed on the me page return there instead of to the timetable.
                     val underMe = barItems != null && currentScreen != AppScreen.Me &&
                         currentScreen.toDestination()?.let { it !in barItems } == true
@@ -680,6 +691,7 @@ class MainActivity : ComponentActivity() {
                     var showAppLanguageDialog by rememberSaveable { mutableStateOf(false) }
                     var showWidgetThemeAccentDialog by rememberSaveable { mutableStateOf(false) }
                     var showAddCourseDialog by rememberSaveable { mutableStateOf(false) }
+                    var addCourseInitialType by rememberSaveable { mutableStateOf(ScheduleItemType.Course) }
                     var showClearTermStartConfirm by rememberSaveable { mutableStateOf(false) }
                     var showWidgetPicker by rememberSaveable { mutableStateOf(false) }
                     var showClearSheet by rememberSaveable { mutableStateOf(false) }
@@ -856,6 +868,15 @@ class MainActivity : ComponentActivity() {
                     val deleteWeek: (Int) -> Unit = { week ->
                         // Only user-added weeks beyond the course range can be removed.
                         if (week > derivedWeeks) {
+                            // Step back onto the last remaining week instead of staying on one that no longer exists.
+                            val remaining = (weekPickerTotalWeeks - 1).coerceAtLeast(1)
+                            val overshoot = displayedWeekIndex - remaining
+                            if (overshoot > 0) {
+                                when (scheduleViewMode) {
+                                    ScheduleViewMode.Week -> weekOffset -= overshoot
+                                    ScheduleViewMode.Day -> dayOffset -= overshoot * 7
+                                }
+                            }
                             scope.launch { container.termProfileRepository.adjustActiveTermExtraWeekCount(-1) }
                         }
                     }
@@ -883,6 +904,7 @@ class MainActivity : ComponentActivity() {
                                 updateBadgeVisible = updateBadgeVisible,
                                 pluginUpdateBadgeVisible = pluginUpdateBadgeVisible,
                                 onSelectScreen = {
+                                    haptics.click()
                                     currentScreen = it
                                     currentExtension = null
                                     scope.launch { drawerState.close() }
@@ -925,8 +947,10 @@ class MainActivity : ComponentActivity() {
                                             currentScreen.toDestination(),
                                         ),
                                         meBadge = updateBadgeVisible || pluginUpdateBadgeVisible,
+                                        size = prefs.bottomBarSize,
                                         modifier = Modifier.guideAnchor(GuideAnchor.Navigation),
                                         onSelect = { tab ->
+                                            haptics.click()
                                             currentExtension = null
                                             currentScreen = when (tab) {
                                                 is com.x500x.cursimple.app.navigation.BarTab.Destination -> tab.destination.toAppScreen()
@@ -940,38 +964,8 @@ class MainActivity : ComponentActivity() {
                                 CenterAlignedTopAppBar(
                                     title = {
                                         if (onScheduleScreen) {
-                                            // Emit press interactions explicitly because detectTapGestures supplies no ripple.
-                                            val weekTitleInteraction = remember { MutableInteractionSource() }
                                             Column(
-                                                    modifier = Modifier
-                                                        .guideAnchor(GuideAnchor.WeekTitle)
-                                                    .indication(weekTitleInteraction, ripple())
-                                                    .pointerInput(Unit) {
-                                                        detectTapGestures(
-                                                            onPress = { offset ->
-                                                                val press = PressInteraction.Press(offset)
-                                                                weekTitleInteraction.emit(press)
-                                                                val released = tryAwaitRelease()
-                                                                weekTitleInteraction.emit(
-                                                                    if (released) {
-                                                                        PressInteraction.Release(press)
-                                                                    } else {
-                                                                        PressInteraction.Cancel(press)
-                                                                    },
-                                                                )
-                                                            },
-                                                            onTap = { showWeekMenu = true },
-                                                            onDoubleTap = {
-                                                                weekOffset = 0
-                                                                dayOffset = 0
-                                                            },
-                                                        )
-                                                    }
-                                                    // Keep padding inside the ripple and leave room for rounded edges.
-                                                    .padding(
-                                                        horizontal = 20.dp,
-                                                        vertical = 4.dp,
-                                                    ),
+                                                modifier = Modifier.guideAnchor(GuideAnchor.WeekTitle),
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                             ) {
                                                 val isCurrentWeek = isCurrentTermWeek(
@@ -979,18 +973,45 @@ class MainActivity : ComponentActivity() {
                                                     displayedWeekIndex = displayedWeekIndex,
                                                     currentWeekIndex = currentWeekIndex,
                                                 )
+                                                val pillBgColor by animateColorAsState(
+                                                    targetValue = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
+                                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                                                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                                                    label = "WeekPillBg",
+                                                )
+                                                val pillBorderColor by animateColorAsState(
+                                                    targetValue = if (isCurrentWeek) MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                                                    else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f),
+                                                    animationSpec = tween(200, easing = FastOutSlowInEasing),
+                                                    label = "WeekPillBorder",
+                                                )
                                                 Surface(
-                                                    color = if (isCurrentWeek) MaterialTheme.colorScheme.primaryContainer
-                                                    else androidx.compose.ui.graphics.Color.Transparent,
-                                                    // Apply rounded clipping only when the current-week badge is visible.
-                                                    shape = if (isCurrentWeek) RoundedCornerShape(50)
-                                                    else androidx.compose.ui.graphics.RectangleShape,
+                                                    color = pillBgColor,
+                                                    shape = CircleShape,
+                                                    border = BorderStroke(1.dp, pillBorderColor),
+                                                    modifier = Modifier
+                                                        .clip(CircleShape)
+                                                        .combinedClickable(
+                                                            interactionSource = remember { MutableInteractionSource() },
+                                                            indication = androidx.compose.material3.ripple(bounded = true),
+                                                            onClick = {
+                                                                haptics.click()
+                                                                showWeekMenu = true
+                                                            },
+                                                            onDoubleClick = {
+                                                                haptics.tick()
+                                                                weekOffset = 0
+                                                                dayOffset = 0
+                                                            },
+                                                        ),
                                                 ) {
                                                     Row(
                                                         verticalAlignment = Alignment.CenterVertically,
-                                                        modifier = Modifier.padding(
-                                                            horizontal = if (isCurrentWeek) 12.dp else 0.dp,
-                                                            vertical = if (isCurrentWeek) 2.dp else 0.dp,
+                                                        modifier = Modifier
+                                                            .clip(CircleShape)
+                                                            .padding(
+                                                            horizontal = 14.dp,
+                                                            vertical = 4.dp,
                                                         ),
                                                     ) {
                                                         AppAtomicText(
@@ -1001,10 +1022,10 @@ class MainActivity : ComponentActivity() {
                                                             ),
                                                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                                                             color = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
-                                                            else MaterialTheme.colorScheme.onBackground,
+                                                            else MaterialTheme.colorScheme.onSurface,
                                                         )
                                                         if (isCurrentWeek) {
-                                                            Spacer(Modifier.width(4.dp))
+                                                            Spacer(Modifier.width(6.dp))
                                                             Surface(
                                                                 color = MaterialTheme.colorScheme.primary,
                                                                 shape = RoundedCornerShape(50),
@@ -1013,15 +1034,20 @@ class MainActivity : ComponentActivity() {
                                                                     text = stringResource(R.string.main_this_week),
                                                                     style = MaterialTheme.typography.labelSmall,
                                                                     color = MaterialTheme.colorScheme.onPrimary,
-                                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                                                                    modifier = Modifier.padding(
+                                                                        horizontal = 6.dp,
+                                                                        vertical = 1.dp,
+                                                                    ),
                                                                 )
                                                             }
                                                         }
+                                                        Spacer(Modifier.width(2.dp))
                                                         Icon(
                                                             imageVector = Icons.Rounded.ArrowDropDown,
                                                             contentDescription = stringResource(R.string.main_switch_week),
                                                             tint = if (isCurrentWeek) MaterialTheme.colorScheme.onPrimaryContainer
-                                                            else MaterialTheme.colorScheme.onBackground,
+                                                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            modifier = Modifier.size(20.dp),
                                                         )
                                                     }
                                                 }
@@ -1031,6 +1057,7 @@ class MainActivity : ComponentActivity() {
                                                         text = termLabel,
                                                         style = MaterialTheme.typography.labelSmall,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                        modifier = Modifier.padding(top = 2.dp),
                                                     )
                                                 }
                                             }
@@ -1187,6 +1214,21 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                         onClick = {
                                                             showAddMenu = false
+                                                            addCourseInitialType = ScheduleItemType.Course
+                                                            showAddCourseDialog = true
+                                                        },
+                                                    )
+                                                    DropdownMenuItem(
+                                                        text = { Text(stringResource(R.string.main_add_event_manually)) },
+                                                        leadingIcon = {
+                                                            Icon(
+                                                                Icons.Rounded.Event,
+                                                                contentDescription = null,
+                                                            )
+                                                        },
+                                                        onClick = {
+                                                            showAddMenu = false
+                                                            addCourseInitialType = ScheduleItemType.Event
                                                             showAddCourseDialog = true
                                                         },
                                                     )
@@ -1234,7 +1276,19 @@ class MainActivity : ComponentActivity() {
                                 val routeTarget = currentScreen to currentExtension
                                 AnimatedContent(
                                     targetState = routeTarget,
-                                    transitionSpec = { com.x500x.cursimple.app.navigation.routeTransition() },
+                                    transitionSpec = {
+                                        val initialScreen = initialState.first
+                                        val targetScreen = targetState.first
+                                        val initialExt = initialState.second
+                                        val targetExt = targetState.second
+                                        val forward = when {
+                                            initialExt == null && targetExt != null -> true
+                                            initialExt != null && targetExt == null -> false
+                                            initialScreen != targetScreen -> targetScreen.navigationRank() >= initialScreen.navigationRank()
+                                            else -> true
+                                        }
+                                        com.x500x.cursimple.app.navigation.routeTransition(forward = forward)
+                                    },
                                     label = "main_route_transition",
                                     modifier = Modifier.fillMaxSize(),
                                 ) { (targetScreen, targetExtension) ->
@@ -1263,13 +1317,11 @@ class MainActivity : ComponentActivity() {
                                 } else when (targetScreen) {
                                     AppScreen.Me -> com.x500x.cursimple.app.navigation.MeScreen(
                                         overflow = com.x500x.cursimple.core.data.navigation.bottomBarOverflow(barItems.orEmpty()),
-                                        termLabel = listOf(
-                                            LocalContext.current.termWeekText(
-                                                if (effectiveTermStart == null) termWeekLabel(currentWeekIndex)
-                                                else termWeekLabel(effectiveTermStart, currentWeekIndex),
-                                            ),
-                                            formatTermLabel(effectiveTermStart),
-                                        ).filter { it.isNotBlank() }.joinToString(" · "),
+                                        weekLabel = LocalContext.current.termWeekText(
+                                            if (effectiveTermStart == null) termWeekLabel(currentWeekIndex)
+                                            else termWeekLabel(effectiveTermStart, currentWeekIndex),
+                                        ),
+                                        termLabel = formatTermLabel(effectiveTermStart),
                                         versionName = BuildConfig.VERSION_NAME,
                                         updateBadge = updateBadgeVisible,
                                         badgeFor = { destination ->
@@ -1581,6 +1633,8 @@ class MainActivity : ComponentActivity() {
                                         componentLayoutActive = effectiveLayout != null,
                                         onDrawerLayoutChange = prefsViewModel::setDrawerLayout,
                                         onRestoreDrawer = prefsViewModel::clearAppLayout,
+                                        bottomBarSize = prefs.bottomBarSize.takeIf { barItems != null },
+                                        onBottomBarSizeChange = prefsViewModel::setBottomBarSize,
                                         onPrivateFilesProviderEnabledChange =
                                             prefsViewModel::setPrivateFilesProviderEnabled,
                                         onWebDavSettingsChange = prefsViewModel::setWebDavSettings,
@@ -1695,6 +1749,8 @@ class MainActivity : ComponentActivity() {
                     com.x500x.cursimple.app.navigation.AnimatedPage(subScreen) { page ->
                     when (page) {
                         MainActivity.SubScreen.TermManagement -> {
+                            // 先注册返回键，界面内的多选模式后注册，优先拦截返回。
+                            androidx.activity.compose.BackHandler { subScreen = null }
                             TermManagementScreen(
                                 state = termProfileState,
                                 onBack = { subScreen = null },
@@ -1715,9 +1771,30 @@ class MainActivity : ComponentActivity() {
                                     dayOffset = 0
                                 },
                                 onDelete = termProfileViewModel::delete,
+                                onMerge = { ids, name ->
+                                    termProfileViewModel.merge(ids, name) { mergedName ->
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            getString(R.string.term_merge_done, mergedName),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                    weekOffset = 0
+                                    dayOffset = 0
+                                },
+                                onMergeWithAlignment = { ids, name, alignment, anchorTermId ->
+                                    termProfileViewModel.merge(ids, name, alignment, anchorTermId) { mergedName ->
+                                        Toast.makeText(
+                                            this@MainActivity,
+                                            getString(R.string.term_merge_done, mergedName),
+                                            Toast.LENGTH_SHORT,
+                                        ).show()
+                                    }
+                                    weekOffset = 0
+                                    dayOffset = 0
+                                },
                                 modifier = Modifier.fillMaxSize(),
                             )
-                            androidx.activity.compose.BackHandler { subScreen = null }
                         }
                         MainActivity.SubScreen.ImportExport -> {
                             val activeTermProfile = termProfileState.terms
@@ -1726,6 +1803,7 @@ class MainActivity : ComponentActivity() {
                                 weekStartDay = prefs.scheduleDisplay.weekStartDay,
                                 schedule = scheduleState.schedule,
                                 manualCourses = scheduleState.manualCourses,
+                                scheduleEvents = scheduleState.events,
                                 termName = activeTermProfile?.name,
                                 termStartDate = prefs.termStartDate,
                                 timingProfile = scheduleState.timingProfile,
@@ -1849,6 +1927,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onAddCourseManually = {
                                     subScreen = null
+                                    addCourseInitialType = ScheduleItemType.Course
                                     showAddCourseDialog = true
                                 },
                                 modifier = Modifier.fillMaxSize(),
@@ -2008,6 +2087,13 @@ class MainActivity : ComponentActivity() {
                                 scheduleViewModel.addManualCourse(course)
                                 showAddCourseDialog = false
                             },
+                            onConfirmEvent = { event ->
+                                scheduleViewModel.saveEvent(event)
+                                showAddCourseDialog = false
+                            },
+                            initialScheduleType = addCourseInitialType,
+                            termStartDate = effectiveTermStart,
+                            maxWeekCount = weekPickerTotalWeeks,
                             slotTimes = scheduleState.timingProfile?.slotTimes.orEmpty(),
                         )
                     }
@@ -2189,7 +2275,18 @@ class MainActivity : ComponentActivity() {
         Me(R.string.nav_me, Icons.Rounded.AccountCircle),
 
         /** Bottom bar shell only. */
-        ComponentsHub(R.string.nav_components, Icons.Rounded.Widgets),
+        ComponentsHub(R.string.nav_components, Icons.Rounded.Widgets);
+
+        fun navigationRank(): Int = when (this) {
+            Schedule -> 0
+            Courses -> 1
+            Memos -> 2
+            Plugins, ComponentsHub -> 3
+            Reminders -> 4
+            Settings -> 5
+            About -> 6
+            Me -> 7
+        }
     }
 
     enum class SubScreen { TermManagement, ImportExport, SchoolImport, CourseSwap, AllExtensions }
@@ -2448,11 +2545,14 @@ private fun DrawerMoreSheet(
     onOpenTemporaryOverrides: () -> Unit,
     onOpenUpdateCheck: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    // Open fully so the last row is never left under the half-expanded edge or the gesture bar.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
                 .padding(start = 16.dp, end = 16.dp, bottom = 24.dp)
                 .testTag("drawer-more-sheet"),
             verticalArrangement = Arrangement.spacedBy(4.dp),

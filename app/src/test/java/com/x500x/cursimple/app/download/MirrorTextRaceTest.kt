@@ -43,11 +43,11 @@ class MirrorTextRaceTest {
     private class FixtureCall(val original: Request, val fastBad: String) : Call {
         @Volatile private var cancelled = false
         override fun request(): Request = original
-        override fun enqueue(callback: Callback) {
+        override fun enqueue(responseCallback: Callback) {
             // The fastest mirror returns a JSON error page; it must not beat a valid manifest.
             if (original.url.host == fastBad || original.url.host == "github.com") thread(isDaemon = true) {
                 Thread.sleep(if (original.url.host == fastBad) 10 else 100)
-                if (!cancelled) callback.onResponse(this, Response.Builder().request(original).protocol(Protocol.HTTP_1_1)
+                if (!cancelled) responseCallback.onResponse(this, Response.Builder().request(original).protocol(Protocol.HTTP_1_1)
                     .code(200).message("OK").body((if (original.url.host == "github.com")
                         "{\"version\":\"2.0.0\",\"filename\":\"component.zip\"}" else "{\"error\":\"denied\"}")
                         .toResponseBody("application/json".toMediaType())).build())

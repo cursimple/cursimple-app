@@ -1,5 +1,14 @@
 package com.x500x.cursimple.app
 
+import com.x500x.cursimple.app.permission.findActivity
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
+import androidx.annotation.StringRes
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.rememberLauncherForActivityResult
+import android.content.pm.PackageManager
+import android.Manifest
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Intent
 import android.os.Build
@@ -16,12 +25,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Alarm
-import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material.icons.rounded.Star
@@ -44,7 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -104,6 +113,7 @@ internal fun ClassNoticeSettingsSection(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val enableGate = rememberNoticeGate(preferences.copy(enabled = true))
     var showGuide by remember { mutableStateOf(false) }
     var guideAutoShown by rememberSaveable { mutableStateOf(false) }
     var showDiagnostics by remember { mutableStateOf(false) }
@@ -139,6 +149,8 @@ internal fun ClassNoticeSettingsSection(
             checked = preferences.enabled,
             onCheckedChange = { enabled ->
                 onEnabledChange(enabled)
+                // Ask for notification access the moment reminders are switched on.
+                if (enabled) enableGate {}
                 if (enabled && !guideAutoShown &&
                     hasPendingNoticeGuideStep(context.applicationContext, preferences)
                 ) {
@@ -147,10 +159,10 @@ internal fun ClassNoticeSettingsSection(
                 }
             },
         )
-        if (preferences.enabled) {
+        SettingsReveal(preferences.enabled) {
             // Show notification permission status before the dependent controls.
             SettingsActionRow(
-                icon = Icons.Rounded.OpenInNew,
+                icon = Icons.AutoMirrored.Rounded.OpenInNew,
                 title = stringResource(R.string.settings_class_notice_open_system),
                 subtitle = if (blocked) {
                     stringResource(R.string.settings_class_notice_permission_off)
@@ -198,7 +210,7 @@ internal fun ClassNoticeSettingsSection(
         NotificationGuideDialog(preferences = preferences, onDismiss = { showGuide = false })
     }
 
-    if (preferences.enabled) {
+    SettingsReveal(preferences.enabled) {
         SettingsCardGroup(stringResource(R.string.settings_class_notice_group_display)) {
             SettingsSwitchRow(
                 icon = Icons.Rounded.VerticalAlignTop,
@@ -231,7 +243,7 @@ internal fun ClassNoticeSettingsSection(
             // System approval is required independently of the in-app chip switch.
             if (preferences.focusNotificationEnabled && islandBlocked) {
                 SettingsActionRow(
-                    icon = Icons.Rounded.OpenInNew,
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
                     title = stringResource(R.string.settings_class_notice_open_system),
                     subtitle = stringResource(R.string.settings_class_notice_focus_blocked),
                     onClick = { context.openIslandSettings(ClassNoticeNotifier.channelIdFor(preferences)) },
@@ -310,6 +322,7 @@ private fun AlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
     val userPreferences by repository.preferencesFlow.collectAsState(initial = null)
     val preNotice = userPreferences?.alarmPreNotice ?: return
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
+    val noticeGate = rememberNoticeGate(noticePreferences)
 
     SettingsCardGroup(stringResource(R.string.settings_alarm_pre_notice_section)) {
         SettingsSwitchRow(
@@ -319,7 +332,7 @@ private fun AlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
             checked = preNotice.enabled,
             onCheckedChange = { enabled -> scope.launch { repository.setAlarmPreNoticeEnabled(enabled) } },
         )
-        if (preNotice.enabled) {
+        SettingsReveal(preNotice.enabled) {
             AlarmNumberSettingRow(
                 title = stringResource(R.string.settings_alarm_pre_notice_advance),
                 value = preNotice.advanceMinutes,
@@ -336,7 +349,7 @@ private fun AlarmPreNoticeSettings(noticePreferences: ClassNoticePreferences) {
                 subtitle = stringResource(R.string.settings_alarm_pre_notice_preview_subtitle),
                 onClick = {
                     val app = context.applicationContext
-                    if (!warnIfPreviewBlocked(context, noticePreferences)) {
+                    noticeGate {
                         ClassNoticeNotifier.cancelAlarmPreview(app)
                         ClassNoticeNotifier.notify(
                             app,
@@ -364,11 +377,14 @@ private fun ClassNoticeSkinSettings(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val noticeTheme = com.x500x.cursimple.app.notice.NoticeTheme.current()
+    val noticeGate = rememberNoticeGate(preferences)
+    // Some ROMs keep a HIGH channel quiet without telling the app; after a preview, offer the switch.
+    var previewSent by rememberSaveable { mutableStateOf(false) }
     SettingsSectionHeader(stringResource(R.string.settings_class_notice_skin_header))
 
     ClassNoticeSkinOptions(preferences, onSkinChange)
 
-    if (preferences.skin == ClassNoticeSkin.Overlay) {
+    SettingsReveal(preferences.skin == ClassNoticeSkin.Overlay) {
         OverlayPermissionRow()
 
         AlarmNumberSettingRow(
@@ -398,7 +414,7 @@ private fun ClassNoticeSkinSettings(
             checked = preferences.blurEnabled,
             onCheckedChange = onBlurChange,
         )
-        if (preferences.blurEnabled) {
+        SettingsReveal(preferences.blurEnabled) {
             AlarmNumberSettingRow(
                 title = stringResource(R.string.settings_class_notice_blur_strength),
                 value = preferences.blurStrength,
@@ -416,7 +432,7 @@ private fun ClassNoticeSkinSettings(
         title = stringResource(R.string.settings_class_notice_preview),
         subtitle = stringResource(R.string.settings_class_notice_preview_desc),
         onClick = {
-            if (!warnIfPreviewBlocked(context, preferences)) {
+            noticeGate {
                 val app = context.applicationContext
                 scope.launch {
                     ClassNoticeNotifier.notifyPreview(
@@ -425,10 +441,29 @@ private fun ClassNoticeSkinSettings(
                         preferences = preferences,
                         theme = noticeTheme,
                     )
+                    reportOverlayPreview(context, preferences)
+                    previewSent = preferences.skin != ClassNoticeSkin.Overlay && preferences.headsUpEnabled
                 }
             }
         },
     )
+    SettingsReveal(previewSent) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.settings_class_notice_preview_missing),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
+            AppOutlinedButton(onClick = { context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(preferences)) }) {
+                Text(stringResource(R.string.settings_class_notice_preview_missing_action))
+            }
+        }
+    }
 
     Text(
         text = stringResource(R.string.settings_class_notice_island_note),
@@ -597,31 +632,70 @@ private fun android.content.Context.toastSettingsGoneSilently() {
     ).show()
 }
 
-/** Return true when missing permission intercepts the preview action. */
-private fun warnIfPreviewBlocked(
+/** A banner that never appears must say why instead of silently landing in the shade. */
+private suspend fun reportOverlayPreview(
     context: android.content.Context,
     preferences: ClassNoticePreferences,
-): Boolean {
-    if (ClassNoticeNotifier.systemBlocked(context, preferences)) {
-        Toast.makeText(
-            context,
-            context.getString(R.string.settings_toast_preview_blocked),
-            Toast.LENGTH_SHORT,
-        ).show()
-        context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(preferences))
-        return true
+) {
+    if (preferences.skin != ClassNoticeSkin.Overlay) return
+    if (!preferences.headsUpEnabled) {
+        Toast.makeText(context, context.getString(R.string.settings_toast_preview_heads_up_off), Toast.LENGTH_LONG).show()
+        return
     }
-    // Check overlay permission before a preview can silently fall back to system banners.
-    if (preferences.skin == ClassNoticeSkin.Overlay && !ClassNoticeOverlay.canDraw(context)) {
-        Toast.makeText(
-            context,
-            context.getString(R.string.settings_toast_preview_no_overlay),
-            Toast.LENGTH_SHORT,
-        ).show()
+    if (!ClassNoticeOverlay.awaitShown()) {
+        Toast.makeText(context, context.getString(R.string.settings_toast_preview_overlay_failed), Toast.LENGTH_LONG).show()
         context.openOverlayPermissionSettings()
-        return true
     }
-    return false
+}
+
+/**
+ * Clears whatever would stop a preview from popping, and asks for it on the spot: the runtime
+ * permission through the system dialog, everything else on its own settings page. [then] runs only
+ * once nothing is missing, so a granted permission goes straight on to the preview.
+ */
+@Composable
+private fun rememberNoticeGate(preferences: ClassNoticePreferences): (() -> Unit) -> Unit {
+    val context = LocalContext.current
+    val latest by rememberUpdatedState(preferences)
+    var pending by remember { mutableStateOf<(() -> Unit)?>(null) }
+    lateinit var gate: (() -> Unit) -> Unit
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val next = pending
+        pending = null
+        if (granted) {
+            next?.let(gate)
+        } else {
+            val canAskAgain = context.findActivity()?.let {
+                ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
+            } ?: true
+            Toast.makeText(context, context.getString(R.string.settings_toast_notification_denied), Toast.LENGTH_SHORT).show()
+            if (!canAskAgain) context.openClassNoticeSettings(ClassNoticeNotifier.channelIdFor(latest))
+        }
+    }
+    gate = { then ->
+        val current = latest
+        val channel = ClassNoticeNotifier.channelIdFor(current)
+        fun redirect(@StringRes message: Int, open: () -> Unit) {
+            Toast.makeText(context, context.getString(message), Toast.LENGTH_LONG).show()
+            open()
+        }
+        when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                PackageManager.PERMISSION_GRANTED -> {
+                pending = then
+                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            ClassNoticeNotifier.systemBlocked(context, current) ->
+                redirect(R.string.settings_toast_preview_blocked) { context.openClassNoticeSettings(channel) }
+            current.skin == ClassNoticeSkin.Overlay && !ClassNoticeOverlay.canDraw(context) ->
+                redirect(R.string.settings_toast_preview_no_overlay) { context.openOverlayPermissionSettings() }
+            current.skin != ClassNoticeSkin.Overlay && ClassNoticeNotifier.headsUpChannelMuted(context, current) ->
+                redirect(R.string.settings_toast_preview_heads_up_muted) { context.openClassNoticeSettings(channel) }
+            else -> then()
+        }
+    }
+    return gate
 }
 
 @Composable

@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,11 +14,15 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -41,8 +47,9 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.data.ScheduleDisplayPreferences
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import java.time.format.TextStyle
+import com.x500x.cursimple.feature.plugin.ui.appItemMotion
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun TodayOverviewSheet(
     state: TodayOverviewState,
@@ -82,6 +89,53 @@ internal fun TodayOverviewSheet(
                 }
             }
             item { TodayOverviewCard(state = state, display = display, onClick = null) }
+            if (state.freeSlots.isNotEmpty()) item {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth().testTag("today-free-slots-card"),
+                ) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp),
+                            )
+                            Text(
+                                text = stringResource(R.string.schedule_today_free_slots_title),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            state.freeSlots.forEach { slot ->
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                ) {
+                                    val text = if (slot.descriptionRes == R.string.schedule_today_free_nodes) {
+                                        stringResource(slot.descriptionRes, slot.startNode, slot.endNode)
+                                    } else {
+                                        stringResource(slot.descriptionRes)
+                                    }
+                                    Text(
+                                        text = text,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             if (state.conflicts.isNotEmpty()) item {
                 Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.errorContainer) {
                     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -115,15 +169,17 @@ internal fun TodayOverviewSheet(
                     )
                 }
                 itemsIndexed(state.courses, key = { _, it -> "${it.course.id}:${it.course.time.startNode}:${it.course.time.endNode}" }) { index, occurrence ->
-                    TimelineRow(
-                        occurrence = occurrence,
-                        status = state.statusOf(occurrence),
-                        progress = if (occurrence == state.current) state.currentProgress else null,
-                        first = index == 0,
-                        last = index == state.courses.lastIndex,
-                        display = display,
-                        onClick = { onOpenCourse(occurrence.course) },
-                    )
+                    Box(appItemMotion()) {
+                        TimelineRow(
+                            occurrence = occurrence,
+                            status = state.statusOf(occurrence),
+                            progress = if (occurrence == state.current) state.currentProgress else null,
+                            first = index == 0,
+                            last = index == state.courses.lastIndex,
+                            display = display,
+                            onClick = { onOpenCourse(occurrence.course) },
+                        )
+                    }
                 }
                 item {
                     Text(

@@ -14,6 +14,7 @@ import com.x500x.cursimple.core.data.term.TermProfileRepository
 import com.x500x.cursimple.core.kernel.model.CourseItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -80,6 +81,17 @@ class DataStoreManualCourseRepository(
         }
     }
 
+    /** Read one specific term's manual courses (merging terms). */
+    suspend fun coursesFor(termId: String): List<CourseItem> = decode(store.data.first(), termId)
+
+    /** Write a specific term (merging terms); a blank id must not fall back to the legacy bucket. */
+    suspend fun replaceAllFor(termId: String, courses: List<CourseItem>) {
+        val key = writableCoursesKey(termId) ?: return
+        store.edit { prefs ->
+            prefs[stringPreferencesKey(key)] = json.encodeToString(serializer, courses)
+        }
+    }
+
     /** Migrate legacy single-bucket manual courses into the given term. */
     suspend fun migrateLegacyManualIfNeeded(targetTermId: String) {
         if (targetTermId.isBlank()) return
@@ -106,10 +118,17 @@ class DataStoreManualCourseRepository(
             ?: emptyList()
     }
 
-    private fun coursesKey(termId: String) =
-        stringPreferencesKey(if (termId.isBlank()) "manual_courses_json" else "manual_courses_json__$termId")
+    private fun coursesKey(termId: String) = stringPreferencesKey(coursesBucketKey(termId))
 
     private companion object {
         val KEY_LEGACY_COURSES_JSON = stringPreferencesKey("manual_courses_json")
     }
 }
+
+/** 空学期 id 读取时回落到旧的无学期桶。 */
+internal fun coursesBucketKey(termId: String): String =
+    if (termId.isBlank()) "manual_courses_json" else "manual_courses_json__$termId"
+
+/** 写入指定学期时使用；空 id 没有归属的学期，返回 null 表示拒绝写入。 */
+internal fun writableCoursesKey(termId: String): String? =
+    if (termId.isBlank()) null else "manual_courses_json__$termId"

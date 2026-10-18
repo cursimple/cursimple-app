@@ -48,7 +48,7 @@ async function runPage({ stable, beta, api, order = [], language = 'zh-CN', note
     requests.push(url);
     if (notesFetch && /release-notes\//.test(url)) return notesFetch(url);
     if (mirrorFetch && /\/update\.json$/.test(url)) return mirrorFetch(url);
-    if (/^release-notes\/v0\.7\.11(?:\.en|\.zh-TW)?\.md$/.test(url)) return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '..', url), 'utf8') });
+    if (/^release-notes\/v0\.8\.0(?:\.en|\.zh-TW)?\.md$/.test(url)) return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '..', url), 'utf8') });
     const key = url.includes('stable.json') ? 'stable' : url.includes('beta.json') ? 'beta' : url.startsWith('https://api.github.com/') ? 'api' : null;
     if (!key) return Promise.reject(new Error('offline'));
     return new Promise((resolve, reject) => pending.set(key, () => {
@@ -76,14 +76,14 @@ async function runPage({ stable, beta, api, order = [], language = 'zh-CN', note
 
 test('真实页面脚本在 feed/API 断网时仍显示测试版并加载本地公告图', async () => {
   const page = await runPage({});
-  assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.7.11');
+  assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.8.0');
   assert.equal(page.lists['[data-channel-label]'][0].textContent, '最新测试版');
   assert.equal(page.get('[data-channel="stable"]').innerHTML, '最新正式版：暂无正式版');
   assert.equal(page.get('[data-date]').textContent, '');
-  for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.7.11/'));
+  for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.8.0/'));
   const slides = page.get('#clSlides').innerHTML;
   assert.equal((slides.match(/http:\/\/localhost\/cursimple-app\/assets\/shots\//g) || []).length, 7);
-  assert.ok(slides.includes('侧边栏自己排'));
+  assert.ok(slides.includes('学期合并'));
   assert.ok(!page.requests.some((url) => url.includes('/releases/latest')));
 });
 
@@ -91,16 +91,16 @@ test('API 与 feed 不同到达顺序都不混用 0.7.4 的日期、包大小和
   for (const order of [['api', 'stable', 'beta'], ['beta', 'stable', 'api']]) {
     const page = await runPage({
       stable: { tagName: 'v0.7.4', versionCode: 30, prerelease: false },
-      beta: { tagName: 'v0.7.11', versionCode: 37, prerelease: true },
+      beta: { tagName: 'v0.8.0', versionCode: 38, prerelease: true },
       api: [{ tag_name: 'v0.7.4', prerelease: false, published_at: '2026-09-01T00:00:00Z', body: '这是旧公告', assets: [{ name: 'CurSimple-arm64-v8a.apk', size: 1000000, browser_download_url: 'old.apk' }] }],
       order,
     });
-    assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.7.11');
+    assert.equal(page.lists['[data-ver]'][0].textContent, 'v0.8.0');
     assert.equal(page.get('[data-channel="stable"]').innerHTML, '最新正式版：暂无正式版');
     assert.equal(page.get('[data-date]').textContent, '');
     assert.equal(page.lists['[data-size]'][0].textContent, '大小待获取');
     assert.ok(!page.get('#clSlides').innerHTML.includes('这是旧公告'));
-    for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.7.11/'));
+    for (const link of page.lists['[data-dl]']) assert.ok(link.href.includes('/releases/download/v0.8.0/'));
   }
 });
 
@@ -108,13 +108,13 @@ test('英文和繁体公告离线仍能加载，日期与下载文案使用所�
   for (const language of ['en', 'zh-TW']) {
     const page = await runPage({
       language,
-      api: [{ tag_name: 'v0.7.11', prerelease: true, published_at: '2026-10-15T00:00:00Z', assets: [] }],
+      api: [{ tag_name: 'v0.8.0', prerelease: true, published_at: '2026-10-15T00:00:00Z', assets: [] }],
     });
     assert.equal(page.document.documentElement.lang, language);
     assert.equal(page.lists['[data-channel-label]'][0].textContent, language === 'en' ? 'Latest beta' : '最新測試版');
     assert.ok(page.get('[data-date]').textContent.includes(language === 'en' ? 'October' : '10月'));
     const slides = page.get('#clSlides').innerHTML;
-    assert.ok(slides.includes(language === 'en' ? 'Arrange the sidebar yourself' : '側邊欄自己排'));
+    assert.ok(slides.includes(language === 'en' ? 'Merge terms' : '學期合併'));
     assert.equal((slides.match(/http:\/\/localhost\/cursimple-app\/assets\/shots\//g) || []).length, 7);
     assert.equal(page.lists['[data-size]'][0].textContent, language === 'en' ? 'Size unavailable' : '大小待取得');
   }
@@ -123,7 +123,7 @@ test('英文和繁体公告离线仍能加载，日期与下载文案使用所�
 test('快速切换语言时，迟到的英文公告不会覆盖繁体公告', async () => {
   let resolveEnglish;
   const page = await runPage({ notesFetch: (url) => {
-    if (url === 'release-notes/v0.7.11.en.md') return new Promise((resolve) => { resolveEnglish = resolve; });
+    if (url === 'release-notes/v0.8.0.en.md') return new Promise((resolve) => { resolveEnglish = resolve; });
     return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '..', url), 'utf8') });
   } });
   page.i18n.setLanguage('en');
@@ -139,7 +139,7 @@ test('快速切换语言时，迟到的英文公告不会覆盖繁体公告', as
 
 test('公告缺少翻译时显示原文提示，语言切回中文后提示消失', async () => {
   const page = await runPage({ language: 'en', notesFetch: (url) => {
-    if (url === 'release-notes/v0.7.11.md') return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '../release-notes/v0.7.11.md'), 'utf8') });
+    if (url === 'release-notes/v0.8.0.md') return Promise.resolve({ ok: true, text: async () => fs.readFileSync(path.join(__dirname, '../release-notes/v0.8.0.md'), 'utf8') });
     return Promise.reject(new Error('missing translation'));
   } });
   assert.ok(page.get('#clSlides').innerHTML.includes('The original text is shown below.'));
@@ -184,7 +184,7 @@ test('手势滚动到下一页的过程中，底部指示立即同步，无需�
   assert.equal(dots.children.findIndex((dot) => dot.classList.contains('on')), 3);
 });
 
-const APK = 'https://github.com/cursimple/cursimple-app/releases/download/v0.7.11/CurSimple-arm64-v8a.apk';
+const APK = 'https://github.com/cursimple/cursimple-app/releases/download/v0.8.0/CurSimple-arm64-v8a.apk';
 
 test('不分地区默认走国内加速直链，旧版保存的 GitHub 线路不再沿用', async () => {
   for (const saved of [{}, { 'dl-route': 'github' }]) {
@@ -199,7 +199,7 @@ test('不分地区默认走国内加速直链，旧版保存的 GitHub 线路不
 test('测速只认真正返回内容的镜像，限流或报错的镜像不会被选中', async () => {
   const page = await runPage({ mirrorFetch: (url) => {
     if (url.startsWith('https://gh-proxy.com/')) return Promise.resolve({ ok: false, status: 429, json: async () => ({}) });
-    if (url.startsWith('https://gh-proxy.org/')) return Promise.resolve({ ok: true, json: async () => ({ tagName: 'v0.7.11' }) });
+    if (url.startsWith('https://gh-proxy.org/')) return Promise.resolve({ ok: true, json: async () => ({ tagName: 'v0.8.0' }) });
     return new Promise(() => {});
   } });
   await new Promise(setImmediate);

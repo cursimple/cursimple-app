@@ -1,7 +1,16 @@
 package com.x500x.cursimple.feature.plugin
 
 import com.x500x.cursimple.feature.plugin.ui.AppInfoBlock
+import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import android.text.format.Formatter
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +38,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.graphics.Color
@@ -37,6 +47,8 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
@@ -64,32 +76,73 @@ internal fun MarketCatalogControls(
     isRefreshingReleases: Boolean,
     onImport: () -> Unit,
     onRefresh: () -> Unit,
+    installedCount: Int = 0,
+    marketCount: Int = 0,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(50),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
         ) {
             Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                val haptics = rememberAppHaptics()
                 MarketCatalogTab.entries.forEach { item ->
-                    val label = stringResource(
+                    val baseLabel = stringResource(
                         if (item == MarketCatalogTab.Installed) R.string.plugin_catalog_installed
                         else R.string.plugin_catalog_market,
                     )
+                    val count = if (item == MarketCatalogTab.Installed) installedCount else marketCount
                     val picked = item == tab
+                    val tabBgColor by animateColorAsState(
+                        targetValue = if (picked) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        animationSpec = tween(200, easing = FastOutSlowInEasing),
+                        label = "CatalogTabBg",
+                    )
+                    val tabContentColor by animateColorAsState(
+                        targetValue = if (picked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(200, easing = FastOutSlowInEasing),
+                        label = "CatalogTabContent",
+                    )
                     Surface(
-                        onClick = { onSelectTab(item) },
+                        onClick = { haptics.click(); onSelectTab(item) },
                         modifier = Modifier.weight(1f).heightIn(min = 40.dp)
                             .testTag("catalog-${item.name.lowercase()}")
                             .semantics { selected = picked; role = Role.Tab },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (picked) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        contentColor = if (picked) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        shape = RoundedCornerShape(50),
+                        color = tabBgColor,
+                        contentColor = tabContentColor,
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = if (picked) FontWeight.SemiBold else FontWeight.Medium)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = baseLabel,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = if (picked) FontWeight.SemiBold else FontWeight.Medium,
+                            )
+                            if (count > 0) {
+                                Spacer(Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = if (picked) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.22f)
+                                    else MaterialTheme.colorScheme.surfaceVariant,
+                                    contentColor = if (picked) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                ) {
+                                    Text(
+                                        text = count.toString(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -100,7 +153,11 @@ internal fun MarketCatalogControls(
             onValueChange = onQueryChange,
             modifier = Modifier.fillMaxWidth().testTag("catalog-search"),
             singleLine = true,
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+            ),
             label = {
                 Text(stringResource(if (extensionMode) R.string.extension_search_label else R.string.plugin_catalog_search_label))
             },
@@ -123,7 +180,11 @@ internal fun MarketCatalogControls(
             },
         )
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AppOutlinedButton(onClick = onImport, enabled = !isLoading) {
+            AppOutlinedButton(
+                onClick = onImport,
+                enabled = !isLoading,
+                shape = RoundedCornerShape(50),
+            ) {
                 Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text(stringResource(R.string.plugin_market_action_import_zip))
@@ -136,8 +197,16 @@ internal fun MarketCatalogControls(
                 Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.plugin_market_action_refresh), modifier = Modifier.size(24.dp))
             }
         }
-        if (isLoading || isRefreshingReleases) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        AnimatedVisibility(
+            visible = isLoading || isRefreshingReleases,
+            enter = expandVertically(tween(200, easing = FastOutSlowInEasing)) + fadeIn(tween(180)),
+            exit = shrinkVertically(tween(180, easing = FastOutSlowInEasing)) + fadeOut(tween(140)),
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(2.dp)),
+            )
         }
     }
 }
@@ -174,11 +243,12 @@ internal fun MarketStatusBadge(label: String, attention: Boolean = false) {
 internal fun MarketItemSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 2.dp,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
     }
 }
 

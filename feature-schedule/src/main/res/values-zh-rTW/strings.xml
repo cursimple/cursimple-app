@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="schedule_week_parity_all">全部周</string>
+    <string name="schedule_week_parity_all">全部週</string>
     <string name="schedule_week_parity_odd">單週</string>
     <string name="schedule_week_parity_even">雙週</string>
     <string name="schedule_add_course_title">新增課程</string>
+    <string name="schedule_add_exam_title">新增考試</string>
     <string name="schedule_edit_course_title">編輯課程</string>
     <string name="schedule_course_name_label">課程名 *</string>
     <string name="schedule_course_teacher_label">授課教師（可選）</string>
@@ -11,13 +12,14 @@
     <string name="schedule_course_category_label">類別</string>
     <string name="schedule_category_course">課程</string>
     <string name="schedule_category_exam">考試</string>
+    <string name="schedule_category_event">事務</string>
     <string name="schedule_add_course_time_label">上課時間</string>
     <string name="schedule_node_start_label">起始節</string>
     <string name="schedule_course_time_by_node">按節次</string>
     <string name="schedule_course_time_by_clock">按時間</string>
     <string name="schedule_course_clock_hint">課表上按這個時間擺放，提醒也照它來</string>
     <string name="schedule_node_end_label">結束節</string>
-    <string name="schedule_weeks_label">周次</string>
+    <string name="schedule_weeks_label">週次</string>
     <string name="schedule_swap_title">拖動調課</string>
     <string name="schedule_swap_hint">長按課程塊拖到另一列的某一格，鬆手後確認即可調課。</string>
     <string name="schedule_swap_no_timing">還沒設定節次上課時間，先去設定裡配好作息。</string>
@@ -30,25 +32,54 @@
     <string name="schedule_week_teacher_title">各週授課教師</string>
     <string name="schedule_week_teacher_default">預設教師：%1$s</string>
     <string name="schedule_week_teacher_no_default">還沒填預設教師</string>
-    <string name="schedule_week_teacher_counts">共 %1$d 週，其中 %2$d 週單獨設定教師</string>
-    <string name="schedule_week_teacher_placeholder_empty">沿用預設教師</string>
+    <string name="schedule_week_teacher_value_label">所選週的教師</string>
     <string name="schedule_week_teacher_summary">已為 %1$d 週單獨設定教師</string>
     <string name="schedule_week_location_title">各週單獨地點</string>
     <string name="schedule_week_location_default">預設地點：%1$s</string>
     <string name="schedule_week_location_no_default">還沒填預設地點</string>
+    <string name="schedule_week_location_value_label">所選週的地點</string>
     <string name="schedule_week_location_untitled_course">未命名課程</string>
-    <string name="schedule_week_location_counts">共 %1$d 週，其中 %2$d 週單獨設了地點</string>
     <string name="schedule_week_location_week">第 %1$d 週</string>
-    <string name="schedule_week_location_placeholder_empty">沿用預設地點</string>
     <string name="schedule_week_location_summary">已為 %1$d 週單獨設定地點</string>
-    <string name="schedule_week_start_label">起始周</string>
-    <string name="schedule_week_end_label">結束周</string>
-    <string name="schedule_add_course_parity_empty">所選周次區間裡沒有%1$s，換個區間或改選全部周。</string>
+    <string name="schedule_week_title_dialog_title">各週課程名稱</string>
+    <string name="schedule_week_title_default">預設名稱：%1$s</string>
+    <string name="schedule_week_title_no_default">還沒填預設名稱</string>
+    <string name="schedule_week_title_value_label">所選週的名稱</string>
+    <string name="schedule_week_title_summary">已為 %1$d 週單獨設定名稱</string>
+    <string name="schedule_course_edit_apply_this_week">僅套用到本週</string>
+    <string name="schedule_course_edit_apply_week_n">僅套用到第 %1$d 週</string>
+    <string name="schedule_course_edit_apply_hint">「僅套用到本週」只改當前週，「儲存」將作為全週期預設值</string>
+    <string name="schedule_course_edit_applied_feedback">已僅套用到第 %1$d 週</string>
+    <string name="schedule_course_override_badge">本週特有</string>
+    <string name="schedule_course_override_default">（預設：%1$s）</string>
+    <string name="schedule_week_batch_odd">單週</string>
+    <string name="schedule_week_batch_even">雙週</string>
+    <string name="schedule_week_values_pick_hint">點週次選擇，橫向滑動可連續多選</string>
+    <string name="schedule_week_values_select_all">全選</string>
+    <string name="schedule_week_values_select_none">清除</string>
+    <string name="schedule_week_values_nothing_selected">先在上方選擇要修改的週</string>
+    <string name="schedule_week_values_selected">已選 %1$s</string>
+    <string name="schedule_week_values_mixed">這幾週不一樣，填寫後統一修改</string>
+    <string name="schedule_week_values_apply">套用</string>
+    <string name="schedule_week_values_reset">恢復預設</string>
+    <string name="schedule_week_values_overview">各週情況</string>
+    <string name="schedule_week_values_default">預設</string>
+    <string name="schedule_week_values_blank">未填寫</string>
+    <string name="schedule_week_values_filter_all">全部 %1$d</string>
+    <string name="schedule_week_values_filter_custom">已設定 %1$d</string>
+    <string name="schedule_week_values_filter_default">未設定 %1$d</string>
+    <string name="schedule_week_values_none_custom">還沒有單獨設定的週</string>
+    <string name="schedule_week_values_none_default">每一週都單獨設定過了</string>
+    <string name="schedule_week_start_label">起始週</string>
+    <string name="schedule_week_end_label">結束週</string>
+    <string name="schedule_add_course_parity_empty">所選週次區間裡沒有%1$s，換個區間或改選全部週。</string>
     <string name="schedule_action_cancel">取消</string>
     <string name="schedule_action_save">儲存</string>
     <string name="schedule_node_single">第 %1$d 節</string>
     <string name="schedule_node_range">第 %1$d-%2$d 節</string>
     <string name="schedule_quick_add_title">在此處新增課程</string>
+    <string name="schedule_quick_add_exam_title">在此處新增考試</string>
+    <string name="schedule_event_preset_from_slot">源自第 %1$s 節</string>
     <string name="schedule_placeholder_add_title">新增佔位課</string>
     <string name="schedule_placeholder_edit_title">編輯佔位課</string>
     <string name="schedule_placeholder_name_label">名稱</string>
@@ -165,12 +196,13 @@
     <string name="schedule_course_detail_exam_prefix">"考試 · "</string>
     <string name="schedule_course_detail_same_slot">同位置 %1$d 門：</string>
     <string name="schedule_course_detail_class_time">上課時間</string>
-    <string name="schedule_course_detail_weeks">上課周次</string>
+    <string name="schedule_course_detail_weeks">上課週次</string>
     <string name="schedule_course_detail_countdown">考試倒計時</string>
     <string name="schedule_course_detail_countdown_body">%1$d 月 %2$d 日 · %3$s</string>
     <string name="schedule_course_detail_location">地點</string>
     <string name="schedule_course_detail_teacher">授課教師</string>
     <string name="schedule_course_detail_source">資料來源</string>
+    <string name="schedule_course_detail_source_term">來源學期</string>
     <string name="schedule_source_manual">手動新增</string>
     <string name="schedule_source_plugin">外掛同步</string>
     <string name="schedule_source_plugin_edited">外掛同步（已手動修改）</string>
@@ -199,7 +231,7 @@
     <string name="schedule_course_detail_restore_plugin_title">還原為外掛資料？</string>
     <string name="schedule_course_detail_restore_plugin_body">%1$s 的手動修改會丟掉，恢復成外掛同步下發的那一份。</string>
     <string name="schedule_exam_mute_this">取消本場</string>
-    <string name="schedule_status_week_unknown">周次未知</string>
+    <string name="schedule_status_week_unknown">週次未知</string>
     <string name="schedule_status_other_week">非本週</string>
     <string name="schedule_status_on_holiday">放假</string>
     <string name="schedule_status_cancelled">已停課</string>
@@ -220,7 +252,7 @@
     <string name="schedule_loading_tip_1">馬力全開中…</string>
     <string name="schedule_loading_tip_2">正在全力載入課表與鬧鐘～</string>
     <string name="schedule_loading_tip_3">嘿，先喝口水，馬上就好</string>
-    <string name="schedule_loading_tip_4">悄悄告訴你：側滑課表可以飛快翻周</string>
+    <string name="schedule_loading_tip_4">悄悄告訴你：側滑課表可以飛快翻週</string>
     <string name="schedule_loading_tip_5">長按課程能批次加鬧鐘，超方便</string>
     <string name="schedule_loading_tip_6">側邊欄裡有主題、開學日期，去逛逛</string>
     <string name="schedule_loading_tip_7">再等等，正在把課塞進格子裡…</string>
@@ -251,7 +283,7 @@
     <plurals name="schedule_placeholder_count">
         <item quantity="other">隱藏佔位課 %1$d 個</item>
     </plurals>
-    <string name="schedule_placeholder_summary">周%1$s · %2$s-%3$s · %4$s</string>
+    <string name="schedule_placeholder_summary">週%1$s · %2$s-%3$s · %4$s</string>
     <string name="schedule_rule_unnamed">未命名規則</string>
     <string name="schedule_cd_delete_rule">刪除規則</string>
     <string name="schedule_defaults_title">預設鬧鐘設定</string>
@@ -313,6 +345,16 @@
     </plurals>
     <string name="schedule_library_empty">這個學期還沒有課程</string>
     <string name="schedule_library_no_match">沒有匹配的課程</string>
+    <string name="schedule_library_variants_expand">展開各週安排</string>
+    <string name="schedule_library_variants_collapse">收起</string>
+    <string name="schedule_library_variants_hint">其餘各行和「主安排」不同的地方已標色，點一行可以直接修改</string>
+    <string name="schedule_library_variant_main">主安排</string>
+    <string name="schedule_library_variant_all_weeks">全部週</string>
+    <string name="schedule_library_variant_other_weeks">其餘週</string>
+    <string name="schedule_library_variant_unset">未設定</string>
+    <plurals name="schedule_library_variant_count">
+        <item quantity="other">%1$d 種安排</item>
+    </plurals>
     <string name="schedule_library_add">新增課程</string>
     <string name="schedule_library_plugin_editable_hint">外掛同步的課程也能改，改完會轉為手動課程，下次同步不再覆蓋</string>
     <string name="schedule_library_delete_title">刪除這門課？</string>
@@ -399,9 +441,10 @@
     <string name="schedule_conflict_week_segment_single">%1$d</string>
     <string name="schedule_conflict_week_segment_range">%1$d-%2$d</string>
     <string name="schedule_conflict_week_segment_separator">、</string>
-    <string name="schedule_conflict_week_segments">%1$s 周</string>
+    <string name="schedule_conflict_week_segments">%1$s 週</string>
+    <string name="schedule_conflict_week_segments_one">%1$s 週</string>
     <plurals name="schedule_conflict_week_summary">
-        <item quantity="other">%1$d-%2$d 周內共 %3$d 周</item>
+        <item quantity="other">%1$d-%2$d 週內共 %3$d 週</item>
     </plurals>
     <string name="schedule_conflict_kind_course_vs_course">兩門課程</string>
     <string name="schedule_conflict_kind_exam_vs_course">考試與課程</string>
@@ -414,7 +457,7 @@
     <string name="schedule_holiday_unnamed">放假</string>
     <string name="schedule_hint_needs_sync">還沒有同步到課表，可以去外掛頁同步，或點空格子直接加課。</string>
     <string name="schedule_hint_no_courses">課表還是空的，點空格子就能直接加課。</string>
-    <string name="schedule_hint_no_course_this_week">這一週沒有課程安排，可以切換其他周，或點空格子加課。</string>
+    <string name="schedule_hint_no_course_this_week">這一週沒有課程安排，可以切換其他週，或點空格子加課。</string>
     <string name="schedule_empty_holiday_subtitle">這一天是假日，不安排課程，也不會發出課程鬧鐘。</string>
     <string name="schedule_empty_not_started_title">還沒開學</string>
     <string name="schedule_empty_not_started_subtitle_date">開學日期是 %1$d 月 %2$d 日，到時候課程會自動顯示。</string>
@@ -422,7 +465,7 @@
     <string name="schedule_empty_no_schedule_title">還沒有同步到課表</string>
     <string name="schedule_empty_no_schedule_subtitle">去外掛頁同步課表，或去設定頁管理鬧鐘。</string>
     <string name="schedule_empty_week_title">這一週沒有課程安排</string>
-    <string name="schedule_empty_week_subtitle">可以切換其他周，或者繼續在外掛頁同步最新資料。</string>
+    <string name="schedule_empty_week_subtitle">可以切換其他週，或者繼續在外掛頁同步最新資料。</string>
     <string name="schedule_legacy_rule_scope_single_course">單課鬧鐘（舊版）</string>
     <string name="schedule_legacy_rule_scope_time_slot">時間段鬧鐘（舊版）</string>
     <string name="schedule_legacy_rule_scope_exam">考試鬧鐘（舊版）</string>
@@ -478,14 +521,14 @@
     <string name="schedule_class_time_range">%1$s - %2$s</string>
     <string name="schedule_major_period_single">第 %1$d 大節</string>
     <string name="schedule_major_period_range">第 %1$d-%2$d 大節</string>
-    <string name="schedule_weeks_detail_unspecified">全部周（未指定具體周次）</string>
+    <string name="schedule_weeks_detail_unspecified">全部週（未指定具體週次）</string>
     <plurals name="schedule_weeks_detail_consecutive">
-        <item quantity="other">%1$d-%2$d 周（連續 %3$d 周）</item>
+        <item quantity="other">%1$d-%2$d 週（連續 %3$d 週）</item>
     </plurals>
-    <string name="schedule_weeks_detail_odd">%1$d-%2$d 周（單週，共 %3$d 周）</string>
-    <string name="schedule_weeks_detail_even">%1$d-%2$d 周（雙週，共 %3$d 周）</string>
+    <string name="schedule_weeks_detail_odd">%1$d-%2$d 週（單週，共 %3$d 週）</string>
+    <string name="schedule_weeks_detail_even">%1$d-%2$d 週（雙週，共 %3$d 週）</string>
     <plurals name="schedule_weeks_detail_count">
-        <item quantity="other">%1$d 個周次</item>
+        <item quantity="other">%1$d 個週次</item>
     </plurals>
     <!-- Plugin schedule validation messages. -->
     <string name="schedule_validation_invalid_weekday">外掛返回了無效星期: %1$d</string>
@@ -495,7 +538,7 @@
     <string name="schedule_validation_weekday_mismatch">外掛課程星期與日程分組不一致</string>
     <string name="schedule_validation_invalid_start_node">外掛返回了無效開始節次: %1$d</string>
     <string name="schedule_validation_invalid_end_node">外掛返回了無效結束節次: %1$d</string>
-    <string name="schedule_validation_invalid_weeks">外掛返回了無效教學周</string>
+    <string name="schedule_validation_invalid_weeks">外掛返回了無效教學週</string>
     <string name="schedule_validation_too_many_courses">外掛返回的課程數量過多</string>
     <string name="schedule_course_action_add_at_position">在此位置新增課程</string>
     <string name="schedule_course_action_add_at_position_desc">沿用星期與節次，新增另一門課程</string>
@@ -575,7 +618,7 @@
     <string name="schedule_library_add_event">新增事務</string>
     <string name="schedule_library_tab_courses">課程 %1$d</string>
     <string name="schedule_library_tab_events">事務 %1$d</string>
-    <string name="schedule_library_events_empty">還沒有事務。點「新增事務」把組會、社團、面試這類安排放進課表，任何時段都行，和節次對不齊也會按真實時間畫出來。</string>
+    <string name="schedule_library_events_empty">還沒有事務\n點「新增事務」記下組會、社團、面試等安排</string>
     <string name="schedule_event_add_title">新增事務</string>
     <string name="schedule_event_edit_title">修改事務</string>
     <string name="schedule_event_edit">修改</string>
@@ -629,7 +672,7 @@
     <string name="memo_delete_body">刪掉「%1$s」？刪了就找不回來了。</string>
     <string name="memo_untitled">無標題</string>
     <string name="memo_empty_filter">這一類裡沒有筆記</string>
-    <string name="memo_empty_all">還沒有筆記\n點右下角「記一則」\n課堂重點、待辦、截止時間都能記</string>
+    <string name="memo_empty_all">還沒有筆記\n點右下角「記一則」開始記錄</string>
     <string name="memo_empty_notebook">這門課還沒有筆記，點右下角記一則</string>
     <string name="memo_new">記一則</string>
     <string name="memo_stat_todo">待辦</string>
@@ -813,12 +856,18 @@
     <string name="memo_image_remove_body">從這篇筆記移除圖片？儲存前仍可復原。</string>
     <string name="memo_image_insert_failed">無法插入圖片，請重新選擇。</string>
     <string name="schedule_reuse_values">選擇已有內容</string>
-    <string name="schedule_week_batch_hint">點選週次，或橫向滑過多個週次一起選擇，再填寫統一內容。</string>
-    <string name="schedule_week_batch_clear_selection">取消選擇</string>
-    <string name="schedule_week_batch_selected">已選 %1$d 週</string>
-    <string name="schedule_week_batch_apply">套用到所選週</string>
-    <string name="schedule_week_batch_default">沿用預設</string>
     <string name="schedule_course_session_progress">上課次數 %1$d/%2$d</string>
     <string name="schedule_course_session_not_scheduled">本次不計 · 共 %1$d 次</string>
     <string name="schedule_course_session_needs_start">設定學期開始日期後顯示上課次數</string>
+    <string name="schedule_overflow_auto_scroll_notice">課表與事務超出單螢幕，已自動切換為上下捲動</string>
+    <string name="schedule_today_makeup_notice">補課調休：今日依 %1$s 課表上課</string>
+    <string name="schedule_today_free_slots_title">今日自習與空閒時段</string>
+    <string name="schedule_today_free_all_day">全天無課，整天皆為自由自習時間</string>
+    <string name="schedule_today_free_morning">上午半天無課</string>
+    <string name="schedule_today_free_afternoon">下午半天無課</string>
+    <string name="schedule_today_free_evening">晚間無課</string>
+    <string name="schedule_today_free_nodes">第 %1$d - %2$d 節無課</string>
+    <string name="schedule_conflict_resolve_title">衝堂快捷分流</string>
+    <string name="schedule_conflict_odd_even_split">單雙週分流</string>
+    <string name="schedule_conflict_half_term_split">前後學期分流</string>
 </resources>

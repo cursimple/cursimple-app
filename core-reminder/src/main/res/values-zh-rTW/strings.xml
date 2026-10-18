@@ -44,6 +44,6 @@
     <string name="reminder_notification_nodes">第%1$d-%2$d節</string>
     <string name="reminder_notification_nodes_labeled">%1$s（%2$s節）</string>
     <string name="reminder_notification_location_tbd">待定教室</string>
-    <string name="reminder_weekday_other">周%1$d</string>
+    <string name="reminder_weekday_other">週%1$d</string>
 
 </resources>

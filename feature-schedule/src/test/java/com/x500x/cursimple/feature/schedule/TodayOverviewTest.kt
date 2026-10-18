@@ -148,4 +148,33 @@ class TodayOverviewTest {
         assertNull(state.next)
         assertNull(state.current)
     }
+
+    @Test fun `free slots calculation handles empty day and partial gaps`() {
+        val emptyState = overview(courses = emptyList())
+        assertEquals(1, emptyState.freeSlots.size)
+        assertEquals(1, emptyState.freeSlots[0].startNode)
+        assertEquals(12, emptyState.freeSlots[0].endNode)
+
+        val partialCourses = listOf(
+            course("c1", node = 1), // node 1-2
+            course("c2", node = 3), // node 3-4
+        )
+        val state = overview(courses = partialCourses)
+        // nodes 1-4 occupied, nodes 5-12 should be free
+        assertTrue(state.freeSlots.isNotEmpty())
+        assertTrue(state.freeSlots.any { it.startNode == 5 && it.endNode == 12 })
+    }
+
+    @Test fun `makeup day detects swap when source day differs from target day`() {
+        // Swap 2026-09-07 (Monday) to follow Tuesday's schedule (2026-09-08)
+        val swapOverride = TemporaryScheduleOverride(
+            id = "swap1",
+            type = TemporaryScheduleOverrideType.MakeUp,
+            sourceDate = "2026-09-08",
+            targetDate = "2026-09-07",
+        )
+        val state = overview(overrides = listOf(swapOverride))
+        assertNotNull(state.makeUpWeekdayRes)
+    }
 }
+

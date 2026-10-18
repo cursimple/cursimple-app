@@ -740,6 +740,15 @@ object ClassNoticeNotifier {
     fun systemBlocked(context: Context, preferences: ClassNoticePreferences): Boolean =
         masterNotificationsBlocked(context) || channelBlocked(context, preferences)
 
+    /** Heads-up needs a HIGH channel; the user or the ROM can lower it after the app created it. */
+    fun headsUpChannelMuted(context: Context, preferences: ClassNoticePreferences): Boolean {
+        if (!preferences.headsUpEnabled || Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        val channel = context.getSystemService(NotificationManager::class.java)
+            ?.getNotificationChannel(channelIdFor(preferences))
+            ?: return false
+        return channel.importance < NotificationManager.IMPORTANCE_HIGH
+    }
+
     fun masterNotificationsBlocked(context: Context): Boolean =
         !NotificationManagerCompat.from(context).areNotificationsEnabled()
 

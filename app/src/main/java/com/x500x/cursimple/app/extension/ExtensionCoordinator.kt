@@ -57,7 +57,8 @@ class ExtensionCoordinator(
                 .collect { (installed, saved) ->
                     runCatching { publishWidgetDefinitions() }
                         .onFailure { ReminderLogger.warn("extension.component_widgets.availability_failed", emptyMap(), it) }
-                    val orphanOwners = events.eventsFlow.first().mapNotNull { it.source?.componentId }.toSet()
+                    // 事务按学期分区，孤立来源判断要跨全部学期，不能只看当前学期。
+                    val orphanOwners = events.allEvents().mapNotNull { it.source?.componentId }.toSet()
                     val owners = knownOwners + installed + saved + orphanOwners
                     knownOwners = installed
                     for (id in saved - installed) store.remove(id)

@@ -465,7 +465,7 @@ class AppUpdateChecker(
                 (fastPath is UpdateSourceSelection.NotFound &&
                     preferred.sourceName == UpdateSourceSelector.AUTHORITATIVE_SOURCE_NAME)
             if (terminal) return fastPath
-            mirrorStore?.recordFailure(key, preferred.sourceName)
+            mirrorStore.recordFailure(key, preferred.sourceName)
         }
         val rest = candidates.filterNot { it.sourceName == preferred?.sourceName }
         val selection = raceSources(rest, accepts)

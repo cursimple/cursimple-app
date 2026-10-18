@@ -65,8 +65,19 @@ class DataStoreScheduleRepository(
         }
     }
 
-    /** Bind the explicitly reviewed term only; concurrent imports cannot be overwritten. */
-    suspend fun setLegacyTimetableDisplayPlugin(termId: String, expected: TermSchedule, pluginId: String,
+    /** Read one specific term's timetable (merging terms). */
+    suspend fun scheduleFor(termId: String): TermSchedule? =
+        decodeSchedule(store.data.first(), termId)
+
+    /** Write one specific term's timetable (merging terms); a blank id has no bucket. */
+    suspend fun saveScheduleFor(termId: String, schedule: TermSchedule) {
+        if (termId.isBlank()) return
+        store.edit { preferences ->
+            preferences[scheduleKey(termId)] = json.encodeToString(schedule)
+        }
+    }
+
+    /** Bind the explicitly reviewed term only; concurrent imports cannot be overwritten. */    suspend fun setLegacyTimetableDisplayPlugin(termId: String, expected: TermSchedule, pluginId: String,
         schema: PluginUiSchema, profile: TermTimingProfile?, enabled: Boolean): Boolean {
         if (termProfileRepository != null && termProfileRepository.activeTermId() != termId) return false
         var saved = false

@@ -45,8 +45,11 @@ import androidx.compose.ui.unit.dp
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.feature.plugin.ui.AppCircleIconButton
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
+import com.x500x.cursimple.feature.plugin.ui.appItemMotion
+import com.x500x.cursimple.feature.plugin.ui.pressFeedback
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import androidx.compose.foundation.interaction.MutableInteractionSource
 
 internal enum class LibraryTab { Courses, Events }
 
@@ -123,14 +126,16 @@ internal fun EventLibraryList(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(sorted, key = { it.id }) { event ->
-            val next = event.nextOccurrence(today)
-            EventLibraryRow(
-                event = event,
-                shownDate = next ?: event.localDate,
-                past = next == null,
-                onEdit = { onEdit(event) },
-                onDelete = { pendingDelete = event },
-            )
+            Box(appItemMotion()) {
+                val next = event.nextOccurrence(today)
+                EventLibraryRow(
+                    event = event,
+                    shownDate = next ?: event.localDate,
+                    past = next == null,
+                    onEdit = { onEdit(event) },
+                    onDelete = { pendingDelete = event },
+                )
+            }
         }
     }
 }
@@ -145,11 +150,14 @@ private fun EventLibraryRow(
 ) {
     val colors = eventColors(event)
     var menu by remember { mutableStateOf(false) }
+    val press = remember { MutableInteractionSource() }
     Surface(
+        interactionSource = press,
         onClick = onEdit,
         modifier = Modifier
             .fillMaxWidth()
-            .alpha(if (past) 0.55f else 1f),
+            .alpha(if (past) 0.55f else 1f)
+            .pressFeedback(press),
         shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),

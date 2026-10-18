@@ -51,7 +51,7 @@ internal object CalendarWidgetDataSource {
         val manual = DataStoreManualCourseRepository(appContext, termProfiles).manualCoursesFlow.first()
         val allCourses = schedule.allCoursesWith(manual)
         val events = if (widgetTheme.showEvents) {
-            DataStoreScheduleEventRepository(appContext).eventsFlow.first()
+            DataStoreScheduleEventRepository(appContext, termProfiles).eventsFlow.first()
         } else {
             emptyList()
         }

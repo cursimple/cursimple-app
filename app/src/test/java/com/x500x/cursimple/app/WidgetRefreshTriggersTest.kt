@@ -21,6 +21,6 @@ class WidgetRefreshTriggersTest {
 
     @Test
     fun `a non-default starting value still redraws once in case a render raced ahead of it`() = runBlocking {
-        assertEquals(listOf("Asia/Tokyo"), flowOf("Asia/Tokyo").widgetRefreshes { it != null }.toList())
+        assertEquals(listOf("Asia/Tokyo"), flowOf<String?>("Asia/Tokyo").widgetRefreshes { it != null }.toList())
     }
 }

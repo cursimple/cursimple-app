@@ -23,9 +23,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.*
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.CleaningServices
 import androidx.compose.ui.unit.dp
 import androidx.test.platform.app.InstrumentationRegistry
 import com.x500x.cursimple.BuildConfig
+import com.x500x.cursimple.app.WeekPickerSheet
 import com.x500x.cursimple.app.navigation.AppBottomBar
 import com.x500x.cursimple.app.navigation.BarTab
 import com.x500x.cursimple.app.navigation.ComponentsHubScreen
@@ -42,6 +47,9 @@ import com.x500x.cursimple.core.kernel.model.CourseItem
 import com.x500x.cursimple.core.kernel.model.CourseTimeSlot
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
 import com.x500x.cursimple.core.kernel.model.TermTimingProfile
+import com.x500x.cursimple.feature.schedule.AddCourseDialog
+import com.x500x.cursimple.feature.schedule.QuickAddCourseDialog
+import com.x500x.cursimple.feature.schedule.ScheduleItemType
 import com.x500x.cursimple.feature.schedule.ScheduleScreen
 import com.x500x.cursimple.feature.schedule.ScheduleUiState
 import com.x500x.cursimple.feature.schedule.ScheduleViewMode
@@ -90,17 +98,24 @@ class AnnouncementCaptureTest {
     private val localeContext by lazy { AppLocale.wrap(context, language) }
     private fun text(id: Int, vararg formatArgs: Any) = localeContext.getString(id, *formatArgs)
 
+    /** Demo data follows the capture language so English shots carry no Chinese course names. */
+    private fun tr(zh: String, tw: String, en: String) = when (language) {
+        AppLanguage.English -> en
+        AppLanguage.TraditionalChinese -> tw
+        else -> zh
+    }
+
     private val monday = LocalDate.now(ZoneId.systemDefault()).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
     private val timing = TermTimingProfile(monday.toString(), listOf(
         ClassSlotTime(1, 2, "08:00", "09:40", "1–2"), ClassSlotTime(3, 4, "10:10", "11:50", "3–4"),
         ClassSlotTime(5, 6, "14:00", "15:40", "5–6"), ClassSlotTime(7, 8, "16:10", "17:50", "7–8")))
-    private val regular = CourseItem("math", "高等数学", teacher = "王老师", location = "A101",
+    private val regular = CourseItem("math", tr("高等数学", "高等數學", "Calculus"), teacher = tr("王老师", "王老師", "Prof. Wang"), location = "A101",
         weeks = (1..16).toList(), time = CourseTimeSlot(1, 1, 2))
-    private val lunch = CourseItem("lunch", "午间讲座", teacher = "李老师", location = "B202",
+    private val lunch = CourseItem("lunch", tr("午间讲座", "午間講座", "Lunch Lecture"), teacher = tr("李老师", "李老師", "Prof. Li"), location = "B202",
         weeks = (1..16).toList(), time = CourseTimeSlot(1, 3, 4),
         reminderStartTime = "12:10", reminderEndTime = "13:30")
-    private val event = ScheduleEvent("meet", "组会", date = monday.plusDays(2).toString(),
-        startTime = "12:30", endTime = "13:15", location = "线上",
+    private val event = ScheduleEvent("meet", tr("组会", "組會", "Group meeting"), date = monday.plusDays(2).toString(),
+        startTime = "12:30", endTime = "13:15", location = tr("线上", "線上", "Online"),
         weekDates = listOf(monday.plusDays(2), monday.plusDays(16)).map { it.toString() })
 
     @Test fun sidebarCustomization() {
@@ -160,7 +175,7 @@ class AnnouncementCaptureTest {
                         overflow = NavDestination.entries.filterNot {
                             it in listOf(NavDestination.Schedule, NavDestination.Memos, NavDestination.Components)
                         },
-                        termLabel = "2026 秋季 · 第 6 周", versionName = BuildConfig.VERSION_NAME,
+                        weekLabel = "第 6 周", termLabel = "2026-2027 第1学期", versionName = BuildConfig.VERSION_NAME,
                         updateBadge = true, badgeFor = { it == NavDestination.Settings },
                         onOpen = {}, onShortcut = {}, onOpenUpdate = {},
                         modifier = Modifier.weight(1f),
@@ -220,6 +235,334 @@ class AnnouncementCaptureTest {
         capture("event-weeks-matrix")
     }
 
+    @Test fun courseDetailView() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        showSchedule()
+        node(regular.title).performClick()
+        compose.waitForIdle()
+        hideIme()
+        capture("course-detail-view")
+    }
+
+    @Test fun courseDetailEdit() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        showSchedule()
+        node(regular.title).performClick()
+        compose.waitForIdle()
+        compose.onAllNodes(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_edit)))
+            .onFirst().performClick()
+        compose.waitForIdle()
+        hideIme()
+        capture("course-detail-edit")
+    }
+
+    @Test fun courseDetailOverrideView() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        val overriddenCourse = regular.copy(
+            weekTitles = mapOf(1 to tr("高等数学（实验）", "高等數學（實驗）", "Calculus (Lab)")),
+            weekLocations = mapOf(1 to tr("B302 实验室", "B302 實驗室", "Lab B302")),
+            weekTeachers = mapOf(1 to tr("周助教", "周助教", "TA Zhou")),
+        )
+        val courses = mutableStateOf(listOf(overriddenCourse, lunch))
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                ScheduleScreen(
+                    state = ScheduleUiState(initialized = true, timingProfile = timing,
+                        manualCourses = courses.value, events = listOf(event)),
+                    onAddManualCourse = { courses.value = courses.value + it }, onSaveCourse = {},
+                    onCreateCourseReminder = { _, _, _ -> }, onMuteExamReminder = {}, onRestoreExamReminder = {},
+                    onRemoveReminderRule = {}, onRemoveManualCourse = {}, onCreateBulkReminder = { _, _, _ -> },
+                    onPrevWeek = {}, onNextWeek = {}, onPrevDay = {}, onNextDay = {}, onResetDay = {},
+                    onOpenPluginMarket = {}, overrideTermStart = monday, viewMode = ScheduleViewMode.Week,
+                    weekOffset = 0, minWeekOffset = 0, maxWeekOffset = 16, termWeekCount = 16,
+                    onWeekOffsetChange = {}, onAddWeek = {}, dayOffset = 0,
+                    modifier = Modifier.safeDrawingPadding(),
+                )
+            }
+        }
+        compose.waitForIdle()
+        node(regular.title).performClick()
+        compose.waitForIdle()
+        hideIme()
+        capture("course-detail-override-view")
+    }
+
+    @Test fun courseDetailWeekTitles() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        showSchedule()
+        node(regular.title).performClick()
+        compose.waitForIdle()
+        compose.onAllNodes(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_edit)))
+            .onFirst().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("course-title-weeks").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("week-pick-even").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("week-batch-value-field").performScrollTo().performTextReplacement(tr("高等数学（双周答疑）", "高等數學（雙週答疑）", "Calculus (Q&A)"))
+        compose.waitForIdle()
+        compose.onNodeWithTag("week-batch-apply").performScrollTo().performClick()
+        compose.waitForIdle()
+        hideIme()
+        // Back to the top so the dialog header is whole; the per-week groups follow below the grid.
+        compose.onNodeWithTag("week-filter-all").performScrollTo().performTouchInput { swipeDown() }
+        compose.waitForIdle()
+        hideIme()
+        capture("course-detail-week-titles")
+    }
+
+    @Test fun courseDetailApplyThisWeek() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        showSchedule()
+        node(regular.title).performClick()
+        compose.waitForIdle()
+        compose.onAllNodes(hasClickAction() and hasText(text(ScheduleR.string.schedule_action_edit)))
+            .onFirst().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithTag("course-title-field").performScrollTo().performTextReplacement("高等数学 (周改动)")
+        compose.waitForIdle()
+        hideIme()
+        compose.onNodeWithTag("course-edit-apply-this-week").performScrollTo()
+        compose.waitForIdle()
+        hideIme()
+        capture("course-detail-apply-this-week")
+    }
+
+    @Test fun quickAddCourseDialogTypes() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                QuickAddCourseDialog(
+                    dayOfWeek = 3,
+                    startNode = 1,
+                    endNode = 2,
+                    slotLabel = "1–2",
+                    slotTimes = timing.slotTimes,
+                    defaultDate = monday.plusDays(2),
+                    termStartDate = monday,
+                    onDismiss = {},
+                    onConfirm = {},
+                    onConfirmEvent = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+        hideIme()
+        capture("quick-add-course")
+    }
+
+    @Test fun quickAddEventMode() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                QuickAddCourseDialog(
+                    dayOfWeek = 3,
+                    startNode = 1,
+                    endNode = 2,
+                    slotLabel = "1–2",
+                    slotTimes = timing.slotTimes,
+                    defaultDate = monday.plusDays(2),
+                    termStartDate = monday,
+                    onDismiss = {},
+                    onConfirm = {},
+                    onConfirmEvent = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("quick-add-type-event").performClick()
+        compose.waitForIdle()
+        hideIme()
+        capture("quick-add-event")
+    }
+
+    @Test fun addCourseDialogEventMode() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                AddCourseDialog(
+                    onDismiss = {},
+                    onConfirm = {},
+                    onConfirmEvent = {},
+                    existingCourses = listOf(regular),
+                    slotTimes = timing.slotTimes,
+                    initialScheduleType = ScheduleItemType.Event,
+                    defaultDate = monday.plusDays(2),
+                    termStartDate = monday,
+                )
+            }
+        }
+        compose.waitForIdle()
+        capture("add-course-event")
+    }
+
+    @Test fun addCourseDialogCourseMode() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                AddCourseDialog(
+                    onDismiss = {},
+                    onConfirm = {},
+                    onConfirmEvent = {},
+                    existingCourses = listOf(regular),
+                    slotTimes = timing.slotTimes,
+                    initialScheduleType = ScheduleItemType.Course,
+                    defaultDate = monday.plusDays(2),
+                    termStartDate = monday,
+                )
+            }
+        }
+        compose.waitForIdle()
+        hideIme()
+        capture("add-course-course")
+    }
+
+    @Test fun quickAddExamMode() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                QuickAddCourseDialog(
+                    dayOfWeek = 3,
+                    startNode = 1,
+                    endNode = 2,
+                    slotLabel = "1–2",
+                    slotTimes = timing.slotTimes,
+                    defaultDate = monday.plusDays(2),
+                    termStartDate = monday,
+                    onDismiss = {},
+                    onConfirm = {},
+                    onConfirmEvent = {},
+                )
+            }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithTag("quick-add-type-exam").performClick()
+        compose.waitForIdle()
+        hideIme()
+        capture("quick-add-exam")
+    }
+
+    @Test fun addCourseDialogExamMode() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                AddCourseDialog(
+                    onDismiss = {},
+                    onConfirm = {},
+                    onConfirmEvent = {},
+                    existingCourses = listOf(regular),
+                    slotTimes = timing.slotTimes,
+                    initialScheduleType = ScheduleItemType.Exam,
+                    defaultDate = monday.plusDays(2),
+                    termStartDate = monday,
+                )
+            }
+        }
+        compose.waitForIdle()
+        hideIme()
+        capture("add-course-exam")
+    }
+
+    @Test fun topBarAddMenu() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                Box(Modifier.fillMaxSize().safeDrawingPadding().padding(top = 16.dp, end = 16.dp)) {
+                    Box(Modifier.align(androidx.compose.ui.Alignment.TopEnd)) {
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = true,
+                            onDismissRequest = {},
+                        ) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(text(com.x500x.cursimple.R.string.main_add_course_manually)) },
+                                leadingIcon = {
+                                    androidx.compose.material3.Icon(
+                                        androidx.compose.material.icons.Icons.Rounded.Add,
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {},
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(text(com.x500x.cursimple.R.string.main_add_event_manually)) },
+                                leadingIcon = {
+                                    androidx.compose.material3.Icon(
+                                        androidx.compose.material.icons.Icons.Rounded.Event,
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {},
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(text(com.x500x.cursimple.R.string.main_clear_schedule)) },
+                                leadingIcon = {
+                                    androidx.compose.material3.Icon(
+                                        androidx.compose.material.icons.Icons.Rounded.CleaningServices,
+                                        contentDescription = null,
+                                    )
+                                },
+                                onClick = {},
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        capture("top-bar-add-menu")
+    }
+
+    @Test fun componentsHubScreen() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+                    ComponentsHubScreen(
+                        entries = emptyList(),
+                        current = null,
+                        onOpen = {},
+                        onOpenMarket = {},
+                        modifier = Modifier.weight(1f),
+                    )
+                    AppBottomBar(
+                        items = listOf(NavDestination.Schedule, NavDestination.Memos, NavDestination.Components),
+                        selected = BarTab.Destination(NavDestination.Components),
+                        meBadge = false,
+                        onSelect = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        capture("components-hub")
+    }
+
+    @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+    @Test fun weekPickerSheetDialog() {
+        assumeTrue(args.getString("announcementQa") == "true")
+        show { fixtureContext ->
+            CompositionLocalProvider(*chinese(fixtureContext)) {
+                Box(Modifier.fillMaxSize()) {
+                    WeekPickerSheet(
+                        termStart = monday,
+                        currentWeek = 6,
+                        selectedWeek = 6,
+                        totalWeeks = 20,
+                        derivedWeeks = 20,
+                        onSelectWeek = {},
+                        onSetSelectedAsCurrent = {},
+                        onAddWeek = {},
+                        onDeleteWeek = {},
+                        onDismiss = {},
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        Thread.sleep(1200)
+        capture("week-picker")
+    }
+
     private fun showSchedule() {
         val courses = mutableStateOf(listOf(regular, lunch))
         show { fixtureContext ->
@@ -253,7 +596,10 @@ class AnnouncementCaptureTest {
         compose.runOnUiThread {
             compose.activity.setContent {
                 ClassScheduleTheme(themeMode = ThemeMode.Light) {
-                    Box(Modifier.fillMaxSize()) { content(fixtureContext) }
+                    androidx.compose.material3.Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                    ) { content(fixtureContext) }
                 }
             }
         }
@@ -281,14 +627,24 @@ class AnnouncementCaptureTest {
     }
 
     private fun capture(name: String) {
+        hideIme()
         compose.waitForIdle()
-        Thread.sleep(500)
-        val bitmap = checkNotNull((1..5).firstNotNullOfOrNull {
-            instrumentation.uiAutomation.takeScreenshot() ?: run { Thread.sleep(300); null }
-        })
-        val dir = File(checkNotNull(context.getExternalFilesDir(null)), "announcement")
-        dir.mkdirs()
-        File(dir, "$name$languageSuffix.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        Thread.sleep(600)
+        val bitmap = ScreenshotCapture.take()
+        val targets = listOfNotNull(
+            File("/sdcard/Download/announcement"),
+            File("/data/local/tmp/announcement"),
+            File(context.filesDir, "announcement"),
+            context.getExternalFilesDir(null)?.let { File(it, "announcement") },
+        )
+        targets.forEach { targetDir ->
+            runCatching {
+                targetDir.mkdirs()
+                File(targetDir, "$name$languageSuffix.png").outputStream().use {
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                }
+            }
+        }
         bitmap.recycle()
     }
 }

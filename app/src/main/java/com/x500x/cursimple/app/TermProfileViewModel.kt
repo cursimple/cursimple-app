@@ -7,6 +7,7 @@ import com.x500x.cursimple.core.data.UserPreferencesRepository
 import com.x500x.cursimple.core.data.term.TermProfile
 import com.x500x.cursimple.core.data.term.TermProfileRepository
 import com.x500x.cursimple.core.data.term.termStartDateIsoOf
+import com.x500x.cursimple.core.kernel.model.TermMergeAlignment
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -24,6 +25,7 @@ class TermProfileViewModel(
     private val termRepo: TermProfileRepository,
     private val userPrefs: UserPreferencesRepository,
     private val onActiveTermChanged: suspend () -> Unit = {},
+    private val merger: (suspend (ids: List<String>, name: String, alignment: TermMergeAlignment, anchorTermId: String?) -> String?)? = null,
 ) : ViewModel() {
 
     val state: StateFlow<TermProfileUiState> = combine(
@@ -71,6 +73,24 @@ class TermProfileViewModel(
         }
     }
 
+    /** 合并后切到新学期，和切换学期一样同步开学日期与节次方案。 */
+    fun merge(
+        ids: List<String>,
+        name: String,
+        alignment: TermMergeAlignment = TermMergeAlignment.ByRealDate,
+        anchorTermId: String? = null,
+        onMerged: (String) -> Unit = {},
+    ) {
+        val run = merger ?: return
+        viewModelScope.launch {
+            val mergedId = run(ids, name, alignment, anchorTermId) ?: return@launch
+            val iso = termRepo.termsFlow.first().termStartDateIsoOf(mergedId)
+            userPrefs.setTermStartDate(iso?.let { runCatching { LocalDate.parse(it) }.getOrNull() })
+            onActiveTermChanged()
+            onMerged(name)
+        }
+    }
+
     fun delete(id: String) {
         viewModelScope.launch {
             termRepo.deleteTerm(id)
@@ -86,11 +106,12 @@ class TermProfileViewModelFactory(
     private val termRepo: TermProfileRepository,
     private val userPrefs: UserPreferencesRepository,
     private val onActiveTermChanged: suspend () -> Unit = {},
+    private val merger: (suspend (ids: List<String>, name: String, alignment: TermMergeAlignment, anchorTermId: String?) -> String?)? = null,
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(TermProfileViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return TermProfileViewModel(termRepo, userPrefs, onActiveTermChanged) as T
+            return TermProfileViewModel(termRepo, userPrefs, onActiveTermChanged, merger) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

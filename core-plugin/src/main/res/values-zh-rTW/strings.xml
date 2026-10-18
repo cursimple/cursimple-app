@@ -35,7 +35,7 @@
     <string name="plugin_error_draft_invalid_day_of_week">外掛返回了無效星期: %1$d</string>
     <string name="plugin_error_draft_invalid_start_node">外掛返回了無效開始節次: %1$d</string>
     <string name="plugin_error_draft_invalid_end_node">外掛返回了無效結束節次: %1$d</string>
-    <string name="plugin_error_draft_invalid_weeks">外掛返回了無效教學周</string>
+    <string name="plugin_error_draft_invalid_weeks">外掛返回了無效教學週</string>
 
     <string name="plugin_error_record_missing_entry">外掛記錄缺少入口檔案</string>
     <string name="plugin_error_file_path_escape">外掛檔案路徑越界: %1$s</string>

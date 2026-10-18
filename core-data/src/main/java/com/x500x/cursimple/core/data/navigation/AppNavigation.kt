@@ -55,6 +55,18 @@ const val SHELL_DRAWER = "drawer"
 const val SHELL_BOTTOM_BAR = "bottomBar"
 val SUPPORTED_SHELLS = listOf(SHELL_DRAWER, SHELL_BOTTOM_BAR)
 
+/** Host-owned bottom bar density; unknown or missing values fall back to [Medium]. */
+enum class BottomBarSize(val id: String) {
+    Small("small"),
+    Medium("medium"),
+    Large("large"),
+    ;
+
+    companion object {
+        fun fromId(id: String?): BottomBarSize = entries.firstOrNull { it.id == id } ?: Medium
+    }
+}
+
 /** Bottom bar entries including the trailing "me" tab. */
 const val MAX_BAR_ITEMS = 5
 private const val MIN_BAR_ITEMS = 3
