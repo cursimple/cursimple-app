@@ -4,6 +4,7 @@ import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.FrameLayout
@@ -119,15 +120,29 @@ open class MemoTodoWidgetReceiver : AppWidgetProvider() {
                 views.setViewVisibility(R.id.memo_header_rule, if (compact) View.GONE else View.VISIBLE)
                 views.setInt(R.id.memo_header_rule, "setBackgroundColor", (accent and 0x00FFFFFF) or 0x26000000)
                 val layout = withContext(Dispatchers.Main) { memoWidgetLayout(app, manager, id, data, views, compact) }
-                val visible = data.rows.take(layout.rows)
-                // Only fitted rows are shown; direct actions avoid collection click trampolines.
+                // API 31+ scrolls through every task with inline rows; older launchers keep the fitted rows.
+                val scrolling = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                val visible = if (scrolling) data.rows.take(MEMO_WIDGET_MAX_ROWS) else data.rows.take(layout.rows)
+                // Fitted rows can end exactly at the bottom edge; say that more tasks wait below.
+                // The launcher keeps the scroll position, so the hint names no count.
+                if (scrolling && visible.size > layout.rows && layout.rows < MEMO_WIDGET_FIT_PROBE_ROWS) {
+                    views.setTextViewText(R.id.memo_subtitle, app.getString(R.string.widget_memo_scroll_more))
+                }
                 views.removeAllViews(R.id.memo_list)
-                visible.forEach { row -> views.addView(R.id.memo_list, memoTodoView(app, row, data, layout, id)) }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val items = RemoteViews.RemoteCollectionItems.Builder().setHasStableIds(true).setViewTypeCount(1)
+                    visible.forEach { row -> items.addItem(row.stableId, memoTodoView(app, row, data, layout, id, fillIn = true)) }
+                    views.setRemoteAdapter(R.id.memo_scroll_list, items.build())
+                    views.applyMemoTodoListTemplate(app, R.id.memo_scroll_list, id)
+                } else {
+                    visible.forEach { row -> views.addView(R.id.memo_list, memoTodoView(app, row, data, layout, id)) }
+                }
                 views.setTextViewText(R.id.memo_empty_text, app.getString(if (minimal) R.string.widget_memo_empty_compact else R.string.widget_memo_empty))
                 views.setViewVisibility(R.id.memo_empty_icon, if (minimal) View.GONE else View.VISIBLE)
                 views.setInt(R.id.memo_empty_text, "setMaxLines", if (minimal) 2 else 4)
                 views.applyOpenAppClick(app, R.id.memo_empty, id, data.theme, Intent().putExtra(WidgetDeepLinks.EXTRA_OPEN_MEMO, ""))
-                views.setViewVisibility(R.id.memo_list, if (visible.isEmpty()) View.GONE else View.VISIBLE)
+                views.setViewVisibility(R.id.memo_list, if (scrolling || visible.isEmpty()) View.GONE else View.VISIBLE)
+                views.setViewVisibility(R.id.memo_scroll_list, if (scrolling && visible.isNotEmpty()) View.VISIBLE else View.GONE)
                 views.setViewVisibility(R.id.memo_empty, if (data.rows.isEmpty()) View.VISIBLE else View.GONE)
                 manager.updateAppWidget(id, views)
             }
@@ -136,6 +151,11 @@ open class MemoTodoWidgetReceiver : AppWidgetProvider() {
 }
 
 class MemoTodoWidgetReceiverMIUI : MemoTodoWidgetReceiver()
+
+private const val MEMO_WIDGET_MAX_ROWS = 60
+
+/** Rows measured when fitting; more than this many visible rows are never counted. */
+private const val MEMO_WIDGET_FIT_PROBE_ROWS = 8
 
 private data class MemoWidgetLayout(val rows: Int, val rowHeightDp: Int, val compact: Boolean, val minimal: Boolean)
 
@@ -157,7 +177,7 @@ private fun memoWidgetLayout(context: Context, manager: AppWidgetManager, id: In
     fun fit(prototype: MemoWidgetLayout): MemoWidgetLayout {
         var remaining = available
         var count = 0
-        for (row in data.rows.take(8)) {
+        for (row in data.rows.take(MEMO_WIDGET_FIT_PROBE_ROWS)) {
             val item = memoTodoView(context, row, data, prototype).apply(context, parent)
             val horizontalPadding = if (minimal) 70 else 16
             item.measure(View.MeasureSpec.makeMeasureSpec((width - horizontalPadding * density).toInt().coerceAtLeast(1), View.MeasureSpec.EXACTLY),
@@ -174,7 +194,14 @@ private fun memoWidgetLayout(context: Context, manager: AppWidgetManager, id: In
     return if (shorter.rows > detailed.rows) shorter else detailed
 }
 
-private fun memoTodoView(context: Context, row: MemoTodoRow, data: MemoTodoData, layout: MemoWidgetLayout, widgetId: Int? = null): RemoteViews =
+private fun memoTodoView(
+    context: Context,
+    row: MemoTodoRow,
+    data: MemoTodoData,
+    layout: MemoWidgetLayout,
+    widgetId: Int? = null,
+    fillIn: Boolean = false,
+): RemoteViews =
     RemoteViews(context.packageName, R.layout.widget_memo_row).apply {
         val accent = widgetAccentTextColor(data.theme)
         setInt(R.id.memo_row_root, "setMinimumHeight", (layout.rowHeightDp * context.resources.displayMetrics.density).toInt())
@@ -231,7 +258,9 @@ private fun memoTodoView(context: Context, row: MemoTodoRow, data: MemoTodoData,
             .filter(String::isNotBlank).joinToString(" · "))
         setContentDescription(R.id.memo_checkbox, context.getString(R.string.widget_memo_complete_action, row.title))
         setContentDescription(R.id.memo_row_edit, context.getString(R.string.widget_memo_edit_action, row.title))
-        widgetId?.let { id -> applyMemoTodoActions(context, row, id) }
+        widgetId?.let { id ->
+            if (fillIn) applyMemoTodoFillIns(context, row, id) else applyMemoTodoActions(context, row, id)
+        }
     }
 
 private const val MEMO_PRIORITY_HIGH = 0xFFBA1A1A.toInt()

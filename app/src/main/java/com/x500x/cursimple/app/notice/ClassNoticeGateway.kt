@@ -68,6 +68,141 @@ object ClassNoticeGateway {
             return
         }
         ClassNoticeScheduler.reschedule(app, notice, upcomingClass(app, notice))
+        rescheduleEveningBriefing(app, notice)
+        rescheduleTransit(app, notice)
+        rescheduleExam(app, notice)
+    }
+
+    suspend fun rescheduleEveningBriefing(app: Context, notice: ClassNoticePreferences? = null) {
+        val prefs = notice ?: preferences(app)
+        if (!prefs.eveningBriefingEnabled) {
+            ClassNoticeScheduler.cancelEveningBriefing(app)
+            return
+        }
+        val now = BeijingTime.nowDateTime()
+        var target = now.toLocalDate().atTime(prefs.eveningBriefingHour, prefs.eveningBriefingMinute)
+        if (!target.isAfter(now)) {
+            target = target.plusDays(1)
+        }
+        val triggerAtMillis = target.atZone(BeijingTime.zone).toInstant().toEpochMilli()
+        ClassNoticeScheduler.scheduleEveningBriefing(app, triggerAtMillis)
+    }
+
+    suspend fun deliverEveningBriefing(app: Context) {
+        val prefs = preferences(app)
+        if (!prefs.eveningBriefingEnabled) return
+        val userPreferences = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
+        val termProfileRepository = DataStoreTermProfileRepository(app)
+        val scheduleRepository = DataStoreScheduleRepository(app, termProfileRepository)
+        val manualCourseRepository = DataStoreManualCourseRepository(app, termProfileRepository)
+        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(app)
+
+        val schedule = scheduleRepository.scheduleFlow.first()
+        val manualCourses = manualCourseRepository.manualCoursesFlow.first()
+        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+
+        BeijingTime.setForcedNow(userPreferences.debugForcedDateTime)
+        val now = BeijingTime.nowDateTime()
+        val tomorrow = now.toLocalDate().plusDays(1)
+        val tomorrowClasses = ClassNoticePlanner.classesOnDate(
+            date = tomorrow,
+            allCourses = schedule.allCoursesWith(manualCourses),
+            timingProfile = timingProfile,
+            termStartDate = userPreferences.termStartDate,
+            overrides = userPreferences.temporaryScheduleOverrides,
+            holidayCalendar = userPreferences.holidayCalendar,
+        )
+        val body = if (tomorrowClasses.isNotEmpty()) {
+            val first = tomorrowClasses.first()
+            val time = String.format("%02d:%02d", first.startAt.hour, first.startAt.minute)
+            val title = first.displayTitle()
+            val loc = first.displayLocation().let { if (it.isNotBlank()) "在 $it" else "" }
+            "明天共有 ${tomorrowClasses.size} 节课，第一节 $time《$title》$loc，记得设闹钟"
+        } else {
+            "明天没有课程，好好休息吧！"
+        }
+        ClassNoticeNotifier.notifyEveningBriefing(app, body)
+        rescheduleEveningBriefing(app, prefs)
+    }
+
+    suspend fun rescheduleTransit(app: Context, notice: ClassNoticePreferences? = null) {
+        val prefs = notice ?: preferences(app)
+        if (!prefs.transitReminderEnabled) {
+            ClassNoticeScheduler.cancelTransitReminder(app)
+            return
+        }
+        val userPreferences = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
+        val termProfileRepository = DataStoreTermProfileRepository(app)
+        val scheduleRepository = DataStoreScheduleRepository(app, termProfileRepository)
+        val manualCourseRepository = DataStoreManualCourseRepository(app, termProfileRepository)
+        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(app)
+
+        val schedule = scheduleRepository.scheduleFlow.first()
+        val manualCourses = manualCourseRepository.manualCoursesFlow.first()
+        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+
+        BeijingTime.setForcedNow(userPreferences.debugForcedDateTime)
+        val now = BeijingTime.nowDateTime()
+        val transit = ClassNoticePlanner.nextTransit(
+            now = now,
+            allCourses = schedule.allCoursesWith(manualCourses),
+            timingProfile = timingProfile,
+            termStartDate = userPreferences.termStartDate,
+            overrides = userPreferences.temporaryScheduleOverrides,
+            holidayCalendar = userPreferences.holidayCalendar,
+        )
+        if (transit != null) {
+            val triggerAt = transit.triggerAt.atZone(BeijingTime.zone).toInstant().toEpochMilli()
+            ClassNoticeScheduler.scheduleTransitReminder(app, triggerAt, transit.nextTitle, transit.nextLocation)
+        } else {
+            ClassNoticeScheduler.cancelTransitReminder(app)
+        }
+    }
+
+    suspend fun rescheduleExam(app: Context, notice: ClassNoticePreferences? = null) {
+        val prefs = notice ?: preferences(app)
+        if (!prefs.examAlertEnabled) {
+            ClassNoticeScheduler.cancelExamAlert(app)
+            return
+        }
+        val userPreferences = DataStoreUserPreferencesRepository(app).preferencesFlow.first()
+        val termProfileRepository = DataStoreTermProfileRepository(app)
+        val scheduleRepository = DataStoreScheduleRepository(app, termProfileRepository)
+        val manualCourseRepository = DataStoreManualCourseRepository(app, termProfileRepository)
+        val widgetPreferencesRepository = DataStoreWidgetPreferencesRepository(app)
+
+        val schedule = scheduleRepository.scheduleFlow.first()
+        val manualCourses = manualCourseRepository.manualCoursesFlow.first()
+        val timingProfile = widgetPreferencesRepository.timingProfileFlow.first()
+
+        BeijingTime.setForcedNow(userPreferences.debugForcedDateTime)
+        val now = BeijingTime.nowDateTime()
+        val exam = ClassNoticePlanner.nextExam(
+            now = now,
+            allCourses = schedule.allCoursesWith(manualCourses),
+            timingProfile = timingProfile,
+            termStartDate = userPreferences.termStartDate,
+            overrides = userPreferences.temporaryScheduleOverrides,
+            holidayCalendar = userPreferences.holidayCalendar,
+            advanceMinutes = prefs.examAlertAdvanceMinutes,
+        )
+        if (exam != null) {
+            val fireAt = exam.startAt.minusMinutes(prefs.examAlertAdvanceMinutes.toLong())
+            val triggerAt = fireAt.atZone(BeijingTime.zone).toInstant().toEpochMilli()
+            val seat = exam.course.details.firstOrNull {
+                it.label.contains("座") || it.label.contains("Seat", ignoreCase = true)
+            }?.value.orEmpty()
+            ClassNoticeScheduler.scheduleExamAlert(
+                context = app,
+                triggerAtMillis = triggerAt,
+                examTitle = exam.displayTitle(),
+                location = exam.displayLocation(),
+                seat = seat,
+                minutesUntil = prefs.examAlertAdvanceMinutes,
+            )
+        } else {
+            ClassNoticeScheduler.cancelExamAlert(app)
+        }
     }
 
     /**

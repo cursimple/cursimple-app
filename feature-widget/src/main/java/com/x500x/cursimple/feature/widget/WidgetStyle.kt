@@ -24,6 +24,15 @@ internal enum class WidgetSurfaceTone(
     RowVariant(0.69f),
 }
 
+internal fun resolveWidgetIsDark(context: Context, mode: com.x500x.cursimple.core.data.widget.WidgetThemeMode): Boolean = when (mode) {
+    com.x500x.cursimple.core.data.widget.WidgetThemeMode.Light -> false
+    com.x500x.cursimple.core.data.widget.WidgetThemeMode.Dark -> true
+    com.x500x.cursimple.core.data.widget.WidgetThemeMode.System -> {
+        val uiMode = context.resources.configuration.uiMode
+        (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+}
+
 /**
  * Tint custom backgrounds on supported APIs; use closest resources otherwise. Clear old tint
  * when switching back to a built-in theme.
@@ -32,21 +41,43 @@ internal fun RemoteViews.applyAccentBackground(
     viewId: Int,
     theme: WidgetThemePreferences,
     tone: WidgetSurfaceTone,
+    isDark: Boolean = false,
 ) {
     val canTint = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    if (theme.themeAccent == ThemeAccent.Custom && canTint) {
+    val opacity = theme.backgroundOpacityPercent.coerceIn(0, 100)
+    val alphaInt = (opacity * 255 / 100)
+    val lightness = if (isDark) {
+        when (tone) {
+            WidgetSurfaceTone.Card -> 0.16f
+            WidgetSurfaceTone.Row -> 0.24f
+            WidgetSurfaceTone.RowVariant -> 0.30f
+        }
+    } else {
+        tone.customLightness
+    }
+    if ((theme.themeAccent == ThemeAccent.Custom || isDark) && canTint) {
         val base = when (tone) {
             WidgetSurfaceTone.Card -> R.drawable.widget_bg_card_tintable
             WidgetSurfaceTone.Row, WidgetSurfaceTone.RowVariant -> R.drawable.widget_bg_surface_tintable_clickable
         }
-        val color = AccentColors.tone(
-            theme.customColorArgb,
-            tone.customLightness,
-            maxSaturation = 0.45f,
-            minSaturation = 0.15f,
-        )
+        val rawColor = if (theme.themeAccent == ThemeAccent.Custom) {
+            AccentColors.tone(
+                theme.customColorArgb,
+                lightness,
+                maxSaturation = 0.45f,
+                minSaturation = 0.15f,
+            )
+        } else {
+            val preset = theme.themeAccent.takeIf { it != ThemeAccent.Custom }
+                ?: AccentColors.nearestPreset(theme.customColorArgb)
+            AccentColors.tone(AccentColors.presetPrimary(preset), lightness, maxSaturation = 0.45f, minSaturation = 0.15f)
+        }
+        val color = (rawColor and 0x00FFFFFF) or (alphaInt shl 24)
         setInt(viewId, "setBackgroundResource", base)
         setColorStateList(viewId, "setBackgroundTintList", ColorStateList.valueOf(color))
+        if (tone == WidgetSurfaceTone.Card && opacity < 100) {
+            setFloat(viewId, "setAlpha", opacity / 100f)
+        }
         return
     }
     val preset = theme.themeAccent.takeIf { it != ThemeAccent.Custom }
@@ -57,17 +88,28 @@ internal fun RemoteViews.applyAccentBackground(
         WidgetSurfaceTone.RowVariant -> widgetRowVariantBackground(preset)
     }
     setInt(viewId, "setBackgroundResource", res)
-    if (canTint) setColorStateList(viewId, "setBackgroundTintList", null)
+    if (canTint) {
+        if (opacity < 100) {
+            val color = (0xFFFFFFFF.toInt() and 0x00FFFFFF) or (alphaInt shl 24)
+            setColorStateList(viewId, "setBackgroundTintList", ColorStateList.valueOf(color))
+            if (tone == WidgetSurfaceTone.Card) {
+                setFloat(viewId, "setAlpha", opacity / 100f)
+            }
+        } else {
+            setColorStateList(viewId, "setBackgroundTintList", null)
+        }
+    }
 }
 
 /** Derive emphasized row text from the resolved accent with readable lightness. */
-internal fun widgetAccentTextColor(theme: WidgetThemePreferences): Int {
+internal fun widgetAccentTextColor(theme: WidgetThemePreferences, isDark: Boolean = false): Int {
     val base = if (theme.themeAccent == ThemeAccent.Custom) {
         theme.customColorArgb
     } else {
         AccentColors.presetPrimary(theme.themeAccent)
     }
-    return AccentColors.tone(base, 0.36f, maxSaturation = 0.75f, minSaturation = 0.3f)
+    val lightness = if (isDark) 0.82f else 0.36f
+    return AccentColors.tone(base, lightness, maxSaturation = 0.75f, minSaturation = 0.3f)
 }
 
 private fun widgetCardBackground(accent: ThemeAccent): Int = when (accent) {
@@ -83,15 +125,22 @@ internal fun RemoteViews.applyWidgetBackground(
     rootId: Int,
     theme: WidgetThemePreferences,
 ) {
-    applyAccentBackground(rootId, theme, WidgetSurfaceTone.Card)
+    val isDark = resolveWidgetIsDark(context, theme.widgetThemeMode)
+    applyAccentBackground(rootId, theme, WidgetSurfaceTone.Card, isDark = isDark)
     val imageUri = theme.backgroundImageUri
         ?.takeIf(String::isNotBlank)
         ?.takeIf { theme.backgroundMode == WidgetBackgroundMode.Image }
-    val bitmap = imageUri?.let { loadWidgetBackgroundBitmap(context, it) }
+    val rawBitmap = imageUri?.let { loadWidgetBackgroundBitmap(context, it) }
+    val bitmap = if (rawBitmap != null && theme.frostedGlassEnabled) {
+        blurWidgetBitmap(rawBitmap, 18)
+    } else {
+        rawBitmap
+    }
     if (bitmap != null) {
         setImageViewBitmap(R.id.widget_background_image, bitmap)
         val opaque = 100 - theme.backgroundImageTransparencyPercent.coerceIn(0, 100)
-        setInt(R.id.widget_background_image, "setImageAlpha", (opaque * 255 / 100))
+        val combinedAlpha = (opaque * theme.backgroundOpacityPercent.coerceIn(0, 100)) / 100
+        setInt(R.id.widget_background_image, "setImageAlpha", (combinedAlpha * 255 / 100))
         setViewVisibility(R.id.widget_background_image, View.VISIBLE)
         setViewVisibility(R.id.widget_background_scrim, View.VISIBLE)
         setViewVisibility(R.id.widget_background_error, View.GONE)
@@ -102,6 +151,64 @@ internal fun RemoteViews.applyWidgetBackground(
             R.id.widget_background_error,
             if (imageUri == null) View.GONE else View.VISIBLE,
         )
+    }
+}
+
+internal fun blurWidgetBitmap(source: Bitmap, radius: Int = 18): Bitmap {
+    val width = source.width
+    val height = source.height
+    if (width <= 0 || height <= 0) return source
+    val out = source.copy(Bitmap.Config.ARGB_8888, true)
+    val pixels = IntArray(width * height)
+    out.getPixels(pixels, 0, width, 0, 0, width, height)
+    val r = radius.coerceIn(1, 25)
+    boxBlur(pixels, width, height, r)
+    boxBlur(pixels, width, height, r)
+    out.setPixels(pixels, 0, width, 0, 0, width, height)
+    return out
+}
+
+private fun boxBlur(pixels: IntArray, w: Int, h: Int, r: Int) {
+    val temp = IntArray(w * h)
+    val div = 2 * r + 1
+    for (y in 0 until h) {
+        val rowOffset = y * w
+        var rSum = 0; var gSum = 0; var bSum = 0; var aSum = 0
+        for (i in -r..r) {
+            val p = pixels[rowOffset + i.coerceIn(0, w - 1)]
+            aSum += (p ushr 24) and 0xff
+            rSum += (p ushr 16) and 0xff
+            gSum += (p ushr 8) and 0xff
+            bSum += p and 0xff
+        }
+        for (x in 0 until w) {
+            temp[rowOffset + x] = ((aSum / div) shl 24) or ((rSum / div) shl 16) or ((gSum / div) shl 8) or (bSum / div)
+            val pOut = pixels[rowOffset + (x - r).coerceIn(0, w - 1)]
+            val pIn = pixels[rowOffset + (x + r + 1).coerceIn(0, w - 1)]
+            aSum += ((pIn ushr 24) and 0xff) - ((pOut ushr 24) and 0xff)
+            rSum += ((pIn ushr 16) and 0xff) - ((pOut ushr 16) and 0xff)
+            gSum += ((pIn ushr 8) and 0xff) - ((pOut ushr 8) and 0xff)
+            bSum += (pIn and 0xff) - (pOut and 0xff)
+        }
+    }
+    for (x in 0 until w) {
+        var rSum = 0; var gSum = 0; var bSum = 0; var aSum = 0
+        for (i in -r..r) {
+            val p = temp[i.coerceIn(0, h - 1) * w + x]
+            aSum += (p ushr 24) and 0xff
+            rSum += (p ushr 16) and 0xff
+            gSum += (p ushr 8) and 0xff
+            bSum += p and 0xff
+        }
+        for (y in 0 until h) {
+            pixels[y * w + x] = ((aSum / div) shl 24) or ((rSum / div) shl 16) or ((gSum / div) shl 8) or (bSum / div)
+            val pOut = temp[(y - r).coerceIn(0, h - 1) * w + x]
+            val pIn = temp[(y + r + 1).coerceIn(0, h - 1) * w + x]
+            aSum += ((pIn ushr 24) and 0xff) - ((pOut ushr 24) and 0xff)
+            rSum += ((pIn ushr 16) and 0xff) - ((pOut ushr 16) and 0xff)
+            gSum += ((pIn ushr 8) and 0xff) - ((pOut ushr 8) and 0xff)
+            bSum += (pIn and 0xff) - (pOut and 0xff)
+        }
     }
 }
 

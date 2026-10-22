@@ -783,6 +783,26 @@ class DataStoreUserPreferencesRepository(
         }
     }
 
+    override suspend fun setTimelineIndicatorEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED] = enabled }
+    }
+
+    override suspend fun setGridDashedLinesEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] = enabled }
+    }
+
+    override suspend fun setEveningBriefingEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED] = enabled }
+    }
+
+    override suspend fun setTransitReminderEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED] = enabled }
+    }
+
+    override suspend fun setExamAlertEnabled(enabled: Boolean) {
+        store.edit { prefs -> prefs[KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED] = enabled }
+    }
+
     override suspend fun resetScheduleAppearanceAndDisplay() {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -1102,6 +1122,8 @@ class DataStoreUserPreferencesRepository(
             locationAtPrefix = this[KEY_SCHEDULE_DISPLAY_LOCATION_AT_PREFIX] ?: true,
             teacherVisible = this[KEY_SCHEDULE_DISPLAY_TEACHER_VISIBLE] ?: true,
             totalScheduleDisplayEnabled = this[KEY_SCHEDULE_DISPLAY_TOTAL_SCHEDULE_DISPLAY_ENABLED] ?: true,
+            timelineIndicatorEnabled = this[KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED] ?: false,
+            gridDashedLinesEnabled = this[KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED] ?: false,
         )
     }
 
@@ -1128,6 +1150,12 @@ class DataStoreUserPreferencesRepository(
             bannerDurationSeconds = ClassNoticePreferences.coerceBannerDurationSeconds(
                 this[KEY_CLASS_NOTICE_BANNER_DURATION] ?: ClassNoticePreferences.DEFAULT_BANNER_DURATION_SECONDS,
             ),
+            eveningBriefingEnabled = this[KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED] ?: false,
+            eveningBriefingHour = this[KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR] ?: 21,
+            eveningBriefingMinute = this[KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE] ?: 30,
+            transitReminderEnabled = this[KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED] ?: false,
+            examAlertEnabled = this[KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED] ?: false,
+            examAlertAdvanceMinutes = this[KEY_CLASS_NOTICE_EXAM_ALERT_ADVANCE_MINUTES] ?: 45,
         )
 
     private fun Preferences.toAutoSilencePreferences(): AutoSilencePreferences = AutoSilencePreferences(
@@ -1369,6 +1397,14 @@ class DataStoreUserPreferencesRepository(
         val KEY_AI_IMPORT_API_KEY = stringPreferencesKey(AI_IMPORT_API_KEY_PREFERENCE_KEY)
         val KEY_AI_IMPORT_MODEL = stringPreferencesKey("ai_import_model")
         val KEY_AI_IMPORT_TIMEOUT_SECONDS = intPreferencesKey("ai_import_timeout_seconds")
+        val KEY_SCHEDULE_DISPLAY_TIMELINE_INDICATOR_ENABLED = booleanPreferencesKey("schedule_display_timeline_indicator_enabled")
+        val KEY_SCHEDULE_DISPLAY_GRID_DASHED_LINES_ENABLED = booleanPreferencesKey("schedule_display_grid_dashed_lines_enabled")
+        val KEY_CLASS_NOTICE_EVENING_BRIEFING_ENABLED = booleanPreferencesKey("class_notice_evening_briefing_enabled")
+        val KEY_CLASS_NOTICE_EVENING_BRIEFING_HOUR = intPreferencesKey("class_notice_evening_briefing_hour")
+        val KEY_CLASS_NOTICE_EVENING_BRIEFING_MINUTE = intPreferencesKey("class_notice_evening_briefing_minute")
+        val KEY_CLASS_NOTICE_TRANSIT_REMINDER_ENABLED = booleanPreferencesKey("class_notice_transit_reminder_enabled")
+        val KEY_CLASS_NOTICE_EXAM_ALERT_ENABLED = booleanPreferencesKey("class_notice_exam_alert_enabled")
+        val KEY_CLASS_NOTICE_EXAM_ALERT_ADVANCE_MINUTES = intPreferencesKey("class_notice_exam_alert_advance_minutes")
 
         const val DEFAULT_RING_DURATION_SECONDS = DEFAULT_APP_ALARM_RING_DURATION_SECONDS
         const val DEFAULT_REPEAT_INTERVAL_SECONDS = DEFAULT_APP_ALARM_REPEAT_INTERVAL_SECONDS

@@ -1,5 +1,10 @@
 package com.x500x.cursimple.feature.schedule
 
+import androidx.compose.material.icons.automirrored.rounded.EventNote
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material3.VerticalDivider
+import com.x500x.cursimple.core.kernel.model.MemoNote
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import com.x500x.cursimple.feature.plugin.ui.rememberAppHaptics
 import android.content.Context
@@ -68,6 +73,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -278,6 +284,7 @@ fun ScheduleRoute(
         onSaveEvent = viewModel::saveEvent,
         onRemoveEvent = viewModel::removeEvent,
         onOpenLinkedEvent = onOpenLinkedEvent,
+        onSaveMemo = viewModel::saveMemo,
         modifier = modifier,
     )
 }
@@ -329,6 +336,7 @@ fun ScheduleScreen(
     onSaveEvent: (ScheduleEvent) -> Unit = {},
     onRemoveEvent: (String) -> Unit = {},
     onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
+    onSaveMemo: (MemoNote) -> Unit = {},
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     val rowPreferences = LocalPluginTimetableRowPreferences.current
@@ -468,7 +476,7 @@ fun ScheduleScreen(
             .background(MaterialTheme.colorScheme.background),
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -525,9 +533,9 @@ fun ScheduleScreen(
                     LocalScheduleLocationSuffix provides locationSuffix,
                     LocalHiddenTimetableRows provides hiddenRows,
                 ) {
-                    when (viewMode) {
-                        ScheduleViewMode.Week -> WeeklyScheduleSection(
-                            modifier = Modifier.fillMaxSize(),
+                    val weeklySectionContent: @Composable (Modifier) -> Unit = { sectionModifier ->
+                        WeeklyScheduleSection(
+                            modifier = sectionModifier,
                             schedule = state.schedule,
                             manualCourses = state.manualCourses,
                             timingProfile = state.timingProfile,
@@ -572,49 +580,83 @@ fun ScheduleScreen(
                             onSaveEvent = onSaveEvent,
                             termWeekCount = editableMaxWeek,
                         )
+                    }
 
-                        ScheduleViewMode.Day -> Column(Modifier.fillMaxSize()) {
-                        androidx.compose.animation.AnimatedVisibility(
-                            visible = todayCardVisible,
-                            enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
-                            exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
-                        ) {
-                            TodayOverviewCard(
-                                state = todayOverview,
-                                display = scheduleDisplay,
-                                onClick = { todaySheetOpen = true },
-                                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 8.dp),
+                    val isTabletTwoPane = this@BoxWithConstraints.maxWidth >= 600.dp && viewMode == ScheduleViewMode.Week
+                    if (isTabletTwoPane) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                weeklySectionContent(Modifier.fillMaxSize())
+                            }
+                            VerticalDivider(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .padding(horizontal = 4.dp),
+                                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                            )
+                            TabletScheduleSidePane(
+                                modifier = Modifier
+                                    .width(minOf(this@BoxWithConstraints.maxWidth * 0.36f, 360.dp).coerceAtLeast(280.dp))
+                                    .fillMaxHeight(),
+                                todayOverview = todayOverview,
+                                scheduleDisplay = scheduleDisplay,
+                                memos = state.memos,
+                                onOpenCourse = { course ->
+                                    detailRequest = CourseDetailRequest(listOf(course), todayOverview.date)
+                                },
+                                onOpenTodaySheet = { todaySheetOpen = true },
+                                onToggleMemo = { memo ->
+                                    onSaveMemo(memo.copy(completed = !memo.completed, updatedAt = System.currentTimeMillis()))
+                                },
                             )
                         }
-                        DailyScheduleSection(
-                            modifier = Modifier.fillMaxWidth().weight(1f),
-                            schedule = state.schedule,
-                            manualCourses = state.manualCourses,
-                            timingProfile = state.timingProfile,
-                            reminderRules = state.reminderRules,
-                            courseNotes = state.courseNotes,
-                            targetDate = zone.today().plusDays(dayOffset.toLong()),
-                            targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
-                            termStartDate = overrideTermStart,
-                            temporaryScheduleOverrides = temporaryScheduleOverrides,
-                            holidayCalendar = holidayCalendar,
-                            selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
-                            multiSelectedIds = selectedIds,
-                            dayOffset = dayOffset,
-                            onDayOffsetChange = onDayOffsetChange,
-                            onCellClick = onCellClickHandler,
-                            onCourseLongClick = onLongClickHandler,
-                            onPrevDay = onPrevDay,
-                            onNextDay = onNextDay,
-                            scheduleTextStyle = scheduleTextStyle,
-                            scheduleCardStyle = scheduleCardStyle,
-                            scheduleDisplay = scheduleDisplay,
-                            customColorsAdaptToTheme = customColorsAdaptToTheme,
-                            onDayHeaderDoubleTap = { date -> daySheetDate = date },
-                            events = state.events,
-                            onEventClick = ::openEvent,
-                            onEventLongClick = { event, _ -> editEvent(event) },
-                        )
+                    } else {
+                        when (viewMode) {
+                            ScheduleViewMode.Week -> weeklySectionContent(Modifier.fillMaxSize())
+
+                            ScheduleViewMode.Day -> Column(Modifier.fillMaxSize()) {
+                                androidx.compose.animation.AnimatedVisibility(
+                                    visible = todayCardVisible,
+                                    enter = androidx.compose.animation.fadeIn() + androidx.compose.animation.expandVertically(),
+                                    exit = androidx.compose.animation.fadeOut() + androidx.compose.animation.shrinkVertically(),
+                                ) {
+                                    TodayOverviewCard(
+                                        state = todayOverview,
+                                        display = scheduleDisplay,
+                                        onClick = { todaySheetOpen = true },
+                                        modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp, bottom = 8.dp),
+                                    )
+                                }
+                                DailyScheduleSection(
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                    schedule = state.schedule,
+                                    manualCourses = state.manualCourses,
+                                    timingProfile = state.timingProfile,
+                                    reminderRules = state.reminderRules,
+                                    courseNotes = state.courseNotes,
+                                    targetDate = zone.today().plusDays(dayOffset.toLong()),
+                                    targetWeekNumber = computeWeekNumber(overrideTermStart, dayOffset, zone),
+                                    termStartDate = overrideTermStart,
+                                    temporaryScheduleOverrides = temporaryScheduleOverrides,
+                                    holidayCalendar = holidayCalendar,
+                                    selectedCourseId = (state.selectionState as? ScheduleSelectionState.SingleCourse)?.courseId,
+                                    multiSelectedIds = selectedIds,
+                                    dayOffset = dayOffset,
+                                    onDayOffsetChange = onDayOffsetChange,
+                                    onCellClick = onCellClickHandler,
+                                    onCourseLongClick = onLongClickHandler,
+                                    onPrevDay = onPrevDay,
+                                    onNextDay = onNextDay,
+                                    scheduleTextStyle = scheduleTextStyle,
+                                    scheduleCardStyle = scheduleCardStyle,
+                                    scheduleDisplay = scheduleDisplay,
+                                    customColorsAdaptToTheme = customColorsAdaptToTheme,
+                                    onDayHeaderDoubleTap = { date -> daySheetDate = date },
+                                    events = state.events,
+                                    onEventClick = ::openEvent,
+                                    onEventLongClick = { event, _ -> editEvent(event) },
+                                )
+                            }
                         }
                     }
                 }
@@ -2538,6 +2580,18 @@ private fun ScheduleGrid(
         }
     }
 
+    val todayDate = LocalAppZone.current.today()
+    val todayColIndex = visibleDays.indexOfFirst { it.date == todayDate }
+    var nowTime by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(java.time.LocalTime.now()) }
+    androidx.compose.runtime.LaunchedEffect(scheduleDisplay.timelineIndicatorEnabled, isCurrentPage) {
+        if (scheduleDisplay.timelineIndicatorEnabled) {
+            while (true) {
+                nowTime = java.time.LocalTime.now()
+                kotlinx.coroutines.delay(30_000)
+            }
+        }
+    }
+
     var draggingCourseId by androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<String?>(null)
     }
@@ -2568,18 +2622,23 @@ private fun ScheduleGrid(
         val timeColumnWidth = timeColumnWidth(maxWidth, scheduleTextStyle.headerTextSizeSp, slots.map { it.label })
         // Calculate header height with font scaling for weekday, date and override text.
         val headerDensity = androidx.compose.ui.platform.LocalDensity.current
-        val dayHeaderMinHeight = dayHeaderHeight(
+        val dayHeaderEstimate = dayHeaderHeight(
             density = headerDensity,
             headerTextSizeSp = scheduleTextStyle.headerTextSizeSp,
             hasExtraLine = visibleDays.any {
                 it.overrideLabel != null || it.holidayLabel != null || it.isMakeUpWorkday
             },
         )
+        // Fonts with tall line metrics outgrow the estimate; fit the rows below the header actually drawn.
+        var measuredDayHeaderHeight by remember(dayHeaderEstimate, headerDensity) { mutableStateOf(0.dp) }
+        val dayHeaderMinHeight = maxOf(dayHeaderEstimate, measuredDayHeaderHeight)
         val totalWidth = maxWidth
         val gridAvailable = totalWidth - timeColumnWidth
         // Keep ordinary days at least two title characters wide when crowded days widen.
         val titleEmDp = scheduleTextStyle.courseTextSizeSp * headerDensity.fontScale
         val minColumnDp = maxOf(MIN_DAY_COLUMN_DP, titleEmDp * 2.1f + CARD_TEXT_INSET_DP)
+        // Below one title line per period (short landscape windows), one page would cut every card.
+        val minSqueezedSlotHeight = (titleEmDp * TEXT_LINE_HEIGHT_RATIO + CARD_TEXT_INSET_DP).dp
         // Measure whether the complete period-and-event timeline fits; otherwise permit vertical scrolling.
         val periodFit = resolveScheduleGridFit(
             rowFitMode = scheduleDisplay.rowFitMode,
@@ -2589,6 +2648,7 @@ private fun ScheduleGrid(
             dayHeaderHeight = dayHeaderMinHeight,
             defaultCardHeight = scheduleCardStyle.courseCardHeightDp.dp,
             hasInsertedRows = timeline.hasInsertedRows,
+            minSqueezedSlotHeight = minSqueezedSlotHeight,
         )
         val fitLayout = remember(cellGroups, dayEvents, timeline, periodFit.slotHeight, dayColumnCount, gridAvailable, minColumnDp) {
             layoutDayLanes(cellGroups, dayEvents, timeline, EVENT_MIN_HEIGHT / periodFit.slotHeight, dayColumnCount, gridAvailable.value, minColumnDp)
@@ -2616,6 +2676,7 @@ private fun ScheduleGrid(
             hasInsertedRows = timeline.hasInsertedRows,
             titleSlotHeight = titleSlotHeight,
             autoScrollWhenCrowded = scheduleDisplay.autoScrollWhenCrowded,
+            minSqueezedSlotHeight = minSqueezedSlotHeight,
         )
         val fitMode = fitResolution.fitMode
         val isOverflowing = fitResolution.isOverflowing
@@ -2662,13 +2723,9 @@ private fun ScheduleGrid(
                 .clip(RoundedCornerShape(16.dp)),
         )
 
-        Column(
-            modifier = if (fitMode) {
-                Modifier
-            } else {
-                Modifier.verticalScroll(gridScrollState)
-            },
-        ) {
+        // Fit mode normally has nothing to scroll; headers or fonts taller than estimated still reach the last period.
+        // A zoomed fitted page pans in the zoom box instead.
+        Column(modifier = Modifier.verticalScroll(gridScrollState, enabled = !fitMode || !pinnedHeaders)) {
             val pinnedColor = MaterialTheme.colorScheme.surface
             val pinnedBackground = if (pinnedHeaders) Modifier.background(pinnedColor) else Modifier
             Row(
@@ -2676,7 +2733,11 @@ private fun ScheduleGrid(
                     .zIndex(2f)
                     .graphicsLayer { translationY = stickyOffset().y.toFloat() }
                     .then(pinnedBackground)
-                    .heightIn(min = dayHeaderMinHeight),
+                    .heightIn(min = dayHeaderMinHeight)
+                    .onSizeChanged { size ->
+                        val height = with(headerDensity) { size.height.toDp() }
+                        if (height > measuredDayHeaderHeight + 0.5.dp) measuredDayHeaderHeight = height
+                    },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
@@ -2738,6 +2799,7 @@ private fun ScheduleGrid(
                     val density = androidx.compose.ui.platform.LocalDensity.current
                     val darkTheme = isDarkColorScheme()
                     val insertedTint = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)
+                    val defaultOutlineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -2756,32 +2818,72 @@ private fun ScheduleGrid(
                                         size = androidx.compose.ui.geometry.Size(size.width, gap.height * slotHeight.toPx()),
                                     )
                                 }
-                                val strokeWidth = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
-                                if (strokeWidth <= 0f) return@drawBehind
-                                val pathEffect = if (scheduleCardStyle.gridBorderDashed) {
-                                    PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()), 0f)
+                                val showDashed = scheduleDisplay.gridDashedLinesEnabled || scheduleCardStyle.gridBorderDashed
+                                val rawStroke = scheduleCardStyle.gridBorderWidthDp.dp.toPx()
+                                val strokeWidth = if (scheduleDisplay.gridDashedLinesEnabled) {
+                                    maxOf(rawStroke, 1.dp.toPx())
                                 } else {
-                                    null
+                                    rawStroke
                                 }
-                                for (i in 1 until rows.size) {
-                                    val y = slotHeight.toPx() * rows[i].top
-                                    drawLine(
-                                        color = lineColor,
-                                        start = androidx.compose.ui.geometry.Offset(0f, y),
-                                        end = androidx.compose.ui.geometry.Offset(size.width, y),
-                                        strokeWidth = strokeWidth,
-                                        pathEffect = pathEffect,
-                                    )
+                                if (strokeWidth > 0f) {
+                                    val pathEffect = if (showDashed) {
+                                        PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()), 0f)
+                                    } else {
+                                        null
+                                    }
+                                    val effectiveLineColor = if (scheduleDisplay.gridDashedLinesEnabled && scheduleCardStyle.gridBorderOpacityPercent == 0) {
+                                        defaultOutlineColor
+                                    } else {
+                                        lineColor
+                                    }
+                                    for (i in 1 until rows.size) {
+                                        val y = slotHeight.toPx() * rows[i].top
+                                        drawLine(
+                                            color = effectiveLineColor,
+                                            start = androidx.compose.ui.geometry.Offset(0f, y),
+                                            end = androidx.compose.ui.geometry.Offset(size.width, y),
+                                            strokeWidth = strokeWidth,
+                                            pathEffect = pathEffect,
+                                        )
+                                    }
+                                    for (i in 1 until dayColumnCount) {
+                                        val x = columnX(i).toPx()
+                                        drawLine(
+                                            color = effectiveLineColor,
+                                            start = androidx.compose.ui.geometry.Offset(x, 0f),
+                                            end = androidx.compose.ui.geometry.Offset(x, size.height),
+                                            strokeWidth = strokeWidth,
+                                            pathEffect = pathEffect,
+                                        )
+                                    }
                                 }
-                                for (i in 1 until dayColumnCount) {
-                                    val x = columnX(i).toPx()
-                                    drawLine(
-                                        color = lineColor,
-                                        start = androidx.compose.ui.geometry.Offset(x, 0f),
-                                        end = androidx.compose.ui.geometry.Offset(x, size.height),
-                                        strokeWidth = strokeWidth,
-                                        pathEffect = pathEffect,
-                                    )
+                            }
+                            .drawWithContent {
+                                drawContent()
+                                if (scheduleDisplay.timelineIndicatorEnabled &&
+                                    todayColIndex in 0 until dayColumnCount &&
+                                    timeline.hasTimedAnchors
+                                ) {
+                                    val nowMinute = nowTime.hour * 60 + nowTime.minute
+                                    val firstMin = timeline.minMinute ?: 0
+                                    val lastMin = timeline.maxMinute ?: 1440
+                                    if (nowMinute in (firstMin - 15)..(lastMin + 15)) {
+                                        val y = timeline.yOf(nowMinute) * slotHeight.toPx()
+                                        val xStart = columnX(todayColIndex).toPx()
+                                        val xEnd = xStart + columnWidth(todayColIndex).toPx()
+                                        val indicatorColor = androidx.compose.ui.graphics.Color(0xFFE53935)
+                                        drawLine(
+                                            color = indicatorColor,
+                                            start = androidx.compose.ui.geometry.Offset(xStart, y),
+                                            end = androidx.compose.ui.geometry.Offset(xEnd, y),
+                                            strokeWidth = 2.dp.toPx(),
+                                        )
+                                        drawCircle(
+                                            color = indicatorColor,
+                                            radius = 3.5.dp.toPx(),
+                                            center = androidx.compose.ui.geometry.Offset(xStart + 3.5.dp.toPx(), y),
+                                        )
+                                    }
                                 }
                             }
                             .pointerInput(slots.size, dayColumnWidth, slotHeight, occupiedCells, fittedColumns, timeline) {
@@ -3173,7 +3275,9 @@ private fun ScheduleGrid(
             }
         }
 
-        if (!fitMode) {
+        // Fitted rows round to a few pixels of overflow; only a real overflow earns the indicator.
+        val fitOverflowPx = with(headerDensity) { 8.dp.toPx() }
+        if (!fitMode || gridScrollState.maxValue > fitOverflowPx) {
             GridScrollIndicator(
                 scrollState = gridScrollState,
                 topInset = dayHeaderMinHeight,
@@ -3308,18 +3412,25 @@ internal class CourseCell(val entries: List<CourseRenderEntry>) {
 private fun CourseRenderEntry.span(timeline: GridTimeline, minUnits: Float): Pair<Float, Float> =
     timeline.courseSpan(placement.rowIndex, placement.rowSpan, course.clockRange(), minUnits)
 
-/** Group courses whose times overlap; this-week courses come first, then the earliest. */
+/**
+ * Courses with the same span share one cell; this-week courses come first. Partly overlapping
+ * courses keep separate cells, so lanes show each at its own start and end.
+ */
 internal fun groupCourseCells(entries: List<CourseRenderEntry>, timeline: GridTimeline): List<CourseCell> {
-    // Short typed-time courses grow to the event minimum, so cluster with that height in mind.
+    // Short typed-time courses grow to the event minimum, so compare spans with that height in mind.
     val minUnits = EVENT_MIN_HEIGHT / MIN_FIT_SLOT_HEIGHT
     val order = entries.withIndex().associate { (index, entry) -> entry to index }
     return entries.groupBy { it.placement.dayIndex }.values.flatMap { day ->
-        clusterByOverlap(day, { it.span(timeline, minUnits).first }, { it.span(timeline, minUnits).second })
+        day.groupBy { entry ->
+            val (top, bottom) = entry.span(timeline, minUnits)
+            kotlin.math.round(top * 1000f) to kotlin.math.round(bottom * 1000f)
+        }
+            .toSortedMap(compareBy<Pair<Float, Float>>({ it.first }, { it.second }))
+            .values
             .map { group ->
                 CourseCell(
-                    group.sortedWith(
-                        compareBy<CourseRenderEntry>({ it.inactive }, { it.span(timeline, minUnits).first }, { order[it] }),
-                    ).distinctBy { it.course.id },
+                    group.sortedWith(compareBy<CourseRenderEntry>({ it.inactive }, { order[it] }))
+                        .distinctBy { it.course.id },
                 )
             }
     }
@@ -3350,7 +3461,7 @@ private fun layoutDayLanes(
             )
         }
     }
-    // Course cells never overlap each other, nor do event groups, so a day needs at most two lanes.
+    // Partly overlapping course cells and event groups share a day as parallel lanes.
     val items = cellGroups.map { cell ->
         val (top, bottom) = cell.span(timeline, minEventUnits)
         LaneItem<Any>(key = cell, top = top, bottom = bottom, order = 0) to cell.dayIndex
@@ -3475,6 +3586,8 @@ internal fun resolveScheduleGridFit(
     titleSlotHeight: Dp = 0.dp,
     /** Readability-based overflow is opt-in; the default keeps the single-page timetable. */
     autoScrollWhenCrowded: Boolean = true,
+    /** Rows shorter than one title line scroll even when the single page is kept. */
+    minSqueezedSlotHeight: Dp = 0.dp,
 ): ScheduleGridFitResolution {
     if (slotCount == 0 || timelineTotalUnits <= 0f) {
         return ScheduleGridFitResolution(
@@ -3486,7 +3599,8 @@ internal fun resolveScheduleGridFit(
     val fitSlotHeight = (availableHeight - dayHeaderHeight) / timelineTotalUnits
     val fitRequested = rowFitMode == ScheduleRowFitMode.Fit
     // With auto-scroll off, one page is kept however crowded the week gets.
-    val periodsFit = fitSlotHeight >= minFitSlotHeight || !autoScrollWhenCrowded
+    val periodsFit = fitSlotHeight >= minFitSlotHeight ||
+        (!autoScrollWhenCrowded && fitSlotHeight >= minSqueezedSlotHeight)
     // Rows tall enough for the periods may still crush course names into a sliver.
     val titlesSqueezed = fitRequested && periodsFit && autoScrollWhenCrowded && fitSlotHeight < titleSlotHeight
     val fitMode = fitRequested && periodsFit && !titlesSqueezed
@@ -5489,4 +5603,247 @@ private fun CourseDragConfirmDialog(
             }
         },
     )
+}
+
+@Composable
+private fun TabletScheduleSidePane(
+    modifier: Modifier = Modifier,
+    todayOverview: TodayOverviewState,
+    scheduleDisplay: ScheduleDisplayPreferences,
+    memos: List<MemoNote>,
+    onOpenCourse: (CourseItem) -> Unit,
+    onOpenTodaySheet: () -> Unit,
+    onToggleMemo: (MemoNote) -> Unit,
+) {
+    val scrollState = rememberScrollState()
+    Column(
+        modifier = modifier
+            .verticalScroll(scrollState)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        TodayOverviewCard(
+            state = todayOverview,
+            display = scheduleDisplay,
+            onClick = onOpenTodaySheet,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Schedule,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.schedule_today_details),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = stringResource(R.string.schedule_today_count, todayOverview.total, todayOverview.remaining),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (todayOverview.courses.isEmpty()) {
+                    Text(
+                        text = if (todayOverview.holiday) stringResource(R.string.schedule_today_rest) else stringResource(R.string.schedule_today_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                } else {
+                    todayOverview.courses.forEach { occurrence ->
+                        val status = todayOverview.statusOf(occurrence)
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = when (status) {
+                                TodayItemStatus.Current -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                                TodayItemStatus.Done -> MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f)
+                                else -> MaterialTheme.colorScheme.surface
+                            },
+                            onClick = { onOpenCourse(occurrence.course) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = occurrence.course.title,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = if (status == TodayItemStatus.Done) {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                    )
+                                    val loc = occurrence.course.location.trim()
+                                    val start = occurrence.start
+                                    val end = occurrence.end
+                                    val timeStr = if (occurrence.hasTime && start != null && end != null) {
+                                        "${start.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))}-${end.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))}"
+                                    } else ""
+                                    val sub = listOf(timeStr, loc).filter { it.isNotBlank() }.joinToString(" · ")
+                                    if (sub.isNotBlank()) {
+                                        Text(
+                                            text = sub,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                                val statusText = when (status) {
+                                    TodayItemStatus.Current -> stringResource(R.string.schedule_today_current)
+                                    TodayItemStatus.Done -> stringResource(R.string.schedule_today_finished)
+                                    TodayItemStatus.Pending -> stringResource(R.string.schedule_today_next)
+                                    TodayItemStatus.Unknown -> ""
+                                }
+                                if (statusText.isNotBlank()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = when (status) {
+                                            TodayItemStatus.Current -> MaterialTheme.colorScheme.primary
+                                            TodayItemStatus.Done -> MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                            else -> MaterialTheme.colorScheme.secondaryContainer
+                                        },
+                                    ) {
+                                        Text(
+                                            text = statusText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = when (status) {
+                                                TodayItemStatus.Current -> MaterialTheme.colorScheme.onPrimary
+                                                TodayItemStatus.Done -> MaterialTheme.colorScheme.onSurfaceVariant
+                                                else -> MaterialTheme.colorScheme.onSecondaryContainer
+                                            },
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        val openMemos = memos.filter { !it.completed }
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.EventNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.memo_stat_todo),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = "${openMemos.size}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                if (openMemos.isEmpty()) {
+                    Text(
+                        text = stringResource(R.string.memo_empty_filter),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                } else {
+                    openMemos.take(8).forEach { memo ->
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp),
+                            onClick = { onToggleMemo(memo) },
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                androidx.compose.material3.IconButton(
+                                    onClick = { onToggleMemo(memo) },
+                                    modifier = Modifier.size(48.dp),
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CheckCircle,
+                                        contentDescription = stringResource(R.string.memo_mark_done),
+                                        tint = MaterialTheme.colorScheme.outlineVariant,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                }
+                                Spacer(Modifier.width(4.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = memo.title.ifBlank { memo.body.lineSequence().firstOrNull().orEmpty() }.ifBlank { stringResource(R.string.memo_untitled) },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    val subText = if (memo.courseTitle.isNotBlank()) memo.courseTitle else memo.dueAt?.take(10).orEmpty()
+                                    if (subText.isNotBlank()) {
+                                        Text(
+                                            text = subText,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

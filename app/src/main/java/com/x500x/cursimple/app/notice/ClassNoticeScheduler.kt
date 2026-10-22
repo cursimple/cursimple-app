@@ -27,11 +27,23 @@ object ClassNoticeScheduler {
     internal const val ACTION_DISMISS = "com.x500x.cursimple.action.CLASS_NOTICE_DISMISS"
     internal const val ACTION_SNOOZE = "com.x500x.cursimple.action.CLASS_NOTICE_SNOOZE"
     internal const val ACTION_SKIP = "com.x500x.cursimple.action.CLASS_NOTICE_SKIP"
+    internal const val ACTION_EVENING_BRIEFING = "com.x500x.cursimple.action.CLASS_NOTICE_EVENING_BRIEFING"
+    internal const val ACTION_TRANSIT = "com.x500x.cursimple.action.CLASS_NOTICE_TRANSIT"
+    internal const val ACTION_EXAM = "com.x500x.cursimple.action.CLASS_NOTICE_EXAM"
+
+    const val NOTIFICATION_ID_EVENING_BRIEFING = 0x0E01
+    const val NOTIFICATION_ID_TRANSIT = 0x0E02
+    const val NOTIFICATION_ID_EXAM = 0x0E03
+
     private const val REQUEST_CODE = 0x0C1B
     private const val REQUEST_CODE_STARTED = 0x0C1C
     private const val REQUEST_CODE_DISMISS = 0x0C1D
     private const val REQUEST_CODE_SNOOZE = 0x0C1E
     private const val REQUEST_CODE_SKIP = 0x0C1F
+    private const val REQUEST_CODE_EVENING_BRIEFING = 0x0E11
+    private const val REQUEST_CODE_TRANSIT = 0x0E12
+    private const val REQUEST_CODE_EXAM = 0x0E13
+
     private const val EXTRA_TITLE = "title"
     private const val EXTRA_LOCATION = "location"
     private const val EXTRA_TIME_RANGE = "timeRange"
@@ -39,6 +51,12 @@ object ClassNoticeScheduler {
     private const val EXTRA_MINUTES = "minutes"
     private const val EXTRA_START_AT = "startAt"
     private const val EXTRA_END_AT = "endAt"
+    internal const val EXTRA_TRANSIT_TITLE = "transitTitle"
+    internal const val EXTRA_TRANSIT_LOCATION = "transitLocation"
+    internal const val EXTRA_EXAM_TITLE = "examTitle"
+    internal const val EXTRA_EXAM_LOCATION = "examLocation"
+    internal const val EXTRA_EXAM_SEAT = "examSeat"
+    internal const val EXTRA_EXAM_MINUTES = "examMinutes"
     internal const val EXTRA_NOTIFICATION_ID = "notificationId"
     internal const val EXTRA_SNOOZE_FIRE = "snoozeFire"
     private const val SNOOZE_MINUTES = 10L
@@ -213,8 +231,126 @@ object ClassNoticeScheduler {
         }
     }
 
+    fun scheduleEveningBriefing(context: Context, triggerAtMillis: Long) {
+        val app = context.applicationContext
+        val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_EVENING_BRIEFING
+            setPackage(app.packageName)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            app,
+            REQUEST_CODE_EVENING_BRIEFING,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        if (triggerAtMillis <= System.currentTimeMillis()) return
+        setAlarm(app, triggerAtMillis, pendingIntent)
+    }
+
+    fun cancelEveningBriefing(context: Context) {
+        val app = context.applicationContext
+        val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_EVENING_BRIEFING
+            setPackage(app.packageName)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            app,
+            REQUEST_CODE_EVENING_BRIEFING,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+        ) ?: return
+        runCatching {
+            app.getSystemService(AlarmManager::class.java)?.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
+    }
+
+    fun scheduleTransitReminder(context: Context, triggerAtMillis: Long, nextTitle: String, nextLocation: String) {
+        val app = context.applicationContext
+        val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_TRANSIT
+            setPackage(app.packageName)
+            putExtra(EXTRA_TRANSIT_TITLE, nextTitle)
+            putExtra(EXTRA_TRANSIT_LOCATION, nextLocation)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            app,
+            REQUEST_CODE_TRANSIT,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        if (triggerAtMillis <= System.currentTimeMillis()) return
+        setAlarm(app, triggerAtMillis, pendingIntent)
+    }
+
+    fun cancelTransitReminder(context: Context) {
+        val app = context.applicationContext
+        val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_TRANSIT
+            setPackage(app.packageName)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            app,
+            REQUEST_CODE_TRANSIT,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+        ) ?: return
+        runCatching {
+            app.getSystemService(AlarmManager::class.java)?.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
+    }
+
+    fun scheduleExamAlert(
+        context: Context,
+        triggerAtMillis: Long,
+        examTitle: String,
+        location: String,
+        seat: String,
+        minutesUntil: Int,
+    ) {
+        val app = context.applicationContext
+        val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_EXAM
+            setPackage(app.packageName)
+            putExtra(EXTRA_EXAM_TITLE, examTitle)
+            putExtra(EXTRA_EXAM_LOCATION, location)
+            putExtra(EXTRA_EXAM_SEAT, seat)
+            putExtra(EXTRA_EXAM_MINUTES, minutesUntil)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            app,
+            REQUEST_CODE_EXAM,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        if (triggerAtMillis <= System.currentTimeMillis()) return
+        setAlarm(app, triggerAtMillis, pendingIntent)
+    }
+
+    fun cancelExamAlert(context: Context) {
+        val app = context.applicationContext
+        val intent = Intent(app, ClassNoticeReceiver::class.java).apply {
+            action = ACTION_EXAM
+            setPackage(app.packageName)
+        }
+        val pendingIntent = PendingIntent.getBroadcast(
+            app,
+            REQUEST_CODE_EXAM,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE,
+        ) ?: return
+        runCatching {
+            app.getSystemService(AlarmManager::class.java)?.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
+    }
+
     fun cancelAll(context: Context) {
         cancel(context)
+        cancelEveningBriefing(context)
+        cancelTransitReminder(context)
+        cancelExamAlert(context)
         val app = context.applicationContext
         listOf(ACTION_STARTED to REQUEST_CODE_STARTED, ACTION_ENDED to REQUEST_CODE_ENDED, ACTION_SNOOZE to REQUEST_CODE_SNOOZE).forEach { (action, request) ->
             val pending = PendingIntent.getBroadcast(app, request, Intent(app, ClassNoticeReceiver::class.java).setAction(action).setPackage(app.packageName), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_NO_CREATE)
@@ -248,6 +384,41 @@ class ClassNoticeReceiver : BroadcastReceiver() {
         if (intent.action == ClassNoticeScheduler.ACTION_DISMISS) {
             val id = intent.getIntExtra(ClassNoticeScheduler.EXTRA_NOTIFICATION_ID, 0)
             if (id != 0) ClassNoticeNotifier.cancel(context, id) else ClassNoticeNotifier.cancel(context)
+            return
+        }
+        if (intent.action == ClassNoticeScheduler.ACTION_EVENING_BRIEFING) {
+            val pending = goAsync()
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                try {
+                    ClassNoticeGateway.deliverEveningBriefing(context.applicationContext)
+                } finally {
+                    pending.finish()
+                }
+            }
+            return
+        }
+        if (intent.action == ClassNoticeScheduler.ACTION_TRANSIT) {
+            val title = intent.getStringExtra(ClassNoticeScheduler.EXTRA_TRANSIT_TITLE).orEmpty()
+            val location = intent.getStringExtra(ClassNoticeScheduler.EXTRA_TRANSIT_LOCATION).orEmpty()
+            if (title.isNotBlank()) {
+                ClassNoticeNotifier.notifyTransitReminder(context, title, location)
+            }
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                runCatching { ClassNoticeGateway.rescheduleTransit(context.applicationContext) }
+            }
+            return
+        }
+        if (intent.action == ClassNoticeScheduler.ACTION_EXAM) {
+            val title = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_TITLE).orEmpty()
+            val location = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_LOCATION).orEmpty()
+            val seat = intent.getStringExtra(ClassNoticeScheduler.EXTRA_EXAM_SEAT).orEmpty()
+            val minutes = intent.getIntExtra(ClassNoticeScheduler.EXTRA_EXAM_MINUTES, 45)
+            if (title.isNotBlank()) {
+                ClassNoticeNotifier.notifyExamAlert(context, title, location, seat, minutes)
+            }
+            CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+                runCatching { ClassNoticeGateway.rescheduleExam(context.applicationContext) }
+            }
             return
         }
         if (intent.action == ClassNoticeScheduler.ACTION_SKIP) {

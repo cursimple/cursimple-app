@@ -102,6 +102,12 @@ data class ClassNoticePreferences(
     val blurEnabled: Boolean = true,
     val blurStrength: Int = DEFAULT_BLUR_STRENGTH,
     val bannerDurationSeconds: Int = DEFAULT_BANNER_DURATION_SECONDS,
+    val eveningBriefingEnabled: Boolean = false,
+    val eveningBriefingHour: Int = 21,
+    val eveningBriefingMinute: Int = 30,
+    val transitReminderEnabled: Boolean = false,
+    val examAlertEnabled: Boolean = false,
+    val examAlertAdvanceMinutes: Int = 45,
 ) {
     companion object {
         const val DEFAULT_ADVANCE_MINUTES = 20
@@ -314,6 +320,8 @@ data class ScheduleDisplayPreferences(
     val todayOverviewEnabled: Boolean = true,
     /** This display preference is independent of holiday reminder delivery. */
     val courseSessionCountIncludeHolidays: Boolean = true,
+    val timelineIndicatorEnabled: Boolean = false,
+    val gridDashedLinesEnabled: Boolean = false,
 )
 
 fun adaptScheduleForegroundColorArgb(argb: Long, darkTheme: Boolean, enabled: Boolean): Long =
@@ -617,6 +625,11 @@ interface UserPreferencesRepository {
     suspend fun setPrivateFilesProviderEnabled(enabled: Boolean)
     suspend fun setWebDavSettings(url: String, username: String, password: String)
     suspend fun setAiImportSettings(apiUrl: String, apiKey: String, model: String, timeoutSeconds: Int)
+    suspend fun setTimelineIndicatorEnabled(enabled: Boolean)
+    suspend fun setGridDashedLinesEnabled(enabled: Boolean)
+    suspend fun setEveningBriefingEnabled(enabled: Boolean)
+    suspend fun setTransitReminderEnabled(enabled: Boolean)
+    suspend fun setExamAlertEnabled(enabled: Boolean)
     suspend fun resetScheduleAppearanceAndDisplay()
     suspend fun resetAllSettings()
 }

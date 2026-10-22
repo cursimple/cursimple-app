@@ -16,6 +16,10 @@ internal class GridTimeline private constructor(
 
     val hasInsertedRows: Boolean = rows.any { it is TimelineRow.Gap }
 
+    val hasTimedAnchors: Boolean get() = anchors.isNotEmpty()
+    val minMinute: Int? get() = anchors.firstOrNull()?.startMinute
+    val maxMinute: Int? get() = anchors.lastOrNull()?.endMinute
+
     fun slotTop(slotIndex: Int): Float = slotRows[slotIndex]?.top ?: slotIndex.toFloat()
 
     fun slotBottom(slotIndex: Int): Float = slotRows[slotIndex]?.let { it.top + it.height } ?: (slotIndex + 1f)

@@ -127,6 +127,21 @@
                 android:resource="@string/next_course_widget_description" />
         </receiver>
 
+        <!-- Course Capsule (1x1 / 2x1) -->
+        <receiver
+            android:name=".CourseCapsuleWidgetReceiver"
+            android:exported="true"
+            android:icon="@drawable/widget_preview_next"
+            android:label="@string/widget_capsule_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/course_capsule_widget_info" />
+        </receiver>
+
         <!-- Reminder -->
         <receiver
             android:name=".ReminderGlanceWidgetReceiver"

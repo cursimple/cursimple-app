@@ -91,16 +91,10 @@ class WidgetSizeProfilesTest {
     }
 
     @Test
-    fun `next course rows shrink with the widget size`() {
-        val rows = (1..6).map { nextCourseRow("course-$it") }
+    fun `every next course row stays in the scrolling list`() {
+        val rows = (1..12).map { nextCourseRow("course-$it") }
 
-        assertEquals(2, visibleNextCourseRows(rows, WidgetSizeClass.Compact).size)
-        assertEquals(4, visibleNextCourseRows(rows, WidgetSizeClass.Regular).size)
-        assertEquals(5, visibleNextCourseRows(rows, WidgetSizeClass.Expanded).size)
-        assertEquals(
-            listOf("course-1", "course-2"),
-            visibleNextCourseRows(rows, WidgetSizeClass.Compact).map { it.id },
-        )
+        assertEquals(rows.map { it.id }, visibleNextCourseRows(rows).map { it.id })
     }
 
     @Test

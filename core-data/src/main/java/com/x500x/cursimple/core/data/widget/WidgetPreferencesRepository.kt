@@ -8,6 +8,8 @@ import kotlinx.coroutines.flow.Flow
 
 enum class WidgetBackgroundMode { Theme, Image }
 
+enum class WidgetThemeMode { System, Light, Dark }
+
 data class WidgetThemePreferences(
     val themeAccent: ThemeAccent = ThemeAccent.Green,
     /** Custom widget accent, inherited from the app when following its theme. */
@@ -19,11 +21,15 @@ data class WidgetThemePreferences(
     val backgroundImageTransparencyPercent: Int = DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
     /** Events join courses on the day list and mark days on the calendar. */
     val showEvents: Boolean = true,
+    val backgroundOpacityPercent: Int = 100,
+    val frostedGlassEnabled: Boolean = false,
+    val widgetThemeMode: WidgetThemeMode = WidgetThemeMode.System,
 ) {
     companion object {
         const val DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT = 0
 
         fun coerceBackgroundImageTransparencyPercent(value: Int): Int = value.coerceIn(0, 100)
+        fun coerceBackgroundOpacityPercent(value: Int): Int = value.coerceIn(0, 100)
     }
 }
 
@@ -96,6 +102,12 @@ interface WidgetPreferencesRepository {
     suspend fun setWidgetOpenAppOnDoubleClickEnabled(enabled: Boolean)
 
     suspend fun setWidgetShowEvents(enabled: Boolean)
+
+    suspend fun setWidgetBackgroundOpacityPercent(percent: Int)
+
+    suspend fun setWidgetFrostedGlassEnabled(enabled: Boolean)
+
+    suspend fun setWidgetThemeMode(mode: WidgetThemeMode)
 
     suspend fun resetWidgetThemePreferences()
 }

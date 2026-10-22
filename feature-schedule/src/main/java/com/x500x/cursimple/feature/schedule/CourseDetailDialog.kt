@@ -518,6 +518,7 @@ fun CourseDetailDialog(
                                     details = shown.course.details,
                                     manual = shown.manual,
                                     pluginOverride = shown.pluginOverride,
+                                    isExam = shown.course.category == CourseCategory.Exam,
                                 )
                             }
 
@@ -788,6 +789,7 @@ private fun CourseFactsCard(
     details: List<CourseDetailField>,
     manual: Boolean,
     pluginOverride: Boolean,
+    isExam: Boolean = false,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -798,6 +800,56 @@ private fun CourseFactsCard(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (isExam) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.School,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = stringResource(R.string.schedule_course_detail_exam_prefix),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                            examCountdown?.let { cd ->
+                                Spacer(Modifier.weight(1f))
+                                Text(
+                                    text = examCountdownText(cd),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                        }
+                        val seat = details.firstOrNull {
+                            it.label.contains("座") || it.label.contains("Seat", ignoreCase = true)
+                        }?.value
+                        if (!seat.isNullOrBlank()) {
+                            Text(
+                                text = "考场座位号：$seat",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                            )
+                        }
+                        Text(
+                            text = "请备齐身份证、学生证与准考证，提前到达考场",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f),
+                        )
+                    }
+                }
+            }
             DetailRow(
                 icon = Icons.Rounded.AccessTime,
                 title = stringResource(R.string.schedule_course_detail_class_time),

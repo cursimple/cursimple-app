@@ -104,6 +104,21 @@
             android:layout_marginTop="2dp"
             android:orientation="vertical" />
 
+        <ListView
+            android:id="@+id/memo_scroll_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="2dp"
+            android:layout_weight="1"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:fadeScrollbars="false"
+            android:listSelector="@android:color/transparent"
+            android:overScrollMode="ifContentScrolls"
+            android:scrollbarStyle="insideOverlay"
+            android:scrollbars="vertical"
+            android:visibility="gone" />
+
         <LinearLayout
             android:id="@+id/memo_empty"
             android:layout_width="match_parent"

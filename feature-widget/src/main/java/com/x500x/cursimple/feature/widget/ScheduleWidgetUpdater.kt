@@ -30,6 +30,7 @@ object ScheduleWidgetUpdater {
         ReminderDataSource.invalidate()
         ScheduleGlanceWidgetReceiver.updateWidgets(app)
         NextCourseGlanceWidgetReceiver.updateWidgets(app)
+        CourseCapsuleWidgetReceiver.updateWidgets(app)
         ReminderGlanceWidgetReceiver.updateWidgets(app)
         CalendarWidgetReceiver.updateWidgets(app)
         PendingTaskWidgetReceiver.updateWidgets(app)

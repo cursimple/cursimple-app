@@ -52,6 +52,8 @@ Use forward slashes in properties paths. `scripts/load-signing-env.ps1` optional
 
 Maintain `app.versionCode`, `app.versionName` and `app.releaseChannel` in `gradle.properties`. A `v<app.versionName>` tag triggers the release workflow. Channel metadata determines GitHub prerelease status, including tags without a beta suffix. Release signing checks compare all five APK certificates with the published certificate; temporary local signing cannot replace it.
 
+Beta and stable releases come only from `main`; CI rejects ordinary tags that are not on `main`. Test builds from the `pre` branch use `v<version>-pre.N` tags (with `app.versionName` set to `<version>-pre.N` and the channel left at `beta`). They are published as GitHub prereleases for testers, never enter the update feed, and are ignored by in-app update checks and update history. When the change ships from `main`, raise `app.versionCode` above the test build so testers receive it.
+
 | Workflow | Purpose |
 |---|---|
 | `.github/workflows/android-ci.yml` | Build and tests for pull requests and main-branch changes |

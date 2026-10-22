@@ -19,22 +19,18 @@ internal enum class WidgetSizeClass {
     }
 }
 
-internal fun WidgetSizeClass.nextCourseRows(): Int = when (this) {
-    WidgetSizeClass.Compact -> 2
-    WidgetSizeClass.Regular -> 4
-    WidgetSizeClass.Expanded -> 5
-}
-
 internal fun WidgetSizeClass.reminderRows(): Int = when (this) {
     WidgetSizeClass.Compact -> 2
     WidgetSizeClass.Regular -> 3
     WidgetSizeClass.Expanded -> 4
 }
 
-internal fun visibleNextCourseRows(
-    rows: List<NextCourseRow>,
-    sizeClass: WidgetSizeClass,
-): List<NextCourseRow> = rows.take(sizeClass.nextCourseRows())
+/** The list scrolls, so every course of the day stays reachable at any widget size. */
+internal fun visibleNextCourseRows(rows: List<NextCourseRow>): List<NextCourseRow> =
+    rows.take(NEXT_COURSE_MAX_ROWS)
+
+/** A guard against runaway data; no real day comes close. */
+private const val NEXT_COURSE_MAX_ROWS = 30
 
 internal fun visibleReminderRows(
     rows: List<ReminderRowData>,

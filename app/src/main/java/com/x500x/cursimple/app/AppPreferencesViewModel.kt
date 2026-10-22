@@ -167,6 +167,18 @@ class AppPreferencesViewModel(
         viewModelScope.launch { repository.setClassNoticeBannerDurationSeconds(seconds) }
     }
 
+    fun setEveningBriefingEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setEveningBriefingEnabled(enabled) }
+    }
+
+    fun setTransitReminderEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setTransitReminderEnabled(enabled) }
+    }
+
+    fun setExamAlertEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setExamAlertEnabled(enabled) }
+    }
+
     fun setScheduleTextVerticalCenter(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleTextVerticalCenter(enabled) }
     }
@@ -284,6 +296,14 @@ class AppPreferencesViewModel(
 
     fun setTotalScheduleDisplayEnabled(enabled: Boolean) {
         viewModelScope.launch { repository.setTotalScheduleDisplayEnabled(enabled) }
+    }
+
+    fun setTimelineIndicatorEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setTimelineIndicatorEnabled(enabled) }
+    }
+
+    fun setGridDashedLinesEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setGridDashedLinesEnabled(enabled) }
     }
 
     fun setAlarmBackend(backend: ReminderAlarmBackend) {

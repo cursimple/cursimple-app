@@ -32,6 +32,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.CloudDownload
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.EventAvailable
@@ -88,6 +90,11 @@ import com.x500x.cursimple.app.webdav.webDavErrorText
 import com.x500x.cursimple.app.webdav.WebDavClient
 import com.x500x.cursimple.app.webdav.WebDavConfig
 import com.x500x.cursimple.app.util.ScheduleIcsExporter
+import com.x500x.cursimple.app.util.ScheduleIcsImporter
+import com.x500x.cursimple.app.util.ScheduleWakeUpImporter
+import com.x500x.cursimple.app.util.AiScheduleCompat
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Extension
 import com.x500x.cursimple.app.util.ScheduleImageExporter
 import com.x500x.cursimple.app.util.ScheduleImageOptionsStore
 import com.x500x.cursimple.core.kernel.model.ScheduleEvent
@@ -159,6 +166,7 @@ fun ImportExportScreen(
     var qrBusy by remember { mutableStateOf(false) }
     var showTextShare by rememberSaveable { mutableStateOf(false) }
     var showTextImport by rememberSaveable { mutableStateOf(false) }
+    var showAiScheduleDialog by rememberSaveable { mutableStateOf(false) }
     val maxImageWeek = remember(schedule, manualCourses) {
         ScheduleImageLayout.maxWeekNumber(schedule, manualCourses)
     }
@@ -334,6 +342,42 @@ fun ImportExportScreen(
         val uri = createAiCameraUri(context)
         aiCameraUri = uri
         aiCameraLauncher.launch(uri)
+    }
+
+    val pickIcsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val payload = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { ScheduleIcsImporter.parse(it) }
+                }
+                if (payload != null) {
+                    pendingImport = payload
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "ICS 导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val pickWakeUpLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument(),
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            try {
+                val payload = withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { ScheduleWakeUpImporter.parse(it) }
+                }
+                if (payload != null) {
+                    pendingImport = payload
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "WakeUp 导入失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     fun restoreRemoteBackup(backup: WebDavBackupFile) {
@@ -578,6 +622,27 @@ fun ImportExportScreen(
                     enabled = !importing,
                     onClick = { showTextImport = true },
                 )
+                ImportExportRow(
+                    icon = Icons.Rounded.CalendarMonth,
+                    title = stringResource(R.string.ie_import_ics_title),
+                    subtitle = stringResource(R.string.ie_import_ics_body),
+                    enabled = !importing,
+                    onClick = { pickIcsLauncher.launch(arrayOf("*/*", "text/calendar")) },
+                )
+                ImportExportRow(
+                    icon = Icons.Rounded.School,
+                    title = stringResource(R.string.ie_import_wakeup_title),
+                    subtitle = stringResource(R.string.ie_import_wakeup_body),
+                    enabled = !importing,
+                    onClick = { pickWakeUpLauncher.launch(arrayOf("*/*", "application/json", "application/zip")) },
+                )
+                ImportExportRow(
+                    icon = Icons.Rounded.Extension,
+                    title = stringResource(R.string.ie_import_aischedule_title),
+                    subtitle = stringResource(R.string.ie_import_aischedule_body),
+                    enabled = !importing,
+                    onClick = { showAiScheduleDialog = true },
+                )
                 ImportBlock(
                     icon = Icons.Rounded.ImageSearch,
                     title = stringResource(R.string.ie_ai_panel_title),
@@ -766,6 +831,52 @@ fun ImportExportScreen(
         showTextImport = false
         pendingImport = it
     }, onDismiss = { showTextImport = false })
+
+    if (showAiScheduleDialog) {
+        var aiScheduleInput by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { showAiScheduleDialog = false },
+            title = { Text(stringResource(R.string.ie_import_aischedule_dialog_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = stringResource(R.string.ie_import_aischedule_dialog_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedTextField(
+                        value = aiScheduleInput,
+                        onValueChange = { aiScheduleInput = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 120.dp, max = 220.dp),
+                        placeholder = { Text("[{\"name\": \"...\", \"weeks\": [1,2], \"day\": 1, \"sections\": [1,2]}]") },
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = aiScheduleInput.isNotBlank(),
+                    onClick = {
+                        showAiScheduleDialog = false
+                        try {
+                            val payload = AiScheduleCompat.parseJson(aiScheduleInput)
+                            pendingImport = payload
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "小爱课程表解析失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.ie_section_import))
+                }
+            },
+            dismissButton = {
+                AppOutlinedButton(onClick = { showAiScheduleDialog = false }) {
+                    Text(stringResource(R.string.ie_cancel))
+                }
+            },
+        )
+    }
 
     qrBitmap?.let { bitmap ->
         ScheduleQrShareDialog(bitmap, onDismiss = { qrBitmap = null })

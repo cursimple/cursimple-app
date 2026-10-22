@@ -30,6 +30,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
+          # Full history so the branch check below can see origin/main.
+          fetch-depth: 0
 
       # Keep the app at its immutable tag; retryable verification fixes use the workflow revision.
       - name: Checkout release tooling
@@ -49,6 +51,16 @@ jobs:
         run: >-
           python3 scripts/release_metadata.py resolve
           --tag "$RELEASE_TAG" --github-output "$GITHUB_OUTPUT"
+
+      # Only main publishes updates; pre-branch builds must carry a -pre.N tag and stay test-only.
+      - name: Check release branch
+        if: steps.release_metadata.outputs.test_build != 'true'
+        shell: bash
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::$RELEASE_TAG is not on main; tag pre-branch test builds as v<version>-pre.N."
+            exit 1
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -167,7 +179,9 @@ jobs:
           fail_on_unmatched_files: true
 
       # Publish CDN-readable update manifests: stable releases update both channels; beta releases update only beta.json. Never replace a newer manifest.
+      # Pre-branch test builds stay out of the feed so no installed app is offered them.
       - name: Publish update feed
+        if: steps.release_metadata.outputs.test_build != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

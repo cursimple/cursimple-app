@@ -33,6 +33,37 @@ internal fun RemoteViews.applyMemoTodoAdd(context: Context, widgetId: Int) {
 
 /** Each task gets separate completion and Activity actions, including on older launchers. */
 internal fun RemoteViews.applyMemoTodoActions(context: Context, row: MemoTodoRow, widgetId: Int) {
+    val (complete, edit) = memoTodoRowIntents(context, row, widgetId)
+    setOnClickPendingIntent(R.id.memo_checkbox, memoWindowPendingIntent(context, complete))
+    val editAction = memoWindowPendingIntent(context, edit)
+    setOnClickPendingIntent(R.id.memo_row_edit, editAction)
+    setOnClickPendingIntent(R.id.memo_row_due, editAction)
+    setOnClickPendingIntent(R.id.memo_row_root, editAction)
+}
+
+/** Scrolling list rows fill in the list template, which always targets the quick edit window. */
+internal fun RemoteViews.applyMemoTodoFillIns(context: Context, row: MemoTodoRow, widgetId: Int) {
+    val (complete, edit) = memoTodoRowIntents(context, row, widgetId)
+    setOnClickFillInIntent(R.id.memo_checkbox, complete)
+    setOnClickFillInIntent(R.id.memo_row_edit, edit)
+    setOnClickFillInIntent(R.id.memo_row_due, edit)
+    setOnClickFillInIntent(R.id.memo_row_root, edit)
+}
+
+internal fun RemoteViews.applyMemoTodoListTemplate(context: Context, listId: Int, widgetId: Int) {
+    val template = Intent().setClassName(context.packageName, WidgetDeepLinks.MEMO_QUICK_EDIT_ACTIVITY)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+    setPendingIntentTemplate(listId, PendingIntent.getActivity(
+        context, MEMO_LIST_TEMPLATE_REQUEST_BASE + widgetId, template,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
+        ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle(),
+    ))
+}
+
+private const val MEMO_LIST_TEMPLATE_REQUEST_BASE = 29400
+
+/** Completion confirmation and edit intents of one row; distinct data keeps their PendingIntents apart. */
+private fun memoTodoRowIntents(context: Context, row: MemoTodoRow, widgetId: Int): Pair<Intent, Intent> {
     val revision = memoTodoRevision(row.note.body)
     fun uri(action: String): Uri = Uri.Builder().scheme("cursimple-widget").authority("memo")
         .appendPath(widgetId.toString()).appendPath(row.note.id)
@@ -40,7 +71,6 @@ internal fun RemoteViews.applyMemoTodoActions(context: Context, row: MemoTodoRow
     val complete = memoTodoConfirmationIntent(context, row.note.id, row.lineIndex ?: -1, revision, widgetId).apply {
         data = uri("complete")
     }
-    setOnClickPendingIntent(R.id.memo_checkbox, memoWindowPendingIntent(context, complete))
     val edit = Intent().setClassName(context.packageName, WidgetDeepLinks.MEMO_QUICK_EDIT_ACTIVITY).apply {
         data = uri("edit")
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -48,10 +78,7 @@ internal fun RemoteViews.applyMemoTodoActions(context: Context, row: MemoTodoRow
         putExtra(WidgetDeepLinks.EXTRA_MEMO_LINE, row.lineIndex ?: -1)
         putExtra(WidgetDeepLinks.EXTRA_MEMO_REVISION, revision)
     }
-    val editAction = memoWindowPendingIntent(context, edit)
-    setOnClickPendingIntent(R.id.memo_row_edit, editAction)
-    setOnClickPendingIntent(R.id.memo_row_due, editAction)
-    setOnClickPendingIntent(R.id.memo_row_root, editAction)
+    return complete to edit
 }
 
 /** Keep launcher actions static; the widget supplies only pressed-state feedback. */

@@ -39,6 +39,12 @@ object WidgetCatalog {
                 ),
             ),
             WidgetCatalogEntry(
+                id = CourseCapsuleWidgetReceiver.CATALOG_ID,
+                title = context.getString(R.string.widget_capsule_name),
+                description = context.getString(R.string.widget_capsule_description),
+                provider = ComponentName(pkg, CourseCapsuleWidgetReceiver::class.java.name),
+            ),
+            WidgetCatalogEntry(
                 id = "today",
                 title = context.getString(R.string.widget_label_today),
                 description = context.getString(R.string.widget_catalog_today_description),

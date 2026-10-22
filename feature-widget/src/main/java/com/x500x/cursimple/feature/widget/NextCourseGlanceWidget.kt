@@ -109,10 +109,7 @@ open class NextCourseGlanceWidgetReceiver : AppWidgetProvider() {
             } else {
                 views.setViewVisibility(R.id.next_course_badge, View.GONE)
             }
-            val visibleRows = visibleNextCourseRows(
-                data.rows,
-                widgetSizeClass(AppWidgetManager.getInstance(context), appWidgetId),
-            )
+            val visibleRows = visibleNextCourseRows(data.rows)
             val hasRows = visibleRows.isNotEmpty()
             views.setWidgetRows(
                 listId = R.id.next_course_list,

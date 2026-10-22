@@ -33,6 +33,16 @@ class AppReleaseHistoryTest {
     }
 
     @Test
+    fun `pre 分支的测试包不进更新历史`() {
+        val withTestBuild = body.replaceFirst(
+            "[",
+            """[{"tag_name":"v0.8.2-pre.1","name":"测试包","body":"","prerelease":true,"draft":false},""",
+        )
+
+        assertEquals(listOf("v0.7.1-beta.9", "v0.7.0"), parseReleaseHistory(withTestBuild, includePrerelease = true).map { it.tagName })
+    }
+
+    @Test
     fun `草稿一律不列`() {
         val history = parseReleaseHistory(body, includePrerelease = true)
 

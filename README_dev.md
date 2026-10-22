@@ -52,6 +52,8 @@ properties 路径使用正斜杠。`scripts/load-signing-env.ps1` 可从环境�
 
 版本和渠道在 `gradle.properties` 的 `app.versionCode`、`app.versionName`、`app.releaseChannel` 中维护。匹配的 `v<app.versionName>` 标签触发发布。渠道决定 GitHub 的预发布状态，不靠标签是否含 beta 后缀判断。发布检查会核对五个 APK 的签名；本地临时签名不能替代已发布的证书。
 
+正式版和测试版只从 `main` 发布，CI 会拒绝不在 `main` 上的普通标签。`pre` 分支的测试包用 `v<版本>-pre.N` 标签（`app.versionName` 同步写成 `<版本>-pre.N`，渠道保持 `beta`）：只发 GitHub 预发布供测试，不写入更新源，App 的检查更新和更新历史都会忽略它。合入 `main` 正式发布时 `app.versionCode` 要比测试包大，装了测试包的人才能收到更新。
+
 | 工作流 | 用途 |
 |---|---|
 | `android-ci.yml` | PR 和 main 分支构建、测试 |

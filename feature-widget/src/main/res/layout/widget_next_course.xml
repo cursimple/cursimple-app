@@ -70,7 +70,11 @@
             android:listSelector="@android:color/transparent"
             android:divider="@null"
             android:dividerHeight="0dp"
-            android:scrollbars="none" />
+            android:fadeScrollbars="false"
+            android:overScrollMode="ifContentScrolls"
+            android:paddingEnd="6dp"
+            android:scrollbarStyle="outsideOverlay"
+            android:scrollbars="vertical" />
 
         <TextView
             android:id="@+id/next_course_empty"

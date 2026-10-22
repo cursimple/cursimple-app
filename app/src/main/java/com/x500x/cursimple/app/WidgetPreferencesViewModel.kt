@@ -74,6 +74,27 @@ class WidgetPreferencesViewModel(
         }
     }
 
+    fun setWidgetBackgroundOpacityPercent(percent: Int) {
+        viewModelScope.launch {
+            repository.setWidgetBackgroundOpacityPercent(percent)
+            refreshWidgets()
+        }
+    }
+
+    fun setWidgetFrostedGlassEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.setWidgetFrostedGlassEnabled(enabled)
+            refreshWidgets()
+        }
+    }
+
+    fun setWidgetThemeMode(mode: com.x500x.cursimple.core.data.widget.WidgetThemeMode) {
+        viewModelScope.launch {
+            repository.setWidgetThemeMode(mode)
+            refreshWidgets()
+        }
+    }
+
     fun resetWidgetThemePreferences() {
         viewModelScope.launch {
             repository.resetWidgetThemePreferences()

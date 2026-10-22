@@ -31,7 +31,7 @@ private data class RawRelease(
 
 private val historyJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
-/** Filter drafts and optionally prereleases; return an empty list on parse failure. */
+/** Filter drafts, pre-branch test builds and optionally prereleases; return an empty list on parse failure. */
 internal fun parseReleaseHistory(body: String, includePrerelease: Boolean): List<AppReleaseSummary> {
     val raw = runCatching {
         historyJson.decodeFromString(ListSerializer(RawRelease.serializer()), body)
@@ -40,6 +40,7 @@ internal fun parseReleaseHistory(body: String, includePrerelease: Boolean): List
         .filterNot { it.draft }
         .filter { includePrerelease || !it.prerelease }
         .filter { it.tagName.isNotBlank() }
+        .filterNot { isTestReleaseTag(it.tagName) }
         .map { release ->
             AppReleaseSummary(
                 tagName = release.tagName,

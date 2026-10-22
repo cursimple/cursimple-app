@@ -61,6 +61,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
@@ -214,14 +215,30 @@ class WidgetQaTest {
             val (id, view) = bind(MemoTodoWidgetReceiver::class.java, 330, 230)
             refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
             capture(view, 330, 230, "widget-memo-todos.png")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) instrumentation.runOnMainSync {
+                // Two rows fill the widget exactly; the header must say a third waits below.
+                val subtitle = view.findViewById<android.widget.TextView>(WidgetR.id.memo_subtitle).text.toString()
+                assertEquals(AppLocale.wrap(context).getString(WidgetR.string.widget_memo_scroll_more), subtitle)
+                val list = view.findViewById<android.widget.ListView>(WidgetR.id.memo_scroll_list)
+                assertTrue(list.isVerticalScrollBarEnabled && !list.isScrollbarFadingEnabled)
+            }
             val (smallId, small) = bind(MemoTodoWidgetReceiver::class.java, 180, 110)
             refresh { MemoTodoWidgetReceiver.updateWidgets(context, intArrayOf(smallId)) }
             capture(small, 180, 110, "widget-memo-compact.png")
             instrumentation.runOnMainSync {
-                val list = small.findViewById<LinearLayout>(WidgetR.id.memo_list)
-                assertTrue("Compact checklist rendered no rows", list.childCount > 0)
-                assertTrue("Compact checklist clipped its final row", list.getChildAt(list.childCount - 1).bottom <= list.height)
-                assertTrue(list.getChildAt(0).findViewById<View>(WidgetR.id.memo_checkbox).height >= 48 * context.resources.displayMetrics.density)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                    // API 31+ keeps every open task in a scrolling list instead of fitting the first rows.
+                    val list = small.findViewById<android.widget.ListView>(WidgetR.id.memo_scroll_list)
+                    assertEquals(View.VISIBLE, list.visibility)
+                    assertEquals("Compact list must hold every open task", 3, list.adapter.count)
+                    assertTrue("Compact list must scroll to the hidden tasks", list.canScrollVertically(1))
+                    assertTrue(list.getChildAt(0).findViewById<View>(WidgetR.id.memo_checkbox).height >= 48 * context.resources.displayMetrics.density)
+                } else {
+                    val list = small.findViewById<LinearLayout>(WidgetR.id.memo_list)
+                    assertTrue("Compact checklist rendered no rows", list.childCount > 0)
+                    assertTrue("Compact checklist clipped its final row", list.getChildAt(list.childCount - 1).bottom <= list.height)
+                    assertTrue(list.getChildAt(0).findViewById<View>(WidgetR.id.memo_checkbox).height >= 48 * context.resources.displayMetrics.density)
+                }
             }
             if (InstrumentationRegistry.getArguments().getString("memoLayoutOnly") == "true") return@runBlocking
             suspend fun confirmWidgetTask(cancelFirst: Boolean = false) {
@@ -268,6 +285,8 @@ class WidgetQaTest {
             val screenHeight = context.resources.displayMetrics.heightPixels
             assertTrue("Quick edit must stay in a floating window ($decorHeight of $screenHeight px)", decorHeight < screenHeight)
             captureActivity(activity!!, "widget-memo-quick-editor.png")
+            // Existing notes open read-only; the header button switches to editing.
+            compose.onNodeWithTag("memo-quick-edit").performClick()
             compose.onNodeWithTag("memo-quick-text").performClick()
             compose.onNodeWithTag("memo-quick-save").assertIsDisplayed()
             compose.onNodeWithTag("memo-quick-body-2").performTextReplacement("提交附件和实验截图")
@@ -292,6 +311,8 @@ class WidgetQaTest {
             val cancelled = instrumentation.waitForMonitorWithTimeout(cancelMonitor, 10_000)
             assertNotNull(cancelled)
             compose.waitUntil(10_000) { compose.onAllNodesWithTag("memo-quick-editor").fetchSemanticsNodes(atLeastOneRootRequired = false).isNotEmpty() }
+            // Existing notes open read-only; the header button switches to editing.
+            compose.onNodeWithTag("memo-quick-edit").performClick()
             compose.onNodeWithTag("memo-quick-body-1").performTextReplacement("不应保存的修改")
             compose.onNodeWithTag("memo-quick-close").performClick()
             compose.onNodeWithText(localized.getString(R.string.memo_quick_discard_title)).assertIsDisplayed()
@@ -335,6 +356,21 @@ class WidgetQaTest {
             val previousIds = previous.map { it.id }.toSet()
             repo.notesFlow.first().filter { it.id !in previousIds }.forEach { repo.remove(it.id) }
             previous.forEach { repo.upsert(it) }
+        }
+    }
+
+    @Test fun nextCourseHighlightsTheComingCourseAndShowsItsScrollbar() {
+        val (id, view) = bind(com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiver::class.java, 330, 230)
+        refresh { com.x500x.cursimple.feature.widget.NextCourseGlanceWidgetReceiver.updateWidgets(context, intArrayOf(id)) }
+        capture(view, 330, 230, "widget-next-focus.png")
+        instrumentation.runOnMainSync {
+            val list = view.findViewById<android.widget.ListView>(WidgetR.id.next_course_list)
+            assertTrue(list.isVerticalScrollBarEnabled && !list.isScrollbarFadingEnabled)
+            assertTrue("Tuesday 10:00 leaves two courses", list.childCount >= 2)
+            fun label(index: Int) = list.getChildAt(index).findViewById<android.widget.TextView>(WidgetR.id.next_course_label)
+            assertNotNull("The coming course carries the live badge", label(0).background)
+            assertNull("Later courses stay plain", label(1).background)
+            assertTrue(list.getChildAt(0).findViewById<android.widget.TextView>(WidgetR.id.next_course_name).text.contains("程序设计"))
         }
     }
 
@@ -523,7 +559,9 @@ class WidgetQaTest {
                     refresh { update(entry.id, id) }
                     val name = "matrix-$profile-${entry.id}-$width-$height"
                     capture(view, width, height, "$name.png")
-                    checkLayout(view, name, entry.id in setOf("memo", "reminder"))
+                    // API 31+ memo rows scroll, so a peeking final row is intended there.
+                    val fittedMemo = entry.id == "memo" && android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S
+                    checkLayout(view, name, fittedMemo || entry.id == "reminder")
                     if (entry.id == "reminder") instrumentation.runOnMainSync {
                         assertTrue("Reminder fixture did not produce rows", view.findViewById<ListView>(WidgetR.id.reminder_list).adapter?.count?.let { it > 0 } == true)
                     }
@@ -827,6 +865,12 @@ class WidgetQaTest {
 
     private fun click(view: AppWidgetHostView, id: Int, waitMs: Long = 1800) {
         instrumentation.runOnMainSync {
+            // The host view is off-screen; lay it out again so collection rows rebind to the latest data.
+            if (view.width > 0 && view.height > 0) {
+                view.measure(View.MeasureSpec.makeMeasureSpec(view.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(view.height, View.MeasureSpec.EXACTLY))
+                view.layout(0, 0, view.width, view.height)
+            }
             val target = view.findViewById<View>(id)
             assertNotNull("找不到控件 $id", target)
             target.performClick()

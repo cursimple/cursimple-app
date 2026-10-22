@@ -120,6 +120,7 @@ class AppUpdateChecker(
                 JSONObject(releaseResponse.body)
             }
             val tagName = release.optString("tag_name")
+            if (isTestReleaseTag(tagName)) return@runCatching AppUpdateCheckResult.NoRelease
             val htmlUrl = release.optString("html_url")
             val releaseBody = release.optString("body")
             val assets = release.optJSONArray("assets")
@@ -262,6 +263,7 @@ class AppUpdateChecker(
             json.takeIf {
                 it.optInt("versionCode", -1) > 0 &&
                     it.optString("tagName").isNotBlank() &&
+                    !isTestReleaseTag(it.optString("tagName")) &&
                     hasOnlyOwnReleaseAssets(it)
             }?.let(UpdateFeed::Manifest)
         }

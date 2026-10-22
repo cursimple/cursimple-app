@@ -218,4 +218,77 @@ class ClassNoticePlannerTest {
 
         assertEquals("上午课", result?.course?.title)
     }
+
+    @Test
+    fun `classesOnDate returns sorted classes on specified date`() {
+        val list = ClassNoticePlanner.classesOnDate(
+            date = LocalDate.of(2026, 9, 7),
+            allCourses = listOf(
+                course("课2", dayOfWeek = 1, startNode = 3, endNode = 4, weeks = listOf(1)),
+                course("课1", dayOfWeek = 1, startNode = 1, endNode = 2, weeks = listOf(1)),
+            ),
+            timingProfile = profile,
+            termStartDate = termStart,
+            overrides = emptyList(),
+            holidayCalendar = HolidayCalendarSettings.NONE,
+        )
+        assertEquals(2, list.size)
+        assertEquals("课1", list[0].course.title)
+        assertEquals("课2", list[1].course.title)
+    }
+
+    @Test
+    fun `nextTransit triggers 5 minutes before end of preceding course with different location`() {
+        val transit = ClassNoticePlanner.nextTransit(
+            now = LocalDateTime.of(2026, 9, 7, 9, 0),
+            allCourses = listOf(
+                course("课1", dayOfWeek = 1, startNode = 1, endNode = 2, location = "一教101", weeks = listOf(1)),
+                course("课2", dayOfWeek = 1, startNode = 3, endNode = 4, location = "西区实验楼", weeks = listOf(1)),
+            ),
+            timingProfile = profile,
+            termStartDate = termStart,
+            overrides = emptyList(),
+            holidayCalendar = HolidayCalendarSettings.NONE,
+        )
+        // 课1 ends at 09:35, so transit alert triggers at 09:30
+        assertEquals(LocalDateTime.of(2026, 9, 7, 9, 30), transit?.triggerAt)
+        assertEquals("课2", transit?.nextTitle)
+        assertEquals("西区实验楼", transit?.nextLocation)
+    }
+
+    @Test
+    fun `nextTransit ignores courses with identical locations`() {
+        val transit = ClassNoticePlanner.nextTransit(
+            now = LocalDateTime.of(2026, 9, 7, 9, 0),
+            allCourses = listOf(
+                course("课1", dayOfWeek = 1, startNode = 1, endNode = 2, location = "一教101", weeks = listOf(1)),
+                course("课2", dayOfWeek = 1, startNode = 3, endNode = 4, location = "一教101", weeks = listOf(1)),
+            ),
+            timingProfile = profile,
+            termStartDate = termStart,
+            overrides = emptyList(),
+            holidayCalendar = HolidayCalendarSettings.NONE,
+        )
+        assertNull(transit)
+    }
+
+    @Test
+    fun `nextExam finds upcoming exam course with advance alert time`() {
+        val examCourse = course("期末考", dayOfWeek = 1, startNode = 3, endNode = 4, weeks = listOf(1))
+            .copy(category = com.x500x.cursimple.core.kernel.model.CourseCategory.Exam)
+        val regularCourse = course("普通课", dayOfWeek = 1, startNode = 1, endNode = 2, weeks = listOf(1))
+
+        // 课3 starts at 10:05. With advanceMinutes = 45, trigger is 09:20.
+        // At 09:10, exam alert is upcoming.
+        val upcoming = ClassNoticePlanner.nextExam(
+            now = LocalDateTime.of(2026, 9, 7, 9, 10),
+            allCourses = listOf(regularCourse, examCourse),
+            timingProfile = profile,
+            termStartDate = termStart,
+            overrides = emptyList(),
+            holidayCalendar = HolidayCalendarSettings.NONE,
+            advanceMinutes = 45,
+        )
+        assertEquals("期末考", upcoming?.course?.title)
+    }
 }

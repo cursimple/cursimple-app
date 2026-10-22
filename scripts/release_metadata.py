@@ -11,6 +11,12 @@ from urllib.parse import quote
 
 
 ABIS = ("armeabi-v7a", "arm64-v8a", "x86", "x86_64", "universal")
+# Test builds from the pre branch (v0.8.2-pre.1); the app never offers them as updates.
+TEST_TAG = re.compile(r"-pre(\.\d+)?$")
+
+
+def is_test_tag(tag):
+    return bool(TEST_TAG.search(tag))
 
 
 def resolve_metadata(properties_path, tag):
@@ -39,6 +45,9 @@ def resolve_metadata(properties_path, tag):
         channel = "beta" if "-" in tag else "stable"
     elif channel not in ("beta", "stable"):
         raise ValueError("app.releaseChannel must be beta or stable; only a missing property permits tag fallback")
+    test_build = is_test_tag(tag)
+    if test_build and channel != "beta":
+        raise ValueError("pre-branch test tags (-pre.N) must use app.releaseChannel=beta")
     prerelease = channel == "beta"
     return {
         "versionCode": version_code,
@@ -46,6 +55,7 @@ def resolve_metadata(properties_path, tag):
         "tagName": tag,
         "channel": channel,
         "prerelease": prerelease,
+        "testBuild": test_build,
     }
 
 
@@ -92,6 +102,8 @@ def update_feed(manifest, feed_dir, prerelease):
         raise ValueError("manifest versionCode must be a positive integer")
     if type(manifest.get("prerelease")) is not bool or manifest["prerelease"] != prerelease:
         raise ValueError("manifest prerelease does not match the resolved release channel")
+    if is_test_tag(str(manifest.get("tagName", ""))):
+        raise ValueError("pre-branch test builds never enter the update feed")
     feed_dir = Path(feed_dir)
     pending = {}
     names = ("beta.json",) if prerelease else ("beta.json", "stable.json")
@@ -138,6 +150,7 @@ def main():
                 f"channel={metadata['channel']}\n"
                 f"prerelease={str(metadata['prerelease']).lower()}\n"
                 f"make_latest={'false' if metadata['prerelease'] else 'legacy'}\n"
+                f"test_build={str(metadata['testBuild']).lower()}\n"
             )
             if args.github_output:
                 with args.github_output.open("a", encoding="utf-8") as output:

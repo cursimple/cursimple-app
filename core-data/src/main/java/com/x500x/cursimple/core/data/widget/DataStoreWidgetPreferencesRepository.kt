@@ -82,6 +82,14 @@ class DataStoreWidgetPreferencesRepository(
                         ?: WidgetThemePreferences.DEFAULT_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT,
                 ),
             showEvents = preferences[KEY_WIDGET_SHOW_EVENTS] ?: true,
+            backgroundOpacityPercent = WidgetThemePreferences
+                .coerceBackgroundOpacityPercent(
+                    preferences[KEY_WIDGET_BACKGROUND_OPACITY_PERCENT] ?: 100,
+                ),
+            frostedGlassEnabled = preferences[KEY_WIDGET_FROSTED_GLASS_ENABLED] ?: false,
+            widgetThemeMode = preferences[KEY_WIDGET_THEME_MODE]
+                ?.let { runCatching { WidgetThemeMode.valueOf(it) }.getOrNull() }
+                ?: WidgetThemeMode.System,
         )
     }
 
@@ -351,6 +359,25 @@ class DataStoreWidgetPreferencesRepository(
         }
     }
 
+    override suspend fun setWidgetBackgroundOpacityPercent(percent: Int) {
+        val coerced = WidgetThemePreferences.coerceBackgroundOpacityPercent(percent)
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_BACKGROUND_OPACITY_PERCENT] = coerced
+        }
+    }
+
+    override suspend fun setWidgetFrostedGlassEnabled(enabled: Boolean) {
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_FROSTED_GLASS_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun setWidgetThemeMode(mode: WidgetThemeMode) {
+        store.edit { preferences ->
+            preferences[KEY_WIDGET_THEME_MODE] = mode.name
+        }
+    }
+
     override suspend fun resetWidgetThemePreferences() {
         var previousImageUri: String? = null
         store.edit { preferences ->
@@ -401,6 +428,9 @@ class DataStoreWidgetPreferencesRepository(
         val KEY_WIDGET_SHOW_EVENTS = booleanPreferencesKey("widget_show_events")
         val KEY_WIDGET_BACKGROUND_IMAGE_TRANSPARENCY_PERCENT =
             intPreferencesKey("widget_background_image_transparency_percent")
+        val KEY_WIDGET_BACKGROUND_OPACITY_PERCENT = intPreferencesKey("widget_background_opacity_percent")
+        val KEY_WIDGET_FROSTED_GLASS_ENABLED = booleanPreferencesKey("widget_frosted_glass_enabled")
+        val KEY_WIDGET_THEME_MODE = stringPreferencesKey("widget_theme_mode")
         const val MIN_OFFSET = -3650
         const val MAX_OFFSET = 3650
 

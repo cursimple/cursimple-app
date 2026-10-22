@@ -27,6 +27,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.Brightness4
+import androidx.compose.material.icons.rounded.DirectionsWalk
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -93,6 +96,9 @@ internal fun ClassNoticeSettingsSection(
     onBlurChange: (Boolean) -> Unit,
     onBlurStrengthChange: (Int) -> Unit,
     onBannerDurationChange: (Int) -> Unit,
+    onEveningBriefingChange: (Boolean) -> Unit = {},
+    onTransitReminderChange: (Boolean) -> Unit = {},
+    onExamAlertChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     // Create the notification channel before opening its system settings page.
@@ -241,6 +247,27 @@ internal fun ClassNoticeSettingsSection(
                 checked = preferences.focusNotificationEnabled,
                 onCheckedChange = onFocusChange,
             )
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Brightness4,
+                title = stringResource(R.string.settings_evening_briefing_title),
+                subtitle = stringResource(R.string.settings_evening_briefing_subtitle),
+                checked = preferences.eveningBriefingEnabled,
+                onCheckedChange = onEveningBriefingChange,
+            )
+            SettingsSwitchRow(
+                icon = Icons.Rounded.DirectionsWalk,
+                title = stringResource(R.string.settings_transit_reminder_title),
+                subtitle = stringResource(R.string.settings_transit_reminder_subtitle),
+                checked = preferences.transitReminderEnabled,
+                onCheckedChange = onTransitReminderChange,
+            )
+            SettingsSwitchRow(
+                icon = Icons.Rounded.School,
+                title = stringResource(R.string.settings_exam_alert_title),
+                subtitle = stringResource(R.string.settings_exam_alert_subtitle),
+                checked = preferences.examAlertEnabled,
+                onCheckedChange = onExamAlertChange,
+            )
             // System approval is required independently of the in-app chip switch.
             if (preferences.focusNotificationEnabled && islandBlocked) {
                 SettingsActionRow(
@@ -374,6 +401,9 @@ private fun ClassNoticeSkinSettings(
     onBlurChange: (Boolean) -> Unit,
     onBlurStrengthChange: (Int) -> Unit,
     onBannerDurationChange: (Int) -> Unit,
+    onEveningBriefingChange: (Boolean) -> Unit = {},
+    onTransitReminderChange: (Boolean) -> Unit = {},
+    onExamAlertChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()

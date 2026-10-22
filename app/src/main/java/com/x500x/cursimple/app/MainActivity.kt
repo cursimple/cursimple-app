@@ -124,6 +124,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -1472,6 +1473,12 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setClassNoticeBlurStrength,
                                         onClassNoticeBannerDurationChange =
                                             prefsViewModel::setClassNoticeBannerDurationSeconds,
+                                        onClassNoticeEveningBriefingChange =
+                                            prefsViewModel::setEveningBriefingEnabled,
+                                        onClassNoticeTransitReminderChange =
+                                            prefsViewModel::setTransitReminderEnabled,
+                                        onClassNoticeExamAlertChange =
+                                            prefsViewModel::setExamAlertEnabled,
                                         alarmsContent = { alarmsModifier ->
                                             SettingsRoute(
                                                 viewModel = scheduleViewModel,
@@ -1565,6 +1572,12 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setClassNoticeBlurStrength,
                                         onClassNoticeBannerDurationChange =
                                             prefsViewModel::setClassNoticeBannerDurationSeconds,
+                                        onClassNoticeEveningBriefingChange =
+                                            prefsViewModel::setEveningBriefingEnabled,
+                                        onClassNoticeTransitReminderChange =
+                                            prefsViewModel::setTransitReminderEnabled,
+                                        onClassNoticeExamAlertChange =
+                                            prefsViewModel::setExamAlertEnabled,
                                         onScheduleCourseCornerRadiusDpChange = prefsViewModel::setScheduleCourseCornerRadiusDp,
                                         onScheduleCourseCardHeightDpChange = prefsViewModel::setScheduleCourseCardHeightDp,
                                         onScheduleOpacityPercentChange = prefsViewModel::setScheduleOpacityPercent,
@@ -1599,6 +1612,8 @@ class MainActivity : ComponentActivity() {
                                         onScheduleLocationAtPrefixChange = prefsViewModel::setScheduleLocationAtPrefix,
                                         onScheduleTeacherVisibleChange = prefsViewModel::setScheduleTeacherVisible,
                                         onTotalScheduleDisplayChange = prefsViewModel::setTotalScheduleDisplayEnabled,
+                                        onScheduleTimelineIndicatorEnabledChange = prefsViewModel::setTimelineIndicatorEnabled,
+                                        onScheduleGridDashedLinesEnabledChange = prefsViewModel::setGridDashedLinesEnabled,
                                         onAlarmRingDurationSecondsChange = prefsViewModel::setAlarmRingDurationSeconds,
                                         onAlarmRepeatIntervalSecondsChange = prefsViewModel::setAlarmRepeatIntervalSeconds,
                                         onAlarmRepeatCountChange = prefsViewModel::setAlarmRepeatCount,
@@ -1623,6 +1638,12 @@ class MainActivity : ComponentActivity() {
                                         onClearWidgetBackgroundImage = widgetPrefsViewModel::clearWidgetBackgroundImage,
                                         onWidgetBackgroundImageTransparencyPercentChange =
                                             widgetPrefsViewModel::setWidgetBackgroundImageTransparencyPercent,
+                                        onWidgetBackgroundOpacityPercentChange =
+                                            widgetPrefsViewModel::setWidgetBackgroundOpacityPercent,
+                                        onWidgetFrostedGlassEnabledChange =
+                                            widgetPrefsViewModel::setWidgetFrostedGlassEnabled,
+                                        onWidgetThemeModeChange =
+                                            widgetPrefsViewModel::setWidgetThemeMode,
                                         vendorPermissionAcks = prefs.vendorPermissionAcks,
                                         onVendorPermissionAckChange = prefsViewModel::setVendorPermissionAck,
                                         onWidgetOpenAppOnDoubleClickChange =
@@ -2324,7 +2345,8 @@ private fun AppDrawer(
     onOpenUpdateCheck: () -> Unit,
 ) {
     ModalDrawerSheet(
-        modifier = Modifier.fillMaxWidth(0.72f),
+        // Cap at the Material drawer width so landscape does not stretch rows across the screen.
+        modifier = Modifier.width(minOf(LocalConfiguration.current.screenWidthDp * 0.72f, 360f).dp),
         drawerContainerColor = MaterialTheme.colorScheme.surface,
     ) {
         val scrollState = rememberScrollState()

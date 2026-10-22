@@ -22,6 +22,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import com.x500x.cursimple.core.data.widget.WidgetThemeMode
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -685,6 +686,9 @@ fun AppSettingsRoute(
     onClassNoticeBlurChange: (Boolean) -> Unit = {},
     onClassNoticeBlurStrengthChange: (Int) -> Unit = {},
     onClassNoticeBannerDurationChange: (Int) -> Unit = {},
+    onClassNoticeEveningBriefingChange: (Boolean) -> Unit = {},
+    onClassNoticeTransitReminderChange: (Boolean) -> Unit = {},
+    onClassNoticeExamAlertChange: (Boolean) -> Unit = {},
     onScheduleCourseCornerRadiusDpChange: (Int) -> Unit,
     onScheduleCourseCardHeightDpChange: (Int) -> Unit,
     onScheduleOpacityPercentChange: (Int) -> Unit,
@@ -713,6 +717,8 @@ fun AppSettingsRoute(
     onScheduleTeacherVisibleChange: (Boolean) -> Unit,
     onScheduleLocationAtPrefixChange: (Boolean) -> Unit = {},
     onTotalScheduleDisplayChange: (Boolean) -> Unit,
+    onScheduleTimelineIndicatorEnabledChange: (Boolean) -> Unit = {},
+    onScheduleGridDashedLinesEnabledChange: (Boolean) -> Unit = {},
     onAlarmRingDurationSecondsChange: (Int) -> Unit,
     onAlarmRepeatIntervalSecondsChange: (Int) -> Unit,
     onAlarmRepeatCountChange: (Int) -> Unit,
@@ -732,6 +738,9 @@ fun AppSettingsRoute(
     onWidgetBackgroundImageUriChange: (String) -> Unit,
     onClearWidgetBackgroundImage: () -> Unit,
     onWidgetBackgroundImageTransparencyPercentChange: (Int) -> Unit,
+    onWidgetBackgroundOpacityPercentChange: (Int) -> Unit = {},
+    onWidgetFrostedGlassEnabledChange: (Boolean) -> Unit = {},
+    onWidgetThemeModeChange: (com.x500x.cursimple.core.data.widget.WidgetThemeMode) -> Unit = {},
     vendorPermissionAcks: Set<String> = emptySet(),
     onVendorPermissionAckChange: (String, Boolean) -> Unit = { _, _ -> },
     onWidgetOpenAppOnDoubleClickChange: (Boolean) -> Unit,
@@ -1638,6 +1647,18 @@ fun AppSettingsRoute(
                                     onClick = onClearWidgetBackgroundImage,
                                 )
                             }
+                            SliderPercentRow(
+                                title = stringResource(R.string.widget_background_opacity_title),
+                                value = widgetThemePreferences.backgroundOpacityPercent,
+                                onValueChange = onWidgetBackgroundOpacityPercentChange,
+                            )
+                            SettingsSwitchRow(
+                                icon = Icons.Rounded.Layers,
+                                title = stringResource(R.string.widget_frosted_glass_title),
+                                subtitle = stringResource(R.string.widget_frosted_glass_subtitle),
+                                checked = widgetThemePreferences.frostedGlassEnabled,
+                                onCheckedChange = onWidgetFrostedGlassEnabledChange,
+                            )
                             SettingsActionRow(
                                 icon = Icons.Rounded.Palette,
                                 title = stringResource(R.string.settings_theme),
@@ -1743,6 +1764,20 @@ fun AppSettingsRoute(
                                     checked = scheduleDisplay.totalScheduleDisplayEnabled,
                                     onCheckedChange = onTotalScheduleDisplayChange,
                                 )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.Schedule,
+                                    title = stringResource(R.string.settings_timeline_indicator_title),
+                                    subtitle = stringResource(R.string.settings_timeline_indicator_subtitle),
+                                    checked = scheduleDisplay.timelineIndicatorEnabled,
+                                    onCheckedChange = onScheduleTimelineIndicatorEnabledChange,
+                                )
+                                SettingsSwitchRow(
+                                    icon = Icons.Rounded.LineStyle,
+                                    title = stringResource(R.string.settings_grid_dashed_lines_title),
+                                    subtitle = stringResource(R.string.settings_grid_dashed_lines_subtitle),
+                                    checked = scheduleDisplay.gridDashedLinesEnabled,
+                                    onCheckedChange = onScheduleGridDashedLinesEnabledChange,
+                                )
                             }
 
                             SettingsGroup(stringResource(R.string.settings_subgroup_cell_info)) {
@@ -1815,6 +1850,10 @@ fun AppSettingsRoute(
                                     },
                                     onClick = { navigate(SettingsDestination.WidgetBackground) },
                                 )
+                                WidgetThemeModeRow(
+                                    selected = widgetThemePreferences.widgetThemeMode,
+                                    onSelect = onWidgetThemeModeChange,
+                                )
                             }
 
                             SettingsGroup(stringResource(R.string.settings_subgroup_widget_behavior)) {
@@ -1863,6 +1902,9 @@ fun AppSettingsRoute(
                                 onBlurChange = onClassNoticeBlurChange,
                                 onBlurStrengthChange = onClassNoticeBlurStrengthChange,
                                 onBannerDurationChange = onClassNoticeBannerDurationChange,
+                                onEveningBriefingChange = onClassNoticeEveningBriefingChange,
+                                onTransitReminderChange = onClassNoticeTransitReminderChange,
+                                onExamAlertChange = onClassNoticeExamAlertChange,
                             )
                         }
 
@@ -4351,6 +4393,46 @@ private fun RowFitModeRow(selected: ScheduleRowFitMode, onSelect: (ScheduleRowFi
                 listOf(
                     ScheduleRowFitMode.Fit to R.string.settings_display_row_fit_fit,
                     ScheduleRowFitMode.Scroll to R.string.settings_display_row_fit_scroll,
+                ).forEach { (mode, label) ->
+                    if (mode == selected) {
+                        Button(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
+                    } else {
+                        AppOutlinedButton(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WidgetThemeModeRow(
+    selected: WidgetThemeMode,
+    onSelect: (WidgetThemeMode) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.widget_theme_mode_title),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(
+                    WidgetThemeMode.System to R.string.widget_theme_mode_system,
+                    WidgetThemeMode.Light to R.string.widget_theme_mode_light,
+                    WidgetThemeMode.Dark to R.string.widget_theme_mode_dark,
                 ).forEach { (mode, label) ->
                     if (mode == selected) {
                         Button(onClick = { onSelect(mode) }) { Text(stringResource(label), maxLines = 1) }
