@@ -74,3 +74,13 @@ test('更晚的 API 发布只使用自己的资产与公告', () => {
   assert.deepEqual(result.recommended.assets, {});
   assert.equal(result.recommended.body, '下一版');
 });
+
+test('过滤 pre 分支超前发布的测试包并只看 main 分支发布', () => {
+  const result = selectChannels({ beta: feed('v0.8.1', true, 39) }, [
+    api('v0.8.2-pre.1', true, { versionCode: 40 }),
+    api('v0.8.2-pre', true, { versionCode: 40 }),
+    api('v0.8.1', true, { versionCode: 39 }),
+  ]);
+  assert.equal(result.recommended.tag, 'v0.8.1');
+  assert.equal(result.beta.tag, 'v0.8.1');
+});

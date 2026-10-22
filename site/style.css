@@ -850,10 +850,12 @@ h2 { font-size: clamp(30px, 3.6vw, 44px); line-height: 1.2; font-weight: 800; le
   .wrap { width: calc(100% - 32px); }
   .brand em { display: none; }
   .nav-in { gap: 8px; }
-  .nav-act { gap: 4px; }
+  .nav-act { gap: 6px; }
   .nav-act > a.icon-btn { display: none; }
   .nav-in > .brand { flex: none; }
-  .nav-act > .btn-sm { width: 38px; height: 38px; padding: 0; justify-content: center; }
+  .nav-act > .btn-sm { width: 38px; height: 38px; padding: 0; justify-content: center; flex: none; border-radius: 50%; }
+  .nav-act > .btn-sm > span { display: none; }
+  .nav-act > .btn-sm > svg { font-size: 18px; margin: 0; }
   .lang-trigger { padding: 6px 10px; gap: 5px; font-size: 12.5px; }
   .lang-trigger .lang-globe { font-size: 15px; }
   .lang-trigger .lang-arrow { font-size: 11px; }

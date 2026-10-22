@@ -10,11 +10,14 @@
   };
   // Publisher correction marks legacy 0.7.4 metadata as prerelease.
   const PRERELEASE_OVERRIDES = { 'v0.7.4': true, 'v0.7.5': true };
+  // Pre-branch test builds (e.g. v0.8.2-pre.1) stay test-only; website only displays releases from main.
+  const TEST_TAG = /-pre(\.\d+)?$/;
 
   function normalize(data, fromApi = false) {
     if (!data || data.noRelease || data.draft) return null;
     const tag = fromApi ? data.tag_name : data.tagName;
     if (typeof tag !== 'string' || !tag.trim()) return null;
+    if (TEST_TAG.test(tag)) return null;
     const prerelease = PRERELEASE_OVERRIDES[tag] ?? data.prerelease;
     if (typeof prerelease !== 'boolean') return null;
     const result = { tag, prerelease, assets: {} };
