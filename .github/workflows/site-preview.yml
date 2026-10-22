@@ -21,6 +21,9 @@ permissions:
 jobs:
   preview:
     runs-on: ubuntu-latest
+    env:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +45,7 @@ jobs:
 
       - name: Deploy to Netlify
         id: netlify
-        if: ${{ secrets.NETLIFY_AUTH_TOKEN != '' && secrets.NETLIFY_SITE_ID != '' }}
+        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
         uses: nwtgck/actions-netlify@v3.0
         with:
           publish-dir: './site'
@@ -57,7 +60,7 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
       - name: Teardown previous Netlify deploys (Physical Deletion)
-        if: ${{ secrets.NETLIFY_AUTH_TOKEN != '' && secrets.NETLIFY_SITE_ID != '' && steps.netlify.outputs.deploy-id != '' }}
+        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != '' && steps.netlify.outputs.deploy-id != ''
         shell: bash
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
