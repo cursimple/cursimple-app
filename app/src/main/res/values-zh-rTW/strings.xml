@@ -320,6 +320,7 @@
     <string name="ie_import_aischedule_body">貼上小愛課程表規則 JSON 或解析資料</string>
     <string name="ie_import_aischedule_dialog_title">匯入小愛課程表資料</string>
     <string name="ie_import_aischedule_dialog_hint">貼上小愛課程表匯出的 JSON 課程陣列</string>
+    <string name="ie_import_aischedule_input_label">課程 JSON 陣列或規則</string>
     <string name="settings_timeline_indicator_title">課表即時時間指示線</string>
     <string name="settings_timeline_indicator_subtitle">在當前星期的課表列上顯示一條隨時間移動的橫向刻度線，即時標出當前所處的時間位置</string>
     <string name="settings_grid_dashed_lines_title">課表網格虛線</string>

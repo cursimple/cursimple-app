@@ -329,6 +329,7 @@
     <string name="ie_import_aischedule_body">Paste AISchedule rule JSON or parsed course array</string>
     <string name="ie_import_aischedule_dialog_title">Import AISchedule Data</string>
     <string name="ie_import_aischedule_dialog_hint">Paste AISchedule JSON course array</string>
+    <string name="ie_import_aischedule_input_label">Course JSON array or rule</string>
     <string name="settings_timeline_indicator_title">Real-time timeline indicator</string>
     <string name="settings_timeline_indicator_subtitle">Show a horizontal progress line and dot moving along today\'s column</string>
     <string name="settings_grid_dashed_lines_title">Dashed grid lines</string>

@@ -10,6 +10,8 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
 import android.widget.Toast
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -118,6 +120,8 @@ import com.x500x.cursimple.app.util.ScheduleShareDecodeException
 import com.x500x.cursimple.app.util.ScheduleShareDecodeReason
 import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
+import com.x500x.cursimple.feature.plugin.ui.AppOutlinedTextField
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.layout.width
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -834,45 +838,91 @@ fun ImportExportScreen(
 
     if (showAiScheduleDialog) {
         var aiScheduleInput by remember { mutableStateOf("") }
+        var parseError by remember { mutableStateOf<String?>(null) }
         AlertDialog(
             onDismissRequest = { showAiScheduleDialog = false },
-            title = { Text(stringResource(R.string.ie_import_aischedule_dialog_title)) },
+            title = {
+                Text(
+                    text = stringResource(R.string.ie_import_aischedule_dialog_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     Text(
                         text = stringResource(R.string.ie_import_aischedule_dialog_hint),
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    OutlinedTextField(
+                    AppOutlinedTextField(
                         value = aiScheduleInput,
-                        onValueChange = { aiScheduleInput = it },
+                        onValueChange = {
+                            aiScheduleInput = it
+                            parseError = null
+                        },
+                        label = { Text(stringResource(R.string.ie_import_aischedule_input_label)) },
+                        placeholder = { Text("[{\"name\": \"...\", \"weeks\": [1,2], \"day\": 1, \"sections\": [1,2]}]") },
+                        minLines = 4,
+                        maxLines = 8,
+                        isError = parseError != null,
+                        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    AppOutlinedButton(
+                        onClick = {
+                            val clip = (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).primaryClip
+                            val pasted = clip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
+                            if (pasted.isNullOrBlank()) {
+                                parseError = context.getString(R.string.ie_text_clipboard_empty)
+                            } else {
+                                aiScheduleInput = pasted
+                                parseError = null
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 120.dp, max = 220.dp),
-                        placeholder = { Text("[{\"name\": \"...\", \"weeks\": [1,2], \"day\": 1, \"sections\": [1,2]}]") },
-                    )
+                            .heightIn(min = 48.dp),
+                    ) {
+                        AppAtomicText(stringResource(R.string.ie_text_paste))
+                    }
+                    parseError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     enabled = aiScheduleInput.isNotBlank(),
+                    modifier = Modifier.heightIn(min = 48.dp),
                     onClick = {
-                        showAiScheduleDialog = false
                         try {
                             val payload = AiScheduleCompat.parseJson(aiScheduleInput)
+                            showAiScheduleDialog = false
                             pendingImport = payload
                         } catch (e: Exception) {
-                            Toast.makeText(context, "小爱课程表解析失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                            parseError = "小爱课程表解析失败: ${e.message ?: context.getString(R.string.ie_unknown_error)}"
                         }
                     },
                 ) {
-                    Text(stringResource(R.string.ie_section_import))
+                    AppAtomicText(stringResource(R.string.ie_section_import))
                 }
             },
             dismissButton = {
-                AppOutlinedButton(onClick = { showAiScheduleDialog = false }) {
-                    Text(stringResource(R.string.ie_cancel))
+                AppOutlinedButton(
+                    onClick = { showAiScheduleDialog = false },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                ) {
+                    AppAtomicText(stringResource(R.string.ie_cancel))
                 }
             },
         )

@@ -320,6 +320,7 @@
     <string name="ie_import_aischedule_body">粘贴小爱课程表规则 JSON 或解析数据</string>
     <string name="ie_import_aischedule_dialog_title">导入小爱课程表数据</string>
     <string name="ie_import_aischedule_dialog_hint">粘贴小爱课程表导出的 JSON 课程数组</string>
+    <string name="ie_import_aischedule_input_label">课程 JSON 数组或规则</string>
     <string name="settings_timeline_indicator_title">课表实时时间指示线</string>
     <string name="settings_timeline_indicator_subtitle">在当前星期的课表列上显示一条随时间平滑移动的横向刻度线，实时标出当前所处的时间位置</string>
     <string name="settings_grid_dashed_lines_title">课表网格虚线</string>
