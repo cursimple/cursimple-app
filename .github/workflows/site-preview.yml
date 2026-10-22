@@ -150,17 +150,17 @@ jobs:
           - 🌿 **分支**: \`pre\` (\`${{ github.sha }}\`)" || true
 
           # Invalidate older commits on pre
-          PREV_SHAS=\$(git rev-list --max-count=3 HEAD~1 2>/dev/null || true)
-          for old_sha in \$PREV_SHAS; do
-            if [ -n "\$old_sha" ]; then
-              echo "Invalidating status for previous commit \$old_sha..."
-              gh api repos/${{ github.repository }}/statuses/\$old_sha \
+          PREV_SHAS=$(git rev-list --max-count=3 HEAD~1 2>/dev/null || true)
+          for old_sha in $PREV_SHAS; do
+            if [ -n "$old_sha" ]; then
+              echo "Invalidating status for previous commit $old_sha..."
+              gh api repos/${{ github.repository }}/statuses/$old_sha \
                 -f state=failure \
                 -f target_url="$PREVIEW_URL" \
                 -f description="❌ 此预览已失效，请使用最新预览" \
                 -f context="site/preview" || true
 
-              gh api repos/${{ github.repository }}/commits/\$old_sha/comments \
+              gh api repos/${{ github.repository }}/commits/$old_sha/comments \
                 -f body="> ⚠️ **此预览已失效 (Expired)**：远端 \`pre\` 分支已推送新提交，上一版本预览已停用。请访问最新预览：[$PREVIEW_URL]($PREVIEW_URL)" || true
             fi
           done
