@@ -687,6 +687,21 @@
     <string name="calendar_toast_permission_denied">沒有日曆許可權，無法寫入</string>
     <string name="calendar_toast_failed">寫入失敗：%1$s</string>
     <string name="calendar_toast_failed_unknown">寫入失敗</string>
+    <string name="calendar_sync_action">智慧增量同步</string>
+    <string name="calendar_clear_action">清除日曆日程</string>
+    <string name="calendar_clear_confirm_title">徹底清除日曆課程日程？</string>
+    <string name="calendar_clear_confirm_body">確定從系統日曆中徹底清除由課簡寫入的所有課程日程嗎？不會影響您在此日曆中的其他日程。</string>
+    <string name="calendar_clear_confirm_btn">徹底清除</string>
+    <string name="calendar_toast_synced">日曆同步完成：新增 %1$d，更新 %2$d，移除 %3$d</string>
+    <string name="calendar_toast_synced_up_to_date">日曆日程已是最新，無需更新</string>
+    <string name="schedule_custom_course_color_title">課程專屬顏色</string>
+    <string name="schedule_custom_course_color_reset">恢復預設</string>
+    <string name="settings_course_palette_title">課程配色風格</string>
+    <string name="settings_course_palette_default">預設清新</string>
+    <string name="settings_course_palette_morandi">莫蘭迪灰調</string>
+    <string name="settings_course_palette_macaron">馬卡龍甜心</string>
+    <string name="settings_course_palette_vibrant">多巴胺活力</string>
+    <string name="settings_course_palette_vintage">復古原木</string>
     <plurals name="calendar_export_skipped">
         <item quantity="other">%1$d 門課因缺少節次時間未寫入</item>
     </plurals>

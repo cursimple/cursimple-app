@@ -909,4 +909,6 @@
     <string name="schedule_conflict_resolve_title">Resolve Schedule Conflict</string>
     <string name="schedule_conflict_odd_even_split">Odd/Even Weeks</string>
     <string name="schedule_conflict_half_term_split">Half-Term Split</string>
+    <string name="schedule_custom_course_color_title">Course Color</string>
+    <string name="schedule_custom_course_color_reset">Reset</string>
 </resources>

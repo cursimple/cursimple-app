@@ -267,6 +267,7 @@ class MainActivity : ComponentActivity() {
                 themeMode = prefs.themeMode,
                 themeAccent = prefs.themeAccent,
                 customAccentArgb = prefs.themeCustomColorArgb,
+                paletteStyle = prefs.scheduleCardStyle.coursePaletteStyle,
             ) {
                 val lightSystemBars = MaterialTheme.colorScheme.background.luminance() > 0.5f
                 SideEffect {
@@ -1401,6 +1402,7 @@ class MainActivity : ComponentActivity() {
                                         onRemoveHolidayEntry = { date ->
                                             prefsViewModel.removeHolidayCalendarEntry(date.toString())
                                         },
+                                        onSetCustomCourseColor = prefsViewModel::setCustomCourseColor,
                                         modifier = Modifier.fillMaxSize(),
                                     )
 
@@ -1578,6 +1580,7 @@ class MainActivity : ComponentActivity() {
                                             prefsViewModel::setTransitReminderEnabled,
                                         onClassNoticeExamAlertChange =
                                             prefsViewModel::setExamAlertEnabled,
+                                        onCoursePaletteStyleChange = prefsViewModel::setCoursePaletteStyle,
                                         onScheduleCourseCornerRadiusDpChange = prefsViewModel::setScheduleCourseCornerRadiusDp,
                                         onScheduleCourseCardHeightDpChange = prefsViewModel::setScheduleCourseCardHeightDp,
                                         onScheduleOpacityPercentChange = prefsViewModel::setScheduleOpacityPercent,

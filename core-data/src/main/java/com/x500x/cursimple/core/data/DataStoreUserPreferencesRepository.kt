@@ -369,6 +369,26 @@ class DataStoreUserPreferencesRepository(
         store.edit { prefs -> prefs[KEY_SCHEDULE_GRID_BORDER_DASHED] = enabled }
     }
 
+    override suspend fun setCoursePaletteStyle(style: CoursePaletteStyle) {
+        store.edit { prefs -> prefs[KEY_SCHEDULE_COURSE_PALETTE_STYLE] = style.name }
+    }
+
+    override suspend fun setCustomCourseColor(courseKey: String, colorArgb: Long?) {
+        store.edit { prefs ->
+            val current = decodeCustomCourseColors(prefs[KEY_SCHEDULE_CUSTOM_COURSE_COLORS]).toMutableMap()
+            if (colorArgb != null) {
+                current[courseKey] = colorArgb
+            } else {
+                current.remove(courseKey)
+            }
+            prefs[KEY_SCHEDULE_CUSTOM_COURSE_COLORS] = encodeCustomCourseColors(current)
+        }
+    }
+
+    override suspend fun clearCustomCourseColors() {
+        store.edit { prefs -> prefs.remove(KEY_SCHEDULE_CUSTOM_COURSE_COLORS) }
+    }
+
     override suspend fun setScheduleBackgroundColorArgb(argb: Long) {
         var previousImageUri: String? = null
         store.edit { prefs ->
@@ -1082,6 +1102,10 @@ class DataStoreUserPreferencesRepository(
                 this[KEY_SCHEDULE_GRID_BORDER_WIDTH_DP] ?: ScheduleCardStylePreferences.DEFAULT_GRID_BORDER_WIDTH_DP,
             ),
             gridBorderDashed = this[KEY_SCHEDULE_GRID_BORDER_DASHED] ?: false,
+            coursePaletteStyle = this[KEY_SCHEDULE_COURSE_PALETTE_STYLE]?.let {
+                runCatching { CoursePaletteStyle.valueOf(it) }.getOrNull()
+            } ?: CoursePaletteStyle.Default,
+            customCourseColors = decodeCustomCourseColors(this[KEY_SCHEDULE_CUSTOM_COURSE_COLORS]),
         )
     }
 
@@ -1204,6 +1228,8 @@ class DataStoreUserPreferencesRepository(
         remove(KEY_SCHEDULE_GRID_BORDER_OPACITY_PERCENT)
         remove(KEY_SCHEDULE_GRID_BORDER_WIDTH_DP)
         remove(KEY_SCHEDULE_GRID_BORDER_DASHED)
+        remove(KEY_SCHEDULE_COURSE_PALETTE_STYLE)
+        remove(KEY_SCHEDULE_CUSTOM_COURSE_COLORS)
         remove(KEY_SCHEDULE_BACKGROUND_TYPE)
         remove(KEY_SCHEDULE_BACKGROUND_COLOR_ARGB)
         remove(KEY_SCHEDULE_BACKGROUND_IMAGE_URI)
@@ -1295,6 +1321,8 @@ class DataStoreUserPreferencesRepository(
         val KEY_SCHEDULE_GRID_BORDER_OPACITY_PERCENT = intPreferencesKey("schedule_grid_border_opacity_percent")
         val KEY_SCHEDULE_GRID_BORDER_WIDTH_DP = floatPreferencesKey("schedule_grid_border_width_dp")
         val KEY_SCHEDULE_GRID_BORDER_DASHED = booleanPreferencesKey("schedule_grid_border_dashed")
+        val KEY_SCHEDULE_COURSE_PALETTE_STYLE = stringPreferencesKey("schedule_course_palette_style")
+        val KEY_SCHEDULE_CUSTOM_COURSE_COLORS = stringPreferencesKey("schedule_custom_course_colors")
         val KEY_SCHEDULE_BACKGROUND_TYPE = stringPreferencesKey("schedule_background_type")
         val KEY_SCHEDULE_BACKGROUND_COLOR_ARGB = longPreferencesKey("schedule_background_color_argb")
         val KEY_SCHEDULE_BACKGROUND_IMAGE_URI = stringPreferencesKey("schedule_background_image_uri")
@@ -1416,5 +1444,20 @@ class DataStoreUserPreferencesRepository(
         const val MIN_REPEAT_COUNT = 1
         const val MAX_REPEAT_COUNT = 10
         const val PRIVATE_FILES_PROVIDER_PREFS = "private_files_provider"
+
+        fun encodeCustomCourseColors(map: Map<String, Long>): String =
+            map.entries.joinToString(";") { "${it.key}=${it.value}" }
+
+        fun decodeCustomCourseColors(str: String?): Map<String, Long> {
+            if (str.isNullOrBlank()) return emptyMap()
+            return str.split(";").mapNotNull { entry ->
+                val parts = entry.split("=")
+                if (parts.size == 2) {
+                    val key = parts[0]
+                    val value = parts[1].toLongOrNull()
+                    if (value != null) key to value else null
+                } else null
+            }.toMap()
+        }
     }
 }

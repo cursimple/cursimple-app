@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter
 
 /** Null [rrule] means one occurrence; [durationMinutes] determines recurring end times. */
 data class CalendarEventDraft(
+    val uid: String = "",
     val title: String,
     val description: String,
     val location: String,
@@ -24,6 +25,7 @@ private val UTC_BASIC: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyyMMdd
  */
 fun PlannedCourse.toCalendarDrafts(zone: ZoneId, description: String): List<CalendarEventDraft> {
     val drafts = mutableListOf<CalendarEventDraft>()
+    val courseId = course.id.ifBlank { "${course.title.hashCode()}_${course.time.dayOfWeek}_${course.time.startNode}" }
     val mainstream = occurrences.filterNot { it.displaced }.sortedBy { it.date }
     if (mainstream.isNotEmpty()) {
         val first = mainstream.first()
@@ -51,6 +53,7 @@ fun PlannedCourse.toCalendarDrafts(zone: ZoneId, description: String): List<Cale
         }
         drafts.add(
             CalendarEventDraft(
+                uid = "cursimple:course:$courseId:regular",
                 title = course.title,
                 description = description,
                 location = course.location,
@@ -65,6 +68,7 @@ fun PlannedCourse.toCalendarDrafts(zone: ZoneId, description: String): List<Cale
     occurrences.filter { it.displaced }.sortedBy { it.date }.forEach { occurrence ->
         drafts.add(
             CalendarEventDraft(
+                uid = "cursimple:course:$courseId:displaced:${occurrence.date}:${occurrence.start.toLocalTime()}",
                 title = course.title,
                 description = description,
                 location = course.location,

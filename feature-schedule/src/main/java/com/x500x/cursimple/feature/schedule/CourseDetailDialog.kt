@@ -1,11 +1,13 @@
 package com.x500x.cursimple.feature.schedule
 
+import com.x500x.cursimple.core.data.ScheduleCardStylePreferences
 import com.x500x.cursimple.core.kernel.model.DEFAULT_TERM_WEEK_COUNT
 import com.x500x.cursimple.feature.plugin.ui.AppOutlinedButton
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,6 +16,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
+import com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry
 import androidx.compose.ui.input.pointer.pointerInput
 import com.x500x.cursimple.feature.plugin.ui.AppAtomicText
 import androidx.compose.foundation.border
@@ -165,6 +177,8 @@ fun CourseDetailDialog(
     onRestoreExamReminder: (CourseItem) -> Unit = {},
     onDelete: (CourseItem) -> Unit,
     readOnly: Boolean = false,
+    scheduleCardStyle: ScheduleCardStylePreferences = ScheduleCardStylePreferences(),
+    onSetCustomCourseColor: (String, Long?) -> Unit = { _, _ -> },
 ) {
     if (courses.isEmpty()) return
     // Reset selection when course IDs change so an old index cannot select another cell's course.
@@ -180,7 +194,11 @@ fun CourseDetailDialog(
     var editing by remember(course.id) { mutableStateOf(false) }
     var confirmRestore by remember(course.id) { mutableStateOf(false) }
     val accents = com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents.current
-    val palette = remember(course.title, course.category, accents) { courseColor(course.title, accents.coursePalette) }
+    val customColor = scheduleCardStyle.customCourseColors[course.id]
+        ?: scheduleCardStyle.customCourseColors[course.title]
+    val palette = remember(course.title, course.category, accents, customColor) {
+        courseColor(course.title, accents.coursePalette, customColor)
+    }
     val headerContainer = if (course.category == CourseCategory.Exam) {
         MaterialTheme.colorScheme.errorContainer
     } else {
@@ -529,6 +547,16 @@ fun CourseDetailDialog(
                                 onSave = { text -> onSaveNote(course, text) },
                                 readOnly = readOnly,
                             )
+
+                            if (!readOnly && course.category != CourseCategory.Exam) {
+                                CourseCustomColorSection(
+                                    selectedArgb = customColor,
+                                    palette = accents.coursePalette,
+                                    onSelectColor = { argb ->
+                                        onSetCustomCourseColor(course.id, argb)
+                                    },
+                                )
+                            }
 
                             if (!readOnly && course.category == CourseCategory.Exam) {
                                 ExamReminderMuteRow(
@@ -1412,4 +1440,108 @@ internal fun Context.weeksDetailText(detail: WeeksDetail): String = when (detail
     is WeeksDetail.Count ->
         resources.getQuantityString(R.plurals.schedule_weeks_detail_count, detail.count, detail.count) +
             "\n" + detail.weeksList
+}
+
+@Composable
+private fun CourseCustomColorSection(
+    selectedArgb: Long?,
+    palette: List<CoursePaletteEntry>,
+    onSelectColor: (Long?) -> Unit,
+) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    androidx.compose.material3.Icon(
+                        imageVector = Icons.Rounded.Palette,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.schedule_custom_course_color_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                if (selectedArgb != null) {
+                    TextButton(
+                        onClick = { onSelectColor(null) },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.schedule_custom_course_color_reset),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+
+            val colors = remember(palette) {
+                val paletteArgb = palette.map { it.container.toArgb().toLong() and 0xFFFF_FFFFL }
+                val extraArgb = listOf(
+                    0xFFFCE4ECL, // Pink
+                    0xFFE8F5E9L, // Light Green
+                    0xFFE1F5FEL, // Light Blue
+                    0xFFFFF9C4L, // Light Yellow
+                    0xFFF3E5F5L, // Lavender
+                    0xFFFFE0B2L, // Peach
+                    0xFFE0F2F1L, // Mint
+                    0xFFE8EAF6L, // Indigo light
+                )
+                (paletteArgb + extraArgb).distinct()
+            }
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(vertical = 4.dp),
+            ) {
+                items(colors) { argb ->
+                    val isSelected = selectedArgb == argb
+                    val color = androidx.compose.ui.graphics.Color(argb.toInt())
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(color)
+                            .clickable { onSelectColor(if (isSelected) null else argb) }
+                            .then(
+                                if (isSelected) {
+                                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
+                                } else {
+                                    Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), CircleShape)
+                                }
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (isSelected) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Rounded.Check,
+                                contentDescription = null,
+                                tint = if (color.luminance() > 0.5f) androidx.compose.ui.graphics.Color(0xFF1F2A24) else androidx.compose.ui.graphics.Color.White,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

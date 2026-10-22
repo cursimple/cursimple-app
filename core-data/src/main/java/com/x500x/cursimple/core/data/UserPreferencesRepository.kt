@@ -238,6 +238,14 @@ data class ScheduleTextStylePreferences(
     }
 }
 
+enum class CoursePaletteStyle {
+    Default,
+    Morandi,
+    Macaron,
+    Vibrant,
+    Vintage,
+}
+
 data class ScheduleCardStylePreferences(
     val courseCornerRadiusDp: Int = DEFAULT_COURSE_CORNER_RADIUS_DP,
     val courseCardHeightDp: Int = DEFAULT_COURSE_CARD_HEIGHT_DP,
@@ -247,6 +255,8 @@ data class ScheduleCardStylePreferences(
     val gridBorderOpacityPercent: Int = DEFAULT_GRID_BORDER_OPACITY_PERCENT,
     val gridBorderWidthDp: Float = DEFAULT_GRID_BORDER_WIDTH_DP,
     val gridBorderDashed: Boolean = false,
+    val coursePaletteStyle: CoursePaletteStyle = CoursePaletteStyle.Default,
+    val customCourseColors: Map<String, Long> = emptyMap(),
 ) {
     companion object {
         const val DEFAULT_COURSE_CORNER_RADIUS_DP = 10
@@ -528,6 +538,9 @@ interface UserPreferencesRepository {
     suspend fun setScheduleGridBorderOpacityPercent(percent: Int)
     suspend fun setScheduleGridBorderWidthDp(widthDp: Float)
     suspend fun setScheduleGridBorderDashed(enabled: Boolean)
+    suspend fun setCoursePaletteStyle(style: CoursePaletteStyle)
+    suspend fun setCustomCourseColor(courseKey: String, colorArgb: Long?)
+    suspend fun clearCustomCourseColors()
     suspend fun setScheduleBackgroundColorArgb(argb: Long)
     suspend fun setScheduleBackgroundImageUri(uri: String)
 

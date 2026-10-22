@@ -872,4 +872,6 @@
     <string name="schedule_conflict_resolve_title">衝堂快捷分流</string>
     <string name="schedule_conflict_odd_even_split">單雙週分流</string>
     <string name="schedule_conflict_half_term_split">前後學期分流</string>
+    <string name="schedule_custom_course_color_title">課程專屬顏色</string>
+    <string name="schedule_custom_course_color_reset">恢復預設</string>
 </resources>

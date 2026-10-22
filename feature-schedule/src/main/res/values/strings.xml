@@ -872,4 +872,6 @@
     <string name="schedule_conflict_resolve_title">撞课快捷分流</string>
     <string name="schedule_conflict_odd_even_split">单双周分流</string>
     <string name="schedule_conflict_half_term_split">前后学期分流</string>
+    <string name="schedule_custom_course_color_title">课程专属颜色</string>
+    <string name="schedule_custom_course_color_reset">恢复默认</string>
 </resources>

@@ -10,6 +10,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
+import com.x500x.cursimple.core.data.CoursePaletteStyle
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.theme.AccentColors
 import androidx.compose.runtime.remember
@@ -17,6 +18,7 @@ import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry
 import com.x500x.cursimple.feature.schedule.theme.LocalScheduleAccents
 import com.x500x.cursimple.feature.schedule.theme.ScheduleAccents
+import com.x500x.cursimple.feature.schedule.theme.coursePaletteForStyle
 
 private data class AccentSwatch(
     val light: ColorScheme,
@@ -423,6 +425,7 @@ fun ClassScheduleTheme(
     themeAccent: ThemeAccent = ThemeAccent.Green,
     /** Used only with [ThemeAccent.Custom]. */
     customAccentArgb: Int = AccentColors.DEFAULT_CUSTOM_ARGB,
+    paletteStyle: CoursePaletteStyle = CoursePaletteStyle.Default,
     content: @Composable () -> Unit,
 ) {
     val systemDark = isSystemInDarkTheme()
@@ -432,7 +435,9 @@ fun ClassScheduleTheme(
         ThemeMode.Dark -> true
     }
     val colors = remember(themeAccent, customAccentArgb, isDark) { appColorScheme(themeAccent, isDark, customAccentArgb) }
-    val accents = if (isDark) DarkAccents else LightAccents
+    val baseAccents = if (isDark) DarkAccents else LightAccents
+    val coursePalette = remember(paletteStyle, isDark) { coursePaletteForStyle(paletteStyle, isDark) }
+    val accents = remember(baseAccents, coursePalette) { baseAccents.copy(coursePalette = coursePalette) }
     CompositionLocalProvider(
         LocalScheduleAccents provides accents,
         LocalAppThemeChoice provides AppThemeChoice(themeAccent, isDark, customAccentArgb),

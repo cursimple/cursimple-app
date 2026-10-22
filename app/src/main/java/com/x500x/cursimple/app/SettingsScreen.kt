@@ -22,7 +22,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import com.x500x.cursimple.core.data.CoursePaletteStyle
 import com.x500x.cursimple.core.data.widget.WidgetThemeMode
+import com.x500x.cursimple.feature.schedule.theme.coursePaletteForStyle
+import androidx.compose.material3.RadioButton
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -53,6 +56,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -689,6 +693,7 @@ fun AppSettingsRoute(
     onClassNoticeEveningBriefingChange: (Boolean) -> Unit = {},
     onClassNoticeTransitReminderChange: (Boolean) -> Unit = {},
     onClassNoticeExamAlertChange: (Boolean) -> Unit = {},
+    onCoursePaletteStyleChange: (CoursePaletteStyle) -> Unit = {},
     onScheduleCourseCornerRadiusDpChange: (Int) -> Unit,
     onScheduleCourseCardHeightDpChange: (Int) -> Unit,
     onScheduleOpacityPercentChange: (Int) -> Unit,
@@ -1518,6 +1523,11 @@ fun AppSettingsRoute(
                             }
 
                             SettingsGroup(stringResource(R.string.settings_subgroup_card)) {
+                                CoursePaletteStyleSelector(
+                                    currentStyle = scheduleCardStyle.coursePaletteStyle,
+                                    onSelect = onCoursePaletteStyleChange,
+                                    isDark = darkTheme,
+                                )
                                 NumberStepperRow(stringResource(R.string.settings_card_corner_radius), scheduleCardStyle.courseCornerRadiusDp, "dp", 0, 32, 1, onScheduleCourseCornerRadiusDpChange)
                                 NumberStepperRow(stringResource(R.string.settings_card_height), scheduleCardStyle.courseCardHeightDp, "dp", 56, 160, 4, onScheduleCourseCardHeightDpChange)
                                 if (scheduleDisplay.rowFitMode == ScheduleRowFitMode.Fit) {
@@ -4194,6 +4204,93 @@ private fun ScheduleBackgroundPreview(
                 customColorsAdaptToTheme = customColorsAdaptToTheme,
                 darkTheme = darkTheme,
             )
+        }
+    }
+}
+
+@Composable
+private fun CoursePaletteStyleSelector(
+    currentStyle: CoursePaletteStyle,
+    onSelect: (CoursePaletteStyle) -> Unit,
+    isDark: Boolean,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.settings_course_palette_title),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+
+        val styles = listOf(
+            CoursePaletteStyle.Default to R.string.settings_course_palette_default,
+            CoursePaletteStyle.Morandi to R.string.settings_course_palette_morandi,
+            CoursePaletteStyle.Macaron to R.string.settings_course_palette_macaron,
+            CoursePaletteStyle.Vibrant to R.string.settings_course_palette_vibrant,
+            CoursePaletteStyle.Vintage to R.string.settings_course_palette_vintage,
+        )
+
+        styles.forEach { (style, labelRes) ->
+            val isSelected = currentStyle == style
+            val palette = remember(style, isDark) { coursePaletteForStyle(style, isDark) }
+
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+                },
+                border = BorderStroke(
+                    width = if (isSelected) 1.5.dp else 1.dp,
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(style) },
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        RadioButton(
+                            selected = isSelected,
+                            onClick = { onSelect(style) },
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            text = stringResource(labelRes),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        palette.take(6).forEach { entry ->
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .clip(CircleShape)
+                                    .background(entry.container)
+                                    .border(0.5.dp, entry.onContainer.copy(alpha = 0.3f), CircleShape),
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -219,6 +219,7 @@ fun ScheduleRoute(
     onUpsertHolidayEntry: (HolidayCalendarEntry) -> Unit = {},
     onRemoveHolidayEntry: (LocalDate) -> Unit = {},
     onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
+    onSetCustomCourseColor: (String, Long?) -> Unit = { _, _ -> },
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var pendingDrag by remember { mutableStateOf<PendingCourseDrag?>(null) }
@@ -281,6 +282,7 @@ fun ScheduleRoute(
         onRemoveTemporaryScheduleOverride = onRemoveTemporaryScheduleOverride,
         onUpsertHolidayEntry = onUpsertHolidayEntry,
         onRemoveHolidayEntry = onRemoveHolidayEntry,
+        onSetCustomCourseColor = onSetCustomCourseColor,
         onSaveEvent = viewModel::saveEvent,
         onRemoveEvent = viewModel::removeEvent,
         onOpenLinkedEvent = onOpenLinkedEvent,
@@ -337,6 +339,7 @@ fun ScheduleScreen(
     onRemoveEvent: (String) -> Unit = {},
     onOpenLinkedEvent: (ScheduleEvent) -> Boolean = { false },
     onSaveMemo: (MemoNote) -> Unit = {},
+    onSetCustomCourseColor: (String, Long?) -> Unit = { _, _ -> },
 ) {
     var detailRequest by remember { mutableStateOf<CourseDetailRequest?>(null) }
     val rowPreferences = LocalPluginTimetableRowPreferences.current
@@ -799,6 +802,8 @@ fun ScheduleScreen(
                         request.copy(courses = it)
                     }
                 },
+                scheduleCardStyle = scheduleCardStyle,
+                onSetCustomCourseColor = onSetCustomCourseColor,
             )
         }
 
@@ -1381,70 +1386,83 @@ private fun WeeklyScheduleSection(
                             columnDayOfWeeks = columnDayOfWeeks,
                         )
                     }
-                    if (pageWeek.weekIndex < 1 && active.isEmpty()) {
-                        EmptyWeekState(
-                            schedule = schedule,
-                            notStarted = true,
-                            termStartDate = overrideTermStart,
-                        )
-                    } else {
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            emptyScheduleHint(
-                                hasSchedule = schedule != null,
-                                hasAnyCourse = allCourses.isNotEmpty(),
-                                hasCoursesThisWeek = active.isNotEmpty(),
-                            )?.let { hint ->
-                                EmptyScheduleHintRow(
-                                    text = LocalContext.current.emptyScheduleHintText(hint),
-                                )
-                            }
-                            ZoomableScheduleBox(
-                                enabled = scheduleDisplay.pinchZoomEnabled,
-                                zoom = zoom,
-                                onZoomChange = { zoom = it },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                            ) { stickyOffset, boxZoomed ->
-                            ScheduleGrid(
-                                modifier = Modifier.fillMaxSize(),
-                                isCurrentPage = page == pagerState.currentPage,
-                                stickyOffset = stickyOffset,
-                                pinnedHeaders = boxZoomed,
-                                week = pageWeek,
-                                slots = slots,
-                                activeEntries = active,
-                                timingProfile = timingProfile,
-                                uiSchema = uiSchema,
-                                reminderRules = reminderRules,
-                                courseNotes = courseNotes,
-                                columnDayOfWeeks = columnDayOfWeeks,
-                                scheduleTextStyle = scheduleTextStyle,
-                                scheduleCardStyle = scheduleCardStyle,
-                                scheduleBackground = scheduleBackground,
-                                scheduleDisplay = scheduleDisplay,
-                                customColorsAdaptToTheme = customColorsAdaptToTheme,
-                                selectedCourseId = selectedCourseId,
-                                multiSelectMode = multiSelectMode,
-                                multiSelectedIds = multiSelectedIds,
-                                onCellClick = onCellClick,
-                                onCourseLongClick = onCourseLongClick,
-                                currentWeekIndex = pageWeek.weekIndex.coerceAtLeast(1),
-                                onAddManualCourse = onAddManualCourse,
-                                existingCourses = allCourses,
-                                movableCourseIds = movableCourseIds,
-                                onMoveCourse = onMoveCourse,
-                                onResizeCourse = onResizeCourse,
-                                onMoveBlocked = onMoveBlocked,
-                                onDayHeaderDoubleTap = onDayHeaderDoubleTap,
-                                events = events,
-                                onEventClick = onEventClick,
-                                onEventLongClick = onEventLongClick,
-                                onEventGroupClick = onEventGroupClick,
-                                onSaveEvent = onSaveEvent,
-                                overrideTermStart = overrideTermStart,
-                                termWeekCount = termWeekCount,
+                    val pageModifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                            val absFraction = kotlin.math.abs(pageOffset).coerceIn(0f, 1f)
+                            translationX = pageOffset * size.width * 0.12f
+                            alpha = 1f - absFraction * 0.45f
+                            val scale = 1f - absFraction * 0.04f
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                    Box(modifier = pageModifier) {
+                        if (pageWeek.weekIndex < 1 && active.isEmpty()) {
+                            EmptyWeekState(
+                                schedule = schedule,
+                                notStarted = true,
+                                termStartDate = overrideTermStart,
                             )
+                        } else {
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                emptyScheduleHint(
+                                    hasSchedule = schedule != null,
+                                    hasAnyCourse = allCourses.isNotEmpty(),
+                                    hasCoursesThisWeek = active.isNotEmpty(),
+                                )?.let { hint ->
+                                    EmptyScheduleHintRow(
+                                        text = LocalContext.current.emptyScheduleHintText(hint),
+                                    )
+                                }
+                                ZoomableScheduleBox(
+                                    enabled = scheduleDisplay.pinchZoomEnabled,
+                                    zoom = zoom,
+                                    onZoomChange = { zoom = it },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                ) { stickyOffset, boxZoomed ->
+                                    ScheduleGrid(
+                                        modifier = Modifier.fillMaxSize(),
+                                        isCurrentPage = page == pagerState.currentPage,
+                                        stickyOffset = stickyOffset,
+                                        pinnedHeaders = boxZoomed,
+                                        week = pageWeek,
+                                        slots = slots,
+                                        activeEntries = active,
+                                        timingProfile = timingProfile,
+                                        uiSchema = uiSchema,
+                                        reminderRules = reminderRules,
+                                        courseNotes = courseNotes,
+                                        columnDayOfWeeks = columnDayOfWeeks,
+                                        scheduleTextStyle = scheduleTextStyle,
+                                        scheduleCardStyle = scheduleCardStyle,
+                                        scheduleBackground = scheduleBackground,
+                                        scheduleDisplay = scheduleDisplay,
+                                        customColorsAdaptToTheme = customColorsAdaptToTheme,
+                                        selectedCourseId = selectedCourseId,
+                                        multiSelectMode = multiSelectMode,
+                                        multiSelectedIds = multiSelectedIds,
+                                        onCellClick = onCellClick,
+                                        onCourseLongClick = onCourseLongClick,
+                                        currentWeekIndex = pageWeek.weekIndex.coerceAtLeast(1),
+                                        onAddManualCourse = onAddManualCourse,
+                                        existingCourses = allCourses,
+                                        movableCourseIds = movableCourseIds,
+                                        onMoveCourse = onMoveCourse,
+                                        onResizeCourse = onResizeCourse,
+                                        onMoveBlocked = onMoveBlocked,
+                                        onDayHeaderDoubleTap = onDayHeaderDoubleTap,
+                                        events = events,
+                                        onEventClick = onEventClick,
+                                        onEventLongClick = onEventLongClick,
+                                        onEventGroupClick = onEventGroupClick,
+                                        onSaveEvent = onSaveEvent,
+                                        overrideTermStart = overrideTermStart,
+                                        termWeekCount = termWeekCount,
+                                    )
+                                }
                             }
                         }
                     }
@@ -1934,7 +1952,9 @@ private fun DayRow(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             courses.forEach { course ->
-                val palette = courseColor(course.title, accents.coursePalette)
+                val customColor = scheduleCardStyle.customCourseColors[course.id]
+                    ?: scheduleCardStyle.customCourseColors[course.title]
+                val palette = courseColor(course.title, accents.coursePalette, customColor)
                 val isExam = course.category == CourseCategory.Exam
                 val temporarilyCancelled = isCourseTemporarilyCancelled(
                     date = targetDate,
@@ -4204,7 +4224,11 @@ private fun CourseBlock(
     val colorSeed = remember(course.title, sourceTerm) {
         if (!sourceTerm.isNullOrBlank()) "${sourceTerm}_${course.title}" else course.title
     }
-    val palette = remember(colorSeed, accents) { courseColor(colorSeed, accents.coursePalette) }
+    val customColor = scheduleCardStyle.customCourseColors[course.id]
+        ?: scheduleCardStyle.customCourseColors[course.title]
+    val palette = remember(colorSeed, accents, customColor) {
+        courseColor(colorSeed, accents.coursePalette, customColor)
+    }
     val isExam = course.category == CourseCategory.Exam
     val shape = RoundedCornerShape(scheduleCardStyle.courseCornerRadiusDp.dp)
     val titleSizeSp = if (isExam) {
@@ -5272,7 +5296,13 @@ private fun coursePlacement(
 internal fun courseColor(
     seed: String,
     palette: List<com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry>,
+    customColorArgb: Long? = null,
 ): com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry {
+    if (customColorArgb != null) {
+        val container = Color(customColorArgb.toInt())
+        val on = if (container.luminance() > 0.5f) Color(0xFF1F2A24) else Color.White
+        return com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry(container, on)
+    }
     if (palette.isEmpty()) {
         return com.x500x.cursimple.feature.schedule.theme.CoursePaletteEntry(
             container = Color(0xFFE2EEE3),

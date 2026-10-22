@@ -687,6 +687,21 @@
     <string name="calendar_toast_permission_denied">没有日历权限，无法写入</string>
     <string name="calendar_toast_failed">写入失败：%1$s</string>
     <string name="calendar_toast_failed_unknown">写入失败</string>
+    <string name="calendar_sync_action">智能增量同步</string>
+    <string name="calendar_clear_action">清除日历日程</string>
+    <string name="calendar_clear_confirm_title">彻底清除日历课程日程？</string>
+    <string name="calendar_clear_confirm_body">确定从系统日历中彻底清除由课简写入的所有课程日程吗？不会影响您在此日历中的其他日程。</string>
+    <string name="calendar_clear_confirm_btn">彻底清除</string>
+    <string name="calendar_toast_synced">日历同步完成：新增 %1$d，更新 %2$d，移除 %3$d</string>
+    <string name="calendar_toast_synced_up_to_date">日历日程已是最新，无需更新</string>
+    <string name="schedule_custom_course_color_title">课程专属颜色</string>
+    <string name="schedule_custom_course_color_reset">恢复默认</string>
+    <string name="settings_course_palette_title">课程配色风格</string>
+    <string name="settings_course_palette_default">默认清新</string>
+    <string name="settings_course_palette_morandi">莫兰迪灰调</string>
+    <string name="settings_course_palette_macaron">马卡龙甜心</string>
+    <string name="settings_course_palette_vibrant">多巴胺活力</string>
+    <string name="settings_course_palette_vintage">复古原木</string>
     <plurals name="calendar_export_skipped">
         <item quantity="other">%1$d 门课因缺少节次时间未写入</item>
     </plurals>

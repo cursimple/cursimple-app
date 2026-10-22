@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.x500x.cursimple.core.data.AppLanguage
 import com.x500x.cursimple.core.data.ClassNoticeAnimation
 import com.x500x.cursimple.core.data.ClassNoticeSkin
+import com.x500x.cursimple.core.data.CoursePaletteStyle
 import com.x500x.cursimple.core.data.ThemeAccent
 import com.x500x.cursimple.core.data.ThemeMode
 import com.x500x.cursimple.core.data.UserPreferences
@@ -213,6 +214,18 @@ class AppPreferencesViewModel(
 
     fun setScheduleGridBorderDashed(enabled: Boolean) {
         viewModelScope.launch { repository.setScheduleGridBorderDashed(enabled) }
+    }
+
+    fun setCoursePaletteStyle(style: CoursePaletteStyle) {
+        viewModelScope.launch { repository.setCoursePaletteStyle(style) }
+    }
+
+    fun setCustomCourseColor(courseKey: String, colorArgb: Long?) {
+        viewModelScope.launch { repository.setCustomCourseColor(courseKey, colorArgb) }
+    }
+
+    fun clearCustomCourseColors() {
+        viewModelScope.launch { repository.clearCustomCourseColors() }
     }
 
     fun setScheduleBackgroundColorArgb(argb: Long) {
