@@ -2169,20 +2169,29 @@ internal fun SettingsCardGroup(
         }
         return
     }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SettingsSectionHeader(title)
+        SettingsCard(liftable = liftable, content = content)
+    }
+}
+
+/** Container card with standard 20dp corners, border, and divided rows. */
+@Composable
+internal fun SettingsCard(
+    liftable: Boolean = false,
+    content: @Composable () -> Unit,
+) {
     val cardShape = RoundedCornerShape(20.dp)
     val cardColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
     val cardBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
     val rows: @Composable () -> Unit = {
         CompositionLocalProvider(LocalSettingsRowInCard provides true) { SettingsDividedRows(liftable, content) }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SettingsSectionHeader(title)
-        if (liftable) {
-            // No clip: Surface would cut the dragged row's shadow at the card edge.
-            Box(Modifier.fillMaxWidth().background(cardColor, cardShape).border(cardBorder, cardShape)) { rows() }
-        } else {
-            Surface(shape = cardShape, color = cardColor, border = cardBorder, modifier = Modifier.fillMaxWidth()) { rows() }
-        }
+    if (liftable) {
+        // No clip: Surface would cut the dragged row's shadow at the card edge.
+        Box(Modifier.fillMaxWidth().background(cardColor, cardShape).border(cardBorder, cardShape)) { rows() }
+    } else {
+        Surface(shape = cardShape, color = cardColor, border = cardBorder, modifier = Modifier.fillMaxWidth()) { rows() }
     }
 }
 

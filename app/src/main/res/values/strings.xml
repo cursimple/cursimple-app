@@ -396,6 +396,9 @@
     <string name="ie_ai_import_failed">AI 导入失败：%1$s</string>
     <string name="ie_local_notice">二维码在本机生成和解析，不经过任何服务器。</string>
     <string name="ie_section_import">导入</string>
+    <string name="ie_section_third_party_import">第三方导入</string>
+    <string name="ie_third_party_card_subtitle">支持 .ics 日历、WakeUp 与小爱课程表导入</string>
+    <string name="ie_third_party_sheet_subtitle">从第三方课程表或通用日历文件导入课程数据</string>
     <string name="ie_section_export">分享与导出</string>
     <string name="ie_section_backup">备份与恢复</string>
     <string name="ie_calendar_row_title">导出到日历</string>

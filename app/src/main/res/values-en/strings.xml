@@ -408,6 +408,9 @@
     <string name="ie_ai_import_failed">AI import failed: %1$s</string>
     <string name="ie_local_notice">QR codes are generated and decoded on this device, with no server involved.</string>
     <string name="ie_section_import">Import</string>
+    <string name="ie_section_third_party_import">Third-Party Import</string>
+    <string name="ie_third_party_card_subtitle">Supports .ics calendar, WakeUp, and XiaoAi schedule</string>
+    <string name="ie_third_party_sheet_subtitle">Import schedule data from third-party apps or calendar files</string>
     <string name="ie_section_export">Share &amp; export</string>
     <string name="ie_section_backup">Backup &amp; restore</string>
     <string name="ie_calendar_row_title">Export to calendar</string>

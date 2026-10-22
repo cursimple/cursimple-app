@@ -396,6 +396,9 @@
     <string name="ie_ai_import_failed">AI 匯入失敗：%1$s</string>
     <string name="ie_local_notice">二維碼在本機生成和解析，不經過任何伺服器。</string>
     <string name="ie_section_import">匯入</string>
+    <string name="ie_section_third_party_import">第三方匯入</string>
+    <string name="ie_third_party_card_subtitle">支援 .ics 行事曆、WakeUp 與小愛課程表匯入</string>
+    <string name="ie_third_party_sheet_subtitle">從第三方課程表或通用行事曆檔案匯入課程資料</string>
     <string name="ie_section_export">分享與匯出</string>
     <string name="ie_section_backup">備份與恢復</string>
     <string name="ie_calendar_row_title">匯出到日曆</string>
