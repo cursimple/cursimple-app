@@ -6,6 +6,7 @@ on:
       - pre
     paths:
       - "site/**"
+      - "scripts/prepare-site-preview.cjs"
       - ".github/workflows/site-preview.yml"
   workflow_dispatch:
 
@@ -24,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,12 +41,34 @@ jobs:
           node --test site/tests/*.test.cjs
           node site/check-links.cjs
 
+      - name: Prepare preview bundle with expiry guard
+        run: |
+          node scripts/prepare-site-preview.cjs site site-preview-dist "${{ github.sha }}" "${{ github.repository }}"
+
+      - name: Invalidate old Netlify deploys
+        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
+        shell: bash
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          echo "Querying and tearing down older Netlify preview deploys..."
+          DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+            "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?per_page=20" || echo "[]")
+          echo "$DEPLOYS" | jq -r '.[].id // empty' | while read -r old_id; do
+            if [ -n "$old_id" ]; then
+              echo "Deleting old Netlify deploy: $old_id"
+              curl -s -X DELETE -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
+                "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys/$old_id" || true
+            fi
+          done
+
       - name: Deploy to Netlify
         id: netlify
         if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != ''
         uses: nwtgck/actions-netlify@v3.0
         with:
-          publish-dir: './site'
+          publish-dir: './site-preview-dist'
           production-branch: main
           github-token: ${{ secrets.GITHUB_TOKEN }}
           deploy-message: "Preview from pre (${{ github.sha }})"
@@ -61,7 +86,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Deploying site preview via ShipStatic..."
-          OUTPUT=$(npx --yes @shipstatic/ship ./site --json)
+          OUTPUT=$(npx --yes @shipstatic/ship ./site-preview-dist --json)
           URL=$(echo "$OUTPUT" | jq -r '.url // empty')
           if [ -z "$URL" ]; then
             echo "Failed to get deployment URL from ShipStatic"
@@ -83,7 +108,7 @@ jobs:
             echo "provider=ShipStatic" >> $GITHUB_OUTPUT
           fi
 
-      - name: Report Preview URL
+      - name: Report Preview URL and Invalidate Previous Commit Links
         shell: bash
         env:
           PREVIEW_URL: ${{ steps.info.outputs.url }}
@@ -101,23 +126,41 @@ jobs:
 
           | 项目 | 信息 |
           |---|---|
-          | 🌐 **预览链接** | [**$PREVIEW_URL**]($PREVIEW_URL) |
+          | 🌐 **最新预览链接** | [**$PREVIEW_URL**]($PREVIEW_URL) |
           | 🛠️ **部署服务** | $PROVIDER |
           | 🌿 **分支** | \`pre\` |
-          | 🔖 **提交** | [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
+          | 🔖 **当前提交** | [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }}) |
 
-          > 提示：在仓库 Secrets 中配置 \`NETLIFY_AUTH_TOKEN\` 与 \`NETLIFY_SITE_ID\` 即可自动无缝切换为 Netlify 专属部署。
+          > 💡 **单链接有效保障**：上一次部署的旧预览页面已被自动标记失效，访问历史链接将拦截并自动引导跳转至当前最新预览。
           EOF
 
+          # Set commit status for current commit
           gh api repos/${{ github.repository }}/statuses/${{ github.sha }} \
             -f state=success \
             -f target_url="$PREVIEW_URL" \
             -f description="预览网页已就绪 ($PROVIDER)" \
             -f context="site/preview" || true
 
+          # Post commit comment for current commit
           gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments \
-            -f body="### 🚀 官网临时预览已部署 (Site Preview)
+            -f body="### 🚀 官网最新预览已就绪 (Site Preview)
 
-          - 🌐 **预览链接**: $PREVIEW_URL
+          - 🌐 **最新预览链接**: $PREVIEW_URL
           - 🛠️ **部署方式**: $PROVIDER
           - 🌿 **分支**: \`pre\` (\`${{ github.sha }}\`)" || true
+
+          # Invalidate older commits on pre
+          PREV_SHAS=\$(git rev-list --max-count=3 HEAD~1 2>/dev/null || true)
+          for old_sha in \$PREV_SHAS; do
+            if [ -n "\$old_sha" ]; then
+              echo "Invalidating status for previous commit \$old_sha..."
+              gh api repos/${{ github.repository }}/statuses/\$old_sha \
+                -f state=failure \
+                -f target_url="$PREVIEW_URL" \
+                -f description="❌ 此预览已失效，请使用最新预览" \
+                -f context="site/preview" || true
+
+              gh api repos/${{ github.repository }}/commits/\$old_sha/comments \
+                -f body="> ⚠️ **此预览已失效 (Expired)**：远端 \`pre\` 分支已推送新提交，上一版本预览已停用。请访问最新预览：[$PREVIEW_URL]($PREVIEW_URL)" || true
+            fi
+          done
