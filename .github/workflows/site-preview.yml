@@ -17,6 +17,7 @@ permissions:
   contents: write
   statuses: write
   pull-requests: write
+  deployments: write
 
 jobs:
   preview:
@@ -60,14 +61,17 @@ jobs:
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
 
       - name: Teardown previous Netlify deploys (Physical Deletion)
-        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != '' && steps.netlify.outputs.deploy-id != ''
+        if: env.NETLIFY_AUTH_TOKEN != '' && env.NETLIFY_SITE_ID != '' && steps.netlify.outputs.deploy-url != ''
         shell: bash
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          CURRENT_DEPLOY_ID: ${{ steps.netlify.outputs.deploy-id }}
+          CURRENT_DEPLOY_URL: ${{ steps.netlify.outputs.deploy-url }}
         run: |
+          CURRENT_DEPLOY_ID=$(echo "$CURRENT_DEPLOY_URL" | sed -E 's|^https?://([^.-]+)--.*|\1|')
           echo "Current active deploy ID: $CURRENT_DEPLOY_ID"
+          echo "Current active deploy URL: $CURRENT_DEPLOY_URL"
+
           echo "Querying existing deploys for site $NETLIFY_SITE_ID..."
           DEPLOYS=$(curl -s -H "Authorization: Bearer $NETLIFY_AUTH_TOKEN" \
             "https://api.netlify.com/api/v1/sites/$NETLIFY_SITE_ID/deploys?per_page=50" || echo "[]")
